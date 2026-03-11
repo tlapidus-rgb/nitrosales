@@ -48,16 +48,34 @@ export async function POST(req: Request) {
         const metaData = await metaRes.json();
 
         if (metaData.data) {
+          // First, ensure an AdCampaign record exists for "all campaigns"
+          const campaign = await prisma.adCampaign.upsert({
+            where: {
+              organizationId_externalId_platform: {
+                organizationId: org.id,
+                externalId: "all",
+                platform: "META",
+              },
+            },
+            update: { name: "All Campaigns", status: "ACTIVE" },
+            create: {
+              organizationId: org.id,
+              externalId: "all",
+              platform: "META",
+              name: "All Campaigns",
+              status: "ACTIVE",
+            },
+          });
+
           let synced = 0;
           for (const day of metaData.data) {
             const purchases = day.actions?.find((a: any) => a.action_type === "purchase")?.value || 0;
             const purchaseValue = day.action_values?.find((a: any) => a.action_type === "purchase")?.value || 0;
-            const campaignId = "meta-all-" + day.date_start;
 
             await prisma.adMetricDaily.upsert({
               where: {
                 campaignId_date: {
-                  campaignId: campaignId,
+                  campaignId: campaign.id,
                   date: new Date(day.date_start),
                 },
               },
@@ -71,7 +89,7 @@ export async function POST(req: Request) {
               create: {
                 organizationId: org.id,
                 platform: "META",
-                campaignId: campaignId,
+                campaignId: campaign.id,
                 date: new Date(day.date_start),
                 spend: parseFloat(day.spend || "0"),
                 impressions: parseInt(day.impressions || "0"),
