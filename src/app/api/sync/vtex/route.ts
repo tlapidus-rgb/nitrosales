@@ -6,8 +6,8 @@ function mapVtexStatus(vtexStatus: string): string {
   if (s.includes("cancel")) return "CANCELLED";
   if (s.includes("invoiced") || s.includes("invoice")) return "INVOICED";
   if (s.includes("shipped") || s.includes("handling")) return "SHIPPED";
-  if (s.includes("delivered") || s.includes("ready-for-handling")) return "DELIVERED";
-  if (s.includes("payment-approved") || s.includes("approve")) return "APPROVED";
+  if (s.includes("delivered")) return "DELIVERED";
+  if (s.includes("approve")) return "APPROVED";
   if (s.includes("return")) return "RETURNED";
   return "PENDING";
 }
@@ -35,11 +35,9 @@ export async function POST(req: Request) {
     const since = thirtyDaysAgo.toISOString();
     const until = now.toISOString();
 
+    // Fetch first 2 pages (100 orders max) to stay within timeout
     let allOrders: any[] = [];
-    let page = 1;
-    let hasMore = true;
-
-    while (hasMore && page <= 10) {
+    for (let page = 1; page <= 2; page++) {
       const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${since} TO ${until}]&per_page=50&page=${page}`;
       const res = await fetch(url, {
         headers: {
@@ -48,58 +46,43 @@ export async function POST(req: Request) {
           "Accept": "application/json",
         },
       });
-
       if (!res.ok) {
-        const errText = await res.text();
-        return NextResponse.json({ error: "VTEX API error", status: res.status, detail: errText.substring(0, 200) });
+        return NextResponse.json({ error: "VTEX API error", status: res.status });
       }
-
       const data = await res.json();
       const orders = data.list || [];
       allOrders = allOrders.concat(orders);
-      hasMore = orders.length === 50;
-      page++;
+      if (orders.length < 50) break;
     }
 
-    let synced = 0;
-    let errors: string[] = [];
+    // Get existing order IDs to skip them
+    const existingOrders = await prisma.order.findMany({
+      where: { organizationId: org.id },
+      select: { externalId: true },
+    });
+    const existingIds = new Set(existingOrders.map((o: any) => o.externalId));
 
-    for (const order of allOrders) {
-      try {
-        const extId = String(order.orderId);
-        const existing = await prisma.order.findFirst({ where: { externalId: extId, organizationId: org.id } });
+    // Filter only new orders
+    const newOrders = allOrders.filter((o: any) => !existingIds.has(String(o.orderId)));
 
-        if (existing) {
-          await prisma.order.update({
-            where: { id: existing.id },
-            data: {
-              status: mapVtexStatus(order.status),
-              totalValue: (order.totalValue || 0) / 100,
-              itemCount: order.totalItems || 1,
-            },
-          });
-        } else {
-          await prisma.order.create({
-            data: {
-              externalId: extId,
-              status: mapVtexStatus(order.status),
-              totalValue: (order.totalValue || 0) / 100,
-              itemCount: order.totalItems || 1,
-              currency: "ARS",
-              organizationId: org.id,
-              orderDate: new Date(order.creationDate || Date.now()),
-              paymentMethod: order.paymentNames || null,
-              channel: order.salesChannel || null,
-            },
-          });
-        }
-        synced++;
-      } catch (e: any) {
-        if (errors.length < 3) errors.push(e.message.substring(0, 150));
-      }
+    if (newOrders.length > 0) {
+      await prisma.order.createMany({
+        data: newOrders.map((order: any) => ({
+          externalId: String(order.orderId),
+          status: mapVtexStatus(order.status) as any,
+          totalValue: (order.totalValue || 0) / 100,
+          itemCount: order.totalItems || 1,
+          currency: "ARS",
+          organizationId: org.id,
+          orderDate: new Date(order.creationDate || Date.now()),
+          paymentMethod: order.paymentNames || null,
+          channel: order.salesChannel || null,
+        })),
+        skipDuplicates: true,
+      });
     }
 
-    return NextResponse.json({ ok: true, fetched: allOrders.length, synced, errors: errors.length > 0 ? errors : undefined });
+    return NextResponse.json({ ok: true, fetched: allOrders.length, new: newOrders.length, skipped: allOrders.length - newOrders.length });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
