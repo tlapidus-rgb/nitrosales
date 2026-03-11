@@ -35,7 +35,7 @@ export async function GET() {
     const totalOrders = orders.length;
     const totalSessions = webMetrics.reduce((sum: number, w: any) => sum + (w.sessions || 0), 0);
     const totalAdSpend = adMetrics.reduce((sum: number, a: any) => sum + (a.spend || 0), 0);
-    const totalAdRevenue = adMetrics.reduce((sum: number, a: any) => sum + (a.revenue || 0), 0);
+    const totalAdRevenue = adMetrics.reduce((sum: number, a: any) => sum + (a.conversionValue || 0), 0);
     const roas = totalAdSpend > 0 ? totalAdRevenue / totalAdSpend : 0;
     const conversionRate = totalSessions > 0 ? (totalOrders / totalSessions) * 100 : 0;
 
