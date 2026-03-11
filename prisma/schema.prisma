@@ -1,0 +1,397 @@
+// ══════════════════════════════════════════════════════════════
+// NITROSALES - Esquema de Base de Datos
+// ══════════════════════════════════════════════════════════════
+// Este archivo define TODA la estructura de datos de NitroSales.
+// Prisma lo convierte automáticamente en tablas de PostgreSQL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// USUARIOS Y AUTENTICACIÓN
+// ─────────────────────────────────────────────
+
+// Cada organización/empresa que usa NitroSales
+model Organization {
+  id        String   @id @default(cuid())
+  name      String                          // "El Mundo del Juguete"
+  slug      String   @unique                // "el-mundo-del-juguete" (para URLs)
+  plan      Plan     @default(STARTER)      // Plan de suscripción
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       User[]
+  connections Connection[]
+  orders      Order[]
+  products    Product[]
+  customers   Customer[]
+  adCampaigns AdCampaign[]
+  adMetrics   AdMetricDaily[]
+  webMetrics  WebMetricDaily[]
+  funnelData  FunnelDaily[]
+  botChats    BotChat[]
+  insights    Insight[]
+
+  @@map("organizations")
+}
+
+enum Plan {
+  STARTER
+  GROWTH
+  PRO
+}
+
+// Usuarios que acceden a NitroSales
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  hashedPassword String
+  role           UserRole  @default(MEMBER)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  botChats       BotChat[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+// ─────────────────────────────────────────────
+// CONEXIONES A PLATAFORMAS EXTERNAS
+// ─────────────────────────────────────────────
+
+// Cada "enchufe" que conecta NitroSales con una plataforma
+model Connection {
+  id             String           @id @default(cuid())
+  platform       Platform                        // VTEX, SHOPIFY, GA4, etc.
+  status         ConnectionStatus @default(PENDING)
+  credentials    Json                            // Credenciales encriptadas
+  lastSyncAt     DateTime?                       // Última vez que se trajeron datos
+  lastSyncError  String?                         // Si falló, qué pasó
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, platform])
+  @@map("connections")
+}
+
+enum Platform {
+  VTEX
+  SHOPIFY
+  TIENDANUBE
+  WOOCOMMERCE
+  GA4
+  GOOGLE_ADS
+  META_ADS
+  TIKTOK_ADS
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACTIVE
+  ERROR
+  DISCONNECTED
+}
+
+// ─────────────────────────────────────────────
+// DATOS DE ECOMMERCE (vienen de VTEX/Shopify/etc)
+// ─────────────────────────────────────────────
+
+// Cada orden/pedido
+model Order {
+  id              String      @id @default(cuid())
+  externalId      String                          // ID en VTEX/Shopify
+  status          OrderStatus
+  totalValue      Float                           // Valor total en la moneda del ecommerce
+  currency        String      @default("ARS")
+  itemCount       Int                             // Cantidad de productos
+  channel         String?                         // Canal de venta (web, app, marketplace)
+  trafficSource   String?                         // De dónde vino (organic, paid, direct, etc)
+  paymentMethod   String?
+  shippingCost    Float?
+  discountValue   Float?
+  deviceType      String?                         // mobile, desktop, tablet
+  orderDate       DateTime                        // Fecha del pedido
+  createdAt       DateTime    @default(now())
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  customerId      String?
+  customer        Customer?    @relation(fields: [customerId], references: [id])
+  items           OrderItem[]
+
+  @@unique([organizationId, externalId])
+  @@index([organizationId, orderDate])
+  @@index([organizationId, trafficSource])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  APPROVED
+  INVOICED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+// Productos dentro de cada orden
+model OrderItem {
+  id          String @id @default(cuid())
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id])
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+// Catálogo de productos
+model Product {
+  id            String   @id @default(cuid())
+  externalId    String                           // ID en VTEX/Shopify
+  name          String
+  sku           String?
+  category      String?
+  brand         String?
+  price         Float
+  compareAtPrice Float?                          // Precio tachado/anterior
+  imageUrl      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  orderItems     OrderItem[]
+
+  @@unique([organizationId, externalId])
+  @@map("products")
+}
+
+// Clientes/compradores
+model Customer {
+  id            String   @id @default(cuid())
+  externalId    String                           // ID en VTEX/Shopify
+  email         String?
+  firstName     String?
+  lastName      String?
+  city          String?
+  state         String?
+  country       String?
+  firstOrderAt  DateTime?                        // Fecha de primera compra
+  lastOrderAt   DateTime?                        // Fecha de última compra
+  totalOrders   Int      @default(0)             // Cantidad total de compras
+  totalSpent    Float    @default(0)             // Gasto total acumulado
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  orders         Order[]
+
+  @@unique([organizationId, externalId])
+  @@index([organizationId, lastOrderAt])
+  @@map("customers")
+}
+
+// ─────────────────────────────────────────────
+// DATOS DE PUBLICIDAD (Meta Ads + Google Ads)
+// ─────────────────────────────────────────────
+
+// Campañas publicitarias
+model AdCampaign {
+  id            String     @id @default(cuid())
+  externalId    String                           // ID en Meta/Google
+  platform      AdPlatform                       // META o GOOGLE
+  name          String
+  status        String                           // ACTIVE, PAUSED, etc.
+  objective     String?                          // CONVERSIONS, TRAFFIC, etc.
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  dailyMetrics   AdMetricDaily[]
+
+  @@unique([organizationId, externalId, platform])
+  @@map("ad_campaigns")
+}
+
+enum AdPlatform {
+  META
+  GOOGLE
+  TIKTOK
+}
+
+// Métricas diarias de publicidad (un registro por campaña por día)
+model AdMetricDaily {
+  id              String     @id @default(cuid())
+  date            DateTime   @db.Date             // El día
+  platform        AdPlatform
+  impressions     Int        @default(0)          // Veces que se mostró
+  clicks          Int        @default(0)          // Clics
+  spend           Float      @default(0)          // Gasto en USD/moneda
+  conversions     Int        @default(0)          // Compras atribuidas
+  conversionValue Float      @default(0)          // Revenue atribuido
+  reach           Int?                            // Personas únicas alcanzadas (Meta)
+  frequency       Float?                          // Frecuencia promedio (Meta)
+  qualityScore    Float?                          // Quality Score (Google)
+  impressionShare Float?                          // Impression Share (Google)
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  campaignId      String
+  campaign        AdCampaign   @relation(fields: [campaignId], references: [id])
+
+  @@unique([campaignId, date])
+  @@index([organizationId, date])
+  @@index([organizationId, platform, date])
+  @@map("ad_metrics_daily")
+}
+
+// ─────────────────────────────────────────────
+// DATOS WEB (vienen de GA4)
+// ─────────────────────────────────────────────
+
+// Métricas web diarias (un registro por día)
+model WebMetricDaily {
+  id                  String   @id @default(cuid())
+  date                DateTime @db.Date
+  sessions            Int      @default(0)
+  users               Int      @default(0)
+  newUsers            Int      @default(0)
+  pageViews           Int      @default(0)
+  avgSessionDuration  Float?                     // En segundos
+  bounceRate          Float?                     // Porcentaje
+  source              String?                    // google, facebook, direct, etc.
+  medium              String?                    // organic, cpc, referral, etc.
+  deviceCategory      String?                    // mobile, desktop, tablet
+
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, date])
+  @@index([organizationId, source, date])
+  @@map("web_metrics_daily")
+}
+
+// ─────────────────────────────────────────────
+// EMBUDO DE CONVERSIÓN (combinación de GA4 + Ecommerce)
+// ─────────────────────────────────────────────
+
+// Datos del embudo por día
+model FunnelDaily {
+  id                String   @id @default(cuid())
+  date              DateTime @db.Date
+  visitors          Int      @default(0)         // Paso 1: visitantes únicos
+  productViews      Int      @default(0)         // Paso 2: vieron un producto
+  addToCarts        Int      @default(0)         // Paso 3: agregaron al carrito
+  checkoutStarts    Int      @default(0)         // Paso 4: empezaron checkout
+  purchases         Int      @default(0)         // Paso 5: compraron
+  source            String?                      // Para filtrar por fuente
+
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, date])
+  @@map("funnel_daily")
+}
+
+// ─────────────────────────────────────────────
+// BOT DE IA
+// ─────────────────────────────────────────────
+
+// Conversaciones con el bot
+model BotChat {
+  id        String   @id @default(cuid())
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  messages       BotMessage[]
+
+  @@index([organizationId])
+  @@map("bot_chats")
+}
+
+// Mensajes individuales dentro de un chat
+model BotMessage {
+  id        String      @id @default(cuid())
+  role      MessageRole                          // USER o ASSISTANT
+  content   String                               // El texto del mensaje
+  metadata  Json?                                // Datos extra (KPIs citados, etc.)
+  createdAt DateTime    @default(now())
+
+  chatId    String
+  chat      BotChat @relation(fields: [chatId], references: [id])
+
+  @@map("bot_messages")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+// Insights automáticos generados por el bot
+model Insight {
+  id          String       @id @default(cuid())
+  type        InsightType
+  priority    InsightPriority
+  title       String                             // "Tu ROAS en Meta cayó 50%"
+  description String                             // Explicación detallada
+  action      String                             // Acción recomendada
+  metric      String?                            // KPI relacionado
+  metricValue Float?                             // Valor actual
+  metricDelta Float?                             // Cambio porcentual
+  isRead      Boolean      @default(false)
+  isDismissed Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, isRead])
+  @@map("insights")
+}
+
+enum InsightType {
+  ALERT           // Algo salió mal
+  OPPORTUNITY     // Hay algo para aprovechar
+  TREND           // Tendencia detectada
+  RECOMMENDATION  // Sugerencia proactiva
+}
+
+enum InsightPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
