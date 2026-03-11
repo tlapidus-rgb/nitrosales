@@ -2,7 +2,7 @@
   "name": "nitrosales",
   "version": "0.1.0",
   "private": true,
-  "description": "NitroSales - Inteligencia para vender mÃ¡s",
+  "description": "NitroSales - Inteligencia para vender mÃÂ¡s",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && prisma db push && next build",
@@ -31,7 +31,7 @@
     "clsx": "^2.1.0",
     "tailwind-merge": "^2.3.0",
     "date-fns": "^3.6.0",
-    "@anthropic-ai/sdk": "^0.24.0",
+    "@anthropic-ai/sdk": "^0.52.0",
     "googleapis": "^137.0.0",
     "google-auth-library": "^9.10.0",
     "facebook-nodejs-business-sdk": "^20.0.0"
