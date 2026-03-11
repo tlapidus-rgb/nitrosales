@@ -66,28 +66,36 @@ export async function POST(req: Request) {
 
     for (const order of allOrders) {
       try {
-        await prisma.order.upsert({
-          where: { externalId: String(order.orderId) },
-          update: {
-            status: mapVtexStatus(order.status),
-            totalValue: (order.totalValue || 0) / 100,
-            itemCount: order.totalItems || 1,
-          },
-          create: {
-            externalId: String(order.orderId),
-            status: mapVtexStatus(order.status),
-            totalValue: (order.totalValue || 0) / 100,
-            itemCount: order.totalItems || 1,
-            currency: "ARS",
-            organizationId: org.id,
-            orderDate: new Date(order.creationDate || Date.now()),
-            paymentMethod: order.paymentNames || null,
-            channel: order.salesChannel || null,
-          },
-        });
+        const extId = String(order.orderId);
+        const existing = await prisma.order.findFirst({ where: { externalId: extId, organizationId: org.id } });
+
+        if (existing) {
+          await prisma.order.update({
+            where: { id: existing.id },
+            data: {
+              status: mapVtexStatus(order.status),
+              totalValue: (order.totalValue || 0) / 100,
+              itemCount: order.totalItems || 1,
+            },
+          });
+        } else {
+          await prisma.order.create({
+            data: {
+              externalId: extId,
+              status: mapVtexStatus(order.status),
+              totalValue: (order.totalValue || 0) / 100,
+              itemCount: order.totalItems || 1,
+              currency: "ARS",
+              organizationId: org.id,
+              orderDate: new Date(order.creationDate || Date.now()),
+              paymentMethod: order.paymentNames || null,
+              channel: order.salesChannel || null,
+            },
+          });
+        }
         synced++;
       } catch (e: any) {
-        if (errors.length < 3) errors.push(e.message.substring(0, 100));
+        if (errors.length < 3) errors.push(e.message.substring(0, 150));
       }
     }
 
