@@ -17,12 +17,18 @@ export async function POST(req: Request) {
 
     const hashedPassword = await hash(password, 12);
 
-    const org = await prisma.organization.create({
-      data: {
-        name: "El Mundo del Juguete",
-        slug: "elmundodeljuguete",
-      },
+    let org = await prisma.organization.findFirst({
+      where: { slug: "elmundodeljuguete" },
     });
+
+    if (!org) {
+      org = await prisma.organization.create({
+        data: {
+          name: "El Mundo del Juguete",
+          slug: "elmundodeljuguete",
+        },
+      });
+    }
 
     const user = await prisma.user.create({
       data: {
