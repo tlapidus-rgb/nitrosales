@@ -2,7 +2,7 @@
   "name": "nitrosales",
   "version": "0.1.0",
   "private": true,
-  "description": "NitroSales - Inteligencia para vender más",
+  "description": "NitroSales - Inteligencia para vender mÃ¡s",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && prisma db push && next build",
