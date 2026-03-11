@@ -66,7 +66,7 @@ export async function POST(req: Request) {
                 impressions: parseInt(day.impressions || "0"),
                 clicks: parseInt(day.clicks || "0"),
                 conversions: parseInt(purchases),
-                revenue: parseFloat(purchaseValue),
+                conversionValue: parseFloat(purchaseValue),
               },
               create: {
                 organizationId: org.id,
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
                 impressions: parseInt(day.impressions || "0"),
                 clicks: parseInt(day.clicks || "0"),
                 conversions: parseInt(purchases),
-                revenue: parseFloat(purchaseValue),
+                conversionValue: parseFloat(purchaseValue),
               },
             });
             synced++;
