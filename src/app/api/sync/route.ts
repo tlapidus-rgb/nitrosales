@@ -25,11 +25,11 @@ export async function POST(req: Request) {
       results.vtex = { error: e.message };
     }
 
-    // 2. Sync GA4 - requires Google credentials (placeholder for now)
-    results.ga4 = { status: "needs_google_credentials", note: "GA4 Data API requires service account JSON or OAuth2 token" };
+    // 2. Sync GA4
+    results.ga4 = { status: "needs_google_credentials" };
 
-    // 3. Sync Google Ads (placeholder - needs OAuth token)
-    results.googleAds = { status: "needs_google_credentials", note: "Google Ads API requires developer token + OAuth2" };
+    // 3. Sync Google Ads
+    results.googleAds = { status: "needs_google_credentials" };
 
     // 4. Sync Meta Ads
     try {
@@ -52,13 +52,12 @@ export async function POST(req: Request) {
           for (const day of metaData.data) {
             const purchases = day.actions?.find((a: any) => a.action_type === "purchase")?.value || 0;
             const purchaseValue = day.action_values?.find((a: any) => a.action_type === "purchase")?.value || 0;
+            const campaignId = "meta-all-" + day.date_start;
 
             await prisma.adMetricDaily.upsert({
               where: {
-                organizationId_platform_campaignId_date: {
-                  organizationId: org.id,
-                  platform: "META",
-                  campaignId: "all",
+                campaignId_date: {
+                  campaignId: campaignId,
                   date: new Date(day.date_start),
                 },
               },
@@ -72,7 +71,7 @@ export async function POST(req: Request) {
               create: {
                 organizationId: org.id,
                 platform: "META",
-                campaignId: "all",
+                campaignId: campaignId,
                 campaignName: "All Campaigns",
                 date: new Date(day.date_start),
                 spend: parseFloat(day.spend || "0"),
@@ -89,7 +88,7 @@ export async function POST(req: Request) {
           results.metaAds = { error: "No data from Meta", raw: metaData.error?.message };
         }
       } else {
-        results.metaAds = { status: "missing_token", note: "META_ADS_ACCESS_TOKEN not set" };
+        results.metaAds = { status: "missing_token" };
       }
     } catch (e: any) {
       results.metaAds = { error: e.message };
