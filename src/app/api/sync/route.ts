@@ -72,7 +72,6 @@ export async function POST(req: Request) {
                 organizationId: org.id,
                 platform: "META",
                 campaignId: campaignId,
-                campaignName: "All Campaigns",
                 date: new Date(day.date_start),
                 spend: parseFloat(day.spend || "0"),
                 impressions: parseInt(day.impressions || "0"),
