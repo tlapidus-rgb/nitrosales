@@ -169,6 +169,7 @@ export async function GET(req: Request) {
           impressionShare: m.searchImpressionShare ? parseFloat(m.searchImpressionShare) : null,
         },
         create: {
+          organizationId: org.id,
           campaignId: dbCampaignId,
           date,
           impressions: parseInt(m.impressions || "0"),
