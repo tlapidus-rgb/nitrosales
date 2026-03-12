@@ -111,6 +111,37 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [sortField, setSortField] = useState<string>("spend");
   const [sortAsc, setSortAsc] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  function handleSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    fetch("/api/sync/trigger", { method: "POST" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok) {
+          setSyncResult("ok");
+          // Reload metrics after sync
+          Promise.all([
+            fetch("/api/metrics").then((r) => r.json()),
+            fetch("/api/metrics/trends").then((r) => r.json()),
+            fetch("/api/metrics/campaigns").then((r) => r.json()),
+          ]).then(([metricsData, trendsData, campaignsData]) => {
+            if (metricsData.summary) {
+              setSummary(metricsData.summary);
+              setChanges(metricsData.changes || null);
+            }
+            if (trendsData.days) setTrends(trendsData.days);
+            if (campaignsData.campaigns) setCampaigns(campaignsData.campaigns);
+          });
+        } else {
+          setSyncResult("error");
+        }
+      })
+      .catch(() => setSyncResult("error"))
+      .finally(() => setSyncing(false));
+  }
 
   useEffect(() => {
     Promise.all([
@@ -251,7 +282,38 @@ export default function Dashboard() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-1">Dashboard</h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium transition-colors ${
+              syncing
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : syncResult === "ok"
+                ? "bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
+                : syncResult === "error"
+                ? "bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+                : "bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+            }`}
+          >
+            {syncing ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Sincronizando...
+              </>
+            ) : syncResult === "ok" ? (
+              <>&#10003; Sincronizado</>
+            ) : syncResult === "error" ? (
+              <>&#9888; Error al sincronizar</>
+            ) : (
+              <>&#8635; Sincronizar datos</>
+            )}
+          </button>
+        </div>
         <p className="text-gray-500 mb-6">
           Ultimos 30 dias &middot; El Mundo del Juguete
         </p>
@@ -266,7 +328,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
               {kpis.map((kpi) => (
                 <div
-                     key={kpi.label}
+                  key={kpi.label}
                   className="bg-white rounded-xl shadow-sm p-4 border"
                 >
                   <div className="flex items-center justify-between">
