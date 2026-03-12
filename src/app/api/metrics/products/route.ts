@@ -10,7 +10,33 @@ export async function GET() {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Get all order items from the last 30 days with product info
+    // Get estimated totals from ALL orders (using itemCount from order list sync)
+    const allOrders = await prisma.order.findMany({
+      where: {
+        organizationId: ORG_ID,
+        orderDate: { gte: thirtyDaysAgo },
+        status: { notIn: ["CANCELLED"] },
+      },
+      select: { id: true, itemCount: true, totalValue: true },
+    });
+
+    const estimatedTotalUnits = allOrders.reduce((s, o) => s + (o.itemCount || 1), 0);
+    const estimatedTotalRevenue = allOrders.reduce((s, o) => s + o.totalValue, 0);
+
+    // Count how many orders have detailed items
+    const ordersWithItems = await prisma.order.count({
+      where: {
+        organizationId: ORG_ID,
+        orderDate: { gte: thirtyDaysAgo },
+        status: { notIn: ["CANCELLED"] },
+        items: { some: {} },
+      },
+    });
+
+    const totalOrders = allOrders.length;
+    const processedPct = totalOrders > 0 ? Math.round((ordersWithItems / totalOrders) * 100) : 0;
+
+    // Get detailed product breakdown from processed orders
     const recentItems = await prisma.orderItem.findMany({
       where: {
         order: {
@@ -19,9 +45,7 @@ export async function GET() {
           status: { notIn: ["CANCELLED"] },
         },
       },
-      include: {
-        product: true,
-      },
+      include: { product: true },
     });
 
     // Aggregate by product
@@ -41,7 +65,6 @@ export async function GET() {
           unitsSold: 0,
           revenue: 0,
           orders: new Set(),
-          avgPrice: 0,
         });
       }
 
@@ -51,7 +74,6 @@ export async function GET() {
       p.orders.add(item.orderId);
     }
 
-    // Convert to array and sort by revenue
     const products = Array.from(productMap.values())
       .map((p) => ({
         id: p.id,
@@ -66,42 +88,31 @@ export async function GET() {
       }))
       .sort((a, b) => b.revenue - a.revenue);
 
-    // Top 20 products
     const topProducts = products.slice(0, 20);
 
-    // Summary stats
-    const totalRevenue = products.reduce((s, p) => s + p.revenue, 0);
-    const totalUnits = products.reduce((s, p) => s + p.unitsSold, 0);
+    const detailedRevenue = products.reduce((s, p) => s + p.revenue, 0);
+    const detailedUnits = products.reduce((s, p) => s + p.unitsSold, 0);
     const uniqueProducts = products.length;
 
-    // Category breakdown
-    const categoryMap = new Map();
-    for (const p of products) {
-      const cat = p.category || "Sin categoria";
-      if (!categoryMap.has(cat)) {
-        categoryMap.set(cat, { category: cat, revenue: 0, units: 0, products: 0 });
-      }
-      const c = categoryMap.get(cat);
-      c.revenue += p.revenue;
-      c.units += p.unitsSold;
-      c.products++;
-    }
-    const categories = Array.from(categoryMap.values()).sort((a, b) => b.revenue - a.revenue);
-
-    // Pareto: top 20% products = ?% of revenue
+    // Pareto
     const top20pctCount = Math.max(1, Math.ceil(products.length * 0.2));
     const top20pctRevenue = products.slice(0, top20pctCount).reduce((s, p) => s + p.revenue, 0);
-    const paretoConcentration = totalRevenue > 0 ? Math.round((top20pctRevenue / totalRevenue) * 100) : 0;
+    const paretoConcentration = detailedRevenue > 0 ? Math.round((top20pctRevenue / detailedRevenue) * 100) : 0;
 
     return NextResponse.json({
       topProducts,
       summary: {
-        totalRevenue,
-        totalUnits,
+        estimatedTotalUnits,
+        estimatedTotalRevenue: Math.round(estimatedTotalRevenue),
+        totalOrders,
+        detailedUnits,
+        detailedRevenue: Math.round(detailedRevenue),
         uniqueProducts,
         paretoConcentration,
+        ordersWithItems,
+        processedPct,
+        isComplete: processedPct >= 99,
       },
-      categories,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
