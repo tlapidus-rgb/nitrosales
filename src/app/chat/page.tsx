@@ -5,12 +5,14 @@ import { useState, useRef, useEffect } from "react";
 type Message = { role: "user" | "assistant"; content: string };
 
 const SUGGESTIONS = [
-  "Dame un resumen de como viene el negocio este mes",
-  "Que campanas deberia pausar o escalar?",
-  "Cuales son los productos estrella y cuales estan cayendo?",
-  "Como puedo mejorar el ROAS de Google Ads?",
-  "Analiza el trafico web y sugeri mejoras",
-  "Que oportunidades ves para la proxima semana?",
+  "Haceme una auditoria completa del negocio",
+  "Donde esta el mayor cuello de botella de conversion?",
+  "Que campanas deberia pausar y cuales escalar?",
+  "Analiza los unit economics: CAC, LTV, ticket promedio",
+  "Dame 5 oportunidades de crecimiento que no estoy viendo",
+  "Como redistribuyo el budget entre Google y Meta?",
+  "Que productos son heroes y cuales deberia discontinuar?",
+  "Auditoria de trafico: calidad de fuentes y conversion por device",
 ];
 
 export default function ChatPage() {
@@ -18,7 +20,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hola! Soy NitroBot, tu asistente de IA para El Mundo del Juguete. Tengo acceso a todos tus datos de ventas, publicidad y trafico web en tiempo real.\n\nPreguntame lo que necesites o elegI una de las sugerencias de abajo para arrancar.",
+      content: "Soy NitroBot, tu equipo de growth en una sola herramienta. Tengo acceso en tiempo real a tus datos de ventas, publicidad (Google + Meta), trafico web, funnel de conversion, clientes y productos.\n\nCada respuesta incluye: Diagnostico + Insights + Oportunidades + Plan de accion.\n\nElegI una pregunta o haceme la tuya.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -33,48 +35,35 @@ export default function ChatPage() {
     const userMsg = (text || input).trim();
     if (!userMsg || loading) return;
     setInput("");
-    const updatedMessages: Message[] = [...messages, { role: "user", content: userMsg }];
-    setMessages(updatedMessages);
+    const updated: Message[] = [...messages, { role: "user", content: userMsg }];
+    setMessages(updated);
     setLoading(true);
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMsg,
-          history: updatedMessages.slice(1, -1),
-        }),
+        body: JSON.stringify({ message: userMsg, history: updated.slice(1, -1) }),
       });
       const data = await res.json();
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.reply || data.error || "Error desconocido" },
-      ]);
+      setMessages((prev) => [...prev, { role: "assistant", content: data.reply || data.error || "Error" }]);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Error de conexion. Intenta de nuevo." },
-      ]);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Error de conexion." }]);
     }
     setLoading(false);
   };
 
-  function formatMessage(text: string) {
+  function renderContent(text: string) {
     return text.split("\n").map((line, i) => {
-      // Bold text between **
-      const parts = line.split(/(\*\*[^*]+\*\*)/g).map((part, j) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return <strong key={j}>{part.slice(2, -2)}</strong>;
-        }
-        return part;
+      const parts = line.split(/(\*\*[^*]+\*\*)/g).map((p, j) => {
+        if (p.startsWith("**") && p.endsWith("**")) return <strong key={j} className="font-semibold">{p.slice(2, -2)}</strong>;
+        return p;
       });
-      return (
-        <span key={i}>
-          {i > 0 && <br />}
-          {parts}
-        </span>
-      );
+      // Detect headers (lines starting with ## or ###)
+      if (line.startsWith("### ")) return <h4 key={i} className="font-bold text-sm mt-3 mb-1">{line.replace("### ", "")}</h4>;
+      if (line.startsWith("## ")) return <h3 key={i} className="font-bold mt-4 mb-1">{line.replace("## ", "")}</h3>;
+      if (line.startsWith("---")) return <hr key={i} className="my-2 border-gray-200" />;
+      return <span key={i}>{i > 0 && <br />}{parts}</span>;
     });
   }
 
@@ -83,13 +72,9 @@ export default function ChatPage() {
       <nav className="bg-white shadow-sm border-b">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <a href="/dashboard" className="text-gray-400 hover:text-indigo-600 transition text-sm">
-              &larr; Dashboard
-            </a>
+            <a href="/dashboard" className="text-gray-400 hover:text-indigo-600 transition text-sm">&larr; Dashboard</a>
             <h1 className="text-xl font-bold text-indigo-600">NitroBot</h1>
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-              Datos en vivo
-            </span>
+            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">Growth AI</span>
           </div>
           <span className="text-sm text-gray-500">{session?.user?.name}</span>
         </div>
@@ -99,29 +84,25 @@ export default function ChatPage() {
         <div className="flex-1 overflow-y-auto space-y-4 mb-4">
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[85%] rounded-xl px-4 py-3 ${
-                  msg.role === "user"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-white border border-gray-200 text-gray-800 shadow-sm"
-                }`}
-              >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {formatMessage(msg.content)}
-                </p>
+              <div className={`max-w-[90%] rounded-xl px-5 py-4 ${
+                msg.role === "user"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-white border border-gray-200 text-gray-800 shadow-sm"
+              }`}>
+                <div className="text-sm leading-relaxed">{renderContent(msg.content)}</div>
               </div>
             </div>
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+              <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
                 <div className="flex items-center gap-2">
                   <div className="flex gap-1">
                     <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                     <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
                     <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                   </div>
-                  <span className="text-sm text-gray-400">Analizando datos...</span>
+                  <span className="text-sm text-gray-400">Analizando metricas en profundidad...</span>
                 </div>
               </div>
             </div>
@@ -129,17 +110,13 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Suggestions - only show when few messages */}
         {messages.length <= 2 && !loading && (
           <div className="mb-4">
-            <p className="text-xs text-gray-400 mb-2">Sugerencias rapidas:</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">Analisis estrategicos</p>
+            <div className="grid grid-cols-2 gap-2">
               {SUGGESTIONS.map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => sendMessage(s)}
-                  className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition"
-                >
+                <button key={i} onClick={() => sendMessage(s)}
+                  className="text-left text-xs bg-white border border-gray-200 text-gray-600 px-3 py-2 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition">
                   {s}
                 </button>
               ))}
@@ -149,20 +126,13 @@ export default function ChatPage() {
 
         <div className="border-t pt-4">
           <div className="flex gap-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+            <input type="text" value={input} onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              placeholder="Preguntale algo a NitroBot..."
+              placeholder="Pregunta estrategica..."
               className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              disabled={loading}
-            />
-            <button
-              onClick={() => sendMessage()}
-              disabled={loading || !input.trim()}
-              className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
-            >
+              disabled={loading} />
+            <button onClick={() => sendMessage()} disabled={loading || !input.trim()}
+              className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
               Enviar
             </button>
           </div>
