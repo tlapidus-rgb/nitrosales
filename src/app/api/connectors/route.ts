@@ -1,6 +1,5 @@
-// @ts-nocheck
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
