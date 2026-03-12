@@ -1,8 +1,44 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
+
+async function updateConnectionStatus(
+  platform: string,
+  success: boolean,
+  errorMsg?: string
+) {
+  try {
+    await prisma.connection.upsert({
+      where: {
+        organizationId_platform: {
+          organizationId: ORG_ID,
+          platform: platform as any,
+        },
+      },
+      update: {
+        status: success ? "ACTIVE" : "ERROR",
+        lastSyncAt: new Date(),
+        lastSyncError: success ? null : errorMsg || "Unknown error",
+      },
+      create: {
+        organizationId: ORG_ID,
+        platform: platform as any,
+        status: success ? "ACTIVE" : "ERROR",
+        lastSyncAt: new Date(),
+        lastSyncError: success ? null : errorMsg || "Unknown error",
+        credentials: {},
+      },
+    });
+  } catch (e) {
+    // Don't let connection tracking break the sync
+    console.error(`Failed to update connection status for ${platform}:`, e);
+  }
+}
 
 export async function POST() {
   const session = await getServerSession();
@@ -37,6 +73,7 @@ export async function POST() {
     ).then((r) => r.json()),
   ]);
 
+  // Process results and update connection statuses
   results.vtex =
     vtexRes.status === "fulfilled" ? vtexRes.value : { error: vtexRes.reason?.message };
   results.ga4 =
@@ -45,6 +82,30 @@ export async function POST() {
     gadsRes.status === "fulfilled" ? gadsRes.value : { error: gadsRes.reason?.message };
   results.metaAds =
     metaRes.status === "fulfilled" ? metaRes.value : { error: metaRes.reason?.message };
+
+  // Update connection statuses in parallel
+  await Promise.allSettled([
+    updateConnectionStatus(
+      "VTEX",
+      vtexRes.status === "fulfilled" && !results.vtex.error,
+      results.vtex.error
+    ),
+    updateConnectionStatus(
+      "GA4",
+      ga4Res.status === "fulfilled" && !results.ga4.error,
+      results.ga4.error
+    ),
+    updateConnectionStatus(
+      "GOOGLE_ADS",
+      gadsRes.status === "fulfilled" && !results.googleAds.error,
+      results.googleAds.error
+    ),
+    updateConnectionStatus(
+      "META_ADS",
+      metaRes.status === "fulfilled" && !results.metaAds.error,
+      results.metaAds.error
+    ),
+  ]);
 
   return NextResponse.json({ ok: true, results });
 }
