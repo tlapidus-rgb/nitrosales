@@ -201,7 +201,7 @@ export default function NitroInsightsPanel({ section }: { section: "dashboard" |
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                    placeholder="Pregunta sobre " + SECTION_LABELS[section].toLowerCase() + "..."
+                    placeholder={"Pregunta sobre " + SECTION_LABELS[section].toLowerCase() + "..."}
                     className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                     disabled={chatLoading}
                   />
