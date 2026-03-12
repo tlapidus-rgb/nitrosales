@@ -97,10 +97,16 @@ interface ProductItem {
 }
 
 interface ProductSummary {
-  totalRevenue: number;
-  totalUnits: number;
+  estimatedTotalUnits: number;
+  estimatedTotalRevenue: number;
+  totalOrders: number;
+  detailedUnits: number;
+  detailedRevenue: number;
   uniqueProducts: number;
   paretoConcentration: number;
+  ordersWithItems: number;
+  processedPct: number;
+  isComplete: boolean;
 }
 
 interface KpiItem {
@@ -660,15 +666,15 @@ export default function Dashboard() {
                         Top Productos por Facturacion
                       </h3>
                       <p className="text-xs text-gray-400 mt-1">
-                        {productSummary?.uniqueProducts || 0} productos vendidos &middot; Ultimos 30 dias
+                        {productSummary?.uniqueProducts || 0} productos unicos &middot; Ultimos 30 dias
                       </p>
                     </div>
                     {productSummary && (
                       <div className="flex gap-4">
                         <div className="text-right">
-                          <p className="text-xs text-gray-400">Unidades</p>
+                          <p className="text-xs text-gray-400">Unidades vendidas</p>
                           <p className="text-sm font-bold text-gray-700">
-                            {productSummary.totalUnits.toLocaleString("es-AR")}
+                            {productSummary.estimatedTotalUnits.toLocaleString("es-AR")}
                           </p>
                         </div>
                         <div className="text-right">
@@ -681,6 +687,18 @@ export default function Dashboard() {
                     )}
                   </div>
                 </div>
+                {productSummary && !productSummary.isComplete && (
+                  <div className="px-6 py-3 bg-amber-50 border-b border-amber-100">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-amber-700">
+                        Importando detalles de productos: {productSummary.ordersWithItems.toLocaleString("es-AR")} de {productSummary.totalOrders.toLocaleString("es-AR")} ordenes procesadas ({productSummary.processedPct}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-amber-200 rounded-full h-1.5 mt-2">
+                      <div className="bg-amber-500 h-1.5 rounded-full transition-all" style={{ width: productSummary.processedPct + "%" }} />
+                    </div>
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -754,12 +772,12 @@ export default function Dashboard() {
                                 <div
                                   className="bg-indigo-500 h-1.5 rounded-full"
                                   style={{
-                                    width: Math.min(100, Math.round((p.revenue / (productSummary?.totalRevenue || 1)) * 100)) + "%",
+                                    width: Math.min(100, Math.round((p.revenue / (productSummary?.estimatedTotalRevenue || 1)) * 100)) + "%",
                                   }}
                                 />
                               </div>
                               <span className="text-xs text-gray-500 w-8">
-                                {Math.round((p.revenue / (productSummary?.totalRevenue || 1)) * 100)}%
+                                {Math.round((p.revenue / (productSummary?.estimatedTotalRevenue || 1)) * 100)}%
                               </span>
                             </div>
                           </td>
