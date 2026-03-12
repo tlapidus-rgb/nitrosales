@@ -7,6 +7,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
+import NitroInsightsPanel from "@/components/NitroInsightsPanel";
 
 interface Summary {
   revenue: number; orders: number; cancelledOrders: number; cancelledRevenue: number;
@@ -140,7 +141,9 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </div>
           </div>
-        </>
+        
+              <NitroInsightsPanel section="dashboard" />
+            </>
       )}
     </div>
   );
