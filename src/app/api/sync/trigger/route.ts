@@ -35,7 +35,6 @@ async function updateConnectionStatus(
       },
     });
   } catch (e) {
-    // Don't let connection tracking break the sync
     console.error(`Failed to update connection status for ${platform}:`, e);
   }
 }
@@ -48,7 +47,6 @@ export async function POST() {
 
   const syncKey = process.env.NEXTAUTH_SECRET || "";
   const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
-
   const results: Record<string, any> = {};
 
   // Run all syncs in parallel to stay within 60s
@@ -73,15 +71,32 @@ export async function POST() {
     ).then((r) => r.json()),
   ]);
 
-  // Process results and update connection statuses
   results.vtex =
-    vtexRes.status === "fulfilled" ? vtexRes.value : { error: vtexRes.reason?.message };
+    vtexRes.status === "fulfilled"
+      ? vtexRes.value
+      : { error: vtexRes.reason?.message };
   results.ga4 =
-    ga4Res.status === "fulfilled" ? ga4Res.value : { error: ga4Res.reason?.message };
+    ga4Res.status === "fulfilled"
+      ? ga4Res.value
+      : { error: ga4Res.reason?.message };
   results.googleAds =
-    gadsRes.status === "fulfilled" ? gadsRes.value : { error: gadsRes.reason?.message };
+    gadsRes.status === "fulfilled"
+      ? gadsRes.value
+      : { error: gadsRes.reason?.message };
   results.metaAds =
-    metaRes.status === "fulfilled" ? metaRes.value : { error: metaRes.reason?.message };
+    metaRes.status === "fulfilled"
+      ? metaRes.value
+      : { error: metaRes.reason?.message };
+
+  // 5. Fetch VTEX order details (products, items, customers) for orders without items
+  try {
+    const vtexDetailsRes = await fetch(
+      baseUrl + `/api/sync/vtex-details?key=${encodeURIComponent(syncKey)}&batch=5`
+    );
+    results.vtexDetails = await vtexDetailsRes.json();
+  } catch (e: any) {
+    results.vtexDetails = { error: e.message };
+  }
 
   // Update connection statuses in parallel
   await Promise.allSettled([
