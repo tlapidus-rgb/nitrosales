@@ -10,7 +10,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Count adMetricDaily by platform and organizationId status
   const allMetrics = await prisma.adMetricDaily.findMany({
     select: { platform: true, organizationId: true, spend: true, date: true },
   });
@@ -25,7 +24,6 @@ export async function GET(req: Request) {
     else byPlatform[p].withoutOrgId++;
   }
 
-  // Count campaigns by platform
   const allCampaigns = await prisma.adCampaign.findMany({
     select: { platform: true, organizationId: true, id: true },
   });
@@ -36,7 +34,6 @@ export async function GET(req: Request) {
     campaignsByPlatform[p] = (campaignsByPlatform[p] || 0) + 1;
   }
 
-  // Check org
   const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
 
   return NextResponse.json({
