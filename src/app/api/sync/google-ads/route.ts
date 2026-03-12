@@ -177,6 +177,7 @@ export async function GET(req: Request) {
           conversions: parseFloat(m.conversions || "0"),
           conversionValue: parseFloat(m.conversionsValue || "0"),
           impressionShare: m.searchImpressionShare ? parseFloat(m.searchImpressionShare) : null,
+          platform: "GOOGLE",
         },
       });
       metricsUpserted++;
