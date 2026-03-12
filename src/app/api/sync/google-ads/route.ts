@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
-// Ã¢ÂÂÃ¢ÂÂ Google Ads OAuth: get access token from refresh token Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Google Ads OAuth: get access token from refresh token ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 async function getAccessToken(): Promise<string> {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -25,7 +25,7 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-// Ã¢ÂÂÃ¢ÂÂ Execute GAQL query via searchStream Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Execute GAQL query via searchStream ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 async function queryGoogleAds(accessToken: string, gaql: string): Promise<any[]> {
   const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID || "").replace(/-/g, "");
   const url = `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`;
@@ -56,7 +56,7 @@ async function queryGoogleAds(accessToken: string, gaql: string): Promise<any[]>
   return results;
 }
 
-// Ã¢ÂÂÃ¢ÂÂ Helper: cost_micros Ã¢ÂÂ currency Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Helper: cost_micros ÃÂ¢ÃÂÃÂ currency ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 function microsToCurrency(micros: string | number): number {
   const val = typeof micros === "string" ? parseInt(micros) : micros;
   return val / 1_000_000;
@@ -112,7 +112,7 @@ export async function GET(req: Request) {
     );
 
     // Step 3: Upsert campaigns into DB
-    const campaignMap: Record<string, string> = {}; // externalId Ã¢ÂÂ dbId
+    const campaignMap: Record<string, string> = {}; // externalId ÃÂ¢ÃÂÃÂ dbId
     for (const row of campaignResults) {
       const c = row.campaign;
       const externalId = String(c.id);
@@ -230,6 +230,13 @@ export async function GET(req: Request) {
       }
     }
 
+    // Update connection status to ACTIVE
+    await prisma.connection.upsert({
+      where: { organizationId_platform: { organizationId: org.id, platform: "GOOGLE_ADS" } },
+      update: { status: "ACTIVE", lastSyncAt: new Date(), lastSyncError: null },
+      create: { organizationId: org.id, platform: "GOOGLE_ADS", status: "ACTIVE", lastSyncAt: new Date(), lastSyncError: null, credentials: {} },
+    });
+
     return NextResponse.json({
       status: "ok",
       campaigns: campaignResults.length,
@@ -244,6 +251,17 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error("Google Ads sync error:", error);
+    // Update connection status to ERROR
+    try {
+      const errOrg = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
+      if (errOrg) {
+        await prisma.connection.upsert({
+          where: { organizationId_platform: { organizationId: errOrg.id, platform: "GOOGLE_ADS" } },
+          update: { status: "ERROR", lastSyncAt: new Date(), lastSyncError: error.message },
+          create: { organizationId: errOrg.id, platform: "GOOGLE_ADS", status: "ERROR", lastSyncAt: new Date(), lastSyncError: error.message, credentials: {} },
+        });
+      }
+    } catch (_) {}
     return NextResponse.json(
       {
         error: "Google Ads sync failed",
