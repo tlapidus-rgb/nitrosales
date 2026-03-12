@@ -74,6 +74,15 @@ interface Campaign {
   roas: number;
 }
 
+interface Connector {
+  platform: string;
+  label: string;
+  status: string;
+  lastSyncAt: string | null;
+  lastSyncError: string | null;
+  latestDataAt: string | null;
+}
+
 function formatARS(n: number) {
   return "$ " + Math.round(n).toLocaleString("es-AR");
 }
@@ -113,6 +122,7 @@ export default function Dashboard() {
   const [sortAsc, setSortAsc] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [connectors, setConnectors] = useState<Connector[]>([]);
 
   function handleSync() {
     setSyncing(true);
@@ -122,18 +132,20 @@ export default function Dashboard() {
       .then((data) => {
         if (data.ok) {
           setSyncResult("ok");
-          // Reload metrics after sync
+          // Reload metrics + connectors after sync
           Promise.all([
             fetch("/api/metrics").then((r) => r.json()),
             fetch("/api/metrics/trends").then((r) => r.json()),
             fetch("/api/metrics/campaigns").then((r) => r.json()),
-          ]).then(([metricsData, trendsData, campaignsData]) => {
+            fetch("/api/connectors").then((r) => r.json()),
+          ]).then(([metricsData, trendsData, campaignsData, connectorsData]) => {
             if (metricsData.summary) {
               setSummary(metricsData.summary);
               setChanges(metricsData.changes || null);
             }
             if (trendsData.days) setTrends(trendsData.days);
             if (campaignsData.campaigns) setCampaigns(campaignsData.campaigns);
+            if (connectorsData.connectors) setConnectors(connectorsData.connectors);
           });
         } else {
           setSyncResult("error");
@@ -148,8 +160,9 @@ export default function Dashboard() {
       fetch("/api/metrics").then((r) => r.json()),
       fetch("/api/metrics/trends").then((r) => r.json()),
       fetch("/api/metrics/campaigns").then((r) => r.json()),
+      fetch("/api/connectors").then((r) => r.json()),
     ])
-      .then(([metricsData, trendsData, campaignsData]) => {
+      .then(([metricsData, trendsData, campaignsData, connectorsData]) => {
         if (metricsData.summary) {
           setSummary(metricsData.summary);
           setChanges(metricsData.changes || null);
@@ -158,6 +171,7 @@ export default function Dashboard() {
         }
         if (trendsData.days) setTrends(trendsData.days);
         if (campaignsData.campaigns) setCampaigns(campaignsData.campaigns);
+        if (connectorsData.connectors) setConnectors(connectorsData.connectors);
       })
       .catch(() => setError("Error de conexion"))
       .finally(() => setLoading(false));
@@ -600,22 +614,51 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <div className="bg-white rounded-xl shadow-sm p-6 border">
                 <h3 className="font-semibold text-gray-700 mb-3">
-                  Conectores activos
+                  Conectores
                 </h3>
-                <div className="space-y-2">
-                  {[
-                    "VTEX - Ecommerce",
-                    "Google Analytics 4",
-                    "Google Ads",
-                    "Meta Ads",
-                  ].map((c) => (
+                <div className="space-y-3">
+                  {(connectors.length > 0
+                    ? connectors
+                    : [
+                        { platform: "VTEX", label: "VTEX - Ecommerce", status: "PENDING", lastSyncAt: null, lastSyncError: null, latestDataAt: null },
+                        { platform: "GA4", label: "Google Analytics 4", status: "PENDING", lastSyncAt: null, lastSyncError: null, latestDataAt: null },
+                        { platform: "GOOGLE_ADS", label: "Google Ads", status: "PENDING", lastSyncAt: null, lastSyncError: null, latestDataAt: null },
+                        { platform: "META_ADS", label: "Meta Ads", status: "PENDING", lastSyncAt: null, lastSyncError: null, latestDataAt: null },
+                      ]
+                  ).map((c) => (
                     <div
-                      key={c}
+                      key={c.platform}
                       className="flex items-center justify-between py-1"
                     >
-                      <span className="text-sm text-gray-600">{c}</span>
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                        Conectado
+                      <div>
+                        <span className="text-sm text-gray-700 font-medium">{c.label}</span>
+                        {c.lastSyncAt && (
+                          <p className="text-xs text-gray-400">
+                            Sync: {new Date(c.lastSyncAt).toLocaleString("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        )}
+                        {c.status === "ERROR" && c.lastSyncError && (
+                          <p className="text-xs text-red-400 truncate max-w-[180px]">{c.lastSyncError}</p>
+                        )}
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          c.status === "ACTIVE"
+                            ? "bg-green-100 text-green-700"
+                            : c.status === "ERROR"
+                            ? "bg-red-100 text-red-600"
+                            : c.status === "PENDING"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {c.status === "ACTIVE"
+                          ? "Activo"
+                          : c.status === "ERROR"
+                          ? "Error"
+                          : c.status === "PENDING"
+                          ? "Pendiente"
+                          : "Desconectado"}
                       </span>
                     </div>
                   ))}
