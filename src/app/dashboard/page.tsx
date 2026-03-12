@@ -83,6 +83,14 @@ interface Connector {
   latestDataAt: string | null;
 }
 
+interface KpiItem {
+  label: string;
+  value: string;
+  sub: string;
+  changeKey?: keyof Changes;
+  inverse?: boolean;
+}
+
 function formatARS(n: number) {
   return "$ " + Math.round(n).toLocaleString("es-AR");
 }
@@ -191,7 +199,7 @@ export default function Dashboard() {
     }
   }
 
-  const kpis = summary
+  const kpis: KpiItem[] = summary
     ? [
         {
           label: "Facturacion",
@@ -233,7 +241,7 @@ export default function Dashboard() {
       ]
     : [];
 
-  const kpis2 = summary
+  const kpis2: KpiItem[] = summary
     ? [
         {
           label: "CTR",
@@ -349,7 +357,7 @@ export default function Dashboard() {
                     <p className="text-xs text-gray-500 uppercase tracking-wide">
                       {kpi.label}
                     </p>
-                    {changes && (
+                    {changes && kpi.changeKey && (
                       <ChangeIndicator
                         value={changes[kpi.changeKey]}
                         inverse={kpi.inverse}
