@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
+import NitroInsightsPanel from "@/components/NitroInsightsPanel";
 
 interface Campaign {
   id: string;
@@ -134,6 +135,8 @@ export default function CampaignsPage() {
           </div>
         </div>
       )}
+    
+      <NitroInsightsPanel section="campaigns" />
     </div>
   );
 }
