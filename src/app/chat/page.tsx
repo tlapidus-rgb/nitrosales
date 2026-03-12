@@ -4,10 +4,22 @@ import { useState, useRef, useEffect } from "react";
 
 type Message = { role: "user" | "assistant"; content: string };
 
+const SUGGESTIONS = [
+  "Dame un resumen de como viene el negocio este mes",
+  "Que campanas deberia pausar o escalar?",
+  "Cuales son los productos estrella y cuales estan cayendo?",
+  "Como puedo mejorar el ROAS de Google Ads?",
+  "Analiza el trafico web y sugeri mejoras",
+  "Que oportunidades ves para la proxima semana?",
+];
+
 export default function ChatPage() {
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hola! Soy NitroBot, tu asistente de IA para analizar metricas de ecommerce y marketing. Preguntame lo que necesites." },
+    {
+      role: "assistant",
+      content: "Hola! Soy NitroBot, tu asistente de IA para El Mundo del Juguete. Tengo acceso a todos tus datos de ventas, publicidad y trafico web en tiempo real.\n\nPreguntame lo que necesites o elegI una de las sugerencias de abajo para arrancar.",
+    },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,69 +29,125 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = input.trim();
+  const sendMessage = async (text?: string) => {
+    const userMsg = (text || input).trim();
+    if (!userMsg || loading) return;
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    const updatedMessages: Message[] = [...messages, { role: "user", content: userMsg }];
+    setMessages(updatedMessages);
     setLoading(true);
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg }),
+        body: JSON.stringify({
+          message: userMsg,
+          history: updatedMessages.slice(1, -1),
+        }),
       });
       const data = await res.json();
-      setMessages((prev) => [...prev, { role: "assistant", content: data.reply || data.error || "Error desconocido" }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.reply || data.error || "Error desconocido" },
+      ]);
     } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Error de conexion. Intenta de nuevo." }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Error de conexion. Intenta de nuevo." },
+      ]);
     }
     setLoading(false);
   };
 
+  function formatMessage(text: string) {
+    return text.split("\n").map((line, i) => {
+      // Bold text between **
+      const parts = line.split(/(\*\*[^*]+\*\*)/g).map((part, j) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <strong key={j}>{part.slice(2, -2)}</strong>;
+        }
+        return part;
+      });
+      return (
+        <span key={i}>
+          {i > 0 && <br />}
+          {parts}
+        </span>
+      );
+    });
+  }
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col">
-      <header className="border-b border-gray-800 px-6 py-4">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <nav className="bg-white shadow-sm border-b">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <a href="/dashboard" className="text-gray-400 hover:text-white transition">
+            <a href="/dashboard" className="text-gray-400 hover:text-indigo-600 transition text-sm">
               &larr; Dashboard
             </a>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-              NitroBot
-            </h1>
+            <h1 className="text-xl font-bold text-indigo-600">NitroBot</h1>
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+              Datos en vivo
+            </span>
           </div>
-          <span className="text-sm text-gray-400">{session?.user?.name}</span>
+          <span className="text-sm text-gray-500">{session?.user?.name}</span>
         </div>
-      </header>
+      </nav>
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-4 flex flex-col">
+      <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-4 flex flex-col">
         <div className="flex-1 overflow-y-auto space-y-4 mb-4">
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[80%] rounded-xl px-4 py-3 ${
+                className={`max-w-[85%] rounded-xl px-4 py-3 ${
                   msg.role === "user"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-800 text-gray-200"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-white border border-gray-200 text-gray-800 shadow-sm"
                 }`}
               >
-                <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {formatMessage(msg.content)}
+                </p>
               </div>
             </div>
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-gray-800 rounded-xl px-4 py-3">
-                <p className="text-sm text-gray-400">Pensando...</p>
+              <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                  <span className="text-sm text-gray-400">Analizando datos...</span>
+                </div>
               </div>
             </div>
           )}
           <div ref={bottomRef} />
         </div>
 
-        <div className="border-t border-gray-800 pt-4">
+        {/* Suggestions - only show when few messages */}
+        {messages.length <= 2 && !loading && (
+          <div className="mb-4">
+            <p className="text-xs text-gray-400 mb-2">Sugerencias rapidas:</p>
+            <div className="flex flex-wrap gap-2">
+              {SUGGESTIONS.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendMessage(s)}
+                  className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="border-t pt-4">
           <div className="flex gap-3">
             <input
               type="text"
@@ -87,13 +155,13 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
               placeholder="Preguntale algo a NitroBot..."
-              className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+              className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               disabled={loading}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={loading || !input.trim()}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50"
+              className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
             >
               Enviar
             </button>
