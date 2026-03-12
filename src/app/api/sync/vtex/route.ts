@@ -14,7 +14,7 @@ function mapVtexStatus(vtexStatus: string): string {
 
 export async function POST(req: Request) {
   try {
-    const { syncKey } = await req.json();
+    const { syncKey, page = 1 } = await req.json();
     if (syncKey !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
@@ -35,38 +35,39 @@ export async function POST(req: Request) {
     const since = thirtyDaysAgo.toISOString();
     const until = now.toISOString();
 
-    // Fetch first 2 pages (100 orders max) to stay within timeout
-    let allOrders: any[] = [];
-    for (let page = 1; page <= 2; page++) {
-      const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${since} TO ${until}]&per_page=50&page=${page}`;
-      const res = await fetch(url, {
-        headers: {
-          "X-VTEX-API-AppKey": appKey,
-          "X-VTEX-API-AppToken": appToken,
-          "Accept": "application/json",
-        },
-      });
-      if (!res.ok) {
-        return NextResponse.json({ error: "VTEX API error", status: res.status });
-      }
-      const data = await res.json();
-      const orders = data.list || [];
-      allOrders = allOrders.concat(orders);
-      if (orders.length < 50) break;
+    const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${since} TO ${until}]&per_page=100&page=${page}`;
+    const res = await fetch(url, {
+      headers: {
+        "X-VTEX-API-AppKey": appKey,
+        "X-VTEX-API-AppToken": appToken,
+        "Accept": "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return NextResponse.json({ error: "VTEX API error", status: res.status, detail: errText.substring(0, 200) });
     }
 
+    const data = await res.json();
+    const orders = data.list || [];
+    const paging = data.paging || {};
+    const totalPages = paging.pages || 1;
+    const totalOrders = paging.total || orders.length;
+
     // Get existing order IDs to skip them
+    const orderIds = orders.map((o: any) => String(o.orderId));
     const existingOrders = await prisma.order.findMany({
-      where: { organizationId: org.id },
+      where: { externalId: { in: orderIds }, organizationId: org.id },
       select: { externalId: true },
     });
     const existingIds = new Set(existingOrders.map((o: any) => o.externalId));
 
-    // Filter only new orders
-    const newOrders = allOrders.filter((o: any) => !existingIds.has(String(o.orderId)));
+    const newOrders = orders.filter((o: any) => !existingIds.has(String(o.orderId)));
 
+    let created = 0;
     if (newOrders.length > 0) {
-      await prisma.order.createMany({
+      const result = await prisma.order.createMany({
         data: newOrders.map((order: any) => ({
           externalId: String(order.orderId),
           status: mapVtexStatus(order.status) as any,
@@ -80,9 +81,19 @@ export async function POST(req: Request) {
         })),
         skipDuplicates: true,
       });
+      created = result.count;
     }
 
-    return NextResponse.json({ ok: true, fetched: allOrders.length, new: newOrders.length, skipped: allOrders.length - newOrders.length });
+    return NextResponse.json({
+      ok: true,
+      page,
+      totalPages,
+      totalOrders,
+      fetched: orders.length,
+      created,
+      skipped: orders.length - created,
+      hasMore: page < totalPages,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
