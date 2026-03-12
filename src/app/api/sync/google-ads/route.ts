@@ -96,9 +96,9 @@ export async function GET(req: Request) {
     const campaignResults = await queryGoogleAds(
       accessToken,
       customerId,
-      \`SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type
+      `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type
        FROM campaign
-       WHERE campaign.status != 'REMOVED'\`
+       WHERE campaign.status != 'REMOVED'`
     );
 
     let campaignsUpserted = 0;
@@ -148,13 +148,13 @@ export async function GET(req: Request) {
     const metricResults = await queryGoogleAds(
       accessToken,
       customerId,
-      \`SELECT campaign.id, segments.date,
+      `SELECT campaign.id, segments.date,
               metrics.impressions, metrics.clicks, metrics.cost_micros,
               metrics.conversions, metrics.conversions_value,
               metrics.search_impression_share
        FROM campaign
        WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-         AND campaign.status != 'REMOVED'\`
+         AND campaign.status != 'REMOVED'`
     );
 
     let metricsUpserted = 0;
