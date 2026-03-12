@@ -16,16 +16,19 @@ async function getAccessToken(): Promise<string> {
       grant_type: "refresh_token",
     }),
   });
+
   if (!response.ok) {
     const err = await response.text();
     throw new Error(`Google OAuth error: ${response.status} - ${err}`);
   }
+
   const data = await response.json();
   return data.access_token;
 }
 
 async function queryGoogleAds(accessToken: string, customerId: string, gaql: string): Promise<any[]> {
   const url = `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`;
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -36,10 +39,12 @@ async function queryGoogleAds(accessToken: string, customerId: string, gaql: str
     },
     body: JSON.stringify({ query: gaql }),
   });
+
   if (!response.ok) {
     const err = await response.text();
     throw new Error(`Google Ads API error: ${response.status} - ${err}`);
   }
+
   const batches = await response.json();
   const results: any[] = [];
   for (const batch of batches) {
@@ -91,9 +96,9 @@ export async function GET(req: Request) {
     const campaignResults = await queryGoogleAds(
       accessToken,
       customerId,
-      `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type
+      \`SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type
        FROM campaign
-       WHERE campaign.status != 'REMOVED'`
+       WHERE campaign.status != 'REMOVED'\`
     );
 
     let campaignsUpserted = 0;
@@ -102,6 +107,7 @@ export async function GET(req: Request) {
     for (const row of campaignResults) {
       const c = row.campaign;
       const externalId = String(c.id);
+
       const campaign = await prisma.adCampaign.upsert({
         where: {
           organizationId_externalId_platform: {
@@ -112,16 +118,21 @@ export async function GET(req: Request) {
         },
         update: {
           name: c.name,
-          status: c.status === "ENABLED" ? "ACTIVE" : c.status === "PAUSED" ? "PAUSED" : "ARCHIVED",
+          status:
+            c.status === "ENABLED" ? "ACTIVE" :
+            c.status === "PAUSED" ? "PAUSED" : "ARCHIVED",
         },
         create: {
           organizationId: org.id,
           externalId,
           platform: "GOOGLE",
           name: c.name,
-          status: c.status === "ENABLED" ? "ACTIVE" : c.status === "PAUSED" ? "PAUSED" : "ARCHIVED",
+          status:
+            c.status === "ENABLED" ? "ACTIVE" :
+            c.status === "PAUSED" ? "PAUSED" : "ARCHIVED",
         },
       });
+
       campaignMap[externalId] = campaign.id;
       campaignsUpserted++;
     }
@@ -130,21 +141,24 @@ export async function GET(req: Request) {
     const today = new Date();
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const startDate = thirtyDaysAgo.toISOString().split("T")[0];
     const endDate = today.toISOString().split("T")[0];
 
     const metricResults = await queryGoogleAds(
       accessToken,
       customerId,
-      `SELECT campaign.id, segments.date, metrics.impressions, metrics.clicks,
-              metrics.cost_micros, metrics.conversions, metrics.conversions_value,
+      \`SELECT campaign.id, segments.date,
+              metrics.impressions, metrics.clicks, metrics.cost_micros,
+              metrics.conversions, metrics.conversions_value,
               metrics.search_impression_share
        FROM campaign
        WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-         AND campaign.status != 'REMOVED'`
+         AND campaign.status != 'REMOVED'\`
     );
 
     let metricsUpserted = 0;
+
     for (const row of metricResults) {
       const campaignExternalId = String(row.campaign.id);
       const dbCampaignId = campaignMap[campaignExternalId];
@@ -161,12 +175,15 @@ export async function GET(req: Request) {
           },
         },
         update: {
+          organizationId: org.id,
           impressions: parseInt(m.impressions || "0"),
           clicks: parseInt(m.clicks || "0"),
           spend: microsToCurrency(m.costMicros || "0"),
           conversions: parseFloat(m.conversions || "0"),
           conversionValue: parseFloat(m.conversionsValue || "0"),
-          impressionShare: m.searchImpressionShare ? parseFloat(m.searchImpressionShare) : null,
+          impressionShare: m.searchImpressionShare
+            ? parseFloat(m.searchImpressionShare)
+            : null,
         },
         create: {
           organizationId: org.id,
@@ -177,10 +194,13 @@ export async function GET(req: Request) {
           spend: microsToCurrency(m.costMicros || "0"),
           conversions: parseFloat(m.conversions || "0"),
           conversionValue: parseFloat(m.conversionsValue || "0"),
-          impressionShare: m.searchImpressionShare ? parseFloat(m.searchImpressionShare) : null,
+          impressionShare: m.searchImpressionShare
+            ? parseFloat(m.searchImpressionShare)
+            : null,
           platform: "GOOGLE",
         },
       });
+
       metricsUpserted++;
     }
 
