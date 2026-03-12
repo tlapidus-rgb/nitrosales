@@ -1,58 +1,57 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db/client";
 
 export async function GET() {
   try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
+    if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
 
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    const [orders, webMetrics, adMetrics, funnelData] = await Promise.all([
+    // Fetch all data in parallel
+    const [orders, webMetrics, adMetrics] = await Promise.all([
       prisma.order.findMany({
-        where: { createdAt: { gte: thirtyDaysAgo } },
-        orderBy: { createdAt: "asc" },
+        where: { organizationId: org.id, orderDate: { gte: thirtyDaysAgo } },
       }),
       prisma.webMetricDaily.findMany({
-        where: { date: { gte: thirtyDaysAgo } },
+        where: { organizationId: org.id, date: { gte: thirtyDaysAgo } },
         orderBy: { date: "asc" },
       }),
       prisma.adMetricDaily.findMany({
-        where: { date: { gte: thirtyDaysAgo } },
-        orderBy: { date: "asc" },
-      }),
-      prisma.funnelDaily.findMany({
-        where: { date: { gte: thirtyDaysAgo } },
+        where: { organizationId: org.id, date: { gte: thirtyDaysAgo } },
         orderBy: { date: "asc" },
       }),
     ]);
 
-    const totalRevenue = orders.reduce((sum: number, o: any) => sum + (o.totalValue || 0), 0);
-    const totalOrders = orders.length;
-    const totalSessions = webMetrics.reduce((sum: number, w: any) => sum + (w.sessions || 0), 0);
-    const totalAdSpend = adMetrics.reduce((sum: number, a: any) => sum + (a.spend || 0), 0);
-    const totalAdRevenue = adMetrics.reduce((sum: number, a: any) => sum + (a.conversionValue || 0), 0);
-    const roas = totalAdSpend > 0 ? totalAdRevenue / totalAdSpend : 0;
-    const conversionRate = totalSessions > 0 ? (totalOrders / totalSessions) * 100 : 0;
+    // CRITICAL: Only count INVOICED, SHIPPED, and DELIVERED as real revenue
+    // CANCELLED, PENDING, APPROVED are NOT billable
+    const billableStatuses = ["INVOICED", "SHIPPED", "DELIVERED"];
+    const billableOrders = orders.filter(o => billableStatuses.includes(o.status));
+    const cancelledOrders = orders.filter(o => o.status === "CANCELLED");
+
+    const revenue = billableOrders.reduce((s, o) => s + o.totalValue, 0);
+    const totalSessions = webMetrics.reduce((s, w) => s + w.sessions, 0);
+    const adSpend = adMetrics.reduce((s, a) => s + a.spend, 0);
+    const adConversionValue = adMetrics.reduce((s, a) => s + a.conversionValue, 0);
+    const roas = adSpend > 0 ? Math.round((adConversionValue / adSpend) * 100) / 100 : 0;
+    const conversionRate = totalSessions > 0 ? Math.round((billableOrders.length / totalSessions) * 10000) / 100 : 0;
 
     return NextResponse.json({
       summary: {
-        revenue: totalRevenue,
-        orders: totalOrders,
+        revenue,
+        orders: billableOrders.length,
+        cancelledOrders: cancelledOrders.length,
+        cancelledRevenue: cancelledOrders.reduce((s, o) => s + o.totalValue, 0),
         sessions: totalSessions,
-        adSpend: totalAdSpend,
-        roas: Math.round(roas * 100) / 100,
-        conversionRate: Math.round(conversionRate * 100) / 100,
+        adSpend,
+        roas,
+        conversionRate,
+        avgTicket: billableOrders.length > 0 ? Math.round(revenue / billableOrders.length) : 0,
       },
       charts: {
-        orders,
+        orders: billableOrders,
         webMetrics,
         adMetrics,
-        funnelData,
       },
     });
   } catch (e: any) {
