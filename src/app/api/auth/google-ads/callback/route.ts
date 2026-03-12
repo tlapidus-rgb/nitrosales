@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       try {
         const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID || "").replace(/-/g, "");
         const testRes = await fetch(
-          `https://googleads.googleapis.com/v16/customers/${customerId}/googleAds:searchStream`,
+          `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`,
           {
             method: "POST",
             headers: {
