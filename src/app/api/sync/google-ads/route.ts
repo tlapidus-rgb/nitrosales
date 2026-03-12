@@ -25,7 +25,7 @@ async function getAccessToken(): Promise<string> {
 }
 
 async function queryGoogleAds(accessToken: string, customerId: string, gaql: string): Promise<any[]> {
-  const url = `https://googleads.googleapis.com/v16/customers/${customerId}/googleAds:searchStream`;
+  const url = `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`;
   const response = await fetch(url, {
     method: "POST",
     headers: {
