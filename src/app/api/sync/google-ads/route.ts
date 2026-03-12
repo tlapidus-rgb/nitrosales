@@ -31,6 +31,7 @@ async function queryGoogleAds(accessToken: string, customerId: string, gaql: str
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "developer-token": process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "",
+      "login-customer-id": (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "").replace(/-/g, ""),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ query: gaql }),
