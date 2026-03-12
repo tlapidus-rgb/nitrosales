@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-// ══════════════════════════════════════════════════════════
-// Google Ads OAuth Flow — Step 1: Redirect to Google consent
-// Visit: /api/auth/google-ads to start the flow
-// ══════════════════════════════════════════════════════════
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const clientId = process.env.GOOGLE_ADS_CLIENT_ID;
@@ -11,7 +8,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "GOOGLE_ADS_CLIENT_ID not configured" }, { status: 500 });
   }
 
-  // Build the redirect URI dynamically based on the current host
   const url = new URL(req.url);
   const baseUrl = `${url.protocol}//${url.host}`;
   const redirectUri = `${baseUrl}/api/auth/google-ads/callback`;
@@ -22,7 +18,7 @@ export async function GET(req: Request) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", "https://www.googleapis.com/auth/adwords");
   authUrl.searchParams.set("access_type", "offline");
-  authUrl.searchParams.set("prompt", "consent"); // Force consent to always get refresh_token
+  authUrl.searchParams.set("prompt", "consent");
   authUrl.searchParams.set("include_granted_scopes", "true");
 
   return NextResponse.redirect(authUrl.toString());
