@@ -20,6 +20,7 @@ async function runSync(syncKey: string) {
 
   const results: any = {
     vtex: null,
+    vtexDetails: null,
     ga4: null,
     googleAds: null,
     metaAds: null,
@@ -35,6 +36,16 @@ async function runSync(syncKey: string) {
     results.vtex = await vtexRes.json();
   } catch (e: any) {
     results.vtex = { error: e.message };
+  }
+
+  // 1b. Fetch VTEX order details (products, items, customers)
+  try {
+    const vtexDetailsRes = await fetch(
+      baseUrl + "/api/sync/vtex-details?key=" + encodeURIComponent(syncKey) + "&batch=5"
+    );
+    results.vtexDetails = await vtexDetailsRes.json();
+  } catch (e: any) {
+    results.vtexDetails = { error: e.message };
   }
 
   // 2. Sync GA4
