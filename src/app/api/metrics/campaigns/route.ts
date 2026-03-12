@@ -16,7 +16,7 @@ export async function GET() {
     const campaigns = await prisma.adCampaign.findMany({
       where: { organizationId: org.id },
       include: {
-        metrics: {
+        dailyMetrics: {
           where: { date: { gte: thirtyDaysAgo } },
         },
       },
@@ -24,11 +24,11 @@ export async function GET() {
 
     const result = campaigns
       .map((c) => {
-        const spend = c.metrics.reduce((s, m) => s + m.spend, 0);
-        const impressions = c.metrics.reduce((s, m) => s + m.impressions, 0);
-        const clicks = c.metrics.reduce((s, m) => s + m.clicks, 0);
-        const conversions = c.metrics.reduce((s, m) => s + m.conversions, 0);
-        const conversionValue = c.metrics.reduce(
+        const spend = c.dailyMetrics.reduce((s, m) => s + m.spend, 0);
+        const impressions = c.dailyMetrics.reduce((s, m) => s + m.impressions, 0);
+        const clicks = c.dailyMetrics.reduce((s, m) => s + m.clicks, 0);
+        const conversions = c.dailyMetrics.reduce((s, m) => s + m.conversions, 0);
+        const conversionValue = c.dailyMetrics.reduce(
           (s, m) => s + m.conversionValue,
           0
         );
@@ -47,7 +47,7 @@ export async function GET() {
           conversions,
           conversionValue,
           roas: spend > 0 ? Math.round((conversionValue / spend) * 100) / 100 : 0,
-          daysWithData: c.metrics.length,
+          daysWithData: c.dailyMetrics.length,
         };
       })
       .filter((c) => c.spend > 0 || c.impressions > 0)
