@@ -14,7 +14,7 @@ function mapVtexStatus(vtexStatus: string): string {
 
 export async function POST(req: Request) {
   try {
-    const { syncKey, page = 1 } = await req.json();
+    const { syncKey, page = 1, since, until } = await req.json();
     if (syncKey !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
@@ -32,10 +32,10 @@ export async function POST(req: Request) {
 
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const since = thirtyDaysAgo.toISOString();
-    const until = now.toISOString();
+    const sinceDate = since || thirtyDaysAgo.toISOString();
+    const untilDate = until || now.toISOString();
 
-    const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${since} TO ${until}]&per_page=100&page=${page}`;
+    const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${sinceDate} TO ${untilDate}]&per_page=100&page=${page}`;
     const res = await fetch(url, {
       headers: {
         "X-VTEX-API-AppKey": appKey,
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
 
     if (!res.ok) {
       const errText = await res.text();
-      return NextResponse.json({ error: "VTEX API error", status: res.status, detail: errText.substring(0, 200) });
+      return NextResponse.json({ error: "VTEX API error", status: res.status, detail: errText.substring(0, 300) });
     }
 
     const data = await res.json();
@@ -55,7 +55,6 @@ export async function POST(req: Request) {
     const totalPages = paging.pages || 1;
     const totalOrders = paging.total || orders.length;
 
-    // Get existing order IDs to skip them
     const orderIds = orders.map((o: any) => String(o.orderId));
     const existingOrders = await prisma.order.findMany({
       where: { externalId: { in: orderIds }, organizationId: org.id },
