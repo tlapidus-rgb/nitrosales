@@ -4,15 +4,25 @@ import { prisma } from "@/lib/db/client";
 export async function POST(req: Request) {
   try {
     const { syncKey } = await req.json();
+
     if (syncKey !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
-    if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
+    const org = await prisma.organization.findFirst({
+      where: { slug: "elmundodeljuguete" },
+    });
+    if (!org)
+      return NextResponse.json({ error: "Org not found" }, { status: 404 });
 
-    const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
-    const results: any = { vtex: null, ga4: null, googleAds: null, metaAds: null };
+    const baseUrl =
+      process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const results: any = {
+      vtex: null,
+      ga4: null,
+      googleAds: null,
+      metaAds: null,
+    };
 
     // 1. Sync VTEX orders
     try {
@@ -39,16 +49,26 @@ export async function POST(req: Request) {
     }
 
     // 3. Sync Google Ads
-    results.googleAds = { status: "pending_oauth_setup" };
+    try {
+      const gadsRes = await fetch(
+        baseUrl + `/api/sync/google-ads?key=${encodeURIComponent(syncKey)}`,
+        { method: "GET" }
+      );
+      results.googleAds = await gadsRes.json();
+    } catch (e: any) {
+      results.googleAds = { error: e.message };
+    }
 
     // 4. Sync Meta Ads
     try {
       const metaToken = process.env.META_ADS_ACCESS_TOKEN || "";
       const metaAdAccount = process.env.META_ADS_AD_ACCOUNT_ID || "";
-      
+
       if (metaToken && metaAdAccount) {
         const now = new Date();
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgo = new Date(
+          now.getTime() - 30 * 24 * 60 * 60 * 1000
+        );
         const since = thirtyDaysAgo.toISOString().split("T")[0];
         const until = now.toISOString().split("T")[0];
 
@@ -78,8 +98,13 @@ export async function POST(req: Request) {
 
           let synced = 0;
           for (const day of metaData.data) {
-            const purchases = day.actions?.find((a: any) => a.action_type === "purchase")?.value || 0;
-            const purchaseValue = day.action_values?.find((a: any) => a.action_type === "purchase")?.value || 0;
+            const purchases =
+              day.actions?.find((a: any) => a.action_type === "purchase")
+                ?.value || 0;
+            const purchaseValue =
+              day.action_values?.find(
+                (a: any) => a.action_type === "purchase"
+              )?.value || 0;
 
             await prisma.adMetricDaily.upsert({
               where: {
@@ -109,9 +134,16 @@ export async function POST(req: Request) {
             });
             synced++;
           }
-          results.metaAds = { ok: true, days: metaData.data.length, synced };
+          results.metaAds = {
+            ok: true,
+            days: metaData.data.length,
+            synced,
+          };
         } else {
-          results.metaAds = { error: "No data from Meta", raw: metaData.error?.message };
+          results.metaAds = {
+            error: "No data from Meta",
+            raw: metaData.error?.message,
+          };
         }
       } else {
         results.metaAds = { status: "missing_token" };
