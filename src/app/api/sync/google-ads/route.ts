@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
-// ── Google Ads OAuth: get access token from refresh token ──
+// ââ Google Ads OAuth: get access token from refresh token ââ
 async function getAccessToken(): Promise<string> {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -25,10 +25,10 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-// ── Execute GAQL query via searchStream ──
+// ââ Execute GAQL query via searchStream ââ
 async function queryGoogleAds(accessToken: string, gaql: string): Promise<any[]> {
   const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID || "").replace(/-/g, "");
-  const url = `https://googleads.googleapis.com/v16/customers/${customerId}/googleAds:searchStream`;
+  const url = `https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:searchStream`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -56,7 +56,7 @@ async function queryGoogleAds(accessToken: string, gaql: string): Promise<any[]>
   return results;
 }
 
-// ── Helper: cost_micros → currency ──
+// ââ Helper: cost_micros â currency ââ
 function microsToCurrency(micros: string | number): number {
   const val = typeof micros === "string" ? parseInt(micros) : micros;
   return val / 1_000_000;
@@ -112,7 +112,7 @@ export async function GET(req: Request) {
     );
 
     // Step 3: Upsert campaigns into DB
-    const campaignMap: Record<string, string> = {}; // externalId → dbId
+    const campaignMap: Record<string, string> = {}; // externalId â dbId
     for (const row of campaignResults) {
       const c = row.campaign;
       const externalId = String(c.id);
