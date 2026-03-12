@@ -11,11 +11,12 @@ export async function POST(req: Request) {
     const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
     if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
 
+    const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
     const results: any = { vtex: null, ga4: null, googleAds: null, metaAds: null };
 
     // 1. Sync VTEX orders
     try {
-      const vtexRes = await fetch(process.env.NEXTAUTH_URL + "/api/sync/vtex", {
+      const vtexRes = await fetch(baseUrl + "/api/sync/vtex", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ syncKey }),
@@ -26,10 +27,19 @@ export async function POST(req: Request) {
     }
 
     // 2. Sync GA4
-    results.ga4 = { status: "needs_google_credentials" };
+    try {
+      const ga4Res = await fetch(baseUrl + "/api/sync/ga4", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ syncKey }),
+      });
+      results.ga4 = await ga4Res.json();
+    } catch (e: any) {
+      results.ga4 = { error: e.message };
+    }
 
     // 3. Sync Google Ads
-    results.googleAds = { status: "needs_google_credentials" };
+    results.googleAds = { status: "pending_oauth_setup" };
 
     // 4. Sync Meta Ads
     try {
@@ -48,7 +58,6 @@ export async function POST(req: Request) {
         const metaData = await metaRes.json();
 
         if (metaData.data) {
-          // First, ensure an AdCampaign record exists for "all campaigns"
           const campaign = await prisma.adCampaign.upsert({
             where: {
               organizationId_externalId_platform: {
