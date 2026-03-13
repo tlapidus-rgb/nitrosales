@@ -52,24 +52,31 @@ const COLORS = [
   "#94a3b8", // gray (for "Otros")
 ];
 
+/* ── Types for metric toggle ──────────────────────────────── */
+
+type PieMetric = "revenue" | "unitsSold";
+
 /* ── Helpers ───────────────────────────────────────────────── */
 
 function aggregateByField(
   products: ProductItem[],
   field: "brand" | "category",
-  totalRevenue: number
+  metric: PieMetric
 ): { name: string; value: number; pct: number }[] {
   const map = new Map<string, number>();
+  let total = 0;
   for (const p of products) {
     const key = p[field] || "Sin datos";
-    map.set(key, (map.get(key) || 0) + p.revenue);
+    const v = metric === "revenue" ? p.revenue : p.unitsSold;
+    map.set(key, (map.get(key) || 0) + v);
+    total += v;
   }
 
   const sorted = [...map.entries()]
     .map(([name, value]) => ({
       name,
       value,
-      pct: totalRevenue > 0 ? Math.round((value / totalRevenue) * 100) : 0,
+      pct: total > 0 ? Math.round((value / total) * 100) : 0,
     }))
     .sort((a, b) => b.value - a.value);
 
@@ -80,7 +87,7 @@ function aggregateByField(
   const rest = sorted.slice(8);
   const othersValue = rest.reduce((s, r) => s + r.value, 0);
   const othersPct =
-    totalRevenue > 0 ? Math.round((othersValue / totalRevenue) * 100) : 0;
+    total > 0 ? Math.round((othersValue / total) * 100) : 0;
 
   return [
     ...top,
@@ -121,9 +128,10 @@ function renderCustomLabel({
 
 /* ── Custom tooltip ────────────────────────────────────────── */
 
-function PieTooltip({ active, payload }: any) {
+function PieTooltip({ active, payload, metric }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
+  const isUnits = metric === "unitsSold";
   return (
     <div
       style={{
@@ -139,7 +147,10 @@ function PieTooltip({ active, payload }: any) {
         {d.name}
       </p>
       <p style={{ color: "#6b7280" }}>
-        {formatARS(d.value)} &middot; {d.pct}%
+        {isUnits
+          ? `${d.value.toLocaleString("es-AR")} uds`
+          : formatARS(d.value)}{" "}
+        &middot; {d.pct}%
       </p>
     </div>
   );
@@ -180,6 +191,8 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [brandFilter, setBrandFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [brandMetric, setBrandMetric] = useState<PieMetric>("revenue");
+  const [categoryMetric, setCategoryMetric] = useState<PieMetric>("revenue");
 
   useEffect(() => {
     fetch("/api/metrics/products")
@@ -221,13 +234,13 @@ export default function ProductsPage() {
 
   /* ── Pie chart data ────────────────────────────────────── */
   const brandChartData = useMemo(
-    () => aggregateByField(filtered, "brand", filteredRevenue),
-    [filtered, filteredRevenue]
+    () => aggregateByField(filtered, "brand", brandMetric),
+    [filtered, brandMetric]
   );
 
   const categoryChartData = useMemo(
-    () => aggregateByField(filtered, "category", filteredRevenue),
-    [filtered, filteredRevenue]
+    () => aggregateByField(filtered, "category", categoryMetric),
+    [filtered, categoryMetric]
   );
 
   if (loading)
@@ -252,12 +265,38 @@ export default function ProductsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* Brand pie */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">
-                Ventas por Marca
-              </h3>
-              <p className="text-xs text-gray-400 mb-4">
-                Distribucion de facturacion por marca
-              </p>
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                    Ventas por Marca
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Distribucion de {brandMetric === "revenue" ? "facturacion" : "unidades vendidas"} por marca
+                  </p>
+                </div>
+                <div className="flex bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
+                  <button
+                    onClick={() => setBrandMetric("revenue")}
+                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                      brandMetric === "revenue"
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Facturacion
+                  </button>
+                  <button
+                    onClick={() => setBrandMetric("unitsSold")}
+                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                      brandMetric === "unitsSold"
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Unidades
+                  </button>
+                </div>
+              </div>
               {brandChartData.length > 0 ? (
                 <>
                   <ResponsiveContainer width="100%" height={260}>
@@ -281,7 +320,7 @@ export default function ProductsPage() {
                           />
                         ))}
                       </Pie>
-                      <Tooltip content={<PieTooltip />} />
+                      <Tooltip content={<PieTooltip metric={brandMetric} />} />
                     </PieChart>
                   </ResponsiveContainer>
                   <PieLegend data={brandChartData} />
@@ -295,12 +334,38 @@ export default function ProductsPage() {
 
             {/* Category pie */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">
-                Ventas por Categoria
-              </h3>
-              <p className="text-xs text-gray-400 mb-4">
-                Distribucion de facturacion por categoria
-              </p>
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                    Ventas por Categoria
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Distribucion de {categoryMetric === "revenue" ? "facturacion" : "unidades vendidas"} por categoria
+                  </p>
+                </div>
+                <div className="flex bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
+                  <button
+                    onClick={() => setCategoryMetric("revenue")}
+                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                      categoryMetric === "revenue"
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Facturacion
+                  </button>
+                  <button
+                    onClick={() => setCategoryMetric("unitsSold")}
+                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                      categoryMetric === "unitsSold"
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Unidades
+                  </button>
+                </div>
+              </div>
               {categoryChartData.length > 0 ? (
                 <>
                   <ResponsiveContainer width="100%" height={260}>
@@ -324,7 +389,7 @@ export default function ProductsPage() {
                           />
                         ))}
                       </Pie>
-                      <Tooltip content={<PieTooltip />} />
+                      <Tooltip content={<PieTooltip metric={categoryMetric} />} />
                     </PieChart>
                   </ResponsiveContainer>
                   <PieLegend data={categoryChartData} />
