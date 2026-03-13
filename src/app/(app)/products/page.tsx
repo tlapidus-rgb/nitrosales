@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
-import NitroInsightsPanel from "@/components/NitroInsightsPanel";
+/* NitroInsightsPanel removed — replaced by NitroAdvisorAI chat */
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -261,16 +261,145 @@ function ProductDetail({ product, totalRevenue }: { product: ProductItem; totalR
   );
 }
 
-/* ── AI Advisor Card ──────────────────────── */
-function NitroAdvisor({ insights, healthScore, loading }: { insights: Insight[]; healthScore: number; loading: boolean }) {
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+/* ── AI Advisor Chat ──────────────────────── */
+interface ChatMessage { role: "user" | "assistant"; content: string; }
+
+function NitroAdvisorAI({ insights, healthScore, loading }: { insights: Insight[]; healthScore: number; loading: boolean }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
+  const chatEndRef = { current: null as HTMLDivElement | null };
+
+  const scoreColor = healthScore >= 70 ? "#4ADE80" : healthScore >= 50 ? "#FFB800" : "#FF5E5E";
+
+  // Auto-generate initial insights summary
+  useEffect(() => {
+    if (!loading && insights.length > 0 && messages.length === 0) {
+      const urgentes = insights.filter((i) => i.type === "urgente");
+      const oportunidades = insights.filter((i) => i.type === "oportunidad");
+      const alertas = insights.filter((i) => i.type === "alerta");
+      const tips = insights.filter((i) => i.type === "tip");
+
+      let welcome = `Hola! Analice tu operacion comercial. Salud comercial: **${healthScore}%**\n\n`;
+      if (urgentes.length > 0) {
+        welcome += `**${urgentes.length} alertas urgentes:**\n`;
+        for (const u of urgentes.slice(0, 3)) welcome += `- ${u.icon} ${u.title}\n`;
+        if (urgentes.length > 3) welcome += `- ...y ${urgentes.length - 3} mas\n`;
+        welcome += `\n`;
+      }
+      if (oportunidades.length > 0) {
+        welcome += `**${oportunidades.length} oportunidades detectadas:**\n`;
+        for (const o of oportunidades.slice(0, 2)) welcome += `- ${o.icon} ${o.title}\n`;
+        welcome += `\n`;
+      }
+      if (alertas.length > 0) welcome += `**${alertas.length} alertas** de stock y concentracion.\n`;
+      if (tips.length > 0) welcome += `**${tips.length} tips** de optimizacion.\n\n`;
+      welcome += `Preguntame lo que necesites: stock, marcas, categorias, precios, tendencias, oportunidades, o cualquier analisis comercial.`;
+
+      setMessages([{ role: "assistant", content: welcome }]);
+    }
+  }, [loading, insights]);
+
+  const scrollToBottom = () => {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => { scrollToBottom(); }, [messages]);
+
+  const sendMessage = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+    setInput("");
+    setSending(true);
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
+
+    try {
+      const res = await fetch("/api/metrics/advisor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      setMessages((prev) => [...prev, { role: "assistant", content: data.response || "No pude procesar tu consulta." }]);
+    } catch {
+      setMessages((prev) => [...prev, { role: "assistant", content: "Error de conexion. Intenta de nuevo." }]);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const quickActions = [
+    { label: "Stock critico", q: "Que productos tienen stock critico?" },
+    { label: "Top sellers", q: "Cuales son los productos mas vendidos?" },
+    { label: "Oportunidades", q: "Que oportunidades de crecimiento tengo?" },
+    { label: "Diagnostico", q: "Dame un diagnostico general del negocio" },
+    { label: "Marcas", q: "Como rinden las marcas?" },
+    { label: "Busquedas", q: "Que buscan mis clientes?" },
+  ];
+
+  const renderMarkdown = (text: string) => {
+    return text.split("\n").map((line, i) => {
+      // Headers
+      if (line.startsWith("## ")) return <p key={i} className="text-sm font-bold text-gray-900 mt-3 mb-1">{line.replace("## ", "")}</p>;
+      // Bold lines with dash (list items)
+      if (line.startsWith("- **")) {
+        const parts = line.substring(2).split("**");
+        return (
+          <p key={i} className="text-sm text-gray-600 pl-3 py-0.5 border-l-2 border-gray-200 my-0.5">
+            <span className="font-semibold text-gray-800">{parts[1]}</span>{parts[2] || ""}
+          </p>
+        );
+      }
+      // Regular list items
+      if (line.startsWith("- ")) return <p key={i} className="text-sm text-gray-600 pl-3 py-0.5">{line.substring(2)}</p>;
+      // Numbered items
+      if (line.match(/^\d+\.\s/)) {
+        const parts = line.split("**");
+        if (parts.length >= 3) {
+          return (
+            <p key={i} className="text-sm text-gray-600 pl-1 py-0.5">
+              <span className="font-semibold text-gray-800">{parts[0]}{parts[1]}</span>{parts[2]}
+            </p>
+          );
+        }
+        return <p key={i} className="text-sm text-gray-600 pl-1 py-0.5">{line}</p>;
+      }
+      // Table rows
+      if (line.startsWith("|") && !line.startsWith("|---")) {
+        const cells = line.split("|").filter(Boolean).map((c) => c.trim());
+        if (cells.length >= 2) {
+          return (
+            <div key={i} className="flex justify-between text-sm py-0.5 px-2 even:bg-gray-50 rounded">
+              <span className="text-gray-500">{cells[0]}</span>
+              <span className="font-mono font-medium text-gray-900">{cells[1]}</span>
+            </div>
+          );
+        }
+      }
+      if (line.startsWith("|---")) return null;
+      // Bold text inline
+      if (line.includes("**")) {
+        const parts = line.split("**");
+        return (
+          <p key={i} className="text-sm text-gray-600 my-0.5">
+            {parts.map((part, j) => j % 2 === 1 ? <span key={j} className="font-semibold text-gray-800">{part}</span> : part)}
+          </p>
+        );
+      }
+      // Empty line
+      if (line.trim() === "") return <div key={i} className="h-2" />;
+      // Normal text
+      return <p key={i} className="text-sm text-gray-600 my-0.5">{line}</p>;
+    });
+  };
 
   if (loading) {
     return (
       <div className="nitro-card bg-white border border-gray-200 rounded-[16px] p-6 mb-6 animate-fade-in-up">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center animate-pulse" style={{ background: "linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 100%)" }}>
-            <span className="text-white text-lg">&#x2728;</span>
+            <span className="text-white text-lg">&#x1F9E0;</span>
           </div>
           <div>
             <div className="h-4 w-48 bg-gray-200 rounded animate-pulse mb-1" />
@@ -281,97 +410,106 @@ function NitroAdvisor({ insights, healthScore, loading }: { insights: Insight[];
     );
   }
 
-  if (insights.length === 0) return null;
-
-  const typeStyles: Record<string, { bg: string; border: string; accent: string; label: string }> = {
-    urgente: { bg: "rgba(255, 94, 94, 0.04)", border: "rgba(255, 94, 94, 0.15)", accent: "#FF5E5E", label: "URGENTE" },
-    oportunidad: { bg: "rgba(74, 222, 128, 0.04)", border: "rgba(74, 222, 128, 0.15)", accent: "#4ADE80", label: "OPORTUNIDAD" },
-    alerta: { bg: "rgba(255, 184, 0, 0.04)", border: "rgba(255, 184, 0, 0.15)", accent: "#FFB800", label: "ALERTA" },
-    tip: { bg: "rgba(6, 182, 212, 0.04)", border: "rgba(6, 182, 212, 0.15)", accent: "#06b6d4", label: "TIP" },
-  };
-
-  const scoreColor = healthScore >= 70 ? "#4ADE80" : healthScore >= 50 ? "#FFB800" : "#FF5E5E";
-
   return (
     <div className="nitro-card bg-white border border-gray-200 rounded-[16px] overflow-hidden mb-6 animate-fade-in-up" style={{ boxShadow: "0 0 80px rgba(255, 94, 26, 0.06)" }}>
       {/* Header */}
-      <div className="p-6 border-b border-gray-200" style={{ background: "linear-gradient(135deg, rgba(255, 94, 26, 0.02) 0%, rgba(255, 46, 46, 0.02) 100%)" }}>
+      <div className="p-5 border-b border-gray-200 cursor-pointer" style={{ background: "linear-gradient(135deg, rgba(255, 94, 26, 0.03) 0%, rgba(255, 46, 46, 0.02) 100%)" }} onClick={() => setIsOpen(!isOpen)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 100%)", boxShadow: "0 4px 15px rgba(255, 94, 26, 0.3)" }}>
               <span className="text-white text-lg">&#x1F9E0;</span>
             </div>
             <div>
-              <h3 className="text-base font-semibold text-gray-900">Nitro Advisor</h3>
-              <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">Analisis comercial inteligente</p>
+              <h3 className="text-base font-semibold text-gray-900">Nitro Advisor AI</h3>
+              <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">Consultor comercial inteligente</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Salud Comercial</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <div className="w-20 bg-gray-200 rounded-full h-2">
-                  <div className="h-2 rounded-full transition-all duration-1000" style={{ width: `${healthScore}%`, background: scoreColor }} />
+            {healthScore > 0 && (
+              <div className="text-right">
+                <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Salud</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <div className="w-16 bg-gray-200 rounded-full h-2">
+                    <div className="h-2 rounded-full transition-all duration-1000" style={{ width: `${healthScore}%`, background: scoreColor }} />
+                  </div>
+                  <span className="text-sm font-bold font-mono" style={{ color: scoreColor }}>{healthScore}%</span>
                 </div>
-                <span className="text-sm font-bold font-mono" style={{ color: scoreColor }}>{healthScore}%</span>
               </div>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Insights</p>
-              <p className="text-sm font-bold font-mono text-gray-900">{insights.length}</p>
-            </div>
+            )}
+            <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
         </div>
       </div>
 
-      {/* Insights list */}
-      <div className="divide-y divide-gray-100">
-        {insights.map((insight, idx) => {
-          const style = typeStyles[insight.type];
-          const isExpanded = expandedIdx === idx;
-          return (
-            <div
-              key={idx}
-              className="px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors duration-200"
-              onClick={() => setExpandedIdx(isExpanded ? null : idx)}
-            >
-              <div className="flex items-start gap-3">
-                <span className="text-lg flex-shrink-0 mt-0.5">{insight.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md uppercase tracking-wider" style={{ background: style.bg, border: `1px solid ${style.border}`, color: style.accent }}>
-                      {style.label}
-                    </span>
-                    {insight.metric && (
-                      <span className="text-[10px] font-mono text-gray-400">{insight.metric}</span>
-                    )}
-                  </div>
-                  <p className="text-sm font-medium text-gray-900 leading-snug">{insight.title}</p>
-                  <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? "max-h-40 opacity-100 mt-2" : "max-h-0 opacity-0"}`}>
-                    <p className="text-sm text-gray-500 leading-relaxed">{insight.detail}</p>
-                    {insight.tags && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {insight.tags.map((tag) => (
-                          <span key={tag} className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-gray-100 text-gray-400 border border-gray-200">#{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+      {/* Chat body */}
+      <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? "max-h-[700px]" : "max-h-0"}`}>
+        {/* Messages */}
+        <div className="overflow-y-auto px-5 py-4 space-y-4" style={{ maxHeight: "460px" }}>
+          {messages.map((msg, idx) => (
+            <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              {msg.role === "assistant" && (
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center mr-2 mt-1 flex-shrink-0" style={{ background: "linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 100%)" }}>
+                  <span className="text-white text-xs">&#x1F9E0;</span>
                 </div>
-                <svg className={`w-4 h-4 text-gray-300 flex-shrink-0 mt-1 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
+              )}
+              <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === "user" ? "bg-gray-900 text-white" : "bg-gray-50 border border-gray-200"}`} style={msg.role === "user" ? {} : {}}>
+                {msg.role === "user" ? (
+                  <p className="text-sm">{msg.content}</p>
+                ) : (
+                  <div>{renderMarkdown(msg.content)}</div>
+                )}
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+          {sending && (
+            <div className="flex justify-start">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center mr-2 mt-1 flex-shrink-0" style={{ background: "linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 100%)" }}>
+                <span className="text-white text-xs">&#x1F9E0;</span>
+              </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-nitro-orange animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-2 h-2 rounded-full bg-nitro-orange animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="w-2 h-2 rounded-full bg-nitro-orange animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={(el) => { chatEndRef.current = el; }} />
+        </div>
 
-      {/* Footer */}
-      <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
-        <p className="text-[10px] font-mono text-gray-400 text-center uppercase tracking-widest">
-          Analisis basado en ventas, stock y busquedas GA4 de los ultimos 30 dias
-        </p>
+        {/* Quick actions */}
+        {messages.length <= 1 && (
+          <div className="px-5 pb-3">
+            <div className="flex flex-wrap gap-2">
+              {quickActions.map((a) => (
+                <button key={a.label} onClick={() => { setInput(a.q); setTimeout(() => { setInput(""); setSending(true); setMessages((prev) => [...prev, { role: "user", content: a.q }]); fetch("/api/metrics/advisor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: a.q }) }).then((r) => r.json()).then((d) => setMessages((prev) => [...prev, { role: "assistant", content: d.response }])).catch(() => setMessages((prev) => [...prev, { role: "assistant", content: "Error de conexion." }])).finally(() => setSending(false)); }, 50); }} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-nitro-orange hover:text-nitro-orange transition-all duration-200 bg-white">
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Input */}
+        <div className="px-5 pb-5 pt-2 border-t border-gray-100">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Preguntale a Nitro Advisor AI..."
+              className="flex-1 text-sm px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-nitro-orange focus:ring-1 focus:ring-nitro-orange/20 transition-all duration-200"
+              disabled={sending}
+            />
+            <button onClick={sendMessage} disabled={sending || !input.trim()} className="px-4 py-2.5 rounded-xl text-white text-sm font-medium transition-all duration-200 disabled:opacity-40" style={{ background: "linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 100%)" }}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -684,14 +822,12 @@ export default function ProductsPage() {
             </div>
           )}
 
-          {/* ── AI Advisor ────────────────── */}
+          {/* ── Nitro Advisor AI Chat ────────────────── */}
           <div className="mt-6">
-            <NitroAdvisor insights={aiInsights} healthScore={aiHealthScore} loading={aiLoading} />
+            <NitroAdvisorAI insights={aiInsights} healthScore={aiHealthScore} loading={aiLoading} />
           </div>
         </>
       )}
-
-      <NitroInsightsPanel section="products" />
     </div>
   );
 }
