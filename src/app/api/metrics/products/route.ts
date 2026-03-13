@@ -10,16 +10,16 @@ export async function GET() {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    /* ── Run all 3 queries in PARALLEL ──────────────────────────── */
-    const [orderTotals, ordersWithItems, productStats] = await Promise.all([
+    /* ── Run all queries in PARALLEL ──────────────────────────── */
+    const [orderTotals, ordersWithItems, productStats, stockMeta] = await Promise.all([
       /* 1) Aggregate order totals — single row, no data loaded into JS */
       prisma.$queryRaw<
         [{ total_orders: bigint; total_units: bigint; total_revenue: number }]
       >`
         SELECT
-          COUNT(*)::bigint           AS total_orders,
-          SUM(COALESCE("itemCount", 1))::bigint AS total_units,
-          SUM("totalValue")          AS total_revenue
+          COUNT(*)::bigint                       AS total_orders,
+          SUM(COALESCE("itemCount", 1))::bigint  AS total_units,
+          SUM("totalValue")                      AS total_revenue
         FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
@@ -37,8 +37,8 @@ export async function GET() {
       }),
 
       /* 3) Product aggregation in SQL — the big win.
-         Instead of loading ALL OrderItems + Products into JS,
-         the DB does GROUP BY and returns ~one row per product. */
+            Instead of loading ALL OrderItems + Products into JS,
+            the DB does GROUP BY and returns ~one row per product. */
       prisma.$queryRaw<
         {
           id: string;
@@ -48,33 +48,39 @@ export async function GET() {
           category: string | null;
           brand: string | null;
           stock: number | null;
-          stockUpdatedAt: Date | null;
           unitsSold: bigint;
           revenue: number;
           orders: bigint;
         }[]
       >`
         SELECT
-          oi."productId"                       AS id,
-          COALESCE(p.name, 'Sin nombre')       AS name,
+          oi."productId"                          AS id,
+          COALESCE(p.name, 'Sin nombre')          AS name,
           p.sku,
-          p."imageUrl"                         AS "imageUrl",
+          p."imageUrl"                            AS "imageUrl",
           p.category,
           p.brand,
           p.stock,
-          p."stockUpdatedAt"                   AS "stockUpdatedAt",
-          SUM(oi.quantity)::bigint              AS "unitsSold",
-          ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
-          COUNT(DISTINCT oi."orderId")::bigint  AS orders
+          SUM(oi.quantity)::bigint                AS "unitsSold",
+          ROUND(SUM(oi."totalPrice")::numeric)    AS revenue,
+          COUNT(DISTINCT oi."orderId")::bigint    AS orders
         FROM order_items oi
-        JOIN orders  o ON oi."orderId"   = o.id
+        JOIN orders o ON oi."orderId" = o.id
         LEFT JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${thirtyDaysAgo}
+          AND o."orderDate"    >= ${thirtyDaysAgo}
           AND o.status NOT IN ('CANCELLED')
-        GROUP BY oi."productId", p.name, p.sku, p."imageUrl",
-                 p.category, p.brand, p.stock, p."stockUpdatedAt"
+        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand, p.stock
         ORDER BY SUM(oi."totalPrice") DESC
+      `,
+
+      /* 4) Stock sync freshness — when was stock last updated? */
+      prisma.$queryRaw<[{ max_stock_updated: Date | null; total_active: bigint }]>`
+        SELECT
+          MAX("stockUpdatedAt") AS max_stock_updated,
+          COUNT(*)::bigint AS total_active
+        FROM products
+        WHERE "organizationId" = ${ORG_ID} AND "isActive" = true
       `,
     ]);
 
@@ -83,11 +89,17 @@ export async function GET() {
     const totalOrders = Number(row.total_orders);
     const estimatedTotalUnits = Number(row.total_units) || totalOrders;
     const estimatedTotalRevenue = Math.round(Number(row.total_revenue) || 0);
-
     const processedPct =
       totalOrders > 0
         ? Math.round((ordersWithItems / totalOrders) * 100)
         : 0;
+
+    /* ── Stock sync freshness ─────────────────────────────────── */
+    const stockRow = stockMeta[0];
+    const stockSyncedAt = stockRow?.max_stock_updated
+      ? new Date(stockRow.max_stock_updated).toISOString()
+      : null;
+    const totalActiveProducts = Number(stockRow?.total_active || 0);
 
     /* ── Map product rows (already aggregated by DB) ────────────── */
     const products = productStats.map((p) => {
@@ -100,8 +112,7 @@ export async function GET() {
         imageUrl: p.imageUrl || null,
         category: p.category || null,
         brand: p.brand || null,
-        stock: p.stock ?? null,
-        stockUpdatedAt: p.stockUpdatedAt || null,
+        stock: p.stock != null ? Number(p.stock) : null,
         unitsSold: units,
         revenue: Math.round(rev),
         orders: Number(p.orders),
@@ -124,17 +135,15 @@ export async function GET() {
         : 0;
 
     /* ── Unique brands & categories for filters ─────────────────── */
-    const brands = [
-      ...new Set(products.map((p) => p.brand).filter(Boolean)),
-    ].sort();
-    const categories = [
-      ...new Set(products.map((p) => p.category).filter(Boolean)),
-    ].sort();
+    const brands = [...new Set(products.map((p) => p.brand).filter(Boolean) as string[])].sort();
+    const categories = [...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort();
 
     return NextResponse.json({
       products,
       brands,
       categories,
+      stockSyncedAt,
+      totalActiveProducts,
       summary: {
         estimatedTotalUnits,
         estimatedTotalRevenue,
