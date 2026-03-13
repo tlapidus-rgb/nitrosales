@@ -17,23 +17,23 @@ const TYPE_CONFIG: Record<
 > = {
   ALERT: {
     icon: "\u26A0\uFE0F",
-    color: "text-red-700",
-    bg: "bg-red-50",
-    border: "border-red-200",
+    color: "#FF5E5E",
+    bg: "rgba(255, 94, 94, 0.06)",
+    border: "rgba(255, 94, 94, 0.2)",
     label: "Alerta",
   },
   OPPORTUNITY: {
     icon: "\uD83D\uDCA1",
-    color: "text-amber-700",
-    bg: "bg-amber-50",
-    border: "border-amber-200",
+    color: "#FFB800",
+    bg: "rgba(255, 184, 0, 0.06)",
+    border: "rgba(255, 184, 0, 0.2)",
     label: "Oportunidad",
   },
   TREND: {
     icon: "\uD83D\uDCC8",
-    color: "text-emerald-700",
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
+    color: "#4ADE80",
+    bg: "rgba(74, 222, 128, 0.06)",
+    border: "rgba(74, 222, 128, 0.2)",
     label: "Tendencia",
   },
 };
@@ -119,7 +119,7 @@ export default function NitroInsightsPanel({
       const parts = line.split(/(\*\*[^*]+\*\*)/g).map((p, j) => {
         if (p.startsWith("**") && p.endsWith("**"))
           return (
-            <strong key={j} className="font-semibold">
+            <strong key={j} className="font-semibold text-white">
               {p.slice(2, -2)}
             </strong>
           );
@@ -127,18 +127,18 @@ export default function NitroInsightsPanel({
       });
       if (line.startsWith("### "))
         return (
-          <h4 key={i} className="font-bold text-sm mt-3 mb-1">
+          <h4 key={i} className="font-bold text-sm mt-3 mb-1 text-white">
             {line.replace("### ", "")}
           </h4>
         );
       if (line.startsWith("## "))
         return (
-          <h3 key={i} className="font-bold mt-4 mb-1">
+          <h3 key={i} className="font-bold mt-4 mb-1 text-white">
             {line.replace("## ", "")}
           </h3>
         );
       if (line.startsWith("---"))
-        return <hr key={i} className="my-2 border-gray-200" />;
+        return <hr key={i} className="my-2 border-nitro-border" />;
       return (
         <span key={i}>
           {i > 0 && <br />}
@@ -149,14 +149,38 @@ export default function NitroInsightsPanel({
   }
 
   return (
-    <div className="mt-8">
-      {/* Insights Panel */}
-      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-indigo-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{"\uD83E\uDD16"}</span>
-            <h3 className="font-semibold text-indigo-800">NitroBot</h3>
-            <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
+    <div className="mt-8 animate-fade-in-up" style={{ animationDelay: "300ms" }}>
+      {/* ── AI Panel ─────────────────────────────────────── */}
+      <div
+        className="nitro-card rounded-[16px] border overflow-hidden"
+        style={{
+          background: "#161616",
+          borderColor: "rgba(255, 94, 26, 0.3)",
+          boxShadow: "0 0 80px rgba(255, 94, 26, 0.08)",
+        }}
+      >
+        {/* Header */}
+        <div
+          className="px-6 py-4 border-b flex items-center justify-between"
+          style={{ borderColor: "rgba(255, 94, 26, 0.15)", background: "rgba(255, 94, 26, 0.03)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-xs"
+              style={{ background: "var(--nitro-gradient)" }}
+            >
+              <span className="text-sm">{"\uD83E\uDD16"}</span>
+            </div>
+            <h3 className="font-semibold text-white">NitroAI</h3>
+            <span
+              className="badge-nitro text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1.5"
+              style={{
+                background: "rgba(255, 94, 26, 0.1)",
+                border: "1px solid rgba(255, 94, 26, 0.2)",
+                color: "#FF5E1A",
+              }}
+            >
+              <span className="w-1 h-1 rounded-full bg-nitro-green animate-pulse-live" />
               Insights de {SECTION_LABELS[section]}
             </span>
           </div>
@@ -167,76 +191,74 @@ export default function NitroInsightsPanel({
                 fetch("/api/insights?section=" + section)
                   .then((r) => r.json())
                   .then((data) => {
-                    if (data.insights)
-                      setInsights(data.insights.slice(0, 3));
+                    if (data.insights) setInsights(data.insights.slice(0, 3));
                   })
                   .catch(() => {})
                   .finally(() => setLoading(false));
               }}
-              className="text-xs text-indigo-500 hover:text-indigo-700 transition"
+              className="text-xs text-nitro-muted hover:text-nitro-orange transition-colors duration-300 font-mono uppercase tracking-wider"
             >
               {"\u21BB"} Regenerar
             </button>
           )}
         </div>
 
+        {/* Content */}
         <div className="p-6">
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="bg-white rounded-lg border border-gray-100 p-4 animate-pulse"
+                  className="rounded-xl border border-nitro-border p-4"
+                  style={{ background: "#111111" }}
                 >
-                  <div className="h-4 bg-gray-200 rounded w-2/3 mb-3" />
-                  <div className="h-3 bg-gray-100 rounded w-full mb-2" />
-                  <div className="h-3 bg-gray-100 rounded w-4/5 mb-4" />
-                  <div className="h-3 bg-indigo-100 rounded w-3/4" />
+                  <div className="h-4 animate-shimmer rounded w-2/3 mb-3" />
+                  <div className="h-3 animate-shimmer rounded w-full mb-2" />
+                  <div className="h-3 animate-shimmer rounded w-4/5 mb-4" />
+                  <div className="h-3 rounded w-3/4" style={{ background: "rgba(255, 94, 26, 0.1)" }} />
                 </div>
               ))}
             </div>
           ) : error ? (
-            <p className="text-sm text-gray-500 text-center py-4">
+            <p className="text-sm text-nitro-muted text-center py-4">
               No se pudieron cargar los insights. Intenta recargar.
             </p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 stagger-children">
               {insights.map((insight, idx) => {
-                const config =
-                  TYPE_CONFIG[insight.type] || TYPE_CONFIG.TREND;
+                const config = TYPE_CONFIG[insight.type] || TYPE_CONFIG.TREND;
                 return (
                   <div
                     key={idx}
-                    className={
-                      "bg-white rounded-lg border p-4 " +
-                      config.border +
-                      " hover:shadow-md transition"
-                    }
+                    className="rounded-xl border p-4 transition-all duration-300 ease-nitro hover:translate-y-[-2px]"
+                    style={{
+                      background: config.bg,
+                      borderColor: config.border,
+                    }}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-sm">{config.icon}</span>
                       <span
-                        className={
-                          "text-xs font-semibold uppercase " + config.color
-                        }
+                        className="font-mono text-[10px] font-bold uppercase tracking-widest"
+                        style={{ color: config.color }}
                       >
                         {config.label}
                       </span>
                     </div>
-                    <h4 className="font-semibold text-gray-800 text-sm mb-2">
+                    <h4 className="font-semibold text-white text-sm mb-2">
                       {insight.title}
                     </h4>
-                    <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+                    <p className="text-xs text-nitro-text2 mb-3 leading-relaxed">
                       {insight.description}
                     </p>
                     <div
-                      className={
-                        "text-xs font-medium " +
-                        config.color +
-                        " " +
-                        config.bg +
-                        " px-3 py-1.5 rounded-lg"
-                      }
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1"
+                      style={{
+                        background: "rgba(74, 222, 128, 0.08)",
+                        border: "1px solid rgba(74, 222, 128, 0.2)",
+                        color: "#4ADE80",
+                      }}
                     >
                       {"\u2192"} {insight.action}
                     </div>
@@ -246,37 +268,55 @@ export default function NitroInsightsPanel({
             </div>
           )}
 
-          {/* Mini-chat section */}
+          {/* ── Mini-chat section ──────────────────────────── */}
           <div className="mt-4">
             {!chatOpen ? (
               <button
                 onClick={() => setChatOpen(true)}
-                className="w-full flex items-center gap-2 px-4 py-3 bg-white border border-indigo-200 rounded-lg text-sm text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition"
+                className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm transition-all duration-300 ease-nitro"
+                style={{
+                  background: "rgba(255, 94, 26, 0.05)",
+                  border: "1px solid rgba(255, 94, 26, 0.15)",
+                  color: "#FF5E1A",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 94, 26, 0.1)";
+                  e.currentTarget.style.borderColor = "rgba(255, 94, 26, 0.3)";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 94, 26, 0.05)";
+                  e.currentTarget.style.borderColor = "rgba(255, 94, 26, 0.15)";
+                }}
               >
                 <span>{"\uD83D\uDCAC"}</span>
                 <span>
-                  Preguntale mas a NitroBot sobre{" "}
+                  Preguntale mas a NitroAI sobre{" "}
                   {SECTION_LABELS[section].toLowerCase()}...
                 </span>
               </button>
             ) : (
-              <div className="bg-white rounded-lg border border-indigo-200 overflow-hidden">
-                <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-                  <span className="text-xs font-medium text-gray-500">
-                    Chat con NitroBot
+              <div
+                className="rounded-xl border overflow-hidden"
+                style={{ borderColor: "rgba(255, 94, 26, 0.2)", background: "#111111" }}
+              >
+                <div
+                  className="px-4 py-2 border-b flex items-center justify-between"
+                  style={{ borderColor: "rgba(255, 94, 26, 0.1)", background: "rgba(255, 94, 26, 0.03)" }}
+                >
+                  <span className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">
+                    Chat con NitroAI
                   </span>
                   <button
                     onClick={() => setChatOpen(false)}
-                    className="text-xs text-gray-400 hover:text-gray-600"
+                    className="text-xs text-nitro-muted hover:text-nitro-orange transition-colors"
                   >
                     {"\u2715"} Cerrar
                   </button>
                 </div>
                 <div className="max-h-64 overflow-y-auto p-4 space-y-3">
                   {messages.length === 0 && !chatLoading && (
-                    <p className="text-xs text-gray-400 text-center py-2">
-                      Hace una pregunta sobre los datos de{" "}
-                      {SECTION_LABELS[section].toLowerCase()}
+                    <p className="text-xs text-nitro-muted text-center py-2 font-mono">
+                      Hace una pregunta sobre {SECTION_LABELS[section].toLowerCase()}
                     </p>
                   )}
                   {messages.map((msg, i) => (
@@ -284,17 +324,23 @@ export default function NitroInsightsPanel({
                       key={i}
                       className={
                         "flex " +
-                        (msg.role === "user"
-                          ? "justify-end"
-                          : "justify-start")
+                        (msg.role === "user" ? "justify-end" : "justify-start")
                       }
                     >
                       <div
-                        className={
-                          "max-w-[85%] rounded-lg px-3 py-2 text-sm " +
-                          (msg.role === "user"
-                            ? "bg-indigo-600 text-white"
-                            : "bg-gray-100 text-gray-800")
+                        className="max-w-[85%] rounded-xl px-3 py-2 text-sm"
+                        style={
+                          msg.role === "user"
+                            ? {
+                                background: "var(--nitro-gradient)",
+                                color: "#0A0A0A",
+                                fontWeight: 500,
+                              }
+                            : {
+                                background: "rgba(255, 255, 255, 0.05)",
+                                border: "1px solid rgba(255, 94, 26, 0.15)",
+                                color: "#e5e5e5",
+                              }
                         }
                       >
                         <div className="leading-relaxed">
@@ -307,19 +353,25 @@ export default function NitroInsightsPanel({
                   ))}
                   {chatLoading && (
                     <div className="flex justify-start">
-                      <div className="bg-gray-100 rounded-lg px-3 py-2">
+                      <div
+                        className="rounded-xl px-3 py-2"
+                        style={{
+                          background: "rgba(255, 255, 255, 0.05)",
+                          border: "1px solid rgba(255, 94, 26, 0.15)",
+                        }}
+                      >
                         <div className="flex gap-1">
                           <span
-                            className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"
-                            style={{ animationDelay: "0ms" }}
+                            className="w-1.5 h-1.5 rounded-full animate-bounce"
+                            style={{ backgroundColor: "#FF5E1A", animationDelay: "0ms" }}
                           />
                           <span
-                            className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"
-                            style={{ animationDelay: "150ms" }}
+                            className="w-1.5 h-1.5 rounded-full animate-bounce"
+                            style={{ backgroundColor: "#FF2E2E", animationDelay: "150ms" }}
                           />
                           <span
-                            className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"
-                            style={{ animationDelay: "300ms" }}
+                            className="w-1.5 h-1.5 rounded-full animate-bounce"
+                            style={{ backgroundColor: "#FFB800", animationDelay: "300ms" }}
                           />
                         </div>
                       </div>
@@ -327,7 +379,7 @@ export default function NitroInsightsPanel({
                   )}
                   <div ref={chatEndRef} />
                 </div>
-                <div className="border-t p-3 flex gap-2">
+                <div className="border-t p-3 flex gap-2" style={{ borderColor: "rgba(255, 94, 26, 0.1)" }}>
                   <input
                     type="text"
                     value={input}
@@ -338,13 +390,30 @@ export default function NitroInsightsPanel({
                       SECTION_LABELS[section].toLowerCase() +
                       "..."
                     }
-                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                    className="flex-1 px-3 py-2 text-sm rounded-xl outline-none transition-all duration-300"
+                    style={{
+                      background: "#0A0A0A",
+                      border: "1px solid #222222",
+                      color: "#FFFFFF",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "rgba(255, 94, 26, 0.4)";
+                      e.currentTarget.style.boxShadow = "0 0 0 2px rgba(255, 94, 26, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = "#222222";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
                     disabled={chatLoading}
                   />
                   <button
                     onClick={() => sendMessage()}
                     disabled={chatLoading || !input.trim()}
-                    className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+                    className="px-4 py-2 text-sm font-bold rounded-xl transition-all duration-300 ease-nitro disabled:opacity-30"
+                    style={{
+                      background: "var(--nitro-gradient)",
+                      color: "#0A0A0A",
+                    }}
                   >
                     Enviar
                   </button>
