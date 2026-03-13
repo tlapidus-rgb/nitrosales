@@ -119,7 +119,7 @@ export default function NitroInsightsPanel({
       const parts = line.split(/(\*\*[^*]+\*\*)/g).map((p, j) => {
         if (p.startsWith("**") && p.endsWith("**"))
           return (
-            <strong key={j} className="font-semibold text-white">
+            <strong key={j} className="font-semibold text-gray-900">
               {p.slice(2, -2)}
             </strong>
           );
@@ -127,18 +127,18 @@ export default function NitroInsightsPanel({
       });
       if (line.startsWith("### "))
         return (
-          <h4 key={i} className="font-bold text-sm mt-3 mb-1 text-white">
+          <h4 key={i} className="font-bold text-sm mt-3 mb-1 text-gray-900">
             {line.replace("### ", "")}
           </h4>
         );
       if (line.startsWith("## "))
         return (
-          <h3 key={i} className="font-bold mt-4 mb-1 text-white">
+          <h3 key={i} className="font-bold mt-4 mb-1 text-gray-900">
             {line.replace("## ", "")}
           </h3>
         );
       if (line.startsWith("---"))
-        return <hr key={i} className="my-2 border-nitro-border" />;
+        return <hr key={i} className="my-2 border-gray-200" />;
       return (
         <span key={i}>
           {i > 0 && <br />}
@@ -150,11 +150,11 @@ export default function NitroInsightsPanel({
 
   return (
     <div className="mt-8 animate-fade-in-up" style={{ animationDelay: "300ms" }}>
-      {/* ── AI Panel ─────────────────────────────────────── */}
+      {/* ââ AI Panel âââââââââââââââââââââââââââââââââââââââ */}
       <div
         className="nitro-card rounded-[16px] border overflow-hidden"
         style={{
-          background: "#161616",
+          background: "#FFFFFF",
           borderColor: "rgba(255, 94, 26, 0.3)",
           boxShadow: "0 0 80px rgba(255, 94, 26, 0.08)",
         }}
@@ -171,7 +171,7 @@ export default function NitroInsightsPanel({
             >
               <span className="text-sm">{"\uD83E\uDD16"}</span>
             </div>
-            <h3 className="font-semibold text-white">NitroAI</h3>
+            <h3 className="font-semibold text-gray-900">NitroAI</h3>
             <span
               className="badge-nitro text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1.5"
               style={{
@@ -196,7 +196,7 @@ export default function NitroInsightsPanel({
                   .catch(() => {})
                   .finally(() => setLoading(false));
               }}
-              className="text-xs text-nitro-muted hover:text-nitro-orange transition-colors duration-300 font-mono uppercase tracking-wider"
+              className="text-xs text-gray-400 hover:text-nitro-orange transition-colors duration-300 font-mono uppercase tracking-wider"
             >
               {"\u21BB"} Regenerar
             </button>
@@ -210,8 +210,8 @@ export default function NitroInsightsPanel({
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="rounded-xl border border-nitro-border p-4"
-                  style={{ background: "#111111" }}
+                  className="rounded-xl border border-gray-200 p-4"
+                  style={{ background: "#FFFFFF" }}
                 >
                   <div className="h-4 animate-shimmer rounded w-2/3 mb-3" />
                   <div className="h-3 animate-shimmer rounded w-full mb-2" />
@@ -221,7 +221,7 @@ export default function NitroInsightsPanel({
               ))}
             </div>
           ) : error ? (
-            <p className="text-sm text-nitro-muted text-center py-4">
+            <p className="text-sm text-gray-400 text-center py-4">
               No se pudieron cargar los insights. Intenta recargar.
             </p>
           ) : (
@@ -246,10 +246,10 @@ export default function NitroInsightsPanel({
                         {config.label}
                       </span>
                     </div>
-                    <h4 className="font-semibold text-white text-sm mb-2">
+                    <h4 className="font-semibold text-gray-900 text-sm mb-2">
                       {insight.title}
                     </h4>
-                    <p className="text-xs text-nitro-text2 mb-3 leading-relaxed">
+                    <p className="text-xs text-gray-500 mb-3 leading-relaxed">
                       {insight.description}
                     </p>
                     <div
@@ -268,7 +268,7 @@ export default function NitroInsightsPanel({
             </div>
           )}
 
-          {/* ── Mini-chat section ──────────────────────────── */}
+          {/* ââ Mini-chat section ââââââââââââââââââââââââââââ */}
           <div className="mt-4">
             {!chatOpen ? (
               <button
@@ -297,25 +297,25 @@ export default function NitroInsightsPanel({
             ) : (
               <div
                 className="rounded-xl border overflow-hidden"
-                style={{ borderColor: "rgba(255, 94, 26, 0.2)", background: "#111111" }}
+                style={{ borderColor: "rgba(255, 94, 26, 0.2)", background: "#FFFFFF" }}
               >
                 <div
                   className="px-4 py-2 border-b flex items-center justify-between"
                   style={{ borderColor: "rgba(255, 94, 26, 0.1)", background: "rgba(255, 94, 26, 0.03)" }}
                 >
-                  <span className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">
+                  <span className="font-mono text-[10px] text-gray-400 uppercase tracking-widest">
                     Chat con NitroAI
                   </span>
                   <button
                     onClick={() => setChatOpen(false)}
-                    className="text-xs text-nitro-muted hover:text-nitro-orange transition-colors"
+                    className="text-xs text-gray-400 hover:text-nitro-orange transition-colors"
                   >
                     {"\u2715"} Cerrar
                   </button>
                 </div>
                 <div className="max-h-64 overflow-y-auto p-4 space-y-3">
                   {messages.length === 0 && !chatLoading && (
-                    <p className="text-xs text-nitro-muted text-center py-2 font-mono">
+                    <p className="text-xs text-gray-400 text-center py-2 font-mono">
                       Hace una pregunta sobre {SECTION_LABELS[section].toLowerCase()}
                     </p>
                   )}
@@ -333,7 +333,7 @@ export default function NitroInsightsPanel({
                           msg.role === "user"
                             ? {
                                 background: "var(--nitro-gradient)",
-                                color: "#0A0A0A",
+                                color: "#F3F4F6",
                                 fontWeight: 500,
                               }
                             : {
@@ -392,7 +392,7 @@ export default function NitroInsightsPanel({
                     }
                     className="flex-1 px-3 py-2 text-sm rounded-xl outline-none transition-all duration-300"
                     style={{
-                      background: "#0A0A0A",
+                      background: "#F3F4F6",
                       border: "1px solid #222222",
                       color: "#FFFFFF",
                     }}
@@ -412,7 +412,7 @@ export default function NitroInsightsPanel({
                     className="px-4 py-2 text-sm font-bold rounded-xl transition-all duration-300 ease-nitro disabled:opacity-30"
                     style={{
                       background: "var(--nitro-gradient)",
-                      color: "#0A0A0A",
+                      color: "#F3F4F6",
                     }}
                   >
                     Enviar
