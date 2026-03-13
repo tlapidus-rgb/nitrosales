@@ -85,7 +85,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* ── Sidebar ───────────────────────────────────────── */}
+      {/* ââ Sidebar âââââââââââââââââââââââââââââââââââââââââ */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-60 bg-nitro-bg2 flex flex-col transition-transform duration-500 ease-nitro lg:translate-x-0 lg:static border-r border-nitro-border ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -177,7 +177,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* ── Main content ──────────────────────────────────── */}
+      {/* ââ Main content ââââââââââââââââââââââââââââââââââââ */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Glassmorphism top bar */}
         <header className="glass border-b border-nitro-border px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
@@ -229,7 +229,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-4 lg:p-6">{children}</main>
+        <main className="flex-1 p-4 lg:p-6 bg-[#F7F8FA]">{children}</main>
       </div>
     </div>
   );
