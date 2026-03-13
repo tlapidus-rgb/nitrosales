@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // CDN cache 5 min, then revalidate in background
 
 const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 
