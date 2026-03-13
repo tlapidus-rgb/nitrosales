@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // CDN cache 5 min
 
 export async function GET() {
   try {
@@ -13,7 +13,7 @@ export async function GET() {
 
     const billableStatuses = ["INVOICED", "SHIPPED", "DELIVERED"];
 
-    // ── 1. Get ALL billable orders (source of truth) ──
+    // ââ 1. Get ALL billable orders (source of truth) ââ
     const orders = await prisma.order.findMany({
       where: {
         organizationId: org.id,
@@ -28,7 +28,7 @@ export async function GET() {
       orderBy: { orderDate: "desc" },
     });
 
-    // ── 2. Group orders by customerId ──
+    // ââ 2. Group orders by customerId ââ
     const customerMap = new Map<
       string,
       {
@@ -61,7 +61,7 @@ export async function GET() {
       }
     }
 
-    // ── 3. Load Customer info for those with customerId ──
+    // ââ 3. Load Customer info for those with customerId ââ
     const customerIds = [
       ...new Set(
         [...customerMap.values()]
@@ -104,7 +104,7 @@ export async function GET() {
       }
     }
 
-    // ── 4. Build unified customer list ──
+    // ââ 4. Build unified customer list ââ
     const allCustomers = [...customerMap.entries()].map(([key, data]) => {
       const info = data.customerId
         ? customerInfoMap.get(data.customerId)
@@ -128,7 +128,7 @@ export async function GET() {
       };
     });
 
-    // ── 5. Summary stats ──
+    // ââ 5. Summary stats ââ
     const totalCustomers = allCustomers.length;
     const totalOrders = orders.length;
     const totalRevenue = orders.reduce((s, o) => s + o.totalValue, 0);
@@ -172,7 +172,7 @@ export async function GET() {
       (c) => c.lastOrderAt >= thirtyDaysAgo
     ).length;
 
-    // ── 6. Frequency distribution ──
+    // ââ 6. Frequency distribution ââ
     const frequency = {
       oneOrder: allCustomers.filter((c) => c.totalOrders === 1).length,
       twoToThree: allCustomers.filter(
@@ -184,7 +184,7 @@ export async function GET() {
       sevenPlus: allCustomers.filter((c) => c.totalOrders >= 7).length,
     };
 
-    // ── 7. Spending tiers ──
+    // ââ 7. Spending tiers ââ
     const tiers = {
       vip: allCustomers.filter((c) => c.totalSpent >= 200000).length,
       high: allCustomers.filter(
@@ -198,7 +198,7 @@ export async function GET() {
       ).length,
     };
 
-    // ── 8. Top cities (only for identified customers) ──
+    // ââ 8. Top cities (only for identified customers) ââ
     const cityCounts: Record<string, number> = {};
     allCustomers.forEach((c) => {
       if (c.city) {
@@ -211,7 +211,7 @@ export async function GET() {
       .slice(0, 10)
       .map(([city, count]) => ({ city, count }));
 
-    // ── 9. Top 20 customers by LTV ──
+    // ââ 9. Top 20 customers by LTV ââ
     const topCustomers = sortedBySpent.slice(0, 20).map((c) => ({
       id: c.customerId || c.key,
       name: c.name || "Cliente sin identificar",
