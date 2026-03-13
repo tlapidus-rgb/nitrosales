@@ -87,7 +87,12 @@ export async function GET() {
       };
     }).sort((a, b) => b.revenue - a.revenue);
 
-    const totalRevenue = productsWithSales.reduce((s, p) => s + p.revenue, 0);.GA4_PROPERTY_ID;
+    const totalRevenue = productsWithSales.reduce((s, p) => s + p.revenue, 0);
+
+    /* ── 3. Fetch GA4 search terms ── */
+    let searchTerms: { term: string; count: number; matchedProducts: any[]; hasStock: boolean }[] = [];
+    const saJson = process.env.GA4_SERVICE_ACCOUNT_KEY;
+    const propertyId = process.env.GA4_PROPERTY_ID;
     if (saJson && propertyId) {
       try {
         const sa = JSON.parse(saJson);
