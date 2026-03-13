@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     if (!org)
       return NextResponse.json({ error: "Org not found" }, { status: 404 });
 
-    /* ── MODE: resync-products ──────────────────────────────────────────
+    /* ââ MODE: resync-products ââââââââââââââââââââââââââââââââââââââââââ
        Re-fetch VTEX details for orders whose products lack brand/category.
        This updates existing products without creating duplicate items. */
     if (mode === "resync-products") {
@@ -40,10 +40,10 @@ export async function GET(req: Request) {
         where: {
           organizationId: org.id,
           brand: null,
-          items: { some: {} },
+          orderItems: { some: {} },
         },
         include: {
-          items: {
+          orderItems: {
             take: 1,
             include: { order: { select: { externalId: true } } },
           },
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       }
 
       const totalMissing = await prisma.product.count({
-        where: { organizationId: org.id, brand: null, items: { some: {} } },
+        where: { organizationId: org.id, brand: null, orderItems: { some: {} } },
       });
 
       let updated = 0;
@@ -69,7 +69,7 @@ export async function GET(req: Request) {
 
       for (const product of productsToUpdate) {
         try {
-          const orderExtId = product.items[0]?.order?.externalId;
+          const orderExtId = product.orderItems[0]?.order?.externalId;
           if (!orderExtId) continue;
 
           const detailUrl = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${orderExtId}`;
@@ -125,13 +125,13 @@ export async function GET(req: Request) {
       });
     }
 
-    /* ── MODE: normal (default) ─────────────────────────────────────────
+    /* ââ MODE: normal (default) âââââââââââââââââââââââââââââââââââââââââ
        Original behavior: process orders without items. */
 
     const ordersWithoutItems = await prisma.order.findMany({
       where: {
         organizationId: org.id,
-        items: { none: {} },
+        orderItems: { none: {} },
       },
       take: batchSize,
       orderBy: { orderDate: "desc" },
@@ -148,7 +148,7 @@ export async function GET(req: Request) {
     const totalWithoutItems = await prisma.order.count({
       where: {
         organizationId: org.id,
-        items: { none: {} },
+        orderItems: { none: {} },
       },
     });
 
