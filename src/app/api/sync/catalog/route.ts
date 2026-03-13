@@ -7,6 +7,7 @@ export const maxDuration = 60;
 const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 const VTEX_SEARCH_BASE = "https://mundojuguete.vtexcommercestable.com.br/api/catalog_system/pub/products/search";
 const PAGE_SIZE = 50;
+const DEFAULT_MAX_PAGES = 10; // 500 products per call — safe within 60s
 
 /* ── helpers ─────────────────────────────────────── */
 
@@ -22,7 +23,6 @@ function calcStock(items: any[]): number {
 
 function extractCategory(categories: string[] | undefined): string | null {
   if (!categories || categories.length === 0) return null;
-  // VTEX categories come as "/Cat1/Cat2/Cat3/" — take last meaningful segment
   const last = categories[categories.length - 1] || categories[0] || "";
   const parts = last.replace(/^\/|\/$/g, "").split("/");
   return parts[parts.length - 1] || null;
@@ -47,17 +47,18 @@ function extractPrice(items: any[]): number {
   return 0;
 }
 
-/* ── main sync ───────────────────────────────────── */
+/* ── main sync (with pagination support) ─────────── */
 
-async function syncCatalog() {
+async function syncCatalog(startPage: number, maxPages: number) {
   const syncedAt = new Date();
-  const vtexIds = new Set<string>();
+  const vtexIds: string[] = [];
   let created = 0;
   let updated = 0;
-  let page = 0;
-  let hasMore = true;
+  let page = startPage;
+  let pagesProcessed = 0;
+  let reachedEnd = false;
 
-  while (hasMore) {
+  while (pagesProcessed < maxPages) {
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
     const url = `${VTEX_SEARCH_BASE}?_from=${from}&_to=${to}`;
@@ -74,14 +75,25 @@ async function syncCatalog() {
 
     const products: any[] = await res.json();
     if (!products || products.length === 0) {
-      hasMore = false;
+      reachedEnd = true;
       break;
     }
 
-    // Upsert batch
-    const upserts = products.map((p: any) => {
+    // Build upsert data and execute in a transaction for speed
+    const upsertOps = products.map((p: any) => {
       const externalId = String(p.productId);
-      vtexIds.add(externalId);
+      vtexIds.push(externalId);
+
+      const data = {
+        name: p.productName || "Sin nombre",
+        brand: p.brand || null,
+        category: extractCategory(p.categories),
+        imageUrl: extractImage(p.items),
+        price: extractPrice(p.items),
+        stock: calcStock(p.items),
+        stockUpdatedAt: syncedAt,
+        isActive: true,
+      };
 
       return prisma.product.upsert({
         where: {
@@ -90,59 +102,37 @@ async function syncCatalog() {
             externalId,
           },
         },
-        update: {
-          name: p.productName || "Sin nombre",
-          brand: p.brand || null,
-          category: extractCategory(p.categories),
-          imageUrl: extractImage(p.items),
-          price: extractPrice(p.items),
-          stock: calcStock(p.items),
-          stockUpdatedAt: syncedAt,
-          isActive: true,
-        },
-        create: {
-          organizationId: ORG_ID,
-          externalId,
-          name: p.productName || "Sin nombre",
-          brand: p.brand || null,
-          category: extractCategory(p.categories),
-          imageUrl: extractImage(p.items),
-          price: extractPrice(p.items),
-          stock: calcStock(p.items),
-          stockUpdatedAt: syncedAt,
-          isActive: true,
-        },
+        update: data,
+        create: { organizationId: ORG_ID, externalId, ...data },
       });
     });
 
-    const results = await Promise.allSettled(upserts);
-    for (const r of results) {
-      if (r.status === "fulfilled") {
-        // Check if createdAt equals updatedAt (within 1s) to determine if created
-        const prod = r.value;
-        if (Math.abs(prod.createdAt.getTime() - prod.updatedAt.getTime()) < 1000) {
-          created++;
-        } else {
-          updated++;
-        }
+    // Execute as transaction (faster than individual queries)
+    const results = await prisma.$transaction(upsertOps);
+    for (const prod of results) {
+      if (Math.abs(prod.createdAt.getTime() - prod.updatedAt.getTime()) < 1000) {
+        created++;
+      } else {
+        updated++;
       }
     }
 
     if (products.length < PAGE_SIZE) {
-      hasMore = false;
+      reachedEnd = true;
+      break;
     }
     page++;
+    pagesProcessed++;
   }
 
-  // Mark products not in VTEX catalog as inactive
+  // Only deactivate if we've synced the ENTIRE catalog (reachedEnd from page 0)
   let deactivated = 0;
-  if (vtexIds.size > 0) {
+  if (reachedEnd && startPage === 0 && vtexIds.length > 0) {
     const result = await prisma.product.updateMany({
       where: {
         organizationId: ORG_ID,
         isActive: true,
-        externalId: { notIn: [...vtexIds] },
-        // Only deactivate products that were previously synced (have stockUpdatedAt)
+        externalId: { notIn: vtexIds },
         stockUpdatedAt: { not: null },
       },
       data: { isActive: false },
@@ -153,25 +143,23 @@ async function syncCatalog() {
   // Update connector lastSyncAt
   try {
     await prisma.connection.updateMany({
-      where: {
-        organizationId: ORG_ID,
-        platform: "VTEX",
-      },
-      data: {
-        lastSyncAt: syncedAt,
-      },
+      where: { organizationId: ORG_ID, platform: "VTEX" },
+      data: { lastSyncAt: syncedAt },
     });
-  } catch (_) { /* ignore if connection record doesn't exist */ }
+  } catch (_) {}
 
   return {
     ok: true,
     stats: {
-      total: vtexIds.size,
+      total: vtexIds.length,
       created,
       updated,
       deactivated,
-      pages: page,
+      pagesProcessed: pagesProcessed + (reachedEnd ? 1 : 0),
+      startPage,
+      reachedEnd,
     },
+    nextPage: reachedEnd ? null : page,
     syncedAt: syncedAt.toISOString(),
   };
 }
@@ -183,8 +171,10 @@ export async function GET(req: NextRequest) {
   if (key !== process.env.NEXTAUTH_SECRET) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
+  const startPage = parseInt(req.nextUrl.searchParams.get("from") || "0");
+  const maxPages = parseInt(req.nextUrl.searchParams.get("pages") || String(DEFAULT_MAX_PAGES));
   try {
-    const result = await syncCatalog();
+    const result = await syncCatalog(startPage, maxPages);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Catalog sync error:", error);
@@ -199,7 +189,9 @@ export async function POST(req: NextRequest) {
     if (syncKey !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
-    const result = await syncCatalog();
+    const startPage = body.from || 0;
+    const maxPages = body.pages || DEFAULT_MAX_PAGES;
+    const result = await syncCatalog(startPage, maxPages);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Catalog sync error:", error);
