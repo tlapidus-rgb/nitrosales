@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-/* ── Types ─────────────────────────────────────────────────── */
+/* ââ Types âââââââââââââââââââââââââââââââââââââââââââââââââââ */
 interface ProductItem {
   id: string;
   name: string;
@@ -38,7 +38,7 @@ interface ProductSummary {
   paretoConcentration: number;
 }
 
-/* ── Color palette for charts ─────────────────────────────── */
+/* ââ Color palette for charts âââââââââââââââââââââââââââââââ */
 const COLORS = [
   "#FF5E1A", // nitro orange
   "#FF2E2E", // nitro red
@@ -52,10 +52,10 @@ const COLORS = [
   "#64748b", // slate (for "Otros")
 ];
 
-/* ── Types for metric toggle ──────────────────────────────── */
+/* ââ Types for metric toggle ââââââââââââââââââââââââââââââââ */
 type PieMetric = "revenue" | "unitsSold";
 
-/* ── Stock helpers ─────────────────────────────────────────── */
+/* ââ Stock helpers âââââââââââââââââââââââââââââââââââââââââââ */
 function getDaysOfStock(product: ProductItem): number | null {
   if (product.stock === null || product.stock === undefined) return null;
   const dailySales = product.unitsSold / 30;
@@ -70,7 +70,7 @@ function getStockLevel(days: number | null): "critical" | "low" | "ok" | "nodata
   return "ok";
 }
 
-/* ── Helpers ───────────────────────────────────────────────── */
+/* ââ Helpers âââââââââââââââââââââââââââââââââââââââââââââââââ */
 function aggregateByField(
   products: ProductItem[],
   field: "brand" | "category",
@@ -104,7 +104,7 @@ function aggregateByField(
   ];
 }
 
-/* ── Custom pie label ─────────────────────────────────────── */
+/* ââ Custom pie label âââââââââââââââââââââââââââââââââââââââ */
 function renderCustomLabel({
   cx,
   cy,
@@ -133,7 +133,7 @@ function renderCustomLabel({
   );
 }
 
-/* ── Custom tooltip ────────────────────────────────────────── */
+/* ââ Custom tooltip ââââââââââââââââââââââââââââââââââââââââââ */
 function PieTooltip({ active, payload, metric }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
@@ -162,7 +162,7 @@ function PieTooltip({ active, payload, metric }: any) {
   );
 }
 
-/* ── Custom legend ─────────────────────────────────────────── */
+/* ââ Custom legend âââââââââââââââââââââââââââââââââââââââââââ */
 function PieLegend({
   data,
 }: {
@@ -186,7 +186,7 @@ function PieLegend({
   );
 }
 
-/* ── Stock Alert Banner ────────────────────────────────────── */
+/* ââ Stock Alert Banner ââââââââââââââââââââââââââââââââââââââ */
 function StockAlertBanner({ products }: { products: ProductItem[] }) {
   const analysis = useMemo(() => {
     const withStock = products.filter((p) => p.stock !== null && p.stock !== undefined);
@@ -248,7 +248,7 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
         </div>
         <div>
           <h3 className="text-sm font-semibold text-white">Alertas de Inventario</h3>
-          <p className="text-[10px] font-mono text-nitro-muted uppercase tracking-widest">Stock monitor</p>
+          <p className="text-[11px] font-mono text-nitro-muted uppercase tracking-widest">Stock monitor</p>
         </div>
       </div>
 
@@ -280,24 +280,24 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
       <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-nitro-text2">
         {analysis.topBrands.length > 0 && (
           <div>
-            <span className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">Marcas en riesgo: </span>
+            <span className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest">Marcas en riesgo: </span>
             {analysis.topBrands.map(([brand, info], i) => (
               <span key={brand}>
                 {i > 0 && ", "}
                 <span className="text-white">{brand}</span>
-                <span className="text-nitro-muted font-mono text-[10px]"> ({info.count} prod, ~{info.avgDays}d)</span>
+                <span className="text-nitro-muted font-mono text-[11px]"> ({info.count} prod, ~{info.avgDays}d)</span>
               </span>
             ))}
           </div>
         )}
         {analysis.topCats.length > 0 && (
           <div>
-            <span className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">Categorias: </span>
+            <span className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest">Categorias: </span>
             {analysis.topCats.map(([cat, info], i) => (
               <span key={cat}>
                 {i > 0 && ", "}
                 <span className="text-white">{cat}</span>
-                <span className="text-nitro-muted font-mono text-[10px]"> ({info.count} prod, ~{info.avgDays}d)</span>
+                <span className="text-nitro-muted font-mono text-[11px]"> ({info.count} prod, ~{info.avgDays}d)</span>
               </span>
             ))}
           </div>
@@ -307,7 +307,7 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
   );
 }
 
-/* ── Stock Badge Component ─────────────────────────────────── */
+/* ââ Stock Badge Component âââââââââââââââââââââââââââââââââââ */
 function StockBadge({ product }: { product: ProductItem }) {
   const days = getDaysOfStock(product);
   const level = getStockLevel(days);
@@ -348,18 +348,18 @@ function StockBadge({ product }: { product: ProductItem }) {
         {level === "critical" && <span className="w-1.5 h-1.5 rounded-full animate-pulse-live" style={{ background: s.dot }} />}
         {product.stock!.toLocaleString("es-AR")} uds
       </span>
-      <div className="text-[10px] text-nitro-muted mt-0.5 font-mono">
+      <div className="text-[11px] text-nitro-muted mt-0.5 font-mono">
         {days === 999 ? "Sin ventas" : `~${days}d stock`}
       </div>
     </div>
   );
 }
 
-/* ── KPI Card ──────────────────────────────────────────────── */
+/* ââ KPI Card ââââââââââââââââââââââââââââââââââââââââââââââââ */
 function KpiCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="text-right">
-      <p className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest mb-0.5">{label}</p>
+      <p className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest mb-0.5">{label}</p>
       <p className={`text-sm font-bold font-mono ${accent ? "text-nitro-orange" : "text-white"}`}>
         {value}
       </p>
@@ -367,13 +367,13 @@ function KpiCard({ label, value, accent }: { label: string; value: string; accen
   );
 }
 
-/* ── Metric Toggle ─────────────────────────────────────────── */
+/* ââ Metric Toggle âââââââââââââââââââââââââââââââââââââââââââ */
 function MetricToggle({ metric, setMetric }: { metric: PieMetric; setMetric: (m: PieMetric) => void }) {
   return (
     <div className="flex bg-nitro-bg rounded-lg p-0.5 flex-shrink-0 border border-nitro-border">
       <button
         onClick={() => setMetric("revenue")}
-        className={`text-[10px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
+        className={`text-[11px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
           metric === "revenue"
             ? "bg-nitro-card text-nitro-orange shadow-sm"
             : "text-nitro-muted hover:text-nitro-text2"
@@ -383,7 +383,7 @@ function MetricToggle({ metric, setMetric }: { metric: PieMetric; setMetric: (m:
       </button>
       <button
         onClick={() => setMetric("unitsSold")}
-        className={`text-[10px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
+        className={`text-[11px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
           metric === "unitsSold"
             ? "bg-nitro-card text-nitro-orange shadow-sm"
             : "text-nitro-muted hover:text-nitro-text2"
@@ -395,7 +395,7 @@ function MetricToggle({ metric, setMetric }: { metric: PieMetric; setMetric: (m:
   );
 }
 
-/* ── Page ───────────────────────────────────────────────────── */
+/* ââ Page âââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 export default function ProductsPage() {
   const [allProducts, setAllProducts] = useState<ProductItem[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
@@ -420,7 +420,7 @@ export default function ProductsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  /* ── Filtered products ─────────────────────────────────── */
+  /* ââ Filtered products âââââââââââââââââââââââââââââââââââ */
   const filtered = useMemo(() => {
     return allProducts.filter(
       (p) =>
@@ -432,7 +432,7 @@ export default function ProductsPage() {
   const topFiltered = filtered.slice(0, 20);
   const isFiltered = brandFilter !== "ALL" || categoryFilter !== "ALL";
 
-  /* ── KPIs for filtered subset ──────────────────────────── */
+  /* ââ KPIs for filtered subset ââââââââââââââââââââââââââââ */
   const filteredUnits = filtered.reduce((s, p) => s + p.unitsSold, 0);
   const filteredRevenue = filtered.reduce((s, p) => s + p.revenue, 0);
   const filteredUniqueProducts = filtered.length;
@@ -445,7 +445,7 @@ export default function ProductsPage() {
       ? Math.round((top20revenue / filteredRevenue) * 100)
       : 0;
 
-  /* ── Stock KPI ──────────────────────────────────────────── */
+  /* ââ Stock KPI ââââââââââââââââââââââââââââââââââââââââââââ */
   const productsAtRisk = useMemo(() => {
     return filtered.filter((p) => {
       const days = getDaysOfStock(p);
@@ -453,7 +453,7 @@ export default function ProductsPage() {
     }).length;
   }, [filtered]);
 
-  /* ── Pie chart data ────────────────────────────────────── */
+  /* ââ Pie chart data ââââââââââââââââââââââââââââââââââââââ */
   const brandChartData = useMemo(
     () => aggregateByField(filtered, "brand", brandMetric),
     [filtered, brandMetric]
@@ -477,7 +477,7 @@ export default function ProductsPage() {
 
   return (
     <div>
-      {/* ── Header ──────────────────────────────────────────── */}
+      {/* ââ Header ââââââââââââââââââââââââââââââââââââââââââââ */}
       <div className="mb-8 animate-fade-in-up">
         <h2 className="font-headline text-3xl text-white tracking-tight" style={{ letterSpacing: "-1px" }}>
           Productos
@@ -494,10 +494,10 @@ export default function ProductsPage() {
         </div>
       ) : (
         <>
-          {/* ── Stock Alerts Banner ──────────────────────── */}
+          {/* ââ Stock Alerts Banner ââââââââââââââââââââââââ */}
           <StockAlertBanner products={filtered} />
 
-          {/* ── Pie Charts ──────────────────────────────────── */}
+          {/* ââ Pie Charts ââââââââââââââââââââââââââââââââââââ */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 stagger-children">
             {/* Brand pie */}
             <div className="nitro-card bg-nitro-card rounded-[16px] border border-nitro-border p-6">
@@ -586,10 +586,10 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          {/* ── Products table card ─────────────────────────── */}
+          {/* ââ Products table card âââââââââââââââââââââââââââ */}
           <div className="nitro-card bg-nitro-card rounded-[16px] border border-nitro-border overflow-hidden animate-fade-in-up"
             style={{ animationDelay: "200ms" }}>
-            {/* ── Header with KPIs ───────────────────────────── */}
+            {/* ââ Header with KPIs âââââââââââââââââââââââââââââ */}
             <div className="p-6 border-b border-nitro-border">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
@@ -611,7 +611,7 @@ export default function ProductsPage() {
                   <KpiCard label="Pareto" value={`Top 20% = ${filteredPareto}%`} accent />
                   {productsAtRisk > 0 && (
                     <div className="text-right">
-                      <p className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest mb-0.5">En riesgo</p>
+                      <p className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest mb-0.5">En riesgo</p>
                       <p className="text-sm font-bold font-mono text-nitro-err flex items-center justify-end gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-nitro-err animate-pulse-live" />
                         {productsAtRisk} producto{productsAtRisk !== 1 ? "s" : ""}
@@ -622,12 +622,12 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            {/* ── Filter bar ─────────────────────────────────── */}
+            {/* ââ Filter bar âââââââââââââââââââââââââââââââââââ */}
             {(brands.length > 0 || categories.length > 0) && (
               <div className="px-6 py-3 bg-nitro-bg2 border-b border-nitro-border flex items-center gap-4 flex-wrap">
                 {brands.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <label className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">
+                    <label className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest">
                       Marca
                     </label>
                     <select
@@ -649,7 +649,7 @@ export default function ProductsPage() {
 
                 {categories.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <label className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">
+                    <label className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest">
                       Categoria
                     </label>
                     <select
@@ -683,11 +683,11 @@ export default function ProductsPage() {
               </div>
             )}
 
-            {/* ── Table ──────────────────────────────────────── */}
+            {/* ââ Table ââââââââââââââââââââââââââââââââââââââââ */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm nitro-table">
                 <thead>
-                  <tr className="bg-nitro-bg2 text-left">
+                  <tr className="bg-nitro-card text-left">
                     <th className="px-4 py-3 w-10">#</th>
                     <th className="px-3 py-3">Producto</th>
                     <th className="px-3 py-3 text-right">Unidades</th>
@@ -698,9 +698,9 @@ export default function ProductsPage() {
                     <th className="px-3 py-3 text-right">% del Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-nitro-border/50">
+                <tbody className="divide-y divide-nitro-border/70">
                   {topFiltered.map((p, idx) => (
-                    <tr key={p.id} className="transition-colors duration-200">
+                    <tr key={p.id} className="transition-colors duration-200 hover:bg-white/[0.03]">
                       <td className="px-4 py-3 text-nitro-muted text-xs font-mono">
                         {idx + 1}
                       </td>
@@ -722,13 +722,13 @@ export default function ProductsPage() {
                             </div>
                             <div className="flex gap-2 mt-0.5">
                               {p.sku && (
-                                <span className="text-[10px] text-nitro-muted font-mono uppercase tracking-wider">
+                                <span className="text-[11px] text-nitro-muted font-mono uppercase tracking-wider">
                                   SKU: {p.sku}
                                 </span>
                               )}
                               {p.brand && (
                                 <span
-                                  className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                  className="text-[11px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
                                   style={{
                                     color: "#FF5E1A",
                                     background: "rgba(255, 94, 26, 0.1)",
@@ -742,13 +742,13 @@ export default function ProductsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-nitro-text2 text-right font-mono text-xs">
+                      <td className="px-3 py-3 text-white/80 text-right font-mono text-xs">
                         {p.unitsSold.toLocaleString("es-AR")}
                       </td>
-                      <td className="px-3 py-3 text-nitro-text2 text-right font-mono text-xs">
+                      <td className="px-3 py-3 text-white/80 text-right font-mono text-xs">
                         {p.orders.toLocaleString("es-AR")}
                       </td>
-                      <td className="px-3 py-3 text-nitro-text2 text-right font-mono text-xs">
+                      <td className="px-3 py-3 text-white/80 text-right font-mono text-xs">
                         {formatARS(p.avgPrice)}
                       </td>
                       <td className="px-3 py-3 text-right">
@@ -774,7 +774,7 @@ export default function ProductsPage() {
                               }}
                             />
                           </div>
-                          <span className="text-[10px] text-nitro-muted w-8 font-mono">
+                          <span className="text-[11px] text-nitro-muted w-8 font-mono">
                             {Math.round(
                               (p.revenue / (filteredRevenue || 1)) * 100
                             )}%
@@ -787,10 +787,10 @@ export default function ProductsPage() {
               </table>
             </div>
 
-            {/* ── Footer ─────────────────────────────────────── */}
+            {/* ââ Footer âââââââââââââââââââââââââââââââââââââââ */}
             {filtered.length > 20 && (
               <div className="px-6 py-3 border-t border-nitro-border bg-nitro-bg2 text-center">
-                <p className="text-[10px] text-nitro-muted font-mono uppercase tracking-widest">
+                <p className="text-[11px] text-nitro-muted font-mono uppercase tracking-widest">
                   Mostrando top 20 de {filtered.length.toLocaleString("es-AR")} productos
                 </p>
               </div>
