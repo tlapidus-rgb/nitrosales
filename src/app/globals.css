@@ -2,28 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Google Fonts ───────────────────────────────────────────── */
+/* ââ Google Fonts âââââââââââââââââââââââââââââââââââââââââââââ */
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
-/* ── CSS Variables ──────────────────────────────────────────── */
+/* ââ CSS Variables ââââââââââââââââââââââââââââââââââââââââââââ */
 :root {
   --nitro-bg:       #0A0A0A;
-  --nitro-bg2:      #111111;
-  --nitro-card:     #161616;
-  --nitro-border:   #222222;
+  --nitro-bg2:      #161616;
+  --nitro-card:     #1C1C1C;
+  --nitro-border:   #2D2D2D;
   --nitro-orange:   #FF5E1A;
   --nitro-red:      #FF2E2E;
   --nitro-yellow:   #FFB800;
   --nitro-green:    #4ADE80;
   --nitro-err:      #FF5E5E;
   --nitro-text:     #FFFFFF;
-  --nitro-text2:    #8A8A8A;
-  --nitro-muted:    #555555;
+  --nitro-text2:    #A0A0A0;
+  --nitro-muted:    #777777;
   --nitro-gradient: linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 50%, #FFB800 100%);
   --ease-nitro:     cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ── Base ───────────────────────────────────────────────────── */
+/* ââ Base âââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 body {
   font-family: 'DM Sans', system-ui, sans-serif;
   background-color: var(--nitro-bg);
@@ -32,7 +32,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Noise overlay on body ──────────────────────────────────── */
+/* ââ Noise overlay on body ââââââââââââââââââââââââââââââââââââ */
 body::before {
   content: '';
   position: fixed;
@@ -44,7 +44,7 @@ body::before {
   background-size: 256px 256px;
 }
 
-/* ── Font utilities ─────────────────────────────────────────── */
+/* ââ Font utilities âââââââââââââââââââââââââââââââââââââââââââ */
 .font-headline {
   font-family: 'Archivo Black', 'Impact', sans-serif;
   letter-spacing: -0.5px;
@@ -55,7 +55,7 @@ body::before {
   letter-spacing: 1px;
 }
 
-/* ── Scrollbar ──────────────────────────────────────────────── */
+/* ââ Scrollbar ââââââââââââââââââââââââââââââââââââââââââââââââ */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -80,7 +80,7 @@ body::before {
   scrollbar-color: var(--nitro-orange) var(--nitro-bg);
 }
 
-/* ── Animations ─────────────────────────────────────────────── */
+/* ââ Animations âââââââââââââââââââââââââââââââââââââââââââââââ */
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -146,14 +146,14 @@ body::before {
 .stagger-children > *:nth-child(5) { animation-delay: 320ms; }
 .stagger-children > *:nth-child(6) { animation-delay: 400ms; }
 
-/* ── Glassmorphism utility ──────────────────────────────────── */
+/* ââ Glassmorphism utility ââââââââââââââââââââââââââââââââââââ */
 .glass {
   background: rgba(17, 17, 17, 0.8);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
 
-/* ── Card hover gradient top line ───────────────────────────── */
+/* ââ Card hover gradient top line âââââââââââââââââââââââââââââ */
 .nitro-card {
   position: relative;
   overflow: hidden;
@@ -182,7 +182,7 @@ body::before {
   box-shadow: 0 0 60px rgba(255, 94, 26, 0.08);
 }
 
-/* ── Glow effects ───────────────────────────────────────────── */
+/* ââ Glow effects âââââââââââââââââââââââââââââââââââââââââââââ */
 .glow-orange {
   box-shadow: 0 0 80px rgba(255, 94, 26, 0.15);
 }
@@ -191,7 +191,7 @@ body::before {
   box-shadow: 0 0 40px rgba(255, 94, 26, 0.1);
 }
 
-/* ── Button primary gradient ────────────────────────────────── */
+/* ââ Button primary gradient ââââââââââââââââââââââââââââââââââ */
 .btn-nitro {
   background: var(--nitro-gradient);
   color: #0A0A0A;
@@ -208,7 +208,7 @@ body::before {
   box-shadow: 0 8px 40px rgba(255, 94, 26, 0.3);
 }
 
-/* ── Table styles ───────────────────────────────────────────── */
+/* ââ Table styles âââââââââââââââââââââââââââââââââââââââââââââ */
 .nitro-table th {
   font-family: 'Space Mono', monospace;
   text-transform: uppercase;
@@ -230,7 +230,7 @@ body::before {
   background-color: #1a1a1a;
 }
 
-/* ── Badge utility ──────────────────────────────────────────── */
+/* ââ Badge utility ââââââââââââââââââââââââââââââââââââââââââââ */
 .badge-nitro {
   font-family: 'Space Mono', monospace;
   text-transform: uppercase;
@@ -238,7 +238,7 @@ body::before {
   font-size: 0.7rem;
 }
 
-/* ── Select dark ────────────────────────────────────────────── */
+/* ââ Select dark ââââââââââââââââââââââââââââââââââââââââââââââ */
 select.nitro-select {
   background-color: var(--nitro-bg2);
   border: 1px solid var(--nitro-border);
@@ -260,7 +260,7 @@ select.nitro-select:focus {
   box-shadow: 0 0 0 2px rgba(255, 94, 26, 0.15);
 }
 
-/* ── Override Recharts ──────────────────────────────────────── */
+/* ââ Override Recharts ââââââââââââââââââââââââââââââââââââââââ */
 .recharts-text {
   fill: var(--nitro-text2) !important;
   font-family: 'Space Mono', monospace !important;
