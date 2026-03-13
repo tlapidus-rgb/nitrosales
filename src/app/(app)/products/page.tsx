@@ -421,6 +421,9 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [storeSearches, setStoreSearches] = useState<
+    { term: string; count: number; matchedProducts: any[]; hasStock: boolean }[]
+  >([]);
 
   useEffect(() => {
     fetch("/api/metrics/products")
@@ -433,6 +436,14 @@ export default function ProductsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Fetch store search data from GA4
+    fetch("/api/metrics/searches")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.searchTerms) setStoreSearches(data.searchTerms);
+      })
+      .catch(() => {});
   }, []);
 
   /* ── Filtered products ────────────────── */
@@ -571,6 +582,119 @@ export default function ProductsPage() {
               </p>
             </div>
           </div>
+
+          {/* ── Store Search Terms (GA4) ──── */}
+          {storeSearches.length > 0 && (
+            <div
+              className="nitro-card bg-white border border-gray-200 rounded-[16px] p-5 mb-6 animate-fade-in-up"
+              style={{ boxShadow: "0 0 60px rgba(255, 94, 26, 0.04)" }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{
+                      background: "rgba(255, 94, 26, 0.1)",
+                      border: "1px solid #E5E7EB",
+                    }}
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      style={{ color: "#FF5E1A" }}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Busquedas Populares en la Tienda
+                    </h3>
+                    <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">
+                      GA4 &middot; Ultimos 30 dias
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[11px] font-mono text-gray-400">
+                  Click para buscar en el catalogo
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                {storeSearches.slice(0, 12).map((s, i) => {
+                  const maxCount = storeSearches[0]?.count || 1;
+                  const pct = Math.max(4, Math.round((s.count / maxCount) * 100));
+                  const isOrange = i < 3;
+
+                  return (
+                    <div
+                      key={s.term}
+                      className="flex items-center gap-3 group cursor-pointer rounded-lg px-1 py-0.5 hover:bg-gray-50 transition-colors duration-200"
+                      onClick={() => {
+                        setSearchTerm(s.term);
+                        setBrandFilter("ALL");
+                        setCategoryFilter("ALL");
+                      }}
+                    >
+                      <span className="text-[11px] font-mono text-gray-300 w-5 text-right flex-shrink-0">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 relative h-7 overflow-hidden rounded-md">
+                        <div
+                          className="absolute inset-y-0 left-0 rounded-md transition-all duration-500 ease-out"
+                          style={{
+                            width: `${pct}%`,
+                            background: isOrange
+                              ? "rgba(255, 94, 26, 0.08)"
+                              : "rgba(107, 114, 128, 0.06)",
+                          }}
+                        />
+                        <div className="relative flex items-center justify-between px-3 h-full">
+                          <span
+                            className={`text-sm transition-colors duration-200 ${
+                              isOrange
+                                ? "text-gray-800 font-medium group-hover:text-[#FF5E1A]"
+                                : "text-gray-600 group-hover:text-gray-900"
+                            }`}
+                          >
+                            {s.term}
+                          </span>
+                          <span className="text-[11px] font-mono text-gray-400 flex-shrink-0 ml-3">
+                            {s.count.toLocaleString("es-AR")}
+                          </span>
+                        </div>
+                      </div>
+                      {!s.hasStock && s.matchedProducts.length > 0 && (
+                        <span
+                          className="text-[10px] font-mono px-1.5 py-0.5 rounded flex-shrink-0"
+                          style={{
+                            background: "rgba(255, 94, 94, 0.08)",
+                            border: "1px solid rgba(255, 94, 94, 0.2)",
+                            color: "#FF5E5E",
+                          }}
+                        >
+                          Sin stock
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {storeSearches.length > 12 && (
+                <p className="text-[11px] text-gray-400 font-mono mt-3 pl-9">
+                  +{storeSearches.length - 12} terminos mas
+                </p>
+              )}
+            </div>
+          )}
 
           {/* ── Stock Alerts Banner ────────── */}
           <StockAlertBanner products={filtered} />
