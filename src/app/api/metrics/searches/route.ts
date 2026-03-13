@@ -128,7 +128,7 @@ export async function GET() {
         const termLower = term.toLowerCase();
         const count = Math.round(s.eventCount || 0);
 
-        const matched = products
+        const allMatched = products
           .filter((p) => {
             const nameLower = p.name.toLowerCase();
             return (
@@ -137,7 +137,11 @@ export async function GET() {
                 .split(/\s+/)
                 .some((word: string) => word.length > 2 && nameLower.includes(word))
             );
-          })
+          });
+
+        const anyHasStock = allMatched.some((p) => p.stock !== null && p.stock > 0);
+
+        const matched = allMatched
           .slice(0, 3)
           .map((p) => ({
             id: p.id,
@@ -153,7 +157,7 @@ export async function GET() {
           count,
           matchedProducts: matched,
           hasStock:
-            matched.length === 0 || matched.some((m) => m.inStock),
+            matched.length === 0 || anyHasStock,
         };
       });
 
