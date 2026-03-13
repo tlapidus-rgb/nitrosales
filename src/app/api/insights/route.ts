@@ -21,7 +21,6 @@ function buildDashboardPrompt(metrics: any, trends: any) {
   const s = metrics?.summary;
   const c = metrics?.changes;
   if (!s) return null;
-
   return `Analiza estos KPIs del dashboard de El Mundo del Juguete (ultimos 30 dias):
 - Facturacion: $${Math.round(s.revenue).toLocaleString()} (${c?.revenue ? (c.revenue > 0 ? "+" : "") + c.revenue + "%" : "sin comparacion"} vs periodo anterior)
 - Pedidos facturados: ${s.orders} (${c?.orders ? (c.orders > 0 ? "+" : "") + c.orders + "%" : ""})
@@ -67,6 +66,7 @@ function buildCampaignsPrompt(data: any) {
   );
   const best = [...camps].sort((a: any, b: any) => b.roas - a.roas)[0];
   const worst = [...camps].sort((a: any, b: any) => a.roas - b.roas)[0];
+
   const google = camps.filter((c: any) => c.platform === "GOOGLE");
   const meta = camps.filter((c: any) => c.platform === "META");
   const gSpend = google.reduce((s: number, c: any) => s + c.spend, 0);
@@ -127,10 +127,11 @@ function buildCustomersPrompt(data: any) {
         .join(", ")
     : "Sin datos";
 
-  return `Analiza los datos de clientes de El Mundo del Juguete:
-- Total clientes con compras: ${s.customersWithOrders}
+  return `Analiza los datos de clientes de El Mundo del Juguete (basado en pedidos facturados):
+- Total clientes unicos: ${s.totalCustomers}
+- Clientes identificados (con datos de VTEX): ${s.identifiedCustomers}
 - Clientes que repiten: ${s.repeatCustomers} (tasa recompra: ${s.repeatRate}%)
-- Pedidos totales: ${s.totalOrders}
+- Pedidos facturados totales: ${s.totalOrders}
 - Revenue total: $${Math.round(s.totalRevenue).toLocaleString()}
 - Gasto promedio por cliente: $${Math.round(s.avgSpentPerCustomer).toLocaleString()}
 - Pedidos promedio por cliente: ${s.avgOrdersPerCustomer}
@@ -153,6 +154,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const section = searchParams.get("section") || "dashboard";
+
     const baseUrl =
       process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
 
