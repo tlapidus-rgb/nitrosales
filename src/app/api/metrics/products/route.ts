@@ -46,6 +46,7 @@ export async function GET() {
           sku: string | null;
           imageUrl: string | null;
           category: string | null;
+          brand: string | null;
           unitsSold: bigint;
           revenue: number;
           orders: bigint;
@@ -57,6 +58,7 @@ export async function GET() {
           p.sku,
           p."imageUrl"                            AS "imageUrl",
           p.category,
+          p.brand,
           SUM(oi.quantity)::bigint                AS "unitsSold",
           ROUND(SUM(oi."totalPrice")::numeric)    AS revenue,
           COUNT(DISTINCT oi."orderId")::bigint    AS orders
@@ -66,7 +68,7 @@ export async function GET() {
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate"    >= ${thirtyDaysAgo}
           AND o.status NOT IN ('CANCELLED')
-        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category
+        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand
         ORDER BY SUM(oi."totalPrice") DESC
       `,
     ]);
@@ -91,6 +93,7 @@ export async function GET() {
         sku: p.sku || null,
         imageUrl: p.imageUrl || null,
         category: p.category || null,
+        brand: p.brand || null,
         unitsSold: units,
         revenue: Math.round(rev),
         orders: Number(p.orders),
@@ -98,7 +101,6 @@ export async function GET() {
       };
     });
 
-    const topProducts = products.slice(0, 20);
     const detailedRevenue = products.reduce((s, p) => s + p.revenue, 0);
     const detailedUnits = products.reduce((s, p) => s + p.unitsSold, 0);
     const uniqueProducts = products.length;
@@ -113,8 +115,14 @@ export async function GET() {
         ? Math.round((top20pctRevenue / detailedRevenue) * 100)
         : 0;
 
+    /* ── Unique brands & categories for filters ─────────────────── */
+    const brands = [...new Set(products.map((p) => p.brand).filter(Boolean))].sort();
+    const categories = [...new Set(products.map((p) => p.category).filter(Boolean))].sort();
+
     return NextResponse.json({
-      topProducts,
+      products,
+      brands,
+      categories,
       summary: {
         estimatedTotalUnits,
         estimatedTotalRevenue,
@@ -128,7 +136,7 @@ export async function GET() {
         isComplete: processedPct >= 99,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
