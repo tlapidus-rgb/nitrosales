@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     if (!org)
       return NextResponse.json({ error: "Org not found" }, { status: 404 });
 
-    /* ââ MODE: resync-products ââââââââââââââââââââââââââââââââââââââââââ
+    /* Ã¢ÂÂÃ¢ÂÂ MODE: resync-products Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
        Re-fetch VTEX details for orders whose products lack brand/category.
        This updates existing products without creating duplicate items. */
     if (mode === "resync-products") {
@@ -111,7 +111,7 @@ export async function GET(req: Request) {
           }
         } catch (e: any) {
           errors.push(
-            `product ${product.externalId}: ${e.message.substring(0, 80)}`
+            `product ${product.externalId}: ${e.message.substring(0, 300)}`
           );
         }
       }
@@ -125,7 +125,7 @@ export async function GET(req: Request) {
       });
     }
 
-    /* ââ MODE: normal (default) âââââââââââââââââââââââââââââââââââââââââ
+    /* Ã¢ÂÂÃ¢ÂÂ MODE: normal (default) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
        Original behavior: process orders without items. */
 
     const ordersWithoutItems = await prisma.order.findMany({
