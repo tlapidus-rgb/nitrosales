@@ -38,18 +38,18 @@ interface ProductSummary {
   paretoConcentration: number;
 }
 
-/* ── Color palette ─────────────────────────────────────────── */
+/* ── Color palette for charts ─────────────────────────────── */
 const COLORS = [
-  "#6366f1", // indigo
-  "#10b981", // emerald
-  "#f59e0b", // amber
-  "#ef4444", // rose
+  "#FF5E1A", // nitro orange
+  "#FF2E2E", // nitro red
+  "#FFB800", // nitro yellow
+  "#4ADE80", // nitro green
   "#06b6d4", // cyan
   "#8b5cf6", // violet
-  "#f97316", // orange
+  "#f97316", // orange variant
   "#14b8a6", // teal
   "#ec4899", // pink
-  "#94a3b8", // gray (for "Otros")
+  "#64748b", // slate (for "Otros")
 ];
 
 /* ── Types for metric toggle ──────────────────────────────── */
@@ -59,7 +59,7 @@ type PieMetric = "revenue" | "unitsSold";
 function getDaysOfStock(product: ProductItem): number | null {
   if (product.stock === null || product.stock === undefined) return null;
   const dailySales = product.unitsSold / 30;
-  if (dailySales <= 0) return 999; // no sales = infinite stock
+  if (dailySales <= 0) return 999;
   return Math.round(product.stock / dailySales);
 }
 
@@ -93,7 +93,6 @@ function aggregateByField(
     }))
     .sort((a, b) => b.value - a.value);
 
-  // Top 8 + agrupar resto en "Otros"
   if (sorted.length <= 9) return sorted;
   const top = sorted.slice(0, 8);
   const rest = sorted.slice(8);
@@ -105,12 +104,11 @@ function aggregateByField(
   ];
 }
 
-/* ── Custom pie label (shows % outside for slices > 4%) ───── */
+/* ── Custom pie label ─────────────────────────────────────── */
 function renderCustomLabel({
   cx,
   cy,
   midAngle,
-  innerRadius,
   outerRadius,
   pct,
 }: any) {
@@ -123,11 +121,12 @@ function renderCustomLabel({
     <text
       x={x}
       y={y}
-      fill="#374151"
+      fill="#8A8A8A"
       textAnchor={x > cx ? "start" : "end"}
       dominantBaseline="central"
       fontSize={11}
       fontWeight={600}
+      fontFamily="Space Mono, monospace"
     >
       {pct}%
     </text>
@@ -142,18 +141,18 @@ function PieTooltip({ active, payload, metric }: any) {
   return (
     <div
       style={{
-        backgroundColor: "#fff",
-        border: "1px solid #e5e7eb",
-        borderRadius: 8,
-        padding: "8px 12px",
+        backgroundColor: "#161616",
+        border: "1px solid rgba(255, 94, 26, 0.3)",
+        borderRadius: 12,
+        padding: "10px 14px",
         fontSize: 12,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
       }}
     >
-      <p style={{ fontWeight: 600, marginBottom: 2, color: "#111827" }}>
+      <p style={{ fontWeight: 600, marginBottom: 2, color: "#FFFFFF", fontFamily: "DM Sans" }}>
         {d.name}
       </p>
-      <p style={{ color: "#6b7280" }}>
+      <p style={{ color: "#8A8A8A", fontFamily: "Space Mono, monospace", fontSize: 11 }}>
         {isUnits
           ? `${d.value.toLocaleString("es-AR")} uds`
           : formatARS(d.value)}{" "}
@@ -177,8 +176,8 @@ function PieLegend({
             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
             style={{ backgroundColor: COLORS[i % COLORS.length] }}
           />
-          <span className="text-xs text-gray-600 truncate">{d.name}</span>
-          <span className="text-xs font-medium text-gray-400 ml-auto flex-shrink-0">
+          <span className="text-xs text-nitro-text2 truncate">{d.name}</span>
+          <span className="text-xs font-medium text-nitro-muted ml-auto flex-shrink-0 font-mono">
             {d.pct}%
           </span>
         </div>
@@ -205,7 +204,6 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
 
     if (critical.length === 0 && low.length === 0) return null;
 
-    // Aggregate by brand
     const brandRisk = new Map<string, { count: number; avgDays: number; totalDays: number }>();
     for (const p of [...critical, ...low]) {
       const brand = p.brand || "Sin marca";
@@ -217,7 +215,6 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
       brandRisk.set(brand, entry);
     }
 
-    // Aggregate by category
     const catRisk = new Map<string, { count: number; avgDays: number; totalDays: number }>();
     for (const p of [...critical, ...low]) {
       const cat = p.category || "Sin categoria";
@@ -242,58 +239,65 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
   if (!analysis) return null;
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-lg">📦</span>
-        <h3 className="text-sm font-semibold text-amber-800">
-          Alertas de Inventario
-        </h3>
+    <div className="nitro-card bg-nitro-card border border-nitro-border rounded-[16px] p-5 mb-6 animate-fade-in-up"
+      style={{ boxShadow: "0 0 60px rgba(255, 94, 26, 0.06)" }}>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+          style={{ background: "rgba(255, 94, 26, 0.1)", border: "1px solid rgba(255, 94, 26, 0.2)" }}>
+          <span className="text-sm">&#x26A0;&#xFE0F;</span>
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-white">Alertas de Inventario</h3>
+          <p className="text-[10px] font-mono text-nitro-muted uppercase tracking-widest">Stock monitor</p>
+        </div>
       </div>
 
-      <div className="space-y-1.5 mb-3">
+      <div className="space-y-2 mb-4">
         {analysis.critical.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">
-              <span className="font-semibold text-red-700">{analysis.critical.length}</span>
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
+            style={{ background: "rgba(255, 94, 94, 0.06)", border: "1px solid rgba(255, 94, 94, 0.15)" }}>
+            <span className="w-2 h-2 rounded-full bg-nitro-err animate-pulse-live flex-shrink-0" />
+            <span className="text-sm text-nitro-text2">
+              <span className="font-bold text-nitro-err font-mono">{analysis.critical.length}</span>
               {" "}producto{analysis.critical.length !== 1 ? "s" : ""} con stock critico
-              <span className="text-gray-400"> (&lt;7 dias de inventario)</span>
+              <span className="text-nitro-muted"> (&lt;7 dias)</span>
             </span>
           </div>
         )}
         {analysis.low.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">
-              <span className="font-semibold text-amber-700">{analysis.low.length}</span>
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
+            style={{ background: "rgba(255, 184, 0, 0.06)", border: "1px solid rgba(255, 184, 0, 0.15)" }}>
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#FFB800" }} />
+            <span className="text-sm text-nitro-text2">
+              <span className="font-bold font-mono" style={{ color: "#FFB800" }}>{analysis.low.length}</span>
               {" "}producto{analysis.low.length !== 1 ? "s" : ""} con stock bajo
-              <span className="text-gray-400"> (&lt;14 dias de inventario)</span>
+              <span className="text-nitro-muted"> (&lt;14 dias)</span>
             </span>
           </div>
         )}
       </div>
 
-      <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-gray-600">
+      <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-nitro-text2">
         {analysis.topBrands.length > 0 && (
           <div>
-            <span className="font-medium text-gray-700">Marcas en riesgo: </span>
+            <span className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">Marcas en riesgo: </span>
             {analysis.topBrands.map(([brand, info], i) => (
               <span key={brand}>
                 {i > 0 && ", "}
-                {brand}
-                <span className="text-gray-400"> ({info.count} prod, ~{info.avgDays}d)</span>
+                <span className="text-white">{brand}</span>
+                <span className="text-nitro-muted font-mono text-[10px]"> ({info.count} prod, ~{info.avgDays}d)</span>
               </span>
             ))}
           </div>
         )}
         {analysis.topCats.length > 0 && (
           <div>
-            <span className="font-medium text-gray-700">Categorias en riesgo: </span>
+            <span className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">Categorias: </span>
             {analysis.topCats.map(([cat, info], i) => (
               <span key={cat}>
                 {i > 0 && ", "}
-                {cat}
-                <span className="text-gray-400"> ({info.count} prod, ~{info.avgDays}d)</span>
+                <span className="text-white">{cat}</span>
+                <span className="text-nitro-muted font-mono text-[10px]"> ({info.count} prod, ~{info.avgDays}d)</span>
               </span>
             ))}
           </div>
@@ -309,27 +313,84 @@ function StockBadge({ product }: { product: ProductItem }) {
   const level = getStockLevel(days);
 
   if (level === "nodata") {
-    return (
-      <span className="text-xs text-gray-300">—</span>
-    );
+    return <span className="text-xs text-nitro-muted font-mono">&mdash;</span>;
   }
 
   const styles = {
-    critical: "bg-red-50 text-red-700 border-red-200",
-    low: "bg-amber-50 text-amber-700 border-amber-200",
-    ok: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    critical: {
+      bg: "rgba(255, 94, 94, 0.1)",
+      border: "rgba(255, 94, 94, 0.25)",
+      text: "#FF5E5E",
+      dot: "#FF5E5E",
+    },
+    low: {
+      bg: "rgba(255, 184, 0, 0.1)",
+      border: "rgba(255, 184, 0, 0.25)",
+      text: "#FFB800",
+      dot: "#FFB800",
+    },
+    ok: {
+      bg: "rgba(74, 222, 128, 0.1)",
+      border: "rgba(74, 222, 128, 0.25)",
+      text: "#4ADE80",
+      dot: "#4ADE80",
+    },
   };
+
+  const s = styles[level];
 
   return (
     <div className="text-right">
-      <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${styles[level]}`}>
+      <span
+        className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg"
+        style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.text }}
+      >
+        {level === "critical" && <span className="w-1.5 h-1.5 rounded-full animate-pulse-live" style={{ background: s.dot }} />}
         {product.stock!.toLocaleString("es-AR")} uds
       </span>
-      <div className="text-[10px] text-gray-400 mt-0.5">
-        {days === 999
-          ? "Sin ventas recientes"
-          : `~${days} dias`}
+      <div className="text-[10px] text-nitro-muted mt-0.5 font-mono">
+        {days === 999 ? "Sin ventas" : `~${days}d stock`}
       </div>
+    </div>
+  );
+}
+
+/* ── KPI Card ──────────────────────────────────────────────── */
+function KpiCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="text-right">
+      <p className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest mb-0.5">{label}</p>
+      <p className={`text-sm font-bold font-mono ${accent ? "text-nitro-orange" : "text-white"}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/* ── Metric Toggle ─────────────────────────────────────────── */
+function MetricToggle({ metric, setMetric }: { metric: PieMetric; setMetric: (m: PieMetric) => void }) {
+  return (
+    <div className="flex bg-nitro-bg rounded-lg p-0.5 flex-shrink-0 border border-nitro-border">
+      <button
+        onClick={() => setMetric("revenue")}
+        className={`text-[10px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
+          metric === "revenue"
+            ? "bg-nitro-card text-nitro-orange shadow-sm"
+            : "text-nitro-muted hover:text-nitro-text2"
+        }`}
+      >
+        Revenue
+      </button>
+      <button
+        onClick={() => setMetric("unitsSold")}
+        className={`text-[10px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
+          metric === "unitsSold"
+            ? "bg-nitro-card text-nitro-orange shadow-sm"
+            : "text-nitro-muted hover:text-nitro-text2"
+        }`}
+      >
+        Unidades
+      </button>
     </div>
   );
 }
@@ -403,20 +464,33 @@ export default function ProductsPage() {
   );
 
   if (loading)
-    return <p className="text-gray-400 p-8">Cargando productos...</p>;
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-nitro-orange animate-pulse-live" />
+          <p className="text-nitro-text2 font-mono text-sm tracking-wider uppercase">
+            Cargando productos
+          </p>
+        </div>
+      </div>
+    );
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Productos</h2>
-        <p className="text-gray-500">
-          Top productos por facturacion &middot; Ultimos 30 dias
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div className="mb-8 animate-fade-in-up">
+        <h2 className="font-headline text-3xl text-white tracking-tight" style={{ letterSpacing: "-1px" }}>
+          Productos
+        </h2>
+        <p className="text-nitro-text2 mt-1">
+          Top productos por facturacion &middot;{" "}
+          <span className="font-mono text-[11px] text-nitro-muted uppercase tracking-wider">Ultimos 30 dias</span>
         </p>
       </div>
 
       {allProducts.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-          <p className="text-gray-400">No hay datos de productos aun.</p>
+        <div className="bg-nitro-card rounded-[16px] border border-nitro-border p-12 text-center">
+          <p className="text-nitro-muted">No hay datos de productos aun.</p>
         </div>
       ) : (
         <>
@@ -424,44 +498,19 @@ export default function ProductsPage() {
           <StockAlertBanner products={filtered} />
 
           {/* ── Pie Charts ──────────────────────────────────── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 stagger-children">
             {/* Brand pie */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="nitro-card bg-nitro-card rounded-[16px] border border-nitro-border p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                  <h3 className="text-sm font-semibold text-white mb-1">
                     Ventas por Marca
                   </h3>
-                  <p className="text-xs text-gray-400">
-                    Distribucion de{" "}
-                    {brandMetric === "revenue"
-                      ? "facturacion"
-                      : "unidades vendidas"}{" "}
-                    por marca
+                  <p className="text-[11px] text-nitro-muted font-mono uppercase tracking-wider">
+                    {brandMetric === "revenue" ? "Facturacion" : "Unidades"} por marca
                   </p>
                 </div>
-                <div className="flex bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
-                  <button
-                    onClick={() => setBrandMetric("revenue")}
-                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-                      brandMetric === "revenue"
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    Facturacion
-                  </button>
-                  <button
-                    onClick={() => setBrandMetric("unitsSold")}
-                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-                      brandMetric === "unitsSold"
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    Unidades
-                  </button>
-                </div>
+                <MetricToggle metric={brandMetric} setMetric={setBrandMetric} />
               </div>
               {brandChartData.length > 0 ? (
                 <>
@@ -476,7 +525,7 @@ export default function ProductsPage() {
                         dataKey="value"
                         label={renderCustomLabel}
                         labelLine={false}
-                        stroke="#fff"
+                        stroke="#0A0A0A"
                         strokeWidth={2}
                       >
                         {brandChartData.map((_, i) => (
@@ -489,49 +538,22 @@ export default function ProductsPage() {
                   <PieLegend data={brandChartData} />
                 </>
               ) : (
-                <p className="text-gray-300 text-sm text-center py-12">
-                  Sin datos
-                </p>
+                <p className="text-nitro-muted text-sm text-center py-12">Sin datos</p>
               )}
             </div>
 
             {/* Category pie */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="nitro-card bg-nitro-card rounded-[16px] border border-nitro-border p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                  <h3 className="text-sm font-semibold text-white mb-1">
                     Ventas por Categoria
                   </h3>
-                  <p className="text-xs text-gray-400">
-                    Distribucion de{" "}
-                    {categoryMetric === "revenue"
-                      ? "facturacion"
-                      : "unidades vendidas"}{" "}
-                    por categoria
+                  <p className="text-[11px] text-nitro-muted font-mono uppercase tracking-wider">
+                    {categoryMetric === "revenue" ? "Facturacion" : "Unidades"} por categoria
                   </p>
                 </div>
-                <div className="flex bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
-                  <button
-                    onClick={() => setCategoryMetric("revenue")}
-                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-                      categoryMetric === "revenue"
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    Facturacion
-                  </button>
-                  <button
-                    onClick={() => setCategoryMetric("unitsSold")}
-                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-                      categoryMetric === "unitsSold"
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    Unidades
-                  </button>
-                </div>
+                <MetricToggle metric={categoryMetric} setMetric={setCategoryMetric} />
               </div>
               {categoryChartData.length > 0 ? (
                 <>
@@ -546,71 +568,52 @@ export default function ProductsPage() {
                         dataKey="value"
                         label={renderCustomLabel}
                         labelLine={false}
-                        stroke="#fff"
+                        stroke="#0A0A0A"
                         strokeWidth={2}
                       >
                         {categoryChartData.map((_, i) => (
                           <Cell key={i} fill={COLORS[i % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip
-                        content={<PieTooltip metric={categoryMetric} />}
-                      />
+                      <Tooltip content={<PieTooltip metric={categoryMetric} />} />
                     </PieChart>
                   </ResponsiveContainer>
                   <PieLegend data={categoryChartData} />
                 </>
               ) : (
-                <p className="text-gray-300 text-sm text-center py-12">
-                  Sin datos
-                </p>
+                <p className="text-nitro-muted text-sm text-center py-12">Sin datos</p>
               )}
             </div>
           </div>
 
           {/* ── Products table card ─────────────────────────── */}
-          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div className="nitro-card bg-nitro-card rounded-[16px] border border-nitro-border overflow-hidden animate-fade-in-up"
+            style={{ animationDelay: "200ms" }}>
             {/* ── Header with KPIs ───────────────────────────── */}
-            <div className="p-6 border-b">
+            <div className="p-6 border-b border-nitro-border">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <h3 className="font-semibold text-gray-700">
+                  <h3 className="font-semibold text-white">
                     Top Productos por Facturacion
                   </h3>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-nitro-muted mt-1 font-mono">
                     {filteredUniqueProducts.toLocaleString("es-AR")} productos
                     {isFiltered && (
-                      <span className="text-indigo-500">
-                        {" "}
-                        (filtrado de{" "}
-                        {allProducts.length.toLocaleString("es-AR")})
+                      <span className="text-nitro-orange">
+                        {" "}(filtrado de {allProducts.length.toLocaleString("es-AR")})
                       </span>
                     )}
                   </p>
                 </div>
-                <div className="flex gap-4">
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Unidades vendidas</p>
-                    <p className="text-sm font-bold text-gray-700">
-                      {filteredUnits.toLocaleString("es-AR")}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Facturacion</p>
-                    <p className="text-sm font-bold text-gray-700">
-                      {formatARS(filteredRevenue)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Pareto</p>
-                    <p className="text-sm font-bold text-indigo-600">
-                      Top 20% = {filteredPareto}% revenue
-                    </p>
-                  </div>
+                <div className="flex gap-6">
+                  <KpiCard label="Uds vendidas" value={filteredUnits.toLocaleString("es-AR")} />
+                  <KpiCard label="Facturacion" value={formatARS(filteredRevenue)} />
+                  <KpiCard label="Pareto" value={`Top 20% = ${filteredPareto}%`} accent />
                   {productsAtRisk > 0 && (
                     <div className="text-right">
-                      <p className="text-xs text-gray-400">En riesgo</p>
-                      <p className="text-sm font-bold text-amber-600">
+                      <p className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest mb-0.5">En riesgo</p>
+                      <p className="text-sm font-bold font-mono text-nitro-err flex items-center justify-end gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-nitro-err animate-pulse-live" />
                         {productsAtRisk} producto{productsAtRisk !== 1 ? "s" : ""}
                       </p>
                     </div>
@@ -621,24 +624,23 @@ export default function ProductsPage() {
 
             {/* ── Filter bar ─────────────────────────────────── */}
             {(brands.length > 0 || categories.length > 0) && (
-              <div className="px-6 py-3 bg-gray-50 border-b flex items-center gap-4 flex-wrap">
+              <div className="px-6 py-3 bg-nitro-bg2 border-b border-nitro-border flex items-center gap-4 flex-wrap">
                 {brands.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-medium text-gray-500 uppercase">
+                    <label className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">
                       Marca
                     </label>
                     <select
                       value={brandFilter}
                       onChange={(e) => setBrandFilter(e.target.value)}
-                      className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                      className="nitro-select text-sm"
                     >
                       <option value="ALL">
                         Todas ({allProducts.filter((p) => p.brand).length})
                       </option>
                       {brands.map((b) => (
                         <option key={b} value={b}>
-                          {b} (
-                          {allProducts.filter((p) => p.brand === b).length})
+                          {b} ({allProducts.filter((p) => p.brand === b).length})
                         </option>
                       ))}
                     </select>
@@ -647,26 +649,20 @@ export default function ProductsPage() {
 
                 {categories.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-medium text-gray-500 uppercase">
+                    <label className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">
                       Categoria
                     </label>
                     <select
                       value={categoryFilter}
                       onChange={(e) => setCategoryFilter(e.target.value)}
-                      className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                      className="nitro-select text-sm"
                     >
                       <option value="ALL">
-                        Todas (
-                        {allProducts.filter((p) => p.category).length})
+                        Todas ({allProducts.filter((p) => p.category).length})
                       </option>
                       {categories.map((c) => (
                         <option key={c} value={c}>
-                          {c} (
-                          {
-                            allProducts.filter((p) => p.category === c)
-                              .length
-                          }
-                          )
+                          {c} ({allProducts.filter((p) => p.category === c).length})
                         </option>
                       ))}
                     </select>
@@ -679,7 +675,7 @@ export default function ProductsPage() {
                       setBrandFilter("ALL");
                       setCategoryFilter("ALL");
                     }}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium ml-auto"
+                    className="text-xs text-nitro-orange hover:text-white font-medium ml-auto transition-colors duration-300"
                   >
                     Limpiar filtros
                   </button>
@@ -689,39 +685,23 @@ export default function ProductsPage() {
 
             {/* ── Table ──────────────────────────────────────── */}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm nitro-table">
                 <thead>
-                  <tr className="bg-gray-50 text-left">
-                    <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase w-10">
-                      #
-                    </th>
-                    <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase">
-                      Producto
-                    </th>
-                    <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase text-right">
-                      Unidades
-                    </th>
-                    <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase text-right">
-                      Pedidos
-                    </th>
-                    <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase text-right">
-                      Precio Prom.
-                    </th>
-                    <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase text-right">
-                      Stock
-                    </th>
-                    <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase text-right">
-                      Facturacion
-                    </th>
-                    <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase text-right">
-                      % del Total
-                    </th>
+                  <tr className="bg-nitro-bg2 text-left">
+                    <th className="px-4 py-3 w-10">#</th>
+                    <th className="px-3 py-3">Producto</th>
+                    <th className="px-3 py-3 text-right">Unidades</th>
+                    <th className="px-3 py-3 text-right">Pedidos</th>
+                    <th className="px-3 py-3 text-right">Precio Prom.</th>
+                    <th className="px-3 py-3 text-right">Stock</th>
+                    <th className="px-3 py-3 text-right">Facturacion</th>
+                    <th className="px-3 py-3 text-right">% del Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-nitro-border/50">
                   {topFiltered.map((p, idx) => (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-400 text-xs">
+                    <tr key={p.id} className="transition-colors duration-200">
+                      <td className="px-4 py-3 text-nitro-muted text-xs font-mono">
                         {idx + 1}
                       </td>
                       <td className="px-3 py-3">
@@ -730,26 +710,31 @@ export default function ProductsPage() {
                             <img
                               src={p.imageUrl}
                               alt={p.name}
-                              className="w-10 h-10 rounded-lg object-cover border"
+                              className="w-10 h-10 rounded-lg object-cover border border-nitro-border"
                               onError={(e) => {
-                                (
-                                  e.target as HTMLImageElement
-                                ).style.display = "none";
+                                (e.target as HTMLImageElement).style.display = "none";
                               }}
                             />
                           )}
                           <div>
-                            <div className="font-medium text-gray-800 truncate max-w-[250px]">
+                            <div className="font-medium text-white truncate max-w-[250px]">
                               {p.name}
                             </div>
                             <div className="flex gap-2 mt-0.5">
                               {p.sku && (
-                                <span className="text-xs text-gray-400">
+                                <span className="text-[10px] text-nitro-muted font-mono uppercase tracking-wider">
                                   SKU: {p.sku}
                                 </span>
                               )}
                               {p.brand && (
-                                <span className="text-xs text-indigo-500 bg-indigo-50 px-1.5 rounded">
+                                <span
+                                  className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                  style={{
+                                    color: "#FF5E1A",
+                                    background: "rgba(255, 94, 26, 0.1)",
+                                    border: "1px solid rgba(255, 94, 26, 0.2)",
+                                  }}
+                                >
                                   {p.brand}
                                 </span>
                               )}
@@ -757,43 +742,42 @@ export default function ProductsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-gray-700 text-right">
+                      <td className="px-3 py-3 text-nitro-text2 text-right font-mono text-xs">
                         {p.unitsSold.toLocaleString("es-AR")}
                       </td>
-                      <td className="px-3 py-3 text-gray-700 text-right">
+                      <td className="px-3 py-3 text-nitro-text2 text-right font-mono text-xs">
                         {p.orders.toLocaleString("es-AR")}
                       </td>
-                      <td className="px-3 py-3 text-gray-700 text-right">
+                      <td className="px-3 py-3 text-nitro-text2 text-right font-mono text-xs">
                         {formatARS(p.avgPrice)}
                       </td>
                       <td className="px-3 py-3 text-right">
                         <StockBadge product={p} />
                       </td>
-                      <td className="px-3 py-3 font-medium text-gray-800 text-right">
+                      <td className="px-3 py-3 font-bold text-white text-right font-mono text-xs">
                         {formatARS(p.revenue)}
                       </td>
                       <td className="px-3 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <div className="w-16 bg-gray-100 rounded-full h-1.5">
+                          <div className="w-16 bg-nitro-bg rounded-full h-1.5">
                             <div
-                              className="bg-indigo-500 h-1.5 rounded-full"
+                              className="h-1.5 rounded-full"
                               style={{
                                 width:
                                   Math.min(
                                     100,
                                     Math.round(
-                                      (p.revenue / (filteredRevenue || 1)) *
-                                        100
+                                      (p.revenue / (filteredRevenue || 1)) * 100
                                     )
                                   ) + "%",
+                                background: "var(--nitro-gradient)",
                               }}
                             />
                           </div>
-                          <span className="text-xs text-gray-500 w-8">
+                          <span className="text-[10px] text-nitro-muted w-8 font-mono">
                             {Math.round(
                               (p.revenue / (filteredRevenue || 1)) * 100
-                            )}
-                            %
+                            )}%
                           </span>
                         </div>
                       </td>
@@ -805,10 +789,9 @@ export default function ProductsPage() {
 
             {/* ── Footer ─────────────────────────────────────── */}
             {filtered.length > 20 && (
-              <div className="px-6 py-3 border-t bg-gray-50 text-center">
-                <p className="text-xs text-gray-400">
-                  Mostrando top 20 de{" "}
-                  {filtered.length.toLocaleString("es-AR")} productos
+              <div className="px-6 py-3 border-t border-nitro-border bg-nitro-bg2 text-center">
+                <p className="text-[10px] text-nitro-muted font-mono uppercase tracking-widest">
+                  Mostrando top 20 de {filtered.length.toLocaleString("es-AR")} productos
                 </p>
               </div>
             )}
