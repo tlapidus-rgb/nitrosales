@@ -180,6 +180,8 @@ model Product {
   compareAtPrice Float?                          // Precio tachado/anterior
   imageUrl      String?
   isActive      Boolean  @default(true)
+  stock          Int?                            // Unidades disponibles en VTEX
+  stockUpdatedAt DateTime?                       // Última sincronización de stock
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
