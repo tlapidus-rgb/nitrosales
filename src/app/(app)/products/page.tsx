@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-/* ââ Types âââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Types Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 interface ProductItem {
   id: string;
   name: string;
@@ -38,7 +38,7 @@ interface ProductSummary {
   paretoConcentration: number;
 }
 
-/* ââ Color palette for charts âââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Color palette for charts Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 const COLORS = [
   "#FF5E1A", // nitro orange
   "#FF2E2E", // nitro red
@@ -52,10 +52,10 @@ const COLORS = [
   "#64748b", // slate (for "Otros")
 ];
 
-/* ââ Types for metric toggle ââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Types for metric toggle Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 type PieMetric = "revenue" | "unitsSold";
 
-/* ââ Stock helpers âââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Stock helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function getDaysOfStock(product: ProductItem): number | null {
   if (product.stock === null || product.stock === undefined) return null;
   const dailySales = product.unitsSold / 30;
@@ -70,7 +70,7 @@ function getStockLevel(days: number | null): "critical" | "low" | "ok" | "nodata
   return "ok";
 }
 
-/* ââ Helpers âââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function aggregateByField(
   products: ProductItem[],
   field: "brand" | "category",
@@ -104,7 +104,7 @@ function aggregateByField(
   ];
 }
 
-/* ââ Custom pie label âââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Custom pie label Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function renderCustomLabel({
   cx,
   cy,
@@ -121,7 +121,7 @@ function renderCustomLabel({
     <text
       x={x}
       y={y}
-      fill="#8A8A8A"
+      fill="#CBD5E1"
       textAnchor={x > cx ? "start" : "end"}
       dominantBaseline="central"
       fontSize={11}
@@ -133,7 +133,7 @@ function renderCustomLabel({
   );
 }
 
-/* ââ Custom tooltip ââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Custom tooltip Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function PieTooltip({ active, payload, metric }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
@@ -141,7 +141,8 @@ function PieTooltip({ active, payload, metric }: any) {
   return (
     <div
       style={{
-        backgroundColor: "#161616",
+        backgroundColor: "#FFFFFF",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
         border: "1px solid rgba(255, 94, 26, 0.3)",
         borderRadius: 12,
         padding: "10px 14px",
@@ -162,7 +163,7 @@ function PieTooltip({ active, payload, metric }: any) {
   );
 }
 
-/* ââ Custom legend âââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Custom legend Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function PieLegend({
   data,
 }: {
@@ -176,8 +177,8 @@ function PieLegend({
             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
             style={{ backgroundColor: COLORS[i % COLORS.length] }}
           />
-          <span className="text-xs text-nitro-text2 truncate">{d.name}</span>
-          <span className="text-xs font-medium text-nitro-muted ml-auto flex-shrink-0 font-mono">
+          <span className="text-xs text-gray-500 truncate">{d.name}</span>
+          <span className="text-xs font-medium text-gray-400 ml-auto flex-shrink-0 font-mono">
             {d.pct}%
           </span>
         </div>
@@ -186,7 +187,7 @@ function PieLegend({
   );
 }
 
-/* ââ Stock Alert Banner ââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Stock Alert Banner Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function StockAlertBanner({ products }: { products: ProductItem[] }) {
   const analysis = useMemo(() => {
     const withStock = products.filter((p) => p.stock !== null && p.stock !== undefined);
@@ -239,16 +240,16 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
   if (!analysis) return null;
 
   return (
-    <div className="nitro-card bg-nitro-card border border-nitro-border rounded-[16px] p-5 mb-6 animate-fade-in-up"
+    <div className="nitro-card bg-white border border-gray-200 rounded-[16px] p-5 mb-6 animate-fade-in-up"
       style={{ boxShadow: "0 0 60px rgba(255, 94, 26, 0.06)" }}>
       <div className="flex items-center gap-3 mb-4">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{ background: "rgba(255, 94, 26, 0.1)", border: "1px solid rgba(255, 94, 26, 0.2)" }}>
+          style={{ background: "rgba(255, 94, 26, 0.1)", border: "1px solid #E5E7EB" }}>
           <span className="text-sm">&#x26A0;&#xFE0F;</span>
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">Alertas de Inventario</h3>
-          <p className="text-[11px] font-mono text-nitro-muted uppercase tracking-widest">Stock monitor</p>
+          <h3 className="text-sm font-semibold text-gray-900">Alertas de Inventario</h3>
+          <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">Stock monitor</p>
         </div>
       </div>
 
@@ -257,10 +258,10 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
           <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
             style={{ background: "rgba(255, 94, 94, 0.06)", border: "1px solid rgba(255, 94, 94, 0.15)" }}>
             <span className="w-2 h-2 rounded-full bg-nitro-err animate-pulse-live flex-shrink-0" />
-            <span className="text-sm text-nitro-text2">
+            <span className="text-sm text-gray-500">
               <span className="font-bold text-nitro-err font-mono">{analysis.critical.length}</span>
               {" "}producto{analysis.critical.length !== 1 ? "s" : ""} con stock critico
-              <span className="text-nitro-muted"> (&lt;7 dias)</span>
+              <span className="text-gray-400"> (&lt;7 dias)</span>
             </span>
           </div>
         )}
@@ -268,36 +269,36 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
           <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
             style={{ background: "rgba(255, 184, 0, 0.06)", border: "1px solid rgba(255, 184, 0, 0.15)" }}>
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#FFB800" }} />
-            <span className="text-sm text-nitro-text2">
+            <span className="text-sm text-gray-500">
               <span className="font-bold font-mono" style={{ color: "#FFB800" }}>{analysis.low.length}</span>
               {" "}producto{analysis.low.length !== 1 ? "s" : ""} con stock bajo
-              <span className="text-nitro-muted"> (&lt;14 dias)</span>
+              <span className="text-gray-400"> (&lt;14 dias)</span>
             </span>
           </div>
         )}
       </div>
 
-      <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-nitro-text2">
+      <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-gray-500">
         {analysis.topBrands.length > 0 && (
           <div>
-            <span className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest">Marcas en riesgo: </span>
+            <span className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">Marcas en riesgo: </span>
             {analysis.topBrands.map(([brand, info], i) => (
               <span key={brand}>
                 {i > 0 && ", "}
-                <span className="text-white">{brand}</span>
-                <span className="text-nitro-muted font-mono text-[11px]"> ({info.count} prod, ~{info.avgDays}d)</span>
+                <span className="text-gray-900">{brand}</span>
+                <span className="text-gray-400 font-mono text-[11px]"> ({info.count} prod, ~{info.avgDays}d)</span>
               </span>
             ))}
           </div>
         )}
         {analysis.topCats.length > 0 && (
           <div>
-            <span className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest">Categorias: </span>
+            <span className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">Categorias: </span>
             {analysis.topCats.map(([cat, info], i) => (
               <span key={cat}>
                 {i > 0 && ", "}
-                <span className="text-white">{cat}</span>
-                <span className="text-nitro-muted font-mono text-[11px]"> ({info.count} prod, ~{info.avgDays}d)</span>
+                <span className="text-gray-900">{cat}</span>
+                <span className="text-gray-400 font-mono text-[11px]"> ({info.count} prod, ~{info.avgDays}d)</span>
               </span>
             ))}
           </div>
@@ -307,13 +308,13 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
   );
 }
 
-/* ââ Stock Badge Component âââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Stock Badge Component Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function StockBadge({ product }: { product: ProductItem }) {
   const days = getDaysOfStock(product);
   const level = getStockLevel(days);
 
   if (level === "nodata") {
-    return <span className="text-xs text-nitro-muted font-mono">&mdash;</span>;
+    return <span className="text-xs text-gray-400 font-mono">&mdash;</span>;
   }
 
   const styles = {
@@ -348,35 +349,35 @@ function StockBadge({ product }: { product: ProductItem }) {
         {level === "critical" && <span className="w-1.5 h-1.5 rounded-full animate-pulse-live" style={{ background: s.dot }} />}
         {product.stock!.toLocaleString("es-AR")} uds
       </span>
-      <div className="text-[11px] text-nitro-muted mt-0.5 font-mono">
+      <div className="text-[11px] text-gray-400 mt-0.5 font-mono">
         {days === 999 ? "Sin ventas" : `~${days}d stock`}
       </div>
     </div>
   );
 }
 
-/* ââ KPI Card ââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ KPI Card Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function KpiCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="text-right">
-      <p className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest mb-0.5">{label}</p>
-      <p className={`text-sm font-bold font-mono ${accent ? "text-nitro-orange" : "text-white"}`}>
+      <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-0.5">{label}</p>
+      <p className={`text-sm font-bold font-mono ${accent ? "text-nitro-orange" : "text-gray-900"}`}>
         {value}
       </p>
     </div>
   );
 }
 
-/* ââ Metric Toggle âââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Metric Toggle Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function MetricToggle({ metric, setMetric }: { metric: PieMetric; setMetric: (m: PieMetric) => void }) {
   return (
-    <div className="flex bg-nitro-bg rounded-lg p-0.5 flex-shrink-0 border border-nitro-border">
+    <div className="flex bg-gray-100 rounded-lg p-0.5 flex-shrink-0 border border-gray-200">
       <button
         onClick={() => setMetric("revenue")}
         className={`text-[11px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
           metric === "revenue"
-            ? "bg-nitro-card text-nitro-orange shadow-sm"
-            : "text-nitro-muted hover:text-nitro-text2"
+            ? "bg-white text-nitro-orange shadow-sm"
+            : "text-gray-400 hover:text-gray-500"
         }`}
       >
         Revenue
@@ -385,8 +386,8 @@ function MetricToggle({ metric, setMetric }: { metric: PieMetric; setMetric: (m:
         onClick={() => setMetric("unitsSold")}
         className={`text-[11px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
           metric === "unitsSold"
-            ? "bg-nitro-card text-nitro-orange shadow-sm"
-            : "text-nitro-muted hover:text-nitro-text2"
+            ? "bg-white text-nitro-orange shadow-sm"
+            : "text-gray-400 hover:text-gray-500"
         }`}
       >
         Unidades
@@ -395,7 +396,7 @@ function MetricToggle({ metric, setMetric }: { metric: PieMetric; setMetric: (m:
   );
 }
 
-/* ââ Page âââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Page Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 export default function ProductsPage() {
   const [allProducts, setAllProducts] = useState<ProductItem[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
@@ -420,7 +421,7 @@ export default function ProductsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  /* ââ Filtered products âââââââââââââââââââââââââââââââââââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Filtered products Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
   const filtered = useMemo(() => {
     return allProducts.filter(
       (p) =>
@@ -432,7 +433,7 @@ export default function ProductsPage() {
   const topFiltered = filtered.slice(0, 20);
   const isFiltered = brandFilter !== "ALL" || categoryFilter !== "ALL";
 
-  /* ââ KPIs for filtered subset ââââââââââââââââââââââââââââ */
+  /* Ã¢ÂÂÃ¢ÂÂ KPIs for filtered subset Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
   const filteredUnits = filtered.reduce((s, p) => s + p.unitsSold, 0);
   const filteredRevenue = filtered.reduce((s, p) => s + p.revenue, 0);
   const filteredUniqueProducts = filtered.length;
@@ -445,7 +446,7 @@ export default function ProductsPage() {
       ? Math.round((top20revenue / filteredRevenue) * 100)
       : 0;
 
-  /* ââ Stock KPI ââââââââââââââââââââââââââââââââââââââââââââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Stock KPI Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
   const productsAtRisk = useMemo(() => {
     return filtered.filter((p) => {
       const days = getDaysOfStock(p);
@@ -453,7 +454,7 @@ export default function ProductsPage() {
     }).length;
   }, [filtered]);
 
-  /* ââ Pie chart data ââââââââââââââââââââââââââââââââââââââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Pie chart data Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
   const brandChartData = useMemo(
     () => aggregateByField(filtered, "brand", brandMetric),
     [filtered, brandMetric]
@@ -468,7 +469,7 @@ export default function ProductsPage() {
       <div className="flex items-center justify-center py-20">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-nitro-orange animate-pulse-live" />
-          <p className="text-nitro-text2 font-mono text-sm tracking-wider uppercase">
+          <p className="text-gray-500 font-mono text-sm tracking-wider uppercase">
             Cargando productos
           </p>
         </div>
@@ -476,37 +477,37 @@ export default function ProductsPage() {
     );
 
   return (
-    <div>
-      {/* ââ Header ââââââââââââââââââââââââââââââââââââââââââââ */}
+    <div className="light-canvas min-h-screen">
+      {/* Ã¢ÂÂÃ¢ÂÂ Header Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
       <div className="mb-8 animate-fade-in-up">
-        <h2 className="font-headline text-3xl text-white tracking-tight" style={{ letterSpacing: "-1px" }}>
+        <h2 className="font-headline text-3xl text-gray-900 tracking-tight" style={{ letterSpacing: "-1px" }}>
           Productos
         </h2>
-        <p className="text-nitro-text2 mt-1">
+        <p className="text-gray-500 mt-1">
           Top productos por facturacion &middot;{" "}
-          <span className="font-mono text-[11px] text-nitro-muted uppercase tracking-wider">Ultimos 30 dias</span>
+          <span className="font-mono text-[11px] text-gray-400 uppercase tracking-wider">Ultimos 30 dias</span>
         </p>
       </div>
 
       {allProducts.length === 0 ? (
-        <div className="bg-nitro-card rounded-[16px] border border-nitro-border p-12 text-center">
-          <p className="text-nitro-muted">No hay datos de productos aun.</p>
+        <div className="bg-white rounded-[16px] border border-gray-200 p-12 text-center">
+          <p className="text-gray-400">No hay datos de productos aun.</p>
         </div>
       ) : (
         <>
-          {/* ââ Stock Alerts Banner ââââââââââââââââââââââââ */}
+          {/* Ã¢ÂÂÃ¢ÂÂ Stock Alerts Banner Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
           <StockAlertBanner products={filtered} />
 
-          {/* ââ Pie Charts ââââââââââââââââââââââââââââââââââââ */}
+          {/* Ã¢ÂÂÃ¢ÂÂ Pie Charts Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 stagger-children">
             {/* Brand pie */}
-            <div className="nitro-card bg-nitro-card rounded-[16px] border border-nitro-border p-6">
+            <div className="nitro-card bg-white rounded-[16px] border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-white mb-1">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
                     Ventas por Marca
                   </h3>
-                  <p className="text-[11px] text-nitro-muted font-mono uppercase tracking-wider">
+                  <p className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
                     {brandMetric === "revenue" ? "Facturacion" : "Unidades"} por marca
                   </p>
                 </div>
@@ -525,7 +526,7 @@ export default function ProductsPage() {
                         dataKey="value"
                         label={renderCustomLabel}
                         labelLine={false}
-                        stroke="#0A0A0A"
+                        stroke="#E5E7EB"
                         strokeWidth={2}
                       >
                         {brandChartData.map((_, i) => (
@@ -538,18 +539,18 @@ export default function ProductsPage() {
                   <PieLegend data={brandChartData} />
                 </>
               ) : (
-                <p className="text-nitro-muted text-sm text-center py-12">Sin datos</p>
+                <p className="text-gray-400 text-sm text-center py-12">Sin datos</p>
               )}
             </div>
 
             {/* Category pie */}
-            <div className="nitro-card bg-nitro-card rounded-[16px] border border-nitro-border p-6">
+            <div className="nitro-card bg-white rounded-[16px] border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-white mb-1">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
                     Ventas por Categoria
                   </h3>
-                  <p className="text-[11px] text-nitro-muted font-mono uppercase tracking-wider">
+                  <p className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
                     {categoryMetric === "revenue" ? "Facturacion" : "Unidades"} por categoria
                   </p>
                 </div>
@@ -568,7 +569,7 @@ export default function ProductsPage() {
                         dataKey="value"
                         label={renderCustomLabel}
                         labelLine={false}
-                        stroke="#0A0A0A"
+                        stroke="#E5E7EB"
                         strokeWidth={2}
                       >
                         {categoryChartData.map((_, i) => (
@@ -581,22 +582,22 @@ export default function ProductsPage() {
                   <PieLegend data={categoryChartData} />
                 </>
               ) : (
-                <p className="text-nitro-muted text-sm text-center py-12">Sin datos</p>
+                <p className="text-gray-400 text-sm text-center py-12">Sin datos</p>
               )}
             </div>
           </div>
 
-          {/* ââ Products table card âââââââââââââââââââââââââââ */}
-          <div className="nitro-card bg-nitro-card rounded-[16px] border border-nitro-border overflow-hidden animate-fade-in-up"
+          {/* Ã¢ÂÂÃ¢ÂÂ Products table card Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+          <div className="nitro-card bg-white rounded-[16px] border border-gray-200 overflow-hidden animate-fade-in-up"
             style={{ animationDelay: "200ms" }}>
-            {/* ââ Header with KPIs âââââââââââââââââââââââââââââ */}
-            <div className="p-6 border-b border-nitro-border">
+            {/* Ã¢ÂÂÃ¢ÂÂ Header with KPIs Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+            <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <h3 className="font-semibold text-white">
+                  <h3 className="font-semibold text-gray-900">
                     Top Productos por Facturacion
                   </h3>
-                  <p className="text-xs text-nitro-muted mt-1 font-mono">
+                  <p className="text-xs text-gray-400 mt-1 font-mono">
                     {filteredUniqueProducts.toLocaleString("es-AR")} productos
                     {isFiltered && (
                       <span className="text-nitro-orange">
@@ -611,7 +612,7 @@ export default function ProductsPage() {
                   <KpiCard label="Pareto" value={`Top 20% = ${filteredPareto}%`} accent />
                   {productsAtRisk > 0 && (
                     <div className="text-right">
-                      <p className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest mb-0.5">En riesgo</p>
+                      <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-0.5">En riesgo</p>
                       <p className="text-sm font-bold font-mono text-nitro-err flex items-center justify-end gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-nitro-err animate-pulse-live" />
                         {productsAtRisk} producto{productsAtRisk !== 1 ? "s" : ""}
@@ -622,12 +623,12 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            {/* ââ Filter bar âââââââââââââââââââââââââââââââââââ */}
+            {/* Ã¢ÂÂÃ¢ÂÂ Filter bar Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
             {(brands.length > 0 || categories.length > 0) && (
-              <div className="px-6 py-3 bg-nitro-bg2 border-b border-nitro-border flex items-center gap-4 flex-wrap">
+              <div className="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-4 flex-wrap">
                 {brands.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <label className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest">
+                    <label className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">
                       Marca
                     </label>
                     <select
@@ -649,7 +650,7 @@ export default function ProductsPage() {
 
                 {categories.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <label className="font-mono text-[11px] text-nitro-muted uppercase tracking-widest">
+                    <label className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">
                       Categoria
                     </label>
                     <select
@@ -675,7 +676,7 @@ export default function ProductsPage() {
                       setBrandFilter("ALL");
                       setCategoryFilter("ALL");
                     }}
-                    className="text-xs text-nitro-orange hover:text-white font-medium ml-auto transition-colors duration-300"
+                    className="text-xs text-nitro-orange hover:text-gray-900 font-medium ml-auto transition-colors duration-300"
                   >
                     Limpiar filtros
                   </button>
@@ -683,11 +684,11 @@ export default function ProductsPage() {
               </div>
             )}
 
-            {/* ââ Table ââââââââââââââââââââââââââââââââââââââââ */}
+            {/* Ã¢ÂÂÃ¢ÂÂ Table Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm nitro-table">
                 <thead>
-                  <tr className="bg-nitro-card text-left">
+                  <tr className="bg-white text-left">
                     <th className="px-4 py-3 w-10">#</th>
                     <th className="px-3 py-3">Producto</th>
                     <th className="px-3 py-3 text-right">Unidades</th>
@@ -698,10 +699,10 @@ export default function ProductsPage() {
                     <th className="px-3 py-3 text-right">% del Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-nitro-border/70">
+                <tbody className="divide-y divide-gray-200">
                   {topFiltered.map((p, idx) => (
-                    <tr key={p.id} className="transition-colors duration-200 hover:bg-white/[0.03]">
-                      <td className="px-4 py-3 text-nitro-muted text-xs font-mono">
+                    <tr key={p.id} className="transition-colors duration-200 hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-400 text-xs font-mono">
                         {idx + 1}
                       </td>
                       <td className="px-3 py-3">
@@ -710,19 +711,19 @@ export default function ProductsPage() {
                             <img
                               src={p.imageUrl}
                               alt={p.name}
-                              className="w-10 h-10 rounded-lg object-cover border border-nitro-border"
+                              className="w-10 h-10 rounded-lg object-cover border border-gray-200"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = "none";
                               }}
                             />
                           )}
                           <div>
-                            <div className="font-medium text-white truncate max-w-[250px]">
+                            <div className="font-medium text-gray-900 truncate max-w-[250px]">
                               {p.name}
                             </div>
                             <div className="flex gap-2 mt-0.5">
                               {p.sku && (
-                                <span className="text-[11px] text-nitro-muted font-mono uppercase tracking-wider">
+                                <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
                                   SKU: {p.sku}
                                 </span>
                               )}
@@ -742,24 +743,24 @@ export default function ProductsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-white/80 text-right font-mono text-xs">
+                      <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">
                         {p.unitsSold.toLocaleString("es-AR")}
                       </td>
-                      <td className="px-3 py-3 text-white/80 text-right font-mono text-xs">
+                      <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">
                         {p.orders.toLocaleString("es-AR")}
                       </td>
-                      <td className="px-3 py-3 text-white/80 text-right font-mono text-xs">
+                      <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">
                         {formatARS(p.avgPrice)}
                       </td>
                       <td className="px-3 py-3 text-right">
                         <StockBadge product={p} />
                       </td>
-                      <td className="px-3 py-3 font-bold text-white text-right font-mono text-xs">
+                      <td className="px-3 py-3 font-bold text-gray-900 text-right font-mono text-xs">
                         {formatARS(p.revenue)}
                       </td>
                       <td className="px-3 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <div className="w-16 bg-nitro-bg rounded-full h-1.5">
+                          <div className="w-16 bg-gray-200 rounded-full h-1.5">
                             <div
                               className="h-1.5 rounded-full"
                               style={{
@@ -774,7 +775,7 @@ export default function ProductsPage() {
                               }}
                             />
                           </div>
-                          <span className="text-[11px] text-nitro-muted w-8 font-mono">
+                          <span className="text-[11px] text-gray-400 w-8 font-mono">
                             {Math.round(
                               (p.revenue / (filteredRevenue || 1)) * 100
                             )}%
@@ -787,10 +788,10 @@ export default function ProductsPage() {
               </table>
             </div>
 
-            {/* ââ Footer âââââââââââââââââââââââââââââââââââââââ */}
+            {/* Ã¢ÂÂÃ¢ÂÂ Footer Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
             {filtered.length > 20 && (
-              <div className="px-6 py-3 border-t border-nitro-border bg-nitro-bg2 text-center">
-                <p className="text-[11px] text-nitro-muted font-mono uppercase tracking-widest">
+              <div className="px-6 py-3 border-t border-gray-200 bg-white text-center">
+                <p className="text-[11px] text-gray-400 font-mono uppercase tracking-widest">
                   Mostrando top 20 de {filtered.length.toLocaleString("es-AR")} productos
                 </p>
               </div>
