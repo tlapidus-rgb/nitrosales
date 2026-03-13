@@ -5,14 +5,12 @@ import { useEffect, useState, useMemo } from "react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import NitroInsightsPanel from "@/components/NitroInsightsPanel";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 
-/* Ã¢ÂÂÃ¢ÂÂ Types Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+/* ── Types ──────────────────────────────────────── */
+
 interface ProductItem {
   id: string;
   name: string;
@@ -38,24 +36,21 @@ interface ProductSummary {
   paretoConcentration: number;
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Color palette for charts Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+/* ── Color palette for charts ──────────────────── */
+
 const COLORS = [
-  "#FF5E1A", // nitro orange
-  "#FF2E2E", // nitro red
-  "#FFB800", // nitro yellow
-  "#4ADE80", // nitro green
-  "#06b6d4", // cyan
-  "#8b5cf6", // violet
-  "#f97316", // orange variant
-  "#14b8a6", // teal
-  "#ec4899", // pink
-  "#64748b", // slate (for "Otros")
+  "#FF5E1A", "#FF2E2E", "#FFB800", "#4ADE80", "#06b6d4",
+  "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#64748b",
 ];
 
-/* Ã¢ÂÂÃ¢ÂÂ Types for metric toggle Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+/* ── Types for metric toggle ──────────────────── */
+
 type PieMetric = "revenue" | "unitsSold";
 
-/* Ã¢ÂÂÃ¢ÂÂ Stock helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+const ITEMS_PER_PAGE = 15;
+
+/* ── Stock helpers ──────────────────────────────── */
+
 function getDaysOfStock(product: ProductItem): number | null {
   if (product.stock === null || product.stock === undefined) return null;
   const dailySales = product.unitsSold / 30;
@@ -70,7 +65,8 @@ function getStockLevel(days: number | null): "critical" | "low" | "ok" | "nodata
   return "ok";
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+/* ── Helpers ──────────────────────────────────── */
+
 function aggregateByField(
   products: ProductItem[],
   field: "brand" | "category",
@@ -84,157 +80,74 @@ function aggregateByField(
     map.set(key, (map.get(key) || 0) + v);
     total += v;
   }
-
   const sorted = [...map.entries()]
-    .map(([name, value]) => ({
-      name,
-      value,
-      pct: total > 0 ? Math.round((value / total) * 100) : 0,
-    }))
+    .map(([name, value]) => ({ name, value, pct: total > 0 ? Math.round((value / total) * 100) : 0 }))
     .sort((a, b) => b.value - a.value);
-
   if (sorted.length <= 9) return sorted;
   const top = sorted.slice(0, 8);
   const rest = sorted.slice(8);
   const othersValue = rest.reduce((s, r) => s + r.value, 0);
   const othersPct = total > 0 ? Math.round((othersValue / total) * 100) : 0;
-  return [
-    ...top,
-    { name: `Otros (${rest.length})`, value: othersValue, pct: othersPct },
-  ];
+  return [...top, { name: `Otros (${rest.length})`, value: othersValue, pct: othersPct }];
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Custom pie label Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
-function renderCustomLabel({
-  cx,
-  cy,
-  midAngle,
-  outerRadius,
-  pct,
-}: any) {
-  if (pct < 4) return null;
-  const RADIAN = Math.PI / 180;
-  const radius = outerRadius + 18;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  return (
-    <text
-      x={x}
-      y={y}
-      fill="#CBD5E1"
-      textAnchor={x > cx ? "start" : "end"}
-      dominantBaseline="central"
-      fontSize={11}
-      fontWeight={600}
-      fontFamily="Space Mono, monospace"
-    >
-      {pct}%
-    </text>
-  );
-}
+/* ── Custom bar tooltip ──────────────────────── */
 
-/* Ã¢ÂÂÃ¢ÂÂ Custom tooltip Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
-function PieTooltip({ active, payload, metric }: any) {
+function BarTooltip({ active, payload, metric }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   const isUnits = metric === "unitsSold";
   return (
-    <div
-      style={{
-        backgroundColor: "#FFFFFF",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-        border: "1px solid rgba(255, 94, 26, 0.3)",
-        borderRadius: 12,
-        padding: "10px 14px",
-        fontSize: 12,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-      }}
-    >
-      <p style={{ fontWeight: 600, marginBottom: 2, color: "#FFFFFF", fontFamily: "DM Sans" }}>
+    <div style={{
+      backgroundColor: "#FFFFFF", border: "1px solid rgba(255, 94, 26, 0.3)",
+      borderRadius: 12, padding: "10px 14px", fontSize: 12,
+      boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+    }}>
+      <p style={{ fontWeight: 600, marginBottom: 2, color: "#111827", fontFamily: "DM Sans" }}>
         {d.name}
       </p>
-      <p style={{ color: "#8A8A8A", fontFamily: "Space Mono, monospace", fontSize: 11 }}>
-        {isUnits
-          ? `${d.value.toLocaleString("es-AR")} uds`
-          : formatARS(d.value)}{" "}
-        &middot; {d.pct}%
+      <p style={{ color: "#6B7280", fontFamily: "Space Mono, monospace", fontSize: 11 }}>
+        {isUnits ? `${d.value.toLocaleString("es-AR")} uds` : formatARS(d.value)}
+        {" "}&middot; {d.pct}%
       </p>
     </div>
   );
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Custom legend Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
-function PieLegend({
-  data,
-}: {
-  data: { name: string; value: number; pct: number }[];
-}) {
-  return (
-    <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
-      {data.map((d, i) => (
-        <div key={d.name} className="flex items-center gap-2 min-w-0">
-          <span
-            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-            style={{ backgroundColor: COLORS[i % COLORS.length] }}
-          />
-          <span className="text-xs text-gray-500 truncate">{d.name}</span>
-          <span className="text-xs font-medium text-gray-400 ml-auto flex-shrink-0 font-mono">
-            {d.pct}%
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
+/* ── Stock Alert Banner ──────────────────────── */
 
-/* Ã¢ÂÂÃ¢ÂÂ Stock Alert Banner Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 function StockAlertBanner({ products }: { products: ProductItem[] }) {
+  const [expanded, setExpanded] = useState(false);
+
   const analysis = useMemo(() => {
     const withStock = products.filter((p) => p.stock !== null && p.stock !== undefined);
     if (withStock.length === 0) return null;
 
-    const critical: ProductItem[] = [];
-    const low: ProductItem[] = [];
-
+    const critical: (ProductItem & { days: number })[] = [];
+    const low: (ProductItem & { days: number })[] = [];
     for (const p of withStock) {
       const days = getDaysOfStock(p);
       const level = getStockLevel(days);
-      if (level === "critical") critical.push(p);
-      else if (level === "low") low.push(p);
+      if (level === "critical") critical.push({ ...p, days: days || 0 });
+      else if (level === "low") low.push({ ...p, days: days || 0 });
     }
-
     if (critical.length === 0 && low.length === 0) return null;
 
     const brandRisk = new Map<string, { count: number; avgDays: number; totalDays: number }>();
     for (const p of [...critical, ...low]) {
       const brand = p.brand || "Sin marca";
-      const days = getDaysOfStock(p) || 0;
+      const days = p.days;
       const entry = brandRisk.get(brand) || { count: 0, avgDays: 0, totalDays: 0 };
-      entry.count++;
-      entry.totalDays += days;
-      entry.avgDays = Math.round(entry.totalDays / entry.count);
+      entry.count++; entry.totalDays += days; entry.avgDays = Math.round(entry.totalDays / entry.count);
       brandRisk.set(brand, entry);
     }
 
-    const catRisk = new Map<string, { count: number; avgDays: number; totalDays: number }>();
-    for (const p of [...critical, ...low]) {
-      const cat = p.category || "Sin categoria";
-      const days = getDaysOfStock(p) || 0;
-      const entry = catRisk.get(cat) || { count: 0, avgDays: 0, totalDays: 0 };
-      entry.count++;
-      entry.totalDays += days;
-      entry.avgDays = Math.round(entry.totalDays / entry.count);
-      catRisk.set(cat, entry);
-    }
+    const topBrands = [...brandRisk.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 3);
 
-    const topBrands = [...brandRisk.entries()]
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 3);
-    const topCats = [...catRisk.entries()]
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 3);
+    // Top 10 most urgent products for expanded view
+    const urgent = [...critical, ...low].sort((a, b) => a.days - b.days).slice(0, 10);
 
-    return { critical, low, topBrands, topCats, withStock };
+    return { critical, low, topBrands, urgent, withStock };
   }, [products]);
 
   if (!analysis) return null;
@@ -242,15 +155,25 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
   return (
     <div className="nitro-card bg-white border border-gray-200 rounded-[16px] p-5 mb-6 animate-fade-in-up"
       style={{ boxShadow: "0 0 60px rgba(255, 94, 26, 0.06)" }}>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{ background: "rgba(255, 94, 26, 0.1)", border: "1px solid #E5E7EB" }}>
-          <span className="text-sm">&#x26A0;&#xFE0F;</span>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: "rgba(255, 94, 26, 0.1)", border: "1px solid #E5E7EB" }}>
+            <span className="text-sm">&#x26A0;&#xFE0F;</span>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Alertas de Inventario</h3>
+            <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">Stock monitor</p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900">Alertas de Inventario</h3>
-          <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">Stock monitor</p>
-        </div>
+        <button onClick={() => setExpanded(!expanded)}
+          className="text-xs font-medium text-nitro-orange hover:text-gray-900 transition-colors duration-300 flex items-center gap-1">
+          {expanded ? "Ocultar" : "Ver detalle"}
+          <svg className={`w-3.5 h-3.5 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
       </div>
 
       <div className="space-y-2 mb-4">
@@ -278,6 +201,47 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
         )}
       </div>
 
+      {/* Expandable detail */}
+      <div className={`overflow-hidden transition-all duration-500 ease-in-out ${expanded ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"}`}>
+        <div className="border-t border-gray-200 pt-4 mt-2">
+          <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest mb-3">Productos mas urgentes</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-gray-400 font-mono uppercase tracking-wider">
+                  <th className="pb-2 pr-4">Producto</th>
+                  <th className="pb-2 pr-4 text-right">Stock</th>
+                  <th className="pb-2 pr-4 text-right">Dias restantes</th>
+                  <th className="pb-2 text-right">Ventas/dia</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {analysis.urgent.map((p) => {
+                  const daily = (p.unitsSold / 30).toFixed(1);
+                  return (
+                    <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="py-2 pr-4">
+                        <span className="text-gray-900 font-medium truncate block max-w-[200px]">{p.name}</span>
+                        {p.brand && <span className="text-gray-400 text-[10px] font-mono">{p.brand}</span>}
+                      </td>
+                      <td className="py-2 pr-4 text-right font-mono font-bold"
+                        style={{ color: p.days < 7 ? "#FF5E5E" : "#FFB800" }}>
+                        {p.stock} uds
+                      </td>
+                      <td className="py-2 pr-4 text-right font-mono font-bold"
+                        style={{ color: p.days < 7 ? "#FF5E5E" : "#FFB800" }}>
+                        {p.days === 999 ? "—" : `${p.days}d`}
+                      </td>
+                      <td className="py-2 text-right font-mono text-gray-500">{daily}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-gray-500">
         {analysis.topBrands.length > 0 && (
           <div>
@@ -291,61 +255,29 @@ function StockAlertBanner({ products }: { products: ProductItem[] }) {
             ))}
           </div>
         )}
-        {analysis.topCats.length > 0 && (
-          <div>
-            <span className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">Categorias: </span>
-            {analysis.topCats.map(([cat, info], i) => (
-              <span key={cat}>
-                {i > 0 && ", "}
-                <span className="text-gray-900">{cat}</span>
-                <span className="text-gray-400 font-mono text-[11px]"> ({info.count} prod, ~{info.avgDays}d)</span>
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Stock Badge Component Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+/* ── Stock Badge Component ──────────────────── */
+
 function StockBadge({ product }: { product: ProductItem }) {
   const days = getDaysOfStock(product);
   const level = getStockLevel(days);
-
   if (level === "nodata") {
     return <span className="text-xs text-gray-400 font-mono">&mdash;</span>;
   }
-
   const styles = {
-    critical: {
-      bg: "rgba(255, 94, 94, 0.1)",
-      border: "rgba(255, 94, 94, 0.25)",
-      text: "#FF5E5E",
-      dot: "#FF5E5E",
-    },
-    low: {
-      bg: "rgba(255, 184, 0, 0.1)",
-      border: "rgba(255, 184, 0, 0.25)",
-      text: "#FFB800",
-      dot: "#FFB800",
-    },
-    ok: {
-      bg: "rgba(74, 222, 128, 0.1)",
-      border: "rgba(74, 222, 128, 0.25)",
-      text: "#4ADE80",
-      dot: "#4ADE80",
-    },
+    critical: { bg: "rgba(255, 94, 94, 0.1)", border: "rgba(255, 94, 94, 0.25)", text: "#FF5E5E", dot: "#FF5E5E" },
+    low: { bg: "rgba(255, 184, 0, 0.1)", border: "rgba(255, 184, 0, 0.25)", text: "#FFB800", dot: "#FFB800" },
+    ok: { bg: "rgba(74, 222, 128, 0.1)", border: "rgba(74, 222, 128, 0.25)", text: "#4ADE80", dot: "#4ADE80" },
   };
-
   const s = styles[level];
-
   return (
     <div className="text-right">
-      <span
-        className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg"
-        style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.text }}
-      >
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg"
+        style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.text }}>
         {level === "critical" && <span className="w-1.5 h-1.5 rounded-full animate-pulse-live" style={{ background: s.dot }} />}
         {product.stock!.toLocaleString("es-AR")} uds
       </span>
@@ -356,47 +288,124 @@ function StockBadge({ product }: { product: ProductItem }) {
   );
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ KPI Card Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+/* ── KPI Card ──────────────────────────────── */
+
 function KpiCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="text-right">
       <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-0.5">{label}</p>
-      <p className={`text-sm font-bold font-mono ${accent ? "text-nitro-orange" : "text-gray-900"}`}>
-        {value}
-      </p>
+      <p className={`text-sm font-bold font-mono ${accent ? "text-nitro-orange" : "text-gray-900"}`}>{value}</p>
     </div>
   );
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Metric Toggle Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+/* ── Metric Toggle ──────────────────────────── */
+
 function MetricToggle({ metric, setMetric }: { metric: PieMetric; setMetric: (m: PieMetric) => void }) {
   return (
     <div className="flex bg-gray-100 rounded-lg p-0.5 flex-shrink-0 border border-gray-200">
-      <button
-        onClick={() => setMetric("revenue")}
+      <button onClick={() => setMetric("revenue")}
         className={`text-[11px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
-          metric === "revenue"
-            ? "bg-white text-nitro-orange shadow-sm"
-            : "text-gray-400 hover:text-gray-500"
-        }`}
-      >
+          metric === "revenue" ? "bg-white text-nitro-orange shadow-sm" : "text-gray-400 hover:text-gray-500"}`}>
         Revenue
       </button>
-      <button
-        onClick={() => setMetric("unitsSold")}
+      <button onClick={() => setMetric("unitsSold")}
         className={`text-[11px] px-2.5 py-1 rounded-md font-mono uppercase tracking-wider transition-all duration-300 ease-nitro ${
-          metric === "unitsSold"
-            ? "bg-white text-nitro-orange shadow-sm"
-            : "text-gray-400 hover:text-gray-500"
-        }`}
-      >
+          metric === "unitsSold" ? "bg-white text-nitro-orange shadow-sm" : "text-gray-400 hover:text-gray-500"}`}>
         Unidades
       </button>
     </div>
   );
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Page Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+/* ── Expanded Product Detail ──────────────── */
+
+function ProductDetail({ product, totalRevenue }: { product: ProductItem; totalRevenue: number }) {
+  const days = getDaysOfStock(product);
+  const dailySales = (product.unitsSold / 30).toFixed(1);
+  const revPct = totalRevenue > 0 ? ((product.revenue / totalRevenue) * 100).toFixed(1) : "0";
+
+  return (
+    <tr className="animate-fade-in-up">
+      <td colSpan={8} className="px-4 py-4 bg-gray-50 border-t border-gray-100">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Col 1: Product info */}
+          <div className="flex gap-3">
+            {product.imageUrl && (
+              <img src={product.imageUrl} alt={product.name}
+                className="w-16 h-16 rounded-xl object-cover border border-gray-200 flex-shrink-0"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            )}
+            <div className="min-w-0">
+              <p className="font-medium text-gray-900 text-sm">{product.name}</p>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {product.sku && <span className="text-[10px] text-gray-400 font-mono">SKU: {product.sku}</span>}
+                {product.brand && (
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+                    style={{ color: "#FF5E1A", background: "rgba(255, 94, 26, 0.1)", border: "1px solid rgba(255, 94, 26, 0.2)" }}>
+                    {product.brand}
+                  </span>
+                )}
+                {product.category && (
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
+                    {product.category}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Col 2: Metrics */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Facturacion</p>
+              <p className="text-sm font-bold font-mono text-gray-900">{formatARS(product.revenue)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Pedidos</p>
+              <p className="text-sm font-bold font-mono text-gray-900">{product.orders.toLocaleString("es-AR")}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Unidades</p>
+              <p className="text-sm font-bold font-mono text-gray-900">{product.unitsSold.toLocaleString("es-AR")}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Precio Prom</p>
+              <p className="text-sm font-bold font-mono text-gray-900">{formatARS(product.avgPrice)}</p>
+            </div>
+          </div>
+
+          {/* Col 3: Indicators */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">% del Total</p>
+              <p className="text-sm font-bold font-mono text-nitro-orange">{revPct}%</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Ventas/dia</p>
+              <p className="text-sm font-bold font-mono text-gray-900">{dailySales}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Stock</p>
+              <p className="text-sm font-bold font-mono text-gray-900">
+                {product.stock !== null ? `${product.stock} uds` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Dias stock</p>
+              <p className="text-sm font-bold font-mono text-gray-900">
+                {days === null ? "—" : days === 999 ? "Sin ventas" : `${days}d`}
+              </p>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+/* ── Page ──────────────────────────────────── */
+
 export default function ProductsPage() {
   const [allProducts, setAllProducts] = useState<ProductItem[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
@@ -407,6 +416,11 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [brandMetric, setBrandMetric] = useState<PieMetric>("revenue");
   const [categoryMetric, setCategoryMetric] = useState<PieMetric>("revenue");
+
+  // New states for improvements
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/metrics/products")
@@ -421,7 +435,8 @@ export default function ProductsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  /* Ã¢ÂÂÃ¢ÂÂ Filtered products Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+  /* ── Filtered products ────────────────── */
+
   const filtered = useMemo(() => {
     return allProducts.filter(
       (p) =>
@@ -430,23 +445,53 @@ export default function ProductsPage() {
     );
   }, [allProducts, brandFilter, categoryFilter]);
 
-  const topFiltered = filtered.slice(0, 20);
+  /* ── Search filtering ────────────────── */
+
+  const searched = useMemo(() => {
+    if (!searchTerm.trim()) return filtered;
+    const term = searchTerm.toLowerCase();
+    return filtered.filter(
+      (p) =>
+        p.name.toLowerCase().includes(term) ||
+        (p.sku && p.sku.toLowerCase().includes(term)) ||
+        (p.brand && p.brand.toLowerCase().includes(term)) ||
+        (p.category && p.category.toLowerCase().includes(term))
+    );
+  }, [filtered, searchTerm]);
+
+  /* ── Sorted by revenue ────────────────── */
+
+  const sorted = useMemo(() => {
+    return [...searched].sort((a, b) => b.revenue - a.revenue);
+  }, [searched]);
+
+  /* ── Pagination ────────────────────────── */
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
+  const paginatedProducts = sorted.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  // Reset page on filter/search change
+  useEffect(() => {
+    setCurrentPage(1);
+    setExpandedProduct(null);
+  }, [brandFilter, categoryFilter, searchTerm]);
+
   const isFiltered = brandFilter !== "ALL" || categoryFilter !== "ALL";
 
-  /* Ã¢ÂÂÃ¢ÂÂ KPIs for filtered subset Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+  /* ── KPIs for filtered subset ────────── */
+
   const filteredUnits = filtered.reduce((s, p) => s + p.unitsSold, 0);
   const filteredRevenue = filtered.reduce((s, p) => s + p.revenue, 0);
   const filteredUniqueProducts = filtered.length;
   const top20pct = Math.max(1, Math.ceil(filtered.length * 0.2));
-  const top20revenue = filtered
-    .slice(0, top20pct)
-    .reduce((s, p) => s + p.revenue, 0);
-  const filteredPareto =
-    filteredRevenue > 0
-      ? Math.round((top20revenue / filteredRevenue) * 100)
-      : 0;
+  const top20revenue = [...filtered].sort((a, b) => b.revenue - a.revenue).slice(0, top20pct).reduce((s, p) => s + p.revenue, 0);
+  const filteredPareto = filteredRevenue > 0 ? Math.round((top20revenue / filteredRevenue) * 100) : 0;
 
-  /* Ã¢ÂÂÃ¢ÂÂ Stock KPI Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+  /* ── Stock KPI ────────────────────────── */
+
   const productsAtRisk = useMemo(() => {
     return filtered.filter((p) => {
       const days = getDaysOfStock(p);
@@ -454,7 +499,12 @@ export default function ProductsPage() {
     }).length;
   }, [filtered]);
 
-  /* Ã¢ÂÂÃ¢ÂÂ Pie chart data Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
+  const productsNoStock = useMemo(() => {
+    return filtered.filter((p) => !p.stock || p.stock === 0).length;
+  }, [filtered]);
+
+  /* ── Chart data ────────────────────────── */
+
   const brandChartData = useMemo(
     () => aggregateByField(filtered, "brand", brandMetric),
     [filtered, brandMetric]
@@ -464,22 +514,20 @@ export default function ProductsPage() {
     [filtered, categoryMetric]
   );
 
-  if (loading)
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-nitro-orange animate-pulse-live" />
-          <p className="text-gray-500 font-mono text-sm tracking-wider uppercase">
-            Cargando productos
-          </p>
-        </div>
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <div className="flex items-center gap-3">
+        <div className="w-2 h-2 rounded-full bg-nitro-orange animate-pulse-live" />
+        <p className="text-gray-500 font-mono text-sm tracking-wider uppercase">Cargando productos</p>
       </div>
-    );
+    </div>
+  );
 
   return (
     <div className="light-canvas min-h-screen">
-      {/* Ã¢ÂÂÃ¢ÂÂ Header Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
-      <div className="mb-8 animate-fade-in-up">
+
+      {/* ── Header ─────────────────────────── */}
+      <div className="mb-6 animate-fade-in-up">
         <h2 className="font-headline text-3xl text-gray-900 tracking-tight" style={{ letterSpacing: "-1px" }}>
           Productos
         </h2>
@@ -495,18 +543,46 @@ export default function ProductsPage() {
         </div>
       ) : (
         <>
-          {/* Ã¢ÂÂÃ¢ÂÂ Stock Alerts Banner Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+          {/* ── KPI Summary Cards ────────────── */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6 animate-fade-in-up">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Productos Activos</p>
+              <p className="text-xl font-bold font-mono text-gray-900">{(summary?.uniqueProducts || allProducts.length).toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Facturacion</p>
+              <p className="text-xl font-bold font-mono text-gray-900">{formatCompact(summary?.estimatedTotalRevenue || filteredRevenue)}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Uds Vendidas</p>
+              <p className="text-xl font-bold font-mono text-gray-900">{(summary?.estimatedTotalUnits || filteredUnits).toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Ticket Promedio</p>
+              <p className="text-xl font-bold font-mono text-gray-900">
+                {formatARS(Math.round((summary?.estimatedTotalRevenue || filteredRevenue) / (summary?.totalOrders || 1)))}
+              </p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Sin Stock</p>
+              <p className="text-xl font-bold font-mono" style={{ color: productsNoStock > 0 ? "#FF5E5E" : "#4ADE80" }}>
+                {productsNoStock}
+                <span className="text-xs text-gray-400 font-normal ml-1">productos</span>
+              </p>
+            </div>
+          </div>
+
+          {/* ── Stock Alerts Banner ────────── */}
           <StockAlertBanner products={filtered} />
 
-          {/* Ã¢ÂÂÃ¢ÂÂ Pie Charts Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+          {/* ── Bar Charts ──────────────────── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 stagger-children">
-            {/* Brand pie */}
+
+            {/* Brand chart */}
             <div className="nitro-card bg-white rounded-[16px] border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                    Ventas por Marca
-                  </h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Ventas por Marca</h3>
                   <p className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
                     {brandMetric === "revenue" ? "Facturacion" : "Unidades"} por marca
                   </p>
@@ -514,42 +590,29 @@ export default function ProductsPage() {
                 <MetricToggle metric={brandMetric} setMetric={setBrandMetric} />
               </div>
               {brandChartData.length > 0 ? (
-                <>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <PieChart>
-                      <Pie
-                        data={brandChartData}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={95}
-                        innerRadius={40}
-                        dataKey="value"
-                        label={renderCustomLabel}
-                        labelLine={false}
-                        stroke="#E5E7EB"
-                        strokeWidth={2}
-                      >
-                        {brandChartData.map((_, i) => (
-                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<PieTooltip metric={brandMetric} />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <PieLegend data={brandChartData} />
-                </>
+                <ResponsiveContainer width="100%" height={Math.max(250, brandChartData.length * 32)}>
+                  <BarChart layout="vertical" data={brandChartData} margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" horizontal={false} />
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: "#6B7280", fontFamily: "DM Sans" }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<BarTooltip metric={brandMetric} />} cursor={{ fill: "rgba(255, 94, 26, 0.04)" }} />
+                    <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>
+                      {brandChartData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               ) : (
                 <p className="text-gray-400 text-sm text-center py-12">Sin datos</p>
               )}
             </div>
 
-            {/* Category pie */}
+            {/* Category chart */}
             <div className="nitro-card bg-white rounded-[16px] border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                    Ventas por Categoria
-                  </h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Ventas por Categoria</h3>
                   <p className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
                     {categoryMetric === "revenue" ? "Facturacion" : "Unidades"} por categoria
                   </p>
@@ -557,46 +620,34 @@ export default function ProductsPage() {
                 <MetricToggle metric={categoryMetric} setMetric={setCategoryMetric} />
               </div>
               {categoryChartData.length > 0 ? (
-                <>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <PieChart>
-                      <Pie
-                        data={categoryChartData}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={95}
-                        innerRadius={40}
-                        dataKey="value"
-                        label={renderCustomLabel}
-                        labelLine={false}
-                        stroke="#E5E7EB"
-                        strokeWidth={2}
-                      >
-                        {categoryChartData.map((_, i) => (
-                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<PieTooltip metric={categoryMetric} />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <PieLegend data={categoryChartData} />
-                </>
+                <ResponsiveContainer width="100%" height={Math.max(250, categoryChartData.length * 32)}>
+                  <BarChart layout="vertical" data={categoryChartData} margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" horizontal={false} />
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fill: "#6B7280", fontFamily: "DM Sans" }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<BarTooltip metric={categoryMetric} />} cursor={{ fill: "rgba(255, 94, 26, 0.04)" }} />
+                    <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>
+                      {categoryChartData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               ) : (
                 <p className="text-gray-400 text-sm text-center py-12">Sin datos</p>
               )}
             </div>
           </div>
 
-          {/* Ã¢ÂÂÃ¢ÂÂ Products table card Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+          {/* ── Products table card ────────── */}
           <div className="nitro-card bg-white rounded-[16px] border border-gray-200 overflow-hidden animate-fade-in-up"
             style={{ animationDelay: "200ms" }}>
-            {/* Ã¢ÂÂÃ¢ÂÂ Header with KPIs Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+
+            {/* ── Header with KPIs ──────────── */}
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <h3 className="font-semibold text-gray-900">
-                    Top Productos por Facturacion
-                  </h3>
+                  <h3 className="font-semibold text-gray-900">Top Productos por Facturacion</h3>
                   <p className="text-xs text-gray-400 mt-1 font-mono">
                     {filteredUniqueProducts.toLocaleString("es-AR")} productos
                     {isFiltered && (
@@ -623,68 +674,70 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            {/* Ã¢ÂÂÃ¢ÂÂ Filter bar Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
-            {(brands.length > 0 || categories.length > 0) && (
-              <div className="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-4 flex-wrap">
-                {brands.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <label className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">
-                      Marca
-                    </label>
-                    <select
-                      value={brandFilter}
-                      onChange={(e) => setBrandFilter(e.target.value)}
-                      className="nitro-select text-sm"
-                    >
-                      <option value="ALL">
-                        Todas ({allProducts.filter((p) => p.brand).length})
-                      </option>
-                      {brands.map((b) => (
-                        <option key={b} value={b}>
-                          {b} ({allProducts.filter((p) => p.brand === b).length})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {categories.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <label className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">
-                      Categoria
-                    </label>
-                    <select
-                      value={categoryFilter}
-                      onChange={(e) => setCategoryFilter(e.target.value)}
-                      className="nitro-select text-sm"
-                    >
-                      <option value="ALL">
-                        Todas ({allProducts.filter((p) => p.category).length})
-                      </option>
-                      {categories.map((c) => (
-                        <option key={c} value={c}>
-                          {c} ({allProducts.filter((p) => p.category === c).length})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {isFiltered && (
-                  <button
-                    onClick={() => {
-                      setBrandFilter("ALL");
-                      setCategoryFilter("ALL");
-                    }}
-                    className="text-xs text-nitro-orange hover:text-gray-900 font-medium ml-auto transition-colors duration-300"
-                  >
-                    Limpiar filtros
+            {/* ── Filter bar + Search ──────── */}
+            <div className="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-4 flex-wrap">
+              {/* Search input */}
+              <div className="relative flex-1 min-w-[200px] max-w-[360px]">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre, SKU, marca..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF5E1A] focus:ring-2 focus:ring-[rgba(255,94,26,0.15)] transition-all"
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 )}
               </div>
+
+              {brands.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">Marca</label>
+                  <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} className="nitro-select text-sm">
+                    <option value="ALL">Todas ({allProducts.filter((p) => p.brand).length})</option>
+                    {brands.map((b) => (
+                      <option key={b} value={b}>{b} ({allProducts.filter((p) => p.brand === b).length})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {categories.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">Categoria</label>
+                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="nitro-select text-sm">
+                    <option value="ALL">Todas ({allProducts.filter((p) => p.category).length})</option>
+                    {categories.map((c) => (
+                      <option key={c} value={c}>{c} ({allProducts.filter((p) => p.category === c).length})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {(isFiltered || searchTerm) && (
+                <button onClick={() => { setBrandFilter("ALL"); setCategoryFilter("ALL"); setSearchTerm(""); }}
+                  className="text-xs text-nitro-orange hover:text-gray-900 font-medium ml-auto transition-colors duration-300">
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+
+            {/* ── Search results count ───── */}
+            {searchTerm && (
+              <div className="px-6 py-2 bg-gray-50 border-b border-gray-200">
+                <p className="text-xs text-gray-500 font-mono">
+                  {sorted.length} resultado{sorted.length !== 1 ? "s" : ""} para &ldquo;{searchTerm}&rdquo;
+                </p>
+              </div>
             )}
 
-            {/* Ã¢ÂÂÃ¢ÂÂ Table Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+            {/* ── Table ────────────────────── */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm nitro-table">
                 <thead>
@@ -700,102 +753,117 @@ export default function ProductsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {topFiltered.map((p, idx) => (
-                    <tr key={p.id} className="transition-colors duration-200 hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-400 text-xs font-mono">
-                        {idx + 1}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-3">
-                          {p.imageUrl && (
-                            <img
-                              src={p.imageUrl}
-                              alt={p.name}
-                              className="w-10 h-10 rounded-lg object-cover border border-gray-200"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = "none";
-                              }}
-                            />
-                          )}
-                          <div>
-                            <div className="font-medium text-gray-900 truncate max-w-[250px]">
-                              {p.name}
+                  {paginatedProducts.map((p, idx) => {
+                    const globalIdx = (currentPage - 1) * ITEMS_PER_PAGE + idx + 1;
+                    const isExpanded = expandedProduct === p.id;
+                    return (
+                      <>
+                        <tr key={p.id}
+                          className={`transition-colors duration-200 cursor-pointer ${isExpanded ? "bg-gray-50" : "hover:bg-gray-50"}`}
+                          onClick={() => setExpandedProduct(isExpanded ? null : p.id)}>
+                          <td className="px-4 py-3 text-gray-400 text-xs font-mono">
+                            <div className="flex items-center gap-1.5">
+                              <svg className={`w-3 h-3 text-gray-300 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                              </svg>
+                              {globalIdx}
                             </div>
-                            <div className="flex gap-2 mt-0.5">
-                              {p.sku && (
-                                <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
-                                  SKU: {p.sku}
-                                </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-3">
+                              {p.imageUrl && (
+                                <img src={p.imageUrl} alt={p.name}
+                                  className="w-10 h-10 rounded-lg object-cover border border-gray-200"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                               )}
-                              {p.brand && (
-                                <span
-                                  className="text-[11px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+                              <div>
+                                <div className="font-medium text-gray-900 truncate max-w-[250px]">{p.name}</div>
+                                <div className="flex gap-2 mt-0.5">
+                                  {p.sku && (
+                                    <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
+                                      SKU: {p.sku}
+                                    </span>
+                                  )}
+                                  {p.brand && (
+                                    <span className="text-[11px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                      style={{ color: "#FF5E1A", background: "rgba(255, 94, 26, 0.1)", border: "1px solid rgba(255, 94, 26, 0.2)" }}>
+                                      {p.brand}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">
+                            {p.unitsSold.toLocaleString("es-AR")}
+                          </td>
+                          <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">
+                            {p.orders.toLocaleString("es-AR")}
+                          </td>
+                          <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">
+                            {formatARS(p.avgPrice)}
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <StockBadge product={p} />
+                          </td>
+                          <td className="px-3 py-3 font-bold text-gray-900 text-right font-mono text-xs">
+                            {formatARS(p.revenue)}
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                                <div className="h-1.5 rounded-full"
                                   style={{
-                                    color: "#FF5E1A",
-                                    background: "rgba(255, 94, 26, 0.1)",
-                                    border: "1px solid rgba(255, 94, 26, 0.2)",
-                                  }}
-                                >
-                                  {p.brand}
-                                </span>
-                              )}
+                                    width: Math.min(100, Math.round((p.revenue / (filteredRevenue || 1)) * 100)) + "%",
+                                    background: "var(--nitro-gradient)",
+                                  }} />
+                              </div>
+                              <span className="text-[11px] text-gray-400 w-8 font-mono">
+                                {Math.round((p.revenue / (filteredRevenue || 1)) * 100)}%
+                              </span>
                             </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">
-                        {p.unitsSold.toLocaleString("es-AR")}
-                      </td>
-                      <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">
-                        {p.orders.toLocaleString("es-AR")}
-                      </td>
-                      <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">
-                        {formatARS(p.avgPrice)}
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        <StockBadge product={p} />
-                      </td>
-                      <td className="px-3 py-3 font-bold text-gray-900 text-right font-mono text-xs">
-                        {formatARS(p.revenue)}
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                            <div
-                              className="h-1.5 rounded-full"
-                              style={{
-                                width:
-                                  Math.min(
-                                    100,
-                                    Math.round(
-                                      (p.revenue / (filteredRevenue || 1)) * 100
-                                    )
-                                  ) + "%",
-                                background: "var(--nitro-gradient)",
-                              }}
-                            />
-                          </div>
-                          <span className="text-[11px] text-gray-400 w-8 font-mono">
-                            {Math.round(
-                              (p.revenue / (filteredRevenue || 1)) * 100
-                            )}%
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          </td>
+                        </tr>
+                        {isExpanded && <ProductDetail key={`detail-${p.id}`} product={p} totalRevenue={filteredRevenue} />}
+                      </>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
-            {/* Ã¢ÂÂÃ¢ÂÂ Footer Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
-            {filtered.length > 20 && (
-              <div className="px-6 py-3 border-t border-gray-200 bg-white text-center">
-                <p className="text-[11px] text-gray-400 font-mono uppercase tracking-widest">
-                  Mostrando top 20 de {filtered.length.toLocaleString("es-AR")} productos
-                </p>
+            {/* ── Pagination Footer ──────── */}
+            <div className="px-6 py-3 border-t border-gray-200 bg-white flex items-center justify-between">
+              <p className="text-[11px] text-gray-400 font-mono">
+                Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, sorted.length)} de {sorted.length.toLocaleString("es-AR")} productos
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => { setCurrentPage(currentPage - 1); setExpandedProduct(null); }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-200 ${
+                    currentPage === 1
+                      ? "border-gray-200 text-gray-300 cursor-not-allowed"
+                      : "border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
+                  }`}>
+                  Anterior
+                </button>
+                <span className="text-xs font-mono text-gray-400 px-2">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => { setCurrentPage(currentPage + 1); setExpandedProduct(null); }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-200 ${
+                    currentPage === totalPages
+                      ? "border-gray-200 text-gray-300 cursor-not-allowed"
+                      : "border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
+                  }`}>
+                  Siguiente
+                </button>
               </div>
-            )}
+            </div>
           </div>
         </>
       )}
