@@ -76,7 +76,7 @@ export default function DashboardPage() {
   const tooltipStyle = { contentStyle: { backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "12px" } };
 
   return (
-    <div>
+    <div className="light-canvas min-h-screen">
       <h2 className="text-2xl font-bold text-gray-800 mb-1">Dashboard</h2>
       <p className="text-gray-500 mb-6">Ultimos 30 dias &middot; El Mundo del Juguete</p>
 
