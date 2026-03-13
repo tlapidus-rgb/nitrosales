@@ -11,55 +11,149 @@ export async function GET() {
     if (!org)
       return NextResponse.json({ error: "Org not found" }, { status: 404 });
 
-    // Get all customers with orders
-    const customers = await prisma.customer.findMany({
-      where: { organizationId: org.id },
-      orderBy: { totalSpent: "desc" },
+    const billableStatuses = ["INVOICED", "SHIPPED", "DELIVERED"];
+
+    // ── 1. Get ALL billable orders (source of truth) ──
+    const orders = await prisma.order.findMany({
+      where: {
+        organizationId: org.id,
+        status: { in: billableStatuses },
+      },
+      select: {
+        id: true,
+        customerId: true,
+        totalValue: true,
+        orderDate: true,
+      },
+      orderBy: { orderDate: "desc" },
     });
 
-    const totalCustomers = customers.length;
-    const customersWithOrders = customers.filter((c) => c.totalOrders > 0);
-    const repeatCustomers = customers.filter((c) => c.totalOrders > 1);
-    const totalRevenue = customers.reduce((s, c) => s + c.totalSpent, 0);
-    const totalOrders = customers.reduce((s, c) => s + c.totalOrders, 0);
+    // ── 2. Group orders by customerId ──
+    const customerMap = new Map<
+      string,
+      {
+        customerId: string | null;
+        totalOrders: number;
+        totalSpent: number;
+        firstOrderAt: Date;
+        lastOrderAt: Date;
+      }
+    >();
 
-    // Average metrics
+    for (const o of orders) {
+      const key = o.customerId || `anon_${o.id}`;
+      const existing = customerMap.get(key);
+      if (existing) {
+        existing.totalOrders += 1;
+        existing.totalSpent += o.totalValue;
+        if (o.orderDate < existing.firstOrderAt)
+          existing.firstOrderAt = o.orderDate;
+        if (o.orderDate > existing.lastOrderAt)
+          existing.lastOrderAt = o.orderDate;
+      } else {
+        customerMap.set(key, {
+          customerId: o.customerId,
+          totalOrders: 1,
+          totalSpent: o.totalValue,
+          firstOrderAt: o.orderDate,
+          lastOrderAt: o.orderDate,
+        });
+      }
+    }
+
+    // ── 3. Load Customer info for those with customerId ──
+    const customerIds = [
+      ...new Set(
+        [...customerMap.values()]
+          .map((c) => c.customerId)
+          .filter(Boolean) as string[]
+      ),
+    ];
+
+    const customerInfoMap = new Map<
+      string,
+      {
+        email: string | null;
+        firstName: string | null;
+        lastName: string | null;
+        city: string | null;
+        state: string | null;
+      }
+    >();
+
+    if (customerIds.length > 0) {
+      const customerRecords = await prisma.customer.findMany({
+        where: { id: { in: customerIds } },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          city: true,
+          state: true,
+        },
+      });
+      for (const c of customerRecords) {
+        customerInfoMap.set(c.id, {
+          email: c.email,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          city: c.city,
+          state: c.state,
+        });
+      }
+    }
+
+    // ── 4. Build unified customer list ──
+    const allCustomers = [...customerMap.entries()].map(([key, data]) => {
+      const info = data.customerId
+        ? customerInfoMap.get(data.customerId)
+        : null;
+      return {
+        key,
+        customerId: data.customerId,
+        name:
+          info && (info.firstName || info.lastName)
+            ? [info.firstName, info.lastName].filter(Boolean).join(" ")
+            : null,
+        email: info?.email || null,
+        city: info?.city || null,
+        state: info?.state || null,
+        totalOrders: data.totalOrders,
+        totalSpent: data.totalSpent,
+        firstOrderAt: data.firstOrderAt,
+        lastOrderAt: data.lastOrderAt,
+        avgTicket:
+          data.totalOrders > 0 ? data.totalSpent / data.totalOrders : 0,
+      };
+    });
+
+    // ── 5. Summary stats ──
+    const totalCustomers = allCustomers.length;
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((s, o) => s + o.totalValue, 0);
+    const repeatCustomers = allCustomers.filter(
+      (c) => c.totalOrders > 1
+    );
+    const repeatRate =
+      totalCustomers > 0
+        ? Math.round((repeatCustomers.length / totalCustomers) * 10000) /
+          100
+        : 0;
     const avgOrdersPerCustomer =
-      customersWithOrders.length > 0
-        ? totalOrders / customersWithOrders.length
+      totalCustomers > 0
+        ? Math.round((totalOrders / totalCustomers) * 100) / 100
         : 0;
     const avgSpentPerCustomer =
-      customersWithOrders.length > 0
-        ? totalRevenue / customersWithOrders.length
-        : 0;
-    const repeatRate =
-      customersWithOrders.length > 0
-        ? Math.round(
-            (repeatCustomers.length / customersWithOrders.length) * 10000
-          ) / 100
-        : 0;
+      totalCustomers > 0 ? Math.round(totalRevenue / totalCustomers) : 0;
 
-    // Top customers by LTV
-    const topCustomers = customers.slice(0, 20).map((c) => ({
-      id: c.id,
-      name:
-        [c.firstName, c.lastName].filter(Boolean).join(" ") ||
-        c.email ||
-        "Sin nombre",
-      email: c.email || "-",
-      city: c.city || "-",
-      state: c.state || "-",
-      totalOrders: c.totalOrders,
-      totalSpent: c.totalSpent,
-      avgTicket: c.totalOrders > 0 ? c.totalSpent / c.totalOrders : 0,
-      firstOrderAt: c.firstOrderAt,
-      lastOrderAt: c.lastOrderAt,
-    }));
-
-    // Pareto analysis: top 20% of customers = ?% of revenue
-    const top20Count = Math.max(1, Math.ceil(customersWithOrders.length * 0.2));
-    const sortedBySpent = [...customersWithOrders].sort(
+    // Pareto: top 20% = ?% of revenue
+    const sortedBySpent = [...allCustomers].sort(
       (a, b) => b.totalSpent - a.totalSpent
+    );
+    const top20Count = Math.max(
+      1,
+      Math.ceil(totalCustomers * 0.2)
     );
     const top20Revenue = sortedBySpent
       .slice(0, top20Count)
@@ -69,66 +163,82 @@ export async function GET() {
         ? Math.round((top20Revenue / totalRevenue) * 100)
         : 0;
 
-    // Frequency distribution
+    // Recent 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const newCustomers30d = allCustomers.filter(
+      (c) => c.firstOrderAt >= thirtyDaysAgo
+    ).length;
+    const activeCustomers30d = allCustomers.filter(
+      (c) => c.lastOrderAt >= thirtyDaysAgo
+    ).length;
+
+    // ── 6. Frequency distribution ──
     const frequency = {
-      oneOrder: customers.filter((c) => c.totalOrders === 1).length,
-      twoToThree: customers.filter(
+      oneOrder: allCustomers.filter((c) => c.totalOrders === 1).length,
+      twoToThree: allCustomers.filter(
         (c) => c.totalOrders >= 2 && c.totalOrders <= 3
       ).length,
-      fourToSix: customers.filter(
+      fourToSix: allCustomers.filter(
         (c) => c.totalOrders >= 4 && c.totalOrders <= 6
       ).length,
-      sevenPlus: customers.filter((c) => c.totalOrders >= 7).length,
+      sevenPlus: allCustomers.filter((c) => c.totalOrders >= 7).length,
     };
 
-    // Recent customers (last 30 days)
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const newCustomers = customers.filter(
-      (c) => c.firstOrderAt && new Date(c.firstOrderAt) >= thirtyDaysAgo
-    ).length;
-    const activeCustomers = customers.filter(
-      (c) => c.lastOrderAt && new Date(c.lastOrderAt) >= thirtyDaysAgo
-    ).length;
-
-    // Spending tiers
+    // ── 7. Spending tiers ──
     const tiers = {
-      vip: customers.filter((c) => c.totalSpent >= 200000).length,
-      high: customers.filter(
+      vip: allCustomers.filter((c) => c.totalSpent >= 200000).length,
+      high: allCustomers.filter(
         (c) => c.totalSpent >= 50000 && c.totalSpent < 200000
       ).length,
-      medium: customers.filter(
+      medium: allCustomers.filter(
         (c) => c.totalSpent >= 10000 && c.totalSpent < 50000
       ).length,
-      low: customers.filter(
+      low: allCustomers.filter(
         (c) => c.totalSpent > 0 && c.totalSpent < 10000
       ).length,
     };
 
-    // Cities summary
+    // ── 8. Top cities (only for identified customers) ──
     const cityCounts: Record<string, number> = {};
-    customers.forEach((c) => {
-      const city = c.city || "Sin dato";
-      cityCounts[city] = (cityCounts[city] || 0) + 1;
+    allCustomers.forEach((c) => {
+      if (c.city) {
+        cityCounts[c.city] = (cityCounts[c.city] || 0) + 1;
+      }
     });
+    const identifiedWithCity = allCustomers.filter((c) => c.city).length;
     const topCities = Object.entries(cityCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([city, count]) => ({ city, count }));
 
+    // ── 9. Top 20 customers by LTV ──
+    const topCustomers = sortedBySpent.slice(0, 20).map((c) => ({
+      id: c.customerId || c.key,
+      name: c.name || "Cliente sin identificar",
+      email: c.email || "-",
+      city: c.city || "-",
+      state: c.state || "-",
+      totalOrders: c.totalOrders,
+      totalSpent: c.totalSpent,
+      avgTicket: Math.round(c.avgTicket),
+      firstOrderAt: c.firstOrderAt,
+      lastOrderAt: c.lastOrderAt,
+    }));
+
     return NextResponse.json({
       summary: {
         totalCustomers,
-        customersWithOrders: customersWithOrders.length,
+        identifiedCustomers: customerIds.length,
+        identifiedWithCity,
         repeatCustomers: repeatCustomers.length,
         repeatRate,
-        totalRevenue,
+        totalRevenue: Math.round(totalRevenue),
         totalOrders,
-        avgOrdersPerCustomer:
-          Math.round(avgOrdersPerCustomer * 100) / 100,
-        avgSpentPerCustomer: Math.round(avgSpentPerCustomer),
+        avgOrdersPerCustomer,
+        avgSpentPerCustomer,
         paretoConcentration,
-        newCustomers30d: newCustomers,
-        activeCustomers30d: activeCustomers,
+        newCustomers30d,
+        activeCustomers30d,
       },
       frequency,
       tiers,
