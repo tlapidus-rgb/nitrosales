@@ -2,31 +2,267 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Google Fonts ───────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+/* ── CSS Variables ──────────────────────────────────────────── */
 :root {
-  --brand-dark: #1A1A2E;
-  --brand-navy: #16213E;
-  --brand-blue: #0F3460;
-  --brand-accent: #E94560;
-  --brand-accent-light: #FF6B81;
+  --nitro-bg:       #0A0A0A;
+  --nitro-bg2:      #111111;
+  --nitro-card:     #161616;
+  --nitro-border:   #222222;
+  --nitro-orange:   #FF5E1A;
+  --nitro-red:      #FF2E2E;
+  --nitro-yellow:   #FFB800;
+  --nitro-green:    #4ADE80;
+  --nitro-err:      #FF5E5E;
+  --nitro-text:     #FFFFFF;
+  --nitro-text2:    #8A8A8A;
+  --nitro-muted:    #555555;
+  --nitro-gradient: linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 50%, #FFB800 100%);
+  --ease-nitro:     cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── Base ───────────────────────────────────────────────────── */
 body {
-  font-family: "Inter", system-ui, sans-serif;
-  background-color: #f8f9fb;
-  color: #1A1A2E;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background-color: var(--nitro-bg);
+  color: var(--nitro-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar personalizada */
+/* ── Noise overlay on body ──────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ── Font utilities ─────────────────────────────────────────── */
+.font-headline {
+  font-family: 'Archivo Black', 'Impact', sans-serif;
+  letter-spacing: -0.5px;
+}
+
+.font-mono-data {
+  font-family: 'Space Mono', monospace;
+  letter-spacing: 1px;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
+
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--nitro-bg);
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: var(--nitro-orange);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: #ff7a42;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--nitro-orange) var(--nitro-bg);
+}
+
+/* ── Animations ─────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s var(--ease-nitro) both;
+}
+
+.animate-pulse-live {
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #161616 25%, #222222 50%, #161616 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Staggered fade-in for children */
+.stagger-children > * {
+  animation: fadeInUp 0.5s var(--ease-nitro) both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 320ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 400ms; }
+
+/* ── Glassmorphism utility ──────────────────────────────────── */
+.glass {
+  background: rgba(17, 17, 17, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ── Card hover gradient top line ───────────────────────────── */
+.nitro-card {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s var(--ease-nitro);
+}
+
+.nitro-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--nitro-gradient);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-nitro);
+}
+
+.nitro-card:hover::before {
+  opacity: 1;
+}
+
+.nitro-card:hover {
+  border-color: rgba(255, 94, 26, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 0 60px rgba(255, 94, 26, 0.08);
+}
+
+/* ── Glow effects ───────────────────────────────────────────── */
+.glow-orange {
+  box-shadow: 0 0 80px rgba(255, 94, 26, 0.15);
+}
+
+.glow-orange-sm {
+  box-shadow: 0 0 40px rgba(255, 94, 26, 0.1);
+}
+
+/* ── Button primary gradient ────────────────────────────────── */
+.btn-nitro {
+  background: var(--nitro-gradient);
+  color: #0A0A0A;
+  font-weight: 700;
+  border-radius: 12px;
+  padding: 14px 32px;
+  transition: all 0.3s var(--ease-nitro);
+  border: none;
+  cursor: pointer;
+}
+
+.btn-nitro:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 40px rgba(255, 94, 26, 0.3);
+}
+
+/* ── Table styles ───────────────────────────────────────────── */
+.nitro-table th {
+  font-family: 'Space Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 0.7rem;
+  color: var(--nitro-muted);
+  font-weight: 400;
+}
+
+.nitro-table td {
+  font-family: 'DM Sans', sans-serif;
+}
+
+.nitro-table tr {
+  transition: background-color 0.2s var(--ease-nitro);
+}
+
+.nitro-table tbody tr:hover {
+  background-color: #1a1a1a;
+}
+
+/* ── Badge utility ──────────────────────────────────────────── */
+.badge-nitro {
+  font-family: 'Space Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-size: 0.7rem;
+}
+
+/* ── Select dark ────────────────────────────────────────────── */
+select.nitro-select {
+  background-color: var(--nitro-bg2);
+  border: 1px solid var(--nitro-border);
+  border-radius: 10px;
+  color: var(--nitro-text);
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  transition: border-color 0.3s var(--ease-nitro);
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}
+
+select.nitro-select:focus {
+  border-color: var(--nitro-orange);
+  box-shadow: 0 0 0 2px rgba(255, 94, 26, 0.15);
+}
+
+/* ── Override Recharts ──────────────────────────────────────── */
+.recharts-text {
+  fill: var(--nitro-text2) !important;
+  font-family: 'Space Mono', monospace !important;
+  font-size: 11px !important;
 }
