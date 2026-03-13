@@ -125,14 +125,16 @@ export async function GET() {
               .filter((s: any) => s.term.length > 1 && s.term !== "(not set)")
               .map((s: any) => {
                 const termLower = s.term.toLowerCase();
-                const matched = products
+                const allMatched = products
                   .filter((p) => {
                     const nl = p.name.toLowerCase();
                     return nl.includes(termLower) || termLower.split(/\s+/).some((w: string) => w.length > 2 && nl.includes(w));
-                  })
+                  });
+                const anyHasStock = allMatched.some((p) => p.stock !== null && p.stock > 0);
+                const matched = allMatched
                   .slice(0, 3)
                   .map((p) => ({ id: p.id, name: p.name, stock: p.stock, brand: p.brand, inStock: p.stock !== null && p.stock > 0 }));
-                return { ...s, matchedProducts: matched, hasStock: matched.length === 0 || matched.some((m) => m.inStock) };
+                return { ...s, matchedProducts: matched, hasStock: matched.length === 0 || anyHasStock };
               });
           }
         }
