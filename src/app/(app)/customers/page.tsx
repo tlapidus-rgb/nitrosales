@@ -21,7 +21,8 @@ interface Customer {
 interface CustomerData {
   summary: {
     totalCustomers: number;
-    customersWithOrders: number;
+    identifiedCustomers: number;
+    identifiedWithCity: number;
     repeatCustomers: number;
     repeatRate: number;
     totalRevenue: number;
@@ -86,7 +87,6 @@ export default function CustomersPage() {
 
   if (loading)
     return <p className="text-gray-400 p-8">Cargando clientes...</p>;
-
   if (!data || !data.summary)
     return (
       <div className="p-8 text-center text-gray-500">
@@ -95,10 +95,12 @@ export default function CustomersPage() {
     );
 
   const s = data.summary;
+
   const sortedCustomers = [...(data.topCustomers || [])].sort((a, b) => {
     const aVal = (a as any)[sortField] || 0;
     const bVal = (b as any)[sortField] || 0;
-    if (typeof aVal === "string") return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    if (typeof aVal === "string")
+      return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
     return sortAsc ? aVal - bVal : bVal - aVal;
   });
 
@@ -115,19 +117,22 @@ export default function CustomersPage() {
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Clientes</h2>
         <p className="text-gray-500">
-          Datos de VTEX &middot; Analisis de retencion y valor
+          Basado en {s.totalOrders.toLocaleString("es-AR")} pedidos facturados
+          &middot; Revenue {formatARS(s.totalRevenue)}
         </p>
       </div>
 
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm p-4 border">
-          <p className="text-xs text-gray-500 uppercase">Total clientes</p>
+          <p className="text-xs text-gray-500 uppercase">
+            Clientes unicos
+          </p>
           <p className="text-xl font-bold text-gray-800 mt-1">
-            {s.customersWithOrders.toLocaleString("es-AR")}
+            {s.totalCustomers.toLocaleString("es-AR")}
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            {s.newCustomers30d} nuevos (30d)
+            {s.identifiedCustomers.toLocaleString("es-AR")} identificados
           </p>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-4 border">
@@ -182,7 +187,8 @@ export default function CustomersPage() {
                   <div
                     className="bg-indigo-500 h-2 rounded-full transition-all"
                     style={{
-                      width: Math.max(2, (item.value / maxFreq) * 100) + "%",
+                      width:
+                        Math.max(2, (item.value / maxFreq) * 100) + "%",
                     }}
                   />
                 </div>
@@ -238,18 +244,26 @@ export default function CustomersPage() {
             Top ciudades
           </h3>
           <div className="space-y-2">
-            {data.topCities.slice(0, 6).map((c, i) => (
-              <div
-                key={c.city}
-                className="flex items-center justify-between text-xs"
-              >
-                <span className="text-gray-600">
-                  <span className="text-gray-400 mr-1">{i + 1}.</span>
-                  {c.city}
-                </span>
-                <span className="font-medium text-gray-800">{c.count}</span>
-              </div>
-            ))}
+            {data.topCities.length > 0 ? (
+              data.topCities.slice(0, 6).map((c, i) => (
+                <div
+                  key={c.city}
+                  className="flex items-center justify-between text-xs"
+                >
+                  <span className="text-gray-600">
+                    <span className="text-gray-400 mr-1">{i + 1}.</span>
+                    {c.city}
+                  </span>
+                  <span className="font-medium text-gray-800">
+                    {c.count}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-gray-400">
+                Datos de ciudad no disponibles
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -282,15 +296,13 @@ export default function CustomersPage() {
                   className="px-3 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
                   onClick={() => handleSort("totalSpent")}
                 >
-                  Total gastado
-                  <SortIcon field="totalSpent" />
+                  Total gastado <SortIcon field="totalSpent" />
                 </th>
                 <th
                   className="px-3 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
                   onClick={() => handleSort("avgTicket")}
                 >
-                  Ticket prom.
-                  <SortIcon field="avgTicket" />
+                  Ticket prom. <SortIcon field="avgTicket" />
                 </th>
                 <th className="px-3 py-3 text-xs font-medium text-gray-500 uppercase">
                   Primera compra
@@ -305,13 +317,17 @@ export default function CustomersPage() {
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-800">{c.name}</div>
-                    <div className="text-xs text-gray-400">{c.email}</div>
+                    {c.email !== "-" && (
+                      <div className="text-xs text-gray-400">{c.email}</div>
+                    )}
                   </td>
                   <td className="px-3 py-3 text-gray-600 text-xs">
                     {c.city}
                     {c.state !== "-" ? ", " + c.state : ""}
                   </td>
-                  <td className="px-3 py-3 text-gray-700">{c.totalOrders}</td>
+                  <td className="px-3 py-3 text-gray-700">
+                    {c.totalOrders}
+                  </td>
                   <td className="px-3 py-3 font-medium text-gray-800">
                     {formatARS(c.totalSpent)}
                   </td>
