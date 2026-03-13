@@ -38,7 +38,7 @@ export default function SettingsPage() {
   if (loading) return <p className="text-gray-400 p-8">Cargando configuracion...</p>;
 
   return (
-    <div>
+    <div className="light-canvas min-h-screen">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Configuracion</h2>
         <p className="text-gray-500">Conectores y estado de sincronizacion</p>
