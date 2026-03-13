@@ -25,9 +25,6 @@ interface ProductSummary {
   detailedRevenue: number;
   uniqueProducts: number;
   paretoConcentration: number;
-  ordersWithItems: number;
-  processedPct: number;
-  isComplete: boolean;
 }
 
 export default function ProductsPage() {
@@ -93,23 +90,6 @@ export default function ProductsPage() {
               )}
             </div>
           </div>
-
-          {summary && !summary.isComplete && (
-            <div className="px-6 py-3 bg-amber-50 border-b border-amber-100">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-amber-700">
-                  Importando detalles de productos: {summary.ordersWithItems.toLocaleString("es-AR")} de{" "}
-                  {summary.totalOrders.toLocaleString("es-AR")} ordenes procesadas ({summary.processedPct}%)
-                </span>
-              </div>
-              <div className="w-full bg-amber-200 rounded-full h-1.5 mt-2">
-                <div
-                  className="bg-amber-500 h-1.5 rounded-full transition-all"
-                  style={{ width: summary.processedPct + "%" }}
-                />
-              </div>
-            </div>
-          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
