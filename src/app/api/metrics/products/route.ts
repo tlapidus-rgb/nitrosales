@@ -20,7 +20,7 @@ export async function GET() {
           COUNT(*)::bigint                       AS total_orders,
           SUM(COALESCE("itemCount", 1))::bigint  AS total_units,
           SUM("totalValue")                      AS total_revenue
-        FROM "Order"
+        FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
           AND status NOT IN ('CANCELLED')
@@ -60,9 +60,9 @@ export async function GET() {
           SUM(oi.quantity)::bigint                AS "unitsSold",
           ROUND(SUM(oi."totalPrice")::numeric)    AS revenue,
           COUNT(DISTINCT oi."orderId")::bigint    AS orders
-        FROM "OrderItem" oi
-        JOIN "Order" o ON oi."orderId" = o.id
-        LEFT JOIN "Product" p ON oi."productId" = p.id
+        FROM order_items oi
+        JOIN orders o ON oi."orderId" = o.id
+        LEFT JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate"    >= ${thirtyDaysAgo}
           AND o.status NOT IN ('CANCELLED')
