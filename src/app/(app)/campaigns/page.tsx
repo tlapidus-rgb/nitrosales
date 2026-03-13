@@ -85,7 +85,7 @@ export default function CampaignsPage() {
   const metaCount = campaigns.filter((c) => c.platform === "META").length;
 
   return (
-    <div>
+    <div className="light-canvas min-h-screen">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Campanas</h2>
@@ -120,10 +120,10 @@ export default function CampaignsPage() {
                 "px-3 py-1.5 rounded-md text-sm font-medium transition-all " +
                 (platformFilter === opt.key
                   ? opt.key === "GOOGLE"
-                    ? "bg-blue-600 text-white shadow-sm"
+                    ? "bg-blue-600 text-gray-900 shadow-sm"
                     : opt.key === "META"
-                    ? "bg-purple-600 text-white shadow-sm"
-                    : "bg-indigo-600 text-white shadow-sm"
+                    ? "bg-purple-600 text-gray-900 shadow-sm"
+                    : "bg-indigo-600 text-gray-900 shadow-sm"
                   : "text-gray-600 hover:bg-gray-100")
               }
             >
