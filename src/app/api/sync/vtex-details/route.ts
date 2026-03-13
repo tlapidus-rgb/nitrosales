@@ -12,33 +12,144 @@ export async function GET(req: Request) {
     }
 
     const batchSize = parseInt(url.searchParams.get("batch") || "5");
+    const mode = url.searchParams.get("mode") || "normal";
+
     const account = process.env.VTEX_ACCOUNT || "";
     const appKey = process.env.VTEX_APP_KEY || "";
     const appToken = process.env.VTEX_APP_TOKEN || "";
 
     if (!account || !appKey || !appToken) {
-      return NextResponse.json({ error: "Missing VTEX credentials" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing VTEX credentials" },
+        { status: 400 }
+      );
     }
 
-    const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
-    if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
+    const org = await prisma.organization.findFirst({
+      where: { slug: "elmundodeljuguete" },
+    });
+    if (!org)
+      return NextResponse.json({ error: "Org not found" }, { status: 404 });
 
-    // Find orders that have no items yet
+    /* ── MODE: resync-products ──────────────────────────────────────────
+       Re-fetch VTEX details for orders whose products lack brand/category.
+       This updates existing products without creating duplicate items. */
+    if (mode === "resync-products") {
+      // Find products with null brand that have at least one order item
+      const productsToUpdate = await prisma.product.findMany({
+        where: {
+          organizationId: org.id,
+          brand: null,
+          items: { some: {} },
+        },
+        include: {
+          items: {
+            take: 1,
+            include: { order: { select: { externalId: true } } },
+          },
+        },
+        take: batchSize,
+      });
+
+      if (productsToUpdate.length === 0) {
+        return NextResponse.json({
+          ok: true,
+          mode: "resync-products",
+          message: "All products already have brand info",
+          updated: 0,
+        });
+      }
+
+      const totalMissing = await prisma.product.count({
+        where: { organizationId: org.id, brand: null, items: { some: {} } },
+      });
+
+      let updated = 0;
+      const errors: string[] = [];
+
+      for (const product of productsToUpdate) {
+        try {
+          const orderExtId = product.items[0]?.order?.externalId;
+          if (!orderExtId) continue;
+
+          const detailUrl = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${orderExtId}`;
+          const res = await fetch(detailUrl, {
+            headers: {
+              "X-VTEX-API-AppKey": appKey,
+              "X-VTEX-API-AppToken": appToken,
+              Accept: "application/json",
+            },
+          });
+
+          if (!res.ok) {
+            errors.push(`product ${product.externalId}: HTTP ${res.status}`);
+            continue;
+          }
+
+          const detail = await res.json();
+          const items = detail.items || [];
+
+          // Find the matching item for this product
+          const matchingItem = items.find(
+            (i: any) =>
+              String(i.productId || i.id) === product.externalId
+          );
+
+          if (matchingItem) {
+            const { brand, category } = extractBrandCategory(matchingItem);
+
+            if (brand || category) {
+              await prisma.product.update({
+                where: { id: product.id },
+                data: {
+                  ...(brand ? { brand } : {}),
+                  ...(category ? { category } : {}),
+                },
+              });
+              updated++;
+            }
+          }
+        } catch (e: any) {
+          errors.push(
+            `product ${product.externalId}: ${e.message.substring(0, 80)}`
+          );
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        mode: "resync-products",
+        updated,
+        remaining: totalMissing - updated,
+        errors: errors.slice(0, 10),
+      });
+    }
+
+    /* ── MODE: normal (default) ─────────────────────────────────────────
+       Original behavior: process orders without items. */
+
     const ordersWithoutItems = await prisma.order.findMany({
       where: {
         organizationId: org.id,
-        items: { none: {} }
+        items: { none: {} },
       },
       take: batchSize,
-      orderBy: { orderDate: "desc" }
+      orderBy: { orderDate: "desc" },
     });
 
     if (ordersWithoutItems.length === 0) {
-      return NextResponse.json({ ok: true, message: "All orders have items", processed: 0 });
+      return NextResponse.json({
+        ok: true,
+        message: "All orders have items",
+        processed: 0,
+      });
     }
 
     const totalWithoutItems = await prisma.order.count({
-      where: { organizationId: org.id, items: { none: {} } }
+      where: {
+        organizationId: org.id,
+        items: { none: {} },
+      },
     });
 
     let processed = 0;
@@ -54,7 +165,7 @@ export async function GET(req: Request) {
           headers: {
             "X-VTEX-API-AppKey": appKey,
             "X-VTEX-API-AppToken": appToken,
-            "Accept": "application/json",
+            Accept: "application/json",
           },
         });
 
@@ -70,7 +181,12 @@ export async function GET(req: Request) {
         if (client && client.email) {
           try {
             await prisma.customer.upsert({
-              where: { organizationId_externalId: { organizationId: org.id, externalId: client.userProfileId || client.email } },
+              where: {
+                organizationId_externalId: {
+                  organizationId: org.id,
+                  externalId: client.userProfileId || client.email,
+                },
+              },
               update: {
                 email: client.email,
                 firstName: client.firstName || null,
@@ -92,38 +208,53 @@ export async function GET(req: Request) {
                 totalOrders: 1,
                 totalSpent: order.totalValue,
                 organizationId: org.id,
-              }
+              },
             });
             customersCreated++;
 
-            // Link customer to order
             const cust = await prisma.customer.findUnique({
-              where: { organizationId_externalId: { organizationId: org.id, externalId: client.userProfileId || client.email } }
+              where: {
+                organizationId_externalId: {
+                  organizationId: org.id,
+                  externalId: client.userProfileId || client.email,
+                },
+              },
             });
             if (cust) {
-              await prisma.order.update({ where: { id: order.id }, data: { customerId: cust.id } });
+              await prisma.order.update({
+                where: { id: order.id },
+                data: { customerId: cust.id },
+              });
             }
           } catch (ce: any) {
-            errors.push("customer " + order.externalId + ": " + ce.message.substring(0, 80));
+            errors.push(
+              "customer " + order.externalId + ": " + ce.message.substring(0, 80)
+            );
           }
         }
 
-        // --- ITEMS & PRODUCTS ---
         const items = detail.items || [];
         for (const item of items) {
           try {
-            // Upsert Product
+            const { brand, category } = extractBrandCategory(item);
             const productExtId = String(item.productId || item.id);
             let product = null;
             try {
               product = await prisma.product.upsert({
-                where: { organizationId_externalId: { organizationId: org.id, externalId: productExtId } },
+                where: {
+                  organizationId_externalId: {
+                    organizationId: org.id,
+                    externalId: productExtId,
+                  },
+                },
                 update: {
                   name: item.name || "Sin nombre",
                   sku: item.sellerSku || item.sku || null,
                   price: (item.sellingPrice || item.price || 0) / 100,
                   imageUrl: item.imageUrl || null,
                   isActive: true,
+                  brand,
+                  category,
                 },
                 create: {
                   externalId: productExtId,
@@ -132,15 +263,16 @@ export async function GET(req: Request) {
                   price: (item.sellingPrice || item.price || 0) / 100,
                   imageUrl: item.imageUrl || null,
                   isActive: true,
+                  brand,
+                  category,
                   organizationId: org.id,
-                }
+                },
               });
               productsCreated++;
             } catch (pe: any) {
               errors.push("product " + productExtId + ": " + pe.message.substring(0, 80));
             }
 
-            // Create OrderItem
             await prisma.orderItem.create({
               data: {
                 quantity: item.quantity || 1,
@@ -148,7 +280,7 @@ export async function GET(req: Request) {
                 totalPrice: ((item.sellingPrice || item.price || 0) * (item.quantity || 1)) / 100,
                 orderId: order.id,
                 productId: product?.id || null,
-              }
+              },
             });
             itemsCreated++;
           } catch (ie: any) {
@@ -156,7 +288,6 @@ export async function GET(req: Request) {
           }
         }
 
-        // Update order with device info if available
         if (detail.deviceInfo || detail.origin) {
           try {
             await prisma.order.update({
@@ -164,7 +295,7 @@ export async function GET(req: Request) {
               data: {
                 deviceType: detail.deviceInfo?.deviceType || null,
                 trafficSource: detail.origin || null,
-              }
+              },
             });
           } catch {}
         }
@@ -187,4 +318,15 @@ export async function GET(req: Request) {
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
+}
+
+function extractBrandCategory(item: any) {
+  const brand = item.additionalInfo?.brandName || item.brandName || null;
+  let category = null;
+  const catSource = item.additionalInfo?.categories || item.productCategories || null;
+  if (catSource && typeof catSource === "object") {
+    const values = Object.values(catSource).filter(Boolean);
+    if (values.length > 0) category = values[values.length - 1];
+  }
+  return { brand, category };
 }
