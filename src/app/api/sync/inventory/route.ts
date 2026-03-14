@@ -47,13 +47,13 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Credenciales VTEX
-    const accountName = process.env.VTEX_ACCOUNT_NAME;
-    const appKey = process.env.VTEX_APP_KEY;
-    const appToken = process.env.VTEX_APP_TOKEN;
+    const accountName = process.env.VTEX_ACCOUNT || "";
+    const appKey = process.env.VTEX_APP_KEY || "";
+    const appToken = process.env.VTEX_APP_TOKEN || "";
 
     if (!accountName || !appKey || !appToken) {
       return NextResponse.json(
-        { error: "Faltan credenciales VTEX (VTEX_ACCOUNT_NAME, VTEX_APP_KEY, VTEX_APP_TOKEN)" },
+        { error: "Faltan credenciales VTEX (VTEX_ACCOUNT, VTEX_APP_KEY, VTEX_APP_TOKEN)" },
         { status: 500 }
       );
     }
