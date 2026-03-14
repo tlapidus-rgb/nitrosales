@@ -80,7 +80,39 @@ Toda respuesta DEBE tener estos 4 bloques:
 - Directo pero no agresivo (decis la verdad aunque duela)
 - Ambicioso (siempre buscas el proximo 10x, no el proximo 5%)
 - Data-driven pero con intuicion de negocio
-- Creativo en soluciones, riguroso en analisis`;
+- Creativo en soluciones, riguroso en analisis
+
+=== ROL DE ANALISTA DE COMPRAS ===
+Ademas de tu rol estrategico de marketing, operas como el mejor analista de compras del mercado.
+
+MENTALIDAD DE COMPRADOR EXPERTO:
+- Pensas en terminos de rotacion de inventario, dias de stock, y velocidad de venta
+- Cada producto es una inversion: el stock parado es plata muerta
+- Siempre evaluas: este producto MERECE que le compremos mas? O hay que frenar?
+- Comparas rendimiento dentro de la misma marca y categoria
+- Un buen analista de compras detecta oportunidades antes de que sean obvias
+
+CUANDO TE PREGUNTAN POR UN PRODUCTO PUNTUAL:
+1. ESTADO ACTUAL: Stock, precio, activo/inactivo, marca, categoria
+2. PERFORMANCE: Unidades vendidas, revenue, velocidad de venta diaria
+3. SALUD DEL INVENTARIO: Dias de stock restante, riesgo de quiebre o sobrestock
+4. CONTEXTO DE MARCA: Como rinde vs otros productos de la misma marca
+5. CONTEXTO DE CATEGORIA: Como rinde vs otros de la misma categoria
+6. VEREDICTO: Comprar mas / Mantener / Liquidar / Discontinuar
+7. ACCION CONCRETA: Que hacer y cuando
+
+CUANDO ANALICES MARCAS:
+- Cuantos SKUs activos tiene, cuanto revenue genera, stock total
+- Identificar "heroes" (alta venta, buena rotacion) y "anclas" (stock muerto, sin movimiento)
+- Oportunidad: marcas con buenos heroes pero SKUs muertos que limpiar
+
+RESPUESTAS SOBRE PRODUCTOS - REGLAS ESTRICTAS:
+- Maximo 4-6 oraciones por punto. NO hagas analisis largos salvo que te lo pidan
+- Usa numeros concretos del contexto. Si no hay datos, decilo directo
+- Siempre termina con VEREDICTO y ACCION. El empresario necesita saber QUE HACER
+- Compara siempre: vs misma marca, vs misma categoria, vs promedio general
+- Si un producto tiene stock pero no vende, decilo sin filtro: "Este producto es plata muerta"
+- Si un producto vende bien y tiene poco stock, alerta: "Repone urgente, te quedas sin stock en X dias"`;
 
 async function buildMetricsContext(orgId: string): Promise<string> {
   const now = new Date();
@@ -97,7 +129,8 @@ async function buildMetricsContext(orgId: string): Promise<string> {
     campaigns,
     webSources,
     funnel30, funnelPrev,
-    customers
+    customers,
+    products
   ] = await Promise.all([
     prisma.order.findMany({ where: { organizationId: orgId, orderDate: { gte: d30, lt: now } } }),
     prisma.order.findMany({ where: { organizationId: orgId, orderDate: { gte: d60, lt: d30 } } }),
@@ -308,7 +341,151 @@ FUNNEL DE CONVERSION (30d):
     d+": $"+Math.round(v.rev).toLocaleString()+" ("+v.orders+" pedidos)"
   ).join("\n");
 
-  // === PRE-COMPUTED STRATEGIC ANALYSIS ===
+  
+    // === PRODUCT INVENTORY ANALYSIS ===
+    // Cross-reference products with sales data
+    const prodSalesMap = new Map();
+    for (const item of orderItems) {
+      const pid = item.product?.name || "Unknown";
+      const ex = prodSalesMap.get(pid) || { qty: 0, rev: 0 };
+      ex.qty += item.quantity;
+      ex.rev += item.totalPrice;
+      prodSalesMap.set(pid, ex);
+    }
+
+    // Build detailed product list with inventory health
+    const productDetails = products.map((p: any) => {
+      const sales = prodSalesMap.get(p.name) || { qty: 0, rev: 0 };
+      const dailySalesRate = sales.qty / 30;
+      const daysOfInventory = dailySalesRate > 0 ? Math.round(p.stock / dailySalesRate) : (p.stock > 0 ? 9999 : 0);
+      return {
+        name: p.name, brand: p.brand || "Sin marca", category: p.category || "Sin cat",
+        sku: p.sku, stock: p.stock || 0, price: p.price || 0, isActive: p.isActive,
+        unitsSold: sales.qty, revenue: sales.rev, dailySalesRate: Math.round(dailySalesRate * 100) / 100,
+        daysOfInventory, externalId: p.externalId
+      };
+    });
+
+    // TOP 50 by revenue
+    const top50 = [...productDetails].sort((a, b) => b.revenue - a.revenue).slice(0, 50);
+    const top50Str = top50.map((p, i) =>
+      (i+1)+". "+p.name+" ["+p.brand+"/"+p.category+"] SKU:"+p.sku+
+      " | Stock:"+p.stock+" | Vendido:"+p.unitsSold+"uds ($"+Math.round(p.revenue).toLocaleString()+
+      ") | Vel:"+p.dailySalesRate+"/dia | DiasInv:"+
+      (p.daysOfInventory > 9000 ? "INF(sin venta)" : p.daysOfInventory+"d")+
+      " | Precio:$"+Math.round(p.price).toLocaleString()+" | "+(p.isActive?"ACTIVO":"INACTIVO")
+    ).join("\n");
+
+    // BRAND ANALYSIS
+    const brandMap = new Map();
+    for (const p of productDetails) {
+      const b = brandMap.get(p.brand) || { skus: 0, active: 0, stock: 0, rev: 0, units: 0, deadStock: 0 };
+      b.skus++;
+      if (p.isActive) b.active++;
+      b.stock += p.stock;
+      b.rev += p.revenue;
+      b.units += p.unitsSold;
+      if (p.stock > 0 && p.unitsSold === 0) b.deadStock++;
+      brandMap.set(p.brand, b);
+    }
+    const brandAnalysis = [...brandMap.entries()]
+      .sort((a, b) => b[1].rev - a[1].rev)
+      .slice(0, 30)
+      .map(([name, d]) =>
+        name+": "+d.skus+" SKUs ("+d.active+" activos) | Stock:"+d.stock+
+        " | Rev:$"+Math.round(d.rev).toLocaleString()+" | "+d.units+"uds vendidas"+
+        (d.deadStock > 0 ? " | "+d.deadStock+" SKUs MUERTOS" : "")
+      ).join("\n");
+
+    // CRITICAL: Products at risk of stockout
+    const stockoutRisk = productDetails
+      .filter(p => p.stock > 0 && p.dailySalesRate > 0 && p.daysOfInventory < 7)
+      .sort((a, b) => a.daysOfInventory - b.daysOfInventory)
+      .slice(0, 20);
+    const stockoutStr = stockoutRisk.length > 0 
+      ? stockoutRisk.map(p =>
+          "REPONER URGENTE: "+p.name+" ["+p.brand+"] Stock:"+p.stock+
+          " | Venta:"+p.dailySalesRate+"/dia | QUEDAN "+p.daysOfInventory+" DIAS"
+        ).join("\n")
+      : "No hay productos con riesgo inmediato de quiebre";
+
+    // DEAD STOCK: Products with inventory but zero sales
+    const deadStock = productDetails.filter(p => p.stock > 0 && p.unitsSold === 0);
+    const deadStockByBrand = new Map();
+    let totalDeadUnits = 0;
+    let totalDeadValue = 0;
+    for (const p of deadStock) {
+      totalDeadUnits += p.stock;
+      totalDeadValue += p.stock * p.price;
+      const b = deadStockByBrand.get(p.brand) || { count: 0, units: 0, value: 0 };
+      b.count++;
+      b.units += p.stock;
+      b.value += p.stock * p.price;
+      deadStockByBrand.set(p.brand, b);
+    }
+    const deadStockStr = [...deadStockByBrand.entries()]
+      .sort((a, b) => b[1].value - a[1].value)
+      .slice(0, 15)
+      .map(([brand, d]) => brand+": "+d.count+" productos, "+d.units+" uds, $"+Math.round(d.value).toLocaleString()+" inmovilizados")
+      .join("\n");
+
+    // INACTIVE products by brand
+    const inactiveProds = productDetails.filter(p => !p.isActive);
+    const inactiveByBrand = new Map();
+    for (const p of inactiveProds) {
+      inactiveByBrand.set(p.brand, (inactiveByBrand.get(p.brand) || 0) + 1);
+    }
+    const inactiveStr = [...inactiveByBrand.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([brand, count]) => brand+": "+count+" inactivos")
+      .join(" | ");
+
+    // OVERSTOCK: Products with >90 days of inventory and low sales
+    const overstock = productDetails
+      .filter(p => p.stock > 0 && p.daysOfInventory > 90 && p.daysOfInventory < 9999)
+      .sort((a, b) => (b.stock * b.price) - (a.stock * a.price))
+      .slice(0, 15);
+    const overstockStr = overstock.length > 0
+      ? overstock.map(p =>
+          p.name+" ["+p.brand+"] Stock:"+p.stock+" ("+p.daysOfInventory+
+          " dias) | Valor inmovilizado:$"+Math.round(p.stock * p.price).toLocaleString()
+        ).join("\n")
+      : "No hay sobrestock significativo";
+
+    // Summary counts
+    const totalProducts = products.length;
+    const activeProducts = productDetails.filter(p => p.isActive).length;
+    const withStock = productDetails.filter(p => p.stock > 0).length;
+    const withSales = productDetails.filter(p => p.unitsSold > 0).length;
+
+    const inventoryContext = `
+INVENTARIO Y ANALISIS DE PRODUCTOS:
+- Total productos en DB: ${totalProducts} | Activos: ${activeProducts} | Con stock: ${withStock} | Con ventas 30d: ${withSales}
+- Stock muerto (con stock, sin ventas): ${deadStock.length} productos, ${totalDeadUnits} unidades, ${Math.round(totalDeadValue).toLocaleString()} inmovilizados
+- Riesgo de quiebre (<7 dias): ${stockoutRisk.length} productos
+
+ALERTAS DE INVENTARIO:
+${stockoutStr}
+
+SOBRESTOCK (>90 dias de inventario):
+${overstockStr}
+
+TOP 50 PRODUCTOS (detalle completo con stock e inventario):
+${top50Str}
+
+ANALISIS POR MARCA (top 30):
+${brandAnalysis}
+
+STOCK MUERTO POR MARCA (sin ventas en 30d):
+${deadStockStr || "Sin datos"}
+Total stock muerto: ${deadStock.length} productos, ${totalDeadUnits} uds, ${Math.round(totalDeadValue).toLocaleString()}
+
+PRODUCTOS INACTIVOS POR MARCA:
+${inactiveStr || "Sin datos"}
+Total inactivos: ${inactiveProds.length}
+`;
+    // === PRE-COMPUTED STRATEGIC ANALYSIS ===
   const convR = sess > 0 ? ((c30.length/sess)*100).toFixed(2) : "N/A";
   const cpa30 = conv > 0 ? Math.round(spend/conv) : 0;
   const ltvcac = avgLTV > 0 && cpa30 > 0 ? (avgLTV/cpa30).toFixed(1) : "N/A";
@@ -389,6 +566,7 @@ CLIENTES:
 ${topCustomers || "Sin datos"}
 
 ${preAnalysis}
+${inventoryContext}
 `;
 }
 
