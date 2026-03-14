@@ -1,20 +1,12 @@
-// ââââââââââââââââââââââââââââââââââââââââââââââ
-// Sync de Inventario VTEX — Optimizado v2 (deployed 2026-03-14) â SKU-level (Optimizado)
-// ââââââââââââââââââââââââââââââââââââââââââââââ
-// Endpoint que sincroniza el inventario completo del catÃ¡logo VTEX
-// usando las APIs privadas (SKU IDs + Logistics Inventory).
-//
-// Optimizaciones v2: 
-// - Cron cada 5 min (vs 1x/dÃ­a) para sync completo en ~2h
-// - Concurrencia 12 (vs 5) para ~1000 SKUs/invocaciÃ³n
-// - CachÃ© de SKU IDs en DB (evita re-fetch de 28K+ IDs cada call)
-// - Batch upserts de 50 SKUs (vs 1 por 1)
-// - Delay reducido entre batches (40ms vs 80ms)
-//
-// Uso:
-//   GET /api/sync/inventory?key=<NEXTAUTH_SECRET>
-//   GET /api/sync/inventory?key=<NEXTAUTH_SECRET>&force=true  (re-sync todo)
-//   GET /api/sync/inventory?key=<NEXTAUTH_SECRET>&nocache=true (refrescar cachÃ© SKU IDs)
+// ══════════════════════════════════════════════
+// Sync de Inventario VTEX — SKU-level (Optimizado v3)
+// ══════════════════════════════════════════════
+// Optimizaciones v3:
+// - TIME_BUDGET reducido a 40s (20s margen para Hobby 60s limit)
+// - Concurrencia 8 (más estable con VTEX API)
+// - Query de "recently synced" simplificada (sin IN clause de 28K)
+// - Caché de SKU IDs en DB (12h)
+// - Batch upserts de 50 SKUs
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
@@ -23,17 +15,17 @@ import { VtexConnector } from "@/lib/connectors/vtex";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// ââ Constantes optimizadas ââ
-const TIME_BUDGET_MS = 50000; // 50s budget (10s margen - mÃ¡s agresivo)
-const STALE_HOURS = 4; // Re-sync mÃ¡s frecuente (4h vs 6h)
-const MAX_CONCURRENT = 12; // MÃ¡s paralelos (12 vs 5)
-const SKU_CACHE_HOURS = 12; // CachÃ© de SKU IDs vÃ¡lido por 12h
+// ── Constantes ──
+const TIME_BUDGET_MS = 40000; // 40s budget (20s margen antes del hard limit de 60s)
+const STALE_HOURS = 4;
+const MAX_CONCURRENT = 8; // Concurrencia moderada para estabilidad
+const SKU_CACHE_HOURS = 12;
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // 1. AutenticaciÃ³n
+    // 1. Auth
     const key = req.nextUrl.searchParams.get("key") || "";
     if (key !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -42,47 +34,47 @@ export async function GET(req: NextRequest) {
     const forceSync = req.nextUrl.searchParams.get("force") === "true";
     const noCache = req.nextUrl.searchParams.get("nocache") === "true";
 
-    // 2. Buscar organizaciÃ³n
+    // 2. Org
     const org = await prisma.organization.findFirst({
       where: { slug: "elmundodeljuguete" },
     });
     if (!org) {
-      return NextResponse.json({ error: "OrganizaciÃ³n no encontrada" }, { status: 404 });
+      return NextResponse.json({ error: "Org no encontrada" }, { status: 404 });
     }
 
-    // 3. Credenciales VTEX
+    // 3. VTEX creds
     const accountName = process.env.VTEX_ACCOUNT || "";
     const appKey = process.env.VTEX_APP_KEY || "";
     const appToken = process.env.VTEX_APP_TOKEN || "";
 
     if (!accountName || !appKey || !appToken) {
       return NextResponse.json(
-        { error: "Faltan credenciales VTEX (VTEX_ACCOUNT, VTEX_APP_KEY, VTEX_APP_TOKEN)" },
+        { error: "Faltan credenciales VTEX" },
         { status: 500 }
       );
     }
 
     const vtex = new VtexConnector({ accountName, appKey, appToken });
 
-    // 4. Obtener SKU IDs (con cachÃ© en DB)
-    console.log("[Inventory Sync] Loading SKU IDs...");
+    // 4. SKU IDs (cached)
+    console.log("[Sync] Loading SKU IDs...");
     const { allSkuIds, fromCache } = await getSkuIdsWithCache(vtex, org.id, noCache);
 
     if (allSkuIds.length === 0) {
       return NextResponse.json({
         ok: true,
-        message: "No se encontraron SKUs en el catÃ¡logo VTEX",
+        message: "No SKUs found",
         totalSkus: 0,
         processed: 0,
         isComplete: true,
       });
     }
 
-    console.log(
-      `[Inventory Sync] ${allSkuIds.length} SKUs totales (${fromCache ? "desde cachÃ©" : "fetch fresco"})`
-    );
+    console.log(`[Sync] ${allSkuIds.length} SKUs (${fromCache ? "cache" : "fresh"})`);
 
-    // 5. Determinar quÃ© SKUs necesitan sync
+    // 5. Determine which SKUs need sync
+    // OPTIMIZADO: En vez de IN clause con 28K IDs, buscar TODOS los products
+    // recientes de la org y filtrar en JS (mucho más rápido)
     let skuIdsToSync: number[];
 
     if (forceSync) {
@@ -93,7 +85,6 @@ export async function GET(req: NextRequest) {
       const recentlySynced = await prisma.product.findMany({
         where: {
           organizationId: org.id,
-          externalId: { in: allSkuIds.map(String) },
           stockUpdatedAt: { gte: staleThreshold },
         },
         select: { externalId: true },
@@ -103,14 +94,12 @@ export async function GET(req: NextRequest) {
       skuIdsToSync = allSkuIds.filter((id) => !recentIds.has(String(id)));
     }
 
-    console.log(
-      `[Inventory Sync] ${skuIdsToSync.length} SKUs pendientes de ${allSkuIds.length} total`
-    );
+    console.log(`[Sync] ${skuIdsToSync.length} pending of ${allSkuIds.length}`);
 
     if (skuIdsToSync.length === 0) {
       return NextResponse.json({
         ok: true,
-        message: "Todos los SKUs ya estan sincronizados",
+        message: "Todos los SKUs sincronizados",
         totalSkus: allSkuIds.length,
         processed: 0,
         pendingSkus: 0,
@@ -120,15 +109,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 6. Calcular time budget restante
+    // 6. Time budget
     const elapsedSoFar = Date.now() - startTime;
     const remainingBudget = Math.max(10000, TIME_BUDGET_MS - elapsedSoFar);
 
-    console.log(
-      `[Inventory Sync] Starting batch sync. Budget: ${Math.round(remainingBudget / 1000)}s, SKUs: ${skuIdsToSync.length}, Concurrency: ${MAX_CONCURRENT}`
-    );
+    console.log(`[Sync] Budget: ${Math.round(remainingBudget / 1000)}s, Concurrency: ${MAX_CONCURRENT}`);
 
-    // 7. Procesar batch con time budget
+    // 7. Process
     const { processed, failed, results } = await vtex.syncInventoryBatch(
       skuIdsToSync,
       org.id,
@@ -141,7 +128,7 @@ export async function GET(req: NextRequest) {
     const isComplete = pendingSkus <= 0;
     const totalElapsed = Date.now() - startTime;
 
-    // 8. Actualizar Connection.lastSyncAt
+    // 8. Update connection
     if (processed > 0) {
       try {
         await prisma.connection.upsert({
@@ -151,10 +138,7 @@ export async function GET(req: NextRequest) {
               platform: "VTEX",
             },
           },
-          update: {
-            lastSyncAt: new Date(),
-            lastSyncError: null,
-          },
+          update: { lastSyncAt: new Date(), lastSyncError: null },
           create: {
             organizationId: org.id,
             platform: "VTEX",
@@ -164,11 +148,11 @@ export async function GET(req: NextRequest) {
           },
         });
       } catch (e) {
-        console.warn("[Inventory Sync] Error updating connection status:", e);
+        console.warn("[Sync] Connection update error:", e);
       }
     }
 
-    // 9. Respuesta con progreso
+    // 9. Response
     const skusPerSecond = processed > 0 ? Math.round(processed / (totalElapsed / 1000)) : 0;
     const etaMinutes = pendingSkus > 0 && skusPerSecond > 0
       ? Math.round(pendingSkus / skusPerSecond / 60)
@@ -178,7 +162,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       message: isComplete
         ? `Sync completo! ${processed} SKUs sincronizados.`
-        : `Procesados ${processed} de ${skuIdsToSync.length} pendientes. Faltan ${pendingSkus}. ETA: ~${etaMinutes} min (${Math.ceil(pendingSkus / (skusPerSecond * 50))} llamadas mÃ¡s).`,
+        : `Procesados ${processed} de ${skuIdsToSync.length} pendientes. Faltan ${pendingSkus}. ETA: ~${etaMinutes} min.`,
       totalSkus: allSkuIds.length,
       processed,
       failed,
@@ -188,6 +172,7 @@ export async function GET(req: NextRequest) {
       elapsedSeconds: Math.round(totalElapsed / 1000),
       skusPerSecond,
       fromCache,
+      etaMinutes,
       syncedAt: new Date().toISOString(),
       errors: results
         .filter((r) => !r.success)
@@ -195,19 +180,17 @@ export async function GET(req: NextRequest) {
         .map((r) => ({ skuId: r.skuId, error: r.error })),
     };
 
-    console.log(
-      `[Inventory Sync] Done. Processed: ${processed}, Failed: ${failed}, Pending: ${pendingSkus}, Speed: ${skusPerSecond} SKUs/s, Time: ${Math.round(totalElapsed / 1000)}s`
-    );
+    console.log(`[Sync] Done: ${processed} ok, ${failed} fail, ${pendingSkus} pending, ${skusPerSecond} SKUs/s, ${Math.round(totalElapsed / 1000)}s`);
 
     return NextResponse.json(response);
   } catch (error: any) {
     const elapsed = Date.now() - startTime;
-    console.error("[Inventory Sync] Fatal error:", error);
+    console.error("[Sync] Fatal:", error);
 
     return NextResponse.json(
       {
         ok: false,
-        error: error.message || "Error interno del servidor",
+        error: error.message || "Error interno",
         elapsedMs: elapsed,
         timestamp: new Date().toISOString(),
       },
@@ -216,7 +199,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ââ CachÃ© de SKU IDs en Connection metadata ââ
+// ── SKU IDs Cache ──
 async function getSkuIdsWithCache(
   vtex: VtexConnector,
   orgId: string,
@@ -224,18 +207,15 @@ async function getSkuIdsWithCache(
 ): Promise<{ allSkuIds: number[]; fromCache: boolean }> {
   if (!forceRefresh) {
     try {
-      // Intentar leer cachÃ© desde Connection metadata
       const conn = await prisma.connection.findFirst({
         where: { organizationId: orgId, platform: "VTEX" },
-        select: { credentials: true, lastSyncAt: true },
+        select: { credentials: true },
       });
 
       if (conn?.credentials && typeof conn.credentials === "object") {
         const creds = conn.credentials as any;
         const cachedIds = creds._skuIdsCache as number[] | undefined;
-        const cacheTime = creds._skuIdsCacheAt
-          ? new Date(creds._skuIdsCacheAt)
-          : null;
+        const cacheTime = creds._skuIdsCacheAt ? new Date(creds._skuIdsCacheAt) : null;
 
         if (
           cachedIds &&
@@ -243,29 +223,24 @@ async function getSkuIdsWithCache(
           cacheTime &&
           Date.now() - cacheTime.getTime() < SKU_CACHE_HOURS * 60 * 60 * 1000
         ) {
-          console.log(
-            `[Inventory Sync] Using cached SKU IDs: ${cachedIds.length} (cached ${Math.round((Date.now() - cacheTime.getTime()) / 60000)} min ago)`
-          );
+          console.log(`[Sync] Cached SKU IDs: ${cachedIds.length}`);
           return { allSkuIds: cachedIds, fromCache: true };
         }
       }
     } catch (e) {
-      console.warn("[Inventory Sync] Cache read error:", e);
+      console.warn("[Sync] Cache read error:", e);
     }
   }
 
-  // Fetch fresco
-  console.log("[Inventory Sync] Fetching fresh SKU IDs from VTEX...");
+  console.log("[Sync] Fetching fresh SKU IDs...");
   const allSkuIds = await vtex.fetchAllSkuIds();
 
-  // Guardar en cachÃ©
   if (allSkuIds.length > 0) {
     try {
       const conn = await prisma.connection.findFirst({
         where: { organizationId: orgId, platform: "VTEX" },
         select: { credentials: true },
       });
-
       const existingCreds = (conn?.credentials as any) || {};
 
       await prisma.connection.updateMany({
@@ -278,16 +253,15 @@ async function getSkuIdsWithCache(
           },
         },
       });
-      console.log(`[Inventory Sync] Cached ${allSkuIds.length} SKU IDs`);
+      console.log(`[Sync] Cached ${allSkuIds.length} SKU IDs`);
     } catch (e) {
-      console.warn("[Inventory Sync] Cache write error:", e);
+      console.warn("[Sync] Cache write error:", e);
     }
   }
 
   return { allSkuIds, fromCache: false };
 }
 
-// POST handler para llamadas programÃ¡ticas
 export async function POST(req: NextRequest) {
   return GET(req);
 }
