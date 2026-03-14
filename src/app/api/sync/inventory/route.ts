@@ -1,12 +1,13 @@
-// ══════════════════════════════════════════════
-// Sync de Inventario VTEX — SKU-level (Optimizado v3)
-// ══════════════════════════════════════════════
-// Optimizaciones v3:
+// ââââââââââââââââââââââââââââââââââââââââââââââ
+// Sync de Inventario VTEX â SKU-level (Optimizado v4)
+// ââââââââââââââââââââââââââââââââââââââââââââââ
+// Optimizaciones v4:
 // - TIME_BUDGET reducido a 40s (20s margen para Hobby 60s limit)
-// - Concurrencia 8 (más estable con VTEX API)
+// - Concurrencia 8 (mÃ¡s estable con VTEX API)
 // - Query de "recently synced" simplificada (sin IN clause de 28K)
-// - Caché de SKU IDs en DB (12h)
+// - CachÃ© de SKU IDs en DB (12h)
 // - Batch upserts de 50 SKUs
+// - v4: Excluir SKUs inactivos conocidos (re-check cada 24h)
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
@@ -15,7 +16,7 @@ import { VtexConnector } from "@/lib/connectors/vtex";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// ── Constantes ──
+// ââ Constantes ââ
 const TIME_BUDGET_MS = 40000; // 40s budget (20s margen antes del hard limit de 60s)
 const STALE_HOURS = 4;
 const MAX_CONCURRENT = 8; // Concurrencia moderada para estabilidad
@@ -73,15 +74,18 @@ export async function GET(req: NextRequest) {
     console.log(`[Sync] ${allSkuIds.length} SKUs (${fromCache ? "cache" : "fresh"})`);
 
     // 5. Determine which SKUs need sync
-    // OPTIMIZADO: En vez de IN clause con 28K IDs, buscar TODOS los products
-    // recientes de la org y filtrar en JS (mucho más rápido)
+    // OPTIMIZADO v4: Excluir SKUs conocidos como inactivos en la DB
+    // Si un SKU ya fue sincronizado y es inactivo, no tiene stock → no lo re-procesamos
+    // Solo re-chequeamos inactivos cada 24h por si reactivaron alguno
     let skuIdsToSync: number[];
 
     if (forceSync) {
       skuIdsToSync = allSkuIds;
     } else {
       const staleThreshold = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000);
+      const inactiveRecheckThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
+      // Query 1: SKUs recién sincronizados (dentro de STALE_HOURS) → skip
       const recentlySynced = await prisma.product.findMany({
         where: {
           organizationId: org.id,
@@ -90,8 +94,26 @@ export async function GET(req: NextRequest) {
         select: { externalId: true },
       });
 
+      // Query 2: SKUs conocidos como inactivos, sincronizados en las últimas 24h → skip
+      const knownInactive = await prisma.product.findMany({
+        where: {
+          organizationId: org.id,
+          isActive: false,
+          stockUpdatedAt: { gte: inactiveRecheckThreshold },
+        },
+        select: { externalId: true },
+      });
+
       const recentIds = new Set(recentlySynced.map((p: any) => p.externalId));
-      skuIdsToSync = allSkuIds.filter((id) => !recentIds.has(String(id)));
+      const inactiveIds = new Set(knownInactive.map((p: any) => p.externalId));
+      
+      skuIdsToSync = allSkuIds.filter(
+        (id) => !recentIds.has(String(id)) && !inactiveIds.has(String(id))
+      );
+
+      const skippedRecent = recentIds.size;
+      const skippedInactive = inactiveIds.size - [...inactiveIds].filter(id => recentIds.has(id)).length;
+      console.log(`[Sync] Skipping ${skippedRecent} recent + ${skippedInactive} inactive SKUs`);
     }
 
     console.log(`[Sync] ${skuIdsToSync.length} pending of ${allSkuIds.length}`);
@@ -167,6 +189,7 @@ export async function GET(req: NextRequest) {
       processed,
       failed,
       pendingSkus: Math.max(0, pendingSkus),
+      totalInCatalog: allSkuIds.length,
       isComplete,
       elapsedMs: totalElapsed,
       elapsedSeconds: Math.round(totalElapsed / 1000),
@@ -199,7 +222,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── SKU IDs Cache ──
+// ââ SKU IDs Cache ââ
 async function getSkuIdsWithCache(
   vtex: VtexConnector,
   orgId: string,
