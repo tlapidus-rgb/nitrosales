@@ -84,19 +84,7 @@ function BarTooltip({ active, payload, metric }: any) {
 }
 
 /* â”€â”€ Stock Alert Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function StockFreshnessLabel({ syncedAt, className = "" }: { syncedAt: string | null; className?: string }) {
-  if (!syncedAt) return <span className={`text-[10px] font-mono text-gray-300 ${className}`}>Stock no sincronizado</span>;
-  const d = new Date(syncedAt);
-  const formatted = d.toLocaleDateString("es-AR", { day: "numeric", month: "long" }) + ", " + d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) + " hs";
-  return (
-    <span className={`text-[10px] font-mono text-gray-400 flex items-center gap-1 ${className}`}>
-      <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-      Stock actualizado al {formatted}
-    </span>
-  );
-}
-
-function StockAlertBanner({ products, stockSyncedAt }: { products: ProductItem[]; stockSyncedAt: string | null }) {
+function StockAlertBanner({ products }: { products: ProductItem[] }) {
   const [expanded, setExpanded] = useState(false);
   const analysis = useMemo(() => {
     const withStock = products.filter((p) => p.stock !== null && p.stock !== undefined);
@@ -137,13 +125,10 @@ function StockAlertBanner({ products, stockSyncedAt }: { products: ProductItem[]
             <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">Stock monitor</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <StockFreshnessLabel syncedAt={stockSyncedAt} />
-          <button onClick={() => setExpanded(!expanded)} className="text-xs font-medium text-nitro-orange hover:text-gray-900 transition-colors duration-300 flex items-center gap-1">
+        <button onClick={() => setExpanded(!expanded)} className="text-xs font-medium text-nitro-orange hover:text-gray-900 transition-colors duration-300 flex items-center gap-1">
           {expanded ? "Ocultar" : "Ver detalle"}
           <svg className={`w-3.5 h-3.5 transition-transform duration-300 ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
         </button>
-        </div>
       </div>
       <div className="space-y-2 mb-4">
         {analysis.critical.length > 0 && (
@@ -279,7 +264,7 @@ function ProductDetail({ product, totalRevenue }: { product: ProductItem; totalR
 /* â”€â”€ AI Advisor Chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 interface ChatMessage { role: "user" | "assistant"; content: string; }
 
-function NitroAdvisorAI({ insights, healthScore, loading, stockSyncedAt }: { insights: Insight[]; healthScore: number; loading: boolean; stockSyncedAt?: string | null }) {
+function NitroAdvisorAI({ insights, healthScore, loading }: { insights: Insight[]; healthScore: number; loading: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -310,7 +295,7 @@ function NitroAdvisorAI({ insights, healthScore, loading, stockSyncedAt }: { ins
       }
       if (alertas.length > 0) welcome += `**${alertas.length} alertas** de stock y concentracion.\n`;
       if (tips.length > 0) welcome += `**${tips.length} tips** de optimizacion.\n\n`;
-      welcome += `Preguntame lo que necesitas: stock, marcas, categorias, precios, tendencias, oportunidades, o cualquier analisis comercial.`;
+      welcome += `Preguntame lo que necesites: stock, marcas, categorias, precios, tendencias, oportunidades, o cualquier analisis comercial.`;
 
       setMessages([{ role: "assistant", content: welcome }]);
     }
@@ -436,11 +421,7 @@ function NitroAdvisorAI({ insights, healthScore, loading, stockSyncedAt }: { ins
             </div>
             <div>
               <h3 className="text-base font-semibold text-gray-900">Nitro Advisor AI</h3>
-              <div className="flex items-center gap-2">
-                <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">Consultor comercial inteligente</p>
-                {stockSyncedAt && <span className="text-[9px] font-mono text-gray-300">&middot;</span>}
-                <StockFreshnessLabel syncedAt={stockSyncedAt || null} />
-              </div>
+              <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">Consultor comercial inteligente</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -455,7 +436,7 @@ function NitroAdvisorAI({ insights, healthScore, loading, stockSyncedAt }: { ins
                 </div>
               </div>
             )}
-            <svg class=${`w-5 h-5 text-gray-400 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           </div>
@@ -467,19 +448,30 @@ function NitroAdvisorAI({ insights, healthScore, loading, stockSyncedAt }: { ins
         {/* Messages */}
         <div className="overflow-y-auto px-5 py-4 space-y-4" style={{ maxHeight: "460px" }}>
           {messages.map((msg, idx) => (
-            <div key={idx} class={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              {msg.role === "ass\İ[ˆ	‰ˆ
-ˆ]ˆÛ\ÜÓ˜[YOHËMÈMÈ›İ[™Y[È›^][\ËXÙ[\ˆ\İYKXÙ[\ˆ\‹Lˆ]LH›^\Úš[šËLˆİ[O^ŞÈ˜XÚÙÜ›İ[™ˆ›[™X\‹YÜ˜YY[
-LÍYYËÑ‘QLPH	KÑ‘Œ‘L‘HL	JHˆ_O‚ˆÜ[ˆÛ\ÜÓ˜[YOH^]Ú]H^^È‰ˆŞQQLÏÜÜ[‚ˆÙ]‚ˆ
-_Bˆ]ˆÛ\ÜÓ˜[YO^ØX^]ËVÎIWH›İ[™YLMKLÈ	Û\ÙËœ›ÛHOOH\Ù\ˆˆÈ˜™ËYÜ˜^KNL^]Ú]Hˆˆ˜™ËYÜ˜^KML›Ü™\ˆ›Ü™\‹YÜ˜^KLŒŸXHİ[O^Û\ÙËœ›ÛHOOH\Ù\ˆˆÈßHˆß_O‚ˆÛ\ÙËœ›ÛHOOH\Ù\ˆˆÈ
-ˆÛ\ÜÓ˜[YOH^\ÛHÛ\ÙË˜ÛÛ[OÜ‚ˆ
-Hˆ
-ˆ]Ü™[™\“X\šÙİÛŠ\ÙË˜ÛÛ[
-_OÙ]‚ˆ
-_BˆÙ]‚ˆÙ]‚ˆ
-J_BˆÜÙ[™[™È	‰ˆ
-ˆ]ˆÛ\ÜÏH™›^\İYK\İ\‚ˆ]ˆÛ\ÜÓ˜[YOHËMÈMÈ›İ[™Y[È›^][\ËXÙ[\ˆ\İYKXÙ[\ˆ\‹Lˆ]LH›^\Ú[šËLˆİ[O^ŞÈ˜XÚÙÜ›İ[™ˆ›[™X\‹YÜ˜YY[
-LÍYYËÑ‘QLPH	KÑ‘Œ‘L‘HL	JHˆ_O‚ˆÜ[ˆÛ\ÜÓ˜[YOH^]Ú]H^^È‰ˆŞQQLÏÜÜ[‚ˆÙ]‚ˆ]ˆÛ\ÜÓ˜[YOH˜™ËYÜ˜^KML›Ü™\ˆ›Ü™\‹YÜ˜^KLŒ›İ[™YLMKLÈ‚ˆ]ˆÛ\ÜÓ˜[YOH™›^][\ËXÙ[\ˆØ\LKH‚ˆ]ˆÛ\ÜÓ˜[YOHËLˆLˆ›İ[™YY[™Ë[š]›Ë[Ü˜[™ÙH[š[X]KX›İ[˜ÙHˆİ[O^ŞÈ[š[X][Û‘[^NˆŒ\Èˆ_HÏ‚ˆ]ˆÛ\ÜÓ˜[YObs-2 h-2 rounded-full bg-nitro-orange animate-bounce" style={{ animationDelay: "150ms" }} />
+            <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              {msg.role === "assistant" && (
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center mr-2 mt-1 flex-shrink-0" style={{ background: "linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 100%)" }}>
+                  <span className="text-white text-xs">&#x1F9E0;</span>
+                </div>
+              )}
+              <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === "user" ? "bg-gray-900 text-white" : "bg-gray-50 border border-gray-200"}`} style={msg.role === "user" ? {} : {}}>
+                {msg.role === "user" ? (
+                  <p className="text-sm">{msg.content}</p>
+                ) : (
+                  <div>{renderMarkdown(msg.content)}</div>
+                )}
+              </div>
+            </div>
+          ))}
+          {sending && (
+            <div className="flex justify-start">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center mr-2 mt-1 flex-shrink-0" style={{ background: "linear-gradient(135deg, #FF5E1A 0%, #FF2E2E 100%)" }}>
+                <span className="text-white text-xs">&#x1F9E0;</span>
+              </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-nitro-orange animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-2 h-2 rounded-full bg-nitro-orange animate-bounce" style={{ animationDelay: "150ms" }} />
                   <div className="w-2 h-2 rounded-full bg-nitro-orange animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               </div>
@@ -541,8 +533,6 @@ export default function ProductsPage() {
   const [aiInsights, setAiInsights] = useState<Insight[]>([]);
   const [aiHealthScore, setAiHealthScore] = useState(0);
   const [aiLoading, setAiLoading] = useState(true);
-  const [stockSyncedAt, setStockSyncedAt] = useState<string | null>(null);
-  const [totalActiveProducts, setTotalActiveProducts] = useState(0);
 
   useEffect(() => {
     fetch("/api/metrics/products")
@@ -552,8 +542,6 @@ export default function ProductsPage() {
         if (data.brands) setBrands(data.brands);
         if (data.categories) setCategories(data.categories);
         if (data.summary) setSummary(data.summary);
-        if (data.stockSyncedAt) setStockSyncedAt(data.stockSyncedAt);
-        if (data.totalActiveProducts) setTotalActiveProducts(data.totalActiveProducts);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -613,687 +601,230 @@ export default function ProductsPage() {
       <div className="flex items-center gap-3">
         <div className="w-2 h-2 rounded-full bg-nitro-orange animate-pulse-live" />
         <p className="text-gray-500 font-mono text-sm tracking-wider uppercase">Cargando productos</p>
-eshLabel syncedAt={stockSyncedAt} className="mt-1.5" />
-              </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="light-canvas min-h-screen">
+      {/* â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <div className="mb-6 animate-fade-in-up">
+        <h2 className="font-headline text-3xl text-gray-900 tracking-tight" style={{ letterSpacing: "-1px" }}>Productos</h2>
+        <p className="text-gray-500 mt-1">Top productos por facturacion &middot; <span className="font-mono text-[11px] text-gray-400 uppercase tracking-wider">Ultimos 30 dias</span></p>
+      </div>
+
+      {allProducts.length === 0 ? (
+        <div className="bg-white rounded-[16px] border border-gray-200 p-12 text-center"><p className="text-gray-400">No hay datos de productos aun.</p></div>
+      ) : (
+        <>
+          {/* â”€â”€ KPI Summary Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6 animate-fade-in-up">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Productos Activos</p>
+              <p className="text-xl font-bold font-mono text-gray-900">{(summary?.uniqueProducts || allProducts.length).toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Facturacion</p>
+              <p className="text-xl font-bold font-mono text-gray-900">{formatCompact(summary?.estimatedTotalRevenue || filteredRevenue)}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Uds Vendidas</p>
+              <p className="text-xl font-bold font-mono text-gray-900">{(summary?.estimatedTotalUnits || filteredUnits).toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Ticket Promedio</p>
+              <p className="text-xl font-bold font-mono text-gray-900">{formatARS(Math.round((summary?.estimatedTotalRevenue || filteredRevenue) / (summary?.totalOrders || 1)))}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-1">Sin Stock</p>
+              <p className="text-xl font-bold font-mono" style={{ color: productsNoStock > 0 ? "#FF5E5E" : "#4ADE80" }}>{productsNoStock} <span className="text-xs text-gray-400 font-normal ml-1">productos</span></p>
+            </div>
           </div>
 
-          {/* â”€â”€ Stock Alerts Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€€¨½ô(€€€€€€€€€€ñMÑ½­±•ÉÑ	…¹¹•ÈÁÉ½‘ÕÑÌõí™¥±Ñ•É•‘ôÍÑ½­Må¹•‘ĞõíÍÑ½­Må¹•‘Ñô€¼ø((€€€€€€€€€ì¼¨ƒŠRŠR 	…È¡…ÉÑÌƒŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠRŠR €¨½ô(€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰É¥É¥µ½±Ì´ÄµéÉ¥µ½±Ì´È…À´Øµˆ´ØÍÑ…•Èµ¡¥±‘É•¸ˆø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰¹¥ÑÉ¼µ…É‰œµİ¡¥Ñ”É½Õ¹‘•µlÄÙÁát‰½É‘•È‰½É‘•ÈµÉ…ä´ÈÀÀÀ´Øˆø(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÌô‰™±•à¥Ñ•µÌµÍÑ…ÉĞ©ÕÍÑ¥™äµ‰•Ñİ••¸µˆ´Ğˆø(€€€€€€€€€€€€€€€€ñ‘¥Øøñ Ì±…ÍÌô‰Ñ•áĞµÍ´™½¹ĞµÍ•µ¥‰½±Ñ•áĞµÉ…ä´äÀÀµˆ´ÄˆùY•¹Ñ…ÌÁ½È5…É„ğ½ ÌøñÀ±…ÍÌô‰Ñ•áĞµlÄÅÁátÑ•áĞµÉ…ä´ĞÀÀ™½¹Ğµµ½¹¼ÕÁÁ•É…Í”ÑÉ…­¥¹œµİ¥‘•Èˆùí‰É…¹‘5•ÑÉ¥Œ€ôôô€‰É•Ù•¹Õ”ˆ€ü€‰…ÑÕÉ…¥½¸ˆ€è€‰U¹¥‘…‘•Ì‰ôÁ½Èµ…É„ğ½Àøğ½‘¥Øø(€€€€€€€€€€€€€€€€ñ5•ÑÉ¥Q½±”µ•ÑÉ¥Œõí‰É…¹‘5•ÑÉ¥ôÍ•Ñ5•ÑÉ¥ŒõíÍ•Ñ	É…¹‘5•ÑÉ¥ô€¼ø(€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€€í‰É…¹‘¡…ÉÑ…Ñ„¹±•¹Ñ €ø€À€ü€ (€€€€€€€€€€€€€€€€ñI•ÍÁ½¹Í¥Ù•½¹Ñ…¥¹•Èİ¥‘Ñ ôˆÄÀÀ”ˆ¡•¥¡Ğõí5…Ñ ¹µ…à ÈÔÀ°‰É…¹‘¡…ÉÑ…Ñ„¹±•¹Ñ €¨€ÌÈ¥ôø(€€€€€€€€€€€€€€€€€€ñ	…É¡…ÉĞ±…å½ÕĞô‰Ù•ÉÑ¥…°ˆ‘…Ñ„õí‰É…¹‘¡…ÉÑ…Ñ…ôµ…É¥¸õíìÑ½Àè€À°É¥¡Ğè€ÈÀ°‰½ÑÑ½´è€À°±•™Ğè€Àõôø(€€€€€€€€€€€€€€€€€€€€ñ…ÉÑ•Í¥…¹É¥ÍÑÉ½­•…Í¡…ÉÉ…äôˆÌ€ÌˆÍÑÉ½­”ôˆÍÑØˆ¡½É¥é½¹Ñ…°õí™…±Í•ô€¼ø(€€€€€€€€€€€€€€€€€€€€ñaá¥ÌÑåÁ”ô‰¹Õµ‰•Èˆ¡¥‘”€¼øñeá¥ÌÑåÁ”ô‰…Ñ•½Éäˆ‘…Ñ…-•äô‰¹…µ”ˆİ¥‘Ñ õìÄÀÁôÑ¥¬õíì™½¹ÑM¥é”è€ÄÄ°™¥±°è€ˆŒÙÜÈàÀˆ°™½¹Ñ…µ¥±äè€‰4M…¹ÌˆõôÑ¥­1¥¹”õí™…±Í•ô…á¥Í1¥¹”õí™…±Í•ô€¼ø(€€€€€€€€€€€€€€€€€€€€ñQ½½±Ñ¥À½¹Ñ•¹Ğõìñ	…ÉQ½½±Ñ¥Àµ•ÑÉ¥Œõí‰É…¹‘5•ÑÉ¥ô€¼ùôÕÉÍ½Èõíì™¥±°è€‰É‰„ ÈÔÔ°€äĞ°€ÈØ°€À¸ÀĞ¤ˆõô€¼ø(€€€€€€€€€€€€€€€€€€€€ñ	…È‘…Ñ…-•äô‰Ù…±Õ”ˆÉ…‘¥ÕÌõílÀ°€Ø°€Ø°€Áuô‰…ÉM¥é”õìÄáôùí‰É…¹‘¡…ÉÑ…Ñ„¹µ…À ¡|°¤¤€ôø€ñ•±°­•äõí¥ô™¥±°õí=1=IMm¤€”=1=IL¹±•¹Ñ¡uô€¼ø¥ôğ½	…Èø(€€€€€€€€€€€€€€€€€€ğ½	…É¡…ÉĞø(€€€€€€€€€€€€€€€€ğ½I•ÍÁ½¹Í¥Ù•½¹Ñ…¥¹•Èø(€€€€€€€€€€€€€€¤€è€ñÀ±…ÍÌô‰Ñ•áĞµÉ…ä´ĞÀÀÑ•áĞµÍ´Ñ•áĞµ•¹Ñ•ÈÁä´ÄÈˆùM¥¸‘…Ñ½Ìğ½Àùô(€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÌô‰¹¥ÑÉ¼µ…É‰œµİ¡¥Ñ”É½Õ¹‘•µlÄÙÁát‰½É‘•È‰½É‘•ÈµÉ…ä´ÈÀÀÀ´Øˆø(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÌô‰™±•à¥Ñ•µÌµÍÑ…ÉĞ©ÕÍÑ¥™äµ‰•Ñİ••¸µˆ´Ğˆø(€€€€€€€€€€€€€€€€€€ñ‘¥Øøñ Ì±…ÍÌô‰Ñ•áĞµÍ´™½¹ĞµÍ•µ¥‰½±Ñ•áĞµÉ…ä´äÀÀµˆ´ÄˆùY•¹Ñ…ÌÁ½È…Ñ•½É¥„ğ½ ÌøñÀ±…ÍÌô‰Ñ•áĞµlÄÅÁátÑ•áĞµÉ…ä´ĞÀÀ™½¹Ğµµ½¹¼ÕÁÁ•É…Í”ÑÉ…­¥¹œµİ¥‘•Èˆùí…Ñ•½Éå5•ÑÉ¥Œ€ôôô€‰É•Ù•¹Õ”ˆ€ü€‰…ÑÕÉ…¥½¸ˆ€è€‰U¹¥‘…‘•Ì‰ôÁ½È…Ñ•½É¥„ğ½Àøğ½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ5•ÑÉ¥Q½±”µ•ÑÉ¥Œõí…Ñ•½Éå5•ÑÉ¥ôÍ•Ñ5•ÑÉ¥ŒõíÍ•Ñ…Ñ•½Éå5•ÑÉ¥ô€¼ø(€€€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€€€€í…Ñ•½Éå¡…ÉÑ…Ñ„¹±•¹Ñ €ø€À€ü€ (€€€€€€€€€€€€€€€€€€ñI•ÍÁ½¹Í¥Ù•½¹Ñ…¥¹•Èİ¥‘Ñ ôˆÄÀÀ”ˆ¡•¥¡Ğõí5…Ñ ¹µ…à ÈÔÀ°…Ñ•½Éå¡…ÉÑ…Ñ„¹±•¹Ñ €¨€ÌÈ¥ôø(€€€€€€€€€€€€€€€€€€€€ñ	…É¡…ÉĞ±…å½ÕĞô‰Ù•ÉÑ¥…°ˆ‘…Ñ„õí…Ñ•½Éå¡…ÉÑ…Ñ…ôµ…É¥¸õíìÑ½Àè€À°É¥¡Ğè€ÈÀ°‰½ÑÑ½´è€À°±•™Ğè€Àõôø(€€€€€€€€€€€€€€€€€€€€€€ñ…ÉÑ•Í¥…¹É¥ÍÑÉ½­•…Í¡…ÉÉ…äôˆÌ€ÌˆÍÑÉ½­”ôˆÍÑØˆ¡½É¥é½¹Ñ…°õí™…±Í•ô€¼ø(€€€€€€€€€€€€€€€€€€€€€€ñaá¥ÌÑåÁ”ô‰¹Õµ‰•Èˆ¡¥‘”€¼øñeá¥ÌÑåÁ”ô‰…Ñ•½Éäˆ‘…Ñ…-•äô‰¹…µ”ˆİ¥‘Ñ õìÄĞÁôÑ¥¬õíì™½¹ÑM¥é”è€ÄÄ°™¥±°è€ˆŒÙÜÈàÀˆ°™½¹Ñ…µ¥±äè€‰4M…¹ÌˆõôÑ¥­1¥¹”õí™…±Í•ô…á¥Í1¥¹”õí™…±Í•ô€¼ø(€€€€€€€€€€€€€€€€€€€€€€ñQ½½±Ñ¥À½¹Ñ•¹Ğõìñ	…ÉQ½½±Ñ¥Àµ•ÑÉ¥Œõí…Ñ•½Éå5•ÑÉ¥ô€¼ùôÕÉÍ½Èõíì™¥±°è€‰É‰„ ÈÔÔ°€äĞ°€ÈØ°€À¸ÀĞ¤ˆõô€¼ø(€€€€€€€€€€€€€€€€€€€€€€ñ	…È‘…Ñ…-•äô‰Ù…±Õ”ˆÉ…‘¥ÕÌõílÀ°€Ø°€Ø°€Áuô‰…ÉM¥é”õìÄáôùí…Ñ•½Éå¡…ÉÑ…Ñ„¹µ…À ¡|°¤¤€ôø€ñ•±°­•äõí¥ô™¥±°õí=1=IMm¤€”=1=IL¹±•¹Ñ¡uô€¼ø¥ôğ½	…Èø(€€€€€€€€€€€€€€€€€€€€€€ğ½	…É¡…ÉĞø(€€€€€€€€€€€€€€€€€€ğ½I•ÍÁ½¹Í¥Ù•½¹Ñ…¥¹•Èø(€€€€€€€€€€€€€€€€¤€è€ñÀ±…ÍÌô‰Ñ•áĞµÉ…ä´ĞÀÀÑ•áĞµÍ´Ñ•áĞµ•¹Ñ•ÈÁä´ÄÈˆùM¥¸‘…Ñ½Ìğ½Àùô(€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€ğ½‘¥Øø((€€€€€€€€€ì¼¨ƒŠRŠR AÉ½‘ÕÑÌÑ…‰±”…ÉƒŠRŠRŠRŠRŠRŠRŠRŠRŠRŠR €¨½ô(€€€€€€€€€€ñ‘¥Ø±…ÍÌô‰¹¥ÑÉ¼µ…É‰œµİ¡¥Ñ”É½Õ¹‘•µlÄÙÁát‰½É‘•È‰½É‘•ÈµÉ…ä´ÈÀÀ½Ù•É™±½Üµ¡¥‘‘•¸…¹¥µ…Ñ”µ™…‘”µ¥¸µÕÀˆÍÑå±”õíì…¹¥µ…Ñ¥½¹•±…äè€ˆÈÀÁµÌˆõôø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÌô‰À´Ø‰½É‘•Èµˆ‰½É‘•ÈµÉ…ä´ÈÀÀˆø(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÌô‰™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•Ñİ••¸™±•àµİÉ…À…À´Ğˆø(€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€ñ Ì±…ÍÌô‰™½¹ĞµÍ•µ¥‰½±Ñ•áĞµÉ…ä´äÀÀˆùQ½ÀAÉ½‘ÕÑ½ÌÁ½È…ÑÕÉ…¥½¸ğ½ Ìø(€€€€€€€€€€€€€€€€€€ñÀ±…ÍÌô‰Ñ•áĞµáÌÑ•áĞµÉ…ä´ĞÀÀµĞ´Ä™½¹Ğµµ½¹¼ˆùí™¥±Ñ•É•‘U¹¥ÅÕ•AÉ½‘ÕÑÌ¹Ñ½1½…±•MÑÉ¥¹œ ‰•ÌµHˆ¥ôÁÉ½‘ÕÑ½Íí¥Í¥±Ñ•É•€˜˜€ñÍÁ…¸±…ÍÌô‰Ñ•áĞµ¹¥ÑÉ¼µ½É…¹”ˆø€¡™¥±ÑÉ…‘¼‘”ì…±±AÉ½‘ÕÑÌ¹±•¹Ñ ¹Ñ½1½…±•MÑÉ¥¹œ ‰•ÌµHˆ¥ô¤ğ½ÍÁ…¸ùôğ½Àø(€€€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÌô‰™±•à…À´Øˆø(€€€€€€€€€€€€€€€€€€ñ-Â•&BÆ&VÃÒ%VG2fVæF–F2"fÇVS×¶f–ÇFW&VEVæ—G2çFôÆö6ÆU7G&–ær‚&W2Ô""—Òóà¢Ä·
-T\™X™[H‘˜Xİ\˜XÚ[Ûˆˆ˜[YO^Ù›Ü›X]T”Êš[\™Y™]™[YJ_HÏ‚ˆÜ)Pard label="Pareto" value={`Top 20% = ${filteredPareto}%`} accent />
+          {/* â”€â”€ Stock Alerts Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          <StockAlertBanner products={filtered} />
+
+          {/* â”€â”€ Bar Charts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 stagger-children">
+            <div className="nitro-card bg-white rounded-[16px] border border-gray-200 p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div><h3 className="text-sm font-semibold text-gray-900 mb-1">Ventas por Marca</h3><p className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">{brandMetric === "revenue" ? "Facturacion" : "Unidades"} por marca</p></div>
+                <MetricToggle metric={brandMetric} setMetric={setBrandMetric} />
+              </div>
+              {brandChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={Math.max(250, brandChartData.length * 32)}>
+                  <BarChart layout="vertical" data={brandChartData} margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" horizontal={false} />
+                    <XAxis type="number" hide /><YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: "#6B7280", fontFamily: "DM Sans" }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<BarTooltip metric={brandMetric} />} cursor={{ fill: "rgba(255, 94, 26, 0.04)" }} />
+                    <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>{brandChartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <p className="text-gray-400 text-sm text-center py-12">Sin datos</p>}
+            </div>
+            <div className="nitro-card bg-white rounded-[16px] border border-gray-200 p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div><h3 className="text-sm font-semibold text-gray-900 mb-1">Ventas por Categoria</h3><p className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">{categoryMetric === "revenue" ? "Facturacion" : "Unidades"} por categoria</p></div>
+                <MetricToggle metric={categoryMetric} setMetric={setCategoryMetric} />
+              </div>
+              {categoryChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={Math.max(250, categoryChartData.length * 32)}>
+                  <BarChart layout="vertical" data={categoryChartData} margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" horizontal={false} />
+                    <XAxis type="number" hide /><YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fill: "#6B7280", fontFamily: "DM Sans" }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<BarTooltip metric={categoryMetric} />} cursor={{ fill: "rgba(255, 94, 26, 0.04)" }} />
+                    <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>{categoryChartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <p className="text-gray-400 text-sm text-center py-12">Sin datos</p>}
+            </div>
+          </div>
+
+          {/* â”€â”€ Products table card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          <div className="nitro-card bg-white rounded-[16px] border border-gray-200 overflow-hidden animate-fade-in-up" style={{ animationDelay: "200ms" }}>
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Top Productos por Facturacion</h3>
+                  <p className="text-xs text-gray-400 mt-1 font-mono">{filteredUniqueProducts.toLocaleString("es-AR")} productos{isFiltered && <span className="text-nitro-orange"> (filtrado de {allProducts.length.toLocaleString("es-AR")})</span>}</p>
+                </div>
+                <div className="flex gap-6">
+                  <KpiCard label="Uds vendidas" value={filteredUnits.toLocaleString("es-AR")} />
+                  <KpiCard label="Facturacion" value={formatARS(filteredRevenue)} />
+                  <KpiCard label="Pareto" value={`Top 20% = ${filteredPareto}%`} accent />
                   {productsAtRisk > 0 && (
-                    <div class="text-right">
-                      <p class="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-0.5">En riesgo</p>
-                      <p class="text-sm font-bold font-mono text-nitro-err flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-nitro-err animate-pulse-live" />{productsAtRisk } producto{productsAtRisk !== 1 ? "s" : ""}</p>
-                      </div>
+                    <div className="text-right">
+                      <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest mb-0.5">En riesgo</p>
+                      <p className="text-sm font-bold font-mono text-nitro-err flex items-center justify-end gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-nitro-err animate-pulse-live" />{productsAtRisk} producto{productsAtRisk !== 1 ? "s" : ""}</p>
+                    </div>
                   )}
-                  </div>
+                </div>
               </div>
             </div>
-            <div class="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-4 flex-wrap">
-              <div class="relative flex-1 min-w-[200px] max-w-[360px]">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 01100z" /></svg>
-                <input type="text" placeholder="Buscar por nombre, SKU, marca..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} class="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF5E1A] focus:ring-2 focus:ring-[rgba(255,94,26,0.15)] transition-all" />
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-(€€€€€€€€€€€€€€€íÍ•…É¡Q•É´€˜˜€ñ‰ÕÑÑ½¸½¹±¥¬õì ¤€ôøÍ•ÑM•…É¡Q•É´ ˆˆ¥ô±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”É¥¡Ğ´ÌÑ½À´Ä¼È€µÑÉ…¹Í±…Ñ”µä´Ä¼ÈÑ•áĞµÉ…ä´ĞÀÀ¡½Ù•ÈéÑ•áĞµÉ…ä´ØÀÀˆøñÍÙœ±…ÍÍ9…µ”ô‰Ü´Ğ ´Ğˆ™¥±°ô‰¹½¹”ˆÙ¥•İ	½àôˆÀ€À€ÈĞ€ÈĞˆÍÑÉ½­”ô‰ÕÉÉ•¹Ñ½±½ÈˆÍÑÉ½­•]¥‘Ñ õìÉôøñÁ…Ñ ÍÑÉ½­•1¥¹•…Àô‰É½Õ¹ˆÍÑÉ½­•1¥¹•©½¥¸ô‰É½Õ¹ˆô‰4Ø€Äá0Äà€Ù4Ø€Ù°ÄÈ€ÄÈˆ€¼øğ½ÍÙœøğ½‰ÕÑÑ½¸ùô(€€€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€€í‰É…¹‘Ì¹±•¹Ñ €ø€À€˜˜€ (€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´Èˆø(€€€€€€€€€€€€€€€€€€ñ±…‰•°±…ÍÍ9…µ”ô‰™½¹Ğµµ½¹¼Ñ•áĞµlÄÅÁátÑ•áĞµÉ…ä´ĞÀÀÕÁÁ•É…Í”ÑÉ…­¥¹œµİ¥‘•ÍĞˆù5…É„ğ½±…‰•°ø(€€€€€€€€€€€€€€€€€€ñÍ•±•ĞÙ…±Õ”õí‰É…¹‘¥±Ñ•Éô½¹¡…¹”õì¡”¤€ôøÍ•Ñ	É…¹‘¥±Ñ•È¡”¹Ñ…É•Ğ¹Ù…±Õ”¥ô±…ÍÍ9…µ”ô‰¹¥ÑÉ¼µÍ•±•ĞÑ•áĞµÍ´ˆø(€€€€€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰10ˆùQ½‘…Ì€¡í…±±AÉ½‘ÕÑÌ¹™¥±Ñ•È ¡À¤€ôøÀ¹‰É…¹¤¹±•¹Ñ¡ô¤ğ½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€€€€í‰É…¹‘Ì¹µ…À ¡ˆ¤€ôø€ñ½ÁÑ¥½¸­•äõí‰ôÙ…±Õ”õí‰ôùí‰ô€¡í…±±AÉ½‘ÕÑÌ¹™¥±Ñ•È ¡À¤€ôøÀ¹‰É…¹€ôôôˆ¤¹±•¹Ñ¡ô¤ğ½½ÁÑ¥½¸ø¥ô(€€€€€€€€€€€€€€€€€€ğ½Í•±•Ğø(€€€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€€€¥ô(€€€€€€€€€€€€€í…Ñ•½É¥•Ì¹±•¹Ñ €ø€À€˜˜€ (€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÌô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´Èˆø(€€€€€€€€€€€€€€€€€€ñ±…‰•°±…ÍÍ9…µ”ô‰™½¹Ğµµ½¹¼Ñ•áĞµlÄÅÁátÑ•áĞµÉ…ä´ĞÀÀÕÁÁ•É…Í”ÑÉ…­¥¹œµİ¥‘•ÍĞˆù…Ñ•½É¥„ğ½±…‰•°ø(€€€€€€€€€€€€€€€€€€ñÍ•±•ĞÙ…±Õ”õí…Ñ•½Éå¥±Ñ•Éô½¹¡…¹”õì¡”¤€ôøÍ•Ñ…Ñ•½Éå¥±Ñ•È¡”¹Ñ…É•Ğ¹Ù…±Õ”¥ô±…ÍÍ9…µ”ô‰¹¥ÑÉ¼µÍ•±•ĞÑ•áĞµÍ´ˆø(€€€€€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰10ˆùQ½‘…Ì€¡í…±±AÉ½‘ÕÑÌ¹™¥±Ñ•È ¡À¤€ôøÀ¹…Ñ•½Éä¤¹±•¹Ñ¡ô¤ğ½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€€€€í…Ñ•½É¥•Ì¹µ…À ¡Œ¤€ôø€ñ½ÁÑ¥½¸­•äõíôÙ…±Õ”õíôùíô€¡í…±±AÉ½‘ÕÑÌ¹™¥±Ñ•È ¡À¤€ôøÀ¹…Ñ•½Éä€ôôôŒ¤¹±•¹Ñ¡ô¤ğ½½ÁÑ¥½¸ø¥ô(€€€€€€€€€€€€€€€€€€ğ½Í•±•Ğø(€€€€€€€€€€€€€€€€ğ½‘¥Øø(€€€€€€€€€€€€€€¤¤‡àisFiltered || searchTerm) && <button onClick={() => { setBrandFilter("ALL"); setCategoryFilter("ALL"); setSearchTerm(""); }} class="text-xs text-nitro-orange hover:text-gray-900 font-medium ml-auto transition-colors duration-300">Limpiar filtros</button>}
-              {/searchTerm && (
-                <div class="px-6 py-2 bg-gray-50 border-b border-gray-200"><p class="text-xs text-gray-500 font-mono">{srted.length} resultados {sorted.length !== 1 ? "s" : ""} para &ldquo;{searchTerm}&rdquo;</p></div>
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
- ))}
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm nitro-table">
-                  <thead><tr class="bg-white text-left"><th class="px-4 py-3 w-10">#</th><th class="px-3 py-3">Producto</th><th class="px-3 py-3 text-right">Unidades</th><th class="px-3 py-3 text-right">Pedidos</th><th class="px-3 py-3 text-right">Precio Prom.</th><th class="px-3 py-3 text-right">Stock</th><th class="px-3 py-3 text-right">Facturacion</th><th class="px-3 py-3 text-right">% del Total</th></tr></thead>
-                  <tbody class="divide-y divide-gray-200">
-                    {paginatedProducts.map((p, idx) => {
-                      const globalIdx = (currentPage - 1) * ITEMS_PER_PAGE + idx + 1;
-                      const isExpanded = expandedProduct === p.id;
-                      return (
-                        <>
-                          <tr key={p.id} class={`transition-colors duration-200 cursor-pointer ${isExpanded ? "bg-gray-50" : "hover:bg-gray-50"}`} onClick={() => setExpandedProduct(isExpanded ? null :p.id)}>
-                          <td class="px-4 py-3 text-gray-400 text-xs font-mono"><div class="flex items-center gap-1.5"><svg class={`w-3 h-3 text-gray-300 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>{globalIdx}</div></td>
-                          <td class="px-3 py-3">
-                            <div class="flex items-center gap-3">
+            <div className="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-4 flex-wrap">
+              <div className="relative flex-1 min-w-[200px] max-w-[360px]">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input type="text" placeholder="Buscar por nombre, SKU, marca..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FF5E1A] focus:ring-2 focus:ring-[rgba(255,94,26,0.15)] transition-all" />
+                {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>}
+              </div>
+              {brands.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">Marca</label>
+                  <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} className="nitro-select text-sm">
+                    <option value="ALL">Todas ({allProducts.filter((p) => p.brand).length})</option>
+                    {brands.map((b) => <option key={b} value={b}>{b} ({allProducts.filter((p) => p.brand === b).length})</option>)}
+                  </select>
+                </div>
+              )}
+              {categories.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">Categoria</label>
+                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="nitro-select text-sm">
+                    <option value="ALL">Todas ({allProducts.filter((p) => p.category).length})</option>
+                    {categories.map((c) => <option key={c} value={c}>{c} ({allProducts.filter((p) => p.category === c).length})</option>)}
+                  </select>
+                </div>
+              )}
+              {(isFiltered || searchTerm) && <button onClick={() => { setBrandFilter("ALL"); setCategoryFilter("ALL"); setSearchTerm(""); }} className="text-xs text-nitro-orange hover:text-gray-900 font-medium ml-auto transition-colors duration-300">Limpiar filtros</button>}
+            </div>
+            {searchTerm && (
+              <div className="px-6 py-2 bg-gray-50 border-b border-gray-200"><p className="text-xs text-gray-500 font-mono">{sorted.length} resultado{sorted.length !== 1 ? "s" : ""} para &ldquo;{searchTerm}&rdquo;</p></div>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm nitro-table">
+                <thead><tr className="bg-white text-left"><th className="px-4 py-3 w-10">#</th><th className="px-3 py-3">Producto</th><th className="px-3 py-3 text-right">Unidades</th><th className="px-3 py-3 text-right">Pedidos</th><th className="px-3 py-3 text-right">Precio Prom.</th><th className="px-3 py-3 text-right">Stock</th><th className="px-3 py-3 text-right">Facturacion</th><th className="px-3 py-3 text-right">% del Total</th></tr></thead>
+                <tbody className="divide-y divide-gray-200">
+                  {paginatedProducts.map((p, idx) => {
+                    const globalIdx = (currentPage - 1) * ITEMS_PER_PAGE + idx + 1;
+                    const isExpanded = expandedProduct === p.id;
+                    return (
+                      <>
+                        <tr key={p.id} className={`transition-colors duration-200 cursor-pointer ${isExpanded ? "bg-gray-50" : "hover:bg-gray-50"}`} onClick={() => setExpandedProduct(isExpanded ? null : p.id)}>
+                          <td className="px-4 py-3 text-gray-400 text-xs font-mono"><div className="flex items-center gap-1.5"><svg className={`w-3 h-3 text-gray-300 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>{globalIdx}</div></td>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-3">
                               {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-10 h-10 rounded-lg object-cover border border-gray-200" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />}
                               <div>
                                 <div className="font-medium text-gray-900 truncate max-w-[250px]">{p.name}</div>
-                                <div class="flex gap-2 mt-0.5">
-                                  {p.sku && <span class="text-[11px] text-gray-400 font-mono uppercase tracking-wider">SKU: {p.sku}</span>}
-                                  {p.brand && <span class="text-[11px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ color: "#FF5E1A", background: "rgba(255, 94, 26, 0.1)", border: "1px solid rgba(255, 94, 26, 0.2)" }}>{p.brand}</span>}
+                                <div className="flex gap-2 mt-0.5">
+                                  {p.sku && <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">SKU: {p.sku}</span>}
+                                  {p.brand && <span className="text-[11px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ color: "#FF5E1A", background: "rgba(255, 94, 26, 0.1)", border: "1px solid rgba(255, 94, 26, 0.2)" }}>{p.brand}</span>}
                                 </div>
                               </div>
                             </div>
                           </td>
-                          <td class="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">{p.unitsSold.toLocaleString("es-AR")}</td>
-                          <td class="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">{p.orders.toLocaleString("es-AR")}</td>
-                          <td class="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">{formatARS(p.avgPrice)}</td>
-                          <td class="px-3 py-3 text-right"><StockBadge product={p} /></td>
-                          <td class="px-3 py-3 font-bold text-gray-900 text-right font-mono text-xs">{formatARS(p.revenue)}</td>
-                          <td class="px-3 py-3 text-right">
-                            <div class="flex items-center justify-end gap-2">
-                              <div class="w-16 bg-gray-200 rounded-full h-1.5"><div class="h-1.5 rounded-full" style={{ width: Math.min(100, Math.round((p.revenue / (filteredRevenue || 1)) * 100)) + "%", background: "var(--nitro-gradient)" }} /></div>
-                              <span class="text-[11px] text-gray-400 w-8 font-mono">{Math.round((p.revenue / (filteredRevenue || 1)) * 100)}%</span>
+                          <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">{p.unitsSold.toLocaleString("es-AR")}</td>
+                          <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">{p.orders.toLocaleString("es-AR")}</td>
+                          <td className="px-3 py-3 text-gray-900/80 text-right font-mono text-xs">{formatARS(p.avgPrice)}</td>
+                          <td className="px-3 py-3 text-right"><StockBadge product={p} /></td>
+                          <td className="px-3 py-3 font-bold text-gray-900 text-right font-mono text-xs">{formatARS(p.revenue)}</td>
+                          <td className="px-3 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-16 bg-gray-200 rounded-full h-1.5"><div className="h-1.5 rounded-full" style={{ width: Math.min(100, Math.round((p.revenue / (filteredRevenue || 1)) * 100)) + "%", background: "var(--nitro-gradient)" }} /></div>
+                              <span className="text-[11px] text-gray-400 w-8 font-mono">{Math.round((p.revenue / (filteredRevenue || 1)) * 100)}%</span>
                             </div>
                           </td>
                         </tr>
-                        { isExpanded && <ProductDetail key={`detail-${p.id}`} product={p} totalRevenue={filteredRevenue} />}
+                        {isExpanded && <ProductDetail key={`detail-${p.id}`} product={p} totalRevenue={filteredRevenue} />}
                       </>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <div class="px-6 py-3 border-t border-gray-200 bg-white flex items-center justify-between">
-              <p class="text-[11px] text-gray-400 font-mono">Mostrando {(currentPage - 1) * ITEMS_PER_PAGE} + 1}-{ Math.min(surrentPage * ITEMS_PER_PAGE, sorted.length)} de {sorted.length.toLocaleString("es-AR")} productos</p>
-              <div class="flex items-center gap-2">
+            <div className="px-6 py-3 border-t border-gray-200 bg-white flex items-center justify-between">
+              <p className="text-[11px] text-gray-400 font-mono">Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, sorted.length)} de {sorted.length.toLocaleString("es-AR")} productos</p>
+              <div className="flex items-center gap-2">
                 <button disabled={currentPage === 1} onClick={() => { setCurrentPage(currentPage - 1); setExpandedProduct(null); }} className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-200 ${currentPage === 1 ? "border-gray-200 text-gray-300 cursor-not-allowed" : "border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"}`}>Anterior</button>
                 <span className="text-xs font-mono text-gray-400 px-2">{currentPage} / {totalPages}</span>
                 <button disabled={currentPage === totalPages} onClick={() => { setCurrentPage(currentPage + 1); setExpandedProduct(null); }} className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-200 ${currentPage === totalPages ? "border-gray-200 text-gray-300 cursor-not-allowed" : "border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"}`}>Siguiente</button>
               </div>
             </div>
           </div>
-              {storeSearches.length > 0 && (
+
+          {/* â”€â”€ Store Search Terms (GA4) â€” MOVED BELOW TABLE â”€â”€â”€â”€ */}
+          {storeSearches.length > 0 && (
             <div className="nitro-card bg-white border border-gray-200 rounded-[16px] p-5 mt-6 animate-fade-in-up" style={{ boxShadow: "0 0 60px rgba(255, 94, 26, 0.04)" }}>
-              <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(255, 94, 26, 0.1)", border: "1px solid #E5E7EB" }}>
-                    <svg className="v-4 h-4" style={{ color: "#FF5E1A" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(255, 94, 26, 0.1)", border: "1px solid #E5E7EB" }}>
+                    <svg className="w-4 h-4" style={{ color: "#FF5E1A" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900">Busquedas Populares en la Tienda</h3>
-                    <p class="text-[11px] font-mono text-gray-400 uppercase tracking-widest">GA4 &middot; Ultimos 30 dias &"middot;  {storeSearches.length} terminos</p>
+                    <p className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">GA4 &middot; Ultimos 30 dias &middot; {storeSearches.length} terminos</p>
                   </div>
                 </div>
-                <p class="text-[11px] font-mono text-gray-400">Click para buscar en el catalogo</p>
+                <p className="text-[11px] font-mono text-gray-400">Click para buscar en el catalogo</p>
               </div>
-              <div class="overflow-y-auto space-y-1" style={{ maxHeight: "400px" }}>
+              <div className="overflow-y-auto space-y-1" style={{ maxHeight: "400px" }}>
                 {storeSearches.map((s, i) => {
                   const maxCount = storeSearches[0]?.count || 1;
                   const pct = Math.max(4, Math.round((s.count / maxCount) * 100));
                   const isOrange = i < 3;
                   return (
-                    <div key={s.term} class="flex items-center gap-3 group cursor-pointer rounded-lg px-1 py-0.5 hover:bg-gray-50 transition-colors duration-200" onClick={() => { setSearchTerm(s.term); setBrandFilter("ALL"); setCategoryFilter("ALL"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                      <span class="text-[11px] font-mono text-gray-300 w-5 text-right flex-shrink-0">{i + 1}</span>
-                      <div class="flex-1 relative h-7 overflow-hidden rounded-md">
+                    <div key={s.term} className="flex items-center gap-3 group cursor-pointer rounded-lg px-1 py-0.5 hover:bg-gray-50 transition-colors duration-200" onClick={() => { setSearchTerm(s.term); setBrandFilter("ALL"); setCategoryFilter("ALL"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                      <span className="text-[11px] font-mono text-gray-300 w-5 text-right flex-shrink-0">{i + 1}</span>
+                      <div className="flex-1 relative h-7 overflow-hidden rounded-md">
                         <div className="absolute inset-y-0 left-0 rounded-md transition-all duration-500 ease-out" style={{ width: `${pct}%`, background: isOrange ? "rgba(255, 94, 26, 0.08)" : "rgba(107, 114, 128, 0.06)" }} />
-                        <div class="relative flex items-center justify-between px-3 h-full">
-                          <span class={`text-sm transition-colors duration-200 ${isOrange ? "text-gray-800 font-medium group-hover:text-[#FF5E1A]" : "text-gray-600 group-hover:text-gray-900"}`}>{s.term}</span>
-                          <span class="text-[11px] font-mono text-gray-400 flex-shrink-0 ml-3">{s.count.toLocaleString("es-AR")}</span>
+                        <div className="relative flex items-center justify-between px-3 h-full">
+                          <span className={`text-sm transition-colors duration-200 ${isOrange ? "text-gray-800 font-medium group-hover:text-[#FF5E1A]" : "text-gray-600 group-hover:text-gray-900"}`}>{s.term}</span>
+                          <span className="text-[11px] font-mono text-gray-400 flex-shrink-0 ml-3">{s.count.toLocaleString("es-AR")}</span>
                         </div>
                       </div>
-                      {{!s.hasStock && s.matchedProducts.length > 0 && (
-                        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "rgba(255, 94, 94, 0.08)", border: "1px solid rgba(255, 94, 94, 0.2)", color: "#FF5E5E" }}>Sin stock</span>
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  )}
-                        </div>
-                      );
-                  })}
+                      {!s.hasStock && s.matchedProducts.length > 0 && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "rgba(255, 94, 94, 0.08)", border: "1px solid rgba(255, 94, 94, 0.2)", color: "#FF5E5E" }}>Sin stock</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          )
- * * gtopKast?.response-|| button></div>
-          <div class="mt-6">
-            <NitroAdvisorAI insights={aiInsights} healthScore={aiHealthScore} loading={aiLoading} stockSyncedAt={stockSyncedAt} />
+          )}
+
+          {/* â”€â”€ Nitro Advisor AI Chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          <div className="mt-6">
+            <NitroAdvisorAI insights={aiInsights} healthScore={aiHealthScore} loading={aiLoading} />
           </div>
         </>
       )}
