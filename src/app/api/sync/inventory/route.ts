@@ -4,7 +4,7 @@
 // Endpoint que sincroniza el inventario completo del catÃ¡logo VTEX
 // usando las APIs privadas (SKU IDs + Logistics Inventory).
 //
-// Optimizaciones v2:
+// Optimizaciones v2: 
 // - Cron cada 5 min (vs 1x/dÃ­a) para sync completo en ~2h
 // - Concurrencia 12 (vs 5) para ~1000 SKUs/invocaciÃ³n
 // - CachÃ© de SKU IDs en DB (evita re-fetch de 28K+ IDs cada call)
