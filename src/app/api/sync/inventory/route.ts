@@ -15,7 +15,7 @@
 //   GET /api/sync/inventory?key=<NEXTAUTH_SECRET>&force=true  (re-sync todo)
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db/client";
+import { prisma } from "@/lib/db/client";
 import { VtexConnector } from "@/lib/connectors/vtex";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     const forceSync = req.nextUrl.searchParams.get("force") === "true";
 
     // 2. Buscar organización
-    const org = await db.organization.findFirst({
+    const org = await prisma.organization.findFirst({
       where: { slug: "elmundodeljuguete" },
     });
     if (!org) {
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
       const staleThreshold = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000);
 
       // Buscar en la DB qué SKU IDs ya están sincronizados y son recientes
-      const recentlySynced = await db.product.findMany({
+      const recentlySynced = await prisma.product.findMany({
         where: {
           organizationId: org.id,
           externalId: { in: allSkuIds.map(String) },
@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
     const { processed, failed, results } = await vtex.syncInventoryBatch(
       skuIdsToSync,
       org.id,
-      db,
+      prisma,
       remainingBudget,
       MAX_CONCURRENT
     );
@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
     // 8. Actualizar Connection.lastSyncAt si procesó algo
     if (processed > 0) {
       try {
-        await db.connection.upsert({
+        await prisma.connection.upsert({
           where: {
             organizationId_platform: {
               organizationId: org.id,
