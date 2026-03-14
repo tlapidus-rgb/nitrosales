@@ -262,28 +262,98 @@ export class VtexConnector {
   }
 
   /**
-   * Sincroniza un batch de SKUs: obtiene inventario + detalle y hace upsert en la DB.
-   * Usa concurrencia controlada (maxConcurrent) y respeta un time budget.
+   * Sincroniza un batch de SKUs: obtiene inventario + detalle y hace batch upsert en la DB.
+   * Optimizado v2:
+   * - Fetch VTEX data en paralelo (maxConcurrent)
+   * - Batch DB upserts de hasta BATCH_DB_SIZE SKUs en una transacción
+   * - Delay reducido (40ms vs 80ms)
    *
    * @param skuIds Lista de SKU IDs a procesar
    * @param orgId Organization ID para la DB
    * @param db Prisma client
-   * @param timeBudgetMs Tiempo máximo en ms (default: 45s)
-   * @param maxConcurrent Concurrencia máxima (default: 5)
+   * @param timeBudgetMs Tiempo máximo en ms (default: 50s)
+   * @param maxConcurrent Concurrencia máxima (default: 12)
    */
   async syncInventoryBatch(
     skuIds: number[],
     orgId: string,
     db: any, // PrismaClient
-    timeBudgetMs = 45000,
-    maxConcurrent = 5
+    timeBudgetMs = 50000,
+    maxConcurrent = 12
   ): Promise<{ processed: number; failed: number; results: SkuSyncResult[] }> {
     const startTime = Date.now();
     const results: SkuSyncResult[] = [];
     let processed = 0;
     let failed = 0;
+    const BATCH_DB_SIZE = 50; // Upserts agrupados en transacciones de 50
 
-    // Procesar en batches de maxConcurrent
+    // Buffer para acumular upserts y hacer batch
+    let upsertBuffer: Array<{
+      skuId: number;
+      data: any;
+      result: SkuSyncResult;
+    }> = [];
+
+    // Flush buffer: ejecutar todos los upserts pendientes en una transacción
+    const flushBuffer = async () => {
+      if (upsertBuffer.length === 0) return;
+      const batch = [...upsertBuffer];
+      upsertBuffer = [];
+
+      try {
+        await db.$transaction(
+          batch.map((item) =>
+            db.product.upsert({
+              where: {
+                organizationId_externalId: {
+                  organizationId: orgId,
+                  externalId: String(item.skuId),
+                },
+              },
+              create: { ...item.data, organizationId: orgId },
+              update: item.data,
+            })
+          )
+        );
+
+        // Marcar todos como exitosos
+        for (const item of batch) {
+          results.push(item.result);
+          processed++;
+        }
+      } catch (txError: any) {
+        // Si la transacción falla, intentar uno por uno
+        console.warn(
+          `[VTEX] Batch transaction failed (${batch.length} items), falling back to individual upserts:`,
+          txError.message
+        );
+        for (const item of batch) {
+          try {
+            await db.product.upsert({
+              where: {
+                organizationId_externalId: {
+                  organizationId: orgId,
+                  externalId: String(item.skuId),
+                },
+              },
+              create: { ...item.data, organizationId: orgId },
+              update: item.data,
+            });
+            results.push(item.result);
+            processed++;
+          } catch (e: any) {
+            failed++;
+            results.push({
+              ...item.result,
+              success: false,
+              error: e.message,
+            });
+          }
+        }
+      }
+    };
+
+    // Procesar en batches de maxConcurrent (fetch paralelo de VTEX)
     for (let i = 0; i < skuIds.length; i += maxConcurrent) {
       // Chequear time budget
       const elapsed = Date.now() - startTime;
@@ -296,122 +366,123 @@ export class VtexConnector {
 
       const batch = skuIds.slice(i, i + maxConcurrent);
 
-      // Procesar batch en paralelo
+      // Fetch inventario + detalle en paralelo para todo el batch
       const batchResults = await Promise.allSettled(
-        batch.map((skuId) => this.syncSingleSku(skuId, orgId, db))
+        batch.map((skuId) => this.fetchSkuData(skuId))
       );
 
-      for (const result of batchResults) {
-        if (result.status === "fulfilled") {
-          results.push(result.value);
-          if (result.value.success) processed++;
-          else failed++;
+      for (let j = 0; j < batchResults.length; j++) {
+        const result = batchResults[j];
+        const skuId = batch[j];
+
+        if (result.status === "fulfilled" && result.value) {
+          const { name, brand, imageUrl, price, isActive, category, stock, refId, ean } =
+            result.value;
+
+          const data = {
+            externalId: String(skuId),
+            name,
+            sku: refId || ean || String(skuId),
+            brand: brand || null,
+            category: category || null,
+            price,
+            imageUrl,
+            isActive,
+            stock,
+            stockUpdatedAt: new Date(),
+          };
+
+          upsertBuffer.push({
+            skuId,
+            data,
+            result: { skuId, name, brand, stock, success: true },
+          });
         } else {
           failed++;
+          const errMsg =
+            result.status === "rejected"
+              ? result.reason?.message || "Unknown error"
+              : "No data";
           results.push({
-            skuId: batch[results.length % batch.length] || 0,
-            name: "Unknown",
+            skuId,
+            name: "Error",
             brand: "",
             stock: 0,
             success: false,
-            error: result.reason?.message || "Unknown error",
+            error: errMsg,
           });
         }
       }
 
-      // Delay entre batches para respetar rate limits
-      await sleep(80);
+      // Flush buffer si alcanzó el tamaño de batch DB
+      if (upsertBuffer.length >= BATCH_DB_SIZE) {
+        await flushBuffer();
+      }
 
-      // Log progreso cada 100 SKUs
-      if ((processed + failed) % 100 < maxConcurrent) {
+      // Delay reducido entre batches
+      await sleep(40);
+
+      // Log progreso cada ~100 SKUs
+      const total = processed + failed;
+      if (total > 0 && total % 100 < maxConcurrent) {
+        const elapsed = Date.now() - startTime;
         console.log(
-          `[VTEX] Progress: ${processed} processed, ${failed} failed, ${Math.round(elapsed / 1000)}s elapsed`
+          `[VTEX] Progress: ${processed} ok, ${failed} failed, ${Math.round(elapsed / 1000)}s, ${Math.round(processed / (elapsed / 1000))} SKUs/s`
         );
       }
     }
+
+    // Flush remaining
+    await flushBuffer();
 
     return { processed, failed, results };
   }
 
   /**
-   * Sincroniza un solo SKU: fetch inventario + detalle, upsert en DB.
+   * Fetch inventario + detalle de un SKU (sin DB write).
+   * Separa la lectura VTEX del write a DB para permitir batch upserts.
    */
-  private async syncSingleSku(
-    skuId: number,
-    orgId: string,
-    db: any
-  ): Promise<SkuSyncResult> {
-    try {
-      // Fetch inventario y detalle en paralelo
-      const [inventory, detail] = await Promise.all([
-        this.fetchSkuInventory(skuId),
-        this.fetchSkuDetail(skuId),
-      ]);
+  private async fetchSkuData(skuId: number): Promise<{
+    name: string;
+    brand: string;
+    imageUrl: string | null;
+    price: number;
+    isActive: boolean;
+    category: string | null;
+    stock: number;
+    refId: string;
+    ean: string;
+  }> {
+    const [inventory, detail] = await Promise.all([
+      this.fetchSkuInventory(skuId),
+      this.fetchSkuDetail(skuId),
+    ]);
 
-      const name = detail.NameComplete || detail.ProductName || `SKU ${skuId}`;
-      const brand = detail.BrandName || "";
-      const imageUrl = detail.Images?.[0]?.ImageUrl || null;
-      const price = detail.Price || detail.ListPrice || 0;
-      const isActive = detail.IsActive !== false;
+    const name = detail.NameComplete || detail.ProductName || `SKU ${skuId}`;
+    const brand = detail.BrandName || "";
+    const imageUrl = detail.Images?.[0]?.ImageUrl || null;
+    const price = detail.Price || detail.ListPrice || 0;
+    const isActive = detail.IsActive !== false;
 
-      // Extraer categoría más específica
-      const categories = detail.ProductCategories
-        ? Object.values(detail.ProductCategories)
-        : [];
-      const category = categories.length > 0
-        ? categories[categories.length - 1] // La más específica
-        : null;
+    const categories = detail.ProductCategories
+      ? Object.values(detail.ProductCategories)
+      : [];
+    const category =
+      categories.length > 0 ? (categories[categories.length - 1] as string) : null;
 
-      // Stock: si es unlimited, poner un valor alto (99999)
-      const stock = inventory.unlimited ? 99999 : inventory.totalStock;
+    const stock = inventory.unlimited ? 99999 : inventory.totalStock;
 
-      // Upsert en la DB
-      await db.product.upsert({
-        where: {
-          organizationId_externalId: {
-            organizationId: orgId,
-            externalId: String(skuId),
-          },
-        },
-        create: {
-          externalId: String(skuId),
-          name,
-          sku: detail.RefId || detail.Ean || String(skuId),
-          brand: brand || null,
-          category: category || null,
-          price,
-          imageUrl,
-          isActive,
-          stock,
-          stockUpdatedAt: new Date(),
-          organizationId: orgId,
-        },
-        update: {
-          name,
-          sku: detail.RefId || detail.Ean || String(skuId),
-          brand: brand || null,
-          category: category || null,
-          price,
-          imageUrl,
-          isActive,
-          stock,
-          stockUpdatedAt: new Date(),
-        },
-      });
-
-      return { skuId, name, brand, stock, success: true };
-    } catch (error: any) {
-      // SKU individual falla → log y continuar (no abortar el batch)
-      console.error(`[VTEX] Error syncing SKU ${skuId}:`, error.message);
-      return {
-        skuId,
-        name: "Error",
-        brand: "",
-        stock: 0,
-        success: false,
-        error: error.message,
-      };
-    }
+    return {
+      name,
+      brand,
+      imageUrl,
+      price,
+      isActive,
+      category,
+      stock,
+      refId: detail.RefId || "",
+      ean: detail.Ean || "",
+    };
   }
 
   // ═══════════════════════════════════════════

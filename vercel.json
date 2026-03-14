@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/sync/inventory?key=nitrosales-secret-key-2024-production",
-      "schedule": "30 8 * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }
