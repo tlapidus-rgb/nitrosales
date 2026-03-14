@@ -1,20 +1,20 @@
-// ══════════════════════════════════════════════
-// Sync de Inventario VTEX — SKU-level (Optimizado)
-// ══════════════════════════════════════════════
-// Endpoint que sincroniza el inventario completo del catálogo VTEX
+// ââââââââââââââââââââââââââââââââââââââââââââââ
+// Sync de Inventario VTEX — Optimizado v2 (deployed 2026-03-14) â SKU-level (Optimizado)
+// ââââââââââââââââââââââââââââââââââââââââââââââ
+// Endpoint que sincroniza el inventario completo del catÃ¡logo VTEX
 // usando las APIs privadas (SKU IDs + Logistics Inventory).
 //
 // Optimizaciones v2:
-// - Cron cada 5 min (vs 1x/día) para sync completo en ~2h
-// - Concurrencia 12 (vs 5) para ~1000 SKUs/invocación
-// - Caché de SKU IDs en DB (evita re-fetch de 28K+ IDs cada call)
+// - Cron cada 5 min (vs 1x/dÃ­a) para sync completo en ~2h
+// - Concurrencia 12 (vs 5) para ~1000 SKUs/invocaciÃ³n
+// - CachÃ© de SKU IDs en DB (evita re-fetch de 28K+ IDs cada call)
 // - Batch upserts de 50 SKUs (vs 1 por 1)
 // - Delay reducido entre batches (40ms vs 80ms)
 //
 // Uso:
 //   GET /api/sync/inventory?key=<NEXTAUTH_SECRET>
 //   GET /api/sync/inventory?key=<NEXTAUTH_SECRET>&force=true  (re-sync todo)
-//   GET /api/sync/inventory?key=<NEXTAUTH_SECRET>&nocache=true (refrescar caché SKU IDs)
+//   GET /api/sync/inventory?key=<NEXTAUTH_SECRET>&nocache=true (refrescar cachÃ© SKU IDs)
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
@@ -23,17 +23,17 @@ import { VtexConnector } from "@/lib/connectors/vtex";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// ── Constantes optimizadas ──
-const TIME_BUDGET_MS = 50000; // 50s budget (10s margen - más agresivo)
-const STALE_HOURS = 4; // Re-sync más frecuente (4h vs 6h)
-const MAX_CONCURRENT = 12; // Más paralelos (12 vs 5)
-const SKU_CACHE_HOURS = 12; // Caché de SKU IDs válido por 12h
+// ââ Constantes optimizadas ââ
+const TIME_BUDGET_MS = 50000; // 50s budget (10s margen - mÃ¡s agresivo)
+const STALE_HOURS = 4; // Re-sync mÃ¡s frecuente (4h vs 6h)
+const MAX_CONCURRENT = 12; // MÃ¡s paralelos (12 vs 5)
+const SKU_CACHE_HOURS = 12; // CachÃ© de SKU IDs vÃ¡lido por 12h
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // 1. Autenticación
+    // 1. AutenticaciÃ³n
     const key = req.nextUrl.searchParams.get("key") || "";
     if (key !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -42,12 +42,12 @@ export async function GET(req: NextRequest) {
     const forceSync = req.nextUrl.searchParams.get("force") === "true";
     const noCache = req.nextUrl.searchParams.get("nocache") === "true";
 
-    // 2. Buscar organización
+    // 2. Buscar organizaciÃ³n
     const org = await prisma.organization.findFirst({
       where: { slug: "elmundodeljuguete" },
     });
     if (!org) {
-      return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
+      return NextResponse.json({ error: "OrganizaciÃ³n no encontrada" }, { status: 404 });
     }
 
     // 3. Credenciales VTEX
@@ -64,14 +64,14 @@ export async function GET(req: NextRequest) {
 
     const vtex = new VtexConnector({ accountName, appKey, appToken });
 
-    // 4. Obtener SKU IDs (con caché en DB)
+    // 4. Obtener SKU IDs (con cachÃ© en DB)
     console.log("[Inventory Sync] Loading SKU IDs...");
     const { allSkuIds, fromCache } = await getSkuIdsWithCache(vtex, org.id, noCache);
 
     if (allSkuIds.length === 0) {
       return NextResponse.json({
         ok: true,
-        message: "No se encontraron SKUs en el catálogo VTEX",
+        message: "No se encontraron SKUs en el catÃ¡logo VTEX",
         totalSkus: 0,
         processed: 0,
         isComplete: true,
@@ -79,10 +79,10 @@ export async function GET(req: NextRequest) {
     }
 
     console.log(
-      `[Inventory Sync] ${allSkuIds.length} SKUs totales (${fromCache ? "desde caché" : "fetch fresco"})`
+      `[Inventory Sync] ${allSkuIds.length} SKUs totales (${fromCache ? "desde cachÃ©" : "fetch fresco"})`
     );
 
-    // 5. Determinar qué SKUs necesitan sync
+    // 5. Determinar quÃ© SKUs necesitan sync
     let skuIdsToSync: number[];
 
     if (forceSync) {
@@ -178,7 +178,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       message: isComplete
         ? `Sync completo! ${processed} SKUs sincronizados.`
-        : `Procesados ${processed} de ${skuIdsToSync.length} pendientes. Faltan ${pendingSkus}. ETA: ~${etaMinutes} min (${Math.ceil(pendingSkus / (skusPerSecond * 50))} llamadas más).`,
+        : `Procesados ${processed} de ${skuIdsToSync.length} pendientes. Faltan ${pendingSkus}. ETA: ~${etaMinutes} min (${Math.ceil(pendingSkus / (skusPerSecond * 50))} llamadas mÃ¡s).`,
       totalSkus: allSkuIds.length,
       processed,
       failed,
@@ -216,7 +216,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── Caché de SKU IDs en Connection metadata ──
+// ââ CachÃ© de SKU IDs en Connection metadata ââ
 async function getSkuIdsWithCache(
   vtex: VtexConnector,
   orgId: string,
@@ -224,7 +224,7 @@ async function getSkuIdsWithCache(
 ): Promise<{ allSkuIds: number[]; fromCache: boolean }> {
   if (!forceRefresh) {
     try {
-      // Intentar leer caché desde Connection metadata
+      // Intentar leer cachÃ© desde Connection metadata
       const conn = await prisma.connection.findFirst({
         where: { organizationId: orgId, platform: "VTEX" },
         select: { credentials: true, lastSyncAt: true },
@@ -258,7 +258,7 @@ async function getSkuIdsWithCache(
   console.log("[Inventory Sync] Fetching fresh SKU IDs from VTEX...");
   const allSkuIds = await vtex.fetchAllSkuIds();
 
-  // Guardar en caché
+  // Guardar en cachÃ©
   if (allSkuIds.length > 0) {
     try {
       const conn = await prisma.connection.findFirst({
@@ -287,7 +287,7 @@ async function getSkuIdsWithCache(
   return { allSkuIds, fromCache: false };
 }
 
-// POST handler para llamadas programáticas
+// POST handler para llamadas programÃ¡ticas
 export async function POST(req: NextRequest) {
   return GET(req);
 }
