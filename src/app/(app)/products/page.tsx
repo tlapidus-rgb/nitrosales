@@ -1,4 +1,114 @@
-{wowRevenuePct.toFixed(1)}%</span>
+// @ts-nocheck
+
+"use client";
+
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  Legend,
+} from "recharts";
+import { formatARS, formatCompact } from "@/lib/utils/format";
+import NitroInsightsPanel from "@/components/NitroInsightsPanel";
+import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap } from "lucide-react";
+
+interface ProductItem {
+  id: string;
+  name: string;
+  sku: string | null;
+  imageUrl: string | null;
+  category: string | null;
+  brand: string | null;
+  stock: number | null;
+  unitsSold: number;
+  revenue: number;
+  orders: number;
+  avgPrice: number;
+  trendData: {
+    weeklyTrend: Array<{ weekStart: string; units: number; revenue: number }>;
+    wowUnitsPct: number;
+    wowRevenuePct: number;
+    trendSlope: number;
+    abcClass: "A" | "B" | "C";
+  };
+  stockData: {
+    dailySalesRate: number;
+    daysOfStock: number | null;
+    stockoutDate: string | null;
+    stockHealth: "critical" | "low" | "optimal" | "excessive" | null;
+    isDead: boolean;
+    lastSaleDate: string | null;
+  };
+}
+
+interface StockSummary {
+  criticalCount: number;
+  lowCount: number;
+  optimalCount: number;
+  excessiveCount: number;
+  deadCount: number;
+  totalStockUnits: number;
+  totalStockValue: number;
+  productsAtRisk: number;
+}
+
+interface TrendSummary {
+  growingCount: number;
+  decliningCount: number;
+  stableCount: number;
+}
+
+interface ApiResponse {
+  products: ProductItem[];
+  stockSummary: StockSummary;
+  trendSummary: TrendSummary;
+}
+
+const COLORS = [
+  "#6366f1",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#06b6d4",
+  "#8b5cf6",
+  "#f97316",
+  "#14b8a6",
+  "#ec4899",
+  "#94a3b8",
+];
+
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  if (!data || data.length === 0) {
+    return <div className="w-[60px] h-[24px]" />;
+  }
+  const chartData = data.map((v) => ({ v }));
+  return (
+    <ResponsiveContainer width={60} height={24}>
+      <LineChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+        <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+function TrendIndicator({ wowRevenuePct }: { wowRevenuePct: number }) {
+  if (wowRevenuePct > 5) {
+    return (
+      <div className="flex items-center gap-1 text-green-600 font-medium">
+        <TrendingUp className="w-4 h-4" />
+        <span>+{wowRevenuePct.toFixed(1)}%</span>
       </div>
     );
   } else if (wowRevenuePct < -5) {
@@ -66,7 +176,709 @@ export default function ProductsPageV4() {
 
   // Apply filters
   const filtered = useMemo(() => {
-    reth>
+    return products.filter((p) => {
+      if (brandFilter && p.brand !== brandFilter) return false;
+      if (categoryFilter && p.category !== categoryFilter) return false;
+      return true;
+    });
+  }, [products, brandFilter, categoryFilter]);
+
+  // Get unique brands and categories
+  const brands = useMemo(() => {
+    return [...new Set(products.map((p) => p.brand).filter(Boolean))].sort();
+  }, [products]);
+
+  const categories = useMemo(() => {
+    return [...new Set(products.map((p) => p.category).filter(Boolean))].sort();
+  }, [products]);
+
+  // Category trends data
+  const categoryTrends = useMemo(() => {
+    const weekSet = new Set<string>();
+    filtered.forEach((p) =>
+      p.trendData.weeklyTrend.forEach((w) => weekSet.add(w.weekStart))
+    );
+    const weeks = [...weekSet].sort();
+
+    const catRevenue = new Map<string, number>();
+    filtered.forEach((p) => {
+      const cat = p.category || "Sin categoría";
+      catRevenue.set(cat, (catRevenue.get(cat) || 0) + p.revenue);
+    });
+    const topCats = [...catRevenue.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map((e) => e[0]);
+
+    return weeks.map((week) => {
+      const row: any = { weekStart: week };
+      for (const cat of topCats) {
+        row[cat] = filtered
+          .filter((p) => (p.category || "Sin categoría") === cat)
+          .reduce((sum, p) => {
+            const weekData = p.trendData.weeklyTrend.find((w) => w.weekStart === week);
+            return sum + (weekData ? weekData.revenue : 0);
+          }, 0);
+      }
+      return row;
+    });
+  }, [filtered]);
+
+  // Brand trends data
+  const brandTrends = useMemo(() => {
+    const weekSet = new Set<string>();
+    filtered.forEach((p) =>
+      p.trendData.weeklyTrend.forEach((w) => weekSet.add(w.weekStart))
+    );
+    const weeks = [...weekSet].sort();
+
+    const brandRevenue = new Map<string, number>();
+    filtered.forEach((p) => {
+      const brand = p.brand || "Sin marca";
+      brandRevenue.set(brand, (brandRevenue.get(brand) || 0) + p.revenue);
+    });
+    const topBrands = [...brandRevenue.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map((e) => e[0]);
+
+    return weeks.map((week) => {
+      const row: any = { weekStart: week };
+      for (const brand of topBrands) {
+        row[brand] = filtered
+          .filter((p) => (p.brand || "Sin marca") === brand)
+          .reduce((sum, p) => {
+            const weekData = p.trendData.weeklyTrend.find((w) => w.weekStart === week);
+            return sum + (weekData ? weekData.revenue : 0);
+          }, 0);
+      }
+      return row;
+    });
+  }, [filtered]);
+
+  // Top growing products
+  const topGrowing = useMemo(() => {
+    return filtered
+      .filter((p) => p.trendData.wowRevenuePct > 0)
+      .sort((a, b) => b.trendData.wowRevenuePct - a.trendData.wowRevenuePct)
+      .slice(0, 10);
+  }, [filtered]);
+
+  // Top declining products
+  const topDeclining = useMemo(() => {
+    return filtered
+      .filter((p) => p.trendData.wowRevenuePct < 0)
+      .sort((a, b) => a.trendData.wowRevenuePct - b.trendData.wowRevenuePct)
+      .slice(0, 10);
+  }, [filtered]);
+
+  // Stock alerts
+  const stockAlerts = useMemo(() => {
+    return filtered
+      .filter((p) => p.stockData.stockHealth === "critical" || p.stockData.stockHealth === "low")
+      .sort((a, b) => (a.stockData.daysOfStock ?? 999) - (b.stockData.daysOfStock ?? 999));
+  }, [filtered]);
+
+  // Dead stock
+  const deadStock = useMemo(() => {
+    return filtered
+      .filter((p) => p.stockData.isDead)
+      .sort((a, b) => (b.stock ?? 0) * b.avgPrice - (a.stock ?? 0) * a.avgPrice);
+  }, [filtered]);
+
+  // ABC classification counts
+  const abcCounts = useMemo(() => {
+    const counts = { A: 0, B: 0, C: 0 };
+    filtered.forEach((p) => {
+      counts[p.trendData.abcClass]++;
+    });
+    return counts;
+  }, [filtered]);
+
+  const abcChartData = [
+    {
+      clase: "Clase A",
+      count: abcCounts.A,
+      pct: ((abcCounts.A / filtered.length) * 100).toFixed(1),
+    },
+    {
+      clase: "Clase B",
+      count: abcCounts.B,
+      pct: ((abcCounts.B / filtered.length) * 100).toFixed(1),
+    },
+    {
+      clase: "Clase C",
+      count: abcCounts.C,
+      pct: ((abcCounts.C / filtered.length) * 100).toFixed(1),
+    },
+  ];
+
+  // Distribution data
+  const distributionData = useMemo(() => {
+    if (!stockSummary) return [];
+    return [
+      { name: "Crítico", value: stockSummary.criticalCount, color: "#ef4444" },
+      { name: "Bajo", value: stockSummary.lowCount, color: "#f59e0b" },
+      { name: "Óptimo", value: stockSummary.optimalCount, color: "#10b981" },
+      { name: "Excesivo", value: stockSummary.excessiveCount, color: "#3b82f6" },
+      { name: "Muerto", value: stockSummary.deadCount, color: "#6b7280" },
+    ];
+  }, [stockSummary]);
+
+  // Brand distribution
+  const brandDistribution = useMemo(() => {
+    const dist = new Map<string, number>();
+    filtered.forEach((p) => {
+      const brand = p.brand || "Sin marca";
+      dist.set(brand, (dist.get(brand) || 0) + p.revenue);
+    });
+    return [...dist.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value], idx) => ({
+        name,
+        value,
+        color: COLORS[idx % COLORS.length],
+      }));
+  }, [filtered]);
+
+  // Category distribution
+  const categoryDistribution = useMemo(() => {
+    const dist = new Map<string, number>();
+    filtered.forEach((p) => {
+      const cat = p.category || "Sin categoría";
+      dist.set(cat, (dist.get(cat) || 0) + p.revenue);
+    });
+    return [...dist.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value], idx) => ({
+        name,
+        value,
+        color: COLORS[idx % COLORS.length],
+      }));
+  }, [filtered]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-gray-500">Cargando productos...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Productos</h1>
+        <p className="text-sm text-gray-600 mt-1">
+          Top productos por facturación · Últimos 30 días
+        </p>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <select
+          value={brandFilter}
+          onChange={(e) => setBrandFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="">Todas las marcas</option>
+          {brands.map((brand) => (
+            <option key={brand} value={brand}>
+              {brand}
+            </option>
+          ))}
+        </select>
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="">Todas las categorías</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1 w-full">
+        {(["overview", "trends", "stock"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
+              activeTab === tab
+                ? "bg-white shadow-sm text-indigo-600"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            {tab === "overview" && "Overview"}
+            {tab === "trends" && "Tendencias de Venta"}
+            {tab === "stock" && "Stock Inteligente"}
+          </button>
+        ))}
+      </div>
+
+      {/* TAB 1: OVERVIEW */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          {/* Distribution Charts */}
+          <div className="grid grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-4">Por Marca</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={brandDistribution}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={(entry) => entry.name}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {brandDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => formatARS(value)} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-4">Por Categoría</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={categoryDistribution}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={(entry) => entry.name}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {categoryDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => formatARS(value)} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Products Table */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">
+                Productos ({filtered.length})
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left font-semibold text-gray-700">
+                      Producto
+                    </th>
+                    <th className="px-6 py-3 text-left font-semibold text-gray-700">
+                      Marca
+                    </th>
+                    <th className="px-6 py-3 text-left font-semibold text-gray-700">
+                      Categoría
+                    </th>
+                    <th className="px-6 py-3 text-right font-semibold text-gray-700">
+                      Facturación
+                    </th>
+                    <th className="px-6 py-3 text-right font-semibold text-gray-700">
+                      Unidades
+                    </th>
+                    <th className="px-6 py-3 text-center font-semibold text-gray-700">
+                      Tendencia
+                    </th>
+                    <th className="px-6 py-3 text-center font-semibold text-gray-700">
+                      Stock
+                    </th>
+                    <th className="px-6 py-3 text-center font-semibold text-gray-700">
+                      ABC
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filtered.map((product) => (
+                    <tr
+                      key={product.id}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="px-6 py-4 flex items-center gap-3">
+                        {product.imageUrl && (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-8 h-8 rounded object-cover"
+                          />
+                        )}
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {product.name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {product.sku || "—"}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-700">
+                        {product.brand || "—"}
+                      </td>
+                      <td className="px-6 py-4 text-gray-700">
+                        {product.category || "—"}
+                      </td>
+                      <td className="px-6 py-4 text-right font-medium text-gray-900">
+                        {formatARS(product.revenue)}
+                      </td>
+                      <td className="px-6 py-4 text-right text-gray-700">
+                        {formatCompact(product.unitsSold)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <TrendIndicator
+                            wowRevenuePct={product.trendData.wowRevenuePct}
+                          />
+                          <Sparkline
+                            data={product.trendData.weeklyTrend.map((w) => w.revenue)}
+                            color={
+                              product.trendData.wowRevenuePct > 0
+                                ? "#10b981"
+                                : product.trendData.wowRevenuePct < 0
+                                  ? "#ef4444"
+                                  : "#94a3b8"
+                            }
+                          />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-gray-900 font-medium">
+                            {product.stock ?? 0}
+                          </span>
+                          <StockBadge
+                            daysOfStock={product.stockData.daysOfStock}
+                            stockHealth={product.stockData.stockHealth}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <ABCBadge abcClass={product.trendData.abcClass} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: TENDENCIAS DE VENTA */}
+      {activeTab === "trends" && (
+        <div className="space-y-6">
+          {/* Category Evolution */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="font-semibold text-gray-900 mb-4">
+              Evolución por Categoría
+            </h3>
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={categoryTrends}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  dataKey="weekStart"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(date) => {
+                    const d = new Date(date);
+                    return `${d.getDate()}/${d.getMonth() + 1}`;
+                  }}
+                />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip
+                  formatter={(value) => formatARS(value)}
+                  labelFormatter={(date) => {
+                    const d = new Date(date);
+                    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+                  }}
+                />
+                {categoryDistribution.slice(0, 5).map((cat, idx) => (
+                  <Area
+                    key={cat.name}
+                    type="monotone"
+                    dataKey={cat.name}
+                    fill={cat.color}
+                    stroke={cat.color}
+                    fillOpacity={0.3}
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Brand Evolution */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="font-semibold text-gray-900 mb-4">
+              Evolución por Marca
+            </h3>
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={brandTrends}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  dataKey="weekStart"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(date) => {
+                    const d = new Date(date);
+                    return `${d.getDate()}/${d.getMonth() + 1}`;
+                  }}
+                />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip
+                  formatter={(value) => formatARS(value)}
+                  labelFormatter={(date) => {
+                    const d = new Date(date);
+                    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+                  }}
+                />
+                {brandDistribution.slice(0, 5).map((brand, idx) => (
+                  <Area
+                    key={brand.name}
+                    type="monotone"
+                    dataKey={brand.name}
+                    fill={brand.color}
+                    stroke={brand.color}
+                    fillOpacity={0.3}
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Top Growing Products */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl shadow-sm border border-green-200">
+            <h3 className="font-semibold text-green-900 mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Top Productos en Alza
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-green-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-green-900">
+                      #
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-green-900">
+                      Producto
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold text-green-900">
+                      WoW%
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold text-green-900">
+                      Facturación 30d
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold text-green-900">
+                      Sparkline
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-green-200">
+                  {topGrowing.map((product, idx) => (
+                    <tr key={product.id} className="hover:bg-green-100/50">
+                      <td className="px-4 py-3 text-green-900 font-bold">
+                        {idx + 1}
+                      </td>
+                      <td className="px-4 py-3 flex items-center gap-2">
+                        {product.imageUrl && (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-6 h-6 rounded object-cover"
+                          />
+                        )}
+                        <span className="text-green-900 font-medium">
+                          {product.name}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-green-600 font-bold">
+                        +{product.trendData.wowRevenuePct.toFixed(1)}%
+                      </td>
+                      <td className="px-4 py-3 text-right text-green-900 font-medium">
+                        {formatARS(product.revenue)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Sparkline
+                          data={product.trendData.weeklyTrend.map((w) => w.revenue)}
+                          color="#10b981"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Top Declining Products */}
+          <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-xl shadow-sm border border-red-200">
+            <h3 className="font-semibold text-red-900 mb-4 flex items-center gap-2">
+              <TrendingDown className="w-5 h-5" />
+              Productos en Caída
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-red-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-red-900">
+                      #
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-red-900">
+                      Producto
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold text-red-900">
+                      WoW%
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold text-red-900">
+                      Facturación 30d
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold text-red-900">
+                      Sparkline
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-red-200">
+                  {topDeclining.map((product, idx) => (
+                    <tr key={product.id} className="hover:bg-red-100/50">
+                      <td className="px-4 py-3 text-red-900 font-bold">
+                        {idx + 1}
+                      </td>
+                      <td className="px-4 py-3 flex items-center gap-2">
+                        {product.imageUrl && (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-6 h-6 rounded object-cover"
+                          />
+                        )}
+                        <span className="text-red-900 font-medium">
+                          {product.name}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-red-600 font-bold">
+                        {product.trendData.wowRevenuePct.toFixed(1)}%
+                      </td>
+                      <td className="px-4 py-3 text-right text-red-900 font-medium">
+                        {formatARS(product.revenue)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Sparkline
+                          data={product.trendData.weeklyTrend.map((w) => w.revenue)}
+                          color="#ef4444"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: STOCK INTELIGENTE */}
+      {activeTab === "stock" && (
+        <div className="space-y-6">
+          {/* KPI Cards */}
+          {stockSummary && (
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total en Stock</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">
+                      {formatCompact(stockSummary.totalStockUnits)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">unidades</p>
+                  </div>
+                  <Package className="w-12 h-12 text-blue-500 opacity-20" />
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Valor Inventario</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-2">
+                      {formatARS(stockSummary.totalStockValue)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">capital</p>
+                  </div>
+                  <DollarSign className="w-12 h-12 text-green-500 opacity-20" />
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Productos en Riesgo</p>
+                    <p className="text-3xl font-bold text-amber-600 mt-2">
+                      {stockSummary.criticalCount + stockSummary.lowCount}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {stockSummary.criticalCount} crítico,{" "}
+                      {stockSummary.lowCount} bajo
+                    </p>
+                  </div>
+                  <AlertTriangle className="w-12 h-12 text-amber-500 opacity-20" />
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Productos Muertos</p>
+                    <p className="text-3xl font-bold text-red-600 mt-2">
+                      {stockSummary.deadCount}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">sin venta</p>
+                  </div>
+                  <Zap className="w-12 h-12 text-red-500 opacity-20" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Stock Alerts */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              Alertas de Quiebre de Stock
+            </h3>
+            {stockAlerts.length === 0 ? (
+              <p className="text-gray-500 py-8">
+                No hay productos con alertas de quiebre.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left font-semibold text-gray-700">
+                        Producto
+                      </th>
+                      <th className="px-6 py-3 text-right font-semibold text-gray-700">
+                        Stock Actual
+                      </th>
                       <th className="px-6 py-3 text-right font-semibold text-gray-700">
                         Velocidad
                       </th>
@@ -117,7 +929,122 @@ export default function ProductsPageV4() {
                             />
                           </td>
                           <td className="px-6 py-4 text-gray-700">
-                                               <tr key={product.id} className="hover:bg-red-100/50">
+                            {product.stockData.stockoutDate
+                              ? new Date(
+                                  product.stockData.stockoutDate
+                                ).toLocaleDateString("es-AR")
+                              : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ABC Classification */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="font-semibold text-gray-900 mb-4">
+              Clasificación ABC por Velocidad de Venta
+            </h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={abcChartData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis type="number" />
+                <YAxis dataKey="clase" type="category" width={100} />
+                <Tooltip
+                  formatter={(value) => value}
+                  labelFormatter={(label) =>
+                    typeof label === "number" ? `${label} productos` : label
+                  }
+                />
+                <Bar dataKey="count" fill="#6366f1" radius={4} />
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-6 grid grid-cols-3 gap-4 text-center">
+              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                <p className="text-sm font-semibold text-green-900">
+                  Clase A
+                </p>
+                <p className="text-2xl font-bold text-green-600 mt-1">
+                  {abcCounts.A}
+                </p>
+                <p className="text-xs text-green-700 mt-1">
+                  {((abcCounts.A / filtered.length) * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="text-sm font-semibold text-amber-900">
+                  Clase B
+                </p>
+                <p className="text-2xl font-bold text-amber-600 mt-1">
+                  {abcCounts.B}
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  {((abcCounts.B / filtered.length) * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div className="p-4 bg-gray-100 rounded-lg border border-gray-300">
+                <p className="text-sm font-semibold text-gray-900">
+                  Clase C
+                </p>
+                <p className="text-2xl font-bold text-gray-600 mt-1">
+                  {abcCounts.C}
+                </p>
+                <p className="text-xs text-gray-700 mt-1">
+                  {((abcCounts.C / filtered.length) * 100).toFixed(1)}%
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Dead Stock */}
+          <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-xl shadow-sm border border-red-200">
+            <h3 className="font-semibold text-red-900 mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              Stock Muerto — Capital Inmovilizado
+            </h3>
+            {deadStock.length === 0 ? (
+              <p className="text-red-700 py-8">
+                No hay productos con stock muerto.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-red-100 border-b border-red-300">
+                    <tr>
+                      <th className="px-6 py-3 text-left font-semibold text-red-900">
+                        Producto
+                      </th>
+                      <th className="px-6 py-3 text-right font-semibold text-red-900">
+                        Stock
+                      </th>
+                      <th className="px-6 py-3 text-right font-semibold text-red-900">
+                        Valor
+                      </th>
+                      <th className="px-6 py-3 text-left font-semibold text-red-900">
+                        Última Venta
+                      </th>
+                      <th className="px-6 py-3 text-right font-semibold text-red-900">
+                        Días sin Venta
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-red-200">
+                    {deadStock.map((product) => {
+                      const lastSaleDate = product.stockData.lastSaleDate
+                        ? new Date(product.stockData.lastSaleDate)
+                        : null;
+                      const daysNoSale = lastSaleDate
+                        ? Math.floor(
+                            (new Date().getTime() - lastSaleDate.getTime()) /
+                              (1000 * 60 * 60 * 24)
+                          )
+                        : null;
+                      return (
+                        <tr key={product.id} className="hover:bg-red-100/50">
                           <td className="px-6 py-4 flex items-center gap-3">
                             {product.imageUrl && (
                               <img
@@ -222,57 +1149,7 @@ export default function ProductsPageV4() {
             </div>
           </div>
         </div>
-      );
+      )}
+    </div>
+  );
 }
-th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-700">
-                        Velocidad
-                      </th>
-                      <th className="px-6 py-3 text-center font-semibold text-gray-700">
-                        Días Restantes
-                      </th>
-                      <th className="px-6 py-3 text-left font-semibold text-gray-700">
-                        Fecha Quiebre
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {stockAlerts.map((product) => {
-                      const bgClass =
-                        product.stockData.stockHealth === "critical"
-                          ? "bg-red-50"
-                          : "bg-amber-50";
-                      return (
-                        <tr key={product.id} className={bgClass}>
-                          <td className="px-6 py-4 flex items-center gap-3">
-                            {product.imageUrl && (
-                              <img
-                                src={product.imageUrl}
-                                alt={product.name}
-                                className="w-8 h-8 rounded object-cover"
-                              />
-                            )}
-                            <div>
-                              <div className="font-medium text-gray-900">
-                                {product.name}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {product.sku || "—"}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-right font-medium text-gray-900">
-                            {product.stock ?? 0}
-                          </td>
-                          <td className="px-6 py-4 text-right text-gray-700">
-                            {product.stockData.dailySalesRate.toFixed(1)}{" "}
-                            uds/día
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <StockBadge
-                              daysOfStock={product.stockData.daysOfStock}
-                              stockHealth={product.stockData.stockHealth}
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-gray-700">
-                        
