@@ -188,7 +188,7 @@ function TooltipHeader({ text, tooltip }: { text: string; tooltip: string }) {
   );
 }
 
-export default function ProductsPageV7() {
+export default function ProductsPageV8() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
   const [trendSummary, setTrendSummary] = useState<TrendSummary | null>(null);
@@ -197,6 +197,7 @@ export default function ProductsPageV7() {
   const [brandFilter, setBrandFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [stockDaysFilter, setStockDaysFilter] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortState, setSortState] = useState<SortState>({ column: "revenue", direction: "desc" });
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
@@ -262,9 +263,23 @@ export default function ProductsPageV7() {
         const skuMatch = p.sku?.toLowerCase().includes(term) || false;
         if (!nameMatch && !skuMatch) return false;
       }
+      if (stockDaysFilter) {
+        const days = p.stockData.daysOfStock;
+        if (stockDaysFilter === "agotado") {
+          if ((p.stock ?? 0) !== 0) return false;
+        } else if (stockDaysFilter === "critical") {
+          if (days === null || days > 7) return false;
+        } else if (stockDaysFilter === "low") {
+          if (days === null || days <= 7 || days > 30) return false;
+        } else if (stockDaysFilter === "moderate") {
+          if (days === null || days <= 30 || days > 90) return false;
+        } else if (stockDaysFilter === "high") {
+          if (days === null || days <= 90) return false;
+        }
+      }
       return true;
     });
-  }, [products, brandFilter, categoryFilter, searchTerm]);
+  }, [products, brandFilter, categoryFilter, searchTerm, stockDaysFilter]);
 
   // Apply sorting
   const sortedFiltered = useMemo(() => {
@@ -663,7 +678,7 @@ export default function ProductsPageV7() {
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             placeholder="Buscar producto o SKU..."
-            className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
           {searchTerm && (
             <button
@@ -679,7 +694,7 @@ export default function ProductsPageV7() {
           <select
             value={brandFilter}
             onChange={(e) => { setBrandFilter(e.target.value); setCurrentPage(1); }}
-            className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+            className={`px-3 py-2 border rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
               brandFilter
                 ? "border-indigo-300 bg-indigo-50"
                 : "border-gray-300 bg-white"
@@ -706,7 +721,7 @@ export default function ProductsPageV7() {
           <select
             value={categoryFilter}
             onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-            className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+            className={`px-3 py-2 border rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
               categoryFilter
                 ? "border-indigo-300 bg-indigo-50"
                 : "border-gray-300 bg-white"
@@ -722,6 +737,33 @@ export default function ProductsPageV7() {
           {categoryFilter && (
             <button
               onClick={() => { setCategoryFilter(""); setCurrentPage(1); }}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="relative">
+          <select
+            value={stockDaysFilter}
+            onChange={(e) => { setStockDaysFilter(e.target.value); setCurrentPage(1); }}
+            className={`px-3 py-2 border rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+              stockDaysFilter
+                ? "border-indigo-300 bg-indigo-50"
+                : "border-gray-300 bg-white"
+            }`}
+          >
+            <option value="">Días Stock: Todos</option>
+            <option value="agotado">Agotado (0 stock)</option>
+            <option value="critical">Crítico (&lt; 7 días)</option>
+            <option value="low">Bajo (7–30 días)</option>
+            <option value="moderate">Moderado (30–90 días)</option>
+            <option value="high">Alto (&gt; 90 días)</option>
+          </select>
+          {stockDaysFilter && (
+            <button
+              onClick={() => { setStockDaysFilter(""); setCurrentPage(1); }}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
             >
               <X className="w-4 h-4" />
@@ -981,7 +1023,7 @@ export default function ProductsPageV7() {
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Anterior
                 </button>
@@ -991,7 +1033,7 @@ export default function ProductsPageV7() {
                 <button
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Siguiente
                 </button>
@@ -1510,7 +1552,7 @@ export default function ProductsPageV7() {
                       <button
                         onClick={() => setStockAlertsPage(Math.max(1, stockAlertsPage - 1))}
                         disabled={stockAlertsPage === 1}
-                        className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         Anterior
                       </button>
@@ -1520,7 +1562,7 @@ export default function ProductsPageV7() {
                       <button
                         onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))}
                         disabled={stockAlertsPage === stockAlertsTotalPages}
-                        className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         Siguiente
                       </button>
@@ -1628,7 +1670,7 @@ export default function ProductsPageV7() {
                       <button
                         onClick={() => setDeadStockPage(Math.max(1, deadStockPage - 1))}
                         disabled={deadStockPage === 1}
-                        className="px-3 py-1 border border-red-300 rounded-md hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-3 py-1 border border-red-300 rounded-md text-red-700 bg-white hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         Anterior
                       </button>
@@ -1638,7 +1680,7 @@ export default function ProductsPageV7() {
                       <button
                         onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))}
                         disabled={deadStockPage === deadStockTotalPages}
-                        className="px-3 py-1 border border-red-300 rounded-md hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-3 py-1 border border-red-300 rounded-md text-red-700 bg-white hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         Siguiente
                       </button>
