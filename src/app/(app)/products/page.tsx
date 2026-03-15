@@ -188,7 +188,7 @@ function TooltipHeader({ text, tooltip }: { text: string; tooltip: string }) {
   );
 }
 
-export default function ProductsPageV10Test() {
+export default function ProductsPageV10() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
   const [trendSummary, setTrendSummary] = useState<TrendSummary | null>(null);
@@ -575,6 +575,40 @@ export default function ProductsPageV10Test() {
         color: COLORS[idx % COLORS.length],
       }));
   }, [filtered, chartMetric]);
+
+  // KPI Stats computed from filtered products
+  const kpiStats = useMemo(() => {
+    const totalRevenue = filtered.reduce((s, p) => s + p.revenue, 0);
+    const totalUnits = filtered.reduce((s, p) => s + p.unitsSold, 0);
+    const ticketPromedio = totalUnits > 0 ? totalRevenue / totalUnits : 0;
+    const productosActivos = filtered.length;
+    const totalStock = filtered.reduce((s, p) => s + (p.stock ?? 0), 0);
+    const valorStock = filtered.reduce((s, p) => s + (p.stock ?? 0) * p.avgPrice, 0);
+    return { totalRevenue, totalUnits, ticketPromedio, productosActivos, totalStock, valorStock };
+  }, [filtered]);
+
+  // Stock health alerts computed from filtered products
+  const stockAlerts = useMemo(() => {
+    let sinStock = 0;
+    let critico = 0;
+    let sobrestock = 0;
+    let diasSum = 0;
+    let diasCount = 0;
+    filtered.forEach((p) => {
+      const stock = p.stock ?? 0;
+      const days = p.stockData.daysOfStock;
+      if (stock === 0) sinStock++;
+      if (days !== null && days <= 7 && stock > 0) critico++;
+      if (days !== null && days > 90) sobrestock++;
+      if (days !== null && days > 0) {
+        diasSum += days;
+        diasCount++;
+      }
+    });
+    const diasPromedio = diasCount > 0 ? diasSum / diasCount : 0;
+    return { sinStock, critico, sobrestock, diasPromedio };
+  }, [filtered]);
+
 
   const handleSort = (column: string) => {
     setSortState((prev) => {
