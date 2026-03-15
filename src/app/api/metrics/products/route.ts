@@ -1,163 +1,459 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
-export const revalidate = 300; // CDN cache 5 min, then revalidate in background
-
+export const revalidate = 300;
 const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 
-export async function GET() {
+type ProductMetrics = {
+  id: string;
+  name: string;
+  sku: string;
+  imageUrl: string | null;
+  category: string | null;
+  brand: string | null;
+  stock: number | null;
+  unitsSold: number;
+  revenue: number;
+  orders: number;
+  avgPrice: number;
+  trendData: {
+    weeklyTrend: Array<{ weekStart: string; units: number; revenue: number }>;
+    wowUnitsPct: number;
+    wowRevenuePct: number;
+    trendSlope: number;
+    abcClass: "A" | "B" | "C";
+  };
+  stockData: {
+    dailySalesRate: number;
+    daysOfStock: number | null;
+    stockoutDate: string | null;
+    stockHealth: "critical" | "low" | "optimal" | "excessive" | null;
+    isDead: boolean;
+    lastSaleDate: string | null;
+  };
+};
+
+type StockSummary = {
+  criticalCount: number;
+  lowCount: number;
+  optimalCount: number;
+  excessiveCount: number;
+  deadCount: number;
+  totalStockUnits: number;
+  totalStockValue: number;
+  productsAtRisk: number;
+};
+
+type TrendSummary = {
+  growingCount: number;
+  decliningCount: number;
+  stableCount: number;
+};
+
+type APIResponse = {
+  products: ProductMetrics[];
+  brands: Array<{ name: string; count: number }>;
+  categories: Array<{ name: string; count: number }>;
+  stockSyncedAt: string;
+  totalActiveProducts: number;
+  summary: {
+    totalOrders30d: number;
+    totalItems30d: number;
+    totalRevenue30d: number;
+  };
+  stockSummary: StockSummary;
+  trendSummary: TrendSummary;
+};
+
+export async function GET(): Promise<NextResponse<APIResponse>> {
   try {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
-    /* â”€â”€ Run all queries in PARALLEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    const [orderTotals, ordersWithItems, productStats, stockMeta] = await Promise.all([
-      /* 1) Aggregate order totals â€” single row, no data loaded into JS */
+    // Execute all 6 queries in parallel
+    const [
+      orderTotals,
+      ordersWithItems,
+      productAggregation,
+      stockSyncMetadata,
+      weeklySalesByProduct,
+      lastSaleDateByProduct,
+    ] = await Promise.all([
+      // Query 1: Order totals (30 days)
       prisma.$queryRaw<
-        [{ total_orders: bigint; total_units: bigint; total_revenue: number }]
+        Array<{
+          totalOrders: bigint;
+          totalItems: bigint;
+          totalRevenue: number;
+        }>
       >`
         SELECT
-          COUNT(*)::bigint                       AS total_orders,
-          SUM(COALESCE("itemCount", 1))::bigint  AS total_units,
-          SUM("totalValue")                      AS total_revenue
+          COUNT(DISTINCT id)::bigint AS "totalOrders",
+          SUM("itemCount")::bigint AS "totalItems",
+          SUM("totalValue")::numeric AS "totalRevenue"
         FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
           AND status NOT IN ('CANCELLED')
       `,
 
-      /* 2) Count orders that have detailed items */
-      prisma.order.count({
-        where: {
-          organizationId: ORG_ID,
-          orderDate: { gte: thirtyDaysAgo },
-          status: { notIn: ["CANCELLED"] },
-          items: { some: {} },
-        },
-      }),
-
-      /* 3) Product aggregation in SQL â€” the big win.
-            Instead of loading ALL OrderItems + Products into JS,
-            the DB does GROUP BY and returns ~one row per product. */
+      // Query 2: Orders with items count
       prisma.$queryRaw<
-        {
-          id: string;
-          name: string;
-          sku: string | null;
+        Array<{
+          orderId: string;
+          itemCount: number;
+        }>
+      >`
+        SELECT
+          id AS "orderId",
+          "itemCount"
+        FROM orders
+        WHERE "organizationId" = ${ORG_ID}
+          AND "orderDate" >= ${thirtyDaysAgo}
+          AND status NOT IN ('CANCELLED')
+      `,
+
+      // Query 3: Product aggregation (30 days)
+      prisma.$queryRaw<
+        Array<{
+          productId: string;
+          productName: string;
+          sku: string;
           imageUrl: string | null;
           category: string | null;
           brand: string | null;
           stock: number | null;
-          unitsSold: bigint;
+          units: bigint;
           revenue: number;
           orders: bigint;
-        }[]
+        }>
       >`
         SELECT
-          oi."productId"                          AS id,
-          COALESCE(p.name, 'Sin nombre')          AS name,
+          oi."productId" AS "productId",
+          p.name AS "productName",
           p.sku,
-          p."imageUrl"                            AS "imageUrl",
+          p."imageUrl",
           p.category,
           p.brand,
           p.stock,
-          SUM(oi.quantity)::bigint                AS "unitsSold",
-          ROUND(SUM(oi."totalPrice")::numeric)    AS revenue,
-          COUNT(DISTINCT oi."orderId")::bigint    AS orders
+          SUM(oi.quantity)::bigint AS units,
+          ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
+          COUNT(DISTINCT oi."orderId")::bigint AS orders
         FROM order_items oi
         JOIN orders o ON oi."orderId" = o.id
-        LEFT JOIN products p ON oi."productId" = p.id
+        JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o."orderDate"    >= ${thirtyDaysAgo}
+          AND o."orderDate" >= ${thirtyDaysAgo}
           AND o.status NOT IN ('CANCELLED')
         GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand, p.stock
-        ORDER BY SUM(oi."totalPrice") DESC
       `,
 
-      /* 4) Stock sync freshness â€” when was stock last updated? */
-      prisma.$queryRaw<[{ max_stock_updated: Date | null; total_active: bigint }]>`
+      // Query 4: Stock sync metadata
+      prisma.$queryRaw<
+        Array<{
+          stockUpdatedAt: Date;
+          activeProducts: bigint;
+        }>
+      >`
         SELECT
-          MAX("stockUpdatedAt") AS max_stock_updated,
-          COUNT(*)::bigint AS total_active
+          MAX("stockUpdatedAt") AS "stockUpdatedAt",
+          COUNT(*)::bigint AS "activeProducts"
         FROM products
-        WHERE "organizationId" = ${ORG_ID} AND "isActive" = true
+        WHERE "organizationId" = ${ORG_ID}
+          AND stock IS NOT NULL
+          AND stock >= 0
+      `,
+
+      // Query 5: Weekly sales by product (last 60 days)
+      prisma.$queryRaw<
+        Array<{
+          productId: string;
+          weekStart: Date;
+          units: bigint;
+          revenue: number;
+          orders: bigint;
+        }>
+      >`
+        SELECT
+          oi."productId" AS "productId",
+          date_trunc('week', o."orderDate")::date AS "weekStart",
+          SUM(oi.quantity)::bigint AS units,
+          ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
+          COUNT(DISTINCT oi."orderId")::bigint AS orders
+        FROM order_items oi
+        JOIN orders o ON oi."orderId" = o.id
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${sixtyDaysAgo}
+          AND o.status NOT IN ('CANCELLED')
+        GROUP BY oi."productId", date_trunc('week', o."orderDate")
+        ORDER BY date_trunc('week', o."orderDate")
+      `,
+
+      // Query 6: Last sale date per product
+      prisma.$queryRaw<
+        Array<{
+          productId: string;
+          lastSaleDate: Date;
+        }>
+      >`
+        SELECT
+          oi."productId" AS "productId",
+          MAX(o."orderDate") AS "lastSaleDate"
+        FROM order_items oi
+        JOIN orders o ON oi."orderId" = o.id
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o.status NOT IN ('CANCELLED')
+        GROUP BY oi."productId"
       `,
     ]);
 
-    /* â”€â”€ Unpack order totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    const row = orderTotals[0];
-    const totalOrders = Number(row.total_orders);
-    const estimatedTotalUnits = Number(row.total_units) || totalOrders;
-    const estimatedTotalRevenue = Math.round(Number(row.total_revenue) || 0);
-    const processedPct =
-      totalOrders > 0
-        ? Math.round((ordersWithItems / totalOrders) * 100)
-        : 0;
+    // Extract summary data
+    const summary = {
+      totalOrders30d: Number(orderTotals[0]?.totalOrders || 0),(€€€€€Ñ½Ñ…±%Ñ•µÌÌÁè9Õµ‰•È¡½É‘•ÉQ½Ñ…±ÍlÁtü¹Ñ½Ñ…±%Ñ•µÌñð€À¤°(€€€€€Ñ½Ñ…±I•Ù•¹Õ”ÌÁè½É‘•ÉQ½Ñ…±ÍlÁtü¹Ñ½Ñ…±I•Ù•¹Õ”ñð€À°(€€€ôì((€€€½¹ÍÐÍÑ½­Må¹•‘Ð€ôÍÑ½­Må¹5•Ñ…‘…Ñ…lÁtü¹ÍÑ½­UÁ‘…Ñ•‘Ðü¹Ñ½%M=MÑÉ¥¹œ ¤ñð¹•Ü…Ñ” ¤¹Ñ½%M=MÑÉ¥¹œ ¤ì(€€€½¹ÍÐÑ½Ñ…±Ñ¥Ù•AÉ½‘ÕÑÌ€ô9Õµ‰•È¡ÍÑ½­Må¹5•Ñ…‘…Ñ…lÁtü¹…Ñ¥Ù•AÉ½‘ÕÑÌñð€À¤ì((€€€€¼¼	Õ¥±±½½­ÕÀµ…ÁÌ™½È™…ÍÐ…•ÍÌ(€€€½¹ÍÐÝ••­±åQÉ•¹‘5…À€ô¹•Ü5…ÀñÍÑÉ¥¹œ°ÉÉ…äñìÝ••­MÑ…ÉÐè…Ñ”ìÕ¹¥ÑÌè‰¥¥¹ÐìÉ•Ù•¹Õ”è¹Õµ‰•Èôøø ¤ì(€€€Ý••­±åM…±•Í	åAÉ½‘ÕÐ¹™½É…  ¡É½Ü¤€ôøì(€€€€€½¹ÍÐ­•ä€ôÉ½Ü¹ÁÉ½‘ÕÑ%ì(€€€€€¥˜€ …Ý••­±åQÉ•¹‘5…À¹¡…Ì¡­•ä¤¤ì(€€€€€€€Ý••­±åQÉ•¹‘5…À¹Í•Ð¡­•ä°mt¤ì(€€€€€ô(€€€€€Ý••­±åQÉ•¹‘5…À¹•Ð¡­•ä¤„¹ÁÕÍ ¡ì(€€€€€€€Ý••­MÑ…ÉÐèÉ½Ü¹Ý••­MÑ…ÉÐ°(€€€€€€€Õ¹¥ÑÌèÉ½Ü¹Õ¹¥ÑÌ°(€€€€€€€É•Ù•¹Õ”èÉ½Ü¹É•Ù•¹Õ”°(€€€€€ô¤ì(€€€ô¤ì((€€€½¹ÍÐ±…ÍÑM…±•…Ñ•5…À€ô¹•Ü5…ÀñÍÑÉ¥¹œ°…Ñ”ø ¤ì(€€€±…ÍÑM…±•…Ñ•	åAÉ½‘ÕÐ¹™½É…  ¡É½Ü¤€ôøì(€€€€€±…ÍÑM…±•…Ñ•5…À¹Í•Ð¡É½Ü¹ÁÉ½‘ÕÑ%°É½Ü¹±…ÍÑM…±•…Ñ”¤ì(€€€ô¤ì((€€€€¼¼!•±Á•È™Õ¹Ñ¥½¸è±¥¹•…ÈÉ•É•ÍÍ¥½¸™½ÈÑÉ•¹Í±½Á”(€€€™Õ¹Ñ¥½¸…±Õ±…Ñ•QÉ•¹‘M±½Á” (€€€€€Ý••­±å…Ñ„èÉÉ…äñìÝ••­MÑ…ÉÐè…Ñ”ìÕ¹¥ÑÌè‰¥¥¹ÐìÉ•Ù•¹Õ”è¹Õµ‰•Èôø(€€€€¤è¹Õµ‰•Èì(€€€€€¥˜€¡Ý••­±å…Ñ„¹±•¹Ñ €ð€È¤É•ÑÕÉ¸€Àì((€€€€€€¼¼UÍ”É•Ù•¹Õ”™½ÈÑÉ•¹…±Õ±…Ñ¥½¸(€€€€€½¹ÍÐÉ•Ù•¹Õ•Ì€ôÝ••­±å…Ñ„¹µ…À ¡Ü¤€ôø9Õµ‰•È¡Ü¹É•Ù•¹Õ”¤¤ì(€€€€€¥˜€¡É•Ù•¹Õ•Ì¹±•¹Ñ €ð€È¤É•ÑÕÉ¸€Àì((€€€€€½¹ÍÐ±…ÍÑ½ÕÉ]••­Ì€ôÉ•Ù•¹Õ•Ì¹Í±¥” ´Ð¤ì(€€€€€¥˜€¡±…ÍÑ½ÕÉ]••­Ì¹±•¹Ñ €ôôô€À¤É•ÑÕÉ¸€Àì((€€€€€½¹ÍÐ™¥ÉÍÐÉ]••­ÍÙœ€ô±…ÍÑ½ÕÉ]••­Ì¹Í±¥” À°5…Ñ ¹•¥°¡±…ÍÑ½ÕÉ]••­Ì¹±•¹Ñ €¼€È¤¤¹É•‘Õ” ¡„°ˆ¤€ôø„€¬ˆ°€À¤€¼5…Ñ ¹•¥°¡±…ÍÑ½ÕÉ]••­Ì¹±•¹Ñ €¼€È¤ì(€€€€€½¹ÍÐ±…ÍÐÉ]••­ÍÙœ€ô±…ÍÑ½ÕÉ]••­Ì¹Í±¥”¡5…Ñ ¹•¥°¡±…ÍÑ½ÕÉ]••­Ì¹±•¹Ñ €¼€È¤¤¹É•‘Õ” ¡„°ˆ¤€ôø„€¬ˆ°€À¤€¼5…Ñ ¹™±½½È¡±„stFourWeeks.length / 2);
 
-    /* â”€â”€ Stock sync freshness â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    const stockRow = stockMeta[0];
-    const stockSyncedAt = stockRow?.max_stock_updated
-      ? new Date(stockRow.max_stock_updated).toISOString()
-      : null;
-    const totalActiveProducts = Number(stockRow?.total_active || 0);
+      if (first2WeeksAvg === 0) return 0;
 
-    /* â”€â”€ Map product rows (already aggregated by DB) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    const products = productStats.map((p) => {
-      const units = Number(p.unitsSold);
-      const rev = Number(p.revenue);
+      return (((last2WeeksAvg - first2WeeksAvg) / first2WeeksAvg) * 100);
+    }
+
+    // Helper function: calculate WoW percentages
+    function calculateWoWPct(
+      weeklyData: Array<{ weekStart: Date; units: bigint; revenue: number }>,
+      field: "units" | "revenue"
+    ): number {
+      if (weeklyData.length < 2) return 0;
+
+      const sortedWeeks = [...weeklyData].sort((a, b) => new Date(a.weekStart).getTime() - new Date(b.weekStart).getTime());
+      const currentWeek = sortedWeeks[sortedWeeks.length - 1];
+      const prevWeek = sortedWeeks[sortedWeeks.length - 2];
+
+      if (!currentWeek || !prevWeek) return 0;
+
+      const currentVal = field === "units" ? Number(currentWeek.units) : currentWeek.revenue;
+      const prevVal = field === "units" ? Number(prevWeek.units) : prevWeek.revenue;
+
+      if (prevVal === 0) return 0;
+
+      return ((currentVal - prevVal) / prevVal) * 100;
+    }
+
+    // Map products with trend and stock data
+    let products: ProductMetrics[] = productAggregation.map((prod) => {
+      const weeklyData = weeklyTrendMap.get(prod.productId) || [];
+      const unitsSold = Number(prod.units);
+      const dailySalesRate = unitsSold / 30;
+      const lastSaleDate = lastSaleDateMap.get(prod.productId);
+
+      // Calculate daysOfStock
+      let daysOfStock: number | null = null;
+      if (prod.stock !== null && dailySalesRate > 0) {
+        daysOfStock = prod.stock / dailySalesRate;
+      }
+
+      // Calculate stockoutDate
+      let stockoutDate: string | null = null;
+      if (daysOfStock !== null) {
+        const stockoutDateObj = new Date(now.getTime() + daysOfStock * 24 * 60 * 60 * 1000);
+        stockoutDate = stockoutDateObj.toISOString();
+      }
+
+      // Determine stockHealth
+      let stockHealth: "critical" | "low" | "optimal" | "excessive" | null = null;
+      if (daysOfStock !== null) {
+        if (daysOfStock < 7) {
+          stockHealth = "critical";
+        } else if (daysOfStock < 14) {
+          stockHealth = "low";
+        } else if (daysOfStock <= 90) {
+          stockHealth = "optimal";
+        } else {
+          stockHealth = "excessive";
+        }
+      }
+
+      // Determine isDead
+      const isDead = prod.stock !== null && prod.stock > 0 && (unitsSold === 0 || (lastSaleDate && now.getTime() - lastSaleDate.getTime() > 30 * 24 * 60 * 60 * 1000));
+
+      // Build weeklyTrend for response
+      const weeklyTrend = weeklyData.map((w) => ({
+        weekStart: new Date(w.weekStart).toISOString().split("T")[0],
+        units: Number(w.units),
+        revenue: w.revenue,
+      }));
+
       return {
-        id: p.id || "unknown",
-        name: p.name,
-        sku: p.sku || null,
-        imageUrl: p.imageUrl || null,
-        category: p.category || null,
-        brand: p.brand || null,
-        stock: p.stock != null ? Number(p.stock) : null,
-        unitsSold: units,
-        revenue: Math.round(rev),
-        orders: Number(p.orders),
-        avgPrice: units > 0 ? Math.round(rev / units) : 0,
+        id: prod.productId,
+        name: prod.productName,
+        sku: prod.sku,
+        imageUrl: prod.imageUrl,
+        category: prod.category,
+        brand: prod.brand,
+        stock: prod.stock,
+        unitsSold,
+        revenue: prod.revenue,
+        orders: Number(prod.orders),
+        avgPrice: unitsSold > 0 ? prod.revenue / unitsSold : 0,
+        trendData: {
+          weeklyTrend,
+          wowUnitsPct: calculateWoWPct(weeklyData, "units"),
+          wowRevenuePct: calculateWoWPct(weeklyData, "revenue"),
+          trendSlope: calculateTrendSlope(weeklyData),
+          abcClass: "C", // Will be assigned after ABC analysis
+        },
+        stockData: {
+          dailySalesRate: Math.round(dailySalesRate * 100) / 100,
+          daysOfStock,
+          stockoutDate,
+          stockHealth,
+          isDead,
+          lastSaleDate: lastSaleDate ? lastSaleDate.toISOString() : null,
+        },
       };
     });
 
-    const detailedRevenue = products.reduce((s, p) => s + p.revenue, 0);
-    const detailedUnits = products.reduce((s, p) => s + p.unitsSold, 0);
-    const uniqueProducts = products.length;
+    // ABC Classification
+    const totalRevenue = products.reduce((sum, p) => sum + p.revenue, 0);
+    let cumulativeRevenue = 0;
+    const productsByRevenue = [...products].sort((a, b) => b.revenue - a.revenue);
 
-    /* â”€â”€ Pareto concentration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    const top20pctCount = Math.max(1, Math.ceil(products.length * 0.2));
-    const top20pctRevenue = products
-      .slice(0, top20pctCount)
-      .reduce((s, p) => s + p.revenue, 0);
-    const paretoConcentration =
-      detailedRevenue > 0
-        ? Math.round((top20pctRevenue / detailedRevenue) * 100)
-        : 0;
+    productsByRevenue.forEach((prod) => {
+      cumulativeRevenue += prod.revenue;
+      const percentage = totalRevenue > 0 ? (cumulativeRevenue / totalRevenue) * 100 : 0;
 
-    /* â”€â”€ Unique brands & categories for filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    const brands = [...new Set(products.map((p) => p.brand).filter(Boolean) as string[])].sort();
-    const categories = [...new Set(products.map((p) => p.category).filter(Boolean) as string[])].sort();
+      if (percentage <= 80) {
+        prod.trendData.abcClass = "A";
+      } else if (percentage <: 95) {
+        prod.trendData.abcClass = "B";
+      } else {
+        prod.trendData.abcClass = "C";
+      }
+    });
 
-    return NextResponse.json({
+    // Calculate stock summary
+    const stockSummary: StockSummary = {
+      criticalCount: products.filter((p) => p.stockData.stockHealth === "critical").length,
+      lowCount: products.filter((p) => p.stockData.stockHealth === "low").length,
+      optimalCount: products.filter((p) => p.stockData.stockHealth === "optimal").length,
+      excessiveCount: products.filter((p) => p.stockData.stockHealth === "excessive").length,
+      deadCount: products.filter((p) => p.stockData.isDead).length,
+      totalStockUnits: products.reduce((sum, p) => sum + (p.stock || 0), 0),
+      totalStockValue: products.reduce((sum, p) => sum + (((p.stock || 0) * p.avgPrice), 0),
+      productsAtRisk: products.filter((p) => p.stockData.stockHealth === "critical" || p.stockData.stockHealth === "low").length,
+    };
+
+    // Calculate trend summary
+    const trendSummary: TrendSummary = {
+      growingCount: products.filter((pt("T")[0],
+        units: Number(w.units),
+        revenue: w.revenue,
+      }));
+
+      return {
+        id: prod.productId,
+        name: prod.productName,
+        sku: prod.sku,
+        imageUrl: prod.imageUrl,
+        category: prod.category,
+        brand: prod.brand,
+        stock: prod.stock,
+        unitsSold,
+        revenue: prod.revenue,
+        orders: Number(prod.orders),
+        avgPrice: unitsSold > 0 ? prod.revenue / unitsSold : 0,
+        trendData: {
+          weeklyTrend,
+          wowUnitsPct: calculateWoWPct(weeklyData, "units"),
+          wowRevenuePct: calculateWoWPct(weeklyData, "revenue"),
+          trendSlope: calculateTrendSlope(weeklyData),
+          abcClass: "C", // Will be assigned after ABC analysis
+        },
+        stockData: {
+          dailySalesRate: Math.round(dailySalesRate * 100) / 100,
+          daysOfStock,
+          stockoutDate,
+          stockHealth,
+          isDead,
+          lastSaleDate: lastSaleDate ? lastSaleDate.toISOString() : null,
+        },
+      };
+    });
+
+    // ABC Classification
+    const totalRevenue = products.reduce((sum, p) => sum + p.revenue, 0);
+    let cumulativeRevenue = 0;
+    const productsByRevenue = [...products].sort((a, b) => b.revenue - a.revenue);
+
+    productsByRevenue.forEach((prod) => {
+      cumulativeRevenue += prod.revenue;
+      const percentage = totalRevenue > 0 ? (cumulativeRevenue / totalRevenue) * 100 : 0;
+
+      if (percentage <= 80) {
+        prod.trendData.abcClass = "A";
+      } else if (percentage <= 95) {
+        prod.trendData.abcClass = "B";
+      } else {
+        prod.trendData.abcClass = "C";
+      }
+    });
+
+    // Calculate stock summary
+    const stockSummary: StockSummary = {
+      criticalCount: products.filter((p) => p.stockData.stockHealth === "critical").length,
+      lowCount: products.filter((p) => p.stockData.stockHealth === "low").length,
+      optimalCount: products.filter((p) => p.stockData.stockHealth === "optimal").length,
+      excessiveCount: products.filter((p) => p.stockData.stockHealth === "excessive").length,
+      deadCount: products.filter((p) => p.stockData.isDead).length,
+      totalStockUnits: products.reduce((sum, p) => sum + (p.stock || 0), 0),
+      totalStockValue: products.reduce((sum, p) => sum + ((p.stock || 0) * p.avgPrice), 0),
+      productsAtRisk: products.filter((p) => p.stockData.stockHealth === "critical" || p.stockData.stockHealth === "low").length,
+    };
+
+    // Calculate trend summary
+    const trendSummary: TrendSummary = {
+      growingCount: products.filter((p) => p.trendData.wowRevenuePct > 5).length,
+      decliningCount: products.filter((p) => p.trendData.wowRevenuePct < -5).length,
+      stableCount: products.filter((p) => p.trendData.wowRevenuePct >= -5 && p.trendData.wowRevenuePct <= 5).length,
+    };
+
+    // Extract brands and categories
+    const brandMap = new Map<string, number>();
+    const categoryMap = new Map<string, number>();
+
+    products.forEach((prod) => {
+      if (prod.brand) {
+        brandMap.set(prod.brand, (brandMap.get(prod.brand) || 0) + 1);
+      }
+      if (prod.category) {
+        categoryMap.set(prod.category, (categoryMap.get(prod.category) || 0) + 1);
+      }
+    });
+
+    const brands = Array.from(brandMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const categories = Array.from(categoryMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const response: APIResponse = {
       products,
       brands,
       categories,
       stockSyncedAt,
       totalActiveProducts,
-      summary: {
-        estimatedTotalUnits,
-        estimatedTotalRevenue,
-        totalOrders,
-        detailedUnits,
-        detailedRevenue: Math.round(detailedRevenue),
-        uniqueProducts,
-        paretoConcentration,
-        ordersWithItems,
-        processedPct,
-        isComplete: processedPct >= 99,
-      },
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+      summary,
+      stockSummary,
+      trendSummary,
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error("Error fetching product metrics:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch product metrics" },
+      { status: 500 }
+    );
   }
 }
