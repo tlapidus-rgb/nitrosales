@@ -22,7 +22,7 @@ import {
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import NitroInsightsPanel from "@/components/NitroInsightsPanel";
-import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap, ArrowUp, ArrowDown } from "lucide-react";
 
 interface ProductItem {
   id: string;
@@ -76,6 +76,11 @@ interface ApiResponse {
   trendSummary: TrendSummary;
 }
 
+interface SortState {
+  column: string | null;
+  direction: 'asc' | 'desc' | null;
+}
+
 const COLORS = [
   "#6366f1",
   "#10b981",
@@ -88,6 +93,16 @@ const COLORS = [
   "#ec4899",
   "#94a3b8",
 ];
+
+const COLUMN_TOOLTIPS = {
+  facturacion: "Ingresos totales por venta de este producto en los últimos 30 días",
+  unidades: "Cantidad total de unidades vendidas en los últimos 30 días",
+  tendencia: "Variación porcentual de ingresos entre la última semana y la anterior (Week over Week)",
+  minitrend: "Evolución semanal de ingresos (últimas semanas disponibles)",
+  stock: "Unidades actualmente disponibles en inventario",
+  diasstock: "Días estimados hasta agotar stock, basado en la velocidad de venta diaria actual",
+  abc: "Clasificación ABC: A = Top 80% del revenue, B = siguiente 15%, C = último 5%",
+};
 
 function Sparkline({ data, color }: { data: number[]; color: string }) {
   if (!data || data.length === 0) {
@@ -147,7 +162,19 @@ function ABCBadge({ abcClass }: { abcClass: string }) {
   return <span className={`px-2 py-1 text-xs font-bold rounded-md ${bgColor}`}>{abcClass}</span>;
 }
 
-export default function ProductsPageV4() {
+function TooltipHeader({ text, tooltip }: { text: string; tooltip: string }) {
+  return (
+    <div className="relative group cursor-help">
+      <span>{text}</span>
+      <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-10 w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-lg pointer-events-none">
+        {tooltip}
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+      </div>
+    </div>
+  );
+}
+
+export default function ProductsPageV5() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
   const [trendSummary, setTrendSummary] = useState<TrendSummary | null>(null);
@@ -155,14 +182,45 @@ export default function ProductsPageV4() {
   const [activeTab, setActiveTab] = useState<"overview" | "trends" | "stock">("overview");
   const [brandFilter, setBrandFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortState, setSortState] = useState<SortState>({ column: "revenue", direction: "desc" });
 
-  // Fetch data
+  const ITEMS_PER_PAGE = 30;
+
+  // Fetch data with defensive numeric parsing
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch("/api/metrics/products");
         const data: ApiResponse = await response.json();
-        setProducts(data.products);
+
+        // Defensive data parsing - convert all numerics
+        const parsedProducts = data.products.map(p => ({
+          ...p,
+          revenue: Number(p.revenue) || 0,
+          unitsSold: Number(p.unitsSold) || 0,
+          avgPrice: Number(p.avgPrice) || 0,
+          stock: p.stock != null ? Number(p.stock) : null,
+          orders: Number(p.orders) || 0,
+          trendData: {
+            ...p.trendData,
+            wowUnitsPct: Number(p.trendData?.wowUnitsPct) || 0,
+            wowRevenuePct: Number(p.trendData?.wowRevenuePct) || 0,
+            trendSlope: Number(p.trendData?.trendSlope) || 0,
+            weeklyTrend: (p.trendData?.weeklyTrend || []).map(w => ({
+              ...w,
+              units: Number(w.units) || 0,
+              revenue: Number(w.revenue) || 0,
+            })),
+          },
+          stockData: {
+            ...p.stockData,
+            dailySalesRate: Number(p.stockData?.dailySalesRate) || 0,
+            daysOfStock: p.stockData?.daysOfStock != null ? Number(p.stockData.daysOfStock) : null,
+          }
+        }));
+
+        setProducts(parsedProducts);
         setStockSummary(data.stockSummary);
         setTrendSummary(data.trendSummary);
       } catch (error) {
@@ -182,6 +240,70 @@ export default function ProductsPageV4() {
       return true;
     });
   }, [products, brandFilter, categoryFilter]);
+
+  // Apply sorting
+  const sortedFiltered = useMemo(() => {
+    if (!sortState.column || !sortState.direction) {
+      return filtered;
+    }
+
+    return [...filtered].sort((a, b) => {
+      let aVal, bVal;
+
+      switch (sortState.column) {
+        case "revenue":
+          aVal = a.revenue;
+          bVal = b.revenue;
+          break;
+        case "unitsSold":
+          aVal = a.unitsSold;
+          bVal = b.unitsSold;
+          break;
+        case "stock":
+          aVal = a.stock ?? 0;
+          bVal = b.stock ?? 0;
+          break;
+        case "wowRevenuePct":
+          aVal = a.trendData.wowRevenuePct;
+          bVal = b.trendData.wowRevenuePct;
+          break;
+        case "daysOfStock":
+          aVal = a.stockData.daysOfStock ?? 0;
+          bVal = b.stockData.daysOfStock ?? 0;
+          break;
+        case "abc":
+          aVal = a.trendData.abcClass;
+          bVal = b.trendData.abcClass;
+          break;
+        default:
+          return 0;
+      }
+
+      if (sortState.column === "abc") {
+        const abcOrder = { A: 0, B: 1, C: 2 };
+        const comparison = abcOrder[aVal] - abcOrder[bVal];
+        return sortState.direction === "asc" ? comparison : -comparison;
+      }
+
+      if (sortState.direction === "asc") {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+  }, [filtered, sortState]);
+
+  // Pagination
+  const totalPages = Math.ceil(sortedFiltered.length / ITEMS_PER_PAGE);
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return sortedFiltered.slice(start, start + ITEMS_PER_PAGE);
+  }, [sortedFiltered, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [brandFilter, categoryFilter, sortState]);
 
   // Get unique brands and categories
   const brands = useMemo(() => {
@@ -357,6 +479,31 @@ export default function ProductsPageV4() {
       }));
   }, [filtered]);
 
+  const handleSort = (column: string) => {
+    setSortState((prev) => {
+      if (prev.column === column) {
+        // Cycle: asc -> desc -> no sort
+        if (prev.direction === "asc") {
+          return { column, direction: "desc" };
+        } else if (prev.direction === "desc") {
+          return { column: null, direction: null };
+        } else {
+          return { column, direction: "asc" };
+        }
+      } else {
+        // New column, start with asc
+        return { column, direction: "asc" };
+      }
+    });
+  };
+
+  const getSortIndicator = (column: string) => {
+    if (sortState.column !== column) return null;
+    if (sortState.direction === "asc") return <ArrowUp className="w-4 h-4 inline ml-1" />;
+    if (sortState.direction === "desc") return <ArrowDown className="w-4 h-4 inline ml-1" />;
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -475,82 +622,116 @@ export default function ProductsPageV4() {
           </div>
 
           {/* Products Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
             <div className="p-6 border-b border-gray-200">
               <h3 className="font-semibold text-gray-900">
                 Productos ({filtered.length})
               </h3>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left font-semibold text-gray-700">
-                      Producto
-                    </th>
-                    <th className="px-6 py-3 text-left font-semibold text-gray-700">
-                      Marca
-                    </th>
-                    <th className="px-6 py-3 text-left font-semibold text-gray-700">
-                      Categoría
-                    </th>
-                    <th className="px-6 py-3 text-right font-semibold text-gray-700">
-                      Facturación
-                    </th>
-                    <th className="px-6 py-3 text-right font-semibold text-gray-700">
-                      Unidades
-                    </th>
-                    <th className="px-6 py-3 text-center font-semibold text-gray-700">
-                      Tendencia
-                    </th>
-                    <th className="px-6 py-3 text-center font-semibold text-gray-700">
-                      Stock
-                    </th>
-                    <th className="px-6 py-3 text-center font-semibold text-gray-700">
-                      ABC
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filtered.map((product) => (
-                    <tr
-                      key={product.id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-6 py-4 flex items-center gap-3">
-                        {product.imageUrl && (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="w-8 h-8 rounded object-cover"
-                          />
-                        )}
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {product.name}
+            <div className="overflow-x-auto flex-1 flex flex-col">
+              <div className="overflow-y-auto max-h-[600px]">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-6 py-3 text-left font-semibold text-gray-700">
+                        Producto
+                      </th>
+                      <th className="px-6 py-3 text-left font-semibold text-gray-700">
+                        Marca
+                      </th>
+                      <th className="px-6 py-3 text-left font-semibold text-gray-700">
+                        Categoría
+                      </th>
+                      <th
+                        className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort("revenue")}
+                      >
+                        <TooltipHeader text="Facturación" tooltip={COLUMN_TOOLTIPS.facturacion} />
+                        {getSortIndicator("revenue")}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort("unitsSold")}
+                      >
+                        <TooltipHeader text="Unidades" tooltip={COLUMN_TOOLTIPS.unidades} />
+                        {getSortIndicator("unitsSold")}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort("wowRevenuePct")}
+                      >
+                        <TooltipHeader text="Tendencia WoW" tooltip={COLUMN_TOOLTIPS.tendencia} />
+                        {getSortIndicator("wowRevenuePct")}
+                      </th>
+                      <th className="px-6 py-3 text-center font-semibold text-gray-700">
+                        <TooltipHeader text="Mini Trend" tooltip={COLUMN_TOOLTIPS.minitrend} />
+                      </th>
+                      <th
+                        className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort("stock")}
+                      >
+                        <TooltipHeader text="Stock" tooltip={COLUMN_TOOLTIPS.stock} />
+                        {getSortIndicator("stock")}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort("daysOfStock")}
+                      >
+                        <TooltipHeader text="Días Stock" tooltip={COLUMN_TOOLTIPS.diasstock} />
+                        {getSortIndicator("daysOfStock")}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort("abc")}
+                      >
+                        <TooltipHeader text="ABC" tooltip={COLUMN_TOOLTIPS.abc} />
+                        {getSortIndicator("abc")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {paginatedProducts.map((product) => (
+                      <tr
+                        key={product.id}
+                        className="hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="px-6 py-4 flex items-center gap-3">
+                          {product.imageUrl && (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="w-8 h-8 rounded object-cover"
+                            />
+                          )}
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {product.name}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {product.sku || "—"}
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {product.sku || "—"}
+                        </td>
+                        <td className="px-6 py-4 text-gray-700">
+                          {product.brand || "—"}
+                        </td>
+                        <td className="px-6 py-4 text-gray-700">
+                          {product.category || "—"}
+                        </td>
+                        <td className="px-6 py-4 text-right font-medium text-gray-900">
+                          {formatARS(product.revenue)}
+                        </td>
+                        <td className="px-6 py-4 text-right text-gray-700">
+                          {formatCompact(product.unitsSold)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-center">
+                            <TrendIndicator
+                              wowRevenuePct={product.trendData.wowRevenuePct}
+                            />
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-700">
-                        {product.brand || "—"}
-                      </td>
-                      <td className="px-6 py-4 text-gray-700">
-                        {product.category || "—"}
-                      </td>
-                      <td className="px-6 py-4 text-right font-medium text-gray-900">
-                        {formatARS(product.revenue)}
-                      </td>
-                      <td className="px-6 py-4 text-right text-gray-700">
-                        {formatCompact(product.unitsSold)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <TrendIndicator
-                            wowRevenuePct={product.trendData.wowRevenuePct}
-                          />
+                        </td>
+                        <td className="px-6 py-4 flex justify-center">
                           <Sparkline
                             data={product.trendData.weeklyTrend.map((w) => w.revenue)}
                             color={
@@ -561,26 +742,52 @@ export default function ProductsPageV4() {
                                   : "#94a3b8"
                             }
                           />
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        </td>
+                        <td className="px-6 py-4 text-center">
                           <span className="text-gray-900 font-medium">
                             {product.stock ?? 0}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
                           <StockBadge
                             daysOfStock={product.stockData.daysOfStock}
                             stockHealth={product.stockData.stockHealth}
                           />
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <ABCBadge abcClass={product.trendData.abcClass} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <ABCBadge abcClass={product.trendData.abcClass} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Pagination */}
+            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between text-sm">
+              <div className="text-gray-600">
+                Mostrando {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filtered.length)}-{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} de {filtered.length} productos
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Anterior
+                </button>
+                <span className="px-4 py-1 text-gray-700 font-medium">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Siguiente
+                </button>
+              </div>
             </div>
           </div>
         </div>
