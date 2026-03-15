@@ -1,8 +1,8 @@
-// ══════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââ
 // Conector de VTEX
-// ══════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââ
 // Este archivo se conecta a la API de VTEX y trae los datos
-// de órdenes, productos, clientes e inventario.
+// de Ã³rdenes, productos, clientes e inventario.
 
 interface VtexCredentials {
   accountName: string;
@@ -21,7 +21,7 @@ interface VtexOrder {
   shippingData: any;
 }
 
-// ── Tipos para inventario ──
+// ââ Tipos para inventario ââ
 interface VtexWarehouseBalance {
   warehouseId: string;
   warehouseName: string;
@@ -59,7 +59,7 @@ interface SkuSyncResult {
   error?: string;
 }
 
-// ── Helpers ──
+// ââ Helpers ââ
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -78,7 +78,7 @@ export class VtexConnector {
     };
   }
 
-  // ── Fetch con retry y backoff para rate limits ──
+  // ââ Fetch con retry y backoff para rate limits ââ
   private async fetchWithRetry(
     url: string,
     retries = 3,
@@ -118,9 +118,9 @@ export class VtexConnector {
     throw new Error(`VTEX API: Max retries exceeded (${url})`);
   }
 
-  // ═══════════════════════════════════════════
-  // ÓRDENES
-  // ═══════════════════════════════════════════
+  // âââââââââââââââââââââââââââââââââââââââââââ
+  // ÃRDENES
+  // âââââââââââââââââââââââââââââââââââââââââââ
 
   async fetchOrders(params: {
     from: string;
@@ -152,9 +152,9 @@ export class VtexConnector {
     return response.json();
   }
 
-  // ═══════════════════════════════════════════
+  // âââââââââââââââââââââââââââââââââââââââââââ
   // PRODUCTOS (legacy - catalog search)
-  // ═══════════════════════════════════════════
+  // âââââââââââââââââââââââââââââââââââââââââââ
 
   async fetchProducts(params: {
     from?: number;
@@ -189,12 +189,12 @@ export class VtexConnector {
     return response.json();
   }
 
-  // ═══════════════════════════════════════════
+  // âââââââââââââââââââââââââââââââââââââââââââ
   // INVENTARIO (nuevo - SKU-level)
-  // ═══════════════════════════════════════════
+  // âââââââââââââââââââââââââââââââââââââââââââ
 
   /**
-   * Obtiene TODOS los SKU IDs del catálogo, paginando de a 1000.
+   * Obtiene TODOS los SKU IDs del catÃ¡logo, paginando de a 1000.
    * Usa el endpoint privado de catalog.
    */
   async fetchAllSkuIds(pageSize = 1000): Promise<number[]> {
@@ -242,6 +242,10 @@ export class VtexConnector {
       for (const wh of data.balance) {
         if (wh.hasUnlimitedQuantity) {
           unlimited = true;
+          // Para warehouses "unlimited", usar totalQuantity directamente
+          // (VTEX no decrementa stock pero el campo tiene el valor real)
+          const available = Math.max(0, wh.totalQuantity);
+          totalStock += available;
           continue;
         }
         const available = Math.max(0, wh.totalQuantity - wh.reservedQuantity);
@@ -265,14 +269,14 @@ export class VtexConnector {
    * Sincroniza un batch de SKUs: obtiene inventario + detalle y hace batch upsert en la DB.
    * Optimizado v2:
    * - Fetch VTEX data en paralelo (maxConcurrent)
-   * - Batch DB upserts de hasta BATCH_DB_SIZE SKUs en una transacción
+   * - Batch DB upserts de hasta BATCH_DB_SIZE SKUs en una transacciÃ³n
    * - Delay reducido (40ms vs 80ms)
    *
    * @param skuIds Lista de SKU IDs a procesar
    * @param orgId Organization ID para la DB
    * @param db Prisma client
-   * @param timeBudgetMs Tiempo máximo en ms (default: 50s)
-   * @param maxConcurrent Concurrencia máxima (default: 12)
+   * @param timeBudgetMs Tiempo mÃ¡ximo en ms (default: 50s)
+   * @param maxConcurrent Concurrencia mÃ¡xima (default: 12)
    */
   async syncInventoryBatch(
     skuIds: number[],
@@ -294,7 +298,7 @@ export class VtexConnector {
       result: SkuSyncResult;
     }> = [];
 
-    // Flush buffer: ejecutar todos los upserts pendientes en una transacción
+    // Flush buffer: ejecutar todos los upserts pendientes en una transacciÃ³n
     const flushBuffer = async () => {
       if (upsertBuffer.length === 0) return;
       const batch = [...upsertBuffer];
@@ -322,7 +326,7 @@ export class VtexConnector {
           processed++;
         }
       } catch (txError: any) {
-        // Si la transacción falla, intentar uno por uno
+        // Si la transacciÃ³n falla, intentar uno por uno
         console.warn(
           `[VTEX] Batch transaction failed (${batch.length} items), falling back to individual upserts:`,
           txError.message
@@ -414,7 +418,7 @@ export class VtexConnector {
         }
       }
 
-      // Flush buffer si alcanzó el tamaño de batch DB
+      // Flush buffer si alcanzÃ³ el tamaÃ±o de batch DB
       if (upsertBuffer.length >= BATCH_DB_SIZE) {
         await flushBuffer();
       }
@@ -470,7 +474,8 @@ export class VtexConnector {
     const category =
       categories.length > 0 ? (categories[categories.length - 1] as string) : null;
 
-    const stock = inventory.unlimited ? 99999 : inventory.totalStock;
+    // Siempre usar el stock real calculado (ya incluye warehouses unlimited)
+    const stock = inventory.totalStock;
 
     return {
       name,
@@ -485,9 +490,9 @@ export class VtexConnector {
     };
   }
 
-  // ═══════════════════════════════════════════
-  // CLIENTES (via órdenes)
-  // ═══════════════════════════════════════════
+  // âââââââââââââââââââââââââââââââââââââââââââ
+  // CLIENTES (via Ã³rdenes)
+  // âââââââââââââââââââââââââââââââââââââââââââ
 
   extractCustomerFromOrder(order: VtexOrder) {
     const profile = order.clientProfileData;
@@ -503,9 +508,9 @@ export class VtexConnector {
     };
   }
 
-  // ═══════════════════════════════════════════
-  // TEST DE CONEXIÓN
-  // ═══════════════════════════════════════════
+  // âââââââââââââââââââââââââââââââââââââââââââ
+  // TEST DE CONEXIÃN
+  // âââââââââââââââââââââââââââââââââââââââââââ
 
   async testConnection(): Promise<boolean> {
     try {
