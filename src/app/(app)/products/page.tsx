@@ -22,7 +22,7 @@ import {
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import NitroInsightsPanel from "@/components/NitroInsightsPanel";
-import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap, ArrowUp, ArrowDown, X, Search, Download } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap, ArrowUp, ArrowDown, X, Search, Download, ShoppingCart, BarChart3, Layers, Warehouse, Clock, XCircle, AlertOctagon, Archive } from "lucide-react";
 
 interface ProductItem {
   id: string;
@@ -188,7 +188,7 @@ function TooltipHeader({ text, tooltip }: { text: string; tooltip: string }) {
   );
 }
 
-export default function ProductsPageV9() {
+export default function ProductsPageV10() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
   const [trendSummary, setTrendSummary] = useState<TrendSummary | null>(null);
@@ -576,6 +576,39 @@ export default function ProductsPageV9() {
       }));
   }, [filtered, chartMetric]);
 
+  // KPI Stats computed from filtered products
+  const kpiStats = useMemo(() => {
+    const totalRevenue = filtered.reduce((s, p) => s + p.revenue, 0);
+    const totalUnits = filtered.reduce((s, p) => s + p.unitsSold, 0);
+    const ticketPromedio = totalUnits > 0 ? totalRevenue / totalUnits : 0;
+    const productosActivos = filtered.length;
+    const totalStock = filtered.reduce((s, p) => s + (p.stock ?? 0), 0);
+    const valorStock = filtered.reduce((s, p) => s + (p.stock ?? 0) * p.avgPrice, 0);
+    return { totalRevenue, totalUnits, ticketPromedio, productosActivos, totalStock, valorStock };
+  }, [filtered]);
+
+  // Stock health alerts computed from filtered products
+  const stockAlerts = useMemo(() => {
+    let sinStock = 0;
+    let critico = 0;
+    let sobrestock = 0;
+    let diasSum = 0;
+    let diasCount = 0;
+    filtered.forEach((p) => {
+      const stock = p.stock ?? 0;
+      const days = p.stockData.daysOfStock;
+      if (stock === 0) sinStock++;
+      if (days !== null && days <= 7 && stock > 0) critico++;
+      if (days !== null && days > 90) sobrestock++;
+      if (days !== null && days > 0) {
+        diasSum += days;
+        diasCount++;
+      }
+    });
+    const diasPromedio = diasCount > 0 ? diasSum / diasCount : 0;
+    return { sinStock, critico, sobrestock, diasPromedio };
+  }, [filtered]);
+
   const handleSort = (column: string) => {
     setSortState((prev) => {
       if (prev.column === column) {
@@ -810,6 +843,88 @@ export default function ProductsPageV9() {
       {/* TAB 1: OVERVIEW */}
       {activeTab === "overview" && (
         <div className="space-y-6">
+          {/* KPI Cards Row */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <DollarSign className="w-4 h-4 text-indigo-500" />
+                <span className="text-xs text-gray-500 font-medium">Facturación Total</span>
+              </div>
+              <p className="text-xl font-bold text-gray-900">{formatCompact(kpiStats.totalRevenue)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <ShoppingCart className="w-4 h-4 text-green-500" />
+                <span className="text-xs text-gray-500 font-medium">Unidades Vendidas</span>
+              </div>
+              <p className="text-xl font-bold text-gray-900">{kpiStats.totalUnits.toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <BarChart3 className="w-4 h-4 text-amber-500" />
+                <span className="text-xs text-gray-500 font-medium">Ticket Promedio</span>
+              </div>
+              <p className="text-xl font-bold text-gray-900">{formatARS(kpiStats.ticketPromedio)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Layers className="w-4 h-4 text-cyan-500" />
+                <span className="text-xs text-gray-500 font-medium">Productos Activos</span>
+              </div>
+              <p className="text-xl font-bold text-gray-900">{kpiStats.productosActivos.toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Warehouse className="w-4 h-4 text-purple-500" />
+                <span className="text-xs text-gray-500 font-medium">Stock Total (uds)</span>
+              </div>
+              <p className="text-xl font-bold text-gray-900">{kpiStats.totalStock.toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Package className="w-4 h-4 text-orange-500" />
+                <span className="text-xs text-gray-500 font-medium">Valor de Stock</span>
+              </div>
+              <p className="text-xl font-bold text-gray-900">{formatCompact(kpiStats.valorStock)}</p>
+            </div>
+          </div>
+
+          {/* Stock Health Alerts Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <XCircle className="w-4 h-4 text-red-500" />
+                <span className="text-xs text-gray-500 font-medium">Sin Stock</span>
+              </div>
+              <p className={`text-xl font-bold ${stockAlerts.sinStock > 0 ? "text-red-600" : "text-gray-900"}`}>{stockAlerts.sinStock}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">productos con stock = 0</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertOctagon className="w-4 h-4 text-amber-500" />
+                <span className="text-xs text-gray-500 font-medium">Stock Crítico</span>
+              </div>
+              <p className={`text-xl font-bold ${stockAlerts.critico > 0 ? "text-amber-600" : "text-gray-900"}`}>{stockAlerts.critico}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">menos de 7 días de stock</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Archive className="w-4 h-4 text-blue-500" />
+                <span className="text-xs text-gray-500 font-medium">Sobrestock</span>
+              </div>
+              <p className={`text-xl font-bold ${stockAlerts.sobrestock > 0 ? "text-blue-600" : "text-gray-900"}`}>{stockAlerts.sobrestock}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">más de 90 días de stock</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-4 h-4 text-gray-500" />
+                <span className="text-xs text-gray-500 font-medium">Días Stock Promedio</span>
+              </div>
+              <p className="text-xl font-bold text-gray-900">{Math.round(stockAlerts.diasPromedio)}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">promedio ponderado</p>
+            </div>
+          </div>
+
           {/* Metric Toggle Pills */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600 font-medium">Métrica:</span>
