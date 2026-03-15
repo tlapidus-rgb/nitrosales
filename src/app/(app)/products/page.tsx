@@ -22,7 +22,7 @@ import {
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import NitroInsightsPanel from "@/components/NitroInsightsPanel";
-import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap, ArrowUp, ArrowDown, X } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap, ArrowUp, ArrowDown, X, Search, Download } from "lucide-react";
 
 interface ProductItem {
   id: string;
@@ -98,7 +98,6 @@ const COLUMN_TOOLTIPS = {
   facturacion: "Ingresos totales por venta de este producto en los últimos 30 días",
   unidades: "Cantidad total de unidades vendidas en los últimos 30 días",
   tendencia: "Variación porcentual de ingresos entre la última semana y la anterior (Week over Week)",
-  minitrend: "Evolución semanal de ingresos (últimas semanas disponibles)",
   stock: "Unidades actualmente disponibles en inventario",
   diasstock: "Días estimados hasta agotar stock, basado en la velocidad de venta diaria actual",
   abc: "Clasificación ABC: A = Top 80% del revenue, B = siguiente 15%, C = último 5%",
@@ -146,15 +145,27 @@ function TrendIndicator({ wowRevenuePct }: { wowRevenuePct: number }) {
   }
 }
 
-function StockBadge({ daysOfStock, stockHealth }: { daysOfStock: number | null; stockHealth: string | null }) {
+function StockBadge({ daysOfStock, stockHealth, stock }: { daysOfStock: number | null; stockHealth: string | null; stock?: number | null }) {
+  // Handle agotado (out of stock)
+  if (stock !== undefined && stock !== null && stock === 0) {
+    return <span className="px-2 py-1 text-xs rounded-md bg-red-200 text-red-800 font-bold">Agotado</span>;
+  }
+
   let bgColor = "bg-gray-100 text-gray-700";
   if (stockHealth === "critical") bgColor = "bg-red-100 text-red-700 font-semibold";
   else if (stockHealth === "low") bgColor = "bg-amber-100 text-amber-700 font-semibold";
   else if (stockHealth === "optimal") bgColor = "bg-green-100 text-green-700";
   else if (stockHealth === "excessive") bgColor = "bg-blue-100 text-blue-700";
 
-  const days = daysOfStock ?? 0;
-  return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>{days}d</span>;
+  // Format days display
+  if (daysOfStock === null || daysOfStock === undefined) {
+    return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>—</span>;
+  }
+  if (daysOfStock > 365) {
+    return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>+365d</span>;
+  }
+  const rounded = Math.round(daysOfStock);
+  return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>{rounded}d</span>;
 }
 
 function ABCBadge({ abcClass }: { abcClass: string }) {
@@ -177,7 +188,7 @@ function TooltipHeader({ text, tooltip }: { text: string; tooltip: string }) {
   );
 }
 
-export default function ProductsPageV5() {
+export default function ProductsPageV7() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
   const [trendSummary, setTrendSummary] = useState<TrendSummary | null>(null);
@@ -185,6 +196,7 @@ export default function ProductsPageV5() {
   const [activeTab, setActiveTab] = useState<"overview" | "trends" | "stock">("overview");
   const [brandFilter, setBrandFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortState, setSortState] = useState<SortState>({ column: "revenue", direction: "desc" });
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
@@ -244,9 +256,15 @@ export default function ProductsPageV5() {
     return products.filter((p) => {
       if (brandFilter && p.brand !== brandFilter) return false;
       if (categoryFilter && p.category !== categoryFilter) return false;
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const nameMatch = p.name.toLowerCase().includes(term);
+        const skuMatch = p.sku?.toLowerCase().includes(term) || false;
+        if (!nameMatch && !skuMatch) return false;
+      }
       return true;
     });
-  }, [products, brandFilter, categoryFilter]);
+  }, [products, brandFilter, categoryFilter, searchTerm]);
 
   // Apply sorting
   const sortedFiltered = useMemo(() => {
@@ -565,6 +583,36 @@ export default function ProductsPageV5() {
     return null;
   };
 
+  // CSV Export function
+  const exportCSV = () => {
+    const headers = ["Producto", "SKU", "Marca", "Categoría", "Facturación", "Unidades", "Tendencia WoW%", "Stock", "Días Stock", "Salud Stock", "ABC"];
+    const rows = filtered.map((p) => {
+      const days = p.stockData.daysOfStock;
+      const daysStr = days === null ? "—" : days > 365 ? "+365" : Math.round(days).toString();
+      return [
+        `"${p.name.replace(/"/g, '""')}"`,
+        p.sku || "",
+        p.brand || "",
+        p.category || "",
+        p.revenue.toFixed(2),
+        p.unitsSold,
+        p.trendData.wowRevenuePct.toFixed(1),
+        p.stock ?? 0,
+        daysStr,
+        p.stockData.stockHealth || "—",
+        p.trendData.abcClass,
+      ].join(",");
+    });
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `productos_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -606,11 +654,31 @@ export default function ProductsPageV5() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+      <div className="flex flex-wrap gap-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-center">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            placeholder="Buscar producto o SKU..."
+            className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => { setSearchTerm(""); setCurrentPage(1); }}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
         <div className="relative">
           <select
             value={brandFilter}
-            onChange={(e) => setBrandFilter(e.target.value)}
+            onChange={(e) => { setBrandFilter(e.target.value); setCurrentPage(1); }}
             className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
               brandFilter
                 ? "border-indigo-300 bg-indigo-50"
@@ -626,7 +694,7 @@ export default function ProductsPageV5() {
           </select>
           {brandFilter && (
             <button
-              onClick={() => setBrandFilter("")}
+              onClick={() => { setBrandFilter(""); setCurrentPage(1); }}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
             >
               <X className="w-4 h-4" />
@@ -637,7 +705,7 @@ export default function ProductsPageV5() {
         <div className="relative">
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
             className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
               categoryFilter
                 ? "border-indigo-300 bg-indigo-50"
@@ -653,7 +721,7 @@ export default function ProductsPageV5() {
           </select>
           {categoryFilter && (
             <button
-              onClick={() => setCategoryFilter("")}
+              onClick={() => { setCategoryFilter(""); setCurrentPage(1); }}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
             >
               <X className="w-4 h-4" />
@@ -664,6 +732,15 @@ export default function ProductsPageV5() {
         <div className="text-sm text-gray-600 flex items-center">
           {filtered.length} producto{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
         </div>
+
+        {/* Export CSV */}
+        <button
+          onClick={exportCSV}
+          className="ml-auto flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          Exportar CSV
+        </button>
       </div>
 
       {/* Tab Navigation */}
@@ -782,9 +859,6 @@ export default function ProductsPageV5() {
                         <TooltipHeader text="Tendencia WoW" tooltip={COLUMN_TOOLTIPS.tendencia} />
                         {getSortIndicator("wowRevenuePct")}
                       </th>
-                      <th className="px-6 py-3 text-center font-semibold text-gray-700">
-                        <TooltipHeader text="Mini Trend" tooltip={COLUMN_TOOLTIPS.minitrend} />
-                      </th>
                       <th
                         className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => handleSort("stock")}
@@ -875,27 +949,16 @@ export default function ProductsPageV5() {
                               />
                             </div>
                           </td>
-                          <td className="px-6 py-4 flex justify-center">
-                            <Sparkline
-                              data={product.trendData.weeklyTrend.map((w) => w.revenue)}
-                              color={
-                                product.trendData.wowRevenuePct > 0
-                                  ? "#10b981"
-                                  : product.trendData.wowRevenuePct < 0
-                                    ? "#ef4444"
-                                    : "#94a3b8"
-                              }
-                            />
-                          </td>
                           <td className="px-6 py-4 text-center">
-                            <span className="text-gray-900 font-medium">
-                              {product.stock ?? 0}
+                            <span className={`font-medium ${(product.stock ?? 0) === 0 ? "text-red-600" : "text-gray-900"}`}>
+                              {(product.stock ?? 0) === 0 ? "0" : (product.stock ?? 0)}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-center">
                             <StockBadge
                               daysOfStock={product.stockData.daysOfStock}
                               stockHealth={product.stockData.stockHealth}
+                              stock={product.stock}
                             />
                           </td>
                           <td className="px-6 py-4 text-center">
@@ -1422,6 +1485,7 @@ export default function ProductsPageV5() {
                               <StockBadge
                                 daysOfStock={product.stockData.daysOfStock}
                                 stockHealth={product.stockData.stockHealth}
+                                stock={product.stock}
                               />
                             </td>
                             <td className="px-6 py-4 text-gray-700">
