@@ -188,7 +188,7 @@ function TooltipHeader({ text, tooltip }: { text: string; tooltip: string }) {
   );
 }
 
-export default function ProductsPageV8() {
+export default function ProductsPageV9() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
   const [trendSummary, setTrendSummary] = useState<TrendSummary | null>(null);
@@ -198,6 +198,7 @@ export default function ProductsPageV8() {
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [stockDaysFilter, setStockDaysFilter] = useState<string>("");
+  const [chartMetric, setChartMetric] = useState<"revenue" | "units">("revenue");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortState, setSortState] = useState<SortState>({ column: "revenue", direction: "desc" });
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
@@ -546,7 +547,8 @@ export default function ProductsPageV8() {
     const dist = new Map<string, number>();
     filtered.forEach((p) => {
       const brand = p.brand || "Sin marca";
-      dist.set(brand, (dist.get(brand) || 0) + p.revenue);
+      const val = chartMetric === "revenue" ? p.revenue : p.unitsSold;
+      dist.set(brand, (dist.get(brand) || 0) + val);
     });
     return [...dist.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -555,14 +557,15 @@ export default function ProductsPageV8() {
         value,
         color: COLORS[idx % COLORS.length],
       }));
-  }, [filtered]);
+  }, [filtered, chartMetric]);
 
   // Category distribution
   const categoryDistribution = useMemo(() => {
     const dist = new Map<string, number>();
     filtered.forEach((p) => {
       const cat = p.category || "Sin categoría";
-      dist.set(cat, (dist.get(cat) || 0) + p.revenue);
+      const val = chartMetric === "revenue" ? p.revenue : p.unitsSold;
+      dist.set(cat, (dist.get(cat) || 0) + val);
     });
     return [...dist.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -571,7 +574,7 @@ export default function ProductsPageV8() {
         value,
         color: COLORS[idx % COLORS.length],
       }));
-  }, [filtered]);
+  }, [filtered, chartMetric]);
 
   const handleSort = (column: string) => {
     setSortState((prev) => {
@@ -807,52 +810,163 @@ export default function ProductsPageV8() {
       {/* TAB 1: OVERVIEW */}
       {activeTab === "overview" && (
         <div className="space-y-6">
+          {/* Metric Toggle Pills */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600 font-medium">Métrica:</span>
+            <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
+              <button
+                onClick={() => setChartMetric("revenue")}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  chartMetric === "revenue"
+                    ? "bg-white shadow-sm text-indigo-600"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Facturación
+              </button>
+              <button
+                onClick={() => setChartMetric("units")}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  chartMetric === "units"
+                    ? "bg-white shadow-sm text-indigo-600"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Unidades
+              </button>
+            </div>
+          </div>
+
           {/* Distribution Charts */}
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Brand Chart + Ranking */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h3 className="font-semibold text-gray-900 mb-4">Por Marca</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={brandDistribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(entry) => entry.name}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {brandDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatARS(value)} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="flex gap-4">
+                <div className="flex-shrink-0" style={{width: '220px', height: '220px'}}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={brandDistribution.slice(0, 10)}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={90}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {brandDistribution.slice(0, 10).map((entry, index) => (
+                          <Cell key={`cell-b-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => {
+                          const total = brandDistribution.reduce((s, e) => s + e.value, 0);
+                          const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+                          return chartMetric === "revenue"
+                            ? `${formatARS(value)} (${pct}%)`
+                            : `${value.toLocaleString("es-AR")} uds (${pct}%)`;
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex-1 overflow-y-auto max-h-[220px]">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-white">
+                      <tr>
+                        <th className="text-left py-1 text-gray-500 font-medium">Marca</th>
+                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturación" : "Unidades"}</th>
+                        <th className="text-right py-1 text-gray-500 font-medium">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const total = brandDistribution.reduce((s, e) => s + e.value, 0);
+                        return brandDistribution.map((entry, idx) => (
+                          <tr key={entry.name} className="border-t border-gray-100 hover:bg-gray-50">
+                            <td className="py-1.5 flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{backgroundColor: entry.color}} />
+                              <span className="text-gray-800 truncate max-w-[120px]" title={entry.name}>{entry.name}</span>
+                            </td>
+                            <td className="py-1.5 text-right text-gray-700 font-medium">
+                              {chartMetric === "revenue" ? formatCompact(entry.value) : entry.value.toLocaleString("es-AR")}
+                            </td>
+                            <td className="py-1.5 text-right text-gray-600">
+                              {total > 0 ? ((entry.value / total) * 100).toFixed(1) : "0"}%
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
 
+            {/* Category Chart + Ranking */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h3 className="font-semibold text-gray-900 mb-4">Por Categoría</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={categoryDistribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(entry) => entry.name}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {categoryDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatARS(value)} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="flex gap-4">
+                <div className="flex-shrink-0" style={{width: '220px', height: '220px'}}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryDistribution.slice(0, 10)}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={90}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {categoryDistribution.slice(0, 10).map((entry, index) => (
+                          <Cell key={`cell-c-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => {
+                          const total = categoryDistribution.reduce((s, e) => s + e.value, 0);
+                          const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+                          return chartMetric === "revenue"
+                            ? `${formatARS(value)} (${pct}%)`
+                            : `${value.toLocaleString("es-AR")} uds (${pct}%)`;
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex-1 overflow-y-auto max-h-[220px]">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-white">
+                      <tr>
+                        <th className="text-left py-1 text-gray-500 font-medium">Categoría</th>
+                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturación" : "Unidades"}</th>
+                        <th className="text-right py-1 text-gray-500 font-medium">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const total = categoryDistribution.reduce((s, e) => s + e.value, 0);
+                        return categoryDistribution.map((entry, idx) => (
+                          <tr key={entry.name} className="border-t border-gray-100 hover:bg-gray-50">
+                            <td className="py-1.5 flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{backgroundColor: entry.color}} />
+                              <span className="text-gray-800 truncate max-w-[120px]" title={entry.name}>{entry.name}</span>
+                            </td>
+                            <td className="py-1.5 text-right text-gray-700 font-medium">
+                              {chartMetric === "revenue" ? formatCompact(entry.value) : entry.value.toLocaleString("es-AR")}
+                            </td>
+                            <td className="py-1.5 text-right text-gray-600">
+                              {total > 0 ? ((entry.value / total) * 100).toFixed(1) : "0"}%
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
 
