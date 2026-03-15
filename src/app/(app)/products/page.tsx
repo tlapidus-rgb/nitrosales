@@ -22,7 +22,7 @@ import {
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import NitroInsightsPanel from "@/components/NitroInsightsPanel";
-import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap, ArrowUp, ArrowDown, X, Search, Download, ShoppingCart, BarChart3, Layers, Warehouse, Clock, XCircle, AlertOctagon, Archive } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap, ArrowUp, ArrowDown, X, Search, Download } from "lucide-react";
 
 interface ProductItem {
   id: string;
@@ -854,28 +854,28 @@ export default function ProductsPageV10() {
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <ShoppingCart className="w-4 h-4 text-green-500" />
+                <Package className="w-4 h-4 text-green-500" />
                 <span className="text-xs text-gray-500 font-medium">Unidades Vendidas</span>
               </div>
               <p className="text-xl font-bold text-gray-900">{kpiStats.totalUnits.toLocaleString("es-AR")}</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <BarChart3 className="w-4 h-4 text-amber-500" />
+                <DollarSign className="w-4 h-4 text-amber-500" />
                 <span className="text-xs text-gray-500 font-medium">Ticket Promedio</span>
               </div>
               <p className="text-xl font-bold text-gray-900">{formatARS(kpiStats.ticketPromedio)}</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Layers className="w-4 h-4 text-cyan-500" />
+                <Zap className="w-4 h-4 text-cyan-500" />
                 <span className="text-xs text-gray-500 font-medium">Productos Activos</span>
               </div>
               <p className="text-xl font-bold text-gray-900">{kpiStats.productosActivos.toLocaleString("es-AR")}</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Warehouse className="w-4 h-4 text-purple-500" />
+                <Package className="w-4 h-4 text-purple-500" />
                 <span className="text-xs text-gray-500 font-medium">Stock Total (uds)</span>
               </div>
               <p className="text-xl font-bold text-gray-900">{kpiStats.totalStock.toLocaleString("es-AR")}</p>
@@ -893,7 +893,7 @@ export default function ProductsPageV10() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <XCircle className="w-4 h-4 text-red-500" />
+                <X className="w-4 h-4 text-red-500" />
                 <span className="text-xs text-gray-500 font-medium">Sin Stock</span>
               </div>
               <p className={`text-xl font-bold ${stockAlerts.sinStock > 0 ? "text-red-600" : "text-gray-900"}`}>{stockAlerts.sinStock}</p>
@@ -901,7 +901,7 @@ export default function ProductsPageV10() {
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <AlertOctagon className="w-4 h-4 text-amber-500" />
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
                 <span className="text-xs text-gray-500 font-medium">Stock Crítico</span>
               </div>
               <p className={`text-xl font-bold ${stockAlerts.critico > 0 ? "text-amber-600" : "text-gray-900"}`}>{stockAlerts.critico}</p>
@@ -909,7 +909,7 @@ export default function ProductsPageV10() {
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Archive className="w-4 h-4 text-blue-500" />
+                <Package className="w-4 h-4 text-blue-500" />
                 <span className="text-xs text-gray-500 font-medium">Sobrestock</span>
               </div>
               <p className={`text-xl font-bold ${stockAlerts.sobrestock > 0 ? "text-blue-600" : "text-gray-900"}`}>{stockAlerts.sobrestock}</p>
@@ -917,7 +917,7 @@ export default function ProductsPageV10() {
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Clock className="w-4 h-4 text-gray-500" />
+                <Search className="w-4 h-4 text-gray-500" />
                 <span className="text-xs text-gray-500 font-medium">Días Stock Promedio</span>
               </div>
               <p className="text-xl font-bold text-gray-900">{Math.round(stockAlerts.diasPromedio)}</p>
