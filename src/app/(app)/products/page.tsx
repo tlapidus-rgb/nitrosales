@@ -587,8 +587,8 @@ export default function ProductsPageV10() {
     return { totalRevenue, totalUnits, ticketPromedio, productosActivos, totalStock, valorStock };
   }, [filtered]);
 
-  // Stock health alerts computed from filtered products
-  const stockAlerts = useMemo(() => {
+  // Stock health summary for KPI alerts
+  const stockHealthAlerts = useMemo(() => {
     let sinStock = 0;
     let critico = 0;
     let sobrestock = 0;
@@ -897,7 +897,7 @@ export default function ProductsPageV10() {
                 <X className="w-4 h-4 text-red-500" />
                 <span className="text-xs text-gray-500 font-medium">Sin Stock</span>
               </div>
-              <p className={`text-xl font-bold ${stockAlerts.sinStock > 0 ? "text-red-600" : "text-gray-900"}`}>{stockAlerts.sinStock}</p>
+              <p className={`text-xl font-bold ${stockHealthAlerts.sinStock > 0 ? "text-red-600" : "text-gray-900"}`}>{stockHealthAlerts.sinStock}</p>
               <p className="text-[10px] text-gray-400 mt-0.5">productos con stock = 0</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4">
@@ -905,7 +905,7 @@ export default function ProductsPageV10() {
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
                 <span className="text-xs text-gray-500 font-medium">Stock Crítico</span>
               </div>
-              <p className={`text-xl font-bold ${stockAlerts.critico > 0 ? "text-amber-600" : "text-gray-900"}`}>{stockAlerts.critico}</p>
+              <p className={`text-xl font-bold ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-gray-900"}`}>{stockHealthAlerts.critico}</p>
               <p className="text-[10px] text-gray-400 mt-0.5">menos de 7 días de stock</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4">
@@ -913,7 +913,7 @@ export default function ProductsPageV10() {
                 <Package className="w-4 h-4 text-blue-500" />
                 <span className="text-xs text-gray-500 font-medium">Sobrestock</span>
               </div>
-              <p className={`text-xl font-bold ${stockAlerts.sobrestock > 0 ? "text-blue-600" : "text-gray-900"}`}>{stockAlerts.sobrestock}</p>
+              <p className={`text-xl font-bold ${stockHealthAlerts.sobrestock > 0 ? "text-blue-600" : "text-gray-900"}`}>{stockHealthAlerts.sobrestock}</p>
               <p className="text-[10px] text-gray-400 mt-0.5">más de 90 días de stock</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
@@ -921,7 +921,7 @@ export default function ProductsPageV10() {
                 <Search className="w-4 h-4 text-gray-500" />
                 <span className="text-xs text-gray-500 font-medium">Días Stock Promedio</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">{Math.round(stockAlerts.diasPromedio)}</p>
+              <p className="text-xl font-bold text-gray-900">{Math.round(stockHealthAlerts.diasPromedio)}</p>
               <p className="text-[10px] text-gray-400 mt-0.5">promedio ponderado</p>
             </div>
           </div>
