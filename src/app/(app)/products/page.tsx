@@ -1341,10 +1341,10 @@ export default function ProductsPageV10() {
       {activeTab === "overview" && bagsAnalytics && (
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-xl border border-amber-200">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-2xl">=ï¿½</span>
+            <span className="text-2xl">=</span>
             <h3 className="text-lg font-semibold text-amber-900">Bolsas de Compra</h3>
             <span className="ml-auto text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
-              ï¿½ltimos 30 dï¿½as
+              Últimos 30 días
             </span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -1362,9 +1362,9 @@ export default function ProductsPageV10() {
               <p className="text-[10px] text-gray-400 mt-0.5">Grande: {(bagsAnalytics?.currentStock?.grande ?? 0)?.toLocaleString("es-AR")} | Chica: {(bagsAnalytics?.currentStock?.chica ?? 0)?.toLocaleString("es-AR")}</p>
             </div>
             <div className="bg-white/80 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-1">Adopciï¿½n</p>
+              <p className="text-xs text-gray-500 mb-1">Adopción</p>
               <p className="text-xl font-bold text-amber-800">{(bagsAnalytics?.bagAdoptionPct ?? 0)}%</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{(bagsAnalytics?.ordersWithBags ?? 0)} de {(bagsAnalytics?.totalOrders ?? 0)} ï¿½rdenes</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{(bagsAnalytics?.ordersWithBags ?? 0)} de {(bagsAnalytics?.totalOrders ?? 0)} órdenes</p>
               <div className="w-full bg-amber-200 rounded-full h-1.5 mt-1.5">
                 <div className="bg-amber-600 h-1.5 rounded-full transition-all" style={{ width: Math.min((bagsAnalytics?.bagAdoptionPct ?? 0), 100) + "%" }} />
               </div>
@@ -1374,7 +1374,7 @@ export default function ProductsPageV10() {
             <div className="flex gap-2 flex-wrap">
               {(bagsAnalytics?.breakdown ?? []).map((bag: any, i: number) => (
                 <span key={i} className="text-xs bg-white/60 text-amber-800 px-2 py-1 rounded border border-amber-200">
-                  {bag.name.length > 40 ? bag.name.substring(0, 40) + "..." : bag.name}: {bag.unitsSold}u ï¿½ stock {bag.stock ?? "N/A"}
+                  {bag.name.length > 40 ? bag.name.substring(0, 40) + "..." : bag.name}: {bag.unitsSold}u · stock {bag.stock ?? "N/A"}
                 </span>
               ))}
             </div>
