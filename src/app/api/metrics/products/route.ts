@@ -415,15 +415,15 @@ export async function GET(): Promise<NextResponse<APIResponse>> {
     };
 
     // === BAGS ANALYTICS ===
-    const totalBagsSold = bags.reduce((sum: number, b: ProductMetrics) => sum + b.unitsSold, 0);
-    const bagsRevenue = bags.reduce((sum: number, b: ProductMetrics) => sum + b.revenue, 0);
+    const totalBagsSold = bags.reduce((sum: number, b: ProductMetrics) => sum + Number(b.unitsSold), 0);
+    const bagsRevenue = bags.reduce((sum: number, b: ProductMetrics) => sum + Number(b.revenue), 0);
     const grandeStock = bags
       .filter((b: ProductMetrics) => b.name.toLowerCase().includes("grande") || b.name.toLowerCase().includes("large"))
       .reduce((sum: number, b: ProductMetrics) => sum + (b.stock || 0), 0);
     const chicaStock = bags
       .filter((b: ProductMetrics) => !b.name.toLowerCase().includes("grande") && !b.name.toLowerCase().includes("large"))
       .reduce((sum: number, b: ProductMetrics) => sum + (b.stock || 0), 0);
-    const ordersWithBagsCount = bags.reduce((sum: number, b: ProductMetrics) => sum + b.orders, 0);
+    const ordersWithBagsCount = bags.reduce((sum: number, b: ProductMetrics) => sum + Number(b.orders), 0);
     const totalOrdersCount = summary.totalOrders30d;
     const bagAdoptionPct = totalOrdersCount > 0
       ? Math.round((ordersWithBagsCount / totalOrdersCount) * 10000) / 100
@@ -435,7 +435,7 @@ export async function GET(): Promise<NextResponse<APIResponse>> {
       ordersWithBags: ordersWithBagsCount,
       totalOrders: totalOrdersCount,
       bagAdoptionPct,
-      breakdown: bags.map((b: ProductMetrics) => ({ name: b.name, unitsSold: b.unitsSold, revenue: b.revenue, stock: b.stock })),
+      breakdown: bags.map((b: ProductMetrics) => ({ name: b.name, unitsSold: Number(b.unitsSold), revenue: Number(b.revenue), stock: b.stock })),
     };
 
     // Extract brands and categories
