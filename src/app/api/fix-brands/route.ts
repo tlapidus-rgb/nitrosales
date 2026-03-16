@@ -26,7 +26,7 @@ async function sleep(ms: number) {
  * Strategy:
  *   1. Try as Product ID: GET /api/catalog/pvt/product/{id}
  *   2. If 404, try as SKU ID: GET /api/catalog/pvt/stockkeepingunit/{id}
- *      ÃÂ¢ÃÂÃÂ extract ProductId ÃÂ¢ÃÂÃÂ then GET /api/catalog/pvt/product/{ProductId}
+ *      ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ extract ProductId ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ then GET /api/catalog/pvt/product/{ProductId}
  */
 async function getVtexBrand(
   externalId: string
@@ -170,29 +170,52 @@ export async function GET(request: NextRequest) {
     // Attempt 1: Product ID
     try {
       const r1 = await fetch(`${baseUrl}/api/catalog/pvt/product/${testId}`, { headers: vtexHeaders() });
-      const body1 = r1.ok ? await r1.json() : await r1.text();
-      results.attempts.push({ endpoint: "catalog/pvt/product", status: r1.status, ok: r1.ok, brandName: r1.ok ? body1.BrandName : null, body: r1.ok ? undefined : String(body1).slice(0, 200) });
+      if (r1.ok) {
+        const body1 = await r1.json();
+        const keys = Object.keys(body1);
+        const brandKeys = keys.filter(k => k.toLowerCase().includes('brand'));
+        results.attempts.push({ 
+          endpoint: "catalog/pvt/product", 
+          status: r1.status, 
+          keys: keys.slice(0, 20),
+          brandKeys,
+          BrandName: body1.BrandName,
+          BrandId: body1.BrandId,
+          Name: body1.Name,
+          Id: body1.Id
+        });
+      } else {
+        results.attempts.push({ endpoint: "catalog/pvt/product", status: r1.status });
+      }
     } catch(e: any) { results.attempts.push({ endpoint: "catalog/pvt/product", error: e.message }); }
-    
-    // Attempt 2: SKU
-    try {
-      const r2 = await fetch(`${baseUrl}/api/catalog/pvt/stockkeepingunit/${testId}`, { headers: vtexHeaders() });
-      const body2 = r2.ok ? await r2.json() : await r2.text();
-      results.attempts.push({ endpoint: "catalog/pvt/stockkeepingunit", status: r2.status, ok: r2.ok, productId: r2.ok ? body2.ProductId : null, body: r2.ok ? undefined : String(body2).slice(0, 200) });
-    } catch(e: any) { results.attempts.push({ endpoint: "catalog/pvt/stockkeepingunit", error: e.message }); }
     
     // Attempt 3: Legacy
     try {
       const r3 = await fetch(`${baseUrl}/api/catalog_system/pvt/products/productget/${testId}`, { headers: vtexHeaders() });
-      const body3 = r3.ok ? await r3.json() : await r3.text();
-      results.attempts.push({ endpoint: "catalog_system/pvt/products/productget", status: r3.status, ok: r3.ok, brandName: r3.ok ? body3.BrandName : null, body: r3.ok ? undefined : String(body3).slice(0, 200) });
+      if (r3.ok) {
+        const body3 = await r3.json();
+        const keys3 = Object.keys(body3);
+        const brandKeys3 = keys3.filter(k => k.toLowerCase().includes('brand'));
+        results.attempts.push({ 
+          endpoint: "catalog_system/pvt/products/productget", 
+          status: r3.status, 
+          keys: keys3.slice(0, 20),
+          brandKeys: brandKeys3,
+          BrandName: body3.BrandName,
+          BrandId: body3.BrandId,
+          Name: body3.Name,
+          Id: body3.Id
+        });
+      } else {
+        results.attempts.push({ endpoint: "catalog_system/pvt/products/productget", status: r3.status });
+      }
     } catch(e: any) { results.attempts.push({ endpoint: "catalog_system/pvt/products/productget", error: e.message }); }
     
     results.credentialPrefix = VTEX_APP_KEY.substring(0, 15);
     return NextResponse.json(results);
   }
 
-// --- ACTION: test ---
+  // --- ACTION: test ---
   // Test VTEX API with a single externalId
   if (action === "test") {
     const testId = searchParams.get("id") || "28649";
