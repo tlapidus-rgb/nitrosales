@@ -193,19 +193,21 @@ async function phaseCatalog(batch: number) {
     }
   }
 
-  const done = productIds.length < CATALOG_BATCH_SIZE;
+  const processedSoFar = from + productIds.length;
+  const done = processedSoFar >= totalRange || productIds.length === 0;
 
   return {
     phase: "catalog",
     batch,
     processed,
+    processedSoFar,
     totalProducts: totalRange,
     nextBatch: done ? null : batch + 1,
     done,
     errors: errors.length > 0 ? errors : undefined,
     message: done
-      ? `Catálogo completo. ${processed} productos procesados en este batch.`
-      : `Batch ${batch}: ${processed} productos. Continuar con batch=${batch + 1}`,
+      ? `Catálogo completo. ${processedSoFar} productos totales procesados.`
+      : `Batch ${batch}: ${processed} productos (${processedSoFar}/${totalRange}). Continuar con batch=${batch + 1}`,
   };
 }
 
