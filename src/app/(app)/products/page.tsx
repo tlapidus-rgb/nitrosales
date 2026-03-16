@@ -632,6 +632,14 @@ export default function ProductsPageV10() {
 
   // KPI Stats computed from filtered products
   const kpiStats = useMemo(() => {
+    if (!filtered || filtered.length === 0) return {
+      totalRevenue: 0,
+      totalUnits: 0,
+      ticketPromedio: 0,
+      productosActivos: 0,
+      totalStock: 0,
+      valorStock: 0,
+    };
     const totalRevenue = filtered.reduce((s, p) => s + p.revenue, 0);
     const totalUnits = filtered.reduce((s, p) => s + p.unitsSold, 0);
     const ticketPromedio = totalUnits > 0 ? totalRevenue / totalUnits : 0;
