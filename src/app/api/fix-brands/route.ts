@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 const VTEX_ACCOUNT = "mundojuguete";
-const VTEX_API_KEY = process.env.VTEX_API_KEY!;
-const VTEX_API_TOKEN = process.env.VTEX_API_TOKEN!;
+const VTEX_APP_KEY = process.env.VTEX_APP_KEY!;
+const VTEX_APP_TOKEN = process.env.VTEX_APP_TOKEN!;
 const BACKFILL_KEY = "nitrosales-backfill-2024";
 const BATCH_SIZE = 50;
 const DELAY_MS = 200; // Rate limit: ~5 req/s to VTEX
@@ -12,8 +12,8 @@ function vtexHeaders() {
   return {
     "Content-Type": "application/json",
     Accept: "application/json",
-    "X-VTEX-API-AppKey": VTEX_API_KEY,
-    "X-VTEX-API-AppToken": VTEX_API_TOKEN,
+    "X-VTEX-API-AppKey": VTEX_APP_KEY,
+    "X-VTEX-API-AppToken": VTEX_APP_TOKEN,
   };
 }
 
@@ -26,7 +26,7 @@ async function sleep(ms: number) {
  * Strategy:
  *   1. Try as Product ID: GET /api/catalog/pvt/product/{id}
  *   2. If 404, try as SKU ID: GET /api/catalog/pvt/stockkeepingunit/{id}
- *      → extract ProductId → then GET /api/catalog/pvt/product/{ProductId}
+ *      â extract ProductId â then GET /api/catalog/pvt/product/{ProductId}
  */
 async function getVtexBrand(
   externalId: string
