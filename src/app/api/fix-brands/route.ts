@@ -26,7 +26,7 @@ async function sleep(ms: number) {
  * Strategy:
  *   1. Try as Product ID: GET /api/catalog/pvt/product/{id}
  *   2. If 404, try as SKU ID: GET /api/catalog/pvt/stockkeepingunit/{id}
- *      â extract ProductId â then GET /api/catalog/pvt/product/{ProductId}
+ *      Ã¢ÂÂ extract ProductId Ã¢ÂÂ then GET /api/catalog/pvt/product/{ProductId}
  */
 async function getVtexBrand(
   externalId: string
@@ -147,7 +147,20 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // --- ACTION: test ---
+  
+  // --- ACTION: debug ---
+  if (action === "debug") {
+    return NextResponse.json({
+      hasAppKey: !!process.env.VTEX_APP_KEY,
+      hasAppToken: !!process.env.VTEX_APP_TOKEN,
+      hasAccount: !!process.env.VTEX_ACCOUNT,
+      appKeyPrefix: process.env.VTEX_APP_KEY?.substring(0, 10) || "NOT SET",
+      account: VTEX_ACCOUNT,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+// --- ACTION: test ---
   // Test VTEX API with a single externalId
   if (action === "test") {
     const testId = searchParams.get("id") || "28649";
