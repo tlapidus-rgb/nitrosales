@@ -2,9 +2,23 @@
 // Webhook: VTEX Order Notifications (Real-time)
 // ══════════════════════════════════════════════════════════════
 // Endpoint: POST /api/webhooks/vtex/orders
+//
 // VTEX Order Hook envía una notificación cada vez que una orden
 // cambia de estado. Este endpoint recibe la notificación y
 // procesa la orden completa (items, productos, cliente) al instante.
+//
+// Payload de VTEX:
+// {
+//   "Domain": "Fulfillment",
+//   "OrderId": "v12345678abc-01",
+//   "State": "payment-approved",
+//   "LastState": "order-created",
+//   "LastChange": "2024-01-15T10:30:00.000Z",
+//   "CurrentChange": "2024-01-15T10:35:00.000Z",
+//   "Origin": { "Account": "mundojuguete", "Key": "vtex" }
+// }
+//
+// Este webhook reemplaza la necesidad de correr vtex-details vía cron.
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -37,7 +51,7 @@ function mapStatus(vtexStatus: string): string {
     replaced: "CANCELLED",
     "cancellation-requested": "CANCELLED",
   };
-  const lower = vtexStatus.toLowerCase().replace("-", "");
+  const lower = vtexStatus.toLowerCase().replace(/\s+/g, "-");
   return statusMap[lower] || "PENDING";
 }
 
@@ -45,50 +59,19 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // ── VTEX Validation/Ping handler ──
-    // When VTEX configures a hook, it sends a validation POST.
-    // We must return 200 immediately to pass the check.
-    let body: any;
-    try {
-      const text = await req.text();
-      if (!text || text.trim() === "" || text.trim() === "{}") {
-        // Empty body = validation ping from VTEX
-        return NextResponse.json({
-          ok: true,
-          webhook: "vtex-orders",
-          message: "Validation OK",
-          timestamp: new Date().toISOString(),
-        });
-      }
-      body = JSON.parse(text);
-    } catch (parseError) {
-      // If body can't be parsed, it's likely a validation ping
-      return NextResponse.json({
-        ok: true,
-        webhook: "vtex-orders",
-        message: "Validation OK - parse fallback",
-        timestamp: new Date().toISOString(),
-      });
+    // ── Validate key ──
+    const key = req.nextUrl.searchParams.get("key") || "";
+    if (key !== process.env.NEXTAUTH_SECRET) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // If no OrderId, this is a test/validation request
+    // ── Parse VTEX payload ──
+    const body = await req.json();
     const orderId = body.OrderId;
     const state = body.State;
-    if (!orderId) {
-      return NextResponse.json({
-        ok: true,
-        webhook: "vtex-orders",
-        message: "Validation OK - no OrderId",
-        timestamp: new Date().toISOString(),
-      });
-    }
 
-    // ── Validate key ──
-    const key = req.nextUrl.searchParams.get("key");
-    if (key !== process.env.NEXTAUTH_SECRET) {
-      // Log but still return 200 to not confuse VTEX
-      console.warn(`[Webhook:Orders] Invalid key for order ${orderId}`);
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!orderId) {
+      return NextResponse.json({ error: "Missing OrderId" }, { status: 400 });
     }
 
     console.log(`[Webhook:Orders] Received: ${orderId} → ${state}`);
@@ -119,6 +102,7 @@ export async function POST(req: NextRequest) {
 
     if (!orderRes.ok) {
       console.error(`[Webhook:Orders] Failed to fetch order ${orderId}: ${orderRes.status}`);
+      // Return 200 to VTEX so it doesn't retry endlessly
       return NextResponse.json({
         ok: false,
         error: `Failed to fetch order: ${orderRes.status}`,
@@ -130,13 +114,16 @@ export async function POST(req: NextRequest) {
 
     // ── Upsert Order ──
     const nsStatus = mapStatus(vtexOrder.status || state);
-    const totalValue = (vtexOrder.value || 0) / 100;
+    const totalValue = (vtexOrder.value || 0) / 100; // VTEX uses cents
     const items = vtexOrder.items || [];
-    const shippingCost = (vtexOrder.totals?.find((t: any) => t.id === "Shipping")?.value || 0);
-    const discountValue = Math.abs(vtexOrder.totals?.find((t: any) => t.id === "Discounts")?.value || 0);
+    const shippingCost = vtexOrder.totals?.find((t: any) => t.id === "Shipping")?.value || 0;
+    const discountValue = Math.abs(
+      vtexOrder.totals?.find((t: any) => t.id === "Discounts")?.value || 0
+    );
 
+    // Determine payment method
     const payments = vtexOrder.paymentData?.transactions?.[0]?.payments || [];
-    const paymentMethod = payments.length
+    const paymentMethod = payments.length > 0
       ? payments.map((p: any) => p.paymentSystemName || p.group).join(", ")
       : null;
 
@@ -203,8 +190,8 @@ export async function POST(req: NextRequest) {
           city: vtexOrder.shippingData?.address?.city || null,
           state: vtexOrder.shippingData?.address?.state || null,
           lastOrderAt: new Date(vtexOrder.creationDate),
-          totalOrders: { increment: 1 },
-          totalSpent: { increment: totalValue },
+          totalOrders: { increment: 0 }, // Will be recalculated
+          totalSpent: { increment: 0 },
         },
       });
       customerId = customer.id;
@@ -224,8 +211,10 @@ export async function POST(req: NextRequest) {
     await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
 
     for (const item of items) {
+      // Use SKU ID (item.id) as externalId to align with inventory sync
       const productExtId = String(item.id || item.productId);
 
+      // Upsert product
       const product = await prisma.product.upsert({
         where: {
           organizationId_externalId: {
@@ -239,26 +228,29 @@ export async function POST(req: NextRequest) {
           name: item.name || `SKU ${productExtId}`,
           sku: item.refId || item.sellerSku || productExtId,
           brand: item.additionalInfo?.brandName || null,
-          category: item.additionalInfo?.categoriesIds || null,
-          price: (item.sellingPrice || item.price) / 100,
+          category: item.additionalInfo?.categoriesIds
+            ? null // Could extract but not critical
+            : null,
+          price: (item.sellingPrice || item.price || 0) / 100,
           imageUrl: item.imageUrl || null,
           isActive: true,
         },
         update: {
           name: item.name || undefined,
-          price: (item.sellingPrice || item.price) / 100,
+          price: (item.sellingPrice || item.price || 0) / 100,
           imageUrl: item.imageUrl || undefined,
         },
       });
       productsCreated++;
 
+      // Create order item
       await prisma.orderItem.create({
         data: {
           orderId: order.id,
           productId: product.id,
-          quantity: item.quantity,
-          unitPrice: (item.sellingPrice || item.price) / 100,
-          totalPrice: ((item.sellingPrice || item.price) * item.quantity) / 100,
+          quantity: item.quantity || 1,
+          unitPrice: (item.sellingPrice || item.price || 0) / 100,
+          totalPrice: ((item.sellingPrice || item.price || 0) * (item.quantity || 1)) / 100,
         },
       });
       itemsCreated++;
@@ -275,18 +267,25 @@ export async function POST(req: NextRequest) {
       status: nsStatus,
       itemsCreated,
       productsCreated,
-      customer: customerId ? "linked" : "none",
+      customerId: customerId ? "linked" : "none",
       elapsedMs: elapsed,
     });
   } catch (error: any) {
     console.error("[Webhook:Orders] Error:", error);
-    return NextResponse.json({ ok: false, error: error.message });
+    // Return 200 to prevent VTEX from retrying on our app errors
+    return NextResponse.json({
+      ok: false,
+      error: error.message,
+    });
   }
 }
 
 // GET endpoint for testing connectivity
 export async function GET(req: NextRequest) {
-  // Allow GET without key for VTEX validation
+  const key = req.nextUrl.searchParams.get("key") || "";
+  if (key !== process.env.NEXTAUTH_SECRET) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   return NextResponse.json({
     ok: true,
     webhook: "vtex-orders",

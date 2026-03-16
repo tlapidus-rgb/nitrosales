@@ -1,121 +1,186 @@
-// ══════════════════════════════════════════════════════════════
-// Products API v3: Trend Data + Stock Intelligence
-// ══════════════════════════════════════════════════════════════
-// Extends v2 with:
-// - Weekly sales by product (60 days) for sparklines + WoW
-// - Stock health predictions (days of stock, stockout date)
-// - ABC classification
-// - Dead stock detection
-// - Category/brand weekly trends for area charts
-// ══════════════════════════════════════════════════════════════
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
-export const revalidate = 300; // CDN cache 5 min
+export const revalidate = 300;
 const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-export async function GET() {
+type ProductMetrics = {
+  id: string;
+  name: string;
+  sku: string;
+  imageUrl: string | null;
+  category: string | null;
+  brand: string | null;
+  stock: number | null;
+  unitsSold: number;
+  revenue: number;
+  orders: number;
+  avgPrice: number;
+  trendData: {
+    weeklyTrend: Array<{ weekStart: string; units: number; revenue: number }>;
+    wowUnitsPct: number;
+    wowRevenuePct: number;
+    trendSlope: number;
+    abcClass: "A" | "B" | "C";
+  };
+  stockData: {
+    dailySalesRate: number;
+    daysOfStock: number | null;
+    stockoutDate: string | null;
+    stockHealth: "critical" | "low" | "optimal" | "excessive" | null;
+    isDead: boolean;
+    lastSaleDate: string | null;
+  };
+};
+
+type StockSummary = {
+  criticalCount: number;
+  lowCount: number;
+  optimalCount: number;
+  excessiveCount: number;
+  deadCount: number;
+  totalStockUnits: number;
+  totalStockValue: number;
+  productsAtRisk: number;
+};
+
+type TrendSummary = {
+  growingCount: number;
+  decliningCount: number;
+  stableCount: number;
+};
+
+type APIResponse = {
+  products: ProductMetrics[];
+  brands: Array<{ name: string; count: number }>;
+  categories: Array<{ name: string; count: number }>;
+  stockSyncedAt: string;
+  totalActiveProducts: number;
+  summary: {
+    totalOrders30d: number;
+    totalItems30d: number;
+    totalRevenue30d: number;
+  };
+  stockSummary: StockSummary;
+  trendSummary: TrendSummary;
+};
+
+export async function GET(): Promise<NextResponse<APIResponse>> {
   try {
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * MS_PER_DAY);
-    const sixtyDaysAgo = new Date(now.getTime() - 60 * MS_PER_DAY);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
-    /* ── Run ALL 6 queries in PARALLEL ────────────────────────── */
+    // Execute all 6 queries in parallel
     const [
       orderTotals,
       ordersWithItems,
-      productStats,
-      stockMeta,
-      weeklyTrendRaw,
-      lastSaleDatesRaw,
+      productAggregation,
+      stockSyncMetadata,
+      weeklySalesByProduct,
+      lastSaleDateByProduct,
     ] = await Promise.all([
-      /* 1) Aggregate order totals — 30 days */
+      // Query 1: Order totals (30 days)
       prisma.$queryRaw<
-        [{ total_orders: bigint; total_units: bigint; total_revenue: number }]
+        Array<{
+          totalOrders: bigint;
+          totalItems: bigint;
+          totalRevenue: number;
+        }>
       >`
         SELECT
-          COUNT(*)::bigint                       AS total_orders,
-          SUM(COALESCE("itemCount", 1))::bigint  AS total_units,
-          SUM("totalValue")                      AS total_revenue
+          COUNT(DISTINCT id)::bigint AS "totalOrders",
+          SUM("itemCount")::bigint AS "totalItems",
+          SUM("totalValue")::numeric AS "totalRevenue"
         FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
           AND status NOT IN ('CANCELLED')
       `,
 
-      /* 2) Count orders that have detailed items */
-      prisma.order.count({
-        where: {
-          organizationId: ORG_ID,
-          orderDate: { gte: thirtyDaysAgo },
-          status: { notIn: ["CANCELLED"] },
-          items: { some: {} },
-        },
-      }),
-
-      /* 3) Product aggregation — 30 days (same as v2) */
+      // Query 2: Orders with items count
       prisma.$queryRaw<
-        {
-          id: string;
-          name: string;
-          sku: string | null;
+        Array<{
+          orderId: string;
+          itemCount: number;
+        }>
+      >`
+        SELECT
+          id AS "orderId",
+          "itemCount"
+        FROM orders
+        WHERE "organizationId" = ${ORG_ID}
+          AND "orderDate" >= ${thirtyDaysAgo}
+          AND status NOT IN ('CANCELLED')
+      `,
+
+      // Query 3: Product aggregation (30 days)
+      prisma.$queryRaw<
+        Array<{
+          productId: string;
+          productName: string;
+          sku: string;
           imageUrl: string | null;
           category: string | null;
           brand: string | null;
           stock: number | null;
-          unitsSold: bigint;
-          revenue: number;
-          orders: bigint;
-        }[]
-      >`
-        SELECT
-          oi."productId"                          AS id,
-          COALESCE(p.name, 'Sin nombre')          AS name,
-          p.sku,
-          p."imageUrl"                            AS "imageUrl",
-          p.category,
-          p.brand,
-          p.stock,
-          SUM(oi.quantity)::bigint                AS "unitsSold",
-          ROUND(SUM(oi."totalPrice")::numeric)    AS revenue,
-          COUNT(DISTINCT oi."orderId")::bigint    AS orders
-        FROM order_items oi
-        JOIN orders o ON oi."orderId" = o.id
-        LEFT JOIN products p ON oi."productId" = p.id
-        WHERE o."organizationId" = ${ORG_ID}
-          AND o."orderDate"    >= ${thirtyDaysAgo}
-          AND o.status NOT IN ('CANCELLED')
-        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand, p.stock
-        ORDER BY SUM(oi."totalPrice") DESC
-      `,
-
-      /* 4) Stock sync freshness */
-      prisma.$queryRaw<[{ max_stock_updated: Date | null; total_active: bigint }]>`
-        SELECT
-          MAX("stockUpdatedAt") AS max_stock_updated,
-          COUNT(*)::bigint AS total_active
-        FROM products
-        WHERE "organizationId" = ${ORG_ID} AND "isActive" = true
-      `,
-
-      /* 5) NEW: Weekly sales by product — 60 days */
-      prisma.$queryRaw<
-        {
-          productId: string;
-          week_start: Date;
           units: bigint;
           revenue: number;
           orders: bigint;
-        }[]
+        }>
       >`
         SELECT
-          oi."productId"                              AS "productId",
-          date_trunc('week', o."orderDate")::date     AS week_start,
-          SUM(oi.quantity)::bigint                     AS units,
-          ROUND(SUM(oi."totalPrice")::numeric)         AS revenue,
-          COUNT(DISTINCT oi."orderId")::bigint         AS orders
+          oi."productId" AS "productId",
+          p.name AS "productName",
+          p.sku,
+          p."imageUrl",
+          p.category,
+          p.brand,
+          p.stock,
+          SUM(oi.quantity)::bigint AS units,
+          ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
+          COUNT(DISTINCT oi."orderId")::bigint AS orders
+        FROM order_items oi
+        JOIN orders o ON oi."orderId" = o.id
+        JOIN products p ON oi."productId" = p.id
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${thirtyDaysAgo}
+          AND o.status NOT IN ('CANCELLED')
+        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand, p.stock
+      `,
+
+      // Query 4: Stock sync metadata
+      prisma.$queryRaw<
+        Array<{
+          stockUpdatedAt: Date;
+          activeProducts: bigint;
+        }>
+      >`
+        SELECT
+          MAX("stockUpdatedAt") AS "stockUpdatedAt",
+          COUNT(*)::bigint AS "activeProducts"
+        FROM products
+        WHERE "organizationId" = ${ORG_ID}
+          AND stock IS NOT NULL
+          AND stock >= 0
+      `,
+
+      // Query 5: Weekly sales by product (last 60 days)
+      prisma.$queryRaw<
+        Array<{
+          productId: string;
+          weekStart: Date;
+          units: bigint;
+          revenue: number;
+          orders: bigint;
+        }>
+      >`
+        SELECT
+          oi."productId" AS "productId",
+          date_trunc('week', o."orderDate")::date AS "weekStart",
+          SUM(oi.quantity)::bigint AS units,
+          ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
+          COUNT(DISTINCT oi."orderId")::bigint AS orders
         FROM order_items oi
         JOIN orders o ON oi."orderId" = o.id
         WHERE o."organizationId" = ${ORG_ID}
@@ -125,13 +190,16 @@ export async function GET() {
         ORDER BY date_trunc('week', o."orderDate")
       `,
 
-      /* 6) NEW: Last sale date per product */
+      // Query 6: Last sale date per product
       prisma.$queryRaw<
-        { productId: string; lastSaleDate: Date }[]
+        Array<{
+          productId: string;
+          lastSaleDate: Date;
+        }>
       >`
         SELECT
-          oi."productId"        AS "productId",
-          MAX(o."orderDate")    AS "lastSaleDate"
+          oi."productId" AS "productId",
+          MAX(o."orderDate") AS "lastSaleDate"
         FROM order_items oi
         JOIN orders o ON oi."orderId" = o.id
         WHERE o."organizationId" = ${ORG_ID}
@@ -140,319 +208,226 @@ export async function GET() {
       `,
     ]);
 
-    /* ── Unpack order totals (v2 compatible) ───────────────────── */
-    const row = orderTotals[0];
-    const totalOrders = Number(row.total_orders);
-    const estimatedTotalUnits = Number(row.total_units) || totalOrders;
-    const estimatedTotalRevenue = Math.round(Number(row.total_revenue) || 0);
-    const processedPct =
-      totalOrders > 0
-        ? Math.round((ordersWithItems / totalOrders) * 100)
-        : 0;
+    // Extract summary data
+    const summary = {
+      totalOrders30d: Number(orderTotals[0]?.totalOrders || 0),
+      totalItems30d: Number(orderTotals[0]?.totalItems || 0),
+      totalRevenue30d: orderTotals[0]?.totalRevenue || 0,
+    };
 
-    /* ── Stock sync freshness ──────────────────────────────────── */
-    const stockRow = stockMeta[0];
-    const stockSyncedAt = stockRow?.max_stock_updated
-      ? new Date(stockRow.max_stock_updated).toISOString()
-      : null;
-    const totalActiveProducts = Number(stockRow?.total_active || 0);
+    const stockSyncedAt = stockSyncMetadata[0]?.stockUpdatedAt?.toISOString() || new Date().toISOString();
+    const totalActiveProducts = Number(stockSyncMetadata[0]?.activeProducts || 0);
 
-    /* ── Build weekly trend lookup ─────────────────────────────── */
-    const trendMap = new Map<
-      string,
-      { weekStart: string; units: number; revenue: number; orders: number }[]
-    >();
-    for (const r of weeklyTrendRaw) {
-      const pid = r.productId;
-      if (!trendMap.has(pid)) trendMap.set(pid, []);
-      trendMap.get(pid)!.push({
-        weekStart: new Date(r.week_start).toISOString().slice(0, 10),
-        units: Number(r.units),
-        revenue: Number(r.revenue),
-        orders: Number(r.orders),
+    // Build lookup maps for fast access
+    const weeklyTrendMap = new Map<string, Array<{ weekStart: Date; units: bigint; revenue: number }>>();
+    weeklySalesByProduct.forEach((row) => {
+      const key = row.productId;
+      if (!weeklyTrendMap.has(key)) {
+        weeklyTrendMap.set(key, []);
+      }
+      weeklyTrendMap.get(key)!.push({
+        weekStart: row.weekStart,
+        units: row.units,
+        revenue: row.revenue,
       });
+    });
+
+    const lastSaleDateMap = new Map<string, Date>();
+    lastSaleDateByProduct.forEach((row) => {
+      lastSaleDateMap.set(row.productId, row.lastSaleDate);
+    });
+
+    // Helper function: linear regression for trend slope
+    function calculateTrendSlope(
+      weeklyData: Array<{ weekStart: Date; units: bigint; revenue: number }>
+    ): number {
+      if (weeklyData.length < 2) return 0;
+
+      // Use revenue for trend calculation
+      const revenues = weeklyData.map((w) => Number(w.revenue));
+      if (revenues.length < 2) return 0;
+
+      const lastFourWeeks = revenues.slice(-4);
+      if (lastFourWeeks.length === 0) return 0;
+
+      const first2WeeksAvg = lastFourWeeks.slice(0, Math.ceil(lastFourWeeks.length / 2)).reduce((a, b) => a + b, 0) / Math.ceil(lastFourWeeks.length / 2);
+      const last2WeeksAvg = lastFourWeeks.slice(Math.ceil(lastFourWeeks.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(lastFourWeeks.length / 2);
+
+      if (first2WeeksAvg === 0) return 0;
+
+      return ((last2WeeksAvg - first2WeeksAvg) / first2WeeksAvg) * 100;
     }
 
-    /* ── Build last sale lookup ─────────────────────────────────── */
-    const lastSaleMap = new Map<string, Date>();
-    for (const r of lastSaleDatesRaw) {
-      lastSaleMap.set(r.productId, new Date(r.lastSaleDate));
+    // Helper function: calculate WoW percentages
+    function calculateWoWPct(
+      weeklyData: Array<{ weekStart: Date; units: bigint; revenue: number }>,
+      field: "units" | "revenue"
+    ): number {
+      if (weeklyData.length < 2) return 0;
+
+      const sortedWeeks = [...weeklyData].sort((a, b) => new Date(a.weekStart).getTime() - new Date(b.weekStart).getTime());
+      const currentWeek = sortedWeeks[sortedWeeks.length - 1];
+      const prevWeek = sortedWeeks[sortedWeeks.length - 2];
+
+      if (!currentWeek || !prevWeek) return 0;
+
+      const currentVal = field === "units" ? Number(currentWeek.units) : currentWeek.revenue;
+      const prevVal = field === "units" ? Number(prevWeek.units) : prevWeek.revenue;
+
+      if (prevVal === 0) return 0;
+
+      return ((currentVal - prevVal) / prevVal) * 100;
     }
 
-    /* ── Collect all unique weeks for chart x-axis ─────────────── */
-    const allWeeks = [
-      ...new Set(
-        weeklyTrendRaw.map((r) =>
-          new Date(r.week_start).toISOString().slice(0, 10)
-        )
-      ),
-    ].sort();
+    // Map products with trend and stock data
+    let products: ProductMetrics[] = productAggregation.map((prod) => {
+      const weeklyData = weeklyTrendMap.get(prod.productId) || [];
+      const unitsSold = Number(prod.units);
+      const dailySalesRate = unitsSold / 30;
+      const lastSaleDate = lastSaleDateMap.get(prod.productId);
 
-    /* ── Get week boundaries for WoW calc ──────────────────────── */
-    const dayOfWeek = now.getDay(); // 0=Sun
-    const currentWeekStart = new Date(now.getTime() - dayOfWeek * MS_PER_DAY);
-    currentWeekStart.setHours(0, 0, 0, 0);
-    const prevWeekStart = new Date(currentWeekStart.getTime() - 7 * MS_PER_DAY);
-    const currentWeekStr = currentWeekStart.toISOString().slice(0, 10);
-    const prevWeekStr = prevWeekStart.toISOString().slice(0, 10);
-
-    /* ── Map products with trend + stock intelligence ──────────── */
-    let cumulativeRevenue = 0;
-    const totalRevenue30d = productStats.reduce(
-      (s, p) => s + Number(p.revenue),
-      0
-    );
-
-    const products = productStats.map((p) => {
-      const units = Number(p.unitsSold);
-      const rev = Number(p.revenue);
-      const stock = p.stock != null ? Number(p.stock) : null;
-
-      // ABC classification (products come sorted by revenue DESC)
-      cumulativeRevenue += rev;
-      const cumPct = totalRevenue30d > 0 ? (cumulativeRevenue / totalRevenue30d) * 100 : 0;
-      let abcClass: "A" | "B" | "C" = "C";
-      if (cumPct <= 80) abcClass = "A";
-      else if (cumPct <= 95) abcClass = "B";
-
-      // Daily sales rate
-      const dailySalesRate = units / 30;
-
-      // Days of stock
-      const daysOfStock =
-        stock != null && dailySalesRate > 0
-          ? Math.round(stock / dailySalesRate)
-          : null;
-
-      // Stockout date
-      const stockoutDate =
-        daysOfStock != null
-          ? new Date(now.getTime() + daysOfStock * MS_PER_DAY)
-              .toISOString()
-              .slice(0, 10)
-          : null;
-
-      // Stock health
-      let stockHealth: "critical" | "low" | "optimal" | "excessive" | "no_data" =
-        "no_data";
-      if (daysOfStock != null) {
-        if (daysOfStock < 7) stockHealth = "critical";
-        else if (daysOfStock < 14) stockHealth = "low";
-        else if (daysOfStock <= 90) stockHealth = "optimal";
-        else stockHealth = "excessive";
+      // Calculate daysOfStock
+      let daysOfStock: number | null = null;
+      if (prod.stock !== null && dailySalesRate > 0) {
+        daysOfStock = prod.stock / dailySalesRate;
       }
 
-      // Dead stock
-      const lastSale = lastSaleMap.get(p.id);
-      const daysSinceLastSale = lastSale
-        ? Math.round((now.getTime() - lastSale.getTime()) / MS_PER_DAY)
-        : null;
-      const isDead =
-        stock != null &&
-        stock > 0 &&
-        (daysSinceLastSale === null || daysSinceLastSale > 30);
+      // Calculate stockoutDate
+      let stockoutDate: string | null = null;
+      if (daysOfStock !== null) {
+        const stockoutDateObj = new Date(now.getTime() + daysOfStock * 24 * 60 * 60 * 1000);
+        stockoutDate = stockoutDateObj.toISOString();
+      }
 
-      // Weekly trend data
-      const weeklyData = trendMap.get(p.id) || [];
+      // Determine stockHealth
+      let stockHealth: "critical" | "low" | "optimal" | "excessive" | null = null;
+      if (daysOfStock !== null) {
+        if (daysOfStock < 7) {
+          stockHealth = "critical";
+        } else if (daysOfStock < 14) {
+          stockHealth = "low";
+        } else if (daysOfStock <= 90) {
+          stockHealth = "optimal";
+        } else {
+          stockHealth = "excessive";
+        }
+      }
 
-      // WoW calc
-      const curW = weeklyData.find((w) => w.weekStart === currentWeekStr);
-      const prvW = weeklyData.find((w) => w.weekStart === prevWeekStr);
-      const curUnits = curW?.units || 0;
-      const prvUnits = prvW?.units || 0;
-      const curRev = curW?.revenue || 0;
-      const prvRev = prvW?.revenue || 0;
+      // Determine isDead
+      const isDead = prod.stock !== null && prod.stock > 0 && (unitsSold === 0 || (lastSaleDate && now.getTime() - lastSaleDate.getTime() > 30 * 24 * 60 * 60 * 1000));
 
-      const wowUnitsPct =
-        prvUnits > 0
-          ? Math.round(((curUnits - prvUnits) / prvUnits) * 100)
-          : curUnits > 0
-          ? 100
-          : 0;
-
-      const wowRevenuePct =
-        prvRev > 0
-          ? Math.round(((curRev - prvRev) / prvRev) * 100)
-          : curRev > 0
-          ? 100
-          : 0;
+      // Build weeklyTrend for response
+      const weeklyTrend = weeklyData.map((w) => ({
+        weekStart: new Date(w.weekStart).toISOString().split("T")[0],
+        units: Number(w.units),
+        revenue: w.revenue,
+      }));
 
       return {
-        // ── v2 compatible fields ──
-        id: p.id || "unknown",
-        name: p.name,
-        sku: p.sku || null,
-        imageUrl: p.imageUrl || null,
-        category: p.category || null,
-        brand: p.brand || null,
-        stock,
-        unitsSold: units,
-        revenue: Math.round(rev),
-        orders: Number(p.orders),
-        avgPrice: units > 0 ? Math.round(rev / units) : 0,
-        // ── NEW: Trend data ──
+        id: prod.productId,
+        name: prod.productName,
+        sku: prod.sku,
+        imageUrl: prod.imageUrl,
+        category: prod.category,
+        brand: prod.brand,
+        stock: prod.stock,
+        unitsSold,
+        revenue: prod.revenue,
+        orders: Number(prod.orders),
+        avgPrice: unitsSold > 0 ? prod.revenue / unitsSold : 0,
         trendData: {
-          weeklyData,
-          wowUnitsPct,
-          wowRevenuePct,
-          currentWeekUnits: curUnits,
-          prevWeekUnits: prvUnits,
-          currentWeekRevenue: curRev,
-          prevWeekRevenue: prvRev,
+          weeklyTrend,
+          wowUnitsPct: calculateWoWPct(weeklyData, "units"),
+          wowRevenuePct: calculateWoWPct(weeklyData, "revenue"),
+          trendSlope: calculateTrendSlope(weeklyData),
+          abcClass: "C", // Will be assigned after ABC analysis
         },
-        // ── NEW: Stock intelligence ──
         stockData: {
           dailySalesRate: Math.round(dailySalesRate * 100) / 100,
           daysOfStock,
           stockoutDate,
           stockHealth,
           isDead,
-          daysSinceLastSale,
-          abcClass,
+          lastSaleDate: lastSaleDate ? lastSaleDate.toISOString() : null,
         },
       };
     });
 
-    /* ── v2 compatible aggregates ────────────────────────────── */
-    const detailedRevenue = products.reduce((s, p) => s + p.revenue, 0);
-    const detailedUnits = products.reduce((s, p) => s + p.unitsSold, 0);
-    const uniqueProducts = products.length;
+    // ABC Classification
+    const totalRevenue = products.reduce((sum, p) => sum + p.revenue, 0);
+    let cumulativeRevenue = 0;
+    const productsByRevenue = [...products].sort((a, b) => b.revenue - a.revenue);
 
-    const top20pctCount = Math.max(1, Math.ceil(products.length * 0.2));
-    const top20pctRevenue = products
-      .slice(0, top20pctCount)
-      .reduce((s, p) => s + p.revenue, 0);
-    const paretoConcentration =
-      detailedRevenue > 0
-        ? Math.round((top20pctRevenue / detailedRevenue) * 100)
-        : 0;
+    productsByRevenue.forEach((prod) => {
+      cumulativeRevenue += prod.revenue;
+      const percentage = totalRevenue > 0 ? (cumulativeRevenue / totalRevenue) * 100 : 0;
 
-    // Brands and categories as string arrays (v2 compatible)
-    const brands = [
-      ...new Set(products.map((p) => p.brand).filter(Boolean) as string[]),
-    ].sort();
-    const categories = [
-      ...new Set(products.map((p) => p.category).filter(Boolean) as string[]),
-    ].sort();
-
-    /* ── NEW: Stock health summary ─────────────────────────── */
-    const stockHealthSummary = {
-      critical: products.filter((p) => p.stockData.stockHealth === "critical").length,
-      low: products.filter((p) => p.stockData.stockHealth === "low").length,
-      optimal: products.filter((p) => p.stockData.stockHealth === "optimal").length,
-      excessive: products.filter((p) => p.stockData.stockHealth === "excessive").length,
-      noData: products.filter((p) => p.stockData.stockHealth === "no_data").length,
-      dead: products.filter((p) => p.stockData.isDead).length,
-    };
-
-    /* ── NEW: ABC summary ─────────────────────────────────── */
-    const abcSummary = {
-      A: products.filter((p) => p.stockData.abcClass === "A").length,
-      B: products.filter((p) => p.stockData.abcClass === "B").length,
-      C: products.filter((p) => p.stockData.abcClass === "C").length,
-    };
-
-    /* ── NEW: Inventory value ─────────────────────────────── */
-    const totalInventoryUnits = products.reduce((s, p) => s + (p.stock || 0), 0);
-    const totalInventoryValue = Math.round(
-      products.reduce((s, p) => s + (p.stock || 0) * p.avgPrice, 0)
-    );
-
-    /* ── NEW: Trend summary ──────────────────────────────── */
-    const trendSummary = {
-      growing: products.filter((p) => p.trendData.wowRevenuePct > 5).length,
-      declining: products.filter((p) => p.trendData.wowRevenuePct < -5).length,
-      stable: products.filter(
-        (p) =>
-          p.trendData.wowRevenuePct >= -5 && p.trendData.wowRevenuePct <= 5
-      ).length,
-    };
-
-    /* ── NEW: Category weekly trend (top 8) for AreaChart ── */
-    const catWeekMap = new Map<string, Map<string, { units: number; revenue: number }>>();
-    for (const p of products) {
-      const cat = p.category || "Sin categoría";
-      if (!catWeekMap.has(cat)) catWeekMap.set(cat, new Map());
-      const m = catWeekMap.get(cat)!;
-      for (const w of p.trendData.weeklyData) {
-        const ex = m.get(w.weekStart) || { units: 0, revenue: 0 };
-        m.set(w.weekStart, {
-          units: ex.units + w.units,
-          revenue: ex.revenue + w.revenue,
-        });
+      if (percentage <= 80) {
+        prod.trendData.abcClass = "A";
+      } else if (percentage <= 95) {
+        prod.trendData.abcClass = "B";
+      } else {
+        prod.trendData.abcClass = "C";
       }
-    }
-    const categoryWeeklyTrend = [...catWeekMap.entries()]
-      .map(([category, wm]) => ({
-        category,
-        totalRevenue: [...wm.values()].reduce((s, w) => s + w.revenue, 0),
-        weeks: allWeeks.map((ws) => ({
-          weekStart: ws,
-          ...(wm.get(ws) || { units: 0, revenue: 0 }),
-        })),
-      }))
-      .sort((a, b) => b.totalRevenue - a.totalRevenue)
-      .slice(0, 8)
-      .map(({ category, weeks }) => ({ category, weeks }));
+    });
 
-    /* ── NEW: Brand weekly trend (top 8) for AreaChart ──── */
-    const brWeekMap = new Map<string, Map<string, { units: number; revenue: number }>>();
-    for (const p of products) {
-      const br = p.brand || "Sin marca";
-      if (!brWeekMap.has(br)) brWeekMap.set(br, new Map());
-      const m = brWeekMap.get(br)!;
-      for (const w of p.trendData.weeklyData) {
-        const ex = m.get(w.weekStart) || { units: 0, revenue: 0 };
-        m.set(w.weekStart, {
-          units: ex.units + w.units,
-          revenue: ex.revenue + w.revenue,
-        });
+    // Calculate stock summary
+    const stockSummary: StockSummary = {
+      criticalCount: products.filter((p) => p.stockData.stockHealth === "critical").length,
+      lowCount: products.filter((p) => p.stockData.stockHealth === "low").length,
+      optimalCount: products.filter((p) => p.stockData.stockHealth === "optimal").length,
+      excessiveCount: products.filter((p) => p.stockData.stockHealth === "excessive").length,
+      deadCount: products.filter((p) => p.stockData.isDead).length,
+      totalStockUnits: products.reduce((sum, p) => sum + (p.stock || 0), 0),
+      totalStockValue: products.reduce((sum, p) => sum + ((p.stock || 0) * p.avgPrice), 0),
+      productsAtRisk: products.filter((p) => p.stockData.stockHealth === "critical" || p.stockData.stockHealth === "low").length,
+    };
+
+    // Calculate trend summary
+    const trendSummary: TrendSummary = {
+      growingCount: products.filter((p) => p.trendData.wowRevenuePct > 5).length,
+      decliningCount: products.filter((p) => p.trendData.wowRevenuePct < -5).length,
+      stableCount: products.filter((p) => p.trendData.wowRevenuePct >= -5 && p.trendData.wowRevenuePct <= 5).length,
+    };
+
+    // Extract brands and categories
+    const brandMap = new Map<string, number>();
+    const categoryMap = new Map<string, number>();
+
+    products.forEach((prod) => {
+      if (prod.brand) {
+        brandMap.set(prod.brand, (brandMap.get(prod.brand) || 0) + 1);
       }
-    }
-    const brandWeeklyTrend = [...brWeekMap.entries()]
-      .map(([brand, wm]) => ({
-        brand,
-        totalRevenue: [...wm.values()].reduce((s, w) => s + w.revenue, 0),
-        weeks: allWeeks.map((ws) => ({
-          weekStart: ws,
-          ...(wm.get(ws) || { units: 0, revenue: 0 }),
-        })),
-      }))
-      .sort((a, b) => b.totalRevenue - a.totalRevenue)
-      .slice(0, 8)
-      .map(({ brand, weeks }) => ({ brand, weeks }));
+      if (prod.category) {
+        categoryMap.set(prod.category, (categoryMap.get(prod.category) || 0) + 1);
+      }
+    });
 
-    return NextResponse.json({
-      // ── v2 compatible fields ──
+    const brands = Array.from(brandMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const categories = Array.from(categoryMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const response: APIResponse = {
       products,
       brands,
       categories,
       stockSyncedAt,
       totalActiveProducts,
-      summary: {
-        estimatedTotalUnits,
-        estimatedTotalRevenue,
-        totalOrders,
-        detailedUnits,
-        detailedRevenue: Math.round(detailedRevenue),
-        uniqueProducts,
-        paretoConcentration,
-        ordersWithItems,
-        processedPct,
-        isComplete: processedPct >= 99,
-      },
-      // ── NEW: v3 additions ──
-      allWeeks,
-      categoryWeeklyTrend,
-      brandWeeklyTrend,
-      stockHealthSummary,
-      abcSummary,
+      summary,
+      stockSummary,
       trendSummary,
-      totalInventoryUnits,
-      totalInventoryValue,
-    });
-  } catch (error: any) {
-    console.error("[Products API v3] Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error("Error fetching product metrics:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch product metrics" },
+      { status: 500 }
+    );
   }
 }
