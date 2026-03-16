@@ -71,9 +71,15 @@ interface TrendSummary {
 }
 
 interface ApiResponse {
-  products: ProductItem[];
-  stockSummary: StockSummary;
-  trendSummary: TrendSummary;
+  products: any[];
+  stockSummary?: StockSummary;
+  stockHealthSummary?: any;
+  trendSummary?: any;
+  totalInventoryUnits?: number;
+  totalInventoryValue?: number;
+  brands?: string[];
+  categories?: string[];
+  [key: string]: any;
 }
 
 interface SortState {
@@ -216,6 +222,7 @@ export default function ProductsPageV10() {
         const data: ApiResponse = await response.json();
 
         // Defensive data parsing - convert all numerics
+        // Map API v3 fields to v10 page expected fields
         const parsedProducts = data.products.map(p => ({
           ...p,
           revenue: Number(p.revenue) || 0,
@@ -228,7 +235,9 @@ export default function ProductsPageV10() {
             wowUnitsPct: Number(p.trendData?.wowUnitsPct) || 0,
             wowRevenuePct: Number(p.trendData?.wowRevenuePct) || 0,
             trendSlope: Number(p.trendData?.trendSlope) || 0,
-            weeklyTrend: (p.trendData?.weeklyTrend || []).map(w => ({
+            abcClass: p.trendData?.abcClass || p.stockData?.abcClass || "C",
+            // Map weeklyData (API v3) → weeklyTrend (v10 page)
+            weeklyTrend: (p.trendData?.weeklyTrend || p.trendData?.weeklyData || []).map(w => ({
               ...w,
               units: Number(w.units) || 0,
               revenue: Number(w.revenue) || 0,
@@ -241,9 +250,37 @@ export default function ProductsPageV10() {
           }
         }));
 
-        setProducts(parsedProducts);
-        setStockSummary(data.stockSummary);
-        setTrendSummary(data.trendSummary);
+        // Filter out Gift Cards (virtual products with inflated stock)
+        const filteredProducts = parsedProducts.filter(
+          (p) => !p.name?.toLowerCase().includes("gift card")
+        );
+
+        setProducts(filteredProducts);
+
+        // Map stockHealthSummary (API v3) → stockSummary (v10 page)
+        const sh = data.stockHealthSummary || data.stockSummary;
+        if (sh) {
+          setStockSummary({
+            criticalCount: sh.criticalCount ?? sh.critical ?? 0,
+            lowCount: sh.lowCount ?? sh.low ?? 0,
+            optimalCount: sh.optimalCount ?? sh.optimal ?? 0,
+            excessiveCount: sh.excessiveCount ?? sh.excessive ?? 0,
+            deadCount: sh.deadCount ?? sh.dead ?? 0,
+            totalStockUnits: data.totalInventoryUnits ?? sh.totalStockUnits ?? 0,
+            totalStockValue: data.totalInventoryValue ?? sh.totalStockValue ?? 0,
+            productsAtRisk: (sh.criticalCount ?? sh.critical ?? 0) + (sh.lowCount ?? sh.low ?? 0),
+          });
+        }
+
+        // Map trendSummary fields (API v3 uses growing/declining/stable, v10 uses *Count suffix)
+        const ts = data.trendSummary;
+        if (ts) {
+          setTrendSummary({
+            growingCount: ts.growingCount ?? ts.growing ?? 0,
+            decliningCount: ts.decliningCount ?? ts.declining ?? 0,
+            stableCount: ts.stableCount ?? ts.stable ?? 0,
+          });
+        }
       } catch (error) {
         console.error("Error fetching products:", error);
       } finally {
