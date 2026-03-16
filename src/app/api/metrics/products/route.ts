@@ -50,6 +50,16 @@ type TrendSummary = {
   stableCount: number;
 };
 
+type BagsAnalytics = {
+  totalBagsSold: number;
+  bagsRevenue: number;
+  currentStock: { grande: number; chica: number; total: number };
+  ordersWithBags: number;
+  totalOrders: number;
+  bagAdoptionPct: number;
+  breakdown: Array<{ name: string; unitsSold: number; revenue: number; stock: number | null }>;
+};
+
 type APIResponse = {
   products: ProductMetrics[];
   brands: Array<{ name: string; count: number }>;
@@ -63,6 +73,7 @@ type APIResponse = {
   };
   stockSummary: StockSummary;
   trendSummary: TrendSummary;
+  bagsAnalytics: BagsAnalytics;
 };
 
 export async function GET(): Promise<NextResponse<APIResponse>> {
@@ -371,23 +382,60 @@ export async function GET(): Promise<NextResponse<APIResponse>> {
       }
     });
 
-    // Calculate stock summary
+    // === SEPARATE BAGS, GIFT CARDS, AND REAL PRODUCTS ===
+    const isBag = (name: string) => {
+      const lower = name.toLowerCase();
+      return lower.includes("shopping bag") || lower.includes("bolsa de compra") || lower.includes("bolsa de regalo");
+    };
+    const isGiftCard = (name: string) => {
+      const lower = name.toLowerCase();
+      return lower.includes("gift card") || lower.includes("tarjeta de regalo");
+    };
+    const bags = products.filter((p) => isBag(p.name));
+    const giftCards = products.filter((p) => isGiftCard(p.name));
+    const realProducts = products.filter((p) => !isBag(p.name) && !isGiftCard(p.name));
+
+    // Calculate stock summary (REAL PRODUCTS ONLY - excludes bags and gift cards)
     const stockSummary: StockSummary = {
-      criticalCount: products.filter((p) => p.stockData.stockHealth === "critical").length,
-      lowCount: products.filter((p) => p.stockData.stockHealth === "low").length,
-      optimalCount: products.filter((p) => p.stockData.stockHealth === "optimal").length,
-      excessiveCount: products.filter((p) => p.stockData.stockHealth === "excessive").length,
-      deadCount: products.filter((p) => p.stockData.isDead).length,
-      totalStockUnits: products.reduce((sum, p) => sum + (p.stock || 0), 0),
-      totalStockValue: products.reduce((sum, p) => sum + ((p.stock || 0) * p.avgPrice), 0),
-      productsAtRisk: products.filter((p) => p.stockData.stockHealth === "critical" || p.stockData.stockHealth === "low").length,
+      criticalCount: realProducts.filter((p) => p.stockData.stockHealth === "critical").length,
+      lowCount: realProducts.filter((p) => p.stockData.stockHealth === "low").length,
+      optimalCount: realProducts.filter((p) => p.stockData.stockHealth === "optimal").length,
+      excessiveCount: realProducts.filter((p) => p.stockData.stockHealth === "excessive").length,
+      deadCount: realProducts.filter((p) => p.stockData.isDead).length,
+      totalStockUnits: realProducts.reduce((sum, p) => sum + (p.stock || 0), 0),
+      totalStockValue: realProducts.reduce((sum, p) => sum + ((p.stock || 0) * p.avgPrice), 0),
+      productsAtRisk: realProducts.filter((p) => p.stockData.stockHealth === "critical" || p.stockData.stockHealth === "low").length,
     };
 
-    // Calculate trend summary
+    // Calculate trend summary (REAL PRODUCTS ONLY)
     const trendSummary: TrendSummary = {
-      growingCount: products.filter((p) => p.trendData.wowRevenuePct > 5).length,
-      decliningCount: products.filter((p) => p.trendData.wowRevenuePct < -5).length,
-      stableCount: products.filter((p) => p.trendData.wowRevenuePct >= -5 && p.trendData.wowRevenuePct <= 5).length,
+      growingCount: realProducts.filter((p) => p.trendData.wowRevenuePct > 5).length,
+      decliningCount: realProducts.filter((p) => p.trendData.wowRevenuePct < -5).length,
+      stableCount: realProducts.filter((p) => p.trendData.wowRevenuePct >= -5 && p.trendData.wowRevenuePct <= 5).length,
+    };
+
+    // === BAGS ANALYTICS ===
+    const totalBagsSold = bags.reduce((sum: number, b: ProductMetrics) => sum + b.unitsSold, 0);
+    const bagsRevenue = bags.reduce((sum: number, b: ProductMetrics) => sum + b.revenue, 0);
+    const grandeStock = bags
+      .filter((b: ProductMetrics) => b.name.toLowerCase().includes("grande") || b.name.toLowerCase().includes("large"))
+      .reduce((sum: number, b: ProductMetrics) => sum + (b.stock || 0), 0);
+    const chicaStock = bags
+      .filter((b: ProductMetrics) => !b.name.toLowerCase().includes("grande") && !b.name.toLowerCase().includes("large"))
+      .reduce((sum: number, b: ProductMetrics) => sum + (b.stock || 0), 0);
+    const ordersWithBagsCount = bags.reduce((sum: number, b: ProductMetrics) => sum + b.orders, 0);
+    const totalOrdersCount = summary.totalOrders30d;
+    const bagAdoptionPct = totalOrdersCount > 0
+      ? Math.round((ordersWithBagsCount / totalOrdersCount) * 10000) / 100
+      : 0;
+    const bagsAnalytics: BagsAnalytics = {
+      totalBagsSold,
+      bagsRevenue,
+      currentStock: { grande: grandeStock, chica: chicaStock, total: grandeStock + chicaStock },
+      ordersWithBags: ordersWithBagsCount,
+      totalOrders: totalOrdersCount,
+      bagAdoptionPct,
+      breakdown: bags.map((b: ProductMetrics) => ({ name: b.name, unitsSold: b.unitsSold, revenue: b.revenue, stock: b.stock })),
     };
 
     // Extract brands and categories
@@ -420,6 +468,7 @@ export async function GET(): Promise<NextResponse<APIResponse>> {
       summary,
       stockSummary,
       trendSummary,
+      bagsAnalytics,
     };
 
     return NextResponse.json(response);
