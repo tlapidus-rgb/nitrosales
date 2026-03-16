@@ -43,9 +43,7 @@ interface PhaseStatus {
 
 export default function BackfillRunnerPage() {
   const [phases, setPhases] = useState<PhaseStatus[]>([
-    { phase: "catalog", label: "Catálogo de Productos", status: "pending", currentBatch: 0, totalBatches: null, processed: 0, total: 0, errors: [], startedAt: null, finishedAt: null },
-    { phase: "inventory", label: "Inventario / Stock Real", status: "pending", currentBatch: 0, totalBatches: null, processed: 0, total: 0, errors: [], startedAt: null, finishedAt: null },
-    { phase: "orders", label: "Órdenes Históricas (2 años)", status: "pending", currentBatch: 0, totalBatches: 24, processed: 0, total: 0, errors: [], startedAt: null, finishedAt: null },
+    { phase: "catalog", label: "Catálogo de Productos (actualizar marcas y categorías)", status: "pending", currentBatch: 0, totalBatches: null, processed: 0, total: 0, errors: [], startedAt: null, finishedAt: null },
   ]);
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -142,10 +140,10 @@ export default function BackfillRunnerPage() {
     abortRef.current = false;
     setLogs([]);
     addLog("═══════════════════════════════════════");
-    addLog("  NITROSALES — Backfill Completo");
+    addLog("  NITROSALES — Re-sync Catálogo (marcas y categorías)");
     addLog("═══════════════════════════════════════");
 
-    const phaseOrder = ["catalog", "inventory", "orders"];
+    const phaseOrder = ["catalog"];
 
     for (const phase of phaseOrder) {
       if (abortRef.current) break;
@@ -200,10 +198,10 @@ export default function BackfillRunnerPage() {
         {/* Header */}
         <div style={{ marginBottom: "2rem" }}>
           <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#1e293b", margin: 0 }}>
-            NitroSales — Backfill VTEX
+            NitroSales — Re-sync Catálogo VTEX
           </h1>
           <p style={{ color: "#64748b", marginTop: "0.25rem" }}>
-            Importación completa de datos: catálogo, inventario real y órdenes históricas
+            Actualización de marcas y categorías para todos los productos (~28,861)
           </p>
         </div>
 
@@ -218,7 +216,7 @@ export default function BackfillRunnerPage() {
                 cursor: "pointer", fontSize: "1rem"
               }}
             >
-              ▶️ Iniciar Backfill Completo
+              ▶️ Iniciar Re-sync Catálogo
             </button>
           ) : (
             <button
@@ -278,7 +276,7 @@ export default function BackfillRunnerPage() {
         }}>
           <div style={{ color: "#94a3b8", marginBottom: "0.5rem" }}>Logs:</div>
           {logs.length === 0 ? (
-            <div style={{ color: "#475569" }}>Presioná "Iniciar Backfill Completo" para comenzar...</div>
+            <div style={{ color: "#475569" }}>Presioná "Iniciar Re-sync Catálogo" para comenzar...</div>
           ) : (
             logs.map((log, i) => (
               <div key={i} style={{ color: log.includes("❌") || log.includes("⛔") ? "#f87171" : log.includes("✅") || log.includes("🎉") ? "#4ade80" : log.includes("🚀") || log.includes("═") ? "#60a5fa" : "#e2e8f0" }}>
