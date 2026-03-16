@@ -73,11 +73,11 @@ interface TrendSummary {
 interface BagsAnalytics {
   totalBagsSold: number;
   bagsRevenue: number;
-  totalBagsStock: number;
-  bagAdoptionPct: number;
-  totalOrdersWithBags: number;
+  currentStock: { grande: number; chica: number; total: number };
+  ordersWithBags: number;
   totalOrders: number;
-  bagTypes: { name: string; unitsSold: number; stock: number }[];
+  bagAdoptionPct: number;
+  breakdown: Array<{ name: string; unitsSold: number; revenue: number; stock: number | null }>;
 }
 
 interface ApiResponse {
@@ -1325,45 +1325,52 @@ export default function ProductsPageV10() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
 
       {/* BOLSAS DE COMPRA */}
       {bagsAnalytics && (
-      <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-xl border border-amber-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-            <span className="text-2xl">🛍️📦</span> Bolsas de Compra
-          </h3>
-          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">Últimos 30 días</span>
-        </div>
-        <div className="grid grid-cols-4 gap-4 mb-4">
-          <div className="bg-white p-4 rounded-lg">
-            <div className="text-sm text-gray-500">Unidades Vendidas</div>
-            <div className="text-2xl font-bold text-amber-700">{bagsAnalytics.totalBagsSold.toLocaleString("es-AR")}</div>
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-xl border border-amber-200">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-2xl">=�</span>
+            <h3 className="text-lg font-semibold text-amber-900">Bolsas de Compra</h3>
+            <span className="ml-auto text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
+              �ltimos 30 d�as
+            </span>
           </div>
-          <div className="bg-white p-4 rounded-lg">
-            <div className="text-sm text-gray-500">Revenue</div>
-            <div className="text-2xl font-bold text-amber-700">${bagsAnalytics.bagsRevenue.toLocaleString("es-AR")}</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="bg-white/80 rounded-lg p-3">
+              <p className="text-xs text-gray-500 mb-1">Unidades Vendidas</p>
+              <p className="text-xl font-bold text-amber-800">{bagsAnalytics.totalBagsSold.toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white/80 rounded-lg p-3">
+              <p className="text-xs text-gray-500 mb-1">Revenue</p>
+              <p className="text-xl font-bold text-amber-800">{"$" + bagsAnalytics.bagsRevenue.toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white/80 rounded-lg p-3">
+              <p className="text-xs text-gray-500 mb-1">Stock Actual</p>
+              <p className="text-xl font-bold text-amber-800">{bagsAnalytics.currentStock.total.toLocaleString("es-AR")}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Grande: {bagsAnalytics.currentStock.grande.toLocaleString("es-AR")} | Chica: {bagsAnalytics.currentStock.chica.toLocaleString("es-AR")}</p>
+            </div>
+            <div className="bg-white/80 rounded-lg p-3">
+              <p className="text-xs text-gray-500 mb-1">Adopci�n</p>
+              <p className="text-xl font-bold text-amber-800">{bagsAnalytics.bagAdoptionPct}%</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{bagsAnalytics.ordersWithBags} de {bagsAnalytics.totalOrders} �rdenes</p>
+              <div className="w-full bg-amber-200 rounded-full h-1.5 mt-1.5">
+                <div className="bg-amber-600 h-1.5 rounded-full transition-all" style={{ width: Math.min(bagsAnalytics.bagAdoptionPct, 100) + "%" }} />
+              </div>
+            </div>
           </div>
-          <div className="bg-white p-4 rounded-lg">
-            <div className="text-sm text-gray-500">Stock Actual</div>
-            <div className="text-2xl font-bold text-amber-700">{bagsAnalytics.totalBagsStock.toLocaleString("es-AR")}</div>
-            <div className="text-xs text-gray-400">Grande: {bagsAnalytics.bagTypes.find(b => b.name.toLowerCase().includes("grande"))?.stock?.toLocaleString("es-AR") || 0} | Chica: {bagsAnalytics.bagTypes.find(b => b.name.toLowerCase().includes("chica"))?.stock?.toLocaleString("es-AR") || 0}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg">
-            <div className="text-sm text-gray-500">Adopción</div>
-            <div className="text-2xl font-bold text-orange-600">{bagsAnalytics.bagAdoptionPct.toFixed(2)}%</div>
-            <div className="text-xs text-gray-400">{bagsAnalytics.totalOrdersWithBags} de {bagsAnalytics.totalOrders} órdenes</div>
-            <div className="w-full bg-amber-100 rounded-full h-2 mt-1"><div className="bg-orange-500 h-2 rounded-full" style={{width: `${Math.min(bagsAnalytics.bagAdoptionPct, 100)}%`}}></div></div>
-          </div>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          {bagsAnalytics.bagTypes.map((bag, i) => (
-            <span key={i} className="bg-white border border-amber-200 px-3 py-1 rounded-full text-sm">{bag.name}: {bag.unitsSold}u · stock {bag.stock}</span>
-          ))}
-        </div>
-      </div>
-      )}
-
+          {bagsAnalytics.breakdown.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {bagsAnalytics.breakdown.map((bag: any, i: number) => (
+                <span key={i} className="text-xs bg-white/60 text-amber-800 px-2 py-1 rounded border border-amber-200">
+                  {bag.name.length > 40 ? bag.name.substring(0, 40) + "..." : bag.name}: {bag.unitsSold}u � stock {bag.stock ?? "N/A"}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
