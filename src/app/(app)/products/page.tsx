@@ -68,6 +68,7 @@ interface TrendSummary {
   growingCount: number;
   decliningCount: number;
   stableCount: number;
+}
 
 interface BagsAnalytics {
   totalBagsSold: number;
@@ -77,7 +78,6 @@ interface BagsAnalytics {
   totalOrdersWithBags: number;
   totalOrders: number;
   bagTypes: { name: string; unitsSold: number; stock: number }[];
-}
 }
 
 interface ApiResponse {
