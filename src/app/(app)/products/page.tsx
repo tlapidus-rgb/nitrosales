@@ -251,8 +251,12 @@ export default function ProductsPageV10() {
         }));
 
         // Filter out Gift Cards (virtual products with inflated stock)
+        // and Shopping Bags (accessory products that skew brand/category analytics)
         const filteredProducts = parsedProducts.filter(
-          (p) => !p.name?.toLowerCase().includes("gift card")
+          (p) => {
+            const name = p.name?.toLowerCase() || "";
+            return !name.includes("gift card") && !name.includes("shopping bag") && !name.includes("bolsa de compra");
+          }
         );
 
         setProducts(filteredProducts);
