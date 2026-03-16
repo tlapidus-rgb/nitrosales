@@ -22,20 +22,41 @@ async function sleep(ms: number) {
 }
 
 /**
- * Try to get brand info from VTEX using the externalId.
+ * Resolve a VTEX CategoryId to its human-readable name.
+ * Uses: GET /api/catalog/pvt/category/{categoryId}
+ */
+async function getVtexCategoryName(categoryId: number): Promise<string> {
+  const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
+  try {
+    const catRes = await fetch(
+      `${baseUrl}/api/catalog/pvt/category/${categoryId}`,
+      { headers: vtexHeaders() }
+    );
+    if (catRes.ok) {
+      const catData = await catRes.json();
+      return catData.Name || "";
+    }
+  } catch (e) {}
+  return "";
+}
+
+/**
+ * Try to get brand + category info from VTEX using the externalId.
  * Strategy:
- *   1. Try as Product ID: GET /api/catalog/pvt/product/{id}
- *   2. If 404, try as SKU ID: GET /api/catalog/pvt/stockkeepingunit/{id}
- *      ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ extract ProductId ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ then GET /api/catalog/pvt/product/{ProductId}
+ * 1. Try as Product ID: GET /api/catalog/pvt/product/{id}
+ * 2. If 404, try as SKU ID: GET /api/catalog/pvt/stockkeepingunit/{id}
+ *    → extract ProductId → then GET /api/catalog/pvt/product/{ProductId}
+ * 3. Resolve BrandId → BrandName via Brand API
+ * 4. Resolve CategoryId → CategoryName via Category API
  */
 async function getVtexBrand(
   externalId: string
 ): Promise<{ brand: string; category: string } | null> {
   const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
 
-  // Step 1: Get BrandId from product
+  // Step 1: Get BrandId and CategoryId from product
   let brandId: number | null = null;
-  let categoryPath = "";
+  let categoryId: number | null = null;
 
   // Try as Product ID first
   try {
@@ -47,7 +68,11 @@ async function getVtexBrand(
       const product = await productRes.json();
       if (product.BrandId) {
         brandId = product.BrandId;
-        categoryPath = product.CategoryPath || product.DepartmentId?.toString() || "";
+      }
+      if (product.CategoryId) {
+        categoryId = product.CategoryId;
+      } else if (product.DepartmentId) {
+        categoryId = product.DepartmentId;
       }
     }
   } catch (e) {}
@@ -73,7 +98,13 @@ async function getVtexBrand(
             const product = await productRes.json();
             if (product.BrandId) {
               brandId = product.BrandId;
-              categoryPath = product.CategoryPath || product.DepartmentId?.toString() || "";
+            }
+            if (!categoryId) {
+              if (product.CategoryId) {
+                categoryId = product.CategoryId;
+              } else if (product.DepartmentId) {
+                categoryId = product.DepartmentId;
+              }
             }
           }
         }
@@ -82,6 +113,7 @@ async function getVtexBrand(
   }
 
   // Step 2: Resolve BrandId to BrandName via Brand API
+  let brandName = "";
   if (brandId) {
     await sleep(DELAY_MS);
     try {
@@ -92,13 +124,76 @@ async function getVtexBrand(
       if (brandRes.ok) {
         const brandData = await brandRes.json();
         if (brandData.Name) {
-          return {
-            brand: brandData.Name,
-            category: categoryPath,
-          };
+          brandName = brandData.Name;
         }
       }
     } catch (e) {}
+  }
+
+  // Step 3: Resolve CategoryId to CategoryName via Category API
+  let categoryName = "";
+  if (categoryId) {
+    await sleep(DELAY_MS);
+    categoryName = await getVtexCategoryName(categoryId);
+  }
+
+  if (brandName) {
+    return {
+      brand: brandName,
+      category: categoryName,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Resolve category for a single product by externalId.
+ * Used by fix-categories action.
+ */
+async function getVtexCategory(externalId: string): Promise<string | null> {
+  const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
+  let categoryId: number | null = null;
+
+  try {
+    const productRes = await fetch(
+      `${baseUrl}/api/catalog/pvt/product/${externalId}`,
+      { headers: vtexHeaders() }
+    );
+    if (productRes.ok) {
+      const product = await productRes.json();
+      categoryId = product.CategoryId || product.DepartmentId || null;
+    }
+  } catch (e) {}
+
+  if (!categoryId) {
+    await sleep(DELAY_MS);
+    try {
+      const skuRes = await fetch(
+        `${baseUrl}/api/catalog/pvt/stockkeepingunit/${externalId}`,
+        { headers: vtexHeaders() }
+      );
+      if (skuRes.ok) {
+        const sku = await skuRes.json();
+        if (sku.ProductId) {
+          await sleep(DELAY_MS);
+          const productRes = await fetch(
+            `${baseUrl}/api/catalog/pvt/product/${sku.ProductId}`,
+            { headers: vtexHeaders() }
+          );
+          if (productRes.ok) {
+            const product = await productRes.json();
+            categoryId = product.CategoryId || product.DepartmentId || null;
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (categoryId) {
+    await sleep(DELAY_MS);
+    const name = await getVtexCategoryName(categoryId);
+    return name || null;
   }
 
   return null;
@@ -125,17 +220,26 @@ export async function GET(request: NextRequest) {
         NOT: [{ brand: "" }, { brand: "Sin marca" }],
       },
     });
+    const withCategory = await prisma.product.count({
+      where: {
+        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        category: { not: null },
+        NOT: [{ category: "" }, { category: "Sin categor\u00eda" }],
+      },
+    });
     const withoutBrand = total - withBrand;
-
+    const withoutCategory = total - withCategory;
     return NextResponse.json({
       total,
       withBrand,
       withoutBrand,
       pctWithBrand: ((withBrand / total) * 100).toFixed(1) + "%",
+      withCategory,
+      withoutCategory,
+      pctWithCategory: ((withCategory / total) * 100).toFixed(1) + "%",
     });
   }
 
-  
   // --- ACTION: debug ---
   if (action === "debug") {
     return NextResponse.json({
@@ -148,71 +252,21 @@ export async function GET(request: NextRequest) {
     });
   }
 
-
-  // --- ACTION: test-verbose ---
-  if (action === "test-verbose") {
-    const testId = searchParams.get("id") || "28649";
-    const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
-    const results: any = { externalId: testId, attempts: [] };
-    
-    // Attempt 1: Product ID
-    try {
-      const r1 = await fetch(`${baseUrl}/api/catalog/pvt/product/${testId}`, { headers: vtexHeaders() });
-      if (r1.ok) {
-        const body1 = await r1.json();
-        const keys = Object.keys(body1);
-        const brandKeys = keys.filter(k => k.toLowerCase().includes('brand'));
-        results.attempts.push({ 
-          endpoint: "catalog/pvt/product", 
-          status: r1.status, 
-          keys: keys.slice(0, 20),
-          brandKeys,
-          BrandName: body1.BrandName,
-          BrandId: body1.BrandId,
-          Name: body1.Name,
-          Id: body1.Id
-        });
-      } else {
-        results.attempts.push({ endpoint: "catalog/pvt/product", status: r1.status });
-      }
-    } catch(e: any) { results.attempts.push({ endpoint: "catalog/pvt/product", error: e.message }); }
-    
-    // Attempt 3: Legacy
-    try {
-      const r3 = await fetch(`${baseUrl}/api/catalog_system/pvt/products/productget/${testId}`, { headers: vtexHeaders() });
-      if (r3.ok) {
-        const body3 = await r3.json();
-        const keys3 = Object.keys(body3);
-        const brandKeys3 = keys3.filter(k => k.toLowerCase().includes('brand'));
-        results.attempts.push({ 
-          endpoint: "catalog_system/pvt/products/productget", 
-          status: r3.status, 
-          keys: keys3.slice(0, 20),
-          brandKeys: brandKeys3,
-          BrandName: body3.BrandName,
-          BrandId: body3.BrandId,
-          Name: body3.Name,
-          Id: body3.Id
-        });
-      } else {
-        results.attempts.push({ endpoint: "catalog_system/pvt/products/productget", status: r3.status });
-      }
-    } catch(e: any) { results.attempts.push({ endpoint: "catalog_system/pvt/products/productget", error: e.message }); }
-    
-    results.credentialPrefix = VTEX_APP_KEY.substring(0, 15);
-    return NextResponse.json(results);
-  }
-
   // --- ACTION: test ---
-  // Test VTEX API with a single externalId
   if (action === "test") {
     const testId = searchParams.get("id") || "28649";
     const result = await getVtexBrand(testId);
     return NextResponse.json({ externalId: testId, result });
   }
 
+  // --- ACTION: test-category ---
+  if (action === "test-category") {
+    const testId = searchParams.get("id") || "28649";
+    const category = await getVtexCategory(testId);
+    return NextResponse.json({ externalId: testId, category });
+  }
+
   // --- ACTION: fix-vtex ---
-  // Fetch brand from VTEX for all products missing brand
   if (action === "fix-vtex") {
     const limit = parseInt(searchParams.get("limit") || String(BATCH_SIZE));
     const offset = parseInt(searchParams.get("offset") || "0");
@@ -245,13 +299,13 @@ export async function GET(request: NextRequest) {
         externalId: string;
         status: string;
         brand?: string;
+        category?: string;
       }>,
     };
 
     for (const product of products) {
       try {
         const vtexData = await getVtexBrand(product.externalId);
-
         if (vtexData && vtexData.brand) {
           await prisma.product.update({
             where: { id: product.id },
@@ -260,13 +314,13 @@ export async function GET(request: NextRequest) {
               ...(vtexData.category ? { category: vtexData.category } : {}),
             },
           });
-
           results.fixed++;
           results.details.push({
             id: product.id,
             externalId: product.externalId,
             status: "fixed",
             brand: vtexData.brand,
+            category: vtexData.category || undefined,
           });
         } else {
           results.notFound++;
@@ -284,7 +338,6 @@ export async function GET(request: NextRequest) {
           status: `error: ${error.message}`,
         });
       }
-
       await sleep(DELAY_MS);
     }
 
@@ -295,18 +348,175 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // --- ACTION: fix-categories ---
+  // Fix products that have a brand but missing/numeric category
+  if (action === "fix-categories") {
+    const limit = parseInt(searchParams.get("limit") || String(BATCH_SIZE));
+    const offset = parseInt(searchParams.get("offset") || "0");
+
+    // Find products that have a brand but category is null, empty, numeric, or "Sin categoria"
+    const products = await prisma.product.findMany({
+      where: {
+        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        brand: { not: null },
+        NOT: [{ brand: "" }, { brand: "Sin marca" }],
+        OR: [
+          { category: null },
+          { category: "" },
+          { category: "Sin categor\u00eda" },
+        ],
+      },
+      select: { id: true, externalId: true, name: true, category: true },
+      take: limit,
+      skip: offset,
+      orderBy: { externalId: "asc" },
+    });
+
+    if (products.length === 0) {
+      // Also check for numeric-only categories
+      const numericCats = await prisma.$queryRaw<Array<{ id: string; externalId: string; category: string }>>`
+        SELECT id, "externalId", category FROM "Product"
+        WHERE "organizationId" = 'cmmmga1uq0000sb43w0krvvys'
+        AND brand IS NOT NULL AND brand != '' AND brand != 'Sin marca'
+        AND category IS NOT NULL AND category != ''
+        AND category ~ '^[0-9/]+$'
+        ORDER BY "externalId" ASC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+
+      if (numericCats.length === 0) {
+        return NextResponse.json({
+          message: "No more categories to fix",
+          offset,
+        });
+      }
+
+      // Process numeric categories
+      const results = {
+        total: numericCats.length,
+        fixed: 0,
+        failed: 0,
+        notFound: 0,
+        details: [] as Array<{
+          id: string;
+          externalId: string;
+          status: string;
+          oldCategory?: string;
+          newCategory?: string;
+        }>,
+      };
+
+      for (const product of numericCats) {
+        try {
+          const categoryName = await getVtexCategory(product.externalId);
+          if (categoryName) {
+            await prisma.product.update({
+              where: { id: product.id },
+              data: { category: categoryName },
+            });
+            results.fixed++;
+            results.details.push({
+              id: product.id,
+              externalId: product.externalId,
+              status: "fixed",
+              oldCategory: product.category,
+              newCategory: categoryName,
+            });
+          } else {
+            results.notFound++;
+            results.details.push({
+              id: product.id,
+              externalId: product.externalId,
+              status: "category_not_found",
+              oldCategory: product.category,
+            });
+          }
+        } catch (error: any) {
+          results.failed++;
+          results.details.push({
+            id: product.id,
+            externalId: product.externalId,
+            status: `error: ${error.message}`,
+          });
+        }
+        await sleep(DELAY_MS);
+      }
+
+      return NextResponse.json({
+        ...results,
+        type: "numeric_categories",
+        nextOffset: offset + limit,
+        nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-categories&limit=${limit}&offset=${offset + limit}`,
+      });
+    }
+
+    // Process null/empty/"Sin categoria" categories
+    const results = {
+      total: products.length,
+      fixed: 0,
+      failed: 0,
+      notFound: 0,
+      details: [] as Array<{
+        id: string;
+        externalId: string;
+        status: string;
+        newCategory?: string;
+      }>,
+    };
+
+    for (const product of products) {
+      try {
+        const categoryName = await getVtexCategory(product.externalId);
+        if (categoryName) {
+          await prisma.product.update({
+            where: { id: product.id },
+            data: { category: categoryName },
+          });
+          results.fixed++;
+          results.details.push({
+            id: product.id,
+            externalId: product.externalId,
+            status: "fixed",
+            newCategory: categoryName,
+          });
+        } else {
+          results.notFound++;
+          results.details.push({
+            id: product.id,
+            externalId: product.externalId,
+            status: "category_not_found",
+          });
+        }
+      } catch (error: any) {
+        results.failed++;
+        results.details.push({
+          id: product.id,
+          externalId: product.externalId,
+          status: `error: ${error.message}`,
+        });
+      }
+      await sleep(DELAY_MS);
+    }
+
+    return NextResponse.json({
+      ...results,
+      type: "missing_categories",
+      nextOffset: offset + limit,
+      nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-categories&limit=${limit}&offset=${offset + limit}`,
+    });
+  }
+
   // --- ACTION: deduplicate ---
-  // Find and merge duplicate products (same name, one has brand, one doesn't)
   if (action === "deduplicate") {
     const duplicates = await prisma.$queryRaw<
       Array<{ name: string; count: bigint }>
     >`
-      SELECT name, COUNT(*) as count 
-      FROM "Product" 
+      SELECT name, COUNT(*) as count
+      FROM "Product"
       WHERE "organizationId" = 'cmmmga1uq0000sb43w0krvvys'
-      GROUP BY name 
-      HAVING COUNT(*) > 1 
-      ORDER BY count DESC 
+      GROUP BY name
+      HAVING COUNT(*) > 1
+      ORDER BY count DESC
       LIMIT 100
     `;
 
@@ -323,9 +533,11 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     message: "NitroSales Fix Brands API",
     actions: {
-      stats: "Get brand coverage stats",
+      stats: "Get brand + category coverage stats",
       test: "Test VTEX lookup for a single ID (?id=28649)",
-      "fix-vtex": "Fix brands from VTEX API (?limit=50&offset=0)",
+      "test-category": "Test category resolution for a single ID (?id=28649)",
+      "fix-vtex": "Fix brands + categories from VTEX API (?limit=50&offset=0)",
+      "fix-categories": "Fix categories only for products that already have brands",
       deduplicate: "Find duplicate products",
     },
   });
