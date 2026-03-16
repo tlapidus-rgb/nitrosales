@@ -31,9 +31,9 @@ import {
   Zap,
 } from "lucide-react";
 
-/* ═══════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════
    INTERFACES — match API v3 response shape exactly
-   ═══════════════════════════════════════════════════════════ */
+   ════════════════════════════════════════════════════════════ */
 
 interface WeeklyDataPoint {
   weekStart: string;
@@ -81,7 +81,7 @@ interface CategoryWeeklyTrend {
 
 interface BrandWeeklyTrend {
   brand: string;
-  weeks: Array<{ weekStart: string; units: number; revenue: number }>;
+  weeks: Array<{ weekStart: string; units: number: revenue: number }>;
 }
 
 interface ApiResponse {
@@ -121,7 +121,7 @@ interface ApiResponse {
 
 /* ═══════════════════════════════════════════════════════════
    CONSTANTS
-   ═══════════════════════════════════════════════════════════ */
+   ══════════════════════════════════════════════════════════ */
 
 const COLORS = [
   "#6366f1",
@@ -135,4 +135,14 @@ const COLORS = [
   "#ec4899",
   "#94a3b8",
 ];
-  "File 2 part 0 loaded successfully
+
+/* ══════════════════════════════════════════════════════════
+   SMALL COMPONENTS
+   ══════════════════════════════════════════════════════════ */tring[]>([]);
+  const [categoryWeeklyTrend, setCategoryWeeklyTrend] = useState<
+    CategoryWeeklyTrend[]
+  >([]);
+  const [brandWeeklyTrend, setBrandWeeklyTrend] = useState<
+    BrandWeeklyTrend[]
+  
+(
