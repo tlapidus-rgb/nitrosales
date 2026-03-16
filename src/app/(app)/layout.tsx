@@ -17,6 +17,11 @@ const NAV_ITEMS = [
     icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
   },
   {
+    href: "/orders",
+    label: "Órdenes",
+    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01",
+  },
+  {
     href: "/campaigns",
     label: "Campanas",
     icon: "M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z",
@@ -85,7 +90,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* ââ Sidebar âââââââââââââââââââââââââââââââââââââââââ */}
+      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-60 bg-nitro-bg2 flex flex-col transition-transform duration-500 ease-nitro lg:translate-x-0 lg:static border-r border-nitro-border ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -177,9 +182,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* ââ Main content ââââââââââââââââââââââââââââââââââââ */}
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Glassmorphism top bar */}
+        {/* Top bar */}
         <header className="glass border-b border-nitro-border px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button

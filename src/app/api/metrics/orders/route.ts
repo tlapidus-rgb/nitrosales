@@ -1,14 +1,14 @@
 // ══════════════════════════════════════════════════════════════
-// Orders API — Dashboard de Órdenes
+// Orders API v2 — Dashboard de Órdenes (fixed)
 // ══════════════════════════════════════════════════════════════
-// Returns order metrics with flexible date range and source filter
-// GET /api/metrics/orders?from=2025-01-01&to=2025-12-31&source=VTEX
+// GET /api/metrics/orders?from=2026-03-01&to=2026-03-16&source=VTEX
+// Timezone: Argentina (UTC-3)
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
-export const revalidate = 300;
+export const revalidate = 0; // No cache while debugging
 const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -37,26 +37,34 @@ export async function GET(request: NextRequest) {
     }
     const { searchParams } = new URL(request.url);
 
-    // ── Parse date range (defaults to last 30 days) ──
+    // ── Parse date range (defaults to last 30 days, Argentina timezone UTC-3) ──
     const now = new Date();
     const toParam = searchParams.get("to");
     const fromParam = searchParams.get("from");
-    const dateTo = toParam ? new Date(toParam + "T23:59:59.999Z") : now;
+
+    // Use Argentina timezone (UTC-3) for date boundaries
+    const dateTo = toParam
+      ? new Date(toParam + "T23:59:59.999-03:00")
+      : now;
     const dateFrom = fromParam
-      ? new Date(fromParam + "T00:00:00.000Z")
+      ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 30 * MS_PER_DAY);
 
-    // ── Source filter (VTEX, MELI, or ALL) ──
+    // ── Source filter ──
     const sourceParam = searchParams.get("source")?.toUpperCase();
     const sourceFilter = sourceParam && sourceParam !== "ALL" ? sourceParam : null;
 
-    // ── Calculate previous period for comparison ──
+    // ── Previous period for comparison ──
     const periodMs = dateTo.getTime() - dateFrom.getTime();
     const prevFrom = new Date(dateFrom.getTime() - periodMs);
     const prevTo = new Date(dateFrom.getTime() - 1);
 
-    // Build WHERE clause fragments for raw queries
-    const sourceWhere = sourceFilter ? `AND "source" = '${sourceFilter}'` : "";
+    // ── Build source WHERE fragment ──
+    const srcWhere = sourceFilter ? `AND o."source" = '${sourceFilter}'` : "";
+    const srcWhereSimple = sourceFilter ? `AND "source" = '${sourceFilter}'` : "";
+
+    // ── Count days in period for averages ──
+    const daysInPeriod = Math.max(1, Math.ceil(periodMs / MS_PER_DAY));
 
     /* ── Run ALL queries in PARALLEL ────────────────────────── */
     const [
@@ -72,163 +80,193 @@ export async function GET(request: NextRequest) {
       recentOrders,
     ] = await Promise.all([
 
-      /* 1) Current period KPIs */
+      /* 1) Current period KPIs — simple WHERE, no FILTER */
       prisma.$queryRawUnsafe<[{
-        total_orders: bigint;
-        total_revenue: number;
-        avg_ticket: number;
-        total_items: bigint;
-        total_shipping: number;
-        total_discounts: number;
-        cancelled_orders: bigint;
+        total_orders: string;
+        total_revenue: string;
+        avg_ticket: string;
+        total_items: string;
+        total_shipping: string;
+        total_discounts: string;
       }]>(`
         SELECT
-          COUNT(*) FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED'))::bigint AS total_orders,
-          COALESCE(SUM("totalValue") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0) AS total_revenue,
-          COALESCE(AVG("totalValue") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0) AS avg_ticket,
-          COALESCE(SUM("itemCount") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0)::bigint AS total_items,
-          COALESCE(SUM("shippingCost") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0) AS total_shipping,
-          COALESCE(SUM("discountValue") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0) AS total_discounts,
-          COUNT(*) FILTER (WHERE status IN ('CANCELLED', 'RETURNED'))::bigint AS cancelled_orders
-        FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1
-          AND "orderDate" <= $2
-          ${sourceWhere}
-      `, dateFrom, dateTo),
-
-      /* 2) Previous period KPIs (for comparison) */
-      prisma.$queryRawUnsafe<[{
-        total_orders: bigint;
-        total_revenue: number;
-        avg_ticket: number;
-      }]>(`
-        SELECT
-          COUNT(*) FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED'))::bigint AS total_orders,
-          COALESCE(SUM("totalValue") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0) AS total_revenue,
-          COALESCE(AVG("totalValue") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0) AS avg_ticket
-        FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1
-          AND "orderDate" <= $2
-          ${sourceWhere}
-      `, prevFrom, prevTo),
-
-      /* 3) Daily sales for the chart */
-      prisma.$queryRawUnsafe<Array<{
-        day: string;
-        orders: bigint;
-        revenue: number;
-        items: bigint;
-      }>>(`
-        SELECT
-          TO_CHAR("orderDate", 'YYYY-MM-DD') AS day,
-          COUNT(*) FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED'))::bigint AS orders,
-          COALESCE(SUM("totalValue") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0) AS revenue,
-          COALESCE(SUM("itemCount") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0)::bigint AS items
-        FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1
-          AND "orderDate" <= $2
-          ${sourceWhere}
-        GROUP BY TO_CHAR("orderDate", 'YYYY-MM-DD')
-        ORDER BY day ASC
-      `, dateFrom, dateTo),
-
-      /* 4) Sales by day of week */
-      prisma.$queryRawUnsafe<Array<{
-        day_of_week: number;
-        orders: bigint;
-        revenue: number;
-      }>>(`
-        SELECT
-          EXTRACT(DOW FROM "orderDate")::int AS day_of_week,
-          COUNT(*) FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED'))::bigint AS orders,
-          COALESCE(SUM("totalValue") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0) AS revenue
-        FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1
-          AND "orderDate" <= $2
-          ${sourceWhere}
-        GROUP BY EXTRACT(DOW FROM "orderDate")
-        ORDER BY day_of_week
-      `, dateFrom, dateTo),
-
-      /* 5) Sales by hour of day */
-      prisma.$queryRawUnsafe<Array<{
-        hour: number;
-        orders: bigint;
-        revenue: number;
-      }>>(`
-        SELECT
-          EXTRACT(HOUR FROM "orderDate")::int AS hour,
-          COUNT(*) FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED'))::bigint AS orders,
-          COALESCE(SUM("totalValue") FILTER (WHERE status NOT IN ('CANCELLED', 'RETURNED')), 0) AS revenue
-        FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1
-          AND "orderDate" <= $2
-          ${sourceWhere}
-        GROUP BY EXTRACT(HOUR FROM "orderDate")
-        ORDER BY hour
-      `, dateFrom, dateTo),
-
-      /* 6) Top payment methods */
-      prisma.$queryRawUnsafe<Array<{
-        payment_method: string;
-        orders: bigint;
-        revenue: number;
-      }>>(`
-        SELECT
-          COALESCE("paymentMethod", 'Sin dato') AS payment_method,
-          COUNT(*)::bigint AS orders,
-          COALESCE(SUM("totalValue"), 0) AS revenue
+          COUNT(*)::text AS total_orders,
+          COALESCE(SUM("totalValue"), 0)::text AS total_revenue,
+          COALESCE(AVG("totalValue"), 0)::text AS avg_ticket,
+          COALESCE(SUM("itemCount"), 0)::text AS total_items,
+          COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS total_shipping,
+          COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS total_discounts
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
-          ${sourceWhere}
+          ${srcWhereSimple}
+      `, dateFrom, dateTo),
+
+      /* 1b) Cancelled/returned count */
+      prisma.$queryRawUnsafe<[{
+        total_orders: string;
+        total_revenue: string;
+        avg_ticket: string;
+      }]>(`
+        SELECT
+          COUNT(*)::text AS total_orders,
+          COALESCE(SUM("totalValue"), 0)::text AS total_revenue,
+          COALESCE(AVG("totalValue"), 0)::text AS avg_ticket
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1
+          AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+      `, prevFrom, prevTo),
+
+      /* 3) Daily sales */
+      prisma.$queryRawUnsafe<Array<{
+        day: string;
+        orders: string;
+        revenue: string;
+        items: string;
+      }>>(`
+        SELECT
+          TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue,
+          COALESCE(SUM("itemCount"), 0)::text AS items
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1
+          AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+        GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')
+        ORDER BY day ASC
+      `, dateFrom, dateTo),
+
+      /* 4) Sales by day of week — PROMEDIO diario */
+      prisma.$queryRawUnsafe<Array<{
+        day_of_week: number;
+        day_name: string;
+        total_orders: string;
+        total_revenue: string;
+        num_days: string;
+      }>>(`
+        WITH daily AS (
+          SELECT
+            TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
+            EXTRACT(DOW FROM "orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')::int AS dow,
+            COUNT(*) AS orders,
+            COALESCE(SUM("totalValue"), 0) AS revenue
+          FROM orders
+          WHERE "organizationId" = '${ORG_ID}'
+            AND "orderDate" >= $1
+            AND "orderDate" <= $2
+            AND status NOT IN ('CANCELLED', 'RETURNED')
+            ${srcWhereSimple}
+          GROUP BY day, dow
+        )
+        SELECT
+          dow AS day_of_week,
+          CASE dow
+            WHEN 0 THEN 'Dom' WHEN 1 THEN 'Lun' WHEN 2 THEN 'Mar'
+            WHEN 3 THEN 'Mié' WHEN 4 THEN 'Jue' WHEN 5 THEN 'Vie'
+            WHEN 6 THEN 'Sáb' END AS day_name,
+          SUM(orders)::text AS total_orders,
+          SUM(revenue)::text AS total_revenue,
+          COUNT(*)::text AS num_days
+        FROM daily
+        GROUP BY dow
+        ORDER BY dow
+      `, dateFrom, dateTo),
+
+      /* 5) Sales by hour — PROMEDIO por hora */
+      prisma.$queryRawUnsafe<Array<{
+        hour: number;
+        total_orders: string;
+        total_revenue: string;
+        num_days: string;
+      }>>(`
+        WITH daily_hours AS (
+          SELECT
+            TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
+            EXTRACT(HOUR FROM "orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')::int AS hr,
+            COUNT(*) AS orders,
+            COALESCE(SUM("totalValue"), 0) AS revenue
+          FROM orders
+          WHERE "organizationId" = '${ORG_ID}'
+            AND "orderDate" >= $1
+            AND "orderDate" <= $2
+            AND status NOT IN ('CANCELLED', 'RETURNED')
+            ${srcWhereSimple}
+          GROUP BY day, hr
+        )
+        SELECT
+          hr AS hour,
+          SUM(orders)::text AS total_orders,
+          SUM(revenue)::text AS total_revenue,
+          COUNT(DISTINCT day)::text AS num_days
+        FROM daily_hours
+        GROUP BY hr
+        ORDER BY hr
+      `, dateFrom, dateTo),
+
+      /* 6) Payment methods */
+      prisma.$queryRawUnsafe<Array<{
+        payment_method: string;
+        orders: string;
+        revenue: string;
+      }>>(`
+        SELECT
+          COALESCE("paymentMethod", 'Sin dato') AS payment_method,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1
+          AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
         GROUP BY "paymentMethod"
-        ORDER BY revenue DESC
+        ORDER BY SUM("totalValue") DESC
         LIMIT 10
       `, dateFrom, dateTo),
 
       /* 7) Status breakdown */
       prisma.$queryRawUnsafe<Array<{
         status: string;
-        count: bigint;
+        count: string;
       }>>(`
         SELECT
           status,
-          COUNT(*)::bigint AS count
+          COUNT(*)::text AS count
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
           AND "orderDate" <= $2
-          ${sourceWhere}
+          ${srcWhereSimple}
         GROUP BY status
-        ORDER BY count DESC
+        ORDER BY COUNT(*) DESC
       `, dateFrom, dateTo),
 
-      /* 8) Top products by revenue */
+      /* 8) Top products */
       prisma.$queryRawUnsafe<Array<{
         product_id: string;
         product_name: string;
         brand: string;
         category: string;
-        units_sold: bigint;
-        revenue: number;
-        orders: bigint;
+        units_sold: string;
+        revenue: string;
+        order_count: string;
       }>>(`
         SELECT
           p.id AS product_id,
           p.name AS product_name,
           COALESCE(p.brand, 'Sin marca') AS brand,
           COALESCE(p.category, 'Sin categoría') AS category,
-          SUM(oi.quantity)::bigint AS units_sold,
-          SUM(oi."totalPrice") AS revenue,
-          COUNT(DISTINCT o.id)::bigint AS orders
+          SUM(oi.quantity)::text AS units_sold,
+          SUM(oi."totalPrice")::text AS revenue,
+          COUNT(DISTINCT o.id)::text AS order_count
         FROM order_items oi
         JOIN orders o ON o.id = oi."orderId"
         JOIN products p ON p.id = oi."productId"
@@ -236,9 +274,9 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
-          ${sourceWhere.replace(/"source"/g, 'o."source"')}
+          ${srcWhere}
         GROUP BY p.id, p.name, p.brand, p.category
-        ORDER BY revenue DESC
+        ORDER BY SUM(oi."totalPrice") DESC
         LIMIT 15
       `, dateFrom, dateTo),
 
@@ -247,55 +285,70 @@ export async function GET(request: NextRequest) {
         customer_id: string;
         customer_name: string;
         email: string;
-        total_orders: bigint;
-        total_spent: number;
+        total_orders: string;
+        total_spent: string;
       }>>(`
         SELECT
           c.id AS customer_id,
-          CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", '')) AS customer_name,
+          TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) AS customer_name,
           COALESCE(c.email, 'Sin email') AS email,
-          COUNT(o.id)::bigint AS total_orders,
-          SUM(o."totalValue") AS total_spent
+          COUNT(o.id)::text AS total_orders,
+          SUM(o."totalValue")::text AS total_spent
         FROM orders o
         JOIN customers c ON c.id = o."customerId"
         WHERE o."organizationId" = '${ORG_ID}'
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
-          ${sourceWhere.replace(/"source"/g, 'o."source"')}
+          ${srcWhere}
         GROUP BY c.id, c."firstName", c."lastName", c.email
-        ORDER BY total_spent DESC
+        ORDER BY SUM(o."totalValue") DESC
         LIMIT 10
       `, dateFrom, dateTo),
 
-      /* 10) Recent orders (last 50) */
+      /* 10) Recent orders with customer names and items */
       prisma.$queryRawUnsafe<Array<{
         id: string;
         external_id: string;
         status: string;
-        total_value: number;
-        item_count: number;
+        total_value: string;
+        item_count: string;
         payment_method: string;
         source: string;
         order_date: string;
         customer_name: string;
+        customer_email: string;
+        items_json: string;
       }>>(`
         SELECT
           o.id,
           o."externalId" AS external_id,
           o.status,
-          o."totalValue" AS total_value,
-          o."itemCount" AS item_count,
+          o."totalValue"::text AS total_value,
+          o."itemCount"::text AS item_count,
           COALESCE(o."paymentMethod", '-') AS payment_method,
           COALESCE(o."source", 'VTEX') AS source,
-          TO_CHAR(o."orderDate", 'YYYY-MM-DD HH24:MI') AS order_date,
-          CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", '')) AS customer_name
+          TO_CHAR(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') AS order_date,
+          TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) AS customer_name,
+          COALESCE(c.email, '') AS customer_email,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'name', p.name,
+              'quantity', oi.quantity,
+              'unitPrice', oi."unitPrice",
+              'totalPrice', oi."totalPrice"
+            ))
+            FROM order_items oi
+            LEFT JOIN products p ON p.id = oi."productId"
+            WHERE oi."orderId" = o.id),
+            '[]'
+          )::text AS items_json
         FROM orders o
         LEFT JOIN customers c ON c.id = o."customerId"
         WHERE o."organizationId" = '${ORG_ID}'
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
-          ${sourceWhere.replace(/"source"/g, 'o."source"')}
+          ${srcWhere.replace(/o\."source"/g, 'o."source"')}
         ORDER BY o."orderDate" DESC
         LIMIT 50
       `, dateFrom, dateTo),
@@ -305,10 +358,19 @@ export async function GET(request: NextRequest) {
     const curr = currentPeriod[0];
     const prev = previousPeriod[0];
 
+    // Count cancelled separately
+    const cancelledResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
+      SELECT COUNT(*)::text AS cnt FROM orders
+      WHERE "organizationId" = '${ORG_ID}'
+        AND "orderDate" >= $1 AND "orderDate" <= $2
+        AND status IN ('CANCELLED', 'RETURNED')
+        ${srcWhereSimple}
+    `, dateFrom, dateTo);
+    const cancelledOrders = Number(cancelledResult[0].cnt);
+
     const totalOrders = Number(curr.total_orders);
     const totalRevenue = Number(curr.total_revenue);
     const avgTicket = Number(curr.avg_ticket);
-    const cancelledOrders = Number(curr.cancelled_orders);
     const cancellationRate = totalOrders + cancelledOrders > 0
       ? (cancelledOrders / (totalOrders + cancelledOrders)) * 100
       : 0;
@@ -317,22 +379,20 @@ export async function GET(request: NextRequest) {
     const prevTotalRevenue = Number(prev.total_revenue);
     const prevAvgTicket = Number(prev.avg_ticket);
 
-    const pctChange = (curr: number, prev: number) =>
-      prev > 0 ? ((curr - prev) / prev) * 100 : curr > 0 ? 100 : 0;
-
-    // Day of week names in Spanish
-    const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+    const pctChange = (c: number, p: number) =>
+      p > 0 ? ((c - p) / p) * 100 : c > 0 ? 100 : 0;
 
     return NextResponse.json({
       kpis: {
         totalOrders,
         totalRevenue,
-        avgTicket,
+        avgTicket: Math.round(avgTicket),
         totalItems: Number(curr.total_items),
         totalShipping: Number(curr.total_shipping),
         totalDiscounts: Number(curr.total_discounts),
         cancellationRate: Math.round(cancellationRate * 10) / 10,
         cancelledOrders,
+        daysInPeriod,
         changes: {
           orders: Math.round(pctChange(totalOrders, prevTotalOrders) * 10) / 10,
           revenue: Math.round(pctChange(totalRevenue, prevTotalRevenue) * 10) / 10,
@@ -346,16 +406,22 @@ export async function GET(request: NextRequest) {
         items: Number(d.items),
       })),
       salesByDayOfWeek: salesByDayOfWeek.map(d => ({
-        dayName: dayNames[d.day_of_week] || `Día ${d.day_of_week}`,
+        dayName: d.day_name,
         dayOfWeek: d.day_of_week,
-        orders: Number(d.orders),
-        revenue: Number(d.revenue),
+        totalOrders: Number(d.total_orders),
+        avgOrders: Math.round(Number(d.total_orders) / Number(d.num_days)),
+        totalRevenue: Number(d.total_revenue),
+        avgRevenue: Math.round(Number(d.total_revenue) / Number(d.num_days)),
+        numDays: Number(d.num_days),
       })),
       salesByHour: salesByHour.map(h => ({
         hour: h.hour,
         label: `${h.hour}:00`,
-        orders: Number(h.orders),
-        revenue: Number(h.revenue),
+        totalOrders: Number(h.total_orders),
+        avgOrders: Math.round((Number(h.total_orders) / Number(h.num_days)) * 10) / 10,
+        totalRevenue: Number(h.total_revenue),
+        avgRevenue: Math.round(Number(h.total_revenue) / Number(h.num_days)),
+        numDays: Number(h.num_days),
       })),
       paymentMethods: topPaymentMethods.map(pm => ({
         method: pm.payment_method,
@@ -373,30 +439,38 @@ export async function GET(request: NextRequest) {
         category: p.category,
         unitsSold: Number(p.units_sold),
         revenue: Number(p.revenue),
-        orders: Number(p.orders),
+        orders: Number(p.order_count),
       })),
       topCustomers: topCustomers.map(c => ({
         id: c.customer_id,
-        name: c.customer_name.trim() || "Sin nombre",
+        name: c.customer_name || "Sin nombre",
         email: c.email,
         totalOrders: Number(c.total_orders),
         totalSpent: Number(c.total_spent),
       })),
-      recentOrders: recentOrders.map(o => ({
-        id: o.id,
-        externalId: o.external_id,
-        status: o.status,
-        totalValue: Number(o.total_value),
-        itemCount: Number(o.item_count),
-        paymentMethod: o.payment_method,
-        source: o.source,
-        orderDate: o.order_date,
-        customerName: o.customer_name.trim() || "Sin nombre",
-      })),
+      recentOrders: recentOrders.map(o => {
+        let items: any[] = [];
+        try { items = JSON.parse(o.items_json); } catch {}
+        return {
+          id: o.id,
+          externalId: o.external_id,
+          status: o.status,
+          totalValue: Number(o.total_value),
+          itemCount: Number(o.item_count),
+          paymentMethod: o.payment_method,
+          source: o.source,
+          orderDate: o.order_date,
+          customerName: o.customer_name || "Sin nombre",
+          customerEmail: o.customer_email,
+          items,
+        };
+      }),
       meta: {
         dateFrom: dateFrom.toISOString(),
         dateTo: dateTo.toISOString(),
         source: sourceFilter || "ALL",
+        daysInPeriod,
+        totalOrdersInDB: totalOrders + cancelledOrders,
       },
     });
   } catch (error: any) {

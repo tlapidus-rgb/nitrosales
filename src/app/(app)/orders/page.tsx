@@ -65,15 +65,21 @@ interface DailySale {
 interface DayOfWeekSale {
   dayName: string;
   dayOfWeek: number;
-  orders: number;
-  revenue: number;
+  totalOrders: number;
+  avgOrders: number;
+  totalRevenue: number;
+  avgRevenue: number;
+  numDays: number;
 }
 
 interface HourSale {
   hour: number;
   label: string;
-  orders: number;
-  revenue: number;
+  totalOrders: number;
+  avgOrders: number;
+  totalRevenue: number;
+  avgRevenue: number;
+  numDays: number;
 }
 
 interface PaymentMethod {
@@ -105,6 +111,13 @@ interface TopCustomer {
   totalSpent: number;
 }
 
+interface OrderItemDetail {
+  name: string | null;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
 interface RecentOrder {
   id: string;
   externalId: string;
@@ -115,6 +128,8 @@ interface RecentOrder {
   source: string;
   orderDate: string;
   customerName: string;
+  customerEmail: string;
+  items: OrderItemDetail[];
 }
 
 interface OrdersData {
@@ -192,6 +207,9 @@ export default function OrdersPage() {
 
   // Active chart metric
   const [dailyMetric, setDailyMetric] = useState<"revenue" | "orders">("revenue");
+
+  // Expanded orders
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   // ── Fetch data ──
   useEffect(() => {
@@ -516,9 +534,9 @@ export default function OrdersPage() {
 
       {/* ══ ROW: DAY OF WEEK + HOUR HEATMAP ══ */}
       <div className="grid grid-cols-2 gap-4">
-        {/* Sales by day of week */}
+        {/* Sales by day of week — PROMEDIO */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Ventas por día de la semana</h2>
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Promedio de órdenes por día de la semana</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data.salesByDayOfWeek}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -535,23 +553,20 @@ export default function OrdersPage() {
                 width={40}
               />
               <Tooltip
-                formatter={(value: number, name: string) => [
-                  name === "revenue" ? formatARS(value) : value.toLocaleString("es-AR"),
-                  name === "revenue" ? "Facturación" : "Órdenes",
-                ]}
+                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio órdenes/día"]}
                 contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
               />
-              <Bar dataKey="orders" fill="#6366f1" radius={[4, 4, 0, 0]} name="orders" />
+              <Bar dataKey="avgOrders" fill="#6366f1" radius={[4, 4, 0, 0]} name="avgOrders" />
             </BarChart>
           </ResponsiveContainer>
           <p className="text-[10px] text-gray-400 mt-2 text-center">
-            Útil para saber cuándo pautar ads y reforzar atención al cliente
+            Promedio diario — útil para saber cuándo pautar ads
           </p>
         </div>
 
-        {/* Sales by hour */}
+        {/* Sales by hour — PROMEDIO */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Ventas por hora del día</h2>
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Promedio de órdenes por hora del día</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data.salesByHour}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -569,14 +584,14 @@ export default function OrdersPage() {
                 width={40}
               />
               <Tooltip
-                formatter={(value: number) => [value.toLocaleString("es-AR"), "Órdenes"]}
+                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio órdenes/día"]}
                 contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
               />
-              <Bar dataKey="orders" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="avgOrders" fill="#10b981" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
           <p className="text-[10px] text-gray-400 mt-2 text-center">
-            Las horas pico son ideales para enviar WhatsApp, emails y programar ofertas
+            Promedio diario — horas pico ideales para WhatsApp, emails y ofertas
           </p>
         </div>
       </div>
@@ -754,56 +769,104 @@ export default function OrdersPage() {
             </thead>
             <tbody>
               {filteredOrders.map((order) => (
-                <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                  <td className="py-2.5 px-2">
-                    <span className="text-xs font-mono text-indigo-600">
-                      {order.externalId.length > 15
-                        ? `...${order.externalId.slice(-12)}`
-                        : order.externalId}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-2">
-                    <span className="text-xs text-gray-600">{order.orderDate}</span>
-                  </td>
-                  <td className="py-2.5 px-2">
-                    <span className="text-xs text-gray-700 truncate max-w-[150px] block">
-                      {order.customerName}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-2 text-right">
-                    <span className="text-xs font-medium text-gray-800">
-                      {formatARS(order.totalValue)}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-2 text-center">
-                    <span className="text-xs text-gray-600">{order.itemCount}</span>
-                  </td>
-                  <td className="py-2.5 px-2">
-                    <span className="text-xs text-gray-600 truncate max-w-[100px] block">
-                      {order.paymentMethod}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-2 text-center">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                      order.source === "MELI"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-indigo-50 text-indigo-600"
-                    }`}>
-                      {order.source}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-2 text-center">
-                    <span
-                      className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium"
-                      style={{
-                        backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}15`,
-                        color: STATUS_COLORS[order.status] || "#94a3b8",
-                      }}
-                    >
-                      {STATUS_LABELS[order.status] || order.status}
-                    </span>
-                  </td>
-                </tr>
+                <React.Fragment key={order.id}>
+                  <tr
+                    className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                    onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                  >
+                    <td className="py-2.5 px-2">
+                      <div className="flex items-center gap-1">
+                        <ChevronDown
+                          size={12}
+                          className={`text-gray-400 transition-transform ${expandedOrderId === order.id ? "rotate-180" : ""}`}
+                        />
+                        <span className="text-xs font-mono text-indigo-600">
+                          {order.externalId.length > 15
+                            ? `...${order.externalId.slice(-12)}`
+                            : order.externalId}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-2">
+                      <span className="text-xs text-gray-600">{order.orderDate}</span>
+                    </td>
+                    <td className="py-2.5 px-2">
+                      <div>
+                        <span className="text-xs text-gray-700 truncate max-w-[150px] block">
+                          {order.customerName}
+                        </span>
+                        {order.customerEmail && (
+                          <span className="text-[10px] text-gray-400 truncate max-w-[150px] block">
+                            {order.customerEmail}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-2 text-right">
+                      <span className="text-xs font-medium text-gray-800">
+                        {formatARS(order.totalValue)}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-2 text-center">
+                      <span className="text-xs text-gray-600">{order.itemCount}</span>
+                    </td>
+                    <td className="py-2.5 px-2">
+                      <span className="text-xs text-gray-600 truncate max-w-[100px] block">
+                        {order.paymentMethod}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-2 text-center">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                        order.source === "MELI"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-indigo-50 text-indigo-600"
+                      }`}>
+                        {order.source}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-2 text-center">
+                      <span
+                        className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium"
+                        style={{
+                          backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}15`,
+                          color: STATUS_COLORS[order.status] || "#94a3b8",
+                        }}
+                      >
+                        {STATUS_LABELS[order.status] || order.status}
+                      </span>
+                    </td>
+                  </tr>
+                  {/* Expanded detail */}
+                  {expandedOrderId === order.id && (
+                    <tr className="bg-gray-50/80">
+                      <td colSpan={8} className="px-6 py-3">
+                        <div className="text-xs text-gray-600 mb-2 font-medium">Productos de esta orden:</div>
+                        {order.items && order.items.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {order.items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                <div className="flex-1">
+                                  <span className="text-xs text-gray-800">{item.name || "Producto sin nombre"}</span>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-gray-500">
+                                  <span>{item.quantity} x {formatARS(item.unitPrice)}</span>
+                                  <span className="font-medium text-gray-800">{formatARS(item.totalPrice)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400">Sin detalle de productos disponible</p>
+                        )}
+                        <div className="mt-2 flex gap-4 text-[10px] text-gray-400">
+                          <span>ID: {order.externalId}</span>
+                          <span>Pago: {order.paymentMethod}</span>
+                          <span>Canal: {order.source}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
               {filteredOrders.length === 0 && (
                 <tr>
