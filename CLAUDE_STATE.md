@@ -98,3 +98,11 @@
 - fix-brands v3: Creado endpoint con lookup VTEX 2-step (BrandId→BrandName)
 - fix-brands v4: Agregadas credenciales VTEX de backfill como fallback
 - Env var VTEX_APP_KEY agregada en Vercel
+
+## Changelog
+
+### v10.1 — Visual Fixes (2026-03-16)
+- Fixed 85+ double-encoded UTF-8 mojibake characters (Facturacion->Facturacion, etc)
+- Fixed Bolsas de Compra section appearing in Tendencias and Stock Inteligente tabs (moved inside activeTab === "overview" condition)
+- Fixed 6 double-encoded FFFD replacement characters in Bolsas section (Adopcion, ordenes, dias, Ultimos)
+- Commits: 4bbf299, 877615a, 05eb35e
