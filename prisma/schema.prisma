@@ -122,6 +122,7 @@ model Order {
   totalValue      Float                           // Valor total en la moneda del ecommerce
   currency        String      @default("ARS")
   itemCount       Int                             // Cantidad de productos
+  source          String      @default("VTEX")    // Plataforma origen: VTEX, MELI
   channel         String?                         // Canal de venta (web, app, marketplace)
   trafficSource   String?                         // De dónde vino (organic, paid, direct, etc)
   paymentMethod   String?
@@ -139,6 +140,7 @@ model Order {
 
   @@unique([organizationId, externalId])
   @@index([organizationId, orderDate])
+  @@index([organizationId, source, orderDate])
   @@index([organizationId, trafficSource])
   @@map("orders")
 }
@@ -180,8 +182,6 @@ model Product {
   compareAtPrice Float?                          // Precio tachado/anterior
   imageUrl      String?
   isActive      Boolean  @default(true)
-  stock          Int?                            // Unidades disponibles en VTEX
-  stockUpdatedAt DateTime?                       // Última sincronización de stock
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
