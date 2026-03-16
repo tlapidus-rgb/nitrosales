@@ -26,91 +26,79 @@ async function sleep(ms: number) {
  * Strategy:
  *   1. Try as Product ID: GET /api/catalog/pvt/product/{id}
  *   2. If 404, try as SKU ID: GET /api/catalog/pvt/stockkeepingunit/{id}
- *      ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ extract ProductId ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ then GET /api/catalog/pvt/product/{ProductId}
+ *      ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ extract ProductId ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ then GET /api/catalog/pvt/product/{ProductId}
  */
 async function getVtexBrand(
   externalId: string
 ): Promise<{ brand: string; category: string } | null> {
   const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
 
-  // --- Attempt 1: Treat externalId as Product ID ---
+  // Step 1: Get BrandId from product
+  let brandId: number | null = null;
+  let categoryPath = "";
+
+  // Try as Product ID first
   try {
     const productRes = await fetch(
       `${baseUrl}/api/catalog/pvt/product/${externalId}`,
       { headers: vtexHeaders() }
     );
-
     if (productRes.ok) {
       const product = await productRes.json();
-      if (product.BrandName) {
-        return {
-          brand: product.BrandName,
-          category: product.CategoryPath || product.DepartmentId?.toString() || "",
-        };
+      if (product.BrandId) {
+        brandId = product.BrandId;
+        categoryPath = product.CategoryPath || product.DepartmentId?.toString() || "";
       }
     }
-  } catch (e) {
-    // Network error on attempt 1, continue to attempt 2
-  }
+  } catch (e) {}
 
-  await sleep(DELAY_MS);
-
-  // --- Attempt 2: Treat externalId as SKU ID ---
-  try {
-    const skuRes = await fetch(
-      `${baseUrl}/api/catalog/pvt/stockkeepingunit/${externalId}`,
-      { headers: vtexHeaders() }
-    );
-
-    if (skuRes.ok) {
-      const sku = await skuRes.json();
-      const productId = sku.ProductId;
-
-      if (productId) {
-        await sleep(DELAY_MS);
-
-        const productRes = await fetch(
-          `${baseUrl}/api/catalog/pvt/product/${productId}`,
-          { headers: vtexHeaders() }
-        );
-
-        if (productRes.ok) {
-          const product = await productRes.json();
-          if (product.BrandName) {
-            return {
-              brand: product.BrandName,
-              category:
-                product.CategoryPath ||
-                product.DepartmentId?.toString() ||
-                "",
-            };
+  // If no BrandId yet, try as SKU ID
+  if (!brandId) {
+    await sleep(DELAY_MS);
+    try {
+      const skuRes = await fetch(
+        `${baseUrl}/api/catalog/pvt/stockkeepingunit/${externalId}`,
+        { headers: vtexHeaders() }
+      );
+      if (skuRes.ok) {
+        const sku = await skuRes.json();
+        const productId = sku.ProductId;
+        if (productId) {
+          await sleep(DELAY_MS);
+          const productRes = await fetch(
+            `${baseUrl}/api/catalog/pvt/product/${productId}`,
+            { headers: vtexHeaders() }
+          );
+          if (productRes.ok) {
+            const product = await productRes.json();
+            if (product.BrandId) {
+              brandId = product.BrandId;
+              categoryPath = product.CategoryPath || product.DepartmentId?.toString() || "";
+            }
           }
         }
       }
-    }
-  } catch (e) {
-    // Network error on attempt 2
+    } catch (e) {}
   }
 
-  // --- Attempt 3: Try legacy endpoint as fallback ---
-  try {
+  // Step 2: Resolve BrandId to BrandName via Brand API
+  if (brandId) {
     await sleep(DELAY_MS);
-    const legacyRes = await fetch(
-      `${baseUrl}/api/catalog_system/pvt/products/productget/${externalId}`,
-      { headers: vtexHeaders() }
-    );
-
-    if (legacyRes.ok) {
-      const product = await legacyRes.json();
-      if (product.BrandName) {
-        return {
-          brand: product.BrandName,
-          category: product.CategoryPath || "",
-        };
+    try {
+      const brandRes = await fetch(
+        `${baseUrl}/api/catalog/pvt/brand/${brandId}`,
+        { headers: vtexHeaders() }
+      );
+      if (brandRes.ok) {
+        const brandData = await brandRes.json();
+        if (brandData.Name) {
+          return {
+            brand: brandData.Name,
+            category: categoryPath,
+          };
+        }
       }
-    }
-  } catch (e) {
-    // All attempts failed
+    } catch (e) {}
   }
 
   return null;
