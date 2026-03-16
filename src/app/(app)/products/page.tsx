@@ -112,15 +112,15 @@ const COLORS = [
 ];
 
 const COLUMN_TOOLTIPS = {
-  facturacion: "Ingresos totales por venta de este producto en los últimos 30 días",
-  unidades: "Cantidad total de unidades vendidas en los últimos 30 días",
-  tendencia: "Variación porcentual de ingresos entre la última semana y la anterior (Week over Week)",
+  facturacion: "Ingresos totales por venta de este producto en los Ãºltimos 30 dÃ­as",
+  unidades: "Cantidad total de unidades vendidas en los Ãºltimos 30 dÃ­as",
+  tendencia: "VariaciÃ³n porcentual de ingresos entre la Ãºltima semana y la anterior (Week over Week)",
   stock: "Unidades actualmente disponibles en inventario",
-  diasstock: "Días estimados hasta agotar stock, basado en la velocidad de venta diaria actual",
-  abc: "Clasificación ABC: A = Top 80% del revenue, B = siguiente 15%, C = último 5%",
-  porcMarca: "Participación de este producto en la facturación total de su marca",
-  porcCat: "Participación de este producto en la facturación total de su categoría",
-  porcTotal: "Participación de este producto en la facturación total",
+  diasstock: "DÃ­as estimados hasta agotar stock, basado en la velocidad de venta diaria actual",
+  abc: "ClasificaciÃ³n ABC: A = Top 80% del revenue, B = siguiente 15%, C = Ãºltimo 5%",
+  porcMarca: "ParticipaciÃ³n de este producto en la facturaciÃ³n total de su marca",
+  porcCat: "ParticipaciÃ³n de este producto en la facturaciÃ³n total de su categorÃ­a",
+  porcTotal: "ParticipaciÃ³n de este producto en la facturaciÃ³n total",
 };
 
 function Sparkline({ data, color }: { data: number[]; color: string }) {
@@ -155,7 +155,7 @@ function TrendIndicator({ wowRevenuePct }: { wowRevenuePct: number }) {
   } else {
     return (
       <div className="flex items-center gap-1 text-gray-500 font-medium">
-        <span className="text-lg">−</span>
+        <span className="text-lg">â</span>
         <span>{wowRevenuePct.toFixed(1)}%</span>
       </div>
     );
@@ -176,7 +176,7 @@ function StockBadge({ daysOfStock, stockHealth, stock }: { daysOfStock: number |
 
   // Format days display
   if (daysOfStock === null || daysOfStock === undefined) {
-    return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>—</span>;
+    return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>â</span>;
   }
   if (daysOfStock > 365) {
     return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>+365d</span>;
@@ -248,7 +248,7 @@ export default function ProductsPageV10() {
             wowRevenuePct: Number(p.trendData?.wowRevenuePct) || 0,
             trendSlope: Number(p.trendData?.trendSlope) || 0,
             abcClass: p.trendData?.abcClass || p.stockData?.abcClass || "C",
-            // Map weeklyData (API v3) → weeklyTrend (v10 page)
+            // Map weeklyData (API v3) â weeklyTrend (v10 page)
             weeklyTrend: (p.trendData?.weeklyTrend || p.trendData?.weeklyData || []).map(w => ({
               ...w,
               units: Number(w.units) || 0,
@@ -273,7 +273,7 @@ export default function ProductsPageV10() {
 
         setProducts(filteredProducts);
 
-        // Map stockHealthSummary (API v3) → stockSummary (v10 page)
+        // Map stockHealthSummary (API v3) â stockSummary (v10 page)
         const sh = data.stockHealthSummary || data.stockSummary;
         if (sh) {
           setStockSummary({
@@ -421,7 +421,7 @@ export default function ProductsPageV10() {
 
     const categoryTotals = new Map<string, number>();
     filtered.forEach((p) => {
-      const cat = p.category || "Sin categoría";
+      const cat = p.category || "Sin categorÃ­a";
       categoryTotals.set(cat, (categoryTotals.get(cat) || 0) + p.revenue);
     });
 
@@ -438,7 +438,7 @@ export default function ProductsPageV10() {
 
     const catRevenue = new Map<string, number>();
     filtered.forEach((p) => {
-      const cat = p.category || "Sin categoría";
+      const cat = p.category || "Sin categorÃ­a";
       catRevenue.set(cat, (catRevenue.get(cat) || 0) + p.revenue);
     });
     const topCats = [...catRevenue.entries()]
@@ -450,7 +450,7 @@ export default function ProductsPageV10() {
       const row: any = { weekStart: week };
       for (const cat of topCats) {
         row[cat] = filtered
-          .filter((p) => (p.category || "Sin categoría") === cat)
+          .filter((p) => (p.category || "Sin categorÃ­a") === cat)
           .reduce((sum, p) => {
             const weekData = p.trendData.weeklyTrend.find((w) => w.weekStart === week);
             return sum + (weekData ? weekData.revenue : 0);
@@ -588,9 +588,9 @@ export default function ProductsPageV10() {
   const distributionData = useMemo(() => {
     if (!stockSummary) return [];
     return [
-      { name: "Crítico", value: stockSummary.criticalCount, color: "#ef4444" },
+      { name: "CrÃ­tico", value: stockSummary.criticalCount, color: "#ef4444" },
       { name: "Bajo", value: stockSummary.lowCount, color: "#f59e0b" },
-      { name: "Óptimo", value: stockSummary.optimalCount, color: "#10b981" },
+      { name: "Ãptimo", value: stockSummary.optimalCount, color: "#10b981" },
       { name: "Excesivo", value: stockSummary.excessiveCount, color: "#3b82f6" },
       { name: "Muerto", value: stockSummary.deadCount, color: "#6b7280" },
     ];
@@ -617,7 +617,7 @@ export default function ProductsPageV10() {
   const categoryDistribution = useMemo(() => {
     const dist = new Map<string, number>();
     filtered.forEach((p) => {
-      const cat = p.category || "Sin categoría";
+      const cat = p.category || "Sin categorÃ­a";
       const val = chartMetric === "revenue" ? p.revenue : p.unitsSold;
       dist.set(cat, (dist.get(cat) || 0) + val);
     });
@@ -691,10 +691,10 @@ export default function ProductsPageV10() {
 
   // CSV Export function
   const exportCSV = () => {
-    const headers = ["Producto", "SKU", "Marca", "Categoría", "Facturación", "Unidades", "Tendencia WoW%", "Stock", "Días Stock", "Salud Stock", "ABC"];
+    const headers = ["Producto", "SKU", "Marca", "CategorÃ­a", "FacturaciÃ³n", "Unidades", "Tendencia WoW%", "Stock", "DÃ­as Stock", "Salud Stock", "ABC"];
     const rows = filtered.map((p) => {
       const days = p.stockData.daysOfStock;
-      const daysStr = days === null ? "—" : days > 365 ? "+365" : Math.round(days).toString();
+      const daysStr = days === null ? "â" : days > 365 ? "+365" : Math.round(days).toString();
       return [
         `"${p.name.replace(/"/g, '""')}"`,
         p.sku || "",
@@ -705,7 +705,7 @@ export default function ProductsPageV10() {
         p.trendData.wowRevenuePct.toFixed(1),
         p.stock ?? 0,
         daysStr,
-        p.stockData.stockHealth || "—",
+        p.stockData.stockHealth || "â",
         p.trendData.abcClass,
       ].join(",");
     });
@@ -755,7 +755,7 @@ export default function ProductsPageV10() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Productos</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Top productos por facturación · Últimos 30 días
+          Top productos por facturaciÃ³n Â· Ãltimos 30 dÃ­as
         </p>
       </div>
 
@@ -818,7 +818,7 @@ export default function ProductsPageV10() {
                 : "border-gray-300 bg-white"
             }`}
           >
-            <option value="">Todas las categorías ({categories.length})</option>
+            <option value="">Todas las categorÃ­as ({categories.length})</option>
             {categories.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
@@ -845,12 +845,12 @@ export default function ProductsPageV10() {
                 : "border-gray-300 bg-white"
             }`}
           >
-            <option value="">Días Stock: Todos</option>
+            <option value="">DÃ­as Stock: Todos</option>
             <option value="agotado">Agotado (0 stock)</option>
-            <option value="critical">Crítico (&lt; 7 días)</option>
-            <option value="low">Bajo (7–30 días)</option>
-            <option value="moderate">Moderado (30–90 días)</option>
-            <option value="high">Alto (&gt; 90 días)</option>
+            <option value="critical">CrÃ­tico (&lt; 7 dÃ­as)</option>
+            <option value="low">Bajo (7â30 dÃ­as)</option>
+            <option value="moderate">Moderado (30â90 dÃ­as)</option>
+            <option value="high">Alto (&gt; 90 dÃ­as)</option>
           </select>
           {stockDaysFilter && (
             <button
@@ -903,44 +903,44 @@ export default function ProductsPageV10() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <DollarSign className="w-4 h-4 text-indigo-500" />
-                <span className="text-xs text-gray-500 font-medium">Facturación Total</span>
+                <span className="text-xs text-gray-500 font-medium">FacturaciÃ³n Total</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">{formatCompact(kpiStats.totalRevenue)}</p>
+              <p className="text-xl font-bold text-gray-900">{formatCompact((kpiStats?.totalRevenue ?? 0))}</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Package className="w-4 h-4 text-green-500" />
                 <span className="text-xs text-gray-500 font-medium">Unidades Vendidas</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">{kpiStats.totalUnits.toLocaleString("es-AR")}</p>
+              <p className="text-xl font-bold text-gray-900">{(kpiStats?.totalUnits ?? 0)?.toLocaleString("es-AR")}</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <DollarSign className="w-4 h-4 text-amber-500" />
                 <span className="text-xs text-gray-500 font-medium">Ticket Promedio</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">{formatARS(kpiStats.ticketPromedio)}</p>
+              <p className="text-xl font-bold text-gray-900">{formatARS((kpiStats?.ticketPromedio ?? 0))}</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Zap className="w-4 h-4 text-cyan-500" />
                 <span className="text-xs text-gray-500 font-medium">Productos Activos</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">{kpiStats.productosActivos.toLocaleString("es-AR")}</p>
+              <p className="text-xl font-bold text-gray-900">{(kpiStats?.productosActivos ?? 0)?.toLocaleString("es-AR")}</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Package className="w-4 h-4 text-purple-500" />
                 <span className="text-xs text-gray-500 font-medium">Stock Total (uds)</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">{kpiStats.totalStock.toLocaleString("es-AR")}</p>
+              <p className="text-xl font-bold text-gray-900">{(kpiStats?.totalStock ?? 0)?.toLocaleString("es-AR")}</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Package className="w-4 h-4 text-orange-500" />
                 <span className="text-xs text-gray-500 font-medium">Valor de Stock</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">{formatCompact(kpiStats.valorStock)}</p>
+              <p className="text-xl font-bold text-gray-900">{formatCompact((kpiStats?.valorStock ?? 0))}</p>
             </div>
           </div>
 
@@ -957,10 +957,10 @@ export default function ProductsPageV10() {
             <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
-                <span className="text-xs text-gray-500 font-medium">Stock Crítico</span>
+                <span className="text-xs text-gray-500 font-medium">Stock CrÃ­tico</span>
               </div>
               <p className={`text-xl font-bold ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-gray-900"}`}>{stockHealthAlerts.critico}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">menos de 7 días de stock</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">menos de 7 dÃ­as de stock</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4">
               <div className="flex items-center gap-2 mb-1">
@@ -968,12 +968,12 @@ export default function ProductsPageV10() {
                 <span className="text-xs text-gray-500 font-medium">Sobrestock</span>
               </div>
               <p className={`text-xl font-bold ${stockHealthAlerts.sobrestock > 0 ? "text-blue-600" : "text-gray-900"}`}>{stockHealthAlerts.sobrestock}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">más de 90 días de stock</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">mÃ¡s de 90 dÃ­as de stock</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Search className="w-4 h-4 text-gray-500" />
-                <span className="text-xs text-gray-500 font-medium">Días Stock Promedio</span>
+                <span className="text-xs text-gray-500 font-medium">DÃ­as Stock Promedio</span>
               </div>
               <p className="text-xl font-bold text-gray-900">{Math.round(stockHealthAlerts.diasPromedio)}</p>
               <p className="text-[10px] text-gray-400 mt-0.5">promedio ponderado</p>
@@ -983,7 +983,7 @@ export default function ProductsPageV10() {
 
           {/* Metric Toggle Pills */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600 font-medium">Métrica:</span>
+            <span className="text-sm text-gray-600 font-medium">MÃ©trica:</span>
             <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
               <button
                 onClick={() => setChartMetric("revenue")}
@@ -993,7 +993,7 @@ export default function ProductsPageV10() {
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                Facturación
+                FacturaciÃ³n
               </button>
               <button
                 onClick={() => setChartMetric("units")}
@@ -1036,7 +1036,7 @@ export default function ProductsPageV10() {
                           const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
                           return chartMetric === "revenue"
                             ? `${formatARS(value)} (${pct}%)`
-                            : `${value.toLocaleString("es-AR")} uds (${pct}%)`;
+                            : `${value?.toLocaleString("es-AR")} uds (${pct}%)`;
                         }}
                       />
                     </PieChart>
@@ -1047,7 +1047,7 @@ export default function ProductsPageV10() {
                     <thead className="sticky top-0 bg-white">
                       <tr>
                         <th className="text-left py-1 text-gray-500 font-medium">Marca</th>
-                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturación" : "Unidades"}</th>
+                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "FacturaciÃ³n" : "Unidades"}</th>
                         <th className="text-right py-1 text-gray-500 font-medium">%</th>
                       </tr>
                     </thead>
@@ -1061,7 +1061,7 @@ export default function ProductsPageV10() {
                               <span className="text-gray-800 truncate max-w-[120px]" title={entry.name}>{entry.name}</span>
                             </td>
                             <td className="py-1.5 text-right text-gray-700 font-medium">
-                              {chartMetric === "revenue" ? formatCompact(entry.value) : entry.value.toLocaleString("es-AR")}
+                              {chartMetric === "revenue" ? formatCompact(entry.value) : entry.value?.toLocaleString("es-AR")}
                             </td>
                             <td className="py-1.5 text-right text-gray-600">
                               {total > 0 ? ((entry.value / total) * 100).toFixed(1) : "0"}%
@@ -1077,7 +1077,7 @@ export default function ProductsPageV10() {
 
             {/* Category Chart + Ranking */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-4">Por Categoría</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">Por CategorÃ­a</h3>
               <div className="flex gap-4">
                 <div className="flex-shrink-0" style={{width: '220px', height: '220px'}}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -1101,7 +1101,7 @@ export default function ProductsPageV10() {
                           const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
                           return chartMetric === "revenue"
                             ? `${formatARS(value)} (${pct}%)`
-                            : `${value.toLocaleString("es-AR")} uds (${pct}%)`;
+                            : `${value?.toLocaleString("es-AR")} uds (${pct}%)`;
                         }}
                       />
                     </PieChart>
@@ -1111,8 +1111,8 @@ export default function ProductsPageV10() {
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-white">
                       <tr>
-                        <th className="text-left py-1 text-gray-500 font-medium">Categoría</th>
-                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturación" : "Unidades"}</th>
+                        <th className="text-left py-1 text-gray-500 font-medium">CategorÃ­a</th>
+                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "FacturaciÃ³n" : "Unidades"}</th>
                         <th className="text-right py-1 text-gray-500 font-medium">%</th>
                       </tr>
                     </thead>
@@ -1126,7 +1126,7 @@ export default function ProductsPageV10() {
                               <span className="text-gray-800 truncate max-w-[120px]" title={entry.name}>{entry.name}</span>
                             </td>
                             <td className="py-1.5 text-right text-gray-700 font-medium">
-                              {chartMetric === "revenue" ? formatCompact(entry.value) : entry.value.toLocaleString("es-AR")}
+                              {chartMetric === "revenue" ? formatCompact(entry.value) : entry.value?.toLocaleString("es-AR")}
                             </td>
                             <td className="py-1.5 text-right text-gray-600">
                               {total > 0 ? ((entry.value / total) * 100).toFixed(1) : "0"}%
@@ -1160,7 +1160,7 @@ export default function ProductsPageV10() {
                         className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => handleSort("revenue")}
                       >
-                        <TooltipHeader text="Facturación" tooltip={COLUMN_TOOLTIPS.facturacion} />
+                        <TooltipHeader text="FacturaciÃ³n" tooltip={COLUMN_TOOLTIPS.facturacion} />
                         {getSortIndicator("revenue")}
                       </th>
                       <th className="px-6 py-3 text-right font-semibold text-gray-700">
@@ -1197,7 +1197,7 @@ export default function ProductsPageV10() {
                         className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => handleSort("daysOfStock")}
                       >
-                        <TooltipHeader text="Días Stock" tooltip={COLUMN_TOOLTIPS.diasstock} />
+                        <TooltipHeader text="DÃ­as Stock" tooltip={COLUMN_TOOLTIPS.diasstock} />
                         {getSortIndicator("daysOfStock")}
                       </th>
                       <th
@@ -1212,7 +1212,7 @@ export default function ProductsPageV10() {
                   <tbody className="divide-y divide-gray-200">
                     {paginatedProducts.map((product) => {
                       const brandRevenue = revenueCalculations.brandTotals.get(product.brand || "Sin marca") || 1;
-                      const catRevenue = revenueCalculations.categoryTotals.get(product.category || "Sin categoría") || 1;
+                      const catRevenue = revenueCalculations.categoryTotals.get(product.category || "Sin categorÃ­a") || 1;
                       const porcMarca = (product.revenue / brandRevenue) * 100;
                       const porcCat = (product.revenue / catRevenue) * 100;
                       const porcTotal = revenueCalculations.totalRevenue > 0 ? (product.revenue / revenueCalculations.totalRevenue) * 100 : 0;
@@ -1237,7 +1237,7 @@ export default function ProductsPageV10() {
                                   {product.name}
                                 </div>
                                 <div className="text-xs text-gray-500 mb-2">
-                                  {product.sku || "—"}
+                                  {product.sku || "â"}
                                 </div>
                                 <div className="flex gap-2">
                                   {product.brand && (
@@ -1313,7 +1313,7 @@ export default function ProductsPageV10() {
                   Anterior
                 </button>
                 <span className="px-4 py-1 text-gray-700 font-medium">
-                  Página {currentPage} de {totalPages}
+                  PÃ¡gina {currentPage} de {totalPages}
                 </span>
                 <button
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
@@ -1333,40 +1333,40 @@ export default function ProductsPageV10() {
       {bagsAnalytics && (
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-xl border border-amber-200">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-2xl">=�</span>
+            <span className="text-2xl">=ï¿½</span>
             <h3 className="text-lg font-semibold text-amber-900">Bolsas de Compra</h3>
             <span className="ml-auto text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
-              �ltimos 30 d�as
+              ï¿½ltimos 30 dï¿½as
             </span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className="bg-white/80 rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-1">Unidades Vendidas</p>
-              <p className="text-xl font-bold text-amber-800">{bagsAnalytics.totalBagsSold.toLocaleString("es-AR")}</p>
+              <p className="text-xl font-bold text-amber-800">{(bagsAnalytics?.totalBagsSold ?? 0)?.toLocaleString("es-AR")}</p>
             </div>
             <div className="bg-white/80 rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-1">Revenue</p>
-              <p className="text-xl font-bold text-amber-800">{"$" + bagsAnalytics.bagsRevenue.toLocaleString("es-AR")}</p>
+              <p className="text-xl font-bold text-amber-800">{"$" + (bagsAnalytics?.bagsRevenue ?? 0)?.toLocaleString("es-AR")}</p>
             </div>
             <div className="bg-white/80 rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-1">Stock Actual</p>
-              <p className="text-xl font-bold text-amber-800">{bagsAnalytics.currentStock.total.toLocaleString("es-AR")}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">Grande: {bagsAnalytics.currentStock.grande.toLocaleString("es-AR")} | Chica: {bagsAnalytics.currentStock.chica.toLocaleString("es-AR")}</p>
+              <p className="text-xl font-bold text-amber-800">{(bagsAnalytics?.currentStock?.total ?? 0)?.toLocaleString("es-AR")}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Grande: {(bagsAnalytics?.currentStock?.grande ?? 0)?.toLocaleString("es-AR")} | Chica: {(bagsAnalytics?.currentStock?.chica ?? 0)?.toLocaleString("es-AR")}</p>
             </div>
             <div className="bg-white/80 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-1">Adopci�n</p>
-              <p className="text-xl font-bold text-amber-800">{bagsAnalytics.bagAdoptionPct}%</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{bagsAnalytics.ordersWithBags} de {bagsAnalytics.totalOrders} �rdenes</p>
+              <p className="text-xs text-gray-500 mb-1">Adopciï¿½n</p>
+              <p className="text-xl font-bold text-amber-800">{(bagsAnalytics?.bagAdoptionPct ?? 0)}%</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{(bagsAnalytics?.ordersWithBags ?? 0)} de {(bagsAnalytics?.totalOrders ?? 0)} ï¿½rdenes</p>
               <div className="w-full bg-amber-200 rounded-full h-1.5 mt-1.5">
-                <div className="bg-amber-600 h-1.5 rounded-full transition-all" style={{ width: Math.min(bagsAnalytics.bagAdoptionPct, 100) + "%" }} />
+                <div className="bg-amber-600 h-1.5 rounded-full transition-all" style={{ width: Math.min((bagsAnalytics?.bagAdoptionPct ?? 0), 100) + "%" }} />
               </div>
             </div>
           </div>
-          {bagsAnalytics.breakdown.length > 0 && (
+          {(bagsAnalytics?.breakdown ?? []).length > 0 && (
             <div className="flex gap-2 flex-wrap">
-              {bagsAnalytics.breakdown.map((bag: any, i: number) => (
+              {(bagsAnalytics?.breakdown ?? []).map((bag: any, i: number) => (
                 <span key={i} className="text-xs bg-white/60 text-amber-800 px-2 py-1 rounded border border-amber-200">
-                  {bag.name.length > 40 ? bag.name.substring(0, 40) + "..." : bag.name}: {bag.unitsSold}u � stock {bag.stock ?? "N/A"}
+                  {bag.name.length > 40 ? bag.name.substring(0, 40) + "..." : bag.name}: {bag.unitsSold}u ï¿½ stock {bag.stock ?? "N/A"}
                 </span>
               ))}
             </div>
@@ -1380,7 +1380,7 @@ export default function ProductsPageV10() {
           {/* Category Evolution */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h3 className="font-semibold text-gray-900 mb-4">
-              Evolución por Categoría
+              EvoluciÃ³n por CategorÃ­a
             </h3>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={categoryTrends}>
@@ -1418,7 +1418,7 @@ export default function ProductsPageV10() {
           {/* Brand Evolution */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h3 className="font-semibold text-gray-900 mb-4">
-              Evolución por Marca
+              EvoluciÃ³n por Marca
             </h3>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={brandTrends}>
@@ -1473,7 +1473,7 @@ export default function ProductsPageV10() {
                       WoW%
                     </th>
                     <th className="px-4 py-3 text-right font-semibold text-green-900">
-                      Facturación 30d
+                      FacturaciÃ³n 30d
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-green-900">
                       Sparkline
@@ -1521,7 +1521,7 @@ export default function ProductsPageV10() {
           <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-xl shadow-sm border border-red-200">
             <h3 className="font-semibold text-red-900 mb-4 flex items-center gap-2">
               <TrendingDown className="w-5 h-5" />
-              Productos en Caída
+              Productos en CaÃ­da
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -1537,7 +1537,7 @@ export default function ProductsPageV10() {
                       WoW%
                     </th>
                     <th className="px-4 py-3 text-right font-semibold text-red-900">
-                      Facturación 30d
+                      FacturaciÃ³n 30d
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-red-900">
                       Sparkline
@@ -1623,7 +1623,7 @@ export default function ProductsPageV10() {
                       {stockSummary.criticalCount + stockSummary.lowCount}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      {stockSummary.criticalCount} crítico,{" "}
+                      {stockSummary.criticalCount} crÃ­tico,{" "}
                       {stockSummary.lowCount} bajo
                     </p>
                   </div>
@@ -1733,7 +1733,7 @@ export default function ProductsPageV10() {
           {/* ABC Classification */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h3 className="font-semibold text-gray-900 mb-4">
-              Clasificación ABC por Velocidad de Venta
+              ClasificaciÃ³n ABC por Velocidad de Venta
             </h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={abcChartData} layout="vertical">
@@ -1793,7 +1793,7 @@ export default function ProductsPageV10() {
               Alertas de Quiebre de Stock
             </h3>
             <p className="text-sm text-gray-600 mb-4">
-              {stockAlerts.length} producto{stockAlerts.length !== 1 ? 's' : ''} en alerta ({stockSummary?.criticalCount || 0} crítico{stockSummary?.criticalCount !== 1 ? 's' : ''}, {stockSummary?.lowCount || 0} bajo{stockSummary?.lowCount !== 1 ? 's' : ''})
+              {stockAlerts.length} producto{stockAlerts.length !== 1 ? 's' : ''} en alerta ({stockSummary?.criticalCount || 0} crÃ­tico{stockSummary?.criticalCount !== 1 ? 's' : ''}, {stockSummary?.lowCount || 0} bajo{stockSummary?.lowCount !== 1 ? 's' : ''})
             </p>
             {stockAlerts.length === 0 ? (
               <p className="text-gray-500 py-8">
@@ -1815,7 +1815,7 @@ export default function ProductsPageV10() {
                           Velocidad
                         </th>
                         <th className="px-6 py-3 text-center font-semibold text-gray-700">
-                          Días Restantes
+                          DÃ­as Restantes
                         </th>
                         <th className="px-6 py-3 text-left font-semibold text-gray-700">
                           Fecha Quiebre
@@ -1843,7 +1843,7 @@ export default function ProductsPageV10() {
                                   {product.name}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  {product.sku || "—"}
+                                  {product.sku || "â"}
                                 </div>
                               </div>
                             </td>
@@ -1852,7 +1852,7 @@ export default function ProductsPageV10() {
                             </td>
                             <td className="px-6 py-4 text-right text-gray-700">
                               {product.stockData.dailySalesRate.toFixed(1)}{" "}
-                              uds/día
+                              uds/dÃ­a
                             </td>
                             <td className="px-6 py-4 text-center">
                               <StockBadge
@@ -1866,7 +1866,7 @@ export default function ProductsPageV10() {
                                 ? new Date(
                                     product.stockData.stockoutDate
                                   ).toLocaleDateString("es-AR")
-                                : "—"}
+                                : "â"}
                             </td>
                           </tr>
                         );
@@ -1888,7 +1888,7 @@ export default function ProductsPageV10() {
                         Anterior
                       </button>
                       <span className="px-4 py-1 text-gray-700 font-medium">
-                        Página {stockAlertsPage} de {stockAlertsTotalPages}
+                        PÃ¡gina {stockAlertsPage} de {stockAlertsTotalPages}
                       </span>
                       <button
                         onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))}
@@ -1908,7 +1908,7 @@ export default function ProductsPageV10() {
           <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-xl shadow-sm border border-red-200">
             <h3 className="font-semibold text-red-900 mb-2 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
-              Stock Muerto — Capital Inmovilizado
+              Stock Muerto â Capital Inmovilizado
             </h3>
             <p className="text-sm text-red-800 mb-4">
               Capital total inmovilizado: {formatARS(deadStockCapital)}
@@ -1933,10 +1933,10 @@ export default function ProductsPageV10() {
                           Valor
                         </th>
                         <th className="px-6 py-3 text-left font-semibold text-red-900">
-                          Última Venta
+                          Ãltima Venta
                         </th>
                         <th className="px-6 py-3 text-right font-semibold text-red-900">
-                          Días sin Venta
+                          DÃ­as sin Venta
                         </th>
                       </tr>
                     </thead>
@@ -1966,7 +1966,7 @@ export default function ProductsPageV10() {
                                   {product.name}
                                 </div>
                                 <div className="text-xs text-red-700">
-                                  {product.sku || "—"}
+                                  {product.sku || "â"}
                                 </div>
                               </div>
                             </td>
@@ -1981,10 +1981,10 @@ export default function ProductsPageV10() {
                             <td className="px-6 py-4 text-red-700">
                               {lastSaleDate
                                 ? lastSaleDate.toLocaleDateString("es-AR")
-                                : "—"}
+                                : "â"}
                             </td>
                             <td className="px-6 py-4 text-right text-red-900 font-semibold">
-                              {daysNoSale ?? "—"}
+                              {daysNoSale ?? "â"}
                             </td>
                           </tr>
                         );
@@ -2006,7 +2006,7 @@ export default function ProductsPageV10() {
                         Anterior
                       </button>
                       <span className="px-4 py-1 text-red-700 font-medium">
-                        Página {deadStockPage} de {deadStockTotalPages}
+                        PÃ¡gina {deadStockPage} de {deadStockTotalPages}
                       </span>
                       <button
                         onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))}
