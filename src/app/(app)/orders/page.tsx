@@ -163,7 +163,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendiente",
-  APPROVED: "En preparaciÃ³n",
+  APPROVED: "En preparación",
   INVOICED: "Facturado",
   SHIPPED: "Enviado",
   DELIVERED: "Entregado",
@@ -172,9 +172,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const QUICK_RANGES = [
-  { label: "7 dÃ­as", days: 7 },
-  { label: "30 dÃ­as", days: 30 },
-  { label: "90 dÃ­as", days: 90 },
+  { label: "7 días", days: 7 },
+  { label: "30 días", days: 30 },
+  { label: "90 días", days: 90 },
   { label: "12 meses", days: 365 },
 ];
 
@@ -318,7 +318,7 @@ export default function OrdersPage() {
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3"></div>
-          <p className="text-gray-500">Cargando Ã³rdenes...</p>
+          <p className="text-gray-500">Cargando órdenes...</p>
         </div>
       </div>
     );
@@ -345,9 +345,9 @@ export default function OrdersPage() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Ãrdenes</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Órdenes</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              AnÃ¡lisis de ventas y rendimiento por perÃ­odo
+              Análisis de ventas y rendimiento por período
             </p>
           </div>
 
@@ -428,7 +428,7 @@ export default function OrdersPage() {
           <p className="text-2xl font-bold text-gray-900">{formatCompact(kpis.totalRevenue)}</p>
           <div className="mt-1">
             <ChangeBadge value={kpis.changes.revenue} />
-            <span className="text-[10px] text-gray-400 ml-1">vs perÃ­odo anterior</span>
+            <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
           </div>
         </div>
 
@@ -438,12 +438,12 @@ export default function OrdersPage() {
             <div className="p-2 bg-blue-50 rounded-lg">
               <ShoppingCart size={16} className="text-blue-600" />
             </div>
-            <span className="text-xs text-gray-500 font-medium">Ãrdenes</span>
+            <span className="text-xs text-gray-500 font-medium">Órdenes</span>
           </div>
           <p className="text-2xl font-bold text-gray-900">{kpis.totalOrders.toLocaleString("es-AR")}</p>
           <div className="mt-1">
             <ChangeBadge value={kpis.changes.orders} />
-            <span className="text-[10px] text-gray-400 ml-1">vs perÃ­odo anterior</span>
+            <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
           </div>
         </div>
 
@@ -472,7 +472,7 @@ export default function OrdersPage() {
           <p className="text-2xl font-bold text-gray-900">{formatARS(kpis.avgTicket)}</p>
           <div className="mt-1">
             <ChangeBadge value={kpis.changes.avgTicket} />
-            <span className="text-[10px] text-gray-400 ml-1">vs perÃ­odo anterior</span>
+            <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
           </div>
         </div>
 
@@ -482,7 +482,7 @@ export default function OrdersPage() {
             <div className="p-2 bg-red-50 rounded-lg">
               <XCircle size={16} className="text-red-500" />
             </div>
-            <span className="text-xs text-gray-500 font-medium">CancelaciÃ³n / DevoluciÃ³n</span>
+            <span className="text-xs text-gray-500 font-medium">Cancelación / Devolución</span>
           </div>
           <p className="text-2xl font-bold text-gray-900">{kpis.cancellationRate}%</p>
           <div className="mt-1">
@@ -496,7 +496,7 @@ export default function OrdersPage() {
       {/* ââ DAILY SALES CHART ââ */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-800">Ventas por dÃ­a</h2>
+          <h2 className="text-sm font-semibold text-gray-800">Ventas por día</h2>
           <div className="flex gap-1.5">
             <button
               onClick={() => setDailyMetric("revenue")}
@@ -506,7 +506,7 @@ export default function OrdersPage() {
                   : "text-gray-500 hover:bg-gray-100"
               }`}
             >
-              FacturaciÃ³n
+              Facturación
             </button>
             <button
               onClick={() => setDailyMetric("orders")}
@@ -516,7 +516,7 @@ export default function OrdersPage() {
                   : "text-gray-500 hover:bg-gray-100"
               }`}
             >
-              Ãrdenes
+              Órdenes
             </button>
           </div>
         </div>
@@ -572,7 +572,7 @@ export default function OrdersPage() {
               stroke="#6366f1"
               strokeWidth={2}
               fill="url(#colorRevenue)"
-              name={dailyMetric === "revenue" ? "FacturaciÃ³n" : "Ãrdenes"}
+              name={dailyMetric === "revenue" ? "Facturación" : "Órdenes"}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -583,7 +583,7 @@ export default function OrdersPage() {
         {/* Sales by day of week â PROMEDIO */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-800">Promedio de Ã³rdenes por dÃ­a de la semana</h2>
+            <h2 className="text-sm font-semibold text-gray-800">Promedio de órdenes por día de la semana</h2>
             <div className="flex gap-1.5">
               {[7, 14, 30].map((days) => (
                 <button
@@ -616,21 +616,21 @@ export default function OrdersPage() {
                 width={40}
               />
               <Tooltip
-                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio Ã³rdenes/dÃ­a"]}
+                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio órdenes/día"]}
                 contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
               />
               <Bar dataKey="avgOrders" fill="#6366f1" radius={[4, 4, 0, 0]} name="avgOrders" />
             </BarChart>
           </ResponsiveContainer>
           <p className="text-[10px] text-gray-400 mt-2 text-center">
-            Promedio diario â Ãºtil para saber cuÃ¡ndo pautar ads
+            Promedio diario â útil para saber cuándo pautar ads
           </p>
         </div>
 
         {/* Sales by hour â PROMEDIO */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-800">Promedio de Ã³rdenes por hora del dÃ­a</h2>
+            <h2 className="text-sm font-semibold text-gray-800">Promedio de órdenes por hora del día</h2>
             <div className="flex gap-1.5">
               {[7, 14, 30].map((days) => (
                 <button
@@ -664,7 +664,7 @@ export default function OrdersPage() {
                 width={40}
               />
               <Tooltip
-                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio Ã³rdenes/dÃ­a"]}
+                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio órdenes/día"]}
                 contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
               />
               <Bar dataKey="avgOrders" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -680,7 +680,7 @@ export default function OrdersPage() {
       <div className="grid grid-cols-2 gap-4">
         {/* Payment methods */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">MÃ©todos de pago</h2>
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Métodos de pago</h2>
           <div className="flex gap-4">
             <div className="w-1/2">
               <ResponsiveContainer width="100%" height={200}>
@@ -725,7 +725,7 @@ export default function OrdersPage() {
 
         {/* Status breakdown */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Estado de las Ã³rdenes</h2>
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Estado de las órdenes</h2>
           <div className="space-y-3">
             {data.statusBreakdown.map((s) => {
               const total = data.statusBreakdown.reduce((acc, x) => acc + x.count, 0);
@@ -787,7 +787,7 @@ export default function OrdersPage() {
               </div>
             ))}
             {data.topProducts.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este perÃ­odo</p>
+              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este período</p>
             )}
           </div>
         </div>
@@ -815,7 +815,7 @@ export default function OrdersPage() {
               </div>
             ))}
             {data.topCustomers.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este perÃ­odo</p>
+              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este período</p>
             )}
           </div>
         </div>
@@ -824,7 +824,7 @@ export default function OrdersPage() {
       {/* ââ RECENT ORDERS TABLE ââ */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-800">Ãltimas Ã³rdenes</h2>
+          <h2 className="text-sm font-semibold text-gray-800">Ãltimas órdenes</h2>
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -957,7 +957,7 @@ export default function OrdersPage() {
               {filteredOrders.length === 0 && (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-xs text-gray-400">
-                    No se encontraron Ã³rdenes
+                    No se encontraron órdenes
                   </td>
                 </tr>
               )}
@@ -969,7 +969,7 @@ export default function OrdersPage() {
         {data && data.pagination && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
             <div className="text-xs text-gray-500">
-              PÃ¡gina {currentPage} de {data.pagination.totalPages || 0}
+              Página {currentPage} de {data.pagination.totalPages || 0}
             </div>
             <div className="flex gap-2">
               <button
