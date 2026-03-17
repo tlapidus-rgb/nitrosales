@@ -54,6 +54,10 @@ export async function GET(request: NextRequest) {
     const sourceParam = searchParams.get("source")?.toUpperCase();
     const sourceFilter = sourceParam && sourceParam !== "ALL" ? sourceParam : null;
 
+    // ── Pagination ──
+    const page = Math.max(1, Number(searchParams.get("page")) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
+
     // ── Previous period for comparison ──
     const periodMs = dateTo.getTime() - dateFrom.getTime();
     const prevFrom = new Date(dateFrom.getTime() - periodMs);
@@ -255,6 +259,7 @@ export async function GET(request: NextRequest) {
         product_name: string;
         brand: string;
         category: string;
+        image_url: string | null;
         units_sold: string;
         revenue: string;
         order_count: string;
@@ -264,6 +269,7 @@ export async function GET(request: NextRequest) {
           p.name AS product_name,
           COALESCE(p.brand, 'Sin marca') AS brand,
           COALESCE(p.category, 'Sin categoría') AS category,
+          p."imageUrl" AS image_url,
           SUM(oi.quantity)::text AS units_sold,
           SUM(oi."totalPrice")::text AS revenue,
           COUNT(DISTINCT o.id)::text AS order_count
@@ -275,7 +281,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" <= $2
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhere}
-        GROUP BY p.id, p.name, p.brand, p.category
+        GROUP BY p.id, p.name, p.brand, p.category, p."imageUrl"
         ORDER BY SUM(oi."totalPrice") DESC
         LIMIT 15
       `, dateFrom, dateTo),
@@ -334,6 +340,7 @@ export async function GET(request: NextRequest) {
           COALESCE(
             (SELECT json_agg(json_build_object(
               'name', p.name,
+              'imageUrl', p."imageUrl",
               'quantity', oi.quantity,
               'unitPrice', oi."unitPrice",
               'totalPrice', oi."totalPrice"
@@ -350,7 +357,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" <= $2
           ${srcWhere.replace(/o\."source"/g, 'o."source"')}
         ORDER BY o."orderDate" DESC
-        LIMIT 50
+        LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
       `, dateFrom, dateTo),
     ]);
 
@@ -367,6 +374,15 @@ export async function GET(request: NextRequest) {
         ${srcWhereSimple}
     `, dateFrom, dateTo);
     const cancelledOrders = Number(cancelledResult[0].cnt);
+
+    // Total orders count (for pagination)
+    const totalCountResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
+      SELECT COUNT(*)::text AS cnt FROM orders
+      WHERE "organizationId" = '${ORG_ID}'
+        AND "orderDate" >= $1 AND "orderDate" <= $2
+        ${srcWhereSimple}
+    `, dateFrom, dateTo);
+    const totalOrderCount = Number(totalCountResult[0].cnt);
 
     const totalOrders = Number(curr.total_orders);
     const totalRevenue = Number(curr.total_revenue);
@@ -437,6 +453,7 @@ export async function GET(request: NextRequest) {
         name: p.product_name,
         brand: p.brand,
         category: p.category,
+        imageUrl: p.image_url || null,
         unitsSold: Number(p.units_sold),
         revenue: Number(p.revenue),
         orders: Number(p.order_count),
@@ -465,6 +482,12 @@ export async function GET(request: NextRequest) {
           items,
         };
       }),
+      pagination: {
+        page,
+        pageSize,
+        totalCount: totalOrderCount,
+        totalPages: Math.ceil(totalOrderCount / pageSize),
+      },
       meta: {
         dateFrom: dateFrom.toISOString(),
         dateTo: dateTo.toISOString(),
