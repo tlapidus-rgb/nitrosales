@@ -970,7 +970,7 @@ export default function OrdersPage() {
         {data && data.pagination && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
             <div className="text-xs text-gray-500">
-              Página {currentPage} de {Math.ceil((data.pagination.total || 0) / (data.pagination.pageSize || 20))}
+              Página {currentPage} de {data.pagination.totalPages || 0}
             </div>
             <div className="flex gap-2">
               <button
@@ -982,7 +982,7 @@ export default function OrdersPage() {
               </button>
               <button
                 onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage >= Math.ceil((data.pagination.total || 0) / (data.pagination.pageSize || 20))}
+                disabled={currentPage >= (data.pagination.totalPages || 1)}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 Siguiente
