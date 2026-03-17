@@ -594,7 +594,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!phase || !["catalog", "inventory", "orders", "fix-statuses", "fix-list", "fix-apply", "fix-one"].includes(phase)) {
+  if (!phase || !["catalog", "inventory", "orders", "fix-statuses", "fix-list", "fix-apply", "fix-one", "diagnose"].includes(phase)) {
     return NextResponse.json({
       error: "Invalid phase. Use: catalog, inventory, or orders",
       usage: {
@@ -692,6 +692,34 @@ export async function GET(request: Request) {
         } else {
           result = { phase: "fix-apply", error: "Need action=delete|update, orderId, newStatus" };
         }
+        break;
+      }
+
+      case "diagnose": {
+        const diagFrom = url.searchParams.get("from") || "";
+        const diagTo = url.searchParams.get("to") || "";
+        if (!diagFrom || !diagTo) { result = { error: "Need from and to params (YYYY-MM-DD)" }; break; }
+        const dbOrders = await prisma.$queryRawUnsafe(`
+          SELECT "externalId", status, "totalValue"::numeric, "itemCount", "orderDate", channel
+          FROM orders 
+          WHERE "organizationId" = '${ORG_ID}' 
+          AND "orderDate" >= '${diagFrom}T00:00:00Z'::timestamptz 
+          AND "orderDate" <= '${diagTo}T23:59:59Z'::timestamptz
+          ORDER BY "orderDate" DESC
+        `);
+        const serialized = JSON.parse(JSON.stringify(dbOrders, (k, v) => typeof v === "bigint" ? Number(v) : v));
+        result = { 
+          phase: "diagnose", from: diagFrom, to: diagTo, 
+          count: serialized.length,
+          orders: serialized.map((o: any) => ({
+            id: o.externalId,
+            status: o.status,
+            total: Number(o.totalValue),
+            items: o.itemCount,
+            date: o.orderDate,
+            channel: o.channel
+          }))
+        };
         break;
       }
     }
