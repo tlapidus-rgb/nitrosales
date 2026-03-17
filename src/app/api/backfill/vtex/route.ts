@@ -645,8 +645,16 @@ export async function GET(request: Request) {
             const vtexData = await vtexRes.json();
             const vtexSt = vtexData.status || "";
             const mapped = mapOrderStatus(vtexSt);
-            if (!mapped) {
-              result = { phase: "fix-one", orderId: fixOrderId, action: "unknown", vtexStatus: vtexSt };
+            if (!mapped || !vtexSt) {
+              // Empty status or unknown status = ghost marketplace order, delete it
+              const ghost = await prisma.$queryRawUnsafe<{id: string}[]>(
+                `SELECT id FROM orders WHERE "organizationId" = '${ORG_ID}' AND "externalId" = '${fixOrderId}' LIMIT 1`
+              );
+              if (ghost[0]) {
+                await prisma.$executeRawUnsafe(`DELETE FROM order_items WHERE "orderId" = '${ghost[0].id}'`);
+                await prisma.$executeRawUnsafe(`DELETE FROM orders WHERE id = '${ghost[0].id}'`);
+              }
+              result = { phase: "fix-one", orderId: fixOrderId, action: "deleted", reason: vtexSt ? "unmapped:" + vtexSt : "ghost-empty-status" };
             } else if (mapped === "CANCELLED") {
               result = { phase: "fix-one", orderId: fixOrderId, action: "kept", vtexStatus: vtexSt };
             } else {
