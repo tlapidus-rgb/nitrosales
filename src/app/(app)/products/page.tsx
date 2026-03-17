@@ -156,7 +156,7 @@ function TrendIndicator({ wowRevenuePct }: { wowRevenuePct: number }) {
   } else {
     return (
       <div className="flex items-center gap-1 text-gray-500 font-medium">
-        <span className="text-lg">â</span>
+        <span className="text-lg">-</span>
         <span>{wowRevenuePct.toFixed(1)}%</span>
       </div>
     );
