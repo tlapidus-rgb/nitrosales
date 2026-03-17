@@ -38,7 +38,7 @@ import {
   Clock,
 } from "lucide-react";
 
-// ── Types ──
+// ââ Types ââ
 interface KPIs {
   totalOrders: number;
   totalRevenue: number;
@@ -145,7 +145,7 @@ interface OrdersData {
   meta: { dateFrom: string; dateTo: string; source: string };
 }
 
-// ── Constants ──
+// ââ Constants ââ
 const COLORS = [
   "#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4",
   "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#94a3b8",
@@ -163,7 +163,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendiente",
-  APPROVED: "En preparación",
+  APPROVED: "En preparaciÃ³n",
   INVOICED: "Facturado",
   SHIPPED: "Enviado",
   DELIVERED: "Entregado",
@@ -172,18 +172,18 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const QUICK_RANGES = [
-  { label: "7 días", days: 7 },
-  { label: "30 días", days: 30 },
-  { label: "90 días", days: 90 },
+  { label: "7 dÃ­as", days: 7 },
+  { label: "30 dÃ­as", days: 30 },
+  { label: "90 dÃ­as", days: 90 },
   { label: "12 meses", days: 365 },
 ];
 
-// ── Helper: format date for input ──
+// ââ Helper: format date for input ââ
 function toDateInputValue(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-// ── Component ──
+// ââ Component ââ
 export default function OrdersPage() {
   // Date range state
   const defaultTo = new Date();
@@ -219,7 +219,7 @@ export default function OrdersPage() {
   const [dowData, setDowData] = useState<any[]>([]);
   const [hourData, setHourData] = useState<any[]>([]);
 
-  // ── Fetch data ──
+  // ââ Fetch data ââ
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -243,10 +243,9 @@ export default function OrdersPage() {
       }
     };
     fetchData();
-    setCurrentPage(1);
-  }, [dateFrom, dateTo, source]);
+  }, [dateFrom, dateTo, source, currentPage]);
 
-  // ── Fetch day-of-week and hourly data independently ──
+  // ââ Fetch day-of-week and hourly data independently ââ
   useEffect(() => {
     const fetchChartData = async () => {
       try {
@@ -269,7 +268,7 @@ export default function OrdersPage() {
     fetchChartData();
   }, [dowRange, hourRange, dateFrom, dateTo, source]);
 
-  // ── Quick range handler ──
+  // ââ Quick range handler ââ
   const handleQuickRange = (days: number) => {
     const to = new Date();
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -278,14 +277,14 @@ export default function OrdersPage() {
     setActiveQuickRange(days);
   };
 
-  // ── Custom date handler ──
+  // ââ Custom date handler ââ
   const handleDateChange = (type: "from" | "to", value: string) => {
     if (type === "from") setDateFrom(value);
     else setDateTo(value);
     setActiveQuickRange(null);
   };
 
-  // ── Filtered recent orders ──
+  // ââ Filtered recent orders ââ
   const filteredOrders = useMemo(() => {
     if (!data) return [];
     let orders = [...data.recentOrders];
@@ -301,9 +300,9 @@ export default function OrdersPage() {
     return orders;
   }, [data, searchTerm]);
 
-  // ── Change badge ──
+  // ââ Change badge ââ
   const ChangeBadge = ({ value }: { value: number }) => {
-    if (value === 0) return <span className="text-xs text-gray-400">—</span>;
+    if (value === 0) return <span className="text-xs text-gray-400">â</span>;
     const isPositive = value > 0;
     return (
       <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${isPositive ? "text-emerald-600" : "text-red-500"}`}>
@@ -313,13 +312,13 @@ export default function OrdersPage() {
     );
   };
 
-  // ── Loading state ──
+  // ââ Loading state ââ
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3"></div>
-          <p className="text-gray-500">Cargando órdenes...</p>
+          <p className="text-gray-500">Cargando Ã³rdenes...</p>
         </div>
       </div>
     );
@@ -342,13 +341,13 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      {/* ══ HEADER + FILTERS ══ */}
+      {/* ââ HEADER + FILTERS ââ */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Órdenes</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Ãrdenes</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              Análisis de ventas y rendimiento por período
+              AnÃ¡lisis de ventas y rendimiento por perÃ­odo
             </p>
           </div>
 
@@ -401,7 +400,7 @@ export default function OrdersPage() {
               onChange={(e) => handleDateChange("from", e.target.value)}
               className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white"
             />
-            <span className="text-xs text-gray-400">→</span>
+            <span className="text-xs text-gray-400">â</span>
             <input
               type="date"
               value={dateTo}
@@ -416,7 +415,7 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* ══ KPI CARDS ══ */}
+      {/* ââ KPI CARDS ââ */}
       <div className="grid grid-cols-5 gap-4">
         {/* Revenue */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
@@ -429,7 +428,7 @@ export default function OrdersPage() {
           <p className="text-2xl font-bold text-gray-900">{formatCompact(kpis.totalRevenue)}</p>
           <div className="mt-1">
             <ChangeBadge value={kpis.changes.revenue} />
-            <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
+            <span className="text-[10px] text-gray-400 ml-1">vs perÃ­odo anterior</span>
           </div>
         </div>
 
@@ -439,12 +438,12 @@ export default function OrdersPage() {
             <div className="p-2 bg-blue-50 rounded-lg">
               <ShoppingCart size={16} className="text-blue-600" />
             </div>
-            <span className="text-xs text-gray-500 font-medium">Órdenes</span>
+            <span className="text-xs text-gray-500 font-medium">Ãrdenes</span>
           </div>
           <p className="text-2xl font-bold text-gray-900">{kpis.totalOrders.toLocaleString("es-AR")}</p>
           <div className="mt-1">
             <ChangeBadge value={kpis.changes.orders} />
-            <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
+            <span className="text-[10px] text-gray-400 ml-1">vs perÃ­odo anterior</span>
           </div>
         </div>
 
@@ -473,7 +472,7 @@ export default function OrdersPage() {
           <p className="text-2xl font-bold text-gray-900">{formatARS(kpis.avgTicket)}</p>
           <div className="mt-1">
             <ChangeBadge value={kpis.changes.avgTicket} />
-            <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
+            <span className="text-[10px] text-gray-400 ml-1">vs perÃ­odo anterior</span>
           </div>
         </div>
 
@@ -483,7 +482,7 @@ export default function OrdersPage() {
             <div className="p-2 bg-red-50 rounded-lg">
               <XCircle size={16} className="text-red-500" />
             </div>
-            <span className="text-xs text-gray-500 font-medium">Cancelación / Devolución</span>
+            <span className="text-xs text-gray-500 font-medium">CancelaciÃ³n / DevoluciÃ³n</span>
           </div>
           <p className="text-2xl font-bold text-gray-900">{kpis.cancellationRate}%</p>
           <div className="mt-1">
@@ -494,10 +493,10 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* ══ DAILY SALES CHART ══ */}
+      {/* ââ DAILY SALES CHART ââ */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-800">Ventas por día</h2>
+          <h2 className="text-sm font-semibold text-gray-800">Ventas por dÃ­a</h2>
           <div className="flex gap-1.5">
             <button
               onClick={() => setDailyMetric("revenue")}
@@ -507,7 +506,7 @@ export default function OrdersPage() {
                   : "text-gray-500 hover:bg-gray-100"
               }`}
             >
-              Facturación
+              FacturaciÃ³n
             </button>
             <button
               onClick={() => setDailyMetric("orders")}
@@ -517,7 +516,7 @@ export default function OrdersPage() {
                   : "text-gray-500 hover:bg-gray-100"
               }`}
             >
-              Órdenes
+              Ãrdenes
             </button>
           </div>
         </div>
@@ -573,18 +572,18 @@ export default function OrdersPage() {
               stroke="#6366f1"
               strokeWidth={2}
               fill="url(#colorRevenue)"
-              name={dailyMetric === "revenue" ? "Facturación" : "Órdenes"}
+              name={dailyMetric === "revenue" ? "FacturaciÃ³n" : "Ãrdenes"}
             />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      {/* ══ ROW: DAY OF WEEK + HOUR HEATMAP ══ */}
+      {/* ââ ROW: DAY OF WEEK + HOUR HEATMAP ââ */}
       <div className="grid grid-cols-2 gap-4">
-        {/* Sales by day of week — PROMEDIO */}
+        {/* Sales by day of week â PROMEDIO */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-800">Promedio de órdenes por día de la semana</h2>
+            <h2 className="text-sm font-semibold text-gray-800">Promedio de Ã³rdenes por dÃ­a de la semana</h2>
             <div className="flex gap-1.5">
               {[7, 14, 30].map((days) => (
                 <button
@@ -617,21 +616,21 @@ export default function OrdersPage() {
                 width={40}
               />
               <Tooltip
-                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio órdenes/día"]}
+                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio Ã³rdenes/dÃ­a"]}
                 contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
               />
               <Bar dataKey="avgOrders" fill="#6366f1" radius={[4, 4, 0, 0]} name="avgOrders" />
             </BarChart>
           </ResponsiveContainer>
           <p className="text-[10px] text-gray-400 mt-2 text-center">
-            Promedio diario — útil para saber cuándo pautar ads
+            Promedio diario â Ãºtil para saber cuÃ¡ndo pautar ads
           </p>
         </div>
 
-        {/* Sales by hour — PROMEDIO */}
+        {/* Sales by hour â PROMEDIO */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-800">Promedio de órdenes por hora del día</h2>
+            <h2 className="text-sm font-semibold text-gray-800">Promedio de Ã³rdenes por hora del dÃ­a</h2>
             <div className="flex gap-1.5">
               {[7, 14, 30].map((days) => (
                 <button
@@ -665,23 +664,23 @@ export default function OrdersPage() {
                 width={40}
               />
               <Tooltip
-                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio órdenes/día"]}
+                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio Ã³rdenes/dÃ­a"]}
                 contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
               />
               <Bar dataKey="avgOrders" fill="#10b981" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
           <p className="text-[10px] text-gray-400 mt-2 text-center">
-            Promedio diario — horas pico ideales para WhatsApp, emails y ofertas
+            Promedio diario â horas pico ideales para WhatsApp, emails y ofertas
           </p>
         </div>
       </div>
 
-      {/* ══ ROW: PAYMENT METHODS + STATUS BREAKDOWN ══ */}
+      {/* ââ ROW: PAYMENT METHODS + STATUS BREAKDOWN ââ */}
       <div className="grid grid-cols-2 gap-4">
         {/* Payment methods */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Métodos de pago</h2>
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">MÃ©todos de pago</h2>
           <div className="flex gap-4">
             <div className="w-1/2">
               <ResponsiveContainer width="100%" height={200}>
@@ -726,7 +725,7 @@ export default function OrdersPage() {
 
         {/* Status breakdown */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Estado de las órdenes</h2>
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Estado de las Ã³rdenes</h2>
           <div className="space-y-3">
             {data.statusBreakdown.map((s) => {
               const total = data.statusBreakdown.reduce((acc, x) => acc + x.count, 0);
@@ -763,7 +762,7 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* ══ ROW: TOP PRODUCTS + TOP CUSTOMERS ══ */}
+      {/* ââ ROW: TOP PRODUCTS + TOP CUSTOMERS ââ */}
       <div className="grid grid-cols-2 gap-4">
         {/* Top products */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
@@ -779,16 +778,16 @@ export default function OrdersPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-800 truncate">{p.name}</p>
-                  <p className="text-[10px] text-gray-400">{p.brand} · {p.category}</p>
+                  <p className="text-[10px] text-gray-400">{p.brand} Â· {p.category}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-semibold text-gray-800">{formatARS(p.revenue)}</p>
-                  <p className="text-[10px] text-gray-400">{p.unitsSold} uds · {p.orders} ord</p>
+                  <p className="text-[10px] text-gray-400">{p.unitsSold} uds Â· {p.orders} ord</p>
                 </div>
               </div>
             ))}
             {data.topProducts.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este período</p>
+              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este perÃ­odo</p>
             )}
           </div>
         </div>
@@ -816,16 +815,16 @@ export default function OrdersPage() {
               </div>
             ))}
             {data.topCustomers.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este período</p>
+              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este perÃ­odo</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* ══ RECENT ORDERS TABLE ══ */}
+      {/* ââ RECENT ORDERS TABLE ââ */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-800">Últimas órdenes</h2>
+          <h2 className="text-sm font-semibold text-gray-800">Ãltimas Ã³rdenes</h2>
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -958,7 +957,7 @@ export default function OrdersPage() {
               {filteredOrders.length === 0 && (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-xs text-gray-400">
-                    No se encontraron órdenes
+                    No se encontraron Ã³rdenes
                   </td>
                 </tr>
               )}
@@ -970,7 +969,7 @@ export default function OrdersPage() {
         {data && data.pagination && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
             <div className="text-xs text-gray-500">
-              Página {currentPage} de {data.pagination.totalPages || 0}
+              PÃ¡gina {currentPage} de {data.pagination.totalPages || 0}
             </div>
             <div className="flex gap-2">
               <button
@@ -992,14 +991,14 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* ══ IMAGE ZOOM MODAL ══ */}
+      {/* ââ IMAGE ZOOM MODAL ââ */}
       {zoomedImage && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setZoomedImage(null)}>
           <div className="bg-white rounded-xl max-w-md w-full p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-800">Imagen ampliada</h3>
               <button onClick={() => setZoomedImage(null)} className="text-gray-400 hover:text-gray-600">
-                ✕
+                â
               </button>
             </div>
               <div className="bg-gray-100 rounded-lg w-full aspect-square flex items-center justify-center overflow-hidden">
