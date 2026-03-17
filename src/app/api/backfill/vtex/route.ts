@@ -519,17 +519,17 @@ async function phaseFixStatuses(batch: number) {
   const offset = batch * 10;
   const startTime = Date.now();
 
-  const cancelledOrders = await prisma.$queryRaw<{id: string, externalId: string}[]>`
-    SELECT id, "externalId" FROM orders
-    WHERE "organizationId" = ${ORG_ID} AND status = 'CANCELLED'::"OrderStatus"
+  const cancelledOrders = await prisma.$queryRawUnsafe<{id: string, externalId: string}[]>(
+    `SELECT id, "externalId" FROM orders
+    WHERE "organizationId" = '${ORG_ID}' AND status = 'CANCELLED'::"OrderStatus"
     ORDER BY "orderDate" DESC
-    LIMIT 10 OFFSET ${offset}
-  `;
+    LIMIT 10 OFFSET ${offset}`
+  )
 
-  const countResult = await prisma.$queryRaw<{count: string}[]>`
-    SELECT COUNT(*)::text as count FROM orders
-    WHERE "organizationId" = ${ORG_ID} AND status = 'CANCELLED'::"OrderStatus"
-  `;
+  const countResult = await prisma.$queryRawUnsafe<{count: string}[]>(
+    `SELECT COUNT(*)::text as count FROM orders
+    WHERE "organizationId" = '${ORG_ID}' AND status = 'CANCELLED'::"OrderStatus"`
+  )
   const totalCancelled = Number(countResult[0]?.count || 0);
 
   let updated = 0, deleted = 0, kept = 0;
