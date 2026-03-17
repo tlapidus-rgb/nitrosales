@@ -85,8 +85,8 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
     
-    const dateTo = toParam ? new Date(toParam + "T23:59:59.999Z") : now;
-    const dateFrom = fromParam ? new Date(fromParam + "T00:00:00.000Z") : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const dateTo = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
+    const dateFrom = fromParam ? new Date(fromParam + "T00:00:00.000-03:00") : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const daysDiff = Math.max(1, Math.round((dateTo.getTime() - dateFrom.getTime()) / (24 * 60 * 60 * 1000)));
     
     const thirtyDaysAgo = dateFrom;
@@ -117,7 +117,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
           AND "orderDate" <= ${dateTo}
-          AND status NOT IN ('CANCELLED')
+          AND status NOT IN ('CANCELLED', 'RETURNED')
       `,
 
       // Query 2: Orders with items count
@@ -134,7 +134,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
           AND "orderDate" <= ${dateTo}
-          AND status NOT IN ('CANCELLED')
+          AND status NOT IN ('CANCELLED', 'RETURNED')
       `,
 
       // Query 3: Product aggregation (30 days)
@@ -169,7 +169,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${thirtyDaysAgo}
           AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED')
+          AND o.status NOT IN ('CANCELLED', 'RETURNED')
         GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand, p.stock
       `,
 
@@ -201,7 +201,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
       >`
         SELECT
           oi."productId" AS "productId",
-          date_trunc('week', o."orderDate")::date AS "weekStart",
+          date_trunc('week', o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')::date AS "weekStart",
           SUM(oi.quantity)::bigint AS units,
           ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
           COUNT(DISTINCT oi."orderId")::bigint AS orders
@@ -210,9 +210,9 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${sixtyDaysAgo}
           AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED')
-        GROUP BY oi."productId", date_trunc('week', o."orderDate")
-        ORDER BY date_trunc('week', o."orderDate")
+          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        GROUP BY oi."productId", date_trunc('week', o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')
+        ORDER BY date_trunc('week', o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')
       `,
 
       // Query 6: Last sale date per product
@@ -228,7 +228,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
         FROM order_items oi
         JOIN orders o ON oi."orderId" = o.id
         WHERE o."organizationId" = ${ORG_ID}
-          AND o.status NOT IN ('CANCELLED')
+          AND o.status NOT IN ('CANCELLED', 'RETURNED')
         GROUP BY oi."productId"
       `,
     ]);
