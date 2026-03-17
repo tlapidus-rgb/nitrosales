@@ -334,7 +334,7 @@ export async function GET(request: NextRequest) {
           o."itemCount"::text AS item_count,
           COALESCE(o."paymentMethod", '-') AS payment_method,
           COALESCE(o."source", 'VTEX') AS source,
-          TO_CHAR(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') AS order_date,
+          TO_CHAR(o."orderDate" - INTERVAL '3 hours', 'YYYY-MM-DD HH24:MI') AS order_date,
           TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) AS customer_name,
           COALESCE(c.email, '') AS customer_email,
           COALESCE(
