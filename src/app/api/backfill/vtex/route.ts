@@ -1,19 +1,19 @@
-// ══════════════════════════════════════════════════════════════
-// VTEX Backfill Endpoint — Clean historical data import
-// ══════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// VTEX Backfill Endpoint â Clean historical data import
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // Phases:
-//   1. "catalog"   — Sync all products from VTEX catalog
-//   2. "inventory"  — Get real stock for each SKU from VTEX Logistics
-//   3. "orders"     — Import historical orders (up to 2 years)
+//   1. "catalog"   â Sync all products from VTEX catalog
+//   2. "inventory"  â Get real stock for each SKU from VTEX Logistics
+//   3. "orders"     â Import historical orders (up to 2 years)
 //
 // Usage: GET /api/backfill/vtex?phase=catalog&batch=0&key=SECRET
 // Each call processes one batch. Keep calling with batch++ until done=true.
-// ══════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
-// ── Config ──
+// ââ Config ââ
 const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 const VTEX_ACCOUNT = "mundojuguete";
 const VTEX_KEY = "vtexappkey-mundojuguete-ZMTYUJ";
@@ -28,21 +28,21 @@ const VTEX_HEADERS = {
   Accept: "application/json",
 };
 
-// ── Batch sizes (tuned for 10s Vercel timeout) ──
+// ââ Batch sizes (tuned for 10s Vercel timeout) ââ
 const CATALOG_BATCH_SIZE = 30;    // Products per batch
 const INVENTORY_BATCH_SIZE = 20;  // SKU lookups per batch (each ~300ms)
 const ORDERS_PER_BATCH = 10;      // Order details per batch (each ~500ms)
 
-// ══════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // VTEX API helpers
-// ══════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 async function vtexFetch(path: string) {
   const url = `${VTEX_BASE}${path}`;
   const res = await fetch(url, { headers: VTEX_HEADERS });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`VTEX ${res.status}: ${path} — ${text.slice(0, 200)}`);
+    throw new Error(`VTEX ${res.status}: ${path} â ${text.slice(0, 200)}`);
   }
   return res.json();
 }
@@ -106,9 +106,9 @@ function mapOrderStatus(vtexStatus: string): string {
   return map[vtexStatus] || "APPROVED";
 }
 
-// ══════════════════════════════════════════════════════════════
-// PHASE 1: CATALOG — Sync products from VTEX
-// ══════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// PHASE 1: CATALOG â Sync products from VTEX
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 async function phaseCatalog(batch: number) {
   const from = batch * CATALOG_BATCH_SIZE;
@@ -126,7 +126,7 @@ async function phaseCatalog(batch: number) {
       processed: 0,
       totalProducts: totalRange,
       done: true,
-      message: "Catálogo completo — no hay más productos",
+      message: "CatÃ¡logo completo â no hay mÃ¡s productos",
     };
   }
 
@@ -206,14 +206,14 @@ async function phaseCatalog(batch: number) {
     done,
     errors: errors.length > 0 ? errors : undefined,
     message: done
-      ? `Catálogo completo. ${processedSoFar} productos totales procesados.`
+      ? `CatÃ¡logo completo. ${processedSoFar} productos totales procesados.`
       : `Batch ${batch}: ${processed} productos (${processedSoFar}/${totalRange}). Continuar con batch=${batch + 1}`,
   };
 }
 
-// ══════════════════════════════════════════════════════════════
-// PHASE 2: INVENTORY — Get real stock from VTEX Logistics
-// ══════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// PHASE 2: INVENTORY â Get real stock from VTEX Logistics
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 async function phaseInventory(batch: number) {
   // Get all products that have a SKU
@@ -239,7 +239,7 @@ async function phaseInventory(batch: number) {
       processed: 0,
       total,
       done: true,
-      message: "Inventario completo — todos los productos actualizados",
+      message: "Inventario completo â todos los productos actualizados",
     };
   }
 
@@ -294,9 +294,9 @@ async function phaseInventory(batch: number) {
   };
 }
 
-// ══════════════════════════════════════════════════════════════
-// PHASE 3: ORDERS — Import historical orders
-// ══════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// PHASE 3: ORDERS â Import historical orders
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 async function phaseOrders(batch: number) {
   // Each batch = 1 month, starting from today going backwards
@@ -309,7 +309,7 @@ async function phaseOrders(batch: number) {
       phase: "orders",
       batch,
       done: true,
-      message: "Órdenes históricas completas — 2 años importados",
+      message: "Ãrdenes histÃ³ricas completas â 2 aÃ±os importados",
     };
   }
 
@@ -350,7 +350,7 @@ async function phaseOrders(batch: number) {
           await saveOrder(order);
           savedOrders++;
         } catch (e: any) {
-          errors.push(`Order ${orderSummary.orderId}: ${e.message?.slice(0, 80)}`);
+          errors.push(`Order ${orderSummary.orderId}: ${e.message?.slice(0, 200)}`);
         }
         processedOrders++;
       }
@@ -382,7 +382,7 @@ async function phaseOrders(batch: number) {
     nextBatch: batch + 1,
     done: batch >= MAX_MONTHS - 1,
     errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
-    message: `Mes ${monthLabel}: ${savedOrders}/${processedOrders} órdenes guardadas (de ${totalOrders} total). ${
+    message: `Mes ${monthLabel}: ${savedOrders}/${processedOrders} Ã³rdenes guardadas (de ${totalOrders} total). ${
       batch < MAX_MONTHS - 1 ? `Continuar con batch=${batch + 1}` : "Completo"
     }`,
   };
@@ -459,8 +459,7 @@ async function saveOrder(order: any) {
     DO UPDATE SET
       status = ${status}::"OrderStatus",
       "totalValue" = EXCLUDED."totalValue",
-      "itemCount" = EXCLUDED."itemCount",
-      "updatedAt" = NOW()
+      "itemCount" = EXCLUDED."itemCount"
     RETURNING id
   `;
 
@@ -492,9 +491,9 @@ async function saveOrder(order: any) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // MAIN HANDLER
-// ══════════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
