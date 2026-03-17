@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
-export const revalidate = 300;
+export const revalidate = 0;
 const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 
 type ProductMetrics = {
@@ -76,11 +76,21 @@ type APIResponse = {
   bagsAnalytics: BagsAnalytics;
 };
 
-export async function GET(): Promise<NextResponse<APIResponse>> {
+export async function GET(request: Request): Promise<NextResponse<APIResponse>> {
   try {
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    
+    // Parse optional from/to date params (default: last 30 days)
+    const { searchParams } = new URL(request.url);
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
+    
+    const dateTo = toParam ? new Date(toParam + "T23:59:59.999Z") : now;
+    const dateFrom = fromParam ? new Date(fromParam + "T00:00:00.000Z") : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const daysDiff = Math.max(1, Math.round((dateTo.getTime() - dateFrom.getTime()) / (24 * 60 * 60 * 1000)));
+    
+    const thirtyDaysAgo = dateFrom;
+    const sixtyDaysAgo = new Date(dateFrom.getTime() - daysDiff * 24 * 60 * 60 * 1000);
 
     // Execute all 6 queries in parallel
     const [
@@ -106,6 +116,7 @@ export async function GET(): Promise<NextResponse<APIResponse>> {
         FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
+          AND "orderDate" <= ${dateTo}
           AND status NOT IN ('CANCELLED')
       `,
 
@@ -122,6 +133,7 @@ export async function GET(): Promise<NextResponse<APIResponse>> {
         FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${thirtyDaysAgo}
+          AND "orderDate" <= ${dateTo}
           AND status NOT IN ('CANCELLED')
       `,
 
@@ -156,6 +168,7 @@ export async function GET(): Promise<NextResponse<APIResponse>> {
         JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${thirtyDaysAgo}
+          AND o."orderDate" <= ${dateTo}
           AND o.status NOT IN ('CANCELLED')
         GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand, p.stock
       `,
@@ -196,6 +209,7 @@ export async function GET(): Promise<NextResponse<APIResponse>> {
         JOIN orders o ON oi."orderId" = o.id
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${sixtyDaysAgo}
+          AND o."orderDate" <= ${dateTo}
           AND o.status NOT IN ('CANCELLED')
         GROUP BY oi."productId", date_trunc('week', o."orderDate")
         ORDER BY date_trunc('week', o."orderDate")
@@ -294,7 +308,7 @@ export async function GET(): Promise<NextResponse<APIResponse>> {
     let products: ProductMetrics[] = productAggregation.map((prod) => {
       const weeklyData = weeklyTrendMap.get(prod.productId) || [];
       const unitsSold = Number(prod.units);
-      const dailySalesRate = unitsSold / 30;
+      const dailySalesRate = unitsSold / daysDiff;
       const lastSaleDate = lastSaleDateMap.get(prod.productId);
 
       // Calculate daysOfStock
