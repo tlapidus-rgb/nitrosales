@@ -630,7 +630,7 @@ export async function GET(request: Request) {
         try {
           const vtexRes = await fetch(
             `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br/api/oms/pvt/orders/${fixOrderId}`,
-            { headers: vtexHeaders() }
+            { headers: VTEX_HEADERS }
           );
           if (vtexRes.status === 404 || vtexRes.status === 403) {
             const ghost = await prisma.$queryRawUnsafe<{id: string}[]>(
