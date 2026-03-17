@@ -618,7 +618,7 @@ export async function GET(request: Request) {
         result = await phaseOrders(batch, startPage, startIndex);
         break;
     }
-    return NextResponse.json(result);
+    return new Response(JSON.stringify(result, (k, v) => typeof v === "bigint" ? Number(v) : v), { headers: { "content-type": "application/json" } });
   } catch (error: any) {
     console.error(`[Backfill ${phase}] Error:`, error);
     return NextResponse.json({
