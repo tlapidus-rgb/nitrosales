@@ -25,7 +25,7 @@ function mapVtexStatus(vtexStatus: string): string {
 }
 
 
-// ââ GET: cleanup-cancelled phase ââ
+// Ã¢ÂÂÃ¢ÂÂ GET: cleanup-cancelled phase Ã¢ÂÂÃ¢ÂÂ
 // Fetches all CANCELLED orders from DB, checks each against VTEX, updates if needed
 export async function GET(req: Request) {
   try {
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
     const cancelledOrders = await prisma.order.findMany({
       where: {
         organizationId: org.id,
-        status: "CANCELLED",
+        status: { in: ["CANCELLED", "PENDING"] },
         orderDate: { gte: sixtyDaysAgo }
       },
       select: { id: true, externalId: true, status: true },
@@ -89,15 +89,22 @@ export async function GET(req: Request) {
         }
         
         const vData = await vResp.json();
-        const realStatus = mapVtexStatus(vData.status);
+        const vtexStatus = (vData.status || "").toLowerCase();
+        const realStatus = mapVtexStatus(vtexStatus);
         
-        if (realStatus !== "CANCELLED") {
+        if (!vtexStatus || vtexStatus === "") {
+          // Empty VTEX status = ghost order, delete it
+          await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
+          await prisma.order.delete({ where: { id: order.id } });
+          details.push({ id: order.externalId, action: "deleted-empty-status" });
+          fixed++;
+        } else if (realStatus !== order.status) {
           // Wrong status - fix it
           await prisma.order.update({
             where: { id: order.id },
             data: { status: realStatus as any }
           });
-          details.push({ id: order.externalId, from: "CANCELLED", to: realStatus, vtex: vData.status });
+          details.push({ id: order.externalId, from: order.status, to: realStatus, vtex: vtexStatus });
           fixed++;
         } else {
           realCancelled++;
