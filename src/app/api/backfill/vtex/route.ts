@@ -99,8 +99,8 @@ function mapOrderStatus(vtexStatus: string): string {
     "payment-approved": "APPROVED",
     "invoiced": "INVOICED",
     "canceled": "CANCELLED",
-    "cancellation-requested": "CANCELLED",
-    "replaced": "CANCELLED",
+    "cancellation-requested": "PENDING",   // Solicitud, no confirmada
+    "replaced": "APPROVED",                // Reemplazada por otra orden
     "window-to-cancel": "PENDING",
   };
   return map[vtexStatus] || "APPROVED";
