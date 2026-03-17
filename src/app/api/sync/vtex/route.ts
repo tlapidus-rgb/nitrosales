@@ -25,7 +25,7 @@ function mapVtexStatus(vtexStatus: string): string {
 }
 
 
-// ── GET: cleanup-cancelled phase ──
+// ââ GET: cleanup-cancelled phase ââ
 // Fetches all CANCELLED orders from DB, checks each against VTEX, updates if needed
 export async function GET(req: Request) {
   try {
@@ -50,13 +50,18 @@ export async function GET(req: Request) {
     
     // Get all CANCELLED orders from last 60 days
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+    const limit = parseInt(searchParams.get("limit") || "5");
+    const skip = parseInt(searchParams.get("skip") || "0");
     const cancelledOrders = await prisma.order.findMany({
       where: {
         organizationId: org.id,
         status: "CANCELLED",
         orderDate: { gte: sixtyDaysAgo }
       },
-      select: { id: true, externalId: true, status: true }
+      select: { id: true, externalId: true, status: true },
+      orderBy: { orderDate: "desc" },
+      take: limit,
+      skip: skip
     });
     
     let fixed = 0;
