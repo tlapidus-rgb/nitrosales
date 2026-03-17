@@ -659,7 +659,7 @@ export async function GET(request: Request) {
               result = { phase: "fix-one", orderId: fixOrderId, action: "kept", vtexStatus: vtexSt };
             } else {
               await prisma.$executeRawUnsafe(
-                `UPDATE orders SET status = '${mapped}'::"OrderStatus", "updatedAt" = NOW() WHERE "organizationId" = '${ORG_ID}' AND "externalId" = '${fixOrderId}'`
+                `UPDATE orders SET status = '${mapped}'::"OrderStatus" WHERE "organizationId" = '${ORG_ID}' AND "externalId" = '${fixOrderId}'`
               );
               result = { phase: "fix-one", orderId: fixOrderId, action: "updated", newStatus: mapped, vtexStatus: vtexSt };
             }
