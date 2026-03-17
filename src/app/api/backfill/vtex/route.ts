@@ -88,7 +88,8 @@ async function getOrderDetail(orderId: string) {
 }
 
 // Map VTEX order status to our enum
-function mapOrderStatus(vtexStatus: string): string {
+function mapOrderStatus(vtexStatus: string): string | null {
+  if (!vtexStatus) return null; // Empty VTEX status = ghost marketplace order, skip
   const map: Record<string, string> = {
     "order-completed": "DELIVERED",
     "handling": "APPROVED",
@@ -408,6 +409,7 @@ async function phaseOrders(batch: number, startPage: number = 1, startIndex: num
 async function saveOrder(order: any) {
   const externalId = order.orderId;
   const status = mapOrderStatus(order.status);
+  if (!status) return; // Skip ghost marketplace orders with empty VTEX status
   const totalValue = (order.value || 0) / 100; // VTEX stores in cents
   const itemCount = (order.items || []).length;
   const orderDate = new Date(order.creationDate);
@@ -507,6 +509,71 @@ async function saveOrder(order: any) {
   }
 }
 
+
+// ════════════════════════════════════════════════════════════
+// PHASE: FIX-STATUSES — Correct ghost CANCELLED orders
+// ════════════════════════════════════════════════════════════
+
+async function phaseFixStatuses(batch: number) {
+  const BATCH_SIZE = 10;
+  const offset = batch * BATCH_SIZE;
+  const startTime = Date.now();
+
+  const cancelledOrders = await prisma.$queryRaw<{id: string, externalId: string}[]>`
+    SELECT id, "externalId" FROM orders
+    WHERE "organizationId" = ${ORG_ID} AND status = 'CANCELLED'::"OrderStatus"
+    ORDER BY "orderDate" DESC
+    LIMIT ${BATCH_SIZE} OFFSET ${offset}
+  `;
+
+  const countResult = await prisma.$queryRaw<{count: string}[]>`
+    SELECT COUNT(*)::text as count FROM orders
+    WHERE "organizationId" = ${ORG_ID} AND status = 'CANCELLED'::"OrderStatus"
+  `;
+  const totalCancelled = parseInt(countResult[0]?.count || '0');
+
+  let updated = 0, deleted = 0, kept = 0;
+  const errors: string[] = [];
+
+  for (const order of cancelledOrders) {
+    if ((Date.now() - startTime) > 8000) break;
+    try {
+      const vtexOrder = await getOrderDetail(order.externalId);
+      const newStatus = mapOrderStatus(vtexOrder.status);
+
+      if (!newStatus) {
+        await prisma.$executeRaw`DELETE FROM order_items WHERE "orderId" = ${order.id}`;
+        await prisma.$executeRaw`DELETE FROM orders WHERE id = ${order.id}`;
+        deleted++;
+      } else if (newStatus !== 'CANCELLED') {
+        await prisma.$executeRaw`
+          UPDATE orders SET status = ${newStatus}::"OrderStatus", "updatedAt" = NOW()
+          WHERE id = ${order.id}
+        `;
+        updated++;
+      } else {
+        kept++;
+      }
+    } catch (e: any) {
+      errors.push(`${order.externalId}: ${e.message?.slice(0, 100)}`);
+    }
+  }
+
+  return {
+    phase: "fix-statuses",
+    batch,
+    totalCancelled,
+    processed: cancelledOrders.length,
+    updated,
+    deleted,
+    kept,
+    hasMore: offset + BATCH_SIZE < totalCancelled,
+    nextBatch: batch + 1,
+    errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
+    message: `Fixed: ${updated} updated, ${deleted} deleted, ${kept} kept of ${cancelledOrders.length} processed (${totalCancelled} total CANCELLED). Next: batch=${batch + 1}`,
+  };
+}
+
 // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 // MAIN HANDLER
 // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
@@ -524,7 +591,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!phase || !["catalog", "inventory", "orders"].includes(phase)) {
+  if (!phase || !["catalog", "inventory", "orders", "fix-statuses"].includes(phase)) {
     return NextResponse.json({
       error: "Invalid phase. Use: catalog, inventory, or orders",
       usage: {
