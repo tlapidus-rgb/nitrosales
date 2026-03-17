@@ -6,7 +6,7 @@ const VTEX_APP_KEY = process.env.VTEX_APP_KEY || "vtexappkey-mundojuguete-ZMTYUJ
 const VTEX_APP_TOKEN = process.env.VTEX_APP_TOKEN || "RSXGIUXPYGDHTDZWHBDBRJKMTFNYAISMOANAHPXZNBRSQKHPTFQNJUAZOKEXHCIOVEENIPJMUXVKJWFYHJQRBXOORRWSYGAAYXGNNSKCLVKAVOUQGDRMGDWQQHXBEULB";
 const BACKFILL_KEY = "nitrosales-backfill-2024";
 const BATCH_SIZE = 50;
-const DELAY_MS = 200; // Rate limit: ~5 req/s to VTEX
+const DELAY_MS = 200; // Rate limit: ~5 req/s to VTEX // v3
 
 function vtexHeaders() {
   return {
