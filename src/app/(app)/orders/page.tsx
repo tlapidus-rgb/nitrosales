@@ -163,12 +163,12 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendiente",
-  APPROVED: "Aprobada",
-  INVOICED: "Facturada",
-  SHIPPED: "Enviada",
-  DELIVERED: "Entregada",
-  CANCELLED: "Cancelada",
-  RETURNED: "Devuelta",
+  APPROVED: "En preparación",
+  INVOICED: "Facturado",
+  SHIPPED: "Enviado",
+  DELIVERED: "Entregado",
+  CANCELLED: "Cancelado",
+  RETURNED: "Devuelto",
 };
 
 const QUICK_RANGES = [
@@ -211,6 +211,14 @@ export default function OrdersPage() {
   // Expanded orders
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
+  // Pagination, zoom, and independent filters
+  const [currentPage, setCurrentPage] = useState(1);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [dowRange, setDowRange] = useState(7);
+  const [hourRange, setHourRange] = useState(7);
+  const [dowData, setDowData] = useState<any[]>([]);
+  const [hourData, setHourData] = useState<any[]>([]);
+
   // ── Fetch data ──
   useEffect(() => {
     const fetchData = async () => {
@@ -220,6 +228,7 @@ export default function OrdersPage() {
         const params = new URLSearchParams({
           from: dateFrom,
           to: dateTo,
+          page: currentPage.toString(),
         });
         if (source !== "ALL") params.set("source", source);
 
@@ -234,7 +243,31 @@ export default function OrdersPage() {
       }
     };
     fetchData();
+    setCurrentPage(1);
   }, [dateFrom, dateTo, source]);
+
+  // ── Fetch day-of-week and hourly data independently ──
+  useEffect(() => {
+    const fetchChartData = async () => {
+      try {
+        const params = new URLSearchParams({
+          from: dateFrom,
+          to: dateTo,
+        });
+        if (source !== "ALL") params.set("source", source);
+
+        const res = await fetch(`/api/metrics/orders?${params}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        
+        if (json.salesByDayOfWeek) setDowData(json.salesByDayOfWeek);
+        if (json.salesByHour) setHourData(json.salesByHour);
+      } catch (e: any) {
+        console.error("Error fetching chart data:", e.message);
+      }
+    };
+    fetchChartData();
+  }, [dowRange, hourRange, dateFrom, dateTo, source]);
 
   // ── Quick range handler ──
   const handleQuickRange = (days: number) => {
@@ -384,7 +417,7 @@ export default function OrdersPage() {
       </div>
 
       {/* ══ KPI CARDS ══ */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         {/* Revenue */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
@@ -412,6 +445,20 @@ export default function OrdersPage() {
           <div className="mt-1">
             <ChangeBadge value={kpis.changes.orders} />
             <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
+          </div>
+        </div>
+
+        {/* Unidades vendidas */}
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-orange-50 rounded-lg">
+              <Package size={16} className="text-orange-600" />
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Unidades vendidas</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{kpis.totalItems.toLocaleString("es-AR")}</p>
+          <div className="mt-1">
+            <span className="text-[10px] text-gray-400">unidades totales</span>
           </div>
         </div>
 
@@ -536,9 +583,26 @@ export default function OrdersPage() {
       <div className="grid grid-cols-2 gap-4">
         {/* Sales by day of week — PROMEDIO */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Promedio de órdenes por día de la semana</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-800">Promedio de órdenes por día de la semana</h2>
+            <div className="flex gap-1.5">
+              {[7, 14, 30].map((days) => (
+                <button
+                  key={days}
+                  onClick={() => setDowRange(days)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                    dowRange === days
+                      ? "bg-indigo-100 text-indigo-700"
+                      : "text-gray-500 hover:bg-gray-100"
+                  }`}
+                >
+                  {days}d
+                </button>
+              ))}
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data.salesByDayOfWeek}>
+            <BarChart data={dowData.length > 0 ? dowData : data.salesByDayOfWeek}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis
                 dataKey="dayName"
@@ -566,9 +630,26 @@ export default function OrdersPage() {
 
         {/* Sales by hour — PROMEDIO */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Promedio de órdenes por hora del día</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-800">Promedio de órdenes por hora del día</h2>
+            <div className="flex gap-1.5">
+              {[7, 14, 30].map((days) => (
+                <button
+                  key={days}
+                  onClick={() => setHourRange(days)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                    hourRange === days
+                      ? "bg-indigo-100 text-indigo-700"
+                      : "text-gray-500 hover:bg-gray-100"
+                  }`}
+                >
+                  {days}d
+                </button>
+              ))}
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data.salesByHour}>
+            <BarChart data={hourData.length > 0 ? hourData : data.salesByHour}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis
                 dataKey="label"
@@ -693,6 +774,9 @@ export default function OrdersPage() {
                 <span className="text-xs font-bold text-gray-400 w-5 text-right">
                   {i + 1}
                 </span>
+                <div className="w-8 h-8 rounded flex-shrink-0 cursor-pointer overflow-hidden bg-gray-100" onClick={() => p.imageUrl && setZoomedImage(p.imageUrl)}>
+                  {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-gray-400" />}
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-800 truncate">{p.name}</p>
                   <p className="text-[10px] text-gray-400">{p.brand} · {p.category}</p>
@@ -845,7 +929,10 @@ export default function OrdersPage() {
                           <div className="space-y-1.5">
                             {order.items.map((item: any, idx: number) => (
                               <div key={idx} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
-                                <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-1">
+                              <div className="w-8 h-8 rounded flex-shrink-0 overflow-hidden bg-gray-100 cursor-pointer" onClick={() => item.imageUrl && setZoomedImage(item.imageUrl)}>
+                                {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-gray-400" />}
+                                  </div>
                                   <span className="text-xs text-gray-800">{item.name || "Producto sin nombre"}</span>
                                 </div>
                                 <div className="flex items-center gap-4 text-xs text-gray-500">
@@ -878,7 +965,50 @@ export default function OrdersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {data && data.pagination && (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+            <div className="text-xs text-gray-500">
+              Página {currentPage} de {Math.ceil((data.pagination.total || 0) / (data.pagination.pageSize || 20))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage >= Math.ceil((data.pagination.total || 0) / (data.pagination.pageSize || 20))}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ══ IMAGE ZOOM MODAL ══ */}
+      {zoomedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setZoomedImage(null)}>
+          <div className="bg-white rounded-xl max-w-md w-full p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-800">Imagen ampliada</h3>
+              <button onClick={() => setZoomedImage(null)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+              <div className="bg-gray-100 rounded-lg w-full aspect-square flex items-center justify-center overflow-hidden">
+                {zoomedImage ? <img src={zoomedImage} alt="" className="w-full h-full object-contain" /> : <Package size={48} className="text-gray-300" />}
+            </div>
+            <p className="text-xs text-gray-500 mt-3 text-center">{zoomedImage}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
