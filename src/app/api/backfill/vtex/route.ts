@@ -408,7 +408,10 @@ async function phaseOrders(batch: number, startPage: number = 1, startIndex: num
 // Save a single VTEX order to our DB
 async function saveOrder(order: any) {
   const externalId = order.orderId;
-  const status = mapOrderStatus(order.status);
+  
+    // Skip ghost orders with empty/unknown VTEX status
+    if (!order.status || order.status.trim() === "") return;
+    const status = mapOrderStatus(order.status);
   if (!status) return; // Skip ghost marketplace orders with empty VTEX status
   const totalValue = (order.value || 0) / 100; // VTEX stores in cents
   const itemCount = (order.items || []).length;
