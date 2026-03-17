@@ -177,7 +177,17 @@ export async function POST(req: Request) {
     });
     const existingIds = new Set(existingOrders.map((o: any) => o.externalId));
 
-    const newOrders = orders.filter((o: any) => !existingIds.has(String(o.orderId)));
+    const newOrders = orders.filter((o: any) => {
+      // Skip orders already in DB
+      if (existingIds.has(String(o.orderId))) return false;
+      // Skip incomplete orders (no status = not a real order in VTEX)
+      const status = (o.status || "").toLowerCase().trim();
+      if (!status || status === "" || status === "null" || status === "undefined") {
+        console.warn(`[sync/vtex] Skipping incomplete order ${o.orderId} (no status)`);
+        return false;
+      }
+      return true;
+    });
 
     let created = 0;
     if (newOrders.length > 0) {
