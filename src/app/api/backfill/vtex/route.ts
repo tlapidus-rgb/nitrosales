@@ -516,21 +516,21 @@ async function saveOrder(order: any) {
 
 async function phaseFixStatuses(batch: number) {
   const BATCH_SIZE = 10;
-  const offset = batch * BATCH_SIZE;
+  const offset = batch * 10;
   const startTime = Date.now();
 
   const cancelledOrders = await prisma.$queryRaw<{id: string, externalId: string}[]>`
     SELECT id, "externalId" FROM orders
     WHERE "organizationId" = ${ORG_ID} AND status = 'CANCELLED'::"OrderStatus"
     ORDER BY "orderDate" DESC
-    LIMIT ${BATCH_SIZE} OFFSET ${offset}
+    LIMIT 10 OFFSET ${offset}
   `;
 
   const countResult = await prisma.$queryRaw<{count: string}[]>`
     SELECT COUNT(*)::text as count FROM orders
     WHERE "organizationId" = ${ORG_ID} AND status = 'CANCELLED'::"OrderStatus"
   `;
-  const totalCancelled = parseInt(countResult[0]?.count || '0');
+  const totalCancelled = Number(countResult[0]?.count || 0);
 
   let updated = 0, deleted = 0, kept = 0;
   const errors: string[] = [];
@@ -567,7 +567,7 @@ async function phaseFixStatuses(batch: number) {
     updated,
     deleted,
     kept,
-    hasMore: offset + BATCH_SIZE < totalCancelled,
+    hasMore: offset + 10 < totalCancelled,
     nextBatch: batch + 1,
     errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
     message: `Fixed: ${updated} updated, ${deleted} deleted, ${kept} kept of ${cancelledOrders.length} processed (${totalCancelled} total CANCELLED). Next: batch=${batch + 1}`,
