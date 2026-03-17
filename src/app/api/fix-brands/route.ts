@@ -531,6 +531,7 @@ export async function GET(request: NextRequest) {
   }
 
 
+
   // --- ACTION: resolve-ids ---
   if (action === "resolve-ids") {
     try {
@@ -539,7 +540,7 @@ export async function GET(request: NextRequest) {
 
       const numericCategories = await prisma.$queryRaw<Array<{ category: string; cnt: bigint }>>`
         SELECT category, COUNT(*) as cnt
-        FROM "Product"
+        FROM products
         WHERE "organizationId" = ${ORG}
           AND category IS NOT NULL AND category != ''
           AND category ~ '^[0-9/]+$'
@@ -573,7 +574,7 @@ export async function GET(request: NextRequest) {
             const newName = catData.Name || "";
             if (newName) {
               const updated = await prisma.$executeRaw`
-                UPDATE "Product" SET category = ${newName}, "updatedAt" = NOW()
+                UPDATE products SET category = ${newName}, "updatedAt" = NOW()
                 WHERE "organizationId" = ${ORG} AND category = ${cat.category}
               `;
               results.resolved++;
