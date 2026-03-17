@@ -45,9 +45,9 @@ async function getVtexCategoryName(categoryId: number): Promise<string> {
  * Strategy:
  * 1. Try as Product ID: GET /api/catalog/pvt/product/{id}
  * 2. If 404, try as SKU ID: GET /api/catalog/pvt/stockkeepingunit/{id}
- *    → extract ProductId → then GET /api/catalog/pvt/product/{ProductId}
- * 3. Resolve BrandId → BrandName via Brand API
- * 4. Resolve CategoryId → CategoryName via Category API
+ *    â extract ProductId â then GET /api/catalog/pvt/product/{ProductId}
+ * 3. Resolve BrandId â BrandName via Brand API
+ * 4. Resolve CategoryId â CategoryName via Category API
  */
 async function getVtexBrand(
   externalId: string
@@ -528,6 +528,71 @@ export async function GET(request: NextRequest) {
         count: Number(d.count),
       })),
     });
+  }
+
+  // --- ACTION: resolve-ids ---
+  // Resolve numeric category IDs directly via VTEX Category API and bulk update
+  if (action === "resolve-ids") {
+    const limitIds = parseInt(searchParams.get("limit") || "15");
+    const ORG = "cmmmga1uq0000sb43w0krvvys";
+    
+    const numericCategories = await prisma.$queryRaw<Array<{ category: string; cnt: bigint }>>`
+      SELECT category, COUNT(*) as cnt
+      FROM "Product"
+      WHERE "organizationId" = ${ORG}
+        AND category IS NOT NULL AND category != ''
+        AND category ~ '^[0-9/]+$'
+      GROUP BY category ORDER BY cnt DESC LIMIT ${limitIds}
+    `;
+
+    if (numericCategories.length === 0) {
+      return NextResponse.json({ message: "No numeric category IDs found", offset: 0 });
+    }
+
+    const results = {
+      totalDistinctIds: numericCategories.length,
+      totalProducts: numericCategories.reduce((sum: number, c: any) => sum + Number(c.cnt), 0),
+      resolved: 0,
+      failed: 0,
+      mappings: [] as Array<{ oldId: string; newName: string; productsUpdated: number }>,
+      errors: [] as Array<{ oldId: string; error: string }>,
+    };
+
+    const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
+
+    for (const cat of numericCategories) {
+      const catId = cat.category.replace(/\//g, ""); // strip slashes from "/21/47/"
+      try {
+        const catRes = await fetch(
+          `${baseUrl}/api/catalog/pvt/category/${catId}`,
+          { headers: vtexHeaders() }
+        );
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          const newName = catData.Name || "";
+          if (newName) {
+            const updated = await prisma.$executeRaw`
+              UPDATE "Product" SET category = ${newName}, "updatedAt" = NOW()
+              WHERE "organizationId" = ${ORG} AND category = ${cat.category}
+            `;
+            results.resolved++;
+            results.mappings.push({ oldId: cat.category, newName, productsUpdated: updated });
+          } else {
+            results.failed++;
+            results.errors.push({ oldId: cat.category, error: "Empty name from VTEX" });
+          }
+        } else {
+          results.failed++;
+          results.errors.push({ oldId: cat.category, error: `VTEX returned ${catRes.status}` });
+        }
+      } catch (error: any) {
+        results.failed++;
+        results.errors.push({ oldId: cat.category, error: error.message });
+      }
+      await sleep(DELAY_MS);
+    }
+
+    return NextResponse.json(results);
   }
 
   return NextResponse.json({
