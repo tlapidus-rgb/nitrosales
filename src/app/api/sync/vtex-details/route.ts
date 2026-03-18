@@ -136,7 +136,7 @@ export async function GET(req: Request) {
         FROM orders o
         JOIN order_items oi ON oi."orderId" = o.id
         WHERE o."organizationId" = '${org.id}'
-          AND (o."promotionNames" IS NULL OR o."promotionNames" = '')
+          AND (o."promotionNames" IS NULL OR o."promotionNames" = '' OR o."promotionNames" = 'Sin promo')
         GROUP BY o.id, o."externalId"
         ORDER BY o."orderDate" DESC
         LIMIT ${batchSize}
@@ -151,7 +151,7 @@ export async function GET(req: Request) {
         FROM orders o
         JOIN order_items oi ON oi."orderId" = o.id
         WHERE o."organizationId" = '${org.id}'
-          AND (o."promotionNames" IS NULL OR o."promotionNames" = '')
+          AND (o."promotionNames" IS NULL OR o."promotionNames" = '' OR o."promotionNames" = 'Sin promo')
       `);
       const totalMissing = Number(totalMissingResult[0].cnt);
 
@@ -167,8 +167,16 @@ export async function GET(req: Request) {
           });
           if (!res.ok) throw new Error(order.externalId + ": HTTP " + res.status);
           const detail = await res.json();
+          // Check ratesAndBenefitsData first, then priceTags on items
           const rbd = detail.ratesAndBenefitsData;
-          const promoNames = (Array.isArray(rbd) ? rbd : []).map((r: any) => r?.name).filter(Boolean).join(", ");
+          let promoList = (Array.isArray(rbd) ? rbd : []).map((r: any) => r?.name).filter(Boolean);
+          if (promoList.length === 0) {
+            const allTags = (detail.items || []).flatMap((item: any) =>
+              (item.priceTags || []).map((pt: any) => pt.name).filter(Boolean)
+            );
+            promoList = [...new Set(allTags)];
+          }
+          const promoNames = promoList.join(", ");
           await prisma.$executeRawUnsafe(
             `UPDATE orders SET "promotionNames" = $1 WHERE id = $2`,
             promoNames || "Sin promo",
@@ -390,11 +398,16 @@ export async function GET(req: Request) {
         }
 
         // ── Extract promotion names from VTEX ratesAndBenefitsData ──
+      // Check ratesAndBenefitsData first, then priceTags on items
       const rbd2 = detail.ratesAndBenefitsData;
-      const promoNames = (Array.isArray(rbd2) ? rbd2 : [])
-        .map((r: any) => r?.name)
-        .filter(Boolean)
-        .join(', ');
+      let promoList2 = (Array.isArray(rbd2) ? rbd2 : []).map((r: any) => r?.name).filter(Boolean);
+      if (promoList2.length === 0) {
+        const allTags2 = (detail.items || []).flatMap((item: any) =>
+          (item.priceTags || []).map((pt: any) => pt.name).filter(Boolean)
+        );
+        promoList2 = [...new Set(allTags2)];
+      }
+      const promoNames = promoList2.join(', ');
       if (promoNames) {
         try {
           await prisma.$executeRawUnsafe(
