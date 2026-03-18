@@ -131,31 +131,29 @@ export async function GET(req: Request) {
 
     /* ── MODE: resync-promos ── */
     if (mode === "resync-promos") {
-      const ordersNeedPromo = await prisma.order.findMany({
-        where: {
-          organizationId: org.id,
-          OR: [
-            { promotionNames: null },
-            { promotionNames: "" },
-          ],
-          items: { some: {} },
-        },
-        select: { id: true, externalId: true },
-        orderBy: { orderDate: "desc" },
-        take: batchSize,
-      });
+      const ordersNeedPromo = await prisma.$queryRawUnsafe<Array<{ id: string; externalId: string }>>(`
+        SELECT o.id, o."externalId"
+        FROM orders o
+        JOIN order_items oi ON oi."orderId" = o.id
+        WHERE o."organizationId" = '${org.id}'
+          AND (o."promotionNames" IS NULL OR o."promotionNames" = '')
+        GROUP BY o.id, o."externalId"
+        ORDER BY o."orderDate" DESC
+        LIMIT ${batchSize}
+      `);
 
       if (ordersNeedPromo.length === 0) {
         return NextResponse.json({ ok: true, mode: "resync-promos", message: "All orders have promo data", updated: 0 });
       }
 
-      const totalMissing = await prisma.order.count({
-        where: {
-          organizationId: org.id,
-          OR: [{ promotionNames: null }, { promotionNames: "" }],
-          items: { some: {} },
-        },
-      });
+      const totalMissingResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
+        SELECT COUNT(DISTINCT o.id)::text AS cnt
+        FROM orders o
+        JOIN order_items oi ON oi."orderId" = o.id
+        WHERE o."organizationId" = '${org.id}'
+          AND (o."promotionNames" IS NULL OR o."promotionNames" = '')
+      `);
+      const totalMissing = Number(totalMissingResult[0].cnt);
 
       let updated = 0;
       const errors: string[] = [];
