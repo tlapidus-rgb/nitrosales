@@ -172,16 +172,10 @@ export async function POST(req: NextRequest) {
       ? payments.map((p: any) => p.paymentSystemName || p.group).join(", ")
       : null;
 
-    // Check ratesAndBenefitsData first, then priceTags on items
-    const rbdW = vtexOrder.ratesAndBenefitsData;
-    let promoListW = (Array.isArray(rbdW) ? rbdW : []).map((r: any) => r?.name).filter(Boolean);
-    if (promoListW.length === 0) {
-      const allTagsW = (items || []).flatMap((item: any) =>
-        (item.priceTags || []).map((pt: any) => pt.name).filter(Boolean)
-      );
-      promoListW = [...new Set(allTagsW)];
-    }
-    const promoNames = promoListW.length > 0 ? promoListW.join(', ') : null;
+    const promoNames = (vtexOrder.ratesAndBenefitsData || [])
+      .map((r: any) => r.name)
+      .filter(Boolean)
+      .join(', ') || null;
 
     const order = await prisma.order.upsert({
       where: {
