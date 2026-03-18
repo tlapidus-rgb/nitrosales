@@ -150,7 +150,7 @@ export async function POST(req: Request) {
     const sinceDate = since || thirtyDaysAgo.toISOString();
     const untilDate = until || now.toISOString();
 
-    const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${sinceDate} TO ${untilDate}]&per_page=100&page=${page}`;
+    const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${sinceDate} TO ${untilDate}]&f_status=payment-pending,payment-approved,ready-for-handling,handling,invoiced,canceled,window-to-cancel,cancellation-requested&per_page=100&page=${page}`;
     const res = await fetch(url, {
       headers: {
         "X-VTEX-API-AppKey": appKey,
