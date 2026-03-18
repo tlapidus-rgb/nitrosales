@@ -387,6 +387,27 @@ export async function GET(request: NextRequest) {
     `, dateFrom, dateTo);
     const cancelledOrders = Number(cancelledResult[0].cnt);
 
+    // Promotion breakdown for pie chart
+    const promotionBreakdown = await prisma.$queryRawUnsafe<Array<{
+      promo: string;
+      orders: string;
+      revenue: string;
+    }>>(`
+      SELECT
+        COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo') AS promo,
+        COUNT(*)::text AS orders,
+        COALESCE(SUM("totalValue"), 0)::text AS revenue
+      FROM orders
+      WHERE "organizationId" = '${ORG_ID}'
+        AND "orderDate" >= $1 AND "orderDate" <= $2
+        AND status NOT IN ('CANCELLED', 'RETURNED')
+        ${srcWhereSimple}
+      GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo')
+      ORDER BY SUM("totalValue") DESC
+      LIMIT 15
+    `, dateFrom, dateTo);
+
+
     // Total orders count (for pagination)
     const totalCountResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
       SELECT COUNT(*)::text AS cnt FROM orders
@@ -459,6 +480,12 @@ export async function GET(request: NextRequest) {
       statusBreakdown: statusBreakdown.map(s => ({
         status: s.status,
         count: Number(s.count),
+      })),
+
+      promotionBreakdown: promotionBreakdown.map(p => ({
+        promo: p.promo,
+        orders: Number(p.orders),
+        revenue: Number(p.revenue),
       })),
       topProducts: topProducts.map(p => ({
         id: p.product_id,
