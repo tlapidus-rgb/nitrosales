@@ -172,6 +172,11 @@ export async function POST(req: NextRequest) {
       ? payments.map((p: any) => p.paymentSystemName || p.group).join(", ")
       : null;
 
+    const promoNames = (vtexOrder.ratesAndBenefitsData || [])
+      .map((r: any) => r.name)
+      .filter(Boolean)
+      .join(', ') || null;
+
     const order = await prisma.order.upsert({
       where: {
         organizationId_externalId: {
@@ -191,6 +196,7 @@ export async function POST(req: NextRequest) {
         shippingCost: shippingCost / 100,
         discountValue: discountValue / 100,
         orderDate: new Date(vtexOrder.creationDate),
+        ...(promoNames ? { promotionNames: promoNames } : {}),
       },
       update: {
         status: nsStatus as any,
@@ -199,6 +205,7 @@ export async function POST(req: NextRequest) {
         paymentMethod,
         shippingCost: shippingCost / 100,
         discountValue: discountValue / 100,
+        ...(promoNames ? { promotionNames: promoNames } : {}),
       },
     });
 
