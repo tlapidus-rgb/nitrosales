@@ -187,6 +187,37 @@ export async function GET(req: Request) {
       });
     }
 
+    /* ── MODE: diagnose-promos ── */
+    if (mode === "diagnose-promos") {
+      const orderId = url.searchParams.get("orderId") || "";
+      if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+      
+      const detailUrl = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${orderId}`;
+      const res = await fetch(detailUrl, {
+        headers: { "X-VTEX-API-AppKey": appKey, "X-VTEX-API-AppToken": appToken, Accept: "application/json" },
+      });
+      if (!res.ok) return NextResponse.json({ error: "VTEX HTTP " + res.status });
+      const detail = await res.json();
+      
+      // Extract ALL promo-related fields
+      const rbd = detail.ratesAndBenefitsData;
+      const itemPriceTags = (detail.items || []).map((item: any) => ({
+        name: item.name,
+        priceTags: (item.priceTags || []).map((pt: any) => ({ name: pt.name, identifier: pt.identifier, value: pt.value }))
+      }));
+      const marketingData = detail.marketingData;
+      
+      return NextResponse.json({
+        orderId,
+        ratesAndBenefitsData: rbd,
+        ratesAndBenefitsType: typeof rbd,
+        isArray: Array.isArray(rbd),
+        itemPriceTags,
+        marketingData,
+        totals: detail.totals
+      });
+    }
+
     const ordersWithoutItems = await prisma.order.findMany({
       where: {
         organizationId: org.id,
