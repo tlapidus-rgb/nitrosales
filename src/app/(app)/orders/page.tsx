@@ -764,6 +764,53 @@ export default function OrdersPage() {
       </div>
 
       {/* ââ ROW: TOP PRODUCTS + TOP CUSTOMERS ââ */}
+      {/* Promotions pie chart */}
+      {data.promotionBreakdown && data.promotionBreakdown.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Ventas por promoción</h2>
+          <div className="flex gap-4">
+            <div className="w-1/2">
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={data.promotionBreakdown}
+                    dataKey="revenue"
+                    nameKey="promo"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={80}
+                    paddingAngle={2}
+                  >
+                    {data.promotionBreakdown.map((_: any, i: number) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => formatARS(value)}
+                    contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="w-1/2 flex flex-col justify-center gap-2 max-h-[200px] overflow-y-auto">
+              {data.promotionBreakdown.map((p: any, i: number) => (
+                <div key={p.promo} className="flex items-center gap-2">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                  />
+                  <span className="text-xs text-gray-600 truncate flex-1">{p.promo}</span>
+                  <span className="text-xs font-medium text-gray-800">
+                    {p.orders.toLocaleString("es-AR")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         {/* Top products */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
