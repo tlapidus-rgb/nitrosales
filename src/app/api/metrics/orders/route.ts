@@ -13,6 +13,16 @@ const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // Auto-migrate: add source column if it doesn't exist
+async function ensurePromotionColumn() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS "promotionNames" TEXT
+    `);
+  } catch (e) {
+    // Column likely already exists
+  }
+}
+
 async function ensureSourceColumn() {
   try {
     await prisma.$executeRawUnsafe(`
@@ -33,6 +43,7 @@ export async function GET(request: NextRequest) {
   try {
     if (!migrated) {
       await ensureSourceColumn();
+      await ensurePromotionColumn();
       migrated = true;
     }
     const { searchParams } = new URL(request.url);
@@ -349,7 +360,8 @@ export async function GET(request: NextRequest) {
             LEFT JOIN products p ON p.id = oi."productId"
             WHERE oi."orderId" = o.id),
             '[]'
-          )::text AS items_json
+          )::text AS items_json,
+          COALESCE(o."promotionNames", '') AS promotion_names
         FROM orders o
         LEFT JOIN customers c ON c.id = o."customerId"
         WHERE o."organizationId" = '${ORG_ID}'
@@ -480,6 +492,7 @@ export async function GET(request: NextRequest) {
           customerName: o.customer_name || "Sin nombre",
           customerEmail: o.customer_email,
           items,
+          promotionNames: o.promotion_names || null,
         };
       }),
       pagination: {
