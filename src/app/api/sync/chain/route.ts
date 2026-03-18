@@ -54,6 +54,19 @@ export async function GET(req: NextRequest) {
 
     const afterDetails = Date.now() - startTime;
 
+    // Step 2b: Resync promotion data for historical orders
+    if (!skipDetails) {
+      try {
+        const promoUrl = `${baseUrl}/api/sync/vtex-details?key=${key}&mode=resync-promos&batch=50`;
+        const res = await fetch(promoUrl, { signal: AbortSignal.timeout(10000) });
+        results.resyncPromos = await res.json();
+      } catch (e: any) {
+        results.resyncPromos = { ok: false, error: e.name === "TimeoutError" ? "timeout (10s)" : e.message };
+      }
+    }
+
+    const afterPromos = Date.now() - startTime;
+
     // Step 3: Reconcile (budget: remaining)
     if (!skipReconcile) {
       const reconcileBudget = Math.max(3000, 55000 - afterDetails);
