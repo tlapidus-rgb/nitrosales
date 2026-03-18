@@ -300,7 +300,22 @@ export async function GET(req: Request) {
           }
         }
 
-        if (detail.deviceInfo || detail.origin) {
+        // ── Extract promotion names from VTEX ratesAndBenefitsData ──
+      const promoNames = (detail.ratesAndBenefitsData || [])
+        .map((r: any) => r.name)
+        .filter(Boolean)
+        .join(', ');
+      if (promoNames) {
+        try {
+          await prisma.$executeRawUnsafe(
+            `UPDATE orders SET "promotionNames" = $1 WHERE id = $2`,
+            promoNames,
+            order.id
+          );
+        } catch {}
+      }
+
+      if (detail.deviceInfo || detail.origin) {
           try {
             await prisma.order.update({
               where: { id: order.id },
