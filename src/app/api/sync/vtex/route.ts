@@ -150,7 +150,7 @@ export async function POST(req: Request) {
     const sinceDate = since || thirtyDaysAgo.toISOString();
     const untilDate = until || now.toISOString();
 
-    const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${sinceDate} TO ${untilDate}]&f_status=payment-pending,payment-approved,ready-for-handling,handling,invoiced,canceled,window-to-cancel,cancellation-requested&per_page=100&page=${page}`;
+    const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${sinceDate} TO ${untilDate}]&f_status=payment-pending,payment-approved,ready-for-handling,handling,invoiced,canceled,window-to-cancel,cancellation-requested&f_isCompleted=true&per_page=100&page=${page}`;
     const res = await fetch(url, {
       headers: {
         "X-VTEX-API-AppKey": appKey,
@@ -180,10 +180,20 @@ export async function POST(req: Request) {
     const newOrders = orders.filter((o: any) => {
       // Skip orders already in DB
       if (existingIds.has(String(o.orderId))) return false;
-      // Skip incomplete orders (no status = not a real order in VTEX)
+      // Skip incomplete orders - multiple checks
       const status = (o.status || "").toLowerCase().trim();
       if (!status || status === "" || status === "null" || status === "undefined") {
         console.warn(`[sync/vtex] Skipping incomplete order ${o.orderId} (no status)`);
+        return false;
+      }
+      // Skip orders with isCompleted=false (VTEX marks incomplete orders)
+      if (o.isCompleted === false) {
+        console.warn(`[sync/vtex] Skipping incomplete order ${o.orderId} (isCompleted=false)`);
+        return false;
+      }
+      // Skip orders with $0 value (likely incomplete)
+      if (!o.totalValue || o.totalValue === 0) {
+        console.warn(`[sync/vtex] Skipping order ${o.orderId} (zero value)`);
         return false;
       }
       return true;
