@@ -136,7 +136,7 @@ export async function GET(req: Request) {
         FROM orders o
         JOIN order_items oi ON oi."orderId" = o.id
         WHERE o."organizationId" = '${org.id}'
-          AND (o."promotionNames" IS NULL OR o."promotionNames" = '' OR o."promotionNames" = 'Sin promo')
+          AND (o."promotionNames" IS NULL OR o."promotionNames" = '')
         GROUP BY o.id, o."externalId"
         ORDER BY o."orderDate" DESC
         LIMIT ${batchSize}
@@ -151,78 +151,36 @@ export async function GET(req: Request) {
         FROM orders o
         JOIN order_items oi ON oi."orderId" = o.id
         WHERE o."organizationId" = '${org.id}'
-          AND (o."promotionNames" IS NULL OR o."promotionNames" = '' OR o."promotionNames" = 'Sin promo')
+          AND (o."promotionNames" IS NULL OR o."promotionNames" = '')
       `);
       const totalMissing = Number(totalMissingResult[0].cnt);
 
       let updated = 0;
       const errors: string[] = [];
 
-      // Process in parallel for speed
-      const results = await Promise.allSettled(
-        ordersNeedPromo.map(async (order) => {
+      for (const order of ordersNeedPromo) {
+        try {
           const detailUrl = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${order.externalId}`;
           const res = await fetch(detailUrl, {
             headers: { "X-VTEX-API-AppKey": appKey, "X-VTEX-API-AppToken": appToken, Accept: "application/json" },
           });
-          if (!res.ok) throw new Error(order.externalId + ": HTTP " + res.status);
+          if (!res.ok) { errors.push(order.externalId + ": HTTP " + res.status); continue; }
           const detail = await res.json();
-          // Check ratesAndBenefitsData first, then priceTags on items
           const rbd = detail.ratesAndBenefitsData;
-          let promoList = (Array.isArray(rbd) ? rbd : []).map((r: any) => r?.name).filter(Boolean);
-          if (promoList.length === 0) {
-            const allTags = (detail.items || []).flatMap((item: any) =>
-              (item.priceTags || []).map((pt: any) => pt.name).filter(Boolean)
-            );
-            promoList = [...new Set(allTags)];
-          }
-          const promoNames = promoList.join(", ");
+          const promoNames = (Array.isArray(rbd) ? rbd : []).map((r: any) => r?.name).filter(Boolean).join(", ");
           await prisma.$executeRawUnsafe(
             `UPDATE orders SET "promotionNames" = $1 WHERE id = $2`,
             promoNames || "Sin promo",
             order.id
           );
-          return order.externalId;
-        })
-      );
-      for (const r of results) {
-        if (r.status === "fulfilled") updated++;
-        else errors.push(r.reason?.message || "unknown error");
+          updated++;
+        } catch (e: any) {
+          errors.push(order.externalId + ": " + e.message.substring(0, 80));
+        }
       }
 
       return NextResponse.json({
         ok: true, mode: "resync-promos", updated, remaining: totalMissing - updated, errors: errors.slice(0, 10),
-      });
-    }
-
-    /* ── MODE: diagnose-promos ── */
-    if (mode === "diagnose-promos") {
-      const orderId = url.searchParams.get("orderId") || "";
-      if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
-      
-      const detailUrl = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${orderId}`;
-      const res = await fetch(detailUrl, {
-        headers: { "X-VTEX-API-AppKey": appKey, "X-VTEX-API-AppToken": appToken, Accept: "application/json" },
-      });
-      if (!res.ok) return NextResponse.json({ error: "VTEX HTTP " + res.status });
-      const detail = await res.json();
-      
-      // Extract ALL promo-related fields
-      const rbd = detail.ratesAndBenefitsData;
-      const itemPriceTags = (detail.items || []).map((item: any) => ({
-        name: item.name,
-        priceTags: (item.priceTags || []).map((pt: any) => ({ name: pt.name, identifier: pt.identifier, value: pt.value }))
-      }));
-      const marketingData = detail.marketingData;
-      
-      return NextResponse.json({
-        orderId,
-        ratesAndBenefitsData: rbd,
-        ratesAndBenefitsType: typeof rbd,
-        isArray: Array.isArray(rbd),
-        itemPriceTags,
-        marketingData,
-        totals: detail.totals
       });
     }
 
@@ -398,16 +356,11 @@ export async function GET(req: Request) {
         }
 
         // ── Extract promotion names from VTEX ratesAndBenefitsData ──
-      // Check ratesAndBenefitsData first, then priceTags on items
       const rbd2 = detail.ratesAndBenefitsData;
-      let promoList2 = (Array.isArray(rbd2) ? rbd2 : []).map((r: any) => r?.name).filter(Boolean);
-      if (promoList2.length === 0) {
-        const allTags2 = (detail.items || []).flatMap((item: any) =>
-          (item.priceTags || []).map((pt: any) => pt.name).filter(Boolean)
-        );
-        promoList2 = [...new Set(allTags2)];
-      }
-      const promoNames = promoList2.join(', ');
+      const promoNames = (Array.isArray(rbd2) ? rbd2 : [])
+        .map((r: any) => r?.name)
+        .filter(Boolean)
+        .join(', ');
       if (promoNames) {
         try {
           await prisma.$executeRawUnsafe(
