@@ -24,28 +24,22 @@ const FALLBACK_VTEX_TOKEN =
 
 // Map VTEX status → NitroSales status
 function mapStatus(vtexStatus: string): string {
-  const statusMap: Record<string, string> = {
-    "order-created": "PENDING",
-    "on-order-completed": "PENDING",
+  const map: Record<string, string> = {
+    "order-completed": "DELIVERED",
+    "handling": "APPROVED",
+    "ready-for-handling": "APPROVED",
+    "start-handling": "APPROVED",
+    "waiting-for-sellers-confirmation": "PENDING",
     "payment-pending": "PENDING",
-    "waiting-for-seller-confirmation": "PENDING",
     "payment-approved": "APPROVED",
-    "waiting-for-authorization": "APPROVED",
-    "approve-payment": "APPROVED",
-    "request-cancel": "CANCELLED",
-    cancel: "CANCELLED",
-    canceled: "CANCELLED",
-    "window-to-cancel": "APPROVED",
-    handling: "INVOICED",
-    "waiting-for-mkt-authorization": "APPROVED",
-    "waiting-ffmt-authorization": "APPROVED",
-    invoiced: "INVOICED",
-    invoice: "INVOICED",
-    replaced: "CANCELLED",
-    "cancellation-requested": "CANCELLED",
+    "invoiced": "INVOICED",
+    "canceled": "CANCELLED",
+    "cancellation-requested": "PENDING",
+    "replaced": "APPROVED",
+    "window-to-cancel": "PENDING",
   };
-  const lower = vtexStatus.toLowerCase().replace("-", "");
-  return statusMap[lower] || "PENDING";
+  const status = (vtexStatus || "").toLowerCase();
+  return map[status] || "PENDING";
 }
 
 export async function POST(req: NextRequest) {
@@ -154,6 +148,17 @@ export async function POST(req: NextRequest) {
     }
 
     const vtexOrder = await orderRes.json();
+
+    // ── FILTER: Skip incomplete orders ──
+    const vtexStatus = (vtexOrder.status || "").toLowerCase().trim();
+    if (!vtexStatus || vtexStatus === "") {
+      console.warn(`[Webhook:Orders] Skipping incomplete order ${orderId} (empty VTEX status)`);
+      return NextResponse.json({ ok: true, orderId, skipped: true, reason: "incomplete-empty-status" });
+    }
+    if (vtexOrder.isCompleted === false) {
+      console.warn(`[Webhook:Orders] Skipping incomplete order ${orderId} (isCompleted=false)`);
+      return NextResponse.json({ ok: true, orderId, skipped: true, reason: "incomplete-not-completed" });
+    }
 
     // ── Upsert Order ──
     const nsStatus = mapStatus(vtexOrder.status || state);
