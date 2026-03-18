@@ -155,11 +155,6 @@ export async function POST(req: NextRequest) {
       console.warn(`[Webhook:Orders] Skipping incomplete order ${orderId} (empty VTEX status)`);
       return NextResponse.json({ ok: true, orderId, skipped: true, reason: "incomplete-empty-status" });
     }
-    if (vtexOrder.isCompleted === false) {
-      console.warn(`[Webhook:Orders] Skipping incomplete order ${orderId} (isCompleted=false)`);
-      return NextResponse.json({ ok: true, orderId, skipped: true, reason: "incomplete-not-completed" });
-    }
-
     // ── Upsert Order ──
     const nsStatus = mapStatus(vtexOrder.status || state);
     const totalValue = (vtexOrder.value || 0) / 100;
