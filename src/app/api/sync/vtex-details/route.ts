@@ -166,7 +166,8 @@ export async function GET(req: Request) {
           });
           if (!res.ok) { errors.push(order.externalId + ": HTTP " + res.status); continue; }
           const detail = await res.json();
-          const promoNames = (detail.ratesAndBenefitsData || []).map((r: any) => r.name).filter(Boolean).join(", ");
+          const rbd = detail.ratesAndBenefitsData;
+          const promoNames = (Array.isArray(rbd) ? rbd : []).map((r: any) => r?.name).filter(Boolean).join(", ");
           await prisma.$executeRawUnsafe(
             `UPDATE orders SET "promotionNames" = $1 WHERE id = $2`,
             promoNames || "Sin promo",
@@ -355,8 +356,9 @@ export async function GET(req: Request) {
         }
 
         // ── Extract promotion names from VTEX ratesAndBenefitsData ──
-      const promoNames = (detail.ratesAndBenefitsData || [])
-        .map((r: any) => r.name)
+      const rbd2 = detail.ratesAndBenefitsData;
+      const promoNames = (Array.isArray(rbd2) ? rbd2 : [])
+        .map((r: any) => r?.name)
         .filter(Boolean)
         .join(', ');
       if (promoNames) {
