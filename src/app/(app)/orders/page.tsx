@@ -130,6 +130,7 @@ interface RecentOrder {
   customerName: string;
   customerEmail: string;
   items: OrderItemDetail[];
+  promotionNames: string | null;
 }
 
 interface OrdersData {
@@ -847,6 +848,7 @@ export default function OrdersPage() {
                 <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Items</th>
                 <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Pago</th>
                 <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Canal</th>
+                <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Promo</th>
                 <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Estado</th>
               </tr>
             </thead>
@@ -907,6 +909,11 @@ export default function OrdersPage() {
                         {order.source}
                       </span>
                     </td>
+                    <td className="py-2.5 px-2">
+                      <span className="text-[10px] text-gray-500 truncate max-w-[120px] block">
+                        {order.promotionNames || "—"}
+                      </span>
+                    </td>
                     <td className="py-2.5 px-2 text-center">
                       <span
                         className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium"
@@ -922,7 +929,7 @@ export default function OrdersPage() {
                   {/* Expanded detail */}
                   {expandedOrderId === order.id && (
                     <tr className="bg-gray-50/80">
-                      <td colSpan={8} className="px-6 py-3">
+                      <td colSpan={9} className="px-6 py-3">
                         <div className="text-xs text-gray-600 mb-2 font-medium">Productos de esta orden:</div>
                         {order.items && order.items.length > 0 ? (
                           <div className="space-y-1.5">
@@ -948,6 +955,7 @@ export default function OrdersPage() {
                           <span>ID: {order.externalId}</span>
                           <span>Pago: {order.paymentMethod}</span>
                           <span>Canal: {order.source}</span>
+                          {order.promotionNames && <span>Promo: {order.promotionNames}</span>}
                         </div>
                       </td>
                     </tr>
@@ -956,7 +964,7 @@ export default function OrdersPage() {
               ))}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-xs text-gray-400">
+                  <td colSpan={9} className="text-center py-8 text-xs text-gray-400">
                     No se encontraron órdenes
                   </td>
                 </tr>
