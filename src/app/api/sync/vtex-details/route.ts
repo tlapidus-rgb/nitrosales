@@ -177,7 +177,16 @@ export async function GET(req: Request) {
 
         const detail = await res.json();
 
-        // --- CUSTOMER ---
+        // --- SAFETY NET: Delete incomplete orders (empty VTEX status) ---
+      const vtexStatus = (detail.status || "").trim();
+      if (!vtexStatus) {
+        await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
+        await prisma.order.delete({ where: { id: order.id } });
+        errors.push(order.externalId + ": deleted-incomplete");
+        continue;
+      }
+
+      // --- CUSTOMER ---
         const client = detail.clientProfileData;
         if (client && client.email) {
           try {
