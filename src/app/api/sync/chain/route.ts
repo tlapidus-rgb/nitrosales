@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     if (!skipDetails) {
       const detailsBudget = Math.max(5000, 50000 - afterInventory - 12000);
       try {
-        const detailsUrl = `${baseUrl}/api/sync/vtex-details?key=${key}&batch=10`;
+        const detailsUrl = `${baseUrl}/api/sync/vtex-details?key=${key}&batch=50`;
         const res = await fetch(detailsUrl, { signal: AbortSignal.timeout(detailsBudget) });
         results.vtexDetails = await res.json();
       } catch (e: any) {
