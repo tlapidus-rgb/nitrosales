@@ -128,6 +128,7 @@ model Order {
   paymentMethod   String?
   shippingCost    Float?
   discountValue   Float?
+  promotionNames  String?                         // Nombres de promociones aplicadas (de VTEX ratesAndBenefitsData/priceTags)
   deviceType      String?                         // mobile, desktop, tablet
   orderDate       DateTime                        // Fecha del pedido
   createdAt       DateTime    @default(now())
