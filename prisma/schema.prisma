@@ -82,7 +82,6 @@ model Connection {
   credentials    Json                            // Credenciales encriptadas
   lastSyncAt     DateTime?                       // Última vez que se trajeron datos
   lastSyncError  String?                         // Si falló, qué pasó
-  lastSuccessfulSyncAt DateTime?                 // [FASE 0.5] Último sync exitoso
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -133,7 +132,6 @@ model Order {
   deviceType      String?                         // mobile, desktop, tablet
   orderDate       DateTime                        // Fecha del pedido
   createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @default(now()) @updatedAt  // [FASE 0.2] Track de cambios de status
 
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id])
