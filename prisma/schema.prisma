@@ -133,7 +133,7 @@ model Order {
   deviceType      String?                         // mobile, desktop, tablet
   orderDate       DateTime                        // Fecha del pedido
   createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt          // [FASE 0.2] Track de cambios de status
+  updatedAt       DateTime    @default(now()) @updatedAt  // [FASE 0.2] Track de cambios de status
 
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id])
