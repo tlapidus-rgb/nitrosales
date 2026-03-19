@@ -6,7 +6,7 @@
 // Retorna 200 si todo OK, 503 si algo falla.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/client';
+import { prisma } from '@/lib/db/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
 
   try {
     // 1. Check DB connection
-    const dbCheck = await db.$queryRaw`SELECT 1 as ok`;
+    const dbCheck = await prisma.$queryRaw`SELECT 1 as ok`;
     const dbOk = Array.isArray(dbCheck) && dbCheck.length > 0;
 
     // 2. Get last successful sync from Connection table
-    const connections = await db.connection.findMany({
+    const connections = await prisma.connection.findMany({
       select: {
         platform: true,
         status: true,
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     // 4. Get order count for today (quick sanity check)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayOrders = await db.order.count({
+    const todayOrders = await prisma.order.count({
       where: {
         orderDate: { gte: today },
         status: { notIn: ['CANCELLED', 'RETURNED'] },
