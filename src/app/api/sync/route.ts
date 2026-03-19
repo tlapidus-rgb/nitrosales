@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { markSyncSuccess } from "@/lib/sync-tracker";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -329,6 +330,9 @@ async function runSync(syncKey: string) {
   } catch (e: any) {
     results.metaAds = { error: e.message };
   }
+
+  // [FASE 1.3] Registrar sync exitoso
+  await markSyncSuccess("VTEX");
 
   return NextResponse.json({ ok: true, results });
 }
