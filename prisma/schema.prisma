@@ -301,7 +301,6 @@ model WebMetricDaily {
   organization        Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, date])
-  @@unique([organizationId, date, source])       // [FASE 0.3] Previene duplicados
   @@index([organizationId, source, date])
   @@map("web_metrics_daily")
 }
@@ -324,7 +323,6 @@ model FunnelDaily {
   organizationId    String
   organization      Organization @relation(fields: [organizationId], references: [id])
 
-  @@unique([organizationId, date, source])       // [FASE 0.3] Previene duplicados
   @@index([organizationId, date])
   @@map("funnel_daily")
 }
