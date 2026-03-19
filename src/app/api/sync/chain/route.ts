@@ -3,7 +3,6 @@
 // en una sola request con time-budgeting inteligente
 // ══════════════════════════════════════════════════════════════
 import { NextRequest, NextResponse } from "next/server";
-import { markSyncSuccess } from "@/lib/sync-tracker";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -73,9 +72,6 @@ export async function GET(req: NextRequest) {
     const inventoryPending = results.inventory?.pendingSkus || 0;
     const detailsPending = results.vtexDetails?.remaining || 0;
     const isComplete = inventoryPending === 0 && detailsPending === 0;
-
-    // [FASE 1.3] Registrar sync exitoso
-    await markSyncSuccess("VTEX");
 
     return NextResponse.json({
       ok: true,
