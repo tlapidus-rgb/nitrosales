@@ -5,13 +5,13 @@
 // despues de cada sync exitoso.
 // Llamar desde sync/route.ts y sync/chain/route.ts
 
-import { db } from '@/lib/db/client';
+import { prisma } from '@/lib/db/client';
 
 const ORG_ID = process.env.ORG_ID || 'cmmmga1uq0000sb43w0krvvys';
 
 export async function markSyncSuccess(platform: string = 'VTEX') {
   try {
-    await db.connection.updateMany({
+    await prisma.connection.updateMany({
       where: {
         organizationId: ORG_ID,
         platform: platform as any,
@@ -30,7 +30,7 @@ export async function markSyncSuccess(platform: string = 'VTEX') {
 
 export async function markSyncError(platform: string = 'VTEX', error: string) {
   try {
-    await db.connection.updateMany({
+    await prisma.connection.updateMany({
       where: {
         organizationId: ORG_ID,
         platform: platform as any,
