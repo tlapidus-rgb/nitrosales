@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 
 const prisma = new PrismaClient();
 
@@ -22,25 +23,7 @@ const FALLBACK_VTEX_TOKEN =
   "RSXGIUXPYGDHTDZWHBDBRJKMTFNYAISMOANAHPXZNBRSQKHPTFQNJUAZOKEXHCIOVEENIPJMUXVKJWFYHJQRBXOORRWSYGAAYXGNNSKCLVKAVOUQGDRMGDWQQHXBEULB";
 
 
-// Map VTEX status → NitroSales status
-function mapStatus(vtexStatus: string): string {
-  const map: Record<string, string> = {
-    "order-completed": "DELIVERED",
-    "handling": "APPROVED",
-    "ready-for-handling": "APPROVED",
-    "start-handling": "APPROVED",
-    "waiting-for-sellers-confirmation": "PENDING",
-    "payment-pending": "PENDING",
-    "payment-approved": "APPROVED",
-    "invoiced": "INVOICED",
-    "canceled": "CANCELLED",
-    "cancellation-requested": "PENDING",
-    "replaced": "APPROVED",
-    "window-to-cancel": "PENDING",
-  };
-  const status = (vtexStatus || "").toLowerCase();
-  return map[status] || "PENDING";
-}
+// Status mapping imported from @/lib/vtex-status (single source of truth)
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
@@ -156,7 +139,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, orderId, skipped: true, reason: "incomplete-empty-status" });
     }
     // ── Upsert Order ──
-    const nsStatus = mapStatus(vtexOrder.status || state);
+    const nsStatus = mapVtexStatus(vtexOrder.status || state);
     const totalValue = (vtexOrder.value || 0) / 100;
     const items = vtexOrder.items || [];
     const shippingCost = (vtexOrder.totals?.find((t: any) => t.id === "Shipping")?.value || 0);

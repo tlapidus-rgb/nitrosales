@@ -1,28 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-
-function mapVtexStatus(vtexStatus: string): string {
-  const map: Record<string, string> = {
-    "order-completed": "DELIVERED",
-    "handling": "APPROVED",
-    "ready-for-handling": "APPROVED",
-    "start-handling": "APPROVED",
-    "waiting-for-sellers-confirmation": "PENDING",
-    "payment-pending": "PENDING",
-    "payment-approved": "APPROVED",
-    "invoiced": "INVOICED",
-    "canceled": "CANCELLED",
-    "cancellation-requested": "PENDING",
-    "replaced": "APPROVED",
-    "window-to-cancel": "PENDING",
-  };
-  const status = (vtexStatus || "").toLowerCase();
-  if (map[status]) return map[status];
-  // Fallback: only exact "canceled" is CANCELLED, everything else PENDING
-  if (status === "canceled") return "CANCELLED";
-  console.warn(`[sync/vtex] Unknown VTEX status: "${vtexStatus}" -> defaulting to PENDING`);
-  return "PENDING";
-}
+import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 
 
 // Ã¢ÂÂÃ¢ÂÂ GET: cleanup-cancelled phase Ã¢ÂÂÃ¢ÂÂ
