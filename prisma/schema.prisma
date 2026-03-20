@@ -80,9 +80,9 @@ model Connection {
   platform       Platform                        // VTEX, SHOPIFY, GA4, etc.
   status         ConnectionStatus @default(PENDING)
   credentials    Json                            // Credenciales encriptadas
-  lastSyncAt     DateTime?                       // Última vez que se trajeron datos
+  lastSyncAt     DateTime?  @db.Timestamptz       // Última vez que se trajeron datos
   lastSyncError  String?                         // Si falló, qué pasó
-  lastSuccessfulSyncAt DateTime?
+  lastSuccessfulSyncAt DateTime? @db.Timestamptz
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -131,7 +131,7 @@ model Order {
   discountValue   Decimal?    @db.Decimal(12, 2)
   promotionNames  String?                         // Nombres de promociones aplicadas (de VTEX ratesAndBenefitsData/priceTags)
   deviceType      String?                         // mobile, desktop, tablet
-  orderDate       DateTime                        // Fecha del pedido
+  orderDate       DateTime    @db.Timestamptz      // Fecha del pedido (UTC from VTEX)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @default(now()) @updatedAt
 
@@ -208,8 +208,8 @@ model Customer {
   city          String?
   state         String?
   country       String?
-  firstOrderAt  DateTime?                        // Fecha de primera compra
-  lastOrderAt   DateTime?                        // Fecha de última compra
+  firstOrderAt  DateTime?   @db.Timestamptz       // Fecha de primera compra
+  lastOrderAt   DateTime?   @db.Timestamptz      // Fecha de última compra
   totalOrders   Int      @default(0)             // Cantidad total de compras
   totalSpent    Decimal  @default(0) @db.Decimal(12, 2) // Gasto total acumulado
   createdAt     DateTime @default(now())
