@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { markSyncSuccess } from "@/lib/sync-tracker";
+import { acquireSyncLock, releaseSyncLock } from "@/lib/sync-lock";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -10,6 +11,13 @@ async function runSync(syncKey: string) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  // Acquire sync lock — prevent overlapping cron runs
+  const lock = await acquireSyncLock("sync");
+  if (!lock.acquired) {
+    return NextResponse.json({ ok: false, skipped: true, reason: lock.reason }, { status: 200 });
+  }
+
+  try {
   const org = await prisma.organization.findFirst({
     where: { slug: "elmundodeljuguete" },
   });
@@ -333,6 +341,9 @@ async function runSync(syncKey: string) {
 
   await markSyncSuccess("VTEX");
   return NextResponse.json({ ok: true, results });
+  } finally {
+    await releaseSyncLock();
+  }
 }
 
 // GET handler for Vercel Cron and manual triggers

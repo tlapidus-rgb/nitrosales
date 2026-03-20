@@ -4,6 +4,7 @@
 // ══════════════════════════════════════════════════════════════
 import { NextRequest, NextResponse } from "next/server";
 import { markSyncSuccess } from "@/lib/sync-tracker";
+import { acquireSyncLock, releaseSyncLock } from "@/lib/sync-lock";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -15,6 +16,12 @@ export async function GET(req: NextRequest) {
     const key = req.nextUrl.searchParams.get("key") || "";
     if (key !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    // Acquire sync lock — prevent overlapping chain runs
+    const lock = await acquireSyncLock("chain");
+    if (!lock.acquired) {
+      return NextResponse.json({ ok: false, skipped: true, reason: lock.reason }, { status: 200 });
     }
 
     const skipInventory = req.nextUrl.searchParams.get("skip_inventory") === "true";
@@ -95,6 +102,8 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } finally {
+    await releaseSyncLock();
   }
 }
 

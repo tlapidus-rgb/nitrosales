@@ -78,7 +78,7 @@ async function getSkuInventory(skuId: string) {
 // List orders by date range (paginated)
 async function listOrders(from: string, to: string, page: number, perPage: number = 15) {
   return vtexFetch(
-    `/api/oms/pvt/orders?f_creationDate=creationDate:[${from}T00:00:00.000Z TO ${to}T23:59:59.999Z]&page=${page}&per_page=${perPage}&orderBy=creationDate,desc`
+    `/api/oms/pvt/orders?f_creationDate=creationDate:[${from}T00:00:00.000Z TO ${to}T23:59:59.999Z]&f_status=payment-pending,payment-approved,ready-for-handling,handling,invoiced,canceled,window-to-cancel,cancellation-requested&page=${page}&per_page=${perPage}&orderBy=creationDate,desc`
   );
 }
 

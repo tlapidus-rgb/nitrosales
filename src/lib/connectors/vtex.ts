@@ -131,11 +131,7 @@ export class VtexConnector {
     const { from, to, page = 1, perPage = 50 } = params;
     const url = `${this.baseUrl}/api/oms/pvt/orders?f_creationDate=creationDate:[${from}T00:00:00.000Z TO ${to}T23:59:59.999Z]&page=${page}&per_page=${perPage}&orderBy=creationDate,desc`;
 
-    const response = await fetch(url, { headers: this.headers });
-    if (!response.ok) {
-      throw new Error(`VTEX API error: ${response.status} ${response.statusText}`);
-    }
-
+    const response = await this.fetchWithRetry(url);
     const data = await response.json();
     return {
       list: data.list || [],
@@ -145,10 +141,7 @@ export class VtexConnector {
 
   async fetchOrderDetail(orderId: string): Promise<VtexOrder> {
     const url = `${this.baseUrl}/api/oms/pvt/orders/${orderId}`;
-    const response = await fetch(url, { headers: this.headers });
-    if (!response.ok) {
-      throw new Error(`VTEX order detail error: ${response.status}`);
-    }
+    const response = await this.fetchWithRetry(url);
     return response.json();
   }
 
@@ -162,19 +155,29 @@ export class VtexConnector {
   }): Promise<any[]> {
     const { from = 1, to = 50 } = params;
     const url = `${this.baseUrl}/api/catalog_system/pvt/products/GetProductAndSkuIds?categoryId=&_from=${from}&_to=${to}`;
-    const response = await fetch(url, { headers: this.headers });
-    if (!response.ok) {
-      throw new Error(`VTEX products error: ${response.status}`);
-    }
+    const response = await this.fetchWithRetry(url);
     const data = await response.json();
 
-    const products = [];
-    for (const productId of Object.keys(data.data || {})) {
-      try {
-        const detail = await this.fetchProductDetail(productId);
-        products.push(detail);
-      } catch (e) {
-        console.error(`Error fetching product ${productId}:`, e);
+    // Batching: fetch product details in groups of 10 with Promise.allSettled
+    const productIds = Object.keys(data.data || {});
+    const products: any[] = [];
+    const BATCH_SIZE = 10;
+
+    for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+      const batch = productIds.slice(i, i + BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map((productId) => this.fetchProductDetail(productId))
+      );
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          products.push(result.value);
+        } else {
+          console.error(`Error fetching product:`, result.reason);
+        }
+      }
+      // Small delay between batches to respect rate limits
+      if (i + BATCH_SIZE < productIds.length) {
+        await sleep(100);
       }
     }
     return products;
@@ -182,10 +185,7 @@ export class VtexConnector {
 
   async fetchProductDetail(productId: string): Promise<any> {
     const url = `${this.baseUrl}/api/catalog_system/pvt/products/productget/${productId}`;
-    const response = await fetch(url, { headers: this.headers });
-    if (!response.ok) {
-      throw new Error(`VTEX product detail error: ${response.status}`);
-    }
+    const response = await this.fetchWithRetry(url);
     return response.json();
   }
 
@@ -515,7 +515,7 @@ export class VtexConnector {
   async testConnection(): Promise<boolean> {
     try {
       const url = `${this.baseUrl}/api/oms/pvt/orders?page=1&per_page=1`;
-      const response = await fetch(url, { headers: this.headers });
+      const response = await this.fetchWithRetry(url, 1, 500);
       return response.ok;
     } catch {
       return false;
