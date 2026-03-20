@@ -8,10 +8,8 @@
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/db/client";
 import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
-
-const prisma = new PrismaClient();
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;

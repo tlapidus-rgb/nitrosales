@@ -120,15 +120,15 @@ model Order {
   id              String      @id @default(cuid())
   externalId      String                          // ID en VTEX/Shopify
   status          OrderStatus
-  totalValue      Float                           // Valor total en la moneda del ecommerce
+  totalValue      Decimal     @db.Decimal(12, 2)  // Valor total en la moneda del ecommerce
   currency        String      @default("ARS")
   itemCount       Int                             // Cantidad de productos
   source          String      @default("VTEX")    // Plataforma origen: VTEX, MELI
   channel         String?                         // Canal de venta (web, app, marketplace)
   trafficSource   String?                         // De dónde vino (organic, paid, direct, etc)
   paymentMethod   String?
-  shippingCost    Float?
-  discountValue   Float?
+  shippingCost    Decimal?    @db.Decimal(12, 2)
+  discountValue   Decimal?    @db.Decimal(12, 2)
   promotionNames  String?                         // Nombres de promociones aplicadas (de VTEX ratesAndBenefitsData/priceTags)
   deviceType      String?                         // mobile, desktop, tablet
   orderDate       DateTime                        // Fecha del pedido
@@ -162,8 +162,8 @@ enum OrderStatus {
 model OrderItem {
   id          String @id @default(cuid())
   quantity    Int
-  unitPrice   Float
-  totalPrice  Float
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  totalPrice  Decimal  @db.Decimal(12, 2)
 
   orderId     String
   order       Order   @relation(fields: [orderId], references: [id])
@@ -181,8 +181,8 @@ model Product {
   sku           String?
   category      String?
   brand         String?
-  price         Float
-  compareAtPrice Float?                          // Precio tachado/anterior
+  price         Decimal  @db.Decimal(12, 2)
+  compareAtPrice Decimal? @db.Decimal(12, 2)     // Precio tachado/anterior
   imageUrl      String?
   isActive      Boolean  @default(true)
   stock          Int?                            // Unidades disponibles en VTEX
@@ -211,7 +211,7 @@ model Customer {
   firstOrderAt  DateTime?                        // Fecha de primera compra
   lastOrderAt   DateTime?                        // Fecha de última compra
   totalOrders   Int      @default(0)             // Cantidad total de compras
-  totalSpent    Float    @default(0)             // Gasto total acumulado
+  totalSpent    Decimal  @default(0) @db.Decimal(12, 2) // Gasto total acumulado
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -260,9 +260,9 @@ model AdMetricDaily {
   platform        AdPlatform
   impressions     Int        @default(0)          // Veces que se mostró
   clicks          Int        @default(0)          // Clics
-  spend           Float      @default(0)          // Gasto en USD/moneda
+  spend           Decimal    @default(0) @db.Decimal(12, 2) // Gasto en USD/moneda
   conversions     Int        @default(0)          // Compras atribuidas
-  conversionValue Float      @default(0)          // Revenue atribuido
+  conversionValue Decimal    @default(0) @db.Decimal(12, 2) // Revenue atribuido
   reach           Int?                            // Personas únicas alcanzadas (Meta)
   frequency       Float?                          // Frecuencia promedio (Meta)
   qualityScore    Float?                          // Quality Score (Google)

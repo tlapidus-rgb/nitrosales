@@ -25,9 +25,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
