@@ -4,21 +4,94 @@
 // Este archivo se conecta a la API de VTEX y trae los datos
 // de Ã³rdenes, productos, clientes e inventario.
 
-interface VtexCredentials {
+export interface VtexCredentials {
   accountName: string;
   appKey: string;
   appToken: string;
 }
 
-interface VtexOrder {
+export interface VtexOrderItem {
+  id: string;
+  productId: string;
+  name: string;
+  refId: string | null;
+  sellerSku: string | null;
+  quantity: number;
+  price: number;
+  sellingPrice: number;
+  imageUrl: string | null;
+  additionalInfo?: {
+    brandName?: string;
+    categoriesIds?: string;
+  };
+}
+
+export interface VtexClientProfile {
+  userProfileId?: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+}
+
+export interface VtexPaymentTransaction {
+  payments: Array<{
+    paymentSystemName: string;
+    group: string;
+    value: number;
+  }>;
+}
+
+export interface VtexShippingAddress {
+  city?: string;
+  state?: string;
+  country?: string;
+  postalCode?: string;
+}
+
+export interface VtexShippingData {
+  address?: VtexShippingAddress;
+}
+
+export interface VtexTotalItem {
+  id: string;
+  name: string;
+  value: number;
+}
+
+export interface VtexRateAndBenefit {
+  name?: string;
+}
+
+export interface VtexOrder {
   orderId: string;
   status: string;
   value: number;
-  items: any[];
-  clientProfileData: any;
+  totalValue?: number;
+  totalItems?: number;
+  items: VtexOrderItem[];
+  clientProfileData: VtexClientProfile | null;
   creationDate: string;
-  paymentData: any;
-  shippingData: any;
+  paymentData?: {
+    transactions?: VtexPaymentTransaction[];
+  };
+  shippingData?: VtexShippingData;
+  totals?: VtexTotalItem[];
+  ratesAndBenefitsData?: VtexRateAndBenefit[];
+  salesChannel?: string;
+  storePreferencesData?: {
+    currencyCode?: string;
+  };
+}
+
+export interface VtexProductCatalog {
+  Id: number;
+  Name: string;
+  CategoryId: number;
+  BrandId: number;
+  LinkId: string;
+  IsActive: boolean;
+  [key: string]: unknown; // Allow additional fields from catalog API
 }
 
 // ââ Tipos para inventario ââ
@@ -60,6 +133,32 @@ interface SkuSyncResult {
 }
 
 // ââ Helpers ââ
+// ── Minimal Prisma interface (avoids importing full PrismaClient in connector) ──
+interface PrismaClientLike {
+  $transaction: (args: unknown[]) => Promise<unknown>;
+  product: {
+    upsert: (args: {
+      where: { organizationId_externalId: { organizationId: string; externalId: string } };
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    }) => unknown;
+  };
+}
+
+// ── Product upsert data shape ──
+interface ProductUpsertData {
+  externalId: string;
+  name: string;
+  sku: string;
+  brand: string | null;
+  category: string | null;
+  price: number;
+  imageUrl: string | null;
+  isActive: boolean;
+  stock: number;
+  stockUpdatedAt: Date;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -152,7 +251,7 @@ export class VtexConnector {
   async fetchProducts(params: {
     from?: number;
     to?: number;
-  }): Promise<any[]> {
+  }): Promise<VtexProductCatalog[]> {
     const { from = 1, to = 50 } = params;
     const url = `${this.baseUrl}/api/catalog_system/pvt/products/GetProductAndSkuIds?categoryId=&_from=${from}&_to=${to}`;
     const response = await this.fetchWithRetry(url);
@@ -160,7 +259,7 @@ export class VtexConnector {
 
     // Batching: fetch product details in groups of 10 with Promise.allSettled
     const productIds = Object.keys(data.data || {});
-    const products: any[] = [];
+    const products: VtexProductCatalog[] = [];
     const BATCH_SIZE = 10;
 
     for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
@@ -183,7 +282,7 @@ export class VtexConnector {
     return products;
   }
 
-  async fetchProductDetail(productId: string): Promise<any> {
+  async fetchProductDetail(productId: string): Promise<VtexProductCatalog> {
     const url = `${this.baseUrl}/api/catalog_system/pvt/products/productget/${productId}`;
     const response = await this.fetchWithRetry(url);
     return response.json();
@@ -281,7 +380,7 @@ export class VtexConnector {
   async syncInventoryBatch(
     skuIds: number[],
     orgId: string,
-    db: any, // PrismaClient
+    db: PrismaClientLike,
     timeBudgetMs = 50000,
     maxConcurrent = 12
   ): Promise<{ processed: number; failed: number; results: SkuSyncResult[] }> {
@@ -294,7 +393,7 @@ export class VtexConnector {
     // Buffer para acumular upserts y hacer batch
     let upsertBuffer: Array<{
       skuId: number;
-      data: any;
+      data: ProductUpsertData;
       result: SkuSyncResult;
     }> = [];
 
