@@ -12,7 +12,9 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
@@ -38,14 +40,15 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
+    "@types/bcryptjs": "^2.4.0",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "@types/bcryptjs": "^2.4.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.0",
     "prisma": "^5.15.0",
     "tsx": "^4.15.0",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.0"
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.0"
   }
 }

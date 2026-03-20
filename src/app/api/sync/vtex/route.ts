@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
+import { getVtexConfig } from "@/lib/vtex-credentials";
 
 
 // Ã¢ÂÂÃ¢ÂÂ GET: cleanup-cancelled phase Ã¢ÂÂÃ¢ÂÂ
@@ -19,12 +20,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Use phase=cleanup-cancelled" }, { status: 400 });
     }
     
-    const account = process.env.VTEX_ACCOUNT || "";
-    const appKey = process.env.VTEX_APP_KEY || "";
-    const appToken = process.env.VTEX_APP_TOKEN || "";
-    
     const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
     if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
+
+    const vtexConfig = await getVtexConfig(org.id);
+    const account = vtexConfig.creds.accountName;
+    const appKey = vtexConfig.creds.appKey;
+    const appToken = vtexConfig.creds.appToken;
     
     // Get all CANCELLED orders from last 60 days
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
@@ -112,16 +114,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const account = process.env.VTEX_ACCOUNT || "";
-    const appKey = process.env.VTEX_APP_KEY || "";
-    const appToken = process.env.VTEX_APP_TOKEN || "";
-
-    if (!account || !appKey || !appToken) {
-      return NextResponse.json({ error: "Missing VTEX credentials" }, { status: 400 });
-    }
-
     const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
     if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
+
+    const vtexConfig = await getVtexConfig(org.id);
+    const account = vtexConfig.creds.accountName;
 
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -131,8 +128,7 @@ export async function POST(req: Request) {
     const url = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders?f_creationDate=creationDate:[${sinceDate} TO ${untilDate}]&f_status=payment-pending,payment-approved,ready-for-handling,handling,invoiced,canceled,window-to-cancel,cancellation-requested&per_page=100&page=${page}`;
     const res = await fetch(url, {
       headers: {
-        "X-VTEX-API-AppKey": appKey,
-        "X-VTEX-API-AppToken": appToken,
+        ...vtexConfig.headers,
         "Accept": "application/json",
       },
     });

@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { VtexConnector } from "@/lib/connectors/vtex";
+import { getVtexCredentials } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -43,19 +44,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Org no encontrada" }, { status: 404 });
     }
 
-    // 3. VTEX creds
-    const accountName = process.env.VTEX_ACCOUNT || "";
-    const appKey = process.env.VTEX_APP_KEY || "";
-    const appToken = process.env.VTEX_APP_TOKEN || "";
-
-    if (!accountName || !appKey || !appToken) {
-      return NextResponse.json(
-        { error: "Faltan credenciales VTEX" },
-        { status: 500 }
-      );
-    }
-
-    const vtex = new VtexConnector({ accountName, appKey, appToken });
+    // 3. VTEX creds (centralized)
+    const vtexCreds = await getVtexCredentials(org.id);
+    const vtex = new VtexConnector(vtexCreds);
 
     // 4. SKU IDs (cached)
     console.log("[Sync] Loading SKU IDs...");

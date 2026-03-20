@@ -1,20 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getVtexConfig } from "@/lib/vtex-credentials";
 
-const VTEX_ACCOUNT = "mundojuguete";
-const VTEX_APP_KEY = process.env.VTEX_APP_KEY || "vtexappkey-mundojuguete-ZMTYUJ";
-const VTEX_APP_TOKEN = process.env.VTEX_APP_TOKEN || "RSXGIUXPYGDHTDZWHBDBRJKMTFNYAISMOANAHPXZNBRSQKHPTFQNJUAZOKEXHCIOVEENIPJMUXVKJWFYHJQRBXOORRWSYGAAYXGNNSKCLVKAVOUQGDRMGDWQQHXBEULB";
 const BACKFILL_KEY = "nitrosales-backfill-2024";
 const BATCH_SIZE = 50;
 const DELAY_MS = 200; // Rate limit: ~5 req/s to VTEX // v3
 
+// Cached credentials for the current request lifecycle
+let _cachedHeaders: Record<string, string> | null = null;
+let _cachedBaseUrl: string | null = null;
+
+async function getVtexHeadersAndUrl() {
+  if (_cachedHeaders && _cachedBaseUrl) {
+    return { headers: _cachedHeaders, baseUrl: _cachedBaseUrl };
+  }
+  // Use null orgId for now (env var mode) - will use real orgId after auth guard
+  const config = await getVtexConfig(null);
+  _cachedHeaders = { ...config.headers, Accept: "application/json" };
+  _cachedBaseUrl = config.baseUrl;
+  return { headers: _cachedHeaders, baseUrl: _cachedBaseUrl };
+}
+
 function vtexHeaders() {
-  return {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    "X-VTEX-API-AppKey": VTEX_APP_KEY,
-    "X-VTEX-API-AppToken": VTEX_APP_TOKEN,
-  };
+  // Sync wrapper - must call getVtexHeadersAndUrl() first in the request handler
+  if (!_cachedHeaders) {
+    throw new Error("Call getVtexHeadersAndUrl() before using vtexHeaders()");
+  }
+  return _cachedHeaders;
 }
 
 async function sleep(ms: number) {
@@ -26,7 +38,7 @@ async function sleep(ms: number) {
  * Uses: GET /api/catalog/pvt/category/{categoryId}
  */
 async function getVtexCategoryName(categoryId: number): Promise<string> {
-  const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
+  const baseUrl = `${_cachedBaseUrl}`;
   try {
     const catRes = await fetch(
       `${baseUrl}/api/catalog/pvt/category/${categoryId}`,
@@ -52,7 +64,7 @@ async function getVtexCategoryName(categoryId: number): Promise<string> {
 async function getVtexBrand(
   externalId: string
 ): Promise<{ brand: string; category: string } | null> {
-  const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
+  const baseUrl = `${_cachedBaseUrl}`;
 
   // Step 1: Get BrandId and CategoryId from product
   let brandId: number | null = null;
@@ -152,7 +164,7 @@ async function getVtexBrand(
  * Used by fix-categories action.
  */
 async function getVtexCategory(externalId: string): Promise<string | null> {
-  const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
+  const baseUrl = `${_cachedBaseUrl}`;
   let categoryId: number | null = null;
 
   try {
@@ -208,6 +220,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Initialize VTEX credentials (cached for this request)
+  await getVtexHeadersAndUrl();
+
   // --- ACTION: stats ---
   if (action === "stats") {
     const total = await prisma.product.count({
@@ -243,11 +258,8 @@ export async function GET(request: NextRequest) {
   // --- ACTION: debug ---
   if (action === "debug") {
     return NextResponse.json({
-      hasAppKey: !!process.env.VTEX_APP_KEY,
-      hasAppToken: !!process.env.VTEX_APP_TOKEN,
-      hasAccount: !!process.env.VTEX_ACCOUNT,
-      appKeyPrefix: process.env.VTEX_APP_KEY?.substring(0, 10) || "NOT SET",
-      account: VTEX_ACCOUNT,
+      credentialSource: _cachedBaseUrl ? "centralized" : "not-loaded",
+      baseUrl: _cachedBaseUrl || "not-loaded",
       timestamp: new Date().toISOString(),
     });
   }
@@ -560,7 +572,7 @@ export async function GET(request: NextRequest) {
         errors: [] as any[],
       };
 
-      const baseUrl = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br`;
+      const baseUrl = `${_cachedBaseUrl}`;
 
       for (const cat of numericCategories) {
         const catId = cat.category.replace(/\//g, "");

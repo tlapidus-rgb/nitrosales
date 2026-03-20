@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getVtexConfig } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
 
@@ -15,28 +16,18 @@ export async function GET(req: Request) {
     const batchSize = parseInt(url.searchParams.get("batch") || "20");
     const offset = parseInt(url.searchParams.get("offset") || "0");
 
-    const account = process.env.VTEX_ACCOUNT || "";
-    const appKey = process.env.VTEX_APP_KEY || "";
-    const appToken = process.env.VTEX_APP_TOKEN || "";
-
-    if (!account || !appKey || !appToken) {
-      return NextResponse.json(
-        { error: "Missing VTEX credentials" },
-        { status: 400 }
-      );
-    }
-
-    const vtexHeaders = {
-      "X-VTEX-API-AppKey": appKey,
-      "X-VTEX-API-AppToken": appToken,
-      Accept: "application/json",
-    };
-
     const org = await prisma.organization.findFirst({
       where: { slug: "elmundodeljuguete" },
     });
     if (!org)
       return NextResponse.json({ error: "Org not found" }, { status: 404 });
+
+    const vtexConfig = await getVtexConfig(org.id);
+    const account = vtexConfig.creds.accountName;
+    const vtexHeaders = {
+      ...vtexConfig.headers,
+      Accept: "application/json",
+    };
 
     // Get products that have a SKU (needed for inventory lookup)
     const products = await prisma.product.findMany({

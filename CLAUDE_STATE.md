@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ãltima actualizaciÃ³n: 2026-03-16
+## Ãltima actualizaciÃ³n: 2026-03-20
 
 ---
 
@@ -68,6 +68,9 @@
 
 | Archivo | VersiÃ³n | Estado | Notas |
 |---------|---------|--------|-------|
+| src/lib/vtex-credentials.ts | **v1** | NEW | Centralized VTEX credential access (DB > env vars) |
+| src/lib/crypto.ts | **v1** | NEW | AES-256-GCM credential encryption |
+| src/lib/auth-guard.ts | **v1** | NEW | Org resolution from NextAuth session |
 | src/lib/db/client.ts | **v1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client |
 | prisma/schema.prisma | **v1** | â ESTABLE | **NO TOCAR** sin migraciÃ³n. brand y category son String? (no FK). |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
@@ -120,14 +123,56 @@
 - **Framework**: Next.js 14 App Router
 - **ORM**: Prisma (import desde @/lib/db/client)
 - **DB**: PostgreSQL en Railway
-- **Deploy**: Vercel Hobby (10s function timeout, ISR revalidate=300)
+- **Deploy**: Vercel Pro (60s function timeout, ISR revalidate=300)
 - **VTEX Account**: mundojuguete
 - **Org ID**: cmmmga1uq0000sb43w0krvvys
 - **Credenciales VTEX**: env var DJQFRI + fallback backfill ZMTYUJ
 
 ---
 
+
+
+---
+
+## FASES DEL PLAN TECNICO
+
+| Fase | Nombre | Estado | Commits |
+|------|--------|--------|---------|
+| 0 | Instrumentacion y fetch-retry | COMPLETADA | Sesion anterior |
+| 1 | Proteccion de datos (sync-lock, f_status) | COMPLETADA | Sesion anterior |
+| 2 | Integracion de protecciones en rutas | COMPLETADA | 8256d3f |
+| 3 | Tests + integridad de datos + tipado | COMPLETADA | dcdcb22..71ff8b9 |
+| 4A | Infra: Prisma Migrate, cred centralization, encryption, auth guard | EN CURSO | pendiente commit |
+| 4B | Bot de IA con datos multi-fuente | PENDIENTE (esperar mas data) | - |
+
+### Pendiente: Connection Pooling (Fase 2.5)
+- Requiere DATABASE_URL_DIRECT env var en Vercel
+- Pospuesto hasta que se configure
+
 ## HISTORIAL DE CAMBIOS
+
+### 2026-03-20 (Fase 4A: Infraestructura)
+- 4A.1: Script init-prisma-migrate.sh para baseline migration
+- 4A.2: Centralized VTEX credentials (vtex-credentials.ts) - eliminated ALL hardcoded tokens
+- 4A.3: AES-256-GCM encryption module (crypto.ts) + migration script
+- 4A.4: Auth guard module (auth-guard.ts) for org resolution from session
+- Refactored 7 routes to use centralized credential access
+- Removed hardcoded VTEX tokens from: backfill, webhooks, fix-brands, sync routes
+
+### 2026-03-20 (Fase 3 completa)
+- 3.1: Shared vtex-status.ts module + refactor 3 routes (dcdcb22)
+- 3.2/3.3: Order validation module + 24 idempotency/anti-ghost tests (f14d4d0)
+- 3.4: Float->Decimal(12,2) en 10 campos monetarios + auto-conversion middleware (a67f885)
+- 3.5: DateTime->timestamptz en 5 campos de fecha (665fc10)
+- 3.6: Tipar conector VTEX: eliminar 8 any types (71ff8b9)
+- Fix: webhook routes usan shared Prisma singleton (no mas new PrismaClient())
+
+### 2026-03-19 (Fase 2 completa)
+- 2.1: fetchWithRetry integrado en VtexConnector (5 metodos)
+- 2.2: Sync lock (mutex DB-based) en sync/route.ts y chain/route.ts
+- 2.3: f_status filter en backfill/vtex (ultimo entry point anti-ghost)
+- 2.4: Promise.allSettled batching en fetchProducts (grupos de 10)
+- Commit: 8256d3f, deploy exitoso en Vercel
 
 ### 2026-03-16
 - CLAUDE_STATE.md v3: Agregadas secciones PROHIBIDAS explÃ­citas para prevenir regresiones

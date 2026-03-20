@@ -10,15 +10,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
+import { getVtexConfig } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
-
-// ── Fallback VTEX credentials (same as backfill route) ──
-const FALLBACK_VTEX_ACCOUNT = "mundojuguete";
-const FALLBACK_VTEX_KEY = "vtexappkey-mundojuguete-ZMTYUJ";
-const FALLBACK_VTEX_TOKEN =
-  "RSXGIUXPYGDHTDZWHBDBRJKMTFNYAISMOANAHPXZNBRSQKHPTFQNJUAZOKEXHCIOVEENIPJMUXVKJWFYHJQRBXOORRWSYGAAYXGNNSKCLVKAVOUQGDRMGDWQQHXBEULB";
 
 
 // Status mapping imported from @/lib/vtex-status (single source of truth)
@@ -86,38 +81,16 @@ export async function POST(req: NextRequest) {
     }
 
     const org = connection.organization;
-    const creds = connection.credentials as any;
-    // ── Build VTEX headers (try DB creds first, fallback to hardcoded) ──
-    const vtexAccount = creds.accountName || FALLBACK_VTEX_ACCOUNT;
-    const vtexBaseUrl = `https://${vtexAccount}.vtexcommercestable.com.br`;
-    const vtexHeaders = {
-      "X-VTEX-API-AppKey": creds.appKey,
-      "X-VTEX-API-AppToken": creds.appToken,
-      Accept: "application/json",
-    };
+
+    // ── Build VTEX headers (centralized credential access) ──
+    const vtexConfig = await getVtexConfig(org.id);
+    const vtexBaseUrl = vtexConfig.baseUrl;
+    const vtexHeaders = { ...vtexConfig.headers, Accept: "application/json" };
 
     // ── Fetch full order detail from VTEX ──
-    let orderRes = await fetch(`${vtexBaseUrl}/api/oms/pvt/orders/${orderId}`, {
+    const orderRes = await fetch(`${vtexBaseUrl}/api/oms/pvt/orders/${orderId}`, {
       headers: vtexHeaders,
     });
-
-
-
-    // If DB credentials fail, retry with fallback credentials
-    if (!orderRes.ok && (orderRes.status === 401 || orderRes.status === 403)) {
-      console.warn(
-        `[Webhook:Orders] DB credentials failed (${orderRes.status}), retrying with fallback credentials`
-      );
-      const fallbackBaseUrl = `https://${FALLBACK_VTEX_ACCOUNT}.vtexcommercestable.com.br`;
-      const fallbackHeaders = {
-        "X-VTEX-API-AppKey": FALLBACK_VTEX_KEY,
-        "X-VTEX-API-AppToken": FALLBACK_VTEX_TOKEN,
-        Accept: "application/json",
-      };
-      orderRes = await fetch(`${fallbackBaseUrl}/api/oms/pvt/orders/${orderId}`, {
-        headers: fallbackHeaders,
-      });
-    }
 
     if (!orderRes.ok) {
       console.error(`[Webhook:Orders] Failed to fetch order ${orderId}: ${orderRes.status}`);
