@@ -36,6 +36,8 @@ model Organization {
   adCreatives              AdCreative[]
   adCreativeMetrics        AdCreativeMetricDaily[]
   adCreativeClassifications AdCreativeClassification[]
+  adSets                   AdSet[]
+  adSetMetrics             AdSetMetricDaily[]
   webMetrics               WebMetricDaily[]
   funnelData  FunnelDaily[]
   botChats    BotChat[]
