@@ -199,10 +199,10 @@ export async function GET(req: Request) {
           headline: creative?.title || creative?.name || null,
           description: creative?.body || null,
           ctaType: creative?.call_to_action_type || null,
-          adSetId: adAdSetId || null,
           classificationAuto: classification.type,
           classificationScore: classification.confidence,
           campaignId: dbCampaignId,
+          // adSetId se actualiza en Step 4 cuando ya tenemos el adSetMap
         },
         create: {
           organizationId: org.id,
@@ -218,7 +218,6 @@ export async function GET(req: Request) {
           classificationAuto: classification.type,
           classificationScore: classification.confidence,
           campaignId: dbCampaignId,
-          adSetId: adAdSetId || null,
         },
       });
       adsUpserted++;
