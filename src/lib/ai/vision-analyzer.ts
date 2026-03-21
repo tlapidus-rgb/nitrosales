@@ -132,6 +132,20 @@ Formato JSON:
 }`;
 
   try {
+    // Download image and convert to base64 (Facebook CDN URLs are blocked by Anthropic)
+    const imgResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(10000) });
+    if (!imgResponse.ok) {
+      return { ok: false, error: `Failed to download image: ${imgResponse.status}` };
+    }
+    const contentType = imgResponse.headers.get("content-type") || "image/jpeg";
+    const mediaType = contentType.split(";")[0].trim() as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    const arrayBuffer = await imgResponse.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
+
+    if (base64Data.length < 100) {
+      return { ok: false, error: "Image too small or empty" };
+    }
+
     const response = await anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
       max_tokens: 1500,
@@ -143,8 +157,9 @@ Formato JSON:
             {
               type: "image",
               source: {
-                type: "url",
-                url: imageUrl,
+                type: "base64",
+                media_type: mediaType,
+                data: base64Data,
               },
             },
             {
