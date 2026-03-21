@@ -380,6 +380,18 @@ export default function MetaAdsPage() {
   const [classFilter, setClassFilter] = useState<string | null>(null);
   const [draggedAdId, setDraggedAdId] = useState<string | null>(null);
   const [dragOverType, setDragOverType] = useState<string | null>(null);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+
+  /* ── Fetch sync status ─────────────────────────── */
+  useEffect(() => {
+    fetch("/api/sync/status")
+      .then((r) => r.json())
+      .then((d) => {
+        const meta = d.connections?.META_ADS;
+        if (meta?.lastSyncAt) setLastSyncAt(meta.lastSyncAt);
+      })
+      .catch(() => {});
+  }, [data]);
 
   /* ── Fetch ─────────────────────────────────────── */
   const fetchData = useCallback(() => {
@@ -526,6 +538,12 @@ export default function MetaAdsPage() {
               <h1 className="text-2xl font-bold text-gray-900">Meta Ads</h1>
               <p className="text-xs text-gray-500 mt-0.5">
                 Facebook & Instagram Ads &middot; {dateFrom} a {dateTo}
+                {lastSyncAt && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-green-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    Sync: {new Date(lastSyncAt).toLocaleString("es-AR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                  </span>
+                )}
               </p>
             </div>
           </div>

@@ -7,6 +7,14 @@
     {
       "path": "/api/sync/chain?key=nitrosales-secret-key-2024-production",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/sync/meta?key=nitrosales-secret-key-2024-production",
+      "schedule": "3,18,33,48 * * * *"
+    },
+    {
+      "path": "/api/sync/google-ads?key=nitrosales-secret-key-2024-production",
+      "schedule": "8,23,38,53 * * * *"
     }
   ]
 }

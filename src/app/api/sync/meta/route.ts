@@ -318,6 +318,13 @@ export async function GET(req: Request) {
     cleanedUp = true;
   }
 
+  // Update connection status
+  await prisma.connection.upsert({
+    where: { organizationId_platform: { organizationId: org.id, platform: "META_ADS" } },
+    update: { status: "ACTIVE", lastSyncAt: new Date(), lastSyncError: null },
+    create: { organizationId: org.id, platform: "META_ADS", status: "ACTIVE", lastSyncAt: new Date(), lastSyncError: null, credentials: {} },
+  });
+
   return NextResponse.json({
     ok: true,
     campaignsUpserted,
