@@ -44,18 +44,16 @@ export async function POST(req: NextRequest) {
     } else if (Array.isArray(body.creativeIds)) {
       creativeIds = body.creativeIds;
     } else if (body.backfill) {
-      // Backfill mode: get all unanalyzed creatives
+      // Backfill mode: use raw SQL to find unanalyzed creatives (avoids Prisma client cache issues)
       const limit = body.limit || 20;
-      const unanalyzed = await prisma.adCreative.findMany({
-        where: {
-          visionAnalyzedAt: null,
-          mediaUrls: { isEmpty: false },
-        },
-        select: { id: true },
-        take: limit,
-        orderBy: { createdAt: "desc" },
-      });
-      creativeIds = unanalyzed.map((c: any) => c.id);
+      const unanalyzed = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM ad_creatives
+        WHERE "visionAnalyzedAt" IS NULL
+        AND array_length("mediaUrls", 1) > 0
+        ORDER BY "createdAt" DESC
+        LIMIT ${limit}
+      `;
+      creativeIds = unanalyzed.map((c) => c.id);
     }
 
     if (creativeIds.length === 0) {
