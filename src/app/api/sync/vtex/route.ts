@@ -28,81 +28,106 @@ export async function GET(req: Request) {
     const appKey = vtexConfig.creds.appKey;
     const appToken = vtexConfig.creds.appToken;
 
-    const limit = parseInt(searchParams.get("limit") || "20");
-    const skip = parseInt(searchParams.get("skip") || "0");
+    const batchSize = parseInt(searchParams.get("limit") || "50");
+    const startSkip = parseInt(searchParams.get("skip") || "0");
+    const maxSeconds = 55; // Vercel Pro timeout is 60s, leave 5s margin
+    const startTime = Date.now();
 
-    // fix-all-statuses: check ALL orders, not just CANCELLED/PENDING
-    const ordersToCheck = await prisma.order.findMany({
-      where: {
-        organizationId: org.id,
-        ...(phase === "cleanup-cancelled"
-          ? { status: { in: ["CANCELLED", "PENDING"] } }
-          : {}),
-      },
-      select: { id: true, externalId: true, status: true },
-      orderBy: { orderDate: "desc" },
-      take: limit,
-      skip: skip,
-    });
-    
+    let totalChecked = 0;
     let fixed = 0;
-    let realCancelled = 0;
+    let alreadyCorrect = 0;
     let errors = 0;
+    let currentSkip = startSkip;
     const details: any[] = [];
-    
-    for (const order of ordersToCheck) {
-      try {
-        const vResp = await fetch(
-          `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${order.externalId}`,
-          { headers: { "X-VTEX-API-AppKey": appKey, "X-VTEX-API-AppToken": appToken } }
-        );
-        
-        if (!vResp.ok) {
-          // Order doesn't exist in VTEX - it's a ghost, delete it
-          if (vResp.status === 404) {
+    let timedOut = false;
+
+    // Auto-loop through all orders in batches
+    while (true) {
+      // Check time limit
+      if ((Date.now() - startTime) / 1000 > maxSeconds) {
+        timedOut = true;
+        break;
+      }
+
+      const ordersToCheck = await prisma.order.findMany({
+        where: {
+          organizationId: org.id,
+          ...(phase === "cleanup-cancelled"
+            ? { status: { in: ["CANCELLED", "PENDING"] } }
+            : {}),
+        },
+        select: { id: true, externalId: true, status: true },
+        orderBy: { orderDate: "desc" },
+        take: batchSize,
+        skip: currentSkip,
+      });
+
+      if (ordersToCheck.length === 0) break; // No more orders
+
+      for (const order of ordersToCheck) {
+        // Check time limit per order
+        if ((Date.now() - startTime) / 1000 > maxSeconds) {
+          timedOut = true;
+          break;
+        }
+
+        totalChecked++;
+        try {
+          const vResp = await fetch(
+            `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${order.externalId}`,
+            { headers: { "X-VTEX-API-AppKey": appKey, "X-VTEX-API-AppToken": appToken } }
+          );
+
+          if (!vResp.ok) {
+            if (vResp.status === 404) {
+              await prisma.order.delete({ where: { id: order.id } });
+              details.push({ id: order.externalId, action: "deleted-ghost" });
+              fixed++;
+            } else {
+              errors++;
+            }
+            continue;
+          }
+
+          const vData = await vResp.json();
+          const vtexStatus = (vData.status || "").toLowerCase();
+          const realStatus = mapVtexStatus(vtexStatus);
+
+          if (!vtexStatus || vtexStatus === "") {
+            await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
             await prisma.order.delete({ where: { id: order.id } });
-            details.push({ id: order.externalId, action: "deleted-ghost" });
+            details.push({ id: order.externalId, action: "deleted-empty-status" });
+            fixed++;
+          } else if (realStatus !== order.status) {
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { status: realStatus as any }
+            });
+            details.push({ id: order.externalId, from: order.status, to: realStatus, vtex: vtexStatus });
             fixed++;
           } else {
-            errors++;
+            alreadyCorrect++;
           }
-          continue;
+        } catch (e: any) {
+          errors++;
         }
-        
-        const vData = await vResp.json();
-        const vtexStatus = (vData.status || "").toLowerCase();
-        const realStatus = mapVtexStatus(vtexStatus);
-        
-        if (!vtexStatus || vtexStatus === "") {
-          // Empty VTEX status = ghost order, delete it
-          await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
-          await prisma.order.delete({ where: { id: order.id } });
-          details.push({ id: order.externalId, action: "deleted-empty-status" });
-          fixed++;
-        } else if (realStatus !== order.status) {
-          // Wrong status - fix it
-          await prisma.order.update({
-            where: { id: order.id },
-            data: { status: realStatus as any }
-          });
-          details.push({ id: order.externalId, from: order.status, to: realStatus, vtex: vtexStatus });
-          fixed++;
-        } else {
-          realCancelled++;
-        }
-      } catch (e: any) {
-        errors++;
       }
+
+      if (timedOut) break;
+      currentSkip += batchSize;
     }
-    
+
     return NextResponse.json({
       ok: true,
       phase,
-      totalChecked: ordersToCheck.length,
+      totalChecked,
       fixed,
-      realCancelled,
+      alreadyCorrect,
       errors,
-      details: details.slice(0, 50)
+      timedOut,
+      nextSkip: timedOut ? currentSkip : null,
+      elapsedSeconds: Math.round((Date.now() - startTime) / 1000),
+      details: details.slice(0, 100)
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
