@@ -2,12 +2,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { MetaAdsConnector } from "@/lib/connectors/meta-ads";
-import { classifyCreative, classifyWithVision } from "@/lib/classification/ad-classifier";
-import { analyzeCreativeImage } from "@/lib/ai/vision-analyzer";
+import { classifyCreative } from "@/lib/classification/ad-classifier";
 import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+
+// Timer para evitar timeout — responder antes de que Vercel corte
+const SYNC_START = Date.now();
+const MAX_RUNTIME_MS = 55000; // 55 segundos (dejar margen)
+function timeLeft() { return MAX_RUNTIME_MS - (Date.now() - SYNC_START); }
+function shouldStop() { return timeLeft() < 5000; } // parar si quedan <5s
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -17,6 +22,7 @@ export async function GET(req: Request) {
   }
 
   const org = await getOrganization();
+  let stoppedEarly = false;
 
   const metaToken = process.env.META_ADS_ACCESS_TOKEN || "";
   const metaAdAccount = process.env.META_ADS_AD_ACCOUNT_ID || "";
@@ -163,6 +169,8 @@ export async function GET(req: Request) {
       nextPage = pageData.paging?.next;
     }
   }
+
+  if (shouldStop()) { stoppedEarly = true; }
 
   // Step 3b: Sync Ad Sets
   let adSetsUpserted = 0;
@@ -380,92 +388,34 @@ export async function GET(req: Request) {
       adsUpserted++;
     }
 
-    // ── Vision Analysis: Analyze new creatives that haven't been analyzed yet ──
-    // Max 3 per sync run to stay within Vercel timeout
-    let visionAnalyzed = 0;
-    const VISION_MAX_PER_SYNC = 3;
-    try {
-      const unanalyzedCreatives = await prisma.adCreative.findMany({
-        where: {
-          organizationId: org.id,
-          platform: "META",
-          visionAnalyzedAt: null,
-          visionError: null,
-          mediaUrls: { isEmpty: false },
-        },
-        take: VISION_MAX_PER_SYNC,
-        orderBy: { createdAt: "desc" }, // newest first
-      });
+    // Vision analysis movida a /api/analyze/creative (endpoint separado)
+    // para evitar timeout en la sync
 
-      for (const creative of unanalyzedCreatives) {
-        const imageUrl = creative.mediaUrls[0];
-        if (!imageUrl) continue;
-
-        const visionResult = await analyzeCreativeImage(imageUrl, {
-          adName: creative.name,
-          platform: "META",
-          headline: creative.headline,
-          ctaType: creative.ctaType,
-        });
-
-        if (visionResult.ok && visionResult.result) {
-          // Blend regex + vision for final classification
-          const regexResult = {
-            type: creative.classificationAuto || "OTHER",
-            confidence: creative.classificationScore || 0.3,
-            reason: "existing regex classification",
-          };
-          const blended = classifyWithVision(
-            regexResult,
-            visionResult.result.classification,
-            visionResult.result.confidence
-          );
-
-          await prisma.adCreative.update({
-            where: { id: creative.id },
-            data: {
-              visionAnalysis: JSON.stringify(visionResult.result),
-              visionClassification: visionResult.result.classification,
-              visionConfidence: visionResult.result.confidence,
-              visionAnalyzedAt: new Date(),
-              visionError: null,
-              // Update classification with blended result
-              classificationAuto: blended.type,
-              classificationScore: blended.confidence,
-            } as any,
-          });
-          visionAnalyzed++;
-        } else {
-          // Store error so we don't retry immediately
-          await prisma.adCreative.update({
-            where: { id: creative.id },
-            data: {
-              visionError: visionResult.error || "Unknown error",
-              visionAnalyzedAt: new Date(),
-            } as any,
-          });
-        }
-      }
-    } catch (e: any) {
-      console.error("Vision analysis error (non-fatal):", e.message);
+    // Pre-build map of externalId -> dbId para evitar N queries
+    const creativeMap: Record<string, string> = {};
+    const allCreatives = await prisma.adCreative.findMany({
+      where: { organizationId: org.id, platform: "META" },
+      select: { id: true, externalId: true },
+    });
+    for (const c of allCreatives) {
+      creativeMap[c.externalId] = c.id;
     }
 
-    // Fetch ad-level insights
-    const adInsights = await connector.fetchAdInsights({
-      startDate: since,
-      endDate: until,
-    });
+    if (shouldStop()) { stoppedEarly = true; }
+
+    // Fetch ad-level insights (con video metrics)
+    let adInsights: any[] = [];
+    if (!stoppedEarly) {
+      adInsights = await connector.fetchAdInsights({
+        startDate: since,
+        endDate: until,
+      });
+    }
 
     for (const insight of adInsights) {
-      // Find the creative in DB by externalId
-      const dbCreative = await prisma.adCreative.findFirst({
-        where: {
-          organizationId: org.id,
-          externalId: insight.ad_id,
-          platform: "META",
-        },
-      });
-      if (!dbCreative) continue;
+      if (shouldStop()) { stoppedEarly = true; break; }
+      const dbCreativeId = creativeMap[insight.ad_id];
+      if (!dbCreativeId) continue;
 
       const conversions = MetaAdsConnector.extractAdConversions(insight);
       const conversionValue = MetaAdsConnector.extractAdConversionValue(insight);
@@ -480,7 +430,7 @@ export async function GET(req: Request) {
       await prisma.adCreativeMetricDaily.upsert({
         where: {
           creativeId_date: {
-            creativeId: dbCreative.id,
+            creativeId: dbCreativeId,
             date: new Date(insight.date_start),
           },
         },
@@ -501,7 +451,7 @@ export async function GET(req: Request) {
           organizationId: org.id,
         } as any,
         create: {
-          creativeId: dbCreative.id,
+          creativeId: dbCreativeId,
           date: new Date(insight.date_start),
           platform: "META",
           impressions: parseInt(insight.impressions || "0"),
@@ -560,9 +510,10 @@ export async function GET(req: Request) {
     metricsUpserted,
     adsUpserted,
     adMetricsUpserted,
-    visionAnalyzed,
     cleanedUpAllCampaigns: cleanedUp,
     campaigns: Object.keys(campaignMap).length,
     adSets: Object.keys(adSetMap).length,
+    stoppedEarly,
+    runtimeMs: Date.now() - SYNC_START,
   });
 }
