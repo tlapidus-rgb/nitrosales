@@ -15,6 +15,7 @@ export async function GET(request: Request) {
     const platformParam = searchParams.get("platform"); // META, GOOGLE, or null
     const campaignParam = searchParams.get("campaign"); // campaignId filter
     const classificationParam = searchParams.get("classification"); // PRODUCT, UGC, etc.
+    const analyzedParam = searchParams.get("analyzed"); // "true" to filter only vision-analyzed
 
     const now = new Date();
     const dateTo = toParam
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
     // Build filters
     const platformFilter = platformParam ? { platform: platformParam as any } : {};
     const campaignFilter = campaignParam ? { campaignId: campaignParam } : {};
+    const analyzedFilter = analyzedParam === "true" ? { visionAnalyzedAt: { not: null } } : {};
 
     // Fetch creatives with their daily metrics
     const creatives = await prisma.adCreative.findMany({
@@ -43,7 +45,8 @@ export async function GET(request: Request) {
         organizationId: ORG_ID,
         ...platformFilter,
         ...campaignFilter,
-      },
+        ...analyzedFilter,
+      } as any,
       include: {
         dailyMetrics: {
           where: { date: { gte: dateFrom, lte: dateTo } },
@@ -98,6 +101,11 @@ export async function GET(request: Request) {
           classificationAuto: c.classificationAuto,
           classificationManual: c.classificationManual,
           classificationScore: c.classificationScore,
+          // Vision analysis data
+          visionClassification: (c as any).visionClassification || null,
+          visionConfidence: (c as any).visionConfidence || null,
+          visionAnalyzedAt: (c as any).visionAnalyzedAt || null,
+          visionAnalysis: (c as any).visionAnalysis ? JSON.parse((c as any).visionAnalysis) : null,
           campaignId: c.campaignId,
           campaignName: c.campaign?.name,
           spend,
@@ -129,7 +137,7 @@ export async function GET(request: Request) {
       })
       .sort((a, b) => b.spend - a.spend);
 
-    // ── Classification breakdown ──
+    // ââ Classification breakdown ââ
     const classificationAgg: Record<string, {
       spend: number; impressions: number; clicks: number;
       conversions: number; conversionValue: number; count: number;
@@ -164,7 +172,7 @@ export async function GET(request: Request) {
       })
       .sort((a, b) => b.spend - a.spend);
 
-    // ── Daily trend by classification ──
+    // ââ Daily trend by classification ââ
     const dailyByClassification = new Map<string, Record<string, number>>();
     result.forEach((c) => {
       c.dailySpend.forEach((d) => {
@@ -181,7 +189,7 @@ export async function GET(request: Request) {
       .map(([date, types]) => ({ date, ...types }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // ── Totals ──
+    // ââ Totals ââ
     const totals = {
       spend: result.reduce((s, c) => s + c.spend, 0),
       impressions: result.reduce((s, c) => s + c.impressions, 0),
@@ -221,7 +229,7 @@ export async function GET(request: Request) {
   }
 }
 
-// ── PATCH: Update creative classification ──
+// ââ PATCH: Update creative classification ââ
 export async function PATCH(request: Request) {
   try {
     const ORG_ID = await getOrganizationId();

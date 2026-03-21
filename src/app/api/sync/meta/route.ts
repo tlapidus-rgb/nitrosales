@@ -2,7 +2,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { MetaAdsConnector } from "@/lib/connectors/meta-ads";
-import { classifyCreative } from "@/lib/classification/ad-classifier";
+import { classifyCreative, classifyWithVision } from "@/lib/classification/ad-classifier";
+import { analyzeCreativeImage } from "@/lib/ai/vision-analyzer";
 import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
@@ -379,6 +380,76 @@ export async function GET(req: Request) {
       adsUpserted++;
     }
 
+    // ââ Vision Analysis: Analyze new creatives that haven't been analyzed yet ââ
+    // Max 3 per sync run to stay within Vercel timeout
+    let visionAnalyzed = 0;
+    const VISION_MAX_PER_SYNC = 3;
+    try {
+      const unanalyzedCreatives = await prisma.adCreative.findMany({
+        where: {
+          organizationId: org.id,
+          platform: "META",
+          visionAnalyzedAt: null,
+          visionError: null,
+          mediaUrls: { isEmpty: false },
+        },
+        take: VISION_MAX_PER_SYNC,
+        orderBy: { createdAt: "desc" }, // newest first
+      });
+
+      for (const creative of unanalyzedCreatives) {
+        const imageUrl = creative.mediaUrls[0];
+        if (!imageUrl) continue;
+
+        const visionResult = await analyzeCreativeImage(imageUrl, {
+          adName: creative.name,
+          platform: "META",
+          headline: creative.headline,
+          ctaType: creative.ctaType,
+        });
+
+        if (visionResult.ok && visionResult.result) {
+          // Blend regex + vision for final classification
+          const regexResult = {
+            type: creative.classificationAuto || "OTHER",
+            confidence: creative.classificationScore || 0.3,
+            reason: "existing regex classification",
+          };
+          const blended = classifyWithVision(
+            regexResult,
+            visionResult.result.classification,
+            visionResult.result.confidence
+          );
+
+          await prisma.adCreative.update({
+            where: { id: creative.id },
+            data: {
+              visionAnalysis: JSON.stringify(visionResult.result),
+              visionClassification: visionResult.result.classification,
+              visionConfidence: visionResult.result.confidence,
+              visionAnalyzedAt: new Date(),
+              visionError: null,
+              // Update classification with blended result
+              classificationAuto: blended.type,
+              classificationScore: blended.confidence,
+            } as any,
+          });
+          visionAnalyzed++;
+        } else {
+          // Store error so we don't retry immediately
+          await prisma.adCreative.update({
+            where: { id: creative.id },
+            data: {
+              visionError: visionResult.error || "Unknown error",
+              visionAnalyzedAt: new Date(),
+            } as any,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error("Vision analysis error (non-fatal):", e.message);
+    }
+
     // Fetch ad-level insights
     const adInsights = await connector.fetchAdInsights({
       startDate: since,
@@ -472,6 +543,7 @@ export async function GET(req: Request) {
     metricsUpserted,
     adsUpserted,
     adMetricsUpserted,
+    visionAnalyzed,
     cleanedUpAllCampaigns: cleanedUp,
     campaigns: Object.keys(campaignMap).length,
     adSets: Object.keys(adSetMap).length,
