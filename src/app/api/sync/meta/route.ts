@@ -8,13 +8,12 @@ import { getOrganization } from "@/lib/auth-guard";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-// Timer para evitar timeout — responder antes de que Vercel corte
-const SYNC_START = Date.now();
-const MAX_RUNTIME_MS = 55000; // 55 segundos (dejar margen)
-function timeLeft() { return MAX_RUNTIME_MS - (Date.now() - SYNC_START); }
-function shouldStop() { return timeLeft() < 5000; } // parar si quedan <5s
-
 export async function GET(req: Request) {
+  // Timer PER REQUEST para evitar timeout de Vercel
+  const syncStart = Date.now();
+  const MAX_RUNTIME_MS = 100000; // 100 segundos (maxDuration=120, margen de 20s)
+  function shouldStop() { return (Date.now() - syncStart) > MAX_RUNTIME_MS; }
+
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
   if (key !== process.env.NEXTAUTH_SECRET) {
@@ -514,6 +513,6 @@ export async function GET(req: Request) {
     campaigns: Object.keys(campaignMap).length,
     adSets: Object.keys(adSetMap).length,
     stoppedEarly,
-    runtimeMs: Date.now() - SYNC_START,
+    runtimeMs: Date.now() - syncStart,
   });
 }
