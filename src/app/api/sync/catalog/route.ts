@@ -46,6 +46,19 @@ function extractPrice(items: any[]): number {
   return 0;
 }
 
+function extractCostPrice(items: any[]): number | null {
+  // VTEX Search API: items[].sellers[].commertialOffer no expone CostPrice directamente.
+  // El CostPrice viene del SKU Detail API (catalog_system/pvt/sku/stockkeepingunitbyid).
+  // Aquí intentamos extraerlo si está presente en la respuesta extendida.
+  for (const item of items || []) {
+    for (const seller of item.sellers || []) {
+      const cost = seller.commertialOffer?.CostPrice;
+      if (cost && cost > 0) return cost;
+    }
+  }
+  return null;
+}
+
 /* ── main sync (with pagination support) ─────────── */
 
 async function syncCatalog(startPage: number, maxPages: number, ORG_ID: string) {
@@ -83,6 +96,7 @@ async function syncCatalog(startPage: number, maxPages: number, ORG_ID: string) 
       const externalId = String(p.productId);
       vtexIds.push(externalId);
 
+      const costPrice = extractCostPrice(p.items);
       const data = {
         name: p.productName || "Sin nombre",
         brand: p.brand || null,
@@ -92,6 +106,8 @@ async function syncCatalog(startPage: number, maxPages: number, ORG_ID: string) 
         stock: calcStock(p.items),
         stockUpdatedAt: syncedAt,
         isActive: true,
+        // Solo setear costPrice si VTEX devuelve el dato (no pisar valor manual)
+        ...(costPrice !== null ? { costPrice } : {}),
       };
 
       return prisma.product.upsert({

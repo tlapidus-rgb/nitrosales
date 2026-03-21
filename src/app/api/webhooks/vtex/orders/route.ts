@@ -247,7 +247,9 @@ export async function POST(req: NextRequest) {
           quantity: item.quantity,
           unitPrice: (item.sellingPrice || item.price) / 100,
           totalPrice: ((item.sellingPrice || item.price) * item.quantity) / 100,
-        },
+          // Snapshot del costo al momento de la orden para P&L histórico
+          costPrice: (product as any).costPrice ?? null,
+        } as any,
       });
       itemsCreated++;
     }

@@ -118,6 +118,7 @@ interface VtexSkuDetail {
   Images: Array<{ ImageUrl: string }>;
   ListPrice: number;
   Price: number;
+  CostPrice: number | null; // Costo de compra del proveedor (COGS)
   IsActive: boolean;
   RefId: string;
   Ean: string;
@@ -153,10 +154,12 @@ interface ProductUpsertData {
   brand: string | null;
   category: string | null;
   price: number;
+  costPrice?: number;
   imageUrl: string | null;
   isActive: boolean;
   stock: number;
   stockUpdatedAt: Date;
+  [key: string]: unknown; // Allow spread with optional fields
 }
 
 function sleep(ms: number): Promise<void> {
@@ -479,7 +482,7 @@ export class VtexConnector {
         const skuId = batch[j];
 
         if (result.status === "fulfilled" && result.value) {
-          const { name, brand, imageUrl, price, isActive, category, stock, refId, ean } =
+          const { name, brand, imageUrl, price, costPrice, isActive, category, stock, refId, ean } =
             result.value;
 
           const data = {
@@ -493,6 +496,8 @@ export class VtexConnector {
             isActive,
             stock,
             stockUpdatedAt: new Date(),
+            // Solo setear costPrice si VTEX tiene el dato (no pisar un valor manual)
+            ...(costPrice !== null ? { costPrice } : {}),
           };
 
           upsertBuffer.push({
@@ -550,6 +555,7 @@ export class VtexConnector {
     brand: string;
     imageUrl: string | null;
     price: number;
+    costPrice: number | null;
     isActive: boolean;
     category: string | null;
     stock: number;
@@ -565,6 +571,7 @@ export class VtexConnector {
     const brand = detail.BrandName || "";
     const imageUrl = detail.Images?.[0]?.ImageUrl || null;
     const price = detail.Price || detail.ListPrice || 0;
+    const costPrice = detail.CostPrice && detail.CostPrice > 0 ? detail.CostPrice : null;
     const isActive = detail.IsActive !== false;
 
     const categories = detail.ProductCategories
@@ -581,6 +588,7 @@ export class VtexConnector {
       brand,
       imageUrl,
       price,
+      costPrice,
       isActive,
       category,
       stock,
