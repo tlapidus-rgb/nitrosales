@@ -1,27 +1,27 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie,
-  RadialBarChart, RadialBar, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell,
 } from "recharts";
-import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
-import { KpiCard, DateRangeFilter } from "@/components/dashboard";
+import { formatARS, formatCompact } from "@/lib/utils/format";
+import { DateRangeFilter } from "@/components/dashboard";
 import {
-  Play, Eye, MousePointer, Target, Zap, TrendingUp, TrendingDown,
-  ArrowUpRight, ArrowDownRight, Film, Image, AlertTriangle,
-  CheckCircle, XCircle, BarChart3, Filter, ChevronDown, ChevronUp,
-  Activity, Percent, Video, Sparkles,
+  Play, Eye, MousePointer, Target, Zap, TrendingUp,
+  Film, Image, AlertTriangle, CheckCircle, XCircle,
+  BarChart3, Filter, ChevronDown, ChevronUp,
+  Activity, Video, Sparkles, X, ShoppingCart,
+  Crosshair, Users, ArrowRight, Layers,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────── */
 
 const QUICK_RANGES = [
-  { label: "7 dias", days: 7 },
-  { label: "30 dias", days: 30 },
-  { label: "90 dias", days: 90 },
+  { label: "7d", days: 7 },
+  { label: "30d", days: 30 },
+  { label: "90d", days: 90 },
 ];
 
 function toDateInputValue(d: Date) {
@@ -30,68 +30,196 @@ function toDateInputValue(d: Date) {
 
 /* ── Color & Label Helpers ─────────────────────────── */
 
+const FUNNEL_CONFIG: Record<string, { color: string; bg: string; icon: any; label: string; shortLabel: string }> = {
+  TOF: { color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", icon: Eye, label: "Top of Funnel", shortLabel: "TOF" },
+  MOF: { color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", icon: MousePointer, label: "Middle of Funnel", shortLabel: "MOF" },
+  BOF: { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: ShoppingCart, label: "Bottom of Funnel", shortLabel: "BOF" },
+  UNKNOWN: { color: "text-gray-400", bg: "bg-gray-500/10 border-gray-500/20", icon: Layers, label: "Sin clasificar", shortLabel: "?" },
+};
+
 const DIAGNOSIS_CONFIG: Record<string, { color: string; bg: string; icon: any; label: string }> = {
-  WEAK_HOOK: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", icon: XCircle, label: "Hook debil" },
-  WEAK_CONTENT: { color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20", icon: AlertTriangle, label: "Contenido debil" },
-  WEAK_CTA: { color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", icon: MousePointer, label: "Falta CTA" },
-  STRONG_PERFORMER: { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: CheckCircle, label: "Top performer" },
+  WEAK_HOOK: { color: "text-red-400", bg: "bg-red-500/10", icon: XCircle, label: "Hook debil" },
+  WEAK_CONTENT: { color: "text-amber-400", bg: "bg-amber-500/10", icon: AlertTriangle, label: "Contenido debil" },
+  WEAK_CTA: { color: "text-orange-400", bg: "bg-orange-500/10", icon: MousePointer, label: "Falta CTA" },
+  WEAK_CONVERSION: { color: "text-red-400", bg: "bg-red-500/10", icon: ShoppingCart, label: "No convierte" },
+  LOW_ROI: { color: "text-red-500", bg: "bg-red-500/10", icon: TrendingUp, label: "ROI bajo" },
+  STRONG_PERFORMER: { color: "text-emerald-400", bg: "bg-emerald-500/10", icon: CheckCircle, label: "Performer" },
+  STRONG_ENGAGER: { color: "text-blue-400", bg: "bg-blue-500/10", icon: Zap, label: "Engager" },
+  STRONG_CONVERTER: { color: "text-emerald-400", bg: "bg-emerald-500/10", icon: Target, label: "Conversor" },
 };
 
 function getScoreColor(score: number) {
-  if (score >= 70) return "#10b981"; // green
-  if (score >= 40) return "#f59e0b"; // amber
-  if (score >= 20) return "#f97316"; // orange
-  return "#ef4444"; // red
+  if (score >= 60) return "#10b981";
+  if (score >= 35) return "#f59e0b";
+  if (score >= 15) return "#f97316";
+  return "#ef4444";
 }
 
 function getScoreLabel(score: number) {
-  if (score >= 70) return "Excelente";
-  if (score >= 40) return "Bueno";
-  if (score >= 20) return "Regular";
+  if (score >= 60) return "Excelente";
+  if (score >= 35) return "Bueno";
+  if (score >= 15) return "Regular";
   return "Bajo";
 }
 
-/* ── Small Components ──────────────────────────────── */
-
-function ChangeBadge({ value }: { value: number }) {
-  if (!value || value === 0) return <span className="text-xs text-gray-500">--</span>;
-  const pos = value > 0;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${pos ? "text-emerald-400" : "text-red-400"}`}>
-      {pos ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-      {Math.abs(value).toFixed(1)}%
-    </span>
-  );
+function getRoasColor(roas: number) {
+  if (roas >= 3) return "text-emerald-400";
+  if (roas >= 1.5) return "text-amber-400";
+  return "text-red-400";
 }
 
-function ScoreGauge({ score, size = 120 }: { score: number; size?: number }) {
-  const color = getScoreColor(score);
-  const data = [{ value: score, fill: color }];
+/* ── Thumbnail Modal ──────────────────────────────── */
+
+function ThumbnailModal({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
   return (
-    <div className="relative" style={{ width: size, height: size / 2 + 10 }}>
-      <RadialBarChart
-        width={size}
-        height={size / 2 + 10}
-        cx={size / 2}
-        cy={size / 2}
-        innerRadius={size / 2 - 20}
-        outerRadius={size / 2 - 5}
-        startAngle={180}
-        endAngle={0}
-        data={data}
-        barSize={12}
-      >
-        <RadialBar dataKey="value" cornerRadius={6} background={{ fill: "rgba(255,255,255,0.05)" }} />
-      </RadialBarChart>
-      <div className="absolute inset-0 flex flex-col items-center justify-end pb-0">
-        <span className="text-2xl font-bold" style={{ color }}>{score.toFixed(1)}</span>
-        <span className="text-[10px] text-gray-500 uppercase tracking-wider">{getScoreLabel(score)}</span>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={onClose}>
+      <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute -top-3 -right-3 z-10 w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-white transition-colors"
+        >
+          <X size={16} />
+        </button>
+        <img
+          src={url}
+          alt={name}
+          className="rounded-xl max-w-[90vw] max-h-[85vh] object-contain shadow-2xl"
+        />
+        <p className="text-center text-sm text-gray-400 mt-2 truncate max-w-[500px] mx-auto">{name}</p>
       </div>
     </div>
   );
 }
 
-function RetentionFunnel({ dropOff }: { dropOff: any }) {
+/* ── Small Clickable Thumbnail ────────────────────── */
+
+function Thumbnail({ url, name, onClickZoom }: { url: string; name: string; onClickZoom: () => void }) {
+  const [error, setError] = useState(false);
+  if (error || !url) {
+    return <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center"><Film size={16} className="text-gray-600" /></div>;
+  }
+  return (
+    <img
+      src={url}
+      alt={name}
+      onClick={onClickZoom}
+      className="w-12 h-12 rounded-lg object-cover bg-white/5 cursor-pointer hover:ring-2 hover:ring-[var(--nitro-orange)]/50 transition-all"
+      onError={() => setError(true)}
+    />
+  );
+}
+
+/* ── Funnel Badge ─────────────────────────────────── */
+
+function FunnelBadge({ stage }: { stage: string }) {
+  const config = FUNNEL_CONFIG[stage] || FUNNEL_CONFIG.UNKNOWN;
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${config.bg} ${config.color}`}>
+      {config.shortLabel}
+    </span>
+  );
+}
+
+/* ── Diagnosis Badge ──────────────────────────────── */
+
+function DiagnosisBadge({ diagnosis }: { diagnosis: string | null }) {
+  if (!diagnosis) return <span className="text-xs text-gray-600">-</span>;
+  const config = DIAGNOSIS_CONFIG[diagnosis];
+  if (!config) return <span className="text-xs text-gray-500">{diagnosis}</span>;
+  const Icon = config.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${config.bg} ${config.color}`}>
+      <Icon size={11} />
+      {config.label}
+    </span>
+  );
+}
+
+/* ── Score Pill ────────────────────────────────────── */
+
+function ScorePill({ score }: { score: number | null }) {
+  if (score === null || score === undefined) return <span className="text-xs text-gray-600">-</span>;
+  const color = getScoreColor(score);
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+        style={{ backgroundColor: color + "20", color }}>
+        {Math.round(score)}
+      </div>
+      <span className="text-[10px] text-gray-500 hidden xl:block">{getScoreLabel(score)}</span>
+    </div>
+  );
+}
+
+/* ── Retention Mini Bar ───────────────────────────── */
+
+function RetentionMiniBar({ dropOff }: { dropOff: any }) {
+  if (!dropOff) return <span className="text-xs text-gray-600">-</span>;
+  const points = [
+    { label: "25%", val: dropOff.retention25 },
+    { label: "50%", val: dropOff.retention50 },
+    { label: "75%", val: dropOff.retention75 },
+    { label: "100%", val: dropOff.retention100 },
+  ];
+  return (
+    <div className="flex items-end gap-0.5 h-6">
+      {points.map((p) => (
+        <div key={p.label} className="flex flex-col items-center" title={`${p.label}: ${p.val ?? "-"}%`}>
+          <div
+            className="w-3 rounded-sm bg-purple-500/60"
+            style={{ height: `${Math.max((p.val || 0) / 100 * 24, 2)}px` }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Score Breakdown (expanded) ───────────────────── */
+
+function ScoreBreakdown({ weights, breakdown }: { weights: any; breakdown: any }) {
+  if (!weights || !breakdown) return null;
+  const items = [
+    { key: "hook", label: "Hook Rate", color: "#8b5cf6" },
+    { key: "hold", label: "Hold Rate", color: "#6366f1" },
+    { key: "completion", label: "Completion", color: "#06b6d4" },
+    { key: "action", label: "Action Rate", color: "#3b82f6" },
+    { key: "conv", label: "Conv Rate", color: "#10b981" },
+    { key: "roas", label: "ROAS", color: "#f59e0b" },
+  ].filter((i) => (weights[i.key] || 0) > 0);
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {items.map((item) => (
+        <div key={item.key} className="bg-white/5 rounded-lg p-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-gray-500">{item.label}</span>
+            <span className="text-[10px] text-gray-600">peso {Math.round((weights[item.key] || 0) * 100)}%</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+              <div className="h-full rounded-full" style={{
+                width: `${Math.min((breakdown[item.key] || 0) / (weights[item.key] || 0.01) * 100, 100)}%`,
+                backgroundColor: item.color
+              }} />
+            </div>
+            <span className="text-xs font-mono" style={{ color: item.color }}>{(breakdown[item.key] || 0).toFixed(1)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Retention Full Bar ───────────────────────────── */
+
+function RetentionFull({ dropOff }: { dropOff: any }) {
   if (!dropOff) return null;
   const steps = [
     { label: "3s Play", pct: 100, color: "#8b5cf6" },
@@ -102,271 +230,122 @@ function RetentionFunnel({ dropOff }: { dropOff: any }) {
   ].filter((s) => s.pct !== null);
 
   return (
-    <div className="space-y-1.5">
-      {steps.map((s, i) => (
+    <div className="space-y-1">
+      {steps.map((s) => (
         <div key={s.label} className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-500 w-10 text-right shrink-0">{s.label}</span>
-          <div className="flex-1 bg-white/5 rounded-full h-2.5 overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-700"
-              style={{ width: `${Math.max(s.pct, 2)}%`, backgroundColor: s.color }}
-            />
+          <span className="text-[10px] text-gray-500 w-12 text-right shrink-0">{s.label}</span>
+          <div className="flex-1 bg-white/5 rounded-full h-2 overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: `${Math.max(s.pct, 2)}%`, backgroundColor: s.color }} />
           </div>
-          <span className="text-[11px] font-mono text-gray-400 w-10 shrink-0">{s.pct}%</span>
+          <span className="text-[11px] font-mono text-gray-400 w-8 shrink-0">{s.pct}%</span>
         </div>
       ))}
     </div>
   );
 }
 
-function DiagnosisBadge({ diagnosis }: { diagnosis: string | null }) {
-  if (!diagnosis) return null;
-  const config = DIAGNOSIS_CONFIG[diagnosis];
-  if (!config) return null;
-  const Icon = config.icon;
-  return (
-    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium ${config.bg} ${config.color}`}>
-      <Icon size={13} />
-      {config.label}
-    </div>
-  );
-}
+/* ── Expanded Row Detail ──────────────────────────── */
 
-function MetricPill({ label, value, suffix = "%" }: { label: string; value: number | null; suffix?: string }) {
-  if (value === null || value === undefined) return null;
-  return (
-    <div className="flex flex-col items-center px-3 py-2 rounded-lg bg-white/5">
-      <span className="text-lg font-bold text-white">{value.toFixed(1)}{suffix}</span>
-      <span className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</span>
-    </div>
-  );
-}
-
-/* ── Video Card (the star component) ────────────────── */
-
-function VideoCreativeCard({ creative, rank }: { creative: any; rank: number }) {
-  const [expanded, setExpanded] = useState(false);
+function ExpandedDetail({ creative }: { creative: any }) {
   const vm = creative.videoMetrics;
-  const score = vm?.videoEfficiencyScore;
-  const dropOff = vm?.dropOffAnalysis;
+  const [modalUrl, setModalUrl] = useState<string | null>(null);
 
   return (
-    <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl overflow-hidden hover:border-[var(--nitro-orange)]/30 transition-all">
-      {/* Header */}
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          {/* Rank */}
-          <div className="flex flex-col items-center shrink-0">
-            <span className="text-xs text-gray-500">#{rank}</span>
-            {score !== null && score !== undefined && (
-              <div className="mt-1 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
-                style={{ backgroundColor: getScoreColor(score) + "20", color: getScoreColor(score) }}>
-                {Math.round(score)}
+    <div className="px-4 py-4 bg-white/[0.02] border-t border-white/5">
+      {modalUrl && <ThumbnailModal url={modalUrl} name={creative.name} onClose={() => setModalUrl(null)} />}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Col 1: Thumbnail + info */}
+        <div className="space-y-3">
+          {creative.mediaUrls?.[0] && (
+            <img
+              src={creative.mediaUrls[0]}
+              alt={creative.name}
+              className="rounded-lg max-h-48 w-full object-contain bg-white/5 cursor-pointer hover:ring-2 hover:ring-[var(--nitro-orange)]/50 transition-all"
+              onClick={() => setModalUrl(creative.mediaUrls[0])}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          )}
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500">Campana: <span className="text-gray-300">{creative.campaignName || "-"}</span></p>
+            <p className="text-xs text-gray-500">Objetivo: <span className="text-gray-300">{creative.campaignObjective || "-"}</span></p>
+            <p className="text-xs text-gray-500">Dias con datos: <span className="text-gray-300">{creative.daysWithData}</span></p>
+          </div>
+        </div>
+
+        {/* Col 2: Retention + metrics */}
+        {vm && (
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Curva de retencion</h4>
+            <RetentionFull dropOff={vm.dropOffAnalysis} />
+
+            <div className="grid grid-cols-4 gap-2 text-center">
+              {[
+                { label: "Hook", val: vm.hookRate, suffix: "%" },
+                { label: "Action", val: vm.actionRate, suffix: "%" },
+                { label: "Hold", val: vm.holdRate, suffix: "%" },
+                { label: "Compl", val: vm.completionRate, suffix: "%" },
+              ].map((m) => (
+                <div key={m.label} className="bg-white/5 rounded-lg px-2 py-1.5">
+                  <span className="text-[10px] text-gray-500 block">{m.label}</span>
+                  <span className="text-sm font-bold text-white">{m.val != null ? m.val.toFixed(1) + m.suffix : "-"}</span>
+                </div>
+              ))}
+            </div>
+
+            {vm.dropOffAnalysis?.diagnosisLabel && (
+              <div className="bg-white/5 rounded-lg p-2.5 flex items-start gap-2">
+                <Sparkles size={13} className="text-[var(--nitro-orange)] shrink-0 mt-0.5" />
+                <p className="text-xs text-gray-400">{vm.dropOffAnalysis.diagnosisLabel}</p>
               </div>
             )}
           </div>
+        )}
 
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Video size={14} className="text-purple-400 shrink-0" />
-              <h3 className="text-sm font-semibold text-white truncate">{creative.name}</h3>
-            </div>
-            <p className="text-xs text-gray-500 truncate mb-2">
-              {creative.campaignName || "Sin campana"}
-            </p>
-
-            {/* Diagnosis */}
-            <DiagnosisBadge diagnosis={dropOff?.diagnosis} />
-          </div>
-
-          {/* Score gauge */}
-          {score !== null && score !== undefined && (
-            <div className="shrink-0 hidden sm:block">
-              <ScoreGauge score={score} size={100} />
-            </div>
-          )}
-        </div>
-
-        {/* Key metrics row */}
-        <div className="grid grid-cols-4 gap-2 mt-3">
-          <MetricPill label="Hook Rate" value={vm?.hookRate} />
-          <MetricPill label="Action Rate" value={vm?.actionRate} />
-          <MetricPill label="Hold Rate" value={vm?.holdRate} />
-          <MetricPill label="Completion" value={vm?.completionRate} />
-        </div>
-
-        {/* Performance metrics */}
-        <div className="grid grid-cols-5 gap-3 mt-3 pt-3 border-t border-white/5">
-          <div className="text-center">
-            <span className="text-xs text-gray-500 block">Spend</span>
-            <span className="text-sm font-semibold text-white">{formatARS(creative.spend)}</span>
-          </div>
-          <div className="text-center">
-            <span className="text-xs text-gray-500 block">ROAS</span>
-            <span className={`text-sm font-bold ${creative.roas >= 3 ? "text-emerald-400" : creative.roas >= 1.5 ? "text-amber-400" : "text-red-400"}`}>
-              {creative.roas}x
-            </span>
-          </div>
-          <div className="text-center">
-            <span className="text-xs text-gray-500 block">Clicks</span>
-            <span className="text-sm font-semibold text-white">{formatCompact(creative.clicks)}</span>
-          </div>
-          <div className="text-center">
-            <span className="text-xs text-gray-500 block">Conv</span>
-            <span className="text-sm font-semibold text-white">{creative.conversions}</span>
-          </div>
-          <div className="text-center">
-            <span className="text-xs text-gray-500 block">Plays</span>
-            <span className="text-sm font-semibold text-white">{formatCompact(vm?.videoPlays || 0)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Expand toggle */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-2 flex items-center justify-center gap-1 text-xs text-gray-500 hover:text-gray-300 bg-white/[0.02] hover:bg-white/[0.04] transition-colors border-t border-white/5"
-      >
-        {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        {expanded ? "Menos detalle" : "Ver retencion y detalle"}
-      </button>
-
-      {/* Expanded section */}
-      {expanded && (
-        <div className="px-4 pb-4 space-y-4 border-t border-white/5">
-          {/* Retention funnel */}
-          <div className="pt-3">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Curva de retencion
+        {/* Col 3: Score breakdown */}
+        {vm && (
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Composicion del Score ({FUNNEL_CONFIG[creative.funnelStage]?.shortLabel || "?"})
             </h4>
-            <RetentionFunnel dropOff={dropOff} />
-          </div>
+            <ScoreBreakdown weights={vm.scoreWeights} breakdown={vm.scoreBreakdown} />
 
-          {/* Raw video numbers */}
-          <div className="grid grid-cols-5 gap-2 text-center">
+            <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-white/5">
+              <div>
+                <span className="text-[10px] text-gray-500 block">Plays</span>
+                <span className="text-xs font-mono text-gray-300">{formatCompact(vm.videoPlays || 0)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-500 block">Conv Value</span>
+                <span className="text-xs font-mono text-gray-300">{formatARS(creative.conversionValue)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-500 block">CPA</span>
+                <span className="text-xs font-mono text-gray-300">{creative.costPerConversion > 0 ? formatARS(creative.costPerConversion) : "-"}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Non-video expanded */}
+        {!vm && (
+          <div className="md:col-span-2 grid grid-cols-3 gap-2 text-center">
             {[
-              { label: "Plays", val: vm?.videoPlays },
-              { label: "25%", val: vm?.videoP25Watched },
-              { label: "50%", val: vm?.videoP50Watched },
-              { label: "75%", val: vm?.videoP75Watched },
-              { label: "100%", val: vm?.videoP100Watched },
+              { label: "Impressions", val: formatCompact(creative.impressions) },
+              { label: "Clicks", val: formatCompact(creative.clicks) },
+              { label: "CTR", val: creative.ctr + "%" },
+              { label: "Conversions", val: creative.conversions },
+              { label: "Conv Value", val: formatARS(creative.conversionValue) },
+              { label: "CPA", val: creative.costPerConversion > 0 ? formatARS(creative.costPerConversion) : "-" },
             ].map((m) => (
               <div key={m.label} className="bg-white/5 rounded-lg px-2 py-2">
                 <span className="text-[10px] text-gray-500 block">{m.label}</span>
-                <span className="text-xs font-mono text-gray-300">{m.val != null ? formatCompact(m.val) : "-"}</span>
+                <span className="text-sm font-bold text-white">{m.val}</span>
               </div>
             ))}
           </div>
-
-          {/* Diagnosis explanation */}
-          {dropOff?.diagnosisLabel && (
-            <div className="bg-white/5 rounded-lg p-3">
-              <div className="flex items-start gap-2">
-                <Sparkles size={14} className="text-[var(--nitro-orange)] shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs font-medium text-gray-300">Diagnostico AI</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{dropOff.diagnosisLabel}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Creative thumbnail */}
-          {creative.mediaUrls && creative.mediaUrls.length > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Thumbnail</h4>
-              <img
-                src={creative.mediaUrls[0]}
-                alt={creative.name}
-                className="rounded-lg max-h-40 object-contain bg-white/5"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Comparison Chart ──────────────────────────────── */
-
-function EfficiencyComparisonChart({ creatives }: { creatives: any[] }) {
-  const chartData = creatives
-    .filter((c) => c.isVideo && c.videoMetrics?.videoEfficiencyScore != null)
-    .sort((a, b) => (b.videoMetrics?.videoEfficiencyScore || 0) - (a.videoMetrics?.videoEfficiencyScore || 0))
-    .slice(0, 10)
-    .map((c) => ({
-      name: c.name.length > 25 ? c.name.slice(0, 25) + "..." : c.name,
-      score: c.videoMetrics.videoEfficiencyScore,
-      hookRate: c.videoMetrics.hookRate || 0,
-      actionRate: c.videoMetrics.actionRate || 0,
-      fill: getScoreColor(c.videoMetrics.videoEfficiencyScore),
-    }));
-
-  if (chartData.length === 0) return null;
-
-  return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={chartData} layout="vertical" margin={{ left: 120, right: 20, top: 10, bottom: 10 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-        <XAxis type="number" domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 11 }} />
-        <YAxis type="category" dataKey="name" tick={{ fill: "#9ca3af", fontSize: 11 }} width={110} />
-        <Tooltip
-          contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }}
-          labelStyle={{ color: "#e5e7eb" }}
-          formatter={(value: number, name: string) => [
-            `${value.toFixed(1)}${name === "score" ? "" : "%"}`,
-            name === "score" ? "Efficiency Score" : name === "hookRate" ? "Hook Rate" : "Action Rate",
-          ]}
-        />
-        <Bar dataKey="score" radius={[0, 6, 6, 0]} barSize={20}>
-          {chartData.map((entry, i) => (
-            <Cell key={i} fill={entry.fill} fillOpacity={0.8} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-/* ── Diagnosis Distribution ────────────────────────── */
-
-function DiagnosisDistribution({ creatives }: { creatives: any[] }) {
-  const counts: Record<string, number> = {};
-  creatives.forEach((c) => {
-    if (c.isVideo && c.videoMetrics?.dropOffAnalysis?.diagnosis) {
-      const d = c.videoMetrics.dropOffAnalysis.diagnosis;
-      counts[d] = (counts[d] || 0) + 1;
-    }
-  });
-
-  const total = Object.values(counts).reduce((s, c) => s + c, 0);
-  if (total === 0) return null;
-
-  const data = Object.entries(counts).map(([key, count]) => ({
-    name: DIAGNOSIS_CONFIG[key]?.label || key,
-    value: count,
-    color: key === "STRONG_PERFORMER" ? "#10b981" : key === "WEAK_HOOK" ? "#ef4444" : key === "WEAK_CONTENT" ? "#f59e0b" : "#f97316",
-  }));
-
-  return (
-    <div className="space-y-3">
-      {data.map((d) => (
-        <div key={d.name} className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-          <span className="text-xs text-gray-400 flex-1">{d.name}</span>
-          <span className="text-sm font-bold text-white">{d.value}</span>
-          <div className="w-24 bg-white/5 rounded-full h-2 overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${(d.value / total) * 100}%`, backgroundColor: d.color }}
-            />
-          </div>
-          <span className="text-[10px] text-gray-500 w-8 text-right">{Math.round((d.value / total) * 100)}%</span>
-        </div>
-      ))}
+        )}
+      </div>
     </div>
   );
 }
@@ -378,9 +357,15 @@ function DiagnosisDistribution({ creatives }: { creatives: any[] }) {
 export default function CreativesVideoPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [sortField, setSortField] = useState<string>("score");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [modalUrl, setModalUrl] = useState<string | null>(null);
+
+  // Filters
+  const [filterType, setFilterType] = useState<"ALL" | "VIDEO" | "IMAGE">("ALL");
+  const [filterFunnel, setFilterFunnel] = useState<string>("ALL");
+  const [filterCampaign, setFilterCampaign] = useState<string>("ALL");
+  const [sortField, setSortField] = useState<string>("spend");
   const [sortAsc, setSortAsc] = useState(false);
-  const [filterType, setFilterType] = useState<"ALL" | "VIDEO" | "IMAGE">("VIDEO");
 
   // Date range
   const [dateFrom, setDateFrom] = useState(toDateInputValue(new Date(Date.now() - 30 * 86400000)));
@@ -410,24 +395,25 @@ export default function CreativesVideoPage() {
 
   /* ── Derived data ──────────────────────────────── */
   const allCreatives = data?.creatives || [];
+  const campaigns = data?.campaigns || [];
+  const funnelBreakdown = data?.funnelBreakdown || [];
 
-  const videoCreatives = useMemo(() =>
-    allCreatives.filter((c: any) => c.isVideo && c.videoMetrics),
-    [allCreatives]
-  );
+  const filtered = useMemo(() => {
+    let list = allCreatives;
 
-  const imageCreatives = useMemo(() =>
-    allCreatives.filter((c: any) => !c.isVideo),
-    [allCreatives]
-  );
+    // Type filter
+    if (filterType === "VIDEO") list = list.filter((c: any) => c.isVideo);
+    else if (filterType === "IMAGE") list = list.filter((c: any) => !c.isVideo);
 
-  const filteredCreatives = useMemo(() => {
-    let list = filterType === "VIDEO" ? videoCreatives
-      : filterType === "IMAGE" ? imageCreatives
-      : allCreatives;
+    // Funnel filter
+    if (filterFunnel !== "ALL") list = list.filter((c: any) => c.funnelStage === filterFunnel);
 
-    return [...list].sort((a, b) => {
-      let aVal, bVal;
+    // Campaign filter
+    if (filterCampaign !== "ALL") list = list.filter((c: any) => c.campaignId === filterCampaign);
+
+    // Sort
+    return [...list].sort((a: any, b: any) => {
+      let aVal: number, bVal: number;
       switch (sortField) {
         case "score":
           aVal = a.videoMetrics?.videoEfficiencyScore ?? -1;
@@ -441,43 +427,45 @@ export default function CreativesVideoPage() {
           aVal = a.videoMetrics?.actionRate ?? -1;
           bVal = b.videoMetrics?.actionRate ?? -1;
           break;
+        case "roas": aVal = a.roas; bVal = b.roas; break;
+        case "conv": aVal = a.conversions; bVal = b.conversions; break;
         case "spend":
-          aVal = a.spend; bVal = b.spend; break;
-        case "roas":
-          aVal = a.roas; bVal = b.roas; break;
         default:
           aVal = a.spend; bVal = b.spend;
       }
       return sortAsc ? aVal - bVal : bVal - aVal;
     });
-  }, [allCreatives, videoCreatives, imageCreatives, filterType, sortField, sortAsc]);
+  }, [allCreatives, filterType, filterFunnel, filterCampaign, sortField, sortAsc]);
 
-  /* ── Aggregated video KPIs ─────────────────────── */
-  const videoKpis = useMemo(() => {
-    if (videoCreatives.length === 0) return null;
-    const totalPlays = videoCreatives.reduce((s: number, c: any) => s + (c.videoMetrics?.videoPlays || 0), 0);
-    const totalImpressions = videoCreatives.reduce((s: number, c: any) => s + c.impressions, 0);
-    const totalClicks = videoCreatives.reduce((s: number, c: any) => s + c.clicks, 0);
-    const totalSpend = videoCreatives.reduce((s: number, c: any) => s + c.spend, 0);
-    const totalConvValue = videoCreatives.reduce((s: number, c: any) => s + c.conversionValue, 0);
-    const totalP100 = videoCreatives.reduce((s: number, c: any) => s + (c.videoMetrics?.videoP100Watched || 0), 0);
-
-    const scores = videoCreatives
-      .map((c: any) => c.videoMetrics?.videoEfficiencyScore)
-      .filter((s: any) => s != null && s > 0);
-    const avgScore = scores.length > 0 ? scores.reduce((s: number, v: number) => s + v, 0) / scores.length : 0;
+  /* ── Summary KPIs ──────────────────────────────── */
+  const kpis = useMemo(() => {
+    if (filtered.length === 0) return null;
+    const totalSpend = filtered.reduce((s: number, c: any) => s + c.spend, 0);
+    const totalConvValue = filtered.reduce((s: number, c: any) => s + c.conversionValue, 0);
+    const totalConv = filtered.reduce((s: number, c: any) => s + c.conversions, 0);
+    const totalClicks = filtered.reduce((s: number, c: any) => s + c.clicks, 0);
+    const totalImpr = filtered.reduce((s: number, c: any) => s + c.impressions, 0);
+    const videos = filtered.filter((c: any) => c.isVideo);
+    const scores = videos.map((c: any) => c.videoMetrics?.videoEfficiencyScore).filter((s: any) => s != null);
+    const avgScore = scores.length > 0 ? scores.reduce((s: number, v: number) => s + v, 0) / scores.length : null;
 
     return {
-      totalVideos: videoCreatives.length,
-      totalPlays,
-      avgHookRate: totalImpressions > 0 ? (totalPlays / totalImpressions) * 100 : 0,
-      avgActionRate: totalPlays > 0 ? (totalClicks / totalPlays) * 100 : 0,
-      avgCompletionRate: totalPlays > 0 ? (totalP100 / totalPlays) * 100 : 0,
+      creatives: filtered.length,
+      videos: videos.length,
+      spend: totalSpend,
+      roas: totalSpend > 0 ? totalConvValue / totalSpend : 0,
+      conversions: totalConv,
+      convValue: totalConvValue,
+      ctr: totalImpr > 0 ? (totalClicks / totalImpr) * 100 : 0,
       avgScore,
-      totalSpend,
-      videoRoas: totalSpend > 0 ? totalConvValue / totalSpend : 0,
     };
-  }, [videoCreatives]);
+  }, [filtered]);
+
+  /* ── Toggle sort ────────────────────────────────── */
+  const handleSort = useCallback((field: string) => {
+    if (sortField === field) setSortAsc(!sortAsc);
+    else { setSortField(field); setSortAsc(false); }
+  }, [sortField, sortAsc]);
 
   /* ── Loading State ─────────────────────────────── */
   if (loading) {
@@ -485,25 +473,34 @@ export default function CreativesVideoPage() {
       <div className="p-6 flex items-center justify-center min-h-[60vh]">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-[var(--nitro-orange)] animate-pulse" />
-          <p className="text-[var(--nitro-text2)] font-mono text-sm tracking-wider uppercase">
-            Cargando creativos...
-          </p>
+          <p className="text-[var(--nitro-text2)] font-mono text-sm tracking-wider uppercase">Cargando creativos...</p>
         </div>
       </div>
     );
   }
 
+  const SortBtn = ({ field, label }: { field: string; label: string }) => (
+    <button
+      onClick={() => handleSort(field)}
+      className={`text-[11px] px-1 transition-colors ${sortField === field ? "text-white font-semibold" : "text-gray-500 hover:text-gray-300"}`}
+    >
+      {label}{sortField === field && (sortAsc ? " \u2191" : " \u2193")}
+    </button>
+  );
+
   return (
-    <div className="p-4 sm:p-6 max-w-[1400px] mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-[1400px] mx-auto space-y-4">
+      {modalUrl && <ThumbnailModal url={modalUrl} name="" onClose={() => setModalUrl(null)} />}
+
       {/* ── Header ─────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <Film size={22} className="text-purple-400" />
-            Video Efficiency Score
+          <h1 className="text-lg font-bold text-white flex items-center gap-2">
+            <Film size={20} className="text-purple-400" />
+            Creativos
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Analisis de rendimiento de video ads - Hook, retencion y accion
+          <p className="text-xs text-gray-500 mt-0.5">
+            Rendimiento por funnel - Score adaptado al objetivo de cada campana
           </p>
         </div>
         <DateRangeFilter
@@ -517,213 +514,251 @@ export default function CreativesVideoPage() {
         />
       </div>
 
-      {/* ── KPI Cards ──────────────────────────────── */}
-      {videoKpis && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-          <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-3 text-center">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Videos</span>
-            <span className="text-xl font-bold text-white">{videoKpis.totalVideos}</span>
-          </div>
-          <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-3 text-center">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Plays</span>
-            <span className="text-xl font-bold text-white">{formatCompact(videoKpis.totalPlays)}</span>
-          </div>
-          <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-3 text-center">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Avg Score</span>
-            <span className="text-xl font-bold" style={{ color: getScoreColor(videoKpis.avgScore) }}>
-              {videoKpis.avgScore.toFixed(1)}
-            </span>
-          </div>
-          <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-3 text-center">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Hook Rate</span>
-            <span className="text-xl font-bold text-purple-400">{videoKpis.avgHookRate.toFixed(1)}%</span>
-          </div>
-          <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-3 text-center">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Action Rate</span>
-            <span className="text-xl font-bold text-blue-400">{videoKpis.avgActionRate.toFixed(1)}%</span>
-          </div>
-          <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-3 text-center">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Completion</span>
-            <span className="text-xl font-bold text-cyan-400">{videoKpis.avgCompletionRate.toFixed(1)}%</span>
-          </div>
-          <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-3 text-center">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Spend</span>
-            <span className="text-xl font-bold text-white">{formatARS(videoKpis.totalSpend)}</span>
-          </div>
-          <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-3 text-center">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Video ROAS</span>
-            <span className={`text-xl font-bold ${videoKpis.videoRoas >= 3 ? "text-emerald-400" : videoKpis.videoRoas >= 1.5 ? "text-amber-400" : "text-red-400"}`}>
-              {videoKpis.videoRoas.toFixed(1)}x
-            </span>
-          </div>
+      {/* ── Funnel Summary Cards ──────────────────── */}
+      {funnelBreakdown.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {funnelBreakdown.map((f: any) => {
+            const config = FUNNEL_CONFIG[f.stage] || FUNNEL_CONFIG.UNKNOWN;
+            const Icon = config.icon;
+            const isActive = filterFunnel === f.stage;
+            return (
+              <button
+                key={f.stage}
+                onClick={() => setFilterFunnel(isActive ? "ALL" : f.stage)}
+                className={`bg-[var(--nitro-bg2)] border rounded-xl p-3 text-left transition-all hover:border-[var(--nitro-orange)]/30 ${
+                  isActive ? "border-[var(--nitro-orange)]/50 ring-1 ring-[var(--nitro-orange)]/20" : "border-[var(--nitro-border)]"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon size={14} className={config.color} />
+                  <span className={`text-xs font-semibold ${config.color}`}>{f.label}</span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <div>
+                    <span className="text-lg font-bold text-white">{f.count}</span>
+                    <span className="text-[10px] text-gray-500 ml-1">creativos</span>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-sm font-bold ${getRoasColor(f.roas)}`}>{f.roas.toFixed(1)}x</span>
+                    <span className="text-[10px] text-gray-500 block">ROAS</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-1 text-[10px] text-gray-500">
+                  <span>{formatARS(f.spend)}</span>
+                  <span>{f.conversions} conv</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {/* ── Charts Row ─────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Score ranking chart */}
-        <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <BarChart3 size={16} className="text-purple-400" />
-            Ranking — Video Efficiency Score
-          </h3>
-          <EfficiencyComparisonChart creatives={allCreatives} />
-          {videoCreatives.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-8">No hay video ads con datos suficientes</p>
-          )}
-        </div>
-
-        {/* Diagnosis distribution */}
-        <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <Activity size={16} className="text-amber-400" />
-            Diagnostico de Videos
-          </h3>
-          <DiagnosisDistribution creatives={allCreatives} />
-          {videoCreatives.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-8">No hay diagnosticos disponibles</p>
-          )}
-
-          {/* Legend / explanation */}
-          <div className="mt-4 pt-3 border-t border-white/5 space-y-2">
-            <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold">Como se calcula el score</p>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-white/5 rounded-lg p-2">
-                <span className="text-lg font-bold text-purple-400">25%</span>
-                <span className="text-[10px] text-gray-500 block">Hook Rate</span>
-              </div>
-              <div className="bg-white/5 rounded-lg p-2">
-                <span className="text-lg font-bold text-blue-400">50%</span>
-                <span className="text-[10px] text-gray-500 block">Action Rate</span>
-              </div>
-              <div className="bg-white/5 rounded-lg p-2">
-                <span className="text-lg font-bold text-emerald-400">25%</span>
-                <span className="text-[10px] text-gray-500 block">Conv Rate</span>
-              </div>
+      {/* ── KPI Summary Row ──────────────────────── */}
+      {kpis && (
+        <div className="flex flex-wrap items-center gap-3 px-1">
+          {[
+            { label: "Creativos", val: String(kpis.creatives), sub: `${kpis.videos} videos` },
+            { label: "Spend", val: formatARS(kpis.spend) },
+            { label: "ROAS", val: kpis.roas.toFixed(1) + "x", color: getRoasColor(kpis.roas) },
+            { label: "Conv", val: String(kpis.conversions), sub: formatARS(kpis.convValue) },
+            { label: "CTR", val: kpis.ctr.toFixed(2) + "%" },
+            ...(kpis.avgScore !== null ? [{ label: "Avg Score", val: kpis.avgScore.toFixed(1), color: "text-white" }] : []),
+          ].map((k) => (
+            <div key={k.label} className="flex items-center gap-1.5">
+              <span className="text-[10px] text-gray-500 uppercase">{k.label}:</span>
+              <span className={`text-sm font-bold ${k.color || "text-white"}`}>{k.val}</span>
+              {k.sub && <span className="text-[10px] text-gray-600">({k.sub})</span>}
             </div>
-            <p className="text-[10px] text-gray-600 leading-relaxed">
-              El Action Rate pesa 50% porque un click antes de ver el 100% es la mejor senal: el hook funciono y la persona actuo.
-            </p>
-          </div>
+          ))}
         </div>
-      </div>
+      )}
 
-      {/* ── Filters & Sort ─────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <div className="flex items-center gap-1 bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-lg p-0.5">
-          {(["VIDEO", "IMAGE", "ALL"] as const).map((t) => (
+      {/* ── Filters Bar ──────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Type filter */}
+        <div className="flex items-center gap-0.5 bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-lg p-0.5">
+          {(["ALL", "VIDEO", "IMAGE"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setFilterType(t)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                filterType === t
-                  ? "bg-[var(--nitro-orange)] text-white"
-                  : "text-gray-500 hover:text-gray-300"
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                filterType === t ? "bg-[var(--nitro-orange)] text-white" : "text-gray-500 hover:text-gray-300"
               }`}
             >
-              {t === "VIDEO" ? "Video" : t === "IMAGE" ? "Imagen" : "Todos"}
-              <span className="ml-1 opacity-60">
-                ({t === "VIDEO" ? videoCreatives.length : t === "IMAGE" ? imageCreatives.length : allCreatives.length})
-              </span>
+              {t === "ALL" ? "Todos" : t === "VIDEO" ? "Video" : "Imagen"}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <span>Ordenar:</span>
-          {[
-            { key: "score", label: "Score" },
-            { key: "spend", label: "Spend" },
-            { key: "roas", label: "ROAS" },
-            { key: "hookRate", label: "Hook" },
-            { key: "actionRate", label: "Action" },
-          ].map((s) => (
-            <button
-              key={s.key}
-              onClick={() => {
-                if (sortField === s.key) setSortAsc(!sortAsc);
-                else { setSortField(s.key); setSortAsc(false); }
-              }}
-              className={`px-2 py-1 rounded text-xs transition-colors ${
-                sortField === s.key
-                  ? "bg-white/10 text-white font-medium"
-                  : "text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              {s.label}
-              {sortField === s.key && (sortAsc ? " ↑" : " ↓")}
-            </button>
-          ))}
-        </div>
+        {/* Campaign filter */}
+        {campaigns.length > 0 && (
+          <select
+            value={filterCampaign}
+            onChange={(e) => setFilterCampaign(e.target.value)}
+            className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-lg px-2.5 py-1.5 text-xs text-gray-300 max-w-[200px]"
+          >
+            <option value="ALL">Todas las campanas</option>
+            {campaigns.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                [{FUNNEL_CONFIG[c.funnelStage]?.shortLabel || "?"}] {c.name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Active filter indicator */}
+        {(filterFunnel !== "ALL" || filterCampaign !== "ALL") && (
+          <button
+            onClick={() => { setFilterFunnel("ALL"); setFilterCampaign("ALL"); }}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-500/10 text-red-400 text-xs hover:bg-red-500/20 transition-colors"
+          >
+            <X size={12} /> Limpiar filtros
+          </button>
+        )}
+
+        <span className="text-[10px] text-gray-600 ml-auto">{filtered.length} resultados</span>
       </div>
 
-      {/* ── Creative Cards ─────────────────────────── */}
-      {filterType === "VIDEO" || filterType === "ALL" ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredCreatives
-            .filter((c: any) => filterType === "ALL" ? c.isVideo : true)
-            .map((c: any, i: number) => (
-              <VideoCreativeCard key={c.id} creative={c} rank={i + 1} />
-            ))}
-        </div>
-      ) : null}
-
-      {/* Image ads table (simpler) */}
-      {(filterType === "IMAGE" || filterType === "ALL") && (
-        <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-white/5">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Image size={16} className="text-blue-400" />
-              Creativos de Imagen
-            </h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-gray-500 uppercase border-b border-white/5">
-                  <th className="text-left px-4 py-2">#</th>
-                  <th className="text-left px-4 py-2">Nombre</th>
-                  <th className="text-right px-4 py-2">Spend</th>
-                  <th className="text-right px-4 py-2">Impr</th>
-                  <th className="text-right px-4 py-2">Clicks</th>
-                  <th className="text-right px-4 py-2">CTR</th>
-                  <th className="text-right px-4 py-2">Conv</th>
-                  <th className="text-right px-4 py-2">ROAS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCreatives
-                  .filter((c: any) => filterType === "ALL" ? !c.isVideo : true)
-                  .map((c: any, i: number) => (
-                    <tr key={c.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                      <td className="px-4 py-2 text-gray-500">{i + 1}</td>
-                      <td className="px-4 py-2 text-white font-medium truncate max-w-[250px]">{c.name}</td>
-                      <td className="px-4 py-2 text-right text-gray-300">{formatARS(c.spend)}</td>
-                      <td className="px-4 py-2 text-right text-gray-400">{formatCompact(c.impressions)}</td>
-                      <td className="px-4 py-2 text-right text-gray-400">{formatCompact(c.clicks)}</td>
-                      <td className="px-4 py-2 text-right text-gray-400">{c.ctr}%</td>
-                      <td className="px-4 py-2 text-right text-gray-300">{c.conversions}</td>
-                      <td className="px-4 py-2 text-right">
-                        <span className={`font-bold ${c.roas >= 3 ? "text-emerald-400" : c.roas >= 1.5 ? "text-amber-400" : "text-red-400"}`}>
-                          {c.roas}x
-                        </span>
+      {/* ── Creative Table ────────────────────────── */}
+      <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[11px] text-gray-500 uppercase border-b border-white/5">
+                <th className="text-left px-3 py-2 w-8">#</th>
+                <th className="text-left px-2 py-2 w-12"></th>
+                <th className="text-left px-2 py-2"><SortBtn field="name" label="Creativo" /></th>
+                <th className="text-center px-2 py-2 w-10">Funnel</th>
+                <th className="text-center px-2 py-2 w-14"><SortBtn field="score" label="Score" /></th>
+                <th className="text-center px-2 py-2 w-16">Diag</th>
+                <th className="text-right px-2 py-2 w-20"><SortBtn field="spend" label="Spend" /></th>
+                <th className="text-right px-2 py-2 w-14"><SortBtn field="roas" label="ROAS" /></th>
+                <th className="text-right px-2 py-2 w-12"><SortBtn field="conv" label="Conv" /></th>
+                <th className="text-right px-2 py-2 w-16"><SortBtn field="hookRate" label="Hook" /></th>
+                <th className="text-right px-2 py-2 w-16"><SortBtn field="actionRate" label="Action" /></th>
+                <th className="text-center px-2 py-2 w-16">Ret.</th>
+                <th className="text-center px-2 py-2 w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c: any, i: number) => {
+                const isExpanded = expandedId === c.id;
+                const vm = c.videoMetrics;
+                return (
+                  <React.Fragment key={c.id}>
+                    <tr
+                      className={`border-b border-white/5 hover:bg-white/[0.02] cursor-pointer transition-colors ${
+                        isExpanded ? "bg-white/[0.03]" : ""
+                      }`}
+                      onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                    >
+                      <td className="px-3 py-2 text-gray-600 text-xs">{i + 1}</td>
+                      <td className="px-2 py-2">
+                        <Thumbnail
+                          url={c.mediaUrls?.[0]}
+                          name={c.name}
+                          onClickZoom={() => { setModalUrl(c.mediaUrls?.[0]); }}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {c.isVideo ? <Video size={12} className="text-purple-400 shrink-0" /> : <Image size={12} className="text-blue-400 shrink-0" />}
+                          <span className="text-white font-medium truncate max-w-[180px] text-xs">{c.name}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-600 truncate max-w-[180px]">{c.campaignName || "-"}</p>
+                      </td>
+                      <td className="px-2 py-2 text-center"><FunnelBadge stage={c.funnelStage} /></td>
+                      <td className="px-2 py-2 text-center"><ScorePill score={vm?.videoEfficiencyScore} /></td>
+                      <td className="px-2 py-2 text-center"><DiagnosisBadge diagnosis={vm?.dropOffAnalysis?.diagnosis} /></td>
+                      <td className="px-2 py-2 text-right text-gray-300 text-xs font-medium">{formatARS(c.spend)}</td>
+                      <td className="px-2 py-2 text-right">
+                        <span className={`text-xs font-bold ${getRoasColor(c.roas)}`}>{c.roas.toFixed(1)}x</span>
+                      </td>
+                      <td className="px-2 py-2 text-right text-gray-300 text-xs">{c.conversions}</td>
+                      <td className="px-2 py-2 text-right text-xs">
+                        {vm?.hookRate != null ? <span className="text-purple-400">{vm.hookRate.toFixed(1)}%</span> : <span className="text-gray-600">-</span>}
+                      </td>
+                      <td className="px-2 py-2 text-right text-xs">
+                        {vm?.actionRate != null ? <span className="text-blue-400">{vm.actionRate.toFixed(1)}%</span> : <span className="text-gray-600">-</span>}
+                      </td>
+                      <td className="px-2 py-2 text-center"><RetentionMiniBar dropOff={vm?.dropOffAnalysis} /></td>
+                      <td className="px-2 py-2 text-center">
+                        {isExpanded ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
                       </td>
                     </tr>
-                  ))}
-              </tbody>
-            </table>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={13}>
+                          <ExpandedDetail creative={c} />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {filtered.length === 0 && (
+          <div className="text-center py-12">
+            <Film size={40} className="mx-auto text-gray-700 mb-2" />
+            <p className="text-gray-500 text-sm">No se encontraron creativos con estos filtros</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Score Explanation ─────────────────────── */}
+      <div className="bg-[var(--nitro-bg2)] border border-[var(--nitro-border)] rounded-xl p-4">
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Sparkles size={14} className="text-[var(--nitro-orange)]" />
+          Como funciona el Efficiency Score
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-purple-500/5 border border-purple-500/10 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Eye size={14} className="text-purple-400" />
+              <span className="text-xs font-semibold text-purple-400">TOF - Awareness</span>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Prioriza hook rate y completion. Mide cuantos paran a mirar y cuanto ven del video.
+            </p>
+            <div className="flex gap-1 mt-2">
+              {[{l:"Hook",w:35},{l:"Hold",w:25},{l:"Compl",w:20},{l:"Action",w:15},{l:"Conv",w:5}].map(x=>(
+                <span key={x.l} className="text-[9px] text-purple-400/60 bg-purple-500/10 px-1 py-0.5 rounded">{x.l} {x.w}%</span>
+              ))}
+            </div>
+          </div>
+          <div className="bg-blue-500/5 border border-blue-500/10 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-1.5">
+              <MousePointer size={14} className="text-blue-400" />
+              <span className="text-xs font-semibold text-blue-400">MOF - Consideracion</span>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Prioriza action rate y clicks. Mide cuantos interactuan y consideran tu producto.
+            </p>
+            <div className="flex gap-1 mt-2">
+              {[{l:"Action",w:40},{l:"Hook",w:20},{l:"Hold",w:15},{l:"Conv",w:15},{l:"Compl",w:10}].map(x=>(
+                <span key={x.l} className="text-[9px] text-blue-400/60 bg-blue-500/10 px-1 py-0.5 rounded">{x.l} {x.w}%</span>
+              ))}
+            </div>
+          </div>
+          <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-1.5">
+              <ShoppingCart size={14} className="text-emerald-400" />
+              <span className="text-xs font-semibold text-emerald-400">BOF - Conversion</span>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Prioriza conversiones y ROAS. Mide cuantos terminan comprando despues de ver el video.
+            </p>
+            <div className="flex gap-1 mt-2">
+              {[{l:"Conv",w:30},{l:"ROAS",w:25},{l:"Action",w:25},{l:"Hook",w:10},{l:"Hold",w:5}].map(x=>(
+                <span key={x.l} className="text-[9px] text-emerald-400/60 bg-emerald-500/10 px-1 py-0.5 rounded">{x.l} {x.w}%</span>
+              ))}
+            </div>
           </div>
         </div>
-      )}
-
-      {/* Empty state */}
-      {allCreatives.length === 0 && !loading && (
-        <div className="text-center py-16">
-          <Film size={48} className="mx-auto text-gray-700 mb-3" />
-          <p className="text-gray-500 text-sm">No se encontraron creativos en el periodo seleccionado</p>
-          <p className="text-gray-600 text-xs mt-1">Probad sincronizar Meta Ads primero</p>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
