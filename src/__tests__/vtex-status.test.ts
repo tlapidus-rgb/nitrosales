@@ -54,14 +54,46 @@ describe("mapVtexStatus", () => {
   // ── Statuses intermedios: NO deben mapearse a CANCELLED ──
   // (Error #2 y #7: includes("cancel") los atrapaba como CANCELLED)
 
-  it("cancellation-requested → PENDING (NO CANCELLED)", () => {
-    expect(mapVtexStatus("cancellation-requested")).toBe("PENDING");
-    expect(mapVtexStatus("cancellation-requested")).not.toBe("CANCELLED");
+  it("cancellation-requested → CANCELLED", () => {
+    expect(mapVtexStatus("cancellation-requested")).toBe("CANCELLED");
   });
 
-  it("window-to-cancel → PENDING (NO CANCELLED)", () => {
+  it("cancellation-request → CANCELLED", () => {
+    expect(mapVtexStatus("cancellation-request")).toBe("CANCELLED");
+  });
+
+  it("cancel → CANCELLED", () => {
+    expect(mapVtexStatus("cancel")).toBe("CANCELLED");
+  });
+
+  it("payment-denied → CANCELLED", () => {
+    expect(mapVtexStatus("payment-denied")).toBe("CANCELLED");
+  });
+
+  it("cancellation-request-denied → APPROVED (order continues)", () => {
+    expect(mapVtexStatus("cancellation-request-denied")).toBe("APPROVED");
+  });
+
+  it("window-to-cancel → PENDING", () => {
     expect(mapVtexStatus("window-to-cancel")).toBe("PENDING");
-    expect(mapVtexStatus("window-to-cancel")).not.toBe("CANCELLED");
+  });
+
+  // ── New statuses from VTEX OMS full list ──
+
+  it("order-created → PENDING", () => {
+    expect(mapVtexStatus("order-created")).toBe("PENDING");
+  });
+
+  it("order-accepted → APPROVED", () => {
+    expect(mapVtexStatus("order-accepted")).toBe("APPROVED");
+  });
+
+  it("waiting-ffmt-authorization → PENDING", () => {
+    expect(mapVtexStatus("waiting-ffmt-authorization")).toBe("PENDING");
+  });
+
+  it("invoice → INVOICED", () => {
+    expect(mapVtexStatus("invoice")).toBe("INVOICED");
   });
 
   // ── Case insensitivity ──
@@ -74,7 +106,7 @@ describe("mapVtexStatus", () => {
 
   it("handles mixed case input", () => {
     expect(mapVtexStatus("Payment-Approved")).toBe("APPROVED");
-    expect(mapVtexStatus("Cancellation-Requested")).toBe("PENDING");
+    expect(mapVtexStatus("Cancellation-Requested")).toBe("CANCELLED");
   });
 
   // ── Ghost orders: status vacío/null → null ──
@@ -138,8 +170,8 @@ describe("isValidVtexStatus", () => {
 });
 
 describe("VTEX_VALID_STATUSES", () => {
-  it("contains all 8 filterable statuses", () => {
-    expect(VTEX_VALID_STATUSES).toHaveLength(8);
+  it("contains all 9 filterable statuses", () => {
+    expect(VTEX_VALID_STATUSES).toHaveLength(9);
   });
 
   it("includes key statuses", () => {

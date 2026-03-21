@@ -16,10 +16,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
     
-    if (phase !== "cleanup-cancelled") {
-      return NextResponse.json({ error: "Use phase=cleanup-cancelled" }, { status: 400 });
+    if (!["cleanup-cancelled", "fix-all-statuses"].includes(phase || "")) {
+      return NextResponse.json({ error: "Use phase=cleanup-cancelled or phase=fix-all-statuses" }, { status: 400 });
     }
-    
+
     const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
     if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
 
@@ -27,21 +27,22 @@ export async function GET(req: Request) {
     const account = vtexConfig.creds.accountName;
     const appKey = vtexConfig.creds.appKey;
     const appToken = vtexConfig.creds.appToken;
-    
-    // Get all CANCELLED orders from last 60 days
-    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-    const limit = parseInt(searchParams.get("limit") || "5");
+
+    const limit = parseInt(searchParams.get("limit") || "20");
     const skip = parseInt(searchParams.get("skip") || "0");
-    const cancelledOrders = await prisma.order.findMany({
+
+    // fix-all-statuses: check ALL orders, not just CANCELLED/PENDING
+    const ordersToCheck = await prisma.order.findMany({
       where: {
         organizationId: org.id,
-        status: { in: ["CANCELLED", "PENDING"] },
-        orderDate: { gte: sixtyDaysAgo }
+        ...(phase === "cleanup-cancelled"
+          ? { status: { in: ["CANCELLED", "PENDING"] } }
+          : {}),
       },
       select: { id: true, externalId: true, status: true },
       orderBy: { orderDate: "desc" },
       take: limit,
-      skip: skip
+      skip: skip,
     });
     
     let fixed = 0;
@@ -49,7 +50,7 @@ export async function GET(req: Request) {
     let errors = 0;
     const details: any[] = [];
     
-    for (const order of cancelledOrders) {
+    for (const order of ordersToCheck) {
       try {
         const vResp = await fetch(
           `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${order.externalId}`,
@@ -96,7 +97,8 @@ export async function GET(req: Request) {
     
     return NextResponse.json({
       ok: true,
-      totalCancelled: cancelledOrders.length,
+      phase,
+      totalChecked: ordersToCheck.length,
       fixed,
       realCancelled,
       errors,
@@ -144,23 +146,21 @@ export async function POST(req: Request) {
     const totalPages = paging.pages || 1;
     const totalOrders = paging.total || orders.length;
 
+    // Separate new orders from existing ones
     const orderIds = orders.map((o: any) => String(o.orderId));
     const existingOrders = await prisma.order.findMany({
       where: { externalId: { in: orderIds }, organizationId: org.id },
-      select: { externalId: true },
+      select: { externalId: true, status: true },
     });
-    const existingIds = new Set(existingOrders.map((o: any) => o.externalId));
+    const existingMap = new Map(existingOrders.map((o: any) => [o.externalId, o.status]));
 
-    const newOrders = orders.filter((o: any) => {
-      // Skip orders already in DB
-      if (existingIds.has(String(o.orderId))) return false;
-      // Skip incomplete orders - multiple checks
+    // Filter valid orders (non-ghost, non-zero-value)
+    const validOrders = orders.filter((o: any) => {
       const status = (o.status || "").toLowerCase().trim();
       if (!status || status === "" || status === "null" || status === "undefined") {
         console.warn(`[sync/vtex] Skipping incomplete order ${o.orderId} (no status)`);
         return false;
       }
-      // Skip orders with $0 value (likely incomplete)
       if (!o.totalValue || o.totalValue === 0) {
         console.warn(`[sync/vtex] Skipping order ${o.orderId} (zero value)`);
         return false;
@@ -168,6 +168,10 @@ export async function POST(req: Request) {
       return true;
     });
 
+    const newOrders = validOrders.filter((o: any) => !existingMap.has(String(o.orderId)));
+    const existingToUpdate = validOrders.filter((o: any) => existingMap.has(String(o.orderId)));
+
+    // Create new orders
     let created = 0;
     if (newOrders.length > 0) {
       const result = await prisma.order.createMany({
@@ -187,6 +191,21 @@ export async function POST(req: Request) {
       created = result.count;
     }
 
+    // Update statuses for existing orders that changed
+    let updated = 0;
+    for (const order of existingToUpdate) {
+      const eid = String(order.orderId);
+      const currentStatus = existingMap.get(eid);
+      const newStatus = mapVtexStatus(order.status);
+      if (newStatus && newStatus !== currentStatus) {
+        await prisma.order.updateMany({
+          where: { externalId: eid, organizationId: org.id },
+          data: { status: newStatus as any },
+        });
+        updated++;
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       page,
@@ -194,7 +213,8 @@ export async function POST(req: Request) {
       totalOrders,
       fetched: orders.length,
       created,
-      skipped: orders.length - created,
+      updated,
+      unchanged: existingToUpdate.length - updated,
       hasMore: page < totalPages,
     });
   } catch (e: any) {

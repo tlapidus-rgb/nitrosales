@@ -9,19 +9,38 @@
 // https://help.vtex.com/en/tutorial/order-flow-and-status
 // ══════════════════════════════════════════════════════════════
 
+// Full VTEX OMS status reference:
+// https://help.vtex.com/tutorial/order-status-table-oms--frequentlyAskedQuestions_773
 const VTEX_STATUS_MAP: Record<string, string> = {
-  "order-completed": "DELIVERED",
-  "handling": "APPROVED",
+  // ── Pending/waiting statuses ──
+  "order-created": "PENDING",
+  "payment-pending": "PENDING",
+  "waiting-for-sellers-confirmation": "PENDING",
+  "waiting-ffmt-authorization": "PENDING",
+  "waiting-for-manual-authorization": "PENDING",
+  "waiting-seller-decision": "PENDING",
+  "window-to-cancel": "PENDING",
+  "approve-payment": "PENDING",
+  // ── Approved/processing statuses ──
+  "payment-approved": "APPROVED",
+  "order-accepted": "APPROVED",
   "ready-for-handling": "APPROVED",
   "start-handling": "APPROVED",
-  "waiting-for-sellers-confirmation": "PENDING",
-  "payment-pending": "PENDING",
-  "payment-approved": "APPROVED",
-  "invoiced": "INVOICED",
-  "canceled": "CANCELLED",
-  "cancellation-requested": "PENDING",
+  "handling": "APPROVED",
   "replaced": "APPROVED",
-  "window-to-cancel": "PENDING",
+  // ── Invoiced (shipped) ──
+  "invoice": "INVOICED",
+  "invoiced": "INVOICED",
+  // ── Delivered ──
+  "order-completed": "DELIVERED",
+  // ── Cancelled ──
+  "canceled": "CANCELLED",
+  "cancel": "CANCELLED",
+  "cancellation-requested": "CANCELLED",
+  "cancellation-request": "CANCELLED",
+  "cancellation-request-denied": "APPROVED", // denial = order continues
+  // ── Payment denied ──
+  "payment-denied": "CANCELLED",
 };
 
 /**
@@ -70,6 +89,7 @@ export const VTEX_VALID_STATUSES = [
   "payment-pending",
   "payment-approved",
   "ready-for-handling",
+  "start-handling",
   "handling",
   "invoiced",
   "canceled",
