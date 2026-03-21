@@ -380,7 +380,7 @@ export async function GET(req: Request) {
       adsUpserted++;
     }
 
-    // ââ Vision Analysis: Analyze new creatives that haven't been analyzed yet ââ
+    // ── Vision Analysis: Analyze new creatives that haven't been analyzed yet ──
     // Max 3 per sync run to stay within Vercel timeout
     let visionAnalyzed = 0;
     const VISION_MAX_PER_SYNC = 3;
@@ -470,6 +470,13 @@ export async function GET(req: Request) {
       const conversions = MetaAdsConnector.extractAdConversions(insight);
       const conversionValue = MetaAdsConnector.extractAdConversionValue(insight);
 
+      // Extract video engagement metrics (null for image ads)
+      const videoPlays = MetaAdsConnector.extractVideoPlays(insight);
+      const videoP25 = MetaAdsConnector.extractVideoWatched(insight, 25);
+      const videoP50 = MetaAdsConnector.extractVideoWatched(insight, 50);
+      const videoP75 = MetaAdsConnector.extractVideoWatched(insight, 75);
+      const videoP100 = MetaAdsConnector.extractVideoWatched(insight, 100);
+
       await prisma.adCreativeMetricDaily.upsert({
         where: {
           creativeId_date: {
@@ -486,8 +493,13 @@ export async function GET(req: Request) {
           conversionValue,
           reach: insight.reach ? parseInt(insight.reach) : null,
           frequency: insight.frequency ? parseFloat(insight.frequency) : null,
+          videoPlays,
+          videoP25Watched: videoP25,
+          videoP50Watched: videoP50,
+          videoP75Watched: videoP75,
+          videoP100Watched: videoP100,
           organizationId: org.id,
-        },
+        } as any,
         create: {
           creativeId: dbCreative.id,
           date: new Date(insight.date_start),
@@ -499,8 +511,13 @@ export async function GET(req: Request) {
           conversionValue,
           reach: insight.reach ? parseInt(insight.reach) : null,
           frequency: insight.frequency ? parseFloat(insight.frequency) : null,
+          videoPlays,
+          videoP25Watched: videoP25,
+          videoP50Watched: videoP50,
+          videoP75Watched: videoP75,
+          videoP100Watched: videoP100,
           organizationId: org.id,
-        },
+        } as any,
       });
       adMetricsUpserted++;
     }

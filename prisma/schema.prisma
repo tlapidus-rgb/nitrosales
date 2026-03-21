@@ -1,8 +1,8 @@
-// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ══════════════════════════════════════════════════════════════
 // NITROSALES - Esquema de Base de Datos
-// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ══════════════════════════════════════════════════════════════
 // Este archivo define TODA la estructura de datos de NitroSales.
-// Prisma lo convierte automÃ¡ticamente en tablas de PostgreSQL.
+// Prisma lo convierte automáticamente en tablas de PostgreSQL.
 
 generator client {
   provider = "prisma-client-js"
@@ -13,16 +13,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââ
-// USUARIOS Y AUTENTICACIÃN
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
+// USUARIOS Y AUTENTICACIÓN
+// ─────────────────────────────────────────────
 
-// Cada organizaciÃ³n/empresa que usa NitroSales
+// Cada organización/empresa que usa NitroSales
 model Organization {
   id        String   @id @default(cuid())
   name      String                          // "El Mundo del Juguete"
   slug      String   @unique                // "el-mundo-del-juguete" (para URLs)
-  plan      Plan     @default(STARTER)      // Plan de suscripciÃ³n
+  plan      Plan     @default(STARTER)      // Plan de suscripción
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -75,9 +75,9 @@ enum UserRole {
   MEMBER
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 // CONEXIONES A PLATAFORMAS EXTERNAS
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 
 // Cada "enchufe" que conecta NitroSales con una plataforma
 model Connection {
@@ -85,8 +85,8 @@ model Connection {
   platform       Platform                        // VTEX, SHOPIFY, GA4, etc.
   status         ConnectionStatus @default(PENDING)
   credentials    Json                            // Credenciales encriptadas
-  lastSyncAt     DateTime?  @db.Timestamptz       // Ãltima vez que se trajeron datos
-  lastSyncError  String?                         // Si fallÃ³, quÃ© pasÃ³
+  lastSyncAt     DateTime?  @db.Timestamptz       // Última vez que se trajeron datos
+  lastSyncError  String?                         // Si falló, qué pasó
   lastSuccessfulSyncAt DateTime? @db.Timestamptz
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
@@ -116,9 +116,9 @@ enum ConnectionStatus {
   DISCONNECTED
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 // DATOS DE ECOMMERCE (vienen de VTEX/Shopify/etc)
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 
 // Cada orden/pedido
 model Order {
@@ -130,7 +130,7 @@ model Order {
   itemCount       Int                             // Cantidad de productos
   source          String      @default("VTEX")    // Plataforma origen: VTEX, MELI
   channel         String?                         // Canal de venta (web, app, marketplace)
-  trafficSource   String?                         // De dÃ³nde vino (organic, paid, direct, etc)
+  trafficSource   String?                         // De dónde vino (organic, paid, direct, etc)
   paymentMethod   String?
   shippingCost    Decimal?    @db.Decimal(12, 2)
   discountValue   Decimal?    @db.Decimal(12, 2)
@@ -181,7 +181,7 @@ model OrderItem {
   @@map("order_items")
 }
 
-// CatÃ¡logo de productos
+// Catálogo de productos
 model Product {
   id            String   @id @default(cuid())
   externalId    String                           // ID en VTEX/Shopify
@@ -195,7 +195,7 @@ model Product {
   imageUrl      String?
   isActive      Boolean  @default(true)
   stock          Int?                            // Unidades disponibles en VTEX
-  stockUpdatedAt DateTime?                       // Ãltima sincronizaciÃ³n de stock
+  stockUpdatedAt DateTime?                       // Última sincronización de stock
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -218,7 +218,7 @@ model Customer {
   state         String?
   country       String?
   firstOrderAt  DateTime?   @db.Timestamptz       // Fecha de primera compra
-  lastOrderAt   DateTime?   @db.Timestamptz      // Fecha de Ãºltima compra
+  lastOrderAt   DateTime?   @db.Timestamptz      // Fecha de última compra
   totalOrders   Int      @default(0)             // Cantidad total de compras
   totalSpent    Decimal  @default(0) @db.Decimal(12, 2) // Gasto total acumulado
   createdAt     DateTime @default(now())
@@ -233,11 +233,11 @@ model Customer {
   @@map("customers")
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 // DATOS DE PUBLICIDAD (Meta Ads + Google Ads)
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 
-// CampaÃ±as publicitarias
+// Campañas publicitarias
 model AdCampaign {
   id            String     @id @default(cuid())
   externalId    String                           // ID en Meta/Google
@@ -258,7 +258,7 @@ model AdCampaign {
   @@map("ad_campaigns")
 }
 
-// Ad Set (Meta) / Ad Group (Google) â nivel intermedio entre Campaign y Ad
+// Ad Set (Meta) / Ad Group (Google) — nivel intermedio entre Campaign y Ad
 model AdSet {
   id            String     @id @default(cuid())
   externalId    String                           // ID del ad set/ad group en la plataforma
@@ -316,17 +316,17 @@ enum AdPlatform {
   TIKTOK
 }
 
-// MÃ©tricas diarias de publicidad (un registro por campaÃ±a por dÃ­a)
+// Métricas diarias de publicidad (un registro por campaña por día)
 model AdMetricDaily {
   id              String     @id @default(cuid())
-  date            DateTime   @db.Date             // El dÃ­a
+  date            DateTime   @db.Date             // El día
   platform        AdPlatform
-  impressions     Int        @default(0)          // Veces que se mostrÃ³
+  impressions     Int        @default(0)          // Veces que se mostró
   clicks          Int        @default(0)          // Clics
   spend           Decimal    @default(0) @db.Decimal(12, 2) // Gasto en USD/moneda
   conversions     Int        @default(0)          // Compras atribuidas
   conversionValue Decimal    @default(0) @db.Decimal(12, 2) // Revenue atribuido
-  reach           Int?                            // Personas Ãºnicas alcanzadas (Meta)
+  reach           Int?                            // Personas únicas alcanzadas (Meta)
   frequency       Float?                          // Frecuencia promedio (Meta)
   qualityScore    Float?                          // Quality Score (Google)
   impressionShare Float?                          // Impression Share (Google)
@@ -342,9 +342,9 @@ model AdMetricDaily {
   @@map("ad_metrics_daily")
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 // ANUNCIOS / CREATIVOS (nivel ad individual)
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 
 // Cada anuncio individual dentro de una campana
 model AdCreative {
@@ -406,6 +406,13 @@ model AdCreativeMetricDaily {
   reach           Int?                            // Meta: personas unicas
   frequency       Float?                          // Meta: frecuencia
 
+  // Video engagement metrics (Meta)
+  videoPlays      Int?                            // Reproducciones 3+ segundos (thumb stop)
+  videoP25Watched Int?                            // Vieron 25% del video
+  videoP50Watched Int?                            // Vieron 50% del video
+  videoP75Watched Int?                            // Vieron 75% del video
+  videoP100Watched Int?                           // Vieron 100% del video
+
   creativeId      String
   creative        AdCreative @relation(fields: [creativeId], references: [id])
   organizationId  String
@@ -435,11 +442,11 @@ model AdCreativeClassification {
   @@map("ad_creative_classifications")
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 // DATOS WEB (vienen de GA4)
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 
-// MÃ©tricas web diarias (un registro por dÃ­a)
+// Métricas web diarias (un registro por día)
 model WebMetricDaily {
   id                  String   @id @default(cuid())
   date                DateTime @db.Date
@@ -461,15 +468,15 @@ model WebMetricDaily {
   @@map("web_metrics_daily")
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââ
-// EMBUDO DE CONVERSIÃN (combinaciÃ³n de GA4 + Ecommerce)
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
+// EMBUDO DE CONVERSIÓN (combinación de GA4 + Ecommerce)
+// ─────────────────────────────────────────────
 
-// Datos del embudo por dÃ­a
+// Datos del embudo por día
 model FunnelDaily {
   id                String   @id @default(cuid())
   date              DateTime @db.Date
-  visitors          Int      @default(0)         // Paso 1: visitantes Ãºnicos
+  visitors          Int      @default(0)         // Paso 1: visitantes únicos
   productViews      Int      @default(0)         // Paso 2: vieron un producto
   addToCarts        Int      @default(0)         // Paso 3: agregaron al carrito
   checkoutStarts    Int      @default(0)         // Paso 4: empezaron checkout
@@ -483,9 +490,9 @@ model FunnelDaily {
   @@map("funnel_daily")
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 // BOT DE IA
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 
 // Conversaciones con el bot
 model BotChat {
@@ -523,14 +530,14 @@ enum MessageRole {
   ASSISTANT
 }
 
-// Insights automÃ¡ticos generados por el bot
+// Insights automáticos generados por el bot
 model Insight {
   id          String       @id @default(cuid())
   type        InsightType
   priority    InsightPriority
-  title       String                             // "Tu ROAS en Meta cayÃ³ 50%"
-  description String                             // ExplicaciÃ³n detallada
-  action      String                             // AcciÃ³n recomendada
+  title       String                             // "Tu ROAS en Meta cayó 50%"
+  description String                             // Explicación detallada
+  action      String                             // Acción recomendada
   metric      String?                            // KPI relacionado
   metricValue Float?                             // Valor actual
   metricDelta Float?                             // Cambio porcentual
@@ -547,7 +554,7 @@ model Insight {
 }
 
 enum InsightType {
-  ALERT           // Algo saliÃ³ mal
+  ALERT           // Algo salió mal
   OPPORTUNITY     // Hay algo para aprovechar
   TREND           // Tendencia detectada
   RECOMMENDATION  // Sugerencia proactiva

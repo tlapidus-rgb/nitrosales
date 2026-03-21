@@ -58,6 +58,12 @@ interface MetaAdInsight {
   frequency?: string;
   actions?: Array<{ action_type: string; value: string }>;
   action_values?: Array<{ action_type: string; value: string }>;
+  // Video engagement metrics
+  video_play_actions?: Array<{ action_type: string; value: string }>;
+  video_p25_watched_actions?: Array<{ action_type: string; value: string }>;
+  video_p50_watched_actions?: Array<{ action_type: string; value: string }>;
+  video_p75_watched_actions?: Array<{ action_type: string; value: string }>;
+  video_p100_watched_actions?: Array<{ action_type: string; value: string }>;
 }
 
 interface MetaInsight {
@@ -202,7 +208,7 @@ export class MetaAdsConnector {
   }): Promise<MetaAdInsight[]> {
     const allInsights: MetaAdInsight[] = [];
     const url = `${META_BASE_URL}/${this.adAccountId}/insights?` +
-      `fields=ad_id,ad_name,impressions,clicks,spend,reach,frequency,actions,action_values` +
+      `fields=ad_id,ad_name,impressions,clicks,spend,reach,frequency,actions,action_values,video_play_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions` +
       `&time_range={"since":"${params.startDate}","until":"${params.endDate}"}` +
       `&time_increment=1` +
       `&level=ad` +
@@ -267,6 +273,31 @@ export class MetaAdsConnector {
       (a) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase"
     );
     return pv ? parseFloat(pv.value) : 0;
+  }
+
+  // ── Helpers para extraer métricas de video ──
+  // Meta devuelve video metrics como arrays de action_type/value
+  // El action_type relevante es "video_view" para reproducciones
+  static extractVideoPlays(insight: MetaAdInsight): number | null {
+    if (!insight.video_play_actions) return null;
+    const play = insight.video_play_actions.find(
+      (a) => a.action_type === "video_view"
+    );
+    return play ? parseInt(play.value) : null;
+  }
+
+  static extractVideoWatched(insight: MetaAdInsight, percentile: 25 | 50 | 75 | 100): number | null {
+    const fieldMap: Record<number, keyof MetaAdInsight> = {
+      25: "video_p25_watched_actions",
+      50: "video_p50_watched_actions",
+      75: "video_p75_watched_actions",
+      100: "video_p100_watched_actions",
+    };
+    const field = fieldMap[percentile];
+    const actions = insight[field] as Array<{ action_type: string; value: string }> | undefined;
+    if (!actions) return null;
+    const action = actions.find((a) => a.action_type === "video_view");
+    return action ? parseInt(action.value) : null;
   }
 
   // ── Test de conexión ──

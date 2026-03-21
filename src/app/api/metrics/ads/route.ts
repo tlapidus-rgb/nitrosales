@@ -83,6 +83,81 @@ export async function GET(request: Request) {
         const conversionValue = c.dailyMetrics.reduce((s, m) => s + Number(m.conversionValue), 0);
         const reach = c.dailyMetrics.reduce((s, m) => s + (m.reach || 0), 0);
 
+        // ── Video engagement metrics (null for image ads) ──
+        const videoPlays = c.dailyMetrics.reduce((s, m) => s + ((m as any).videoPlays || 0), 0) || null;
+        const videoP25 = c.dailyMetrics.reduce((s, m) => s + ((m as any).videoP25Watched || 0), 0) || null;
+        const videoP50 = c.dailyMetrics.reduce((s, m) => s + ((m as any).videoP50Watched || 0), 0) || null;
+        const videoP75 = c.dailyMetrics.reduce((s, m) => s + ((m as any).videoP75Watched || 0), 0) || null;
+        const videoP100 = c.dailyMetrics.reduce((s, m) => s + ((m as any).videoP100Watched || 0), 0) || null;
+
+        const isVideo = videoPlays !== null && videoPlays > 0;
+
+        // ── Video Efficiency Score ──
+        // hookRate: % de impresiones que paran a mirar 3s+ (thumb stop rate)
+        // holdRate: % de viewers que siguen mirando después del 50%
+        // actionRate: % de viewers que clickean (MEJOR señal — pesa 50%)
+        // completionRate: % que ve todo el video (informativo, NO entra en score)
+        // convRate: % de clicks que convierten
+        // Score = (hookRate × 0.25) + (actionRate × 0.50) + (convRate × 0.25)
+        const hookRate = isVideo && impressions > 0
+          ? Math.round((videoPlays / impressions) * 10000) / 100 : null;
+        const holdRate = isVideo && videoPlays > 0 && videoP50 !== null
+          ? Math.round((videoP50 / videoPlays) * 10000) / 100 : null;
+        const actionRate = isVideo && videoPlays > 0
+          ? Math.round((clicks / videoPlays) * 10000) / 100 : null;
+        const completionRate = isVideo && videoPlays > 0 && videoP100 !== null
+          ? Math.round((videoP100 / videoPlays) * 10000) / 100 : null;
+        const convRateFromClicks = clicks > 0
+          ? Math.round((conversions / clicks) * 10000) / 100 : 0;
+
+        // Video Efficiency Score (0-100 scale)
+        // Solo para video ads con datos suficientes
+        let videoEfficiencyScore: number | null = null;
+        if (isVideo && hookRate !== null && actionRate !== null) {
+          const hookNorm = Math.min(hookRate / 100, 1);      // Normalizar a 0-1
+          const actionNorm = Math.min(actionRate / 100, 1);
+          const convNorm = Math.min(convRateFromClicks / 100, 1);
+          videoEfficiencyScore = Math.round(
+            ((hookNorm * 0.25) + (actionNorm * 0.50) + (convNorm * 0.25)) * 100 * 100
+          ) / 100; // Score 0-100 con 2 decimales
+        }
+
+        // ── Drop-off Analysis ──
+        // Identifica dónde se pierde la audiencia
+        let dropOffAnalysis: any = null;
+        if (isVideo && videoPlays > 0) {
+          const retention25 = videoP25 !== null ? Math.round((videoP25 / videoPlays) * 100) : null;
+          const retention50 = videoP50 !== null ? Math.round((videoP50 / videoPlays) * 100) : null;
+          const retention75 = videoP75 !== null ? Math.round((videoP75 / videoPlays) * 100) : null;
+          const retention100 = videoP100 !== null ? Math.round((videoP100 / videoPlays) * 100) : null;
+
+          // Diagnóstico automático
+          let diagnosis: string | null = null;
+          if (retention25 !== null && retention25 < 50) {
+            diagnosis = "WEAK_HOOK"; // Hook débil — pierde >50% antes del 25%
+          } else if (retention50 !== null && retention25 !== null && (retention25 - retention50) > 30) {
+            diagnosis = "WEAK_CONTENT"; // Contenido no engancha — caída fuerte 25%→50%
+          } else if (retention75 !== null && retention75 > 50 && actionRate !== null && actionRate < 2) {
+            diagnosis = "WEAK_CTA"; // Llegan al 75%+ pero no clickean — falta CTA
+          } else if (retention75 !== null && retention75 > 50 && actionRate !== null && actionRate >= 2) {
+            diagnosis = "STRONG_PERFORMER"; // Buena retención + buen click rate
+          }
+
+          dropOffAnalysis = {
+            retention25,
+            retention50,
+            retention75,
+            retention100,
+            diagnosis,
+            // Texto legible para el diagnóstico
+            diagnosisLabel: diagnosis === "WEAK_HOOK" ? "Hook débil — la gente no para a mirar"
+              : diagnosis === "WEAK_CONTENT" ? "Contenido no engancha — caen entre 25% y 50%"
+              : diagnosis === "WEAK_CTA" ? "Falta CTA — miran pero no clickean"
+              : diagnosis === "STRONG_PERFORMER" ? "Video performer — buena retención y acción"
+              : null,
+          };
+        }
+
         // Use manual classification if available, otherwise auto
         const classification = c.classificationManual || c.classificationAuto || "OTHER";
 
@@ -121,6 +196,21 @@ export async function GET(request: Request) {
           convRate: clicks > 0 ? Math.round((conversions / clicks) * 10000) / 100 : 0,
           reach,
           daysWithData: c.dailyMetrics.length,
+          // ── Video Metrics ──
+          isVideo,
+          videoMetrics: isVideo ? {
+            videoPlays,
+            videoP25Watched: videoP25,
+            videoP50Watched: videoP50,
+            videoP75Watched: videoP75,
+            videoP100Watched: videoP100,
+            hookRate,          // % impresiones → 3s play
+            holdRate,          // % plays → 50% watched
+            actionRate,        // % plays → click (KEY METRIC)
+            completionRate,    // % plays → 100% watched (informativo)
+            videoEfficiencyScore,  // Score 0-100
+            dropOffAnalysis,
+          } : null,
           // Daily trend for sparklines
           dailySpend: c.dailyMetrics.map((m) => ({
             date: m.date.toISOString().split("T")[0],
@@ -137,7 +227,7 @@ export async function GET(request: Request) {
       })
       .sort((a, b) => b.spend - a.spend);
 
-    // ââ Classification breakdown ââ
+    // ── Classification breakdown ──
     const classificationAgg: Record<string, {
       spend: number; impressions: number; clicks: number;
       conversions: number; conversionValue: number; count: number;
@@ -172,7 +262,7 @@ export async function GET(request: Request) {
       })
       .sort((a, b) => b.spend - a.spend);
 
-    // ââ Daily trend by classification ââ
+    // ── Daily trend by classification ──
     const dailyByClassification = new Map<string, Record<string, number>>();
     result.forEach((c) => {
       c.dailySpend.forEach((d) => {
@@ -189,7 +279,7 @@ export async function GET(request: Request) {
       .map(([date, types]) => ({ date, ...types }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // ââ Totals ââ
+    // ── Totals ──
     const totals = {
       spend: result.reduce((s, c) => s + c.spend, 0),
       impressions: result.reduce((s, c) => s + c.impressions, 0),
@@ -229,7 +319,7 @@ export async function GET(request: Request) {
   }
 }
 
-// ââ PATCH: Update creative classification ââ
+// ── PATCH: Update creative classification ──
 export async function PATCH(request: Request) {
   try {
     const ORG_ID = await getOrganizationId();
