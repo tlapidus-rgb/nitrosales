@@ -19,10 +19,20 @@ import { classifyWithVision } from "@/lib/classification/ad-classifier";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120; // 2 minutes â up to ~30 creatives
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 export async function POST(req: NextRequest) {
   const key = req.nextUrl.searchParams.get("key");
   if (key !== process.env.NEXTAUTH_SECRET) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: corsHeaders });
   }
 
   try {
@@ -53,7 +63,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         message: "No creatives to analyze",
         analyzed: 0,
-      });
+      }, { headers: corsHeaders });
     }
 
     // Cap at 30 per request
@@ -148,9 +158,9 @@ export async function POST(req: NextRequest) {
       ok: true,
       stats: { total: results.length, analyzed, errors, skipped },
       results,
-    });
+    }, { headers: corsHeaders });
   } catch (error: any) {
     console.error("[AnalyzeCreative] Error:", error);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500, headers: corsHeaders });
   }
 }
