@@ -1,242 +1,103 @@
 // @ts-nocheck
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  ShoppingCart,
-  CreditCard,
-  XCircle,
-  Package,
-  Users,
-  Calendar,
-  Filter,
-  Search,
-  ChevronDown,
-  ChevronUp,
-  ArrowUpRight,
-  ArrowDownRight,
-  Clock,
+  DollarSign, ShoppingCart, CreditCard, XCircle, Package, Users,
+  Search, ChevronDown, ArrowUpRight, ArrowDownRight, Clock,
+  Percent, Truck, Tag, ExternalLink,
 } from "lucide-react";
+import {
+  KpiCard, ChangeBadge, DateRangeFilter, SourceFilter, WeeklySummary, StatusFilter,
+} from "@/components/dashboard";
 
-// ââ Types ââ
-interface KPIs {
-  totalOrders: number;
-  totalRevenue: number;
-  avgTicket: number;
-  totalItems: number;
-  totalShipping: number;
-  totalDiscounts: number;
-  cancellationRate: number;
-  cancelledOrders: number;
-  changes: {
-    orders: number;
-    revenue: number;
-    avgTicket: number;
-  };
-}
-
-interface DailySale {
-  day: string;
-  orders: number;
-  revenue: number;
-  items: number;
-}
-
-interface DayOfWeekSale {
-  dayName: string;
-  dayOfWeek: number;
-  totalOrders: number;
-  avgOrders: number;
-  totalRevenue: number;
-  avgRevenue: number;
-  numDays: number;
-}
-
-interface HourSale {
-  hour: number;
-  label: string;
-  totalOrders: number;
-  avgOrders: number;
-  totalRevenue: number;
-  avgRevenue: number;
-  numDays: number;
-}
-
-interface PaymentMethod {
-  method: string;
-  orders: number;
-  revenue: number;
-}
-
-interface StatusItem {
-  status: string;
-  count: number;
-}
-
-interface TopProduct {
-  id: string;
-  name: string;
-  brand: string;
-  category: string;
-  unitsSold: number;
-  revenue: number;
-  orders: number;
-}
-
-interface TopCustomer {
-  id: string;
-  name: string;
-  email: string;
-  totalOrders: number;
-  totalSpent: number;
-}
-
-interface OrderItemDetail {
-  name: string | null;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-}
-
-interface RecentOrder {
-  id: string;
-  externalId: string;
-  status: string;
-  totalValue: number;
-  itemCount: number;
-  paymentMethod: string;
-  source: string;
-  orderDate: string;
-  customerName: string;
-  customerEmail: string;
-  items: OrderItemDetail[];
-  promotionNames: string | null;
-}
-
+// -- Types --
 interface OrdersData {
-  kpis: KPIs;
-  dailySales: DailySale[];
-  salesByDayOfWeek: DayOfWeekSale[];
-  salesByHour: HourSale[];
-  paymentMethods: PaymentMethod[];
-  statusBreakdown: StatusItem[];
-  topProducts: TopProduct[];
-  topCustomers: TopCustomer[];
-  recentOrders: RecentOrder[];
-  meta: { dateFrom: string; dateTo: string; source: string };
+  kpis: {
+    totalOrders: number; totalRevenue: number; avgTicket: number;
+    totalItems: number; totalShipping: number; totalDiscounts: number;
+    cancellationRate: number; cancelledOrders: number; daysInPeriod: number;
+    changes: { orders: number; revenue: number; avgTicket: number };
+  };
+  dailySales: Array<{ day: string; orders: number; revenue: number; items: number }>;
+  prevDailySales?: Array<{ day: string; orders: number; revenue: number }>;
+  salesByDayOfWeek: Array<{ dayName: string; dayOfWeek: number; totalOrders: number; avgOrders: number; totalRevenue: number; avgRevenue: number }>;
+  salesByHour: Array<{ hour: number; label: string; totalOrders: number; avgOrders: number; totalRevenue: number; avgRevenue: number }>;
+  paymentMethods: Array<{ method: string; orders: number; revenue: number }>;
+  statusBreakdown: Array<{ status: string; count: number }>;
+  promotionBreakdown?: Array<{ promo: string; orders: number; revenue: number }>;
+  topProducts: Array<{ id: string; name: string; brand: string; category: string; imageUrl?: string; unitsSold: number; revenue: number; orders: number }>;
+  topCustomers: Array<{ id: string; name: string; email: string; totalOrders: number; totalSpent: number }>;
+  recentOrders: Array<{
+    id: string; externalId: string; status: string; totalValue: number; itemCount: number;
+    paymentMethod: string; source: string; orderDate: string; customerName: string;
+    customerEmail: string; items: Array<{ name: string | null; imageUrl?: string; quantity: number; unitPrice: number; totalPrice: number }>;
+    promotionNames: string | null;
+  }>;
+  pagination?: { page: number; pageSize: number; totalCount: number; totalPages: number };
+  meta: { dateFrom: string; dateTo: string; source: string; daysInPeriod: number };
 }
 
-// ââ Constants ââ
-const COLORS = [
-  "#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4",
-  "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#94a3b8",
-];
+// -- Constants --
+const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#94a3b8"];
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: "#f59e0b",
-  APPROVED: "#3b82f6",
-  INVOICED: "#8b5cf6",
-  SHIPPED: "#06b6d4",
-  DELIVERED: "#10b981",
-  CANCELLED: "#ef4444",
-  RETURNED: "#f97316",
+  PENDING: "#f59e0b", APPROVED: "#3b82f6", INVOICED: "#8b5cf6",
+  SHIPPED: "#06b6d4", DELIVERED: "#10b981", CANCELLED: "#ef4444", RETURNED: "#f97316",
 };
-
 const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Pendiente",
-  APPROVED: "En preparación",
-  INVOICED: "Facturado",
-  SHIPPED: "Enviado",
-  DELIVERED: "Entregado",
-  CANCELLED: "Cancelado",
-  RETURNED: "Devuelto",
+  PENDING: "Pendiente", APPROVED: "En preparacion", INVOICED: "Facturado",
+  SHIPPED: "Enviado", DELIVERED: "Entregado", CANCELLED: "Cancelado", RETURNED: "Devuelto",
 };
 
 const QUICK_RANGES = [
-  { label: "7 días", days: 7 },
-  { label: "30 días", days: 30 },
-  { label: "90 días", days: 90 },
+  { label: "7 dias", days: 7 },
+  { label: "30 dias", days: 30 },
+  { label: "90 dias", days: 90 },
   { label: "12 meses", days: 365 },
 ];
 
-// ââ Helper: format date for input ââ
+// Order status funnel (operational flow)
+const STATUS_FUNNEL_ORDER = ["PENDING", "APPROVED", "INVOICED", "SHIPPED", "DELIVERED"];
+
 function toDateInputValue(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-// ââ Component ââ
 export default function OrdersPage() {
-  // Date range state
   const defaultTo = new Date();
   const defaultFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const [dateFrom, setDateFrom] = useState(toDateInputValue(defaultFrom));
   const [dateTo, setDateTo] = useState(toDateInputValue(defaultTo));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
-
-  // Source filter
   const [source, setSource] = useState<string>("ALL");
-
-  // Data
   const [data, setData] = useState<OrdersData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Table
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortColumn, setSortColumn] = useState<string>("orderDate");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-
-  // Active chart metric
   const [dailyMetric, setDailyMetric] = useState<"revenue" | "orders">("revenue");
-
-  // Expanded orders
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-
-  // Pagination, zoom, and independent filters
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [dowRange, setDowRange] = useState(7);
-  const [hourRange, setHourRange] = useState(7);
-  const [dowData, setDowData] = useState<any[]>([]);
-  const [hourData, setHourData] = useState<any[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
 
-  // ââ Fetch data ââ
+  // -- Single fetch (fixed: no duplicate) --
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({
-          from: dateFrom,
-          to: dateTo,
-          page: currentPage.toString(),
-        });
+        const params = new URLSearchParams({ from: dateFrom, to: dateTo, page: currentPage.toString() });
         if (source !== "ALL") params.set("source", source);
-
         const res = await fetch(`/api/metrics/orders?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        setData(json);
+        setData(await res.json());
       } catch (e: any) {
         setError(e.message);
       } finally {
@@ -246,49 +107,29 @@ export default function OrdersPage() {
     fetchData();
   }, [dateFrom, dateTo, source, currentPage]);
 
-  // ââ Fetch day-of-week and hourly data independently ââ
-  useEffect(() => {
-    const fetchChartData = async () => {
-      try {
-        const params = new URLSearchParams({
-          from: dateFrom,
-          to: dateTo,
-        });
-        if (source !== "ALL") params.set("source", source);
-
-        const res = await fetch(`/api/metrics/orders?${params}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        
-        if (json.salesByDayOfWeek) setDowData(json.salesByDayOfWeek);
-        if (json.salesByHour) setHourData(json.salesByHour);
-      } catch (e: any) {
-        console.error("Error fetching chart data:", e.message);
-      }
-    };
-    fetchChartData();
-  }, [dowRange, hourRange, dateFrom, dateTo, source]);
-
-  // ââ Quick range handler ââ
   const handleQuickRange = (days: number) => {
     const to = new Date();
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     setDateTo(toDateInputValue(to));
     setDateFrom(toDateInputValue(from));
     setActiveQuickRange(days);
+    setCurrentPage(1);
   };
 
-  // ââ Custom date handler ââ
   const handleDateChange = (type: "from" | "to", value: string) => {
     if (type === "from") setDateFrom(value);
     else setDateTo(value);
     setActiveQuickRange(null);
+    setCurrentPage(1);
   };
 
-  // ââ Filtered recent orders ââ
+  // -- Filtered recent orders (search + status filter) --
   const filteredOrders = useMemo(() => {
     if (!data) return [];
     let orders = [...data.recentOrders];
+    if (statusFilter) {
+      orders = orders.filter((o) => o.status === statusFilter);
+    }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       orders = orders.filter(
@@ -299,27 +140,46 @@ export default function OrdersPage() {
       );
     }
     return orders;
-  }, [data, searchTerm]);
+  }, [data, searchTerm, statusFilter]);
 
-  // ââ Change badge ââ
-  const ChangeBadge = ({ value }: { value: number }) => {
-    if (value === 0) return <span className="text-xs text-gray-400">â</span>;
-    const isPositive = value > 0;
-    return (
-      <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${isPositive ? "text-emerald-600" : "text-red-500"}`}>
-        {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-        {Math.abs(value).toFixed(1)}%
-      </span>
-    );
-  };
+  // -- Best day calculation for summary --
+  const bestDay = useMemo(() => {
+    if (!data?.dailySales || data.dailySales.length === 0) return null;
+    return data.dailySales.reduce((best, d) => (d.orders > best.orders ? d : best), data.dailySales[0]);
+  }, [data?.dailySales]);
 
-  // ââ Loading state ââ
+  // -- Comparison chart data --
+  const comparisonData = useMemo(() => {
+    if (!data?.dailySales) return [];
+    const current = data.dailySales;
+    const prev = data.prevDailySales || [];
+    // Align by day index (not date)
+    return current.map((d, i) => ({
+      day: d.day,
+      current: dailyMetric === "revenue" ? d.revenue : d.orders,
+      previous: prev[i] ? (dailyMetric === "revenue" ? prev[i].revenue : prev[i].orders) : 0,
+    }));
+  }, [data, dailyMetric]);
+
+  // -- Status funnel data --
+  const funnelData = useMemo(() => {
+    if (!data?.statusBreakdown) return [];
+    const statusMap = new Map(data.statusBreakdown.map((s) => [s.status, s.count]));
+    return STATUS_FUNNEL_ORDER.map((status) => ({
+      status,
+      label: STATUS_LABELS[status] || status,
+      count: statusMap.get(status) || 0,
+      color: STATUS_COLORS[status] || "#94a3b8",
+    }));
+  }, [data?.statusBreakdown]);
+
+  // -- Loading --
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3"></div>
-          <p className="text-gray-500">Cargando órdenes...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3" />
+          <p className="text-gray-500">Cargando ordenes...</p>
         </div>
       </div>
     );
@@ -337,510 +197,285 @@ export default function OrdersPage() {
   }
 
   if (!data) return null;
-
   const { kpis } = data;
+  const avgRevenuePerDay = kpis.totalRevenue / Math.max(kpis.daysInPeriod || 1, 1);
+  const avgOrdersPerDay = kpis.totalOrders / Math.max(kpis.daysInPeriod || 1, 1);
+  const avgItemsPerOrder = kpis.totalOrders > 0 ? kpis.totalItems / kpis.totalOrders : 0;
+  const avgDiscountPerOrder = kpis.totalOrders > 0 ? kpis.totalDiscounts / kpis.totalOrders : 0;
+  const avgShippingPerOrder = kpis.totalOrders > 0 ? kpis.totalShipping / kpis.totalOrders : 0;
 
   return (
     <div className="space-y-6">
-      {/* ââ HEADER + FILTERS ââ */}
+      {/* HEADER + FILTERS */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Órdenes</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Análisis de ventas y rendimiento por período
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900">Ordenes</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Analisis de ventas y rendimiento por periodo</p>
           </div>
-
-          {/* Source filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">Canal:</span>
-            {["ALL", "VTEX", "MELI"].map((s) => (
-              <button
-                key={s}
-                onClick={() => setSource(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  source === s
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                {s === "ALL" ? "Todos" : s}
-              </button>
-            ))}
-          </div>
+          <SourceFilter source={source} onSourceChange={setSource} />
         </div>
-
-        {/* Date range */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Quick ranges */}
-          <div className="flex items-center gap-1.5">
-            {QUICK_RANGES.map((r) => (
-              <button
-                key={r.days}
-                onClick={() => handleQuickRange(r.days)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  activeQuickRange === r.days
-                    ? "bg-gray-900 text-white"
-                    : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="w-px h-6 bg-gray-200" />
-
-          {/* Custom date inputs */}
-          <div className="flex items-center gap-2">
-            <Calendar size={14} className="text-gray-400" />
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => handleDateChange("from", e.target.value)}
-              className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white"
-            />
-            <span className="text-xs text-gray-400">â</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => handleDateChange("to", e.target.value)}
-              className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white"
-            />
-          </div>
-
-          {loading && (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600" />
-          )}
-        </div>
+        <DateRangeFilter
+          dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
+          quickRanges={QUICK_RANGES} onQuickRange={handleQuickRange}
+          onDateChange={handleDateChange} loading={loading}
+        />
       </div>
 
-      {/* ââ KPI CARDS ââ */}
-      <div className="grid grid-cols-5 gap-4">
-        {/* Revenue */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-emerald-50 rounded-lg">
-              <DollarSign size={16} className="text-emerald-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Ventas totales</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCompact(kpis.totalRevenue)}</p>
-          <div className="mt-1">
-            <ChangeBadge value={kpis.changes.revenue} />
-            <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
-          </div>
-        </div>
+      {/* WEEKLY SUMMARY */}
+      <WeeklySummary
+        totalRevenue={kpis.totalRevenue} totalOrders={kpis.totalOrders}
+        revenueChange={kpis.changes.revenue} ordersChange={kpis.changes.orders}
+        daysInPeriod={kpis.daysInPeriod || 30} bestDay={bestDay}
+        cancelledOrders={kpis.cancelledOrders} cancellationRate={kpis.cancellationRate}
+      />
 
-        {/* Orders */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <ShoppingCart size={16} className="text-blue-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Órdenes</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{kpis.totalOrders.toLocaleString("es-AR")}</p>
-          <div className="mt-1">
-            <ChangeBadge value={kpis.changes.orders} />
-            <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
-          </div>
-        </div>
-
-        {/* Unidades vendidas */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-orange-50 rounded-lg">
-              <Package size={16} className="text-orange-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Unidades vendidas</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{kpis.totalItems.toLocaleString("es-AR")}</p>
-          <div className="mt-1">
-            <span className="text-[10px] text-gray-400">unidades totales</span>
-          </div>
-        </div>
-
-        {/* Avg Ticket */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-purple-50 rounded-lg">
-              <CreditCard size={16} className="text-purple-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Ticket promedio</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{formatARS(kpis.avgTicket)}</p>
-          <div className="mt-1">
-            <ChangeBadge value={kpis.changes.avgTicket} />
-            <span className="text-[10px] text-gray-400 ml-1">vs período anterior</span>
-          </div>
-        </div>
-
-        {/* Cancellation rate */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-red-50 rounded-lg">
-              <XCircle size={16} className="text-red-500" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Cancelación / Devolución</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{kpis.cancellationRate}%</p>
-          <div className="mt-1">
-            <span className="text-[10px] text-gray-400">
-              {kpis.cancelledOrders} orden{kpis.cancelledOrders !== 1 ? "es" : ""}
-            </span>
-          </div>
-        </div>
+      {/* KPI CARDS - Row 1: Main metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
+        <KpiCard icon={<DollarSign size={16} className="text-emerald-600" />} iconBg="bg-emerald-50"
+          label="Ventas totales" value={formatCompact(kpis.totalRevenue)} change={kpis.changes.revenue} />
+        <KpiCard icon={<ShoppingCart size={16} className="text-blue-600" />} iconBg="bg-blue-50"
+          label="Ordenes" value={kpis.totalOrders.toLocaleString("es-AR")} change={kpis.changes.orders} />
+        <KpiCard icon={<CreditCard size={16} className="text-purple-600" />} iconBg="bg-purple-50"
+          label="Ticket promedio" value={formatARS(kpis.avgTicket)} change={kpis.changes.avgTicket} />
+        <KpiCard icon={<Package size={16} className="text-orange-600" />} iconBg="bg-orange-50"
+          label="Unidades vendidas" value={kpis.totalItems.toLocaleString("es-AR")}
+          subtitle={`${avgItemsPerOrder.toFixed(1)} items/orden`} />
+        <KpiCard icon={<XCircle size={16} className="text-red-500" />} iconBg="bg-red-50"
+          label="Cancelacion" value={`${kpis.cancellationRate}%`}
+          subtitle={`${kpis.cancelledOrders} orden${kpis.cancelledOrders !== 1 ? "es" : ""}`} />
       </div>
 
-      {/* ââ DAILY SALES CHART ââ */}
+      {/* KPI CARDS - Row 2: Secondary metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
+        <KpiCard icon={<Clock size={16} className="text-indigo-600" />} iconBg="bg-indigo-50"
+          label="Venta promedio/dia" value={formatCompact(avgRevenuePerDay)}
+          subtitle={`${avgOrdersPerDay.toFixed(1)} ordenes/dia`} />
+        <KpiCard icon={<Truck size={16} className="text-cyan-600" />} iconBg="bg-cyan-50"
+          label="Envio promedio" value={formatARS(avgShippingPerOrder)}
+          subtitle={`${formatCompact(kpis.totalShipping)} total`} />
+        <KpiCard icon={<Tag size={16} className="text-pink-600" />} iconBg="bg-pink-50"
+          label="Descuento promedio" value={formatARS(avgDiscountPerOrder)}
+          subtitle={`${formatCompact(kpis.totalDiscounts)} total`} />
+        <KpiCard icon={<Percent size={16} className="text-amber-600" />} iconBg="bg-amber-50"
+          label="Margen envio/ticket" value={`${kpis.avgTicket > 0 ? ((avgShippingPerOrder / kpis.avgTicket) * 100).toFixed(1) : 0}%`}
+          subtitle="costo envio sobre ticket" />
+      </div>
+
+      {/* DAILY SALES CHART + COMPARISON */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-800">Ventas por día</h2>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => setDailyMetric("revenue")}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                dailyMetric === "revenue"
-                  ? "bg-indigo-100 text-indigo-700"
-                  : "text-gray-500 hover:bg-gray-100"
-              }`}
-            >
-              Facturación
-            </button>
-            <button
-              onClick={() => setDailyMetric("orders")}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                dailyMetric === "orders"
-                  ? "bg-indigo-100 text-indigo-700"
-                  : "text-gray-500 hover:bg-gray-100"
-              }`}
-            >
-              Órdenes
-            </button>
+          <h2 className="text-sm font-semibold text-gray-800">Ventas por dia</h2>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={showComparison} onChange={(e) => setShowComparison(e.target.checked)}
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
+              <span className="text-xs text-gray-500">vs periodo anterior</span>
+            </label>
+            <div className="flex gap-1.5">
+              {(["revenue", "orders"] as const).map((m) => (
+                <button key={m} onClick={() => setDailyMetric(m)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${dailyMetric === m ? "bg-indigo-100 text-indigo-700" : "text-gray-500 hover:bg-gray-100"}`}>
+                  {m === "revenue" ? "Facturacion" : "Ordenes"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={data.dailySales.filter(d => d.day >= dateFrom && d.day <= dateTo)}>
+          <AreaChart data={showComparison ? comparisonData : data.dailySales}>
             <defs>
-              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id="colorCurrent" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
                 <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="colorPrevious" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.1} />
+                <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
             <XAxis
               dataKey="day"
-              tickFormatter={(d) => {
-                const date = new Date(d + "T12:00:00");
-                return `${date.getDate()}/${date.getMonth() + 1}`;
-              }}
-              tick={{ fontSize: 11, fill: "#94a3b8" }}
-              axisLine={false}
-              tickLine={false}
+              tickFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return `${date.getDate()}/${date.getMonth() + 1}`; } catch { return d; } }}
+              tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false}
             />
             <YAxis
               tickFormatter={(v) => dailyMetric === "revenue" ? formatCompact(v) : v.toLocaleString()}
-              tick={{ fontSize: 11, fill: "#94a3b8" }}
-              axisLine={false}
-              tickLine={false}
-              width={60}
+              tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={60}
             />
             <Tooltip
-              formatter={(value: number) =>
-                dailyMetric === "revenue"
-                  ? formatARS(value)
-                  : value.toLocaleString("es-AR")
-              }
-              labelFormatter={(d) => {
-                const date = new Date(d + "T12:00:00");
-                return date.toLocaleDateString("es-AR", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "short",
-                });
-              }}
-              contentStyle={{
-                borderRadius: "0.5rem",
-                border: "1px solid #e2e8f0",
-                fontSize: "0.8rem",
-              }}
+              formatter={(value: number, name: string) => [
+                dailyMetric === "revenue" ? formatARS(value) : value.toLocaleString("es-AR"),
+                showComparison ? (name === "current" ? "Actual" : "Anterior") : (dailyMetric === "revenue" ? "Facturacion" : "Ordenes"),
+              ]}
+              labelFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return date.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "short" }); } catch { return d; } }}
+              contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
             />
-            <Area
-              type="monotone"
-              dataKey={dailyMetric}
-              stroke="#6366f1"
-              strokeWidth={2}
-              fill="url(#colorRevenue)"
-              name={dailyMetric === "revenue" ? "Facturación" : "Órdenes"}
-            />
+            {showComparison ? (
+              <>
+                <Area type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 4" fill="url(#colorPrevious)" name="previous" />
+                <Area type="monotone" dataKey="current" stroke="#6366f1" strokeWidth={2} fill="url(#colorCurrent)" name="current" />
+              </>
+            ) : (
+              <Area type="monotone" dataKey={dailyMetric} stroke="#6366f1" strokeWidth={2} fill="url(#colorCurrent)"
+                name={dailyMetric === "revenue" ? "Facturacion" : "Ordenes"} />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      {/* ââ ROW: DAY OF WEEK + HOUR HEATMAP ââ */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Sales by day of week â PROMEDIO */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-800">Promedio de órdenes por día de la semana</h2>
-            <div className="flex gap-1.5">
-              {[7, 14, 30].map((days) => (
-                <button
-                  key={days}
-                  onClick={() => setDowRange(days)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                    dowRange === days
-                      ? "bg-indigo-100 text-indigo-700"
-                      : "text-gray-500 hover:bg-gray-100"
-                  }`}
-                >
-                  {days}d
-                </button>
-              ))}
+      {/* STATUS FUNNEL */}
+      <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-800 mb-4">Flujo operativo de ordenes</h2>
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          {funnelData.map((step, i) => {
+            const maxCount = Math.max(...funnelData.map((s) => s.count), 1);
+            const widthPct = Math.max((step.count / maxCount) * 100, 15);
+            return (
+              <React.Fragment key={step.status}>
+                <div className="flex-1 min-w-[100px]">
+                  <div className="text-center mb-2">
+                    <p className="text-2xl font-bold" style={{ color: step.color }}>{step.count}</p>
+                    <p className="text-[10px] text-gray-500 font-medium">{step.label}</p>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div className="h-2 rounded-full transition-all" style={{ width: `${widthPct}%`, backgroundColor: step.color }} />
+                  </div>
+                </div>
+                {i < funnelData.length - 1 && (
+                  <div className="text-gray-300 flex-shrink-0 text-lg">&rarr;</div>
+                )}
+              </React.Fragment>
+            );
+          })}
+          {/* Cancelled separate */}
+          {data.statusBreakdown.filter((s) => s.status === "CANCELLED" || s.status === "RETURNED").map((s) => (
+            <div key={s.status} className="min-w-[80px] opacity-60 ml-4 pl-4 border-l border-gray-200">
+              <div className="text-center mb-2">
+                <p className="text-xl font-bold" style={{ color: STATUS_COLORS[s.status] }}>{s.count}</p>
+                <p className="text-[10px] text-gray-500 font-medium">{STATUS_LABELS[s.status]}</p>
+              </div>
             </div>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={dowData.length > 0 ? dowData : data.salesByDayOfWeek}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis
-                dataKey="dayName"
-                tick={{ fontSize: 11, fill: "#64748b" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "#94a3b8" }}
-                axisLine={false}
-                tickLine={false}
-                width={40}
-              />
-              <Tooltip
-                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio órdenes/día"]}
-                contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
-              />
-              <Bar dataKey="avgOrders" fill="#6366f1" radius={[4, 4, 0, 0]} name="avgOrders" />
-            </BarChart>
-          </ResponsiveContainer>
-          <p className="text-[10px] text-gray-400 mt-2 text-center">
-            Promedio diario â útil para saber cuándo pautar ads
-          </p>
-        </div>
-
-        {/* Sales by hour â PROMEDIO */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-800">Promedio de órdenes por hora del día</h2>
-            <div className="flex gap-1.5">
-              {[7, 14, 30].map((days) => (
-                <button
-                  key={days}
-                  onClick={() => setHourRange(days)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                    hourRange === days
-                      ? "bg-indigo-100 text-indigo-700"
-                      : "text-gray-500 hover:bg-gray-100"
-                  }`}
-                >
-                  {days}d
-                </button>
-              ))}
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={hourData.length > 0 ? hourData : data.salesByHour}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 10, fill: "#64748b" }}
-                axisLine={false}
-                tickLine={false}
-                interval={2}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "#94a3b8" }}
-                axisLine={false}
-                tickLine={false}
-                width={40}
-              />
-              <Tooltip
-                formatter={(value: number) => [value.toLocaleString("es-AR"), "Promedio órdenes/día"]}
-                contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
-              />
-              <Bar dataKey="avgOrders" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          <p className="text-[10px] text-gray-400 mt-2 text-center">
-            Promedio diario â horas pico ideales para WhatsApp, emails y ofertas
-          </p>
+          ))}
         </div>
       </div>
 
-      {/* ââ ROW: PAYMENT METHODS + STATUS BREAKDOWN ââ */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Payment methods */}
+      {/* DAY OF WEEK + HOUR CHARTS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Métodos de pago</h2>
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Promedio de ordenes por dia de la semana</h2>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={data.salesByDayOfWeek}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="dayName" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
+              <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
+                contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }} />
+              <Bar dataKey="avgOrders" fill="#6366f1" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-[10px] text-gray-400 mt-2 text-center">Promedio diario - util para saber cuando pautar ads</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Promedio de ordenes por hora del dia</h2>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={data.salesByHour}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} interval={2} />
+              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
+              <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
+                contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }} />
+              <Bar dataKey="avgOrders" fill="#10b981" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-[10px] text-gray-400 mt-2 text-center">Horas pico para WhatsApp, emails y ofertas</p>
+        </div>
+      </div>
+
+      {/* PAYMENT + PROMOTIONS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Metodos de pago</h2>
           <div className="flex gap-4">
             <div className="w-1/2">
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie
-                    data={data.paymentMethods}
-                    dataKey="revenue"
-                    nameKey="method"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={80}
-                    paddingAngle={2}
-                  >
-                    {data.paymentMethods.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
+                  <Pie data={data.paymentMethods} dataKey="revenue" nameKey="method" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2}>
+                    {data.paymentMethods.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                   </Pie>
-                  <Tooltip
-                    formatter={(value: number) => formatARS(value)}
-                    contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
-                  />
+                  <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
             <div className="w-1/2 flex flex-col justify-center gap-2">
               {data.paymentMethods.slice(0, 5).map((pm, i) => (
                 <div key={pm.method} className="flex items-center gap-2">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                  />
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                   <span className="text-xs text-gray-600 truncate flex-1">{pm.method}</span>
-                  <span className="text-xs font-medium text-gray-800">
-                    {pm.orders.toLocaleString("es-AR")}
-                  </span>
+                  <span className="text-xs font-medium text-gray-800">{pm.orders.toLocaleString("es-AR")}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Status breakdown */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Estado de las órdenes</h2>
-          <div className="space-y-3">
-            {data.statusBreakdown.map((s) => {
-              const total = data.statusBreakdown.reduce((acc, x) => acc + x.count, 0);
-              const pct = total > 0 ? (s.count / total) * 100 : 0;
-              return (
-                <div key={s.status}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2.5 h-2.5 rounded-full"
-                        style={{ backgroundColor: STATUS_COLORS[s.status] || "#94a3b8" }}
-                      />
-                      <span className="text-xs text-gray-700">
-                        {STATUS_LABELS[s.status] || s.status}
-                      </span>
-                    </div>
-                    <span className="text-xs font-medium text-gray-800">
-                      {s.count.toLocaleString("es-AR")} ({pct.toFixed(1)}%)
-                    </span>
+        {data.promotionBreakdown && data.promotionBreakdown.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+            <h2 className="text-sm font-semibold text-gray-800 mb-4">Ventas por promocion</h2>
+            <div className="flex gap-4">
+              <div className="w-1/2">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={data.promotionBreakdown} dataKey="revenue" nameKey="promo" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2}>
+                      {data.promotionBreakdown.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="w-1/2 flex flex-col justify-center gap-2 max-h-[200px] overflow-y-auto">
+                {data.promotionBreakdown.map((p: any, i: number) => (
+                  <div key={p.promo} className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="text-xs text-gray-600 truncate flex-1">{p.promo}</span>
+                    <span className="text-xs font-medium text-gray-800">{p.orders.toLocaleString("es-AR")}</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-1.5">
-                    <div
-                      className="h-1.5 rounded-full transition-all"
-                      style={{
-                        width: `${pct}%`,
-                        backgroundColor: STATUS_COLORS[s.status] || "#94a3b8",
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* ââ ROW: TOP PRODUCTS + TOP CUSTOMERS ââ */}
-      {/* Promotions pie chart */}
-      {data.promotionBreakdown && data.promotionBreakdown.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Ventas por promoción</h2>
-          <div className="flex gap-4">
-            <div className="w-1/2">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={data.promotionBreakdown}
-                    dataKey="revenue"
-                    nameKey="promo"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={80}
-                    paddingAngle={2}
-                  >
-                    {data.promotionBreakdown.map((_: any, i: number) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => formatARS(value)}
-                    contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="w-1/2 flex flex-col justify-center gap-2 max-h-[200px] overflow-y-auto">
-              {data.promotionBreakdown.map((p: any, i: number) => (
-                <div key={p.promo} className="flex items-center gap-2">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                  />
-                  <span className="text-xs text-gray-600 truncate flex-1">{p.promo}</span>
-                  <span className="text-xs font-medium text-gray-800">
-                    {p.orders.toLocaleString("es-AR")}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4">
-        {/* Top products */}
+      {/* TOP PRODUCTS + CUSTOMERS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-800 mb-4">Top productos vendidos</h2>
           <div className="space-y-2.5 max-h-[320px] overflow-y-auto">
             {data.topProducts.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3 py-1.5">
-                <span className="text-xs font-bold text-gray-400 w-5 text-right">
-                  {i + 1}
-                </span>
+                <span className="text-xs font-bold text-gray-400 w-5 text-right">{i + 1}</span>
                 <div className="w-8 h-8 rounded flex-shrink-0 cursor-pointer overflow-hidden bg-gray-100" onClick={() => p.imageUrl && setZoomedImage(p.imageUrl)}>
-                  {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-gray-400" />}
+                  {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-gray-400 m-auto mt-2" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-800 truncate">{p.name}</p>
-                  <p className="text-[10px] text-gray-400">{p.brand} Â· {p.category}</p>
+                  <p className="text-[10px] text-gray-400">{p.brand} - {p.category}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-semibold text-gray-800">{formatARS(p.revenue)}</p>
-                  <p className="text-[10px] text-gray-400">{p.unitsSold} uds Â· {p.orders} ord</p>
+                  <p className="text-[10px] text-gray-400">{p.unitsSold} uds - {p.orders} ord</p>
                 </div>
               </div>
             ))}
             {data.topProducts.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este período</p>
+              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este periodo</p>
             )}
           </div>
         </div>
 
-        {/* Top customers */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Users size={14} className="text-gray-400" />
@@ -849,9 +484,7 @@ export default function OrdersPage() {
           <div className="space-y-2.5 max-h-[320px] overflow-y-auto">
             {data.topCustomers.map((c, i) => (
               <div key={c.id} className="flex items-center gap-3 py-1.5">
-                <span className="text-xs font-bold text-gray-400 w-5 text-right">
-                  {i + 1}
-                </span>
+                <span className="text-xs font-bold text-gray-400 w-5 text-right">{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-800 truncate">{c.name}</p>
                   <p className="text-[10px] text-gray-400 truncate">{c.email}</p>
@@ -863,27 +496,34 @@ export default function OrdersPage() {
               </div>
             ))}
             {data.topCustomers.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este período</p>
+              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este periodo</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* ââ RECENT ORDERS TABLE ââ */}
+      {/* RECENT ORDERS TABLE */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-800">Ãltimas órdenes</h2>
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por ID, cliente o pago..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white w-64"
-            />
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">Ultimas ordenes</h2>
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="text" placeholder="Buscar por ID, cliente o pago..."
+                value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white w-64" />
+            </div>
           </div>
+          {/* Status filter chips */}
+          <StatusFilter
+            statuses={data.statusBreakdown}
+            activeStatus={statusFilter}
+            onStatusChange={setStatusFilter}
+            statusLabels={STATUS_LABELS}
+            statusColors={STATUS_COLORS}
+          />
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -895,96 +535,53 @@ export default function OrdersPage() {
                 <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Items</th>
                 <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Pago</th>
                 <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Canal</th>
-                <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Promo</th>
                 <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Estado</th>
               </tr>
             </thead>
             <tbody>
               {filteredOrders.map((order) => (
                 <React.Fragment key={order.id}>
-                  <tr
-                    className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
-                    onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
-                  >
+                  <tr className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                    onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>
                     <td className="py-2.5 px-2">
                       <div className="flex items-center gap-1">
-                        <ChevronDown
-                          size={12}
-                          className={`text-gray-400 transition-transform ${expandedOrderId === order.id ? "rotate-180" : ""}`}
-                        />
+                        <ChevronDown size={12} className={`text-gray-400 transition-transform ${expandedOrderId === order.id ? "rotate-180" : ""}`} />
                         <span className="text-xs font-mono text-indigo-600">
-                          {order.externalId.length > 15
-                            ? `...${order.externalId.slice(-12)}`
-                            : order.externalId}
+                          {order.externalId.length > 15 ? `...${order.externalId.slice(-12)}` : order.externalId}
                         </span>
                       </div>
                     </td>
+                    <td className="py-2.5 px-2"><span className="text-xs text-gray-600">{order.orderDate}</span></td>
                     <td className="py-2.5 px-2">
-                      <span className="text-xs text-gray-600">{order.orderDate}</span>
+                      <span className="text-xs text-gray-700 truncate max-w-[150px] block">{order.customerName}</span>
+                      {order.customerEmail && <span className="text-[10px] text-gray-400 truncate max-w-[150px] block">{order.customerEmail}</span>}
                     </td>
-                    <td className="py-2.5 px-2">
-                      <div>
-                        <span className="text-xs text-gray-700 truncate max-w-[150px] block">
-                          {order.customerName}
-                        </span>
-                        {order.customerEmail && (
-                          <span className="text-[10px] text-gray-400 truncate max-w-[150px] block">
-                            {order.customerEmail}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-2 text-right">
-                      <span className="text-xs font-medium text-gray-800">
-                        {formatARS(order.totalValue)}
-                      </span>
-                    </td>
+                    <td className="py-2.5 px-2 text-right"><span className="text-xs font-medium text-gray-800">{formatARS(order.totalValue)}</span></td>
+                    <td className="py-2.5 px-2 text-center"><span className="text-xs text-gray-600">{order.itemCount}</span></td>
+                    <td className="py-2.5 px-2"><span className="text-xs text-gray-600 truncate max-w-[100px] block">{order.paymentMethod}</span></td>
                     <td className="py-2.5 px-2 text-center">
-                      <span className="text-xs text-gray-600">{order.itemCount}</span>
-                    </td>
-                    <td className="py-2.5 px-2">
-                      <span className="text-xs text-gray-600 truncate max-w-[100px] block">
-                        {order.paymentMethod}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-2 text-center">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                        order.source === "MELI"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-indigo-50 text-indigo-600"
-                      }`}>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${order.source === "MELI" ? "bg-yellow-100 text-yellow-700" : "bg-indigo-50 text-indigo-600"}`}>
                         {order.source}
                       </span>
                     </td>
-                    <td className="py-2.5 px-2">
-                      <span className="text-[10px] text-gray-500 truncate max-w-[120px] block">
-                        {order.promotionNames || "—"}
-                      </span>
-                    </td>
                     <td className="py-2.5 px-2 text-center">
-                      <span
-                        className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium"
-                        style={{
-                          backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}15`,
-                          color: STATUS_COLORS[order.status] || "#94a3b8",
-                        }}
-                      >
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium"
+                        style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}15`, color: STATUS_COLORS[order.status] || "#94a3b8" }}>
                         {STATUS_LABELS[order.status] || order.status}
                       </span>
                     </td>
                   </tr>
-                  {/* Expanded detail */}
                   {expandedOrderId === order.id && (
                     <tr className="bg-gray-50/80">
-                      <td colSpan={9} className="px-6 py-3">
+                      <td colSpan={8} className="px-6 py-3">
                         <div className="text-xs text-gray-600 mb-2 font-medium">Productos de esta orden:</div>
                         {order.items && order.items.length > 0 ? (
                           <div className="space-y-1.5">
                             {order.items.map((item: any, idx: number) => (
                               <div key={idx} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
                                 <div className="flex items-center gap-2 flex-1">
-                              <div className="w-8 h-8 rounded flex-shrink-0 overflow-hidden bg-gray-100 cursor-pointer" onClick={() => item.imageUrl && setZoomedImage(item.imageUrl)}>
-                                {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-gray-400" />}
+                                  <div className="w-8 h-8 rounded flex-shrink-0 overflow-hidden bg-gray-100 cursor-pointer" onClick={() => item.imageUrl && setZoomedImage(item.imageUrl)}>
+                                    {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-gray-400" />}
                                   </div>
                                   <span className="text-xs text-gray-800">{item.name || "Producto sin nombre"}</span>
                                 </div>
@@ -1010,35 +607,25 @@ export default function OrdersPage() {
                 </React.Fragment>
               ))}
               {filteredOrders.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="text-center py-8 text-xs text-gray-400">
-                    No se encontraron órdenes
-                  </td>
-                </tr>
+                <tr><td colSpan={8} className="text-center py-8 text-xs text-gray-400">No se encontraron ordenes</td></tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination Controls */}
-        {data && data.pagination && (
+        {/* Pagination */}
+        {data.pagination && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
             <div className="text-xs text-gray-500">
-              Página {currentPage} de {data.pagination.totalPages || 0}
+              Pagina {currentPage} de {data.pagination.totalPages || 0} ({data.pagination.totalCount} ordenes)
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
+              <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
                 Anterior
               </button>
-              <button
-                onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage >= (data.pagination.totalPages || 1)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
+              <button onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage >= (data.pagination?.totalPages || 1)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
                 Siguiente
               </button>
             </div>
@@ -1046,20 +633,17 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* ââ IMAGE ZOOM MODAL ââ */}
+      {/* IMAGE ZOOM MODAL */}
       {zoomedImage && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setZoomedImage(null)}>
           <div className="bg-white rounded-xl max-w-md w-full p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-800">Imagen ampliada</h3>
-              <button onClick={() => setZoomedImage(null)} className="text-gray-400 hover:text-gray-600">
-                â
-              </button>
+              <button onClick={() => setZoomedImage(null)} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
             </div>
-              <div className="bg-gray-100 rounded-lg w-full aspect-square flex items-center justify-center overflow-hidden">
-                {zoomedImage ? <img src={zoomedImage} alt="" className="w-full h-full object-contain" /> : <Package size={48} className="text-gray-300" />}
+            <div className="bg-gray-100 rounded-lg w-full aspect-square flex items-center justify-center overflow-hidden">
+              <img src={zoomedImage} alt="" className="w-full h-full object-contain" />
             </div>
-            <p className="text-xs text-gray-500 mt-3 text-center">{zoomedImage}</p>
           </div>
         </div>
       )}

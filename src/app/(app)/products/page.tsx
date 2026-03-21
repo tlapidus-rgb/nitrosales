@@ -1,29 +1,22 @@
 // @ts-nocheck
 
 "use client";
-// v10.1 - encoding fixes applied
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  Legend,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, BarChart, Bar, Legend,
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
-import NitroInsightsPanel from "@/components/NitroInsightsPanel";
-import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Package, Zap, ArrowUp, ArrowDown, X, Search, Download, Calendar } from "lucide-react";
+import { KpiCard, DateRangeFilter } from "@/components/dashboard";
+import {
+  TrendingUp, TrendingDown, AlertTriangle, DollarSign,
+  Package, Zap, ArrowUp, ArrowDown, X, Search, Download,
+  ShoppingBag, BarChart3, Layers, Clock,
+} from "lucide-react";
+
+/* ── Constants ─────────────────────────────────────────── */
 
 const QUICK_RANGES = [
   { label: "7 dias", days: 7 },
@@ -32,177 +25,103 @@ const QUICK_RANGES = [
   { label: "12 meses", days: 365 },
 ];
 
-function toDateInputValue(date: Date): string {
-  return date.toISOString().split("T")[0];
-}
+const COLORS = [
+  "#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4",
+  "#8b5cf6", "#f97316", "#14b8a6", "#ec4899", "#94a3b8",
+];
+
+const COLUMN_TOOLTIPS: Record<string, string> = {
+  facturacion: "Ingresos totales por venta de este producto en el periodo",
+  unidades: "Cantidad total de unidades vendidas en el periodo",
+  tendencia: "Variacion porcentual de ingresos entre la ultima semana y la anterior (WoW)",
+  stock: "Unidades actualmente disponibles en inventario",
+  diasstock: "Dias estimados hasta agotar stock, basado en la velocidad de venta actual",
+  abc: "Clasificacion ABC: A = Top 80% del revenue, B = siguiente 15%, C = ultimo 5%",
+  porcMarca: "Participacion de este producto en la facturacion total de su marca",
+  porcCat: "Participacion de este producto en la facturacion total de su categoria",
+  porcTotal: "Participacion de este producto en la facturacion total",
+};
+
+/* ── Types ─────────────────────────────────────────────── */
 
 interface ProductItem {
-  id: string;
-  name: string;
-  sku: string | null;
-  imageUrl: string | null;
-  category: string | null;
-  brand: string | null;
-  stock: number | null;
-  unitsSold: number;
-  revenue: number;
-  orders: number;
-  avgPrice: number;
+  id: string; name: string; sku: string | null;
+  imageUrl: string | null; category: string | null; brand: string | null;
+  stock: number | null; unitsSold: number; revenue: number;
+  orders: number; avgPrice: number;
   trendData: {
     weeklyTrend: Array<{ weekStart: string; units: number; revenue: number }>;
-    wowUnitsPct: number;
-    wowRevenuePct: number;
-    trendSlope: number;
-    abcClass: "A" | "B" | "C";
+    wowUnitsPct: number; wowRevenuePct: number;
+    trendSlope: number; abcClass: "A" | "B" | "C";
   };
   stockData: {
-    dailySalesRate: number;
-    daysOfStock: number | null;
+    dailySalesRate: number; daysOfStock: number | null;
     stockoutDate: string | null;
     stockHealth: "critical" | "low" | "optimal" | "excessive" | null;
-    isDead: boolean;
-    lastSaleDate: string | null;
+    isDead: boolean; lastSaleDate: string | null;
   };
 }
 
 interface StockSummary {
-  criticalCount: number;
-  lowCount: number;
-  optimalCount: number;
-  excessiveCount: number;
-  deadCount: number;
-  totalStockUnits: number;
-  totalStockValue: number;
-  productsAtRisk: number;
-}
-
-interface TrendSummary {
-  growingCount: number;
-  decliningCount: number;
-  stableCount: number;
+  criticalCount: number; lowCount: number; optimalCount: number;
+  excessiveCount: number; deadCount: number;
+  totalStockUnits: number; totalStockValue: number; productsAtRisk: number;
 }
 
 interface BagsAnalytics {
-  totalBagsSold: number;
-  bagsRevenue: number;
+  totalBagsSold: number; bagsRevenue: number;
   currentStock: { grande: number; chica: number; total: number };
-  ordersWithBags: number;
-  totalOrders: number;
-  bagAdoptionPct: number;
+  ordersWithBags: number; totalOrders: number; bagAdoptionPct: number;
   breakdown: Array<{ name: string; unitsSold: number; revenue: number; stock: number | null }>;
 }
 
-interface ApiResponse {
-  products: any[];
-  stockSummary?: StockSummary;
-  stockHealthSummary?: any;
-  trendSummary?: any;
-  totalInventoryUnits?: number;
-  totalInventoryValue?: number;
-  brands?: string[];
-  categories?: string[];
-  bagsAnalytics?: BagsAnalytics;
-  [key: string]: any;
-}
+interface SortState { column: string | null; direction: "asc" | "desc" | null; }
 
-interface SortState {
-  column: string | null;
-  direction: 'asc' | 'desc' | null;
-}
+/* ── Small components ──────────────────────────────────── */
 
-const COLORS = [
-  "#6366f1",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#06b6d4",
-  "#8b5cf6",
-  "#f97316",
-  "#14b8a6",
-  "#ec4899",
-  "#94a3b8",
-];
-
-const COLUMN_TOOLTIPS = {
-  facturacion: "Ingresos totales por venta de este producto en los últimos 30 días",
-  unidades: "Cantidad total de unidades vendidas en los últimos 30 días",
-  tendencia: "Variación porcentual de ingresos entre la última semana y la anterior (Week over Week)",
-  stock: "Unidades actualmente disponibles en inventario",
-  diasstock: "Días estimados hasta agotar stock, basado en la velocidad de venta diaria actual",
-  abc: "Clasificación ABC: A = Top 80% del revenue, B = siguiente 15%, C = último 5%",
-  porcMarca: "Participación de este producto en la facturación total de su marca",
-  porcCat: "Participación de este producto en la facturación total de su categoría",
-  porcTotal: "Participación de este producto en la facturación total",
-};
+function toDateInputValue(d: Date) { return d.toISOString().split("T")[0]; }
 
 function Sparkline({ data, color }: { data: number[]; color: string }) {
-  if (!data || data.length === 0) {
-    return <div className="w-[60px] h-[24px]" />;
-  }
-  const chartData = data.map((v) => ({ v }));
+  if (!data || data.length === 0) return <div className="w-[60px] h-[24px]" />;
   return (
     <ResponsiveContainer width={60} height={24}>
-      <LineChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+      <LineChart data={data.map((v) => ({ v }))} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
         <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={false} />
       </LineChart>
     </ResponsiveContainer>
   );
 }
 
-function TrendIndicator({ wowRevenuePct }: { wowRevenuePct: number }) {
-  if (wowRevenuePct > 5) {
-    return (
-      <div className="flex items-center gap-1 text-green-600 font-medium">
-        <TrendingUp className="w-4 h-4" />
-        <span>+{(wowRevenuePct ?? 0).toFixed(1)}%</span>
-      </div>
-    );
-  } else if (wowRevenuePct < -5) {
-    return (
-      <div className="flex items-center gap-1 text-red-600 font-medium">
-        <TrendingDown className="w-4 h-4" />
-        <span>{(wowRevenuePct ?? 0).toFixed(1)}%</span>
-      </div>
-    );
-  } else {
-    return (
-      <div className="flex items-center gap-1 text-gray-500 font-medium">
-        <span className="text-lg">-</span>
-        <span>{(wowRevenuePct ?? 0).toFixed(1)}%</span>
-      </div>
-    );
-  }
+function TrendIndicator({ value }: { value: number }) {
+  if (value > 5) return (
+    <span className="flex items-center gap-1 text-green-600 font-medium text-sm">
+      <TrendingUp className="w-4 h-4" />+{value.toFixed(1)}%
+    </span>
+  );
+  if (value < -5) return (
+    <span className="flex items-center gap-1 text-red-600 font-medium text-sm">
+      <TrendingDown className="w-4 h-4" />{value.toFixed(1)}%
+    </span>
+  );
+  return <span className="text-gray-500 text-sm">{value.toFixed(1)}%</span>;
 }
 
 function StockBadge({ daysOfStock, stockHealth, stock }: { daysOfStock: number | null; stockHealth: string | null; stock?: number | null }) {
-  // Handle agotado (out of stock)
-  if (stock !== undefined && stock !== null && stock === 0) {
+  if (stock !== undefined && stock !== null && stock === 0)
     return <span className="px-2 py-1 text-xs rounded-md bg-red-200 text-red-800 font-bold">Agotado</span>;
-  }
-
-  let bgColor = "bg-gray-100 text-gray-700";
-  if (stockHealth === "critical") bgColor = "bg-red-100 text-red-700 font-semibold";
-  else if (stockHealth === "low") bgColor = "bg-amber-100 text-amber-700 font-semibold";
-  else if (stockHealth === "optimal") bgColor = "bg-green-100 text-green-700";
-  else if (stockHealth === "excessive") bgColor = "bg-blue-100 text-blue-700";
-
-  // Format days display
-  if (daysOfStock === null || daysOfStock === undefined) {
-    return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>â</span>;
-  }
-  if (daysOfStock > 365) {
-    return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>+365d</span>;
-  }
-  const rounded = Math.round(daysOfStock);
-  return <span className={`px-2 py-1 text-xs rounded-md ${bgColor}`}>{rounded}d</span>;
+  let bg = "bg-gray-100 text-gray-700";
+  if (stockHealth === "critical") bg = "bg-red-100 text-red-700 font-semibold";
+  else if (stockHealth === "low") bg = "bg-amber-100 text-amber-700 font-semibold";
+  else if (stockHealth === "optimal") bg = "bg-green-100 text-green-700";
+  else if (stockHealth === "excessive") bg = "bg-blue-100 text-blue-700";
+  if (daysOfStock == null) return <span className={`px-2 py-1 text-xs rounded-md ${bg}`}>--</span>;
+  if (daysOfStock > 365) return <span className={`px-2 py-1 text-xs rounded-md ${bg}`}>+365d</span>;
+  return <span className={`px-2 py-1 text-xs rounded-md ${bg}`}>{Math.round(daysOfStock)}d</span>;
 }
 
 function ABCBadge({ abcClass }: { abcClass: string }) {
-  let bgColor = "bg-green-100 text-green-700";
-  if (abcClass === "B") bgColor = "bg-amber-100 text-amber-700";
-  else if (abcClass === "C") bgColor = "bg-gray-100 text-gray-700";
-
-  return <span className={`px-2 py-1 text-xs font-bold rounded-md ${bgColor}`}>{abcClass}</span>;
+  const bg = abcClass === "A" ? "bg-green-100 text-green-700" : abcClass === "B" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-700";
+  return <span className={`px-2 py-1 text-xs font-bold rounded-md ${bg}`}>{abcClass}</span>;
 }
 
 function TooltipHeader({ text, tooltip }: { text: string; tooltip: string }) {
@@ -211,52 +130,93 @@ function TooltipHeader({ text, tooltip }: { text: string; tooltip: string }) {
       <span>{text}</span>
       <div className="absolute left-0 top-full mt-2 hidden group-hover:block z-50 w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-lg pointer-events-none">
         {tooltip}
-        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-b-gray-900" />
       </div>
     </div>
   );
 }
 
-export default function ProductsPageV10() {
+/* ── Stock Health Chips ────────────────────────────────── */
+
+const STOCK_CHIPS = [
+  { key: "", label: "Todos", color: "gray" },
+  { key: "agotado", label: "Agotado", color: "red" },
+  { key: "critical", label: "Critico", color: "red" },
+  { key: "low", label: "Bajo", color: "amber" },
+  { key: "moderate", label: "Optimo", color: "green" },
+  { key: "high", label: "Excesivo", color: "blue" },
+];
+
+function StockChips({ active, onChange, counts }: { active: string; onChange: (k: string) => void; counts: Record<string, number> }) {
+  const colorMap: Record<string, string> = {
+    gray: "bg-gray-100 text-gray-700 border-gray-300",
+    red: "bg-red-50 text-red-700 border-red-300",
+    amber: "bg-amber-50 text-amber-700 border-amber-300",
+    green: "bg-green-50 text-green-700 border-green-300",
+    blue: "bg-blue-50 text-blue-700 border-blue-300",
+  };
+  const activeColorMap: Record<string, string> = {
+    gray: "bg-gray-800 text-white border-gray-800",
+    red: "bg-red-600 text-white border-red-600",
+    amber: "bg-amber-500 text-white border-amber-500",
+    green: "bg-green-600 text-white border-green-600",
+    blue: "bg-blue-600 text-white border-blue-600",
+  };
+  return (
+    <div className="flex flex-wrap gap-2">
+      {STOCK_CHIPS.map((c) => {
+        const isActive = active === c.key;
+        const count = counts[c.key] ?? 0;
+        return (
+          <button key={c.key} onClick={() => onChange(c.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isActive ? activeColorMap[c.color] : colorMap[c.color]}`}>
+            {c.label}
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-white/20" : "bg-black/5"}`}>
+              {count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Main Component ────────────────────────────────────── */
+
+export default function ProductsPage() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
-  const [trendSummary, setTrendSummary] = useState<TrendSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "trends" | "stock">("overview");
-  const [brandFilter, setBrandFilter] = useState<string>("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [stockDaysFilter, setStockDaysFilter] = useState<string>("");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [stockDaysFilter, setStockDaysFilter] = useState("");
   const [chartMetric, setChartMetric] = useState<"revenue" | "units">("revenue");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortState, setSortState] = useState<SortState>({ column: "revenue", direction: "desc" });
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
   const [stockAlertsPage, setStockAlertsPage] = useState(1);
   const [deadStockPage, setDeadStockPage] = useState(1);
-  // Date range state
-  const defaultTo = new Date();
-  const defaultFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const [dateFrom, setDateFrom] = useState(toDateInputValue(defaultFrom));
-  const [dateTo, setDateTo] = useState(toDateInputValue(defaultTo));
-  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
-
   const [bagsAnalytics, setBagsAnalytics] = useState<BagsAnalytics | null>(null);
-  const [summary, setSummary] = useState<{totalOrders30d: number; totalItems30d: number; totalRevenue30d: number} | null>(null);
+  const [summary, setSummary] = useState<{ totalOrders30d: number; totalItems30d: number; totalRevenue30d: number } | null>(null);
+
+  // Date range
+  const [dateFrom, setDateFrom] = useState(toDateInputValue(new Date(Date.now() - 30 * 86400000)));
+  const [dateTo, setDateTo] = useState(toDateInputValue(new Date()));
+  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
 
   const ITEMS_PER_PAGE = 30;
   const STOCK_ITEMS_PER_PAGE = 15;
 
-  // Fetch data with defensive numeric parsing
+  /* ── Fetch ─────────────────────────────────────────── */
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        const params = new URLSearchParams({ from: dateFrom, to: dateTo });
-            const response = await fetch(`/api/metrics/products?${params}`);
-        const data: ApiResponse = await response.json();
+        const res = await fetch(`/api/metrics/products?from=${dateFrom}&to=${dateTo}`);
+        const data = await res.json();
 
-        // Defensive data parsing - convert all numerics
-        // Map API v3 fields to v10 page expected fields
-        const parsedProducts = data.products.map(p => ({
+        const parsed = data.products.map((p: any) => ({
           ...p,
           revenue: Number(p.revenue) || 0,
           unitsSold: Number(p.unitsSold) || 0,
@@ -268,60 +228,44 @@ export default function ProductsPageV10() {
             wowUnitsPct: Number(p.trendData?.wowUnitsPct) || 0,
             wowRevenuePct: Number(p.trendData?.wowRevenuePct) || 0,
             trendSlope: Number(p.trendData?.trendSlope) || 0,
-            abcClass: p.trendData?.abcClass || p.stockData?.abcClass || "C",
-            // Map weeklyData (API v3) Ã¢ÂÂ weeklyTrend (v10 page)
-            weeklyTrend: (p.trendData?.weeklyTrend || p.trendData?.weeklyData || []).map(w => ({
-              ...w,
-              units: Number(w.units) || 0,
-              revenue: Number(w.revenue) || 0,
+            abcClass: p.trendData?.abcClass || "C",
+            weeklyTrend: (p.trendData?.weeklyTrend || []).map((w: any) => ({
+              ...w, units: Number(w.units) || 0, revenue: Number(w.revenue) || 0,
             })),
           },
           stockData: {
             ...p.stockData,
             dailySalesRate: Number(p.stockData?.dailySalesRate) || 0,
             daysOfStock: p.stockData?.daysOfStock != null ? Number(p.stockData.daysOfStock) : null,
-          }
+          },
         }));
 
-        // Filter out Gift Cards (virtual products with inflated stock)
-        // and Shopping Bags (accessory products that skew brand/category analytics)
-        const filteredProducts = parsedProducts.filter(
-          (p) => {
-            const name = p.name?.toLowerCase() || "";
-            return !name.includes("gift card") && !name.includes("shopping bag") && !name.includes("bolsa de compra");
-          }
-        );
+        // Filter out gift cards and shopping bags
+        const filteredProducts = parsed.filter((p: ProductItem) => {
+          const n = p.name?.toLowerCase() || "";
+          return !n.includes("gift card") && !n.includes("shopping bag") && !n.includes("bolsa de compra");
+        });
 
         setProducts(filteredProducts);
 
-        // Map stockHealthSummary (API v3) Ã¢ÂÂ stockSummary (v10 page)
-        const sh = data.stockHealthSummary || data.stockSummary;
+        const sh = data.stockSummary;
         if (sh) {
           setStockSummary({
-            criticalCount: sh.criticalCount ?? sh.critical ?? 0,
-            lowCount: sh.lowCount ?? sh.low ?? 0,
-            optimalCount: sh.optimalCount ?? sh.optimal ?? 0,
-            excessiveCount: sh.excessiveCount ?? sh.excessive ?? 0,
-            deadCount: sh.deadCount ?? sh.dead ?? 0,
-            totalStockUnits: data.totalInventoryUnits ?? sh.totalStockUnits ?? 0,
-            totalStockValue: data.totalInventoryValue ?? sh.totalStockValue ?? 0,
-            productsAtRisk: (sh.criticalCount ?? sh.critical ?? 0) + (sh.lowCount ?? sh.low ?? 0),
+            criticalCount: sh.criticalCount ?? 0, lowCount: sh.lowCount ?? 0,
+            optimalCount: sh.optimalCount ?? 0, excessiveCount: sh.excessiveCount ?? 0,
+            deadCount: sh.deadCount ?? 0, totalStockUnits: sh.totalStockUnits ?? 0,
+            totalStockValue: sh.totalStockValue ?? 0,
+            productsAtRisk: (sh.criticalCount ?? 0) + (sh.lowCount ?? 0),
           });
         }
-
-        // Map trendSummary fields (API v3 uses growing/declining/stable, v10 uses *Count suffix)
-        const ts = data.trendSummary;
-        if (ts) {
-          setTrendSummary({
-            growingCount: ts.growingCount ?? ts.growing ?? 0,
-            decliningCount: ts.decliningCount ?? ts.declining ?? 0,
-            stableCount: ts.stableCount ?? ts.stable ?? 0,
-          });
         if (data.bagsAnalytics) setBagsAnalytics(data.bagsAnalytics);
-        if (data.summary) setSummary({ totalOrders30d: Number(data.summary.totalOrders30d) || 0, totalItems30d: Number(data.summary.totalItems30d) || 0, totalRevenue30d: Number(data.summary.totalRevenue30d) || 0 });
-        }
-      } catch (error) {
-        console.error("Error fetching products:", error);
+        if (data.summary) setSummary({
+          totalOrders30d: Number(data.summary.totalOrders30d) || 0,
+          totalItems30d: Number(data.summary.totalItems30d) || 0,
+          totalRevenue30d: Number(data.summary.totalRevenue30d) || 0,
+        });
+      } catch (err) {
+        console.error("Error fetching products:", err);
       } finally {
         setLoading(false);
       }
@@ -329,481 +273,271 @@ export default function ProductsPageV10() {
     fetchData();
   }, [dateFrom, dateTo]);
 
-  // Date range handlers
+  /* ── Date handlers ─────────────────────────────────── */
   const handleQuickRange = (days: number) => {
-    const to = new Date();
-    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    setDateTo(toDateInputValue(to));
-    setDateFrom(toDateInputValue(from));
+    setDateTo(toDateInputValue(new Date()));
+    setDateFrom(toDateInputValue(new Date(Date.now() - days * 86400000)));
     setActiveQuickRange(days);
     setCurrentPage(1);
   };
-
-  const handleDateChange = (type: "from" | "to", value: string) => {
-    if (type === "from") setDateFrom(value);
-    else setDateTo(value);
+  const handleDateChange = (type: "from" | "to", v: string) => {
+    type === "from" ? setDateFrom(v) : setDateTo(v);
     setActiveQuickRange(null);
     setCurrentPage(1);
   };
 
-
-  // Apply filters
+  /* ── Filtering ─────────────────────────────────────── */
   const filtered = useMemo(() => {
     return products.filter((p) => {
       if (brandFilter && p.brand !== brandFilter) return false;
       if (categoryFilter && p.category !== categoryFilter) return false;
       if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        const nameMatch = p.name.toLowerCase().includes(term);
-        const skuMatch = p.sku?.toLowerCase().includes(term) || false;
-        if (!nameMatch && !skuMatch) return false;
+        const t = searchTerm.toLowerCase();
+        if (!p.name.toLowerCase().includes(t) && !(p.sku?.toLowerCase().includes(t))) return false;
       }
       if (stockDaysFilter) {
-        const days = p.stockData.daysOfStock;
-        if (stockDaysFilter === "agotado") {
-          if ((p.stock ?? 0) !== 0) return false;
-        } else if (stockDaysFilter === "critical") {
-          if (days === null || days > 7) return false;
-        } else if (stockDaysFilter === "low") {
-          if (days === null || days <= 7 || days > 30) return false;
-        } else if (stockDaysFilter === "moderate") {
-          if (days === null || days <= 30 || days > 90) return false;
-        } else if (stockDaysFilter === "high") {
-          if (days === null || days <= 90) return false;
-        }
+        const d = p.stockData.daysOfStock;
+        if (stockDaysFilter === "agotado") { if ((p.stock ?? 0) !== 0) return false; }
+        else if (stockDaysFilter === "critical") { if (d === null || d > 7) return false; }
+        else if (stockDaysFilter === "low") { if (d === null || d <= 7 || d > 30) return false; }
+        else if (stockDaysFilter === "moderate") { if (d === null || d <= 30 || d > 90) return false; }
+        else if (stockDaysFilter === "high") { if (d === null || d <= 90) return false; }
       }
       return true;
     });
   }, [products, brandFilter, categoryFilter, searchTerm, stockDaysFilter]);
 
-  // Apply sorting
+  /* ── Stock chip counts ─────────────────────────────── */
+  const stockChipCounts = useMemo(() => {
+    const base = products.filter((p) => {
+      if (brandFilter && p.brand !== brandFilter) return false;
+      if (categoryFilter && p.category !== categoryFilter) return false;
+      if (searchTerm) {
+        const t = searchTerm.toLowerCase();
+        if (!p.name.toLowerCase().includes(t) && !(p.sku?.toLowerCase().includes(t))) return false;
+      }
+      return true;
+    });
+    return {
+      "": base.length,
+      agotado: base.filter((p) => (p.stock ?? 0) === 0).length,
+      critical: base.filter((p) => p.stockData.daysOfStock !== null && p.stockData.daysOfStock <= 7 && (p.stock ?? 0) > 0).length,
+      low: base.filter((p) => p.stockData.daysOfStock !== null && p.stockData.daysOfStock > 7 && p.stockData.daysOfStock <= 30).length,
+      moderate: base.filter((p) => p.stockData.daysOfStock !== null && p.stockData.daysOfStock > 30 && p.stockData.daysOfStock <= 90).length,
+      high: base.filter((p) => p.stockData.daysOfStock !== null && p.stockData.daysOfStock > 90).length,
+    };
+  }, [products, brandFilter, categoryFilter, searchTerm]);
+
+  /* ── Sorting ───────────────────────────────────────── */
   const sortedFiltered = useMemo(() => {
-    if (!sortState.column || !sortState.direction) {
-      return filtered;
-    }
-
+    if (!sortState.column || !sortState.direction) return filtered;
     return [...filtered].sort((a, b) => {
-      let aVal, bVal;
-
+      let aV: any, bV: any;
       switch (sortState.column) {
-        case "revenue":
-          aVal = a.revenue;
-          bVal = b.revenue;
-          break;
-        case "unitsSold":
-          aVal = a.unitsSold;
-          bVal = b.unitsSold;
-          break;
-        case "stock":
-          aVal = a.stock ?? 0;
-          bVal = b.stock ?? 0;
-          break;
-        case "wowRevenuePct":
-          aVal = a.trendData.wowRevenuePct;
-          bVal = b.trendData.wowRevenuePct;
-          break;
-        case "daysOfStock":
-          aVal = a.stockData.daysOfStock ?? 0;
-          bVal = b.stockData.daysOfStock ?? 0;
-          break;
+        case "revenue": aV = a.revenue; bV = b.revenue; break;
+        case "unitsSold": aV = a.unitsSold; bV = b.unitsSold; break;
+        case "stock": aV = a.stock ?? 0; bV = b.stock ?? 0; break;
+        case "wowRevenuePct": aV = a.trendData.wowRevenuePct; bV = b.trendData.wowRevenuePct; break;
+        case "daysOfStock": aV = a.stockData.daysOfStock ?? 0; bV = b.stockData.daysOfStock ?? 0; break;
         case "abc":
-          aVal = a.trendData.abcClass;
-          bVal = b.trendData.abcClass;
-          break;
-        default:
-          return 0;
+          const o: Record<string, number> = { A: 0, B: 1, C: 2 };
+          const cmp = o[a.trendData.abcClass] - o[b.trendData.abcClass];
+          return sortState.direction === "asc" ? cmp : -cmp;
+        default: return 0;
       }
-
-      if (sortState.column === "abc") {
-        const abcOrder = { A: 0, B: 1, C: 2 };
-        const comparison = abcOrder[aVal] - abcOrder[bVal];
-        return sortState.direction === "asc" ? comparison : -comparison;
-      }
-
-      if (sortState.direction === "asc") {
-        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-      } else {
-        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
-      }
+      return sortState.direction === "asc" ? (aV > bV ? 1 : -1) : (aV < bV ? 1 : -1);
     });
   }, [filtered, sortState]);
 
-  // Pagination
+  /* ── Pagination ────────────────────────────────────── */
   const totalPages = Math.ceil(sortedFiltered.length / ITEMS_PER_PAGE);
   const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return sortedFiltered.slice(start, start + ITEMS_PER_PAGE);
+    const s = (currentPage - 1) * ITEMS_PER_PAGE;
+    return sortedFiltered.slice(s, s + ITEMS_PER_PAGE);
   }, [sortedFiltered, currentPage]);
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [brandFilter, categoryFilter, sortState]);
+  useEffect(() => { setCurrentPage(1); }, [brandFilter, categoryFilter, sortState, stockDaysFilter]);
 
-  // Get unique brands and categories
-  const brands = useMemo(() => {
-    return [...new Set(products.map((p) => p.brand).filter(Boolean))].sort();
-  }, [products]);
+  /* ── Derived data ──────────────────────────────────── */
+  const brands = useMemo(() => [...new Set(products.map((p) => p.brand).filter(Boolean))].sort(), [products]);
+  const categories = useMemo(() => [...new Set(products.map((p) => p.category).filter(Boolean))].sort(), [products]);
 
-  const categories = useMemo(() => {
-    return [...new Set(products.map((p) => p.category).filter(Boolean))].sort();
-  }, [products]);
-
-  // Revenue calculations for percentage columns
-  const revenueCalculations = useMemo(() => {
-    const totalRevenue = filtered.reduce((sum, p) => sum + p.revenue, 0);
-
-    const brandTotals = new Map<string, number>();
+  const revenueCalcs = useMemo(() => {
+    const total = filtered.reduce((s, p) => s + p.revenue, 0);
+    const brandT = new Map<string, number>();
+    const catT = new Map<string, number>();
     filtered.forEach((p) => {
-      const brand = p.brand || "Sin marca";
-      brandTotals.set(brand, (brandTotals.get(brand) || 0) + p.revenue);
+      brandT.set(p.brand || "Sin marca", (brandT.get(p.brand || "Sin marca") || 0) + p.revenue);
+      catT.set(p.category || "Sin categoria", (catT.get(p.category || "Sin categoria") || 0) + p.revenue);
     });
-
-    const categoryTotals = new Map<string, number>();
-    filtered.forEach((p) => {
-      const cat = p.category || "Sin categoría";
-      categoryTotals.set(cat, (categoryTotals.get(cat) || 0) + p.revenue);
-    });
-
-    return { totalRevenue, brandTotals, categoryTotals };
+    return { total, brandT, catT };
   }, [filtered]);
 
-  // Category trends data
+  const hasFilters = !!(brandFilter || categoryFilter || searchTerm || stockDaysFilter);
+  const kpiStats = useMemo(() => {
+    if (summary && !hasFilters) {
+      const rev = summary.totalRevenue30d;
+      const units = summary.totalItems30d;
+      return { totalRevenue: rev, totalUnits: units, ticketPromedio: units > 0 ? rev / units : 0, productosActivos: filtered.length, totalStock: filtered.reduce((s, p) => s + (p.stock ?? 0), 0), valorStock: filtered.reduce((s, p) => s + (p.stock ?? 0) * p.avgPrice, 0) };
+    }
+    const rev = filtered.reduce((s, p) => s + p.revenue, 0);
+    const units = filtered.reduce((s, p) => s + p.unitsSold, 0);
+    return { totalRevenue: rev, totalUnits: units, ticketPromedio: units > 0 ? rev / units : 0, productosActivos: filtered.length, totalStock: filtered.reduce((s, p) => s + (p.stock ?? 0), 0), valorStock: filtered.reduce((s, p) => s + (p.stock ?? 0) * p.avgPrice, 0) };
+  }, [filtered, summary, hasFilters]);
+
+  const stockHealthAlerts = useMemo(() => {
+    let sinStock = 0, critico = 0, sobrestock = 0, diasSum = 0, diasCount = 0;
+    filtered.forEach((p) => {
+      const st = p.stock ?? 0;
+      const d = p.stockData.daysOfStock;
+      if (st === 0) sinStock++;
+      if (d !== null && d <= 7 && st > 0) critico++;
+      if (d !== null && d > 90) sobrestock++;
+      if (d !== null && d > 0) { diasSum += d; diasCount++; }
+    });
+    return { sinStock, critico, sobrestock, diasPromedio: diasCount > 0 ? diasSum / diasCount : 0 };
+  }, [filtered]);
+
+  /* ── Chart data: distributions ─────────────────────── */
+  const brandDistribution = useMemo(() => {
+    const dist = new Map<string, number>();
+    filtered.forEach((p) => {
+      const k = p.brand || "Sin marca";
+      dist.set(k, (dist.get(k) || 0) + (chartMetric === "revenue" ? p.revenue : p.unitsSold));
+    });
+    return [...dist.entries()].sort((a, b) => b[1] - a[1]).map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
+  }, [filtered, chartMetric]);
+
+  const categoryDistribution = useMemo(() => {
+    const dist = new Map<string, number>();
+    filtered.forEach((p) => {
+      const k = p.category || "Sin categoria";
+      dist.set(k, (dist.get(k) || 0) + (chartMetric === "revenue" ? p.revenue : p.unitsSold));
+    });
+    return [...dist.entries()].sort((a, b) => b[1] - a[1]).map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
+  }, [filtered, chartMetric]);
+
+  /* ── Chart data: trends ────────────────────────────── */
   const categoryTrends = useMemo(() => {
     const weekSet = new Set<string>();
-    filtered.forEach((p) =>
-      p.trendData.weeklyTrend.forEach((w) => weekSet.add(w.weekStart))
-    );
+    filtered.forEach((p) => p.trendData.weeklyTrend.forEach((w) => weekSet.add(w.weekStart)));
     const weeks = [...weekSet].sort();
-
-    const catRevenue = new Map<string, number>();
-    filtered.forEach((p) => {
-      const cat = p.category || "Sin categoría";
-      catRevenue.set(cat, (catRevenue.get(cat) || 0) + p.revenue);
-    });
-    const topCats = [...catRevenue.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map((e) => e[0]);
-
+    const catRev = new Map<string, number>();
+    filtered.forEach((p) => { const c = p.category || "Sin categoria"; catRev.set(c, (catRev.get(c) || 0) + p.revenue); });
+    const topCats = [...catRev.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map((e) => e[0]);
     return weeks.map((week) => {
       const row: any = { weekStart: week };
-      for (const cat of topCats) {
-        row[cat] = filtered
-          .filter((p) => (p.category || "Sin categoría") === cat)
-          .reduce((sum, p) => {
-            const weekData = p.trendData.weeklyTrend.find((w) => w.weekStart === week);
-            return sum + (weekData ? weekData.revenue : 0);
-          }, 0);
-      }
+      topCats.forEach((cat) => {
+        row[cat] = filtered.filter((p) => (p.category || "Sin categoria") === cat)
+          .reduce((s, p) => s + (p.trendData.weeklyTrend.find((w) => w.weekStart === week)?.revenue || 0), 0);
+      });
       return row;
     });
   }, [filtered]);
 
-  // Brand trends data
   const brandTrends = useMemo(() => {
     const weekSet = new Set<string>();
-    filtered.forEach((p) =>
-      p.trendData.weeklyTrend.forEach((w) => weekSet.add(w.weekStart))
-    );
+    filtered.forEach((p) => p.trendData.weeklyTrend.forEach((w) => weekSet.add(w.weekStart)));
     const weeks = [...weekSet].sort();
-
-    const brandRevenue = new Map<string, number>();
-    filtered.forEach((p) => {
-      const brand = p.brand || "Sin marca";
-      brandRevenue.set(brand, (brandRevenue.get(brand) || 0) + p.revenue);
-    });
-    const topBrands = [...brandRevenue.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map((e) => e[0]);
-
+    const brandRev = new Map<string, number>();
+    filtered.forEach((p) => { const b = p.brand || "Sin marca"; brandRev.set(b, (brandRev.get(b) || 0) + p.revenue); });
+    const topBrands = [...brandRev.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map((e) => e[0]);
     return weeks.map((week) => {
       const row: any = { weekStart: week };
-      for (const brand of topBrands) {
-        row[brand] = filtered
-          .filter((p) => (p.brand || "Sin marca") === brand)
-          .reduce((sum, p) => {
-            const weekData = p.trendData.weeklyTrend.find((w) => w.weekStart === week);
-            return sum + (weekData ? weekData.revenue : 0);
-          }, 0);
-      }
+      topBrands.forEach((brand) => {
+        row[brand] = filtered.filter((p) => (p.brand || "Sin marca") === brand)
+          .reduce((s, p) => s + (p.trendData.weeklyTrend.find((w) => w.weekStart === week)?.revenue || 0), 0);
+      });
       return row;
     });
   }, [filtered]);
 
-  // Top growing products
-  const topGrowing = useMemo(() => {
-    return filtered
-      .filter((p) => p.trendData.wowRevenuePct > 0)
-      .sort((a, b) => b.trendData.wowRevenuePct - a.trendData.wowRevenuePct)
-      .slice(0, 10);
-  }, [filtered]);
+  const topGrowing = useMemo(() => filtered.filter((p) => p.trendData.wowRevenuePct > 0).sort((a, b) => b.trendData.wowRevenuePct - a.trendData.wowRevenuePct).slice(0, 10), [filtered]);
+  const topDeclining = useMemo(() => filtered.filter((p) => p.trendData.wowRevenuePct < 0).sort((a, b) => a.trendData.wowRevenuePct - b.trendData.wowRevenuePct).slice(0, 10), [filtered]);
 
-  // Top declining products
-  const topDeclining = useMemo(() => {
-    return filtered
-      .filter((p) => p.trendData.wowRevenuePct < 0)
-      .sort((a, b) => a.trendData.wowRevenuePct - b.trendData.wowRevenuePct)
-      .slice(0, 10);
-  }, [filtered]);
-
-  // Stock alerts
-  const stockAlerts = useMemo(() => {
-    return filtered
-      .filter((p) => p.stockData.stockHealth === "critical" || p.stockData.stockHealth === "low")
-      .sort((a, b) => (a.stockData.daysOfStock ?? 999) - (b.stockData.daysOfStock ?? 999));
-  }, [filtered]);
-
-  const stockAlertsPaginated = useMemo(() => {
-    const start = (stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE;
-    return stockAlerts.slice(start, start + STOCK_ITEMS_PER_PAGE);
-  }, [stockAlerts, stockAlertsPage]);
-
+  /* ── Stock tab data ────────────────────────────────── */
+  const stockAlerts = useMemo(() => filtered.filter((p) => p.stockData.stockHealth === "critical" || p.stockData.stockHealth === "low").sort((a, b) => (a.stockData.daysOfStock ?? 999) - (b.stockData.daysOfStock ?? 999)), [filtered]);
+  const stockAlertsPaginated = useMemo(() => { const s = (stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE; return stockAlerts.slice(s, s + STOCK_ITEMS_PER_PAGE); }, [stockAlerts, stockAlertsPage]);
   const stockAlertsTotalPages = Math.ceil(stockAlerts.length / STOCK_ITEMS_PER_PAGE);
 
-  // Dead stock
-  const deadStock = useMemo(() => {
-    return filtered
-      .filter((p) => p.stockData.isDead)
-      .sort((a, b) => (b.stock ?? 0) * b.avgPrice - (a.stock ?? 0) * a.avgPrice);
-  }, [filtered]);
-
-  const deadStockPaginated = useMemo(() => {
-    const start = (deadStockPage - 1) * STOCK_ITEMS_PER_PAGE;
-    return deadStock.slice(start, start + STOCK_ITEMS_PER_PAGE);
-  }, [deadStock, deadStockPage]);
-
+  const deadStock = useMemo(() => filtered.filter((p) => p.stockData.isDead).sort((a, b) => (b.stock ?? 0) * b.avgPrice - (a.stock ?? 0) * a.avgPrice), [filtered]);
+  const deadStockPaginated = useMemo(() => { const s = (deadStockPage - 1) * STOCK_ITEMS_PER_PAGE; return deadStock.slice(s, s + STOCK_ITEMS_PER_PAGE); }, [deadStock, deadStockPage]);
   const deadStockTotalPages = Math.ceil(deadStock.length / STOCK_ITEMS_PER_PAGE);
+  const deadStockCapital = useMemo(() => deadStock.reduce((s, p) => s + (p.stock ?? 0) * p.avgPrice, 0), [deadStock]);
 
-  const deadStockCapital = useMemo(() => {
-    return deadStock.reduce((sum, p) => sum + ((p.stock ?? 0) * p.avgPrice), 0);
-  }, [deadStock]);
-
-  // Stock by brand chart data
   const stockByBrandData = useMemo(() => {
-    const brandStock = new Map<string, number>();
-    filtered.forEach((p) => {
-      const brand = p.brand || "Sin marca";
-      brandStock.set(brand, (brandStock.get(brand) || 0) + (p.stock ?? 0));
-    });
-    return [...brandStock.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name, value], idx) => ({
-        name,
-        units: value,
-        color: COLORS[idx % COLORS.length],
-      }));
+    const m = new Map<string, number>();
+    filtered.forEach((p) => m.set(p.brand || "Sin marca", (m.get(p.brand || "Sin marca") || 0) + (p.stock ?? 0)));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, units], i) => ({ name, units, color: COLORS[i % COLORS.length] }));
   }, [filtered]);
 
-  // ABC classification counts
   const abcCounts = useMemo(() => {
-    const counts = { A: 0, B: 0, C: 0 };
-    filtered.forEach((p) => {
-      counts[p.trendData.abcClass]++;
-    });
-    return counts;
+    const c = { A: 0, B: 0, C: 0 };
+    filtered.forEach((p) => c[p.trendData.abcClass]++);
+    return c;
   }, [filtered]);
 
-  const abcChartData = [
-    {
-      clase: "Clase A",
-      count: abcCounts.A,
-      pct: ((abcCounts.A / (filtered.length || 1)) * 100).toFixed(1),
-    },
-    {
-      clase: "Clase B",
-      count: abcCounts.B,
-      pct: ((abcCounts.B / (filtered.length || 1)) * 100).toFixed(1),
-    },
-    {
-      clase: "Clase C",
-      count: abcCounts.C,
-      pct: ((abcCounts.C / (filtered.length || 1)) * 100).toFixed(1),
-    },
-  ];
-
-  // Distribution data
   const distributionData = useMemo(() => {
     if (!stockSummary) return [];
     return [
-      { name: "Crítico", value: stockSummary.criticalCount, color: "#ef4444" },
+      { name: "Critico", value: stockSummary.criticalCount, color: "#ef4444" },
       { name: "Bajo", value: stockSummary.lowCount, color: "#f59e0b" },
-      { name: "Óptimo", value: stockSummary.optimalCount, color: "#10b981" },
+      { name: "Optimo", value: stockSummary.optimalCount, color: "#10b981" },
       { name: "Excesivo", value: stockSummary.excessiveCount, color: "#3b82f6" },
       { name: "Muerto", value: stockSummary.deadCount, color: "#6b7280" },
     ];
   }, [stockSummary]);
 
-  // Brand distribution
-  const brandDistribution = useMemo(() => {
-    const dist = new Map<string, number>();
-    filtered.forEach((p) => {
-      const brand = p.brand || "Sin marca";
-      const val = chartMetric === "revenue" ? p.revenue : p.unitsSold;
-      dist.set(brand, (dist.get(brand) || 0) + val);
-    });
-    return [...dist.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, value], idx) => ({
-        name,
-        value,
-        color: COLORS[idx % COLORS.length],
-      }));
-  }, [filtered, chartMetric]);
-
-  // Category distribution
-  const categoryDistribution = useMemo(() => {
-    const dist = new Map<string, number>();
-    filtered.forEach((p) => {
-      const cat = p.category || "Sin categoría";
-      const val = chartMetric === "revenue" ? p.revenue : p.unitsSold;
-      dist.set(cat, (dist.get(cat) || 0) + val);
-    });
-    return [...dist.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, value], idx) => ({
-        name,
-        value,
-        color: COLORS[idx % COLORS.length],
-      }));
-  }, [filtered, chartMetric]);
-
-  // KPI Stats: use API summary (from orders table) for top-level KPIs to match Orders page
-  const hasFilters = !!(brandFilter || categoryFilter || searchTerm || stockDaysFilter);
-  const kpiStats = useMemo(() => {
-    // When no filters active, use authoritative summary from orders table (same source as Orders page)
-    if (summary && !hasFilters) {
-      const totalRevenue = summary.totalRevenue30d;
-      const totalUnits = summary.totalItems30d;
-      const ticketPromedio = totalUnits > 0 ? totalRevenue / totalUnits : 0;
-      const productosActivos = filtered.length;
-      const totalStock = filtered.reduce((s, p) => s + (p.stock ?? 0), 0);
-      const valorStock = filtered.reduce((s, p) => s + (p.stock ?? 0) * p.avgPrice, 0);
-      return { totalRevenue, totalUnits, ticketPromedio, productosActivos, totalStock, valorStock };
-    }
-    if (!filtered || filtered.length === 0) return {
-      totalRevenue: 0,
-      totalUnits: 0,
-      ticketPromedio: 0,
-      productosActivos: 0,
-      totalStock: 0,
-      valorStock: 0,
-    };
-    const totalRevenue = filtered.reduce((s, p) => s + p.revenue, 0);
-    const totalUnits = filtered.reduce((s, p) => s + p.unitsSold, 0);
-    const ticketPromedio = totalUnits > 0 ? totalRevenue / totalUnits : 0;
-    const productosActivos = filtered.length;
-    const totalStock = filtered.reduce((s, p) => s + (p.stock ?? 0), 0);
-    const valorStock = filtered.reduce((s, p) => s + (p.stock ?? 0) * p.avgPrice, 0);
-    return { totalRevenue, totalUnits, ticketPromedio, productosActivos, totalStock, valorStock };
-  }, [filtered, summary, hasFilters]);
-
-  // Stock health summary for KPI alerts
-  const stockHealthAlerts = useMemo(() => {
-    let sinStock = 0;
-    let critico = 0;
-    let sobrestock = 0;
-    let diasSum = 0;
-    let diasCount = 0;
-    filtered.forEach((p) => {
-      const stock = p.stock ?? 0;
-      const days = p.stockData.daysOfStock;
-      if (stock === 0) sinStock++;
-      if (days !== null && days <= 7 && stock > 0) critico++;
-      if (days !== null && days > 90) sobrestock++;
-      if (days !== null && days > 0) {
-        diasSum += days;
-        diasCount++;
-      }
-    });
-    const diasPromedio = diasCount > 0 ? diasSum / diasCount : 0;
-    return { sinStock, critico, sobrestock, diasPromedio };
-  }, [filtered]);
-
-
-  const handleSort = (column: string) => {
+  /* ── Sorting helpers ───────────────────────────────── */
+  const handleSort = (col: string) => {
     setSortState((prev) => {
-      if (prev.column === column) {
-        // Cycle: asc -> desc -> no sort
-        if (prev.direction === "asc") {
-          return { column, direction: "desc" };
-        } else if (prev.direction === "desc") {
-          return { column: null, direction: null };
-        } else {
-          return { column, direction: "asc" };
-        }
-      } else {
-        // New column, start with asc
-        return { column, direction: "asc" };
+      if (prev.column === col) {
+        if (prev.direction === "asc") return { column: col, direction: "desc" };
+        if (prev.direction === "desc") return { column: null, direction: null };
       }
+      return { column: col, direction: "asc" };
     });
   };
-
-  const getSortIndicator = (column: string) => {
-    if (sortState.column !== column) return null;
-    if (sortState.direction === "asc") return <ArrowUp className="w-4 h-4 inline ml-1" />;
-    if (sortState.direction === "desc") return <ArrowDown className="w-4 h-4 inline ml-1" />;
-    return null;
+  const sortIcon = (col: string) => {
+    if (sortState.column !== col) return null;
+    return sortState.direction === "asc" ? <ArrowUp className="w-3 h-3 inline ml-0.5" /> : <ArrowDown className="w-3 h-3 inline ml-0.5" />;
   };
 
-  // CSV Export function
+  /* ── CSV Export ─────────────────────────────────────── */
   const exportCSV = () => {
-    const headers = ["Producto", "SKU", "Marca", "Categoría", "Facturación", "Unidades", "Tendencia WoW%", "Stock", "Días Stock", "Salud Stock", "ABC"];
-    const rows = filtered.map((p) => {
-      const days = p.stockData.daysOfStock;
-      const daysStr = days === null ? "â" : days > 365 ? "+365" : Math.round(days).toString();
-      return [
-        `"${p.name.replace(/"/g, '""')}"`,
-        p.sku || "",
-        p.brand || "",
-        p.category || "",
-        (p.revenue ?? 0).toFixed(2),
-        p.unitsSold,
-        (p.trendData?.wowRevenuePct ?? 0).toFixed(1),
-        p.stock ?? 0,
-        daysStr,
-        p.stockData.stockHealth || "â",
-        p.trendData.abcClass,
-      ].join(",");
-    });
+    const headers = ["Producto", "SKU", "Marca", "Categoria", "Facturacion", "Unidades", "Tendencia WoW%", "Stock", "Dias Stock", "Salud Stock", "ABC"];
+    const rows = filtered.map((p) => [
+      `"${p.name.replace(/"/g, '""')}"`, p.sku || "", p.brand || "", p.category || "",
+      (p.revenue ?? 0).toFixed(2), p.unitsSold, (p.trendData?.wowRevenuePct ?? 0).toFixed(1),
+      p.stock ?? 0, p.stockData.daysOfStock != null ? (p.stockData.daysOfStock > 365 ? "+365" : Math.round(p.stockData.daysOfStock)) : "--",
+      p.stockData.stockHealth || "--", p.trendData.abcClass,
+    ].join(","));
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `productos_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement("a"); a.href = url; a.download = `productos_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
   };
 
-  if (loading) {
+  /* ── Loading state ─────────────────────────────────── */
+  if (loading && products.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-gray-500">Cargando productos...</div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3" />
+        <span className="text-gray-500">Cargando productos...</span>
       </div>
     );
   }
 
+  /* ── Render ────────────────────────────────────────── */
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      {/* Enlarged Image Modal */}
+      {/* Image modal */}
       {enlargedImage && (
-        <div
-          className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center"
-          onClick={() => setEnlargedImage(null)}
-        >
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center" onClick={() => setEnlargedImage(null)}>
           <div className="relative max-w-md">
-            <img
-              src={enlargedImage.url}
-              alt={enlargedImage.name}
-              className="w-full rounded-lg"
-            />
-            <button
-              onClick={() => setEnlargedImage(null)}
-              className="absolute top-2 right-2 bg-white rounded-full p-1 hover:bg-gray-100 transition-colors"
-            >
+            <img src={enlargedImage.url} alt={enlargedImage.name} className="w-full rounded-lg" />
+            <button onClick={() => setEnlargedImage(null)} className="absolute top-2 right-2 bg-white rounded-full p-1">
               <X className="w-6 h-6 text-gray-800" />
             </button>
           </div>
@@ -814,329 +548,137 @@ export default function ProductsPageV10() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Productos</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Top productos por facturación · {dateFrom} a {dateTo}
+          <p className="text-sm text-gray-500 mt-1">
+            Rendimiento de productos &middot; {dateFrom} a {dateTo}
           </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            {QUICK_RANGES.map((r) => (
-              <button
-                key={r.days}
-                onClick={() => handleQuickRange(r.days)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activeQuickRange === r.days
-                    ? "bg-gray-900 text-white"
-                    : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
+        <DateRangeFilter
+          dateFrom={dateFrom} dateTo={dateTo}
+          activeQuickRange={activeQuickRange}
+          quickRanges={QUICK_RANGES}
+          onQuickRange={handleQuickRange}
+          onDateChange={handleDateChange}
+          loading={loading}
+        />
+      </div>
+
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <KpiCard icon={<DollarSign size={16} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Facturacion Total" value={formatCompact(kpiStats.totalRevenue)} />
+        <KpiCard icon={<Package size={16} className="text-green-600" />} iconBg="bg-green-50" label="Unidades Vendidas" value={kpiStats.totalUnits.toLocaleString("es-AR")} />
+        <KpiCard icon={<DollarSign size={16} className="text-amber-600" />} iconBg="bg-amber-50" label="Ticket Promedio" value={formatARS(kpiStats.ticketPromedio)} />
+        <KpiCard icon={<Zap size={16} className="text-cyan-600" />} iconBg="bg-cyan-50" label="Productos Activos" value={kpiStats.productosActivos.toLocaleString("es-AR")} />
+        <KpiCard icon={<Package size={16} className="text-purple-600" />} iconBg="bg-purple-50" label="Stock Total (uds)" value={kpiStats.totalStock.toLocaleString("es-AR")} />
+        <KpiCard icon={<Layers size={16} className="text-orange-600" />} iconBg="bg-orange-50" label="Valor de Stock" value={formatCompact(kpiStats.valorStock)} />
+      </div>
+
+      {/* Stock Health Alerts Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStockDaysFilter(stockDaysFilter === "agotado" ? "" : "agotado")}>
+          <div className="flex items-center gap-2 mb-1">
+            <X className="w-4 h-4 text-red-500" />
+            <span className="text-xs text-gray-500 font-medium">Sin Stock</span>
           </div>
-          <div className="w-px h-6 bg-gray-200" />
-          <div className="flex items-center gap-2">
-            <Calendar size={14} className="text-gray-400" />
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => handleDateChange("from", e.target.value)}
-              className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <span className="text-xs text-gray-400">→</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => handleDateChange("to", e.target.value)}
-              className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+          <p className={`text-xl font-bold ${stockHealthAlerts.sinStock > 0 ? "text-red-600" : "text-gray-900"}`}>{stockHealthAlerts.sinStock}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">productos con stock = 0</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStockDaysFilter(stockDaysFilter === "critical" ? "" : "critical")}>
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            <span className="text-xs text-gray-500 font-medium">Stock Critico</span>
           </div>
-          {loading && (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600" />
-          )}
+          <p className={`text-xl font-bold ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-gray-900"}`}>{stockHealthAlerts.critico}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">menos de 7 dias de stock</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStockDaysFilter(stockDaysFilter === "high" ? "" : "high")}>
+          <div className="flex items-center gap-2 mb-1">
+            <Package className="w-4 h-4 text-blue-500" />
+            <span className="text-xs text-gray-500 font-medium">Sobrestock</span>
+          </div>
+          <p className={`text-xl font-bold ${stockHealthAlerts.sobrestock > 0 ? "text-blue-600" : "text-gray-900"}`}>{stockHealthAlerts.sobrestock}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">mas de 90 dias de stock</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="w-4 h-4 text-gray-500" />
+            <span className="text-xs text-gray-500 font-medium">Dias Stock Promedio</span>
+          </div>
+          <p className="text-xl font-bold text-gray-900">{Math.round(stockHealthAlerts.diasPromedio)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">promedio ponderado</p>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters Bar */}
       <div className="flex flex-wrap gap-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-center">
-        {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-[320px]">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+          <input type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             placeholder="Buscar producto o SKU..."
-            className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
+            className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           {searchTerm && (
-            <button
-              onClick={() => { setSearchTerm(""); setCurrentPage(1); }}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-            >
+            <button onClick={() => { setSearchTerm(""); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
-
-        <div className="relative">
-          <select
-            value={brandFilter}
-            onChange={(e) => { setBrandFilter(e.target.value); setCurrentPage(1); }}
-            className={`px-3 py-2 border rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-              brandFilter
-                ? "border-indigo-300 bg-indigo-50"
-                : "border-gray-300 bg-white"
-            }`}
-          >
-            <option value="">Todas las marcas ({brands.length})</option>
-            {brands.map((brand) => (
-              <option key={brand} value={brand}>
-                {brand}
-              </option>
-            ))}
-          </select>
-          {brandFilter && (
-            <button
-              onClick={() => { setBrandFilter(""); setCurrentPage(1); }}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="relative">
-          <select
-            value={categoryFilter}
-            onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-            className={`px-3 py-2 border rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-              categoryFilter
-                ? "border-indigo-300 bg-indigo-50"
-                : "border-gray-300 bg-white"
-            }`}
-          >
-            <option value="">Todas las categorías ({categories.length})</option>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-          {categoryFilter && (
-            <button
-              onClick={() => { setCategoryFilter(""); setCurrentPage(1); }}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="relative">
-          <select
-            value={stockDaysFilter}
-            onChange={(e) => { setStockDaysFilter(e.target.value); setCurrentPage(1); }}
-            className={`px-3 py-2 border rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-              stockDaysFilter
-                ? "border-indigo-300 bg-indigo-50"
-                : "border-gray-300 bg-white"
-            }`}
-          >
-            <option value="">Días Stock: Todos</option>
-            <option value="agotado">Agotado (0 stock)</option>
-            <option value="critical">Crítico (&lt; 7 días)</option>
-            <option value="low">Bajo (7â30 días)</option>
-            <option value="moderate">Moderado (30â90 días)</option>
-            <option value="high">Alto (&gt; 90 días)</option>
-          </select>
-          {stockDaysFilter && (
-            <button
-              onClick={() => { setStockDaysFilter(""); setCurrentPage(1); }}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="text-sm text-gray-600 flex items-center">
-          {filtered.length} producto{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
-        </div>
-
-        {/* Export CSV */}
-        <button
-          onClick={exportCSV}
-          className="ml-auto flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          Exportar CSV
+        <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setCurrentPage(1); }}
+          className={`px-3 py-2 border rounded-lg text-sm text-gray-900 ${brandFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+          <option value="">Todas las marcas ({brands.length})</option>
+          {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+        </select>
+        <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
+          className={`px-3 py-2 border rounded-lg text-sm text-gray-900 ${categoryFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+          <option value="">Todas las categorias ({categories.length})</option>
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <span className="text-sm text-gray-600">{filtered.length} producto{filtered.length !== 1 ? "s" : ""}</span>
+        <button onClick={exportCSV} className="ml-auto flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+          <Download className="w-4 h-4" />Exportar CSV
         </button>
       </div>
+
+      {/* Stock Health Chips */}
+      <StockChips active={stockDaysFilter} onChange={(k) => { setStockDaysFilter(k); setCurrentPage(1); }} counts={stockChipCounts} />
 
       {/* Tab Navigation */}
       <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1 w-full">
         {(["overview", "trends", "stock"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
-              activeTab === tab
-                ? "bg-white shadow-sm text-indigo-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            {tab === "overview" && "Overview"}
-            {tab === "trends" && "Tendencias de Venta"}
-            {tab === "stock" && "Stock Inteligente"}
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${activeTab === tab ? "bg-white shadow-sm text-indigo-600" : "text-gray-600 hover:text-gray-900"}`}>
+            {tab === "overview" ? "Overview" : tab === "trends" ? "Tendencias de Venta" : "Stock Inteligente"}
           </button>
         ))}
       </div>
 
-      {/* TAB 1: OVERVIEW */}
+      {/* ──────────────── TAB: OVERVIEW ──────────────── */}
       {activeTab === "overview" && (
         <div className="space-y-6">
-          {/* KPI Cards Row */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <DollarSign className="w-4 h-4 text-indigo-500" />
-                <span className="text-xs text-gray-500 font-medium">Facturación Total</span>
-              </div>
-              <p className="text-xl font-bold text-gray-900">{formatCompact((kpiStats?.totalRevenue ?? 0))}</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Package className="w-4 h-4 text-green-500" />
-                <span className="text-xs text-gray-500 font-medium">Unidades Vendidas</span>
-              </div>
-              <p className="text-xl font-bold text-gray-900">{(kpiStats?.totalUnits ?? 0)?.toLocaleString("es-AR")}</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <DollarSign className="w-4 h-4 text-amber-500" />
-                <span className="text-xs text-gray-500 font-medium">Ticket Promedio</span>
-              </div>
-              <p className="text-xl font-bold text-gray-900">{formatARS((kpiStats?.ticketPromedio ?? 0))}</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-4 h-4 text-cyan-500" />
-                <span className="text-xs text-gray-500 font-medium">Productos Activos</span>
-              </div>
-              <p className="text-xl font-bold text-gray-900">{(kpiStats?.productosActivos ?? 0)?.toLocaleString("es-AR")}</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Package className="w-4 h-4 text-purple-500" />
-                <span className="text-xs text-gray-500 font-medium">Stock Total (uds)</span>
-              </div>
-              <p className="text-xl font-bold text-gray-900">{(kpiStats?.totalStock ?? 0)?.toLocaleString("es-AR")}</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Package className="w-4 h-4 text-orange-500" />
-                <span className="text-xs text-gray-500 font-medium">Valor de Stock</span>
-              </div>
-              <p className="text-xl font-bold text-gray-900">{formatCompact((kpiStats?.valorStock ?? 0))}</p>
-            </div>
-          </div>
-
-          {/* Stock Health Alerts Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <X className="w-4 h-4 text-red-500" />
-                <span className="text-xs text-gray-500 font-medium">Sin Stock</span>
-              </div>
-              <p className={`text-xl font-bold ${stockHealthAlerts.sinStock > 0 ? "text-red-600" : "text-gray-900"}`}>{stockHealthAlerts.sinStock}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">productos con stock = 0</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className="w-4 h-4 text-amber-500" />
-                <span className="text-xs text-gray-500 font-medium">Stock Crítico</span>
-              </div>
-              <p className={`text-xl font-bold ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-gray-900"}`}>{stockHealthAlerts.critico}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">menos de 7 días de stock</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Package className="w-4 h-4 text-blue-500" />
-                <span className="text-xs text-gray-500 font-medium">Sobrestock</span>
-              </div>
-              <p className={`text-xl font-bold ${stockHealthAlerts.sobrestock > 0 ? "text-blue-600" : "text-gray-900"}`}>{stockHealthAlerts.sobrestock}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">más de 90 días de stock</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Search className="w-4 h-4 text-gray-500" />
-                <span className="text-xs text-gray-500 font-medium">Días Stock Promedio</span>
-              </div>
-              <p className="text-xl font-bold text-gray-900">{Math.round(stockHealthAlerts.diasPromedio)}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">promedio ponderado</p>
-            </div>
-          </div>
-
-
-          {/* Metric Toggle Pills */}
+          {/* Metric Toggle */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600 font-medium">Métrica:</span>
+            <span className="text-sm text-gray-600 font-medium">Metrica:</span>
             <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
-              <button
-                onClick={() => setChartMetric("revenue")}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  chartMetric === "revenue"
-                    ? "bg-white shadow-sm text-indigo-600"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Facturación
-              </button>
-              <button
-                onClick={() => setChartMetric("units")}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  chartMetric === "units"
-                    ? "bg-white shadow-sm text-indigo-600"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Unidades
-              </button>
+              {(["revenue", "units"] as const).map((m) => (
+                <button key={m} onClick={() => setChartMetric(m)}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${chartMetric === m ? "bg-white shadow-sm text-indigo-600" : "text-gray-600"}`}>
+                  {m === "revenue" ? "Facturacion" : "Unidades"}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Distribution Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Brand Chart + Ranking */}
+            {/* Brand Chart */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h3 className="font-semibold text-gray-900 mb-4">Por Marca</h3>
               <div className="flex gap-4">
-                <div className="flex-shrink-0" style={{width: '220px', height: '220px'}}>
+                <div className="flex-shrink-0" style={{ width: "220px", height: "220px" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie
-                        data={brandDistribution.slice(0, 10)}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={90}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {brandDistribution.slice(0, 10).map((entry, index) => (
-                          <Cell key={`cell-b-${index}`} fill={entry.color} />
-                        ))}
+                      <Pie data={brandDistribution.slice(0, 10)} cx="50%" cy="50%" outerRadius={90} dataKey="value" labelLine={false}>
+                        {brandDistribution.slice(0, 10).map((e, i) => <Cell key={i} fill={e.color} />)}
                       </Pie>
-                      <Tooltip
-                        formatter={(value: number) => {
-                          const total = brandDistribution.reduce((s, e) => s + e.value, 0);
-                          const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
-                          return chartMetric === "revenue"
-                            ? `${formatARS(value)} (${pct}%)`
-                            : `${value?.toLocaleString("es-AR")} uds (${pct}%)`;
-                        }}
-                      />
+                      <Tooltip formatter={(v: number) => { const t = brandDistribution.reduce((s, e) => s + e.value, 0); return chartMetric === "revenue" ? `${formatARS(v)} (${t > 0 ? ((v / t) * 100).toFixed(1) : 0}%)` : `${v?.toLocaleString("es-AR")} uds`; }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -1145,63 +687,35 @@ export default function ProductsPageV10() {
                     <thead className="sticky top-0 bg-white">
                       <tr>
                         <th className="text-left py-1 text-gray-500 font-medium">Marca</th>
-                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturación" : "Unidades"}</th>
+                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturacion" : "Unidades"}</th>
                         <th className="text-right py-1 text-gray-500 font-medium">%</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(() => {
-                        const total = brandDistribution.reduce((s, e) => s + e.value, 0);
-                        return brandDistribution.map((entry, idx) => (
-                          <tr key={entry.name} className="border-t border-gray-100 hover:bg-gray-50">
-                            <td className="py-1.5 flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{backgroundColor: entry.color}} />
-                              <span className="text-gray-800 truncate max-w-[120px]" title={entry.name}>{entry.name}</span>
-                            </td>
-                            <td className="py-1.5 text-right text-gray-700 font-medium">
-                              {chartMetric === "revenue" ? formatCompact(entry.value) : entry.value?.toLocaleString("es-AR")}
-                            </td>
-                            <td className="py-1.5 text-right text-gray-600">
-                              {total > 0 ? ((entry.value / total) * 100).toFixed(1) : "0"}%
-                            </td>
-                          </tr>
-                        ));
-                      })()}
+                      {(() => { const t = brandDistribution.reduce((s, e) => s + e.value, 0); return brandDistribution.map((e) => (
+                        <tr key={e.name} className="border-t border-gray-100 hover:bg-gray-50">
+                          <td className="py-1.5 flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} /><span className="text-gray-800 truncate max-w-[120px]" title={e.name}>{e.name}</span></td>
+                          <td className="py-1.5 text-right text-gray-700 font-medium">{chartMetric === "revenue" ? formatCompact(e.value) : e.value?.toLocaleString("es-AR")}</td>
+                          <td className="py-1.5 text-right text-gray-600">{t > 0 ? ((e.value / t) * 100).toFixed(1) : "0"}%</td>
+                        </tr>
+                      )); })()}
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
 
-            {/* Category Chart + Ranking */}
+            {/* Category Chart */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-4">Por Categoría</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">Por Categoria</h3>
               <div className="flex gap-4">
-                <div className="flex-shrink-0" style={{width: '220px', height: '220px'}}>
+                <div className="flex-shrink-0" style={{ width: "220px", height: "220px" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie
-                        data={categoryDistribution.slice(0, 10)}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={90}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {categoryDistribution.slice(0, 10).map((entry, index) => (
-                          <Cell key={`cell-c-${index}`} fill={entry.color} />
-                        ))}
+                      <Pie data={categoryDistribution.slice(0, 10)} cx="50%" cy="50%" outerRadius={90} dataKey="value" labelLine={false}>
+                        {categoryDistribution.slice(0, 10).map((e, i) => <Cell key={i} fill={e.color} />)}
                       </Pie>
-                      <Tooltip
-                        formatter={(value: number) => {
-                          const total = categoryDistribution.reduce((s, e) => s + e.value, 0);
-                          const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
-                          return chartMetric === "revenue"
-                            ? `${formatARS(value)} (${pct}%)`
-                            : `${value?.toLocaleString("es-AR")} uds (${pct}%)`;
-                        }}
-                      />
+                      <Tooltip formatter={(v: number) => { const t = categoryDistribution.reduce((s, e) => s + e.value, 0); return chartMetric === "revenue" ? `${formatARS(v)} (${t > 0 ? ((v / t) * 100).toFixed(1) : 0}%)` : `${v?.toLocaleString("es-AR")} uds`; }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -1209,29 +723,19 @@ export default function ProductsPageV10() {
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-white">
                       <tr>
-                        <th className="text-left py-1 text-gray-500 font-medium">Categoría</th>
-                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturación" : "Unidades"}</th>
+                        <th className="text-left py-1 text-gray-500 font-medium">Categoria</th>
+                        <th className="text-right py-1 text-gray-500 font-medium">{chartMetric === "revenue" ? "Facturacion" : "Unidades"}</th>
                         <th className="text-right py-1 text-gray-500 font-medium">%</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(() => {
-                        const total = categoryDistribution.reduce((s, e) => s + e.value, 0);
-                        return categoryDistribution.map((entry, idx) => (
-                          <tr key={entry.name} className="border-t border-gray-100 hover:bg-gray-50">
-                            <td className="py-1.5 flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{backgroundColor: entry.color}} />
-                              <span className="text-gray-800 truncate max-w-[120px]" title={entry.name}>{entry.name}</span>
-                            </td>
-                            <td className="py-1.5 text-right text-gray-700 font-medium">
-                              {chartMetric === "revenue" ? formatCompact(entry.value) : entry.value?.toLocaleString("es-AR")}
-                            </td>
-                            <td className="py-1.5 text-right text-gray-600">
-                              {total > 0 ? ((entry.value / total) * 100).toFixed(1) : "0"}%
-                            </td>
-                          </tr>
-                        ));
-                      })()}
+                      {(() => { const t = categoryDistribution.reduce((s, e) => s + e.value, 0); return categoryDistribution.map((e) => (
+                        <tr key={e.name} className="border-t border-gray-100 hover:bg-gray-50">
+                          <td className="py-1.5 flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} /><span className="text-gray-800 truncate max-w-[120px]" title={e.name}>{e.name}</span></td>
+                          <td className="py-1.5 text-right text-gray-700 font-medium">{chartMetric === "revenue" ? formatCompact(e.value) : e.value?.toLocaleString("es-AR")}</td>
+                          <td className="py-1.5 text-right text-gray-600">{t > 0 ? ((e.value / t) * 100).toFixed(1) : "0"}%</td>
+                        </tr>
+                      )); })()}
                     </tbody>
                   </table>
                 </div>
@@ -1242,153 +746,70 @@ export default function ProductsPageV10() {
           {/* Products Table */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
             <div className="p-6 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900">
-                Productos ({filtered.length})
-              </h3>
+              <h3 className="font-semibold text-gray-900">Productos ({filtered.length})</h3>
             </div>
             <div className="overflow-x-auto flex-1 flex flex-col">
               <div className="overflow-y-auto max-h-[600px]">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                     <tr>
-                      <th className="px-6 py-3 text-left font-semibold text-gray-700">
-                        Producto
+                      <th className="px-6 py-3 text-left font-semibold text-gray-700">Producto</th>
+                      <th className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("revenue")}>
+                        <TooltipHeader text="Facturacion" tooltip={COLUMN_TOOLTIPS.facturacion} />{sortIcon("revenue")}
                       </th>
-                      <th
-                        className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => handleSort("revenue")}
-                      >
-                        <TooltipHeader text="Facturación" tooltip={COLUMN_TOOLTIPS.facturacion} />
-                        {getSortIndicator("revenue")}
+                      <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Marca" tooltip={COLUMN_TOOLTIPS.porcMarca} /></th>
+                      <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Cat." tooltip={COLUMN_TOOLTIPS.porcCat} /></th>
+                      <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Total" tooltip={COLUMN_TOOLTIPS.porcTotal} /></th>
+                      <th className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("unitsSold")}>
+                        <TooltipHeader text="Unidades" tooltip={COLUMN_TOOLTIPS.unidades} />{sortIcon("unitsSold")}
                       </th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-700">
-                        <TooltipHeader text="% Marca" tooltip={COLUMN_TOOLTIPS.porcMarca} />
+                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("wowRevenuePct")}>
+                        <TooltipHeader text="WoW" tooltip={COLUMN_TOOLTIPS.tendencia} />{sortIcon("wowRevenuePct")}
                       </th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-700">
-                        <TooltipHeader text="% Cat." tooltip={COLUMN_TOOLTIPS.porcCat} />
+                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("stock")}>
+                        <TooltipHeader text="Stock" tooltip={COLUMN_TOOLTIPS.stock} />{sortIcon("stock")}
                       </th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-700">
-                        <TooltipHeader text="% Total" tooltip={COLUMN_TOOLTIPS.porcTotal} />
+                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("daysOfStock")}>
+                        <TooltipHeader text="Dias" tooltip={COLUMN_TOOLTIPS.diasstock} />{sortIcon("daysOfStock")}
                       </th>
-                      <th
-                        className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => handleSort("unitsSold")}
-                      >
-                        <TooltipHeader text="Unidades" tooltip={COLUMN_TOOLTIPS.unidades} />
-                        {getSortIndicator("unitsSold")}
-                      </th>
-                      <th
-                        className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => handleSort("wowRevenuePct")}
-                      >
-                        <TooltipHeader text="Tendencia WoW" tooltip={COLUMN_TOOLTIPS.tendencia} />
-                        {getSortIndicator("wowRevenuePct")}
-                      </th>
-                      <th
-                        className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => handleSort("stock")}
-                      >
-                        <TooltipHeader text="Stock" tooltip={COLUMN_TOOLTIPS.stock} />
-                        {getSortIndicator("stock")}
-                      </th>
-                      <th
-                        className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => handleSort("daysOfStock")}
-                      >
-                        <TooltipHeader text="Días Stock" tooltip={COLUMN_TOOLTIPS.diasstock} />
-                        {getSortIndicator("daysOfStock")}
-                      </th>
-                      <th
-                        className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => handleSort("abc")}
-                      >
-                        <TooltipHeader text="ABC" tooltip={COLUMN_TOOLTIPS.abc} />
-                        {getSortIndicator("abc")}
+                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("abc")}>
+                        <TooltipHeader text="ABC" tooltip={COLUMN_TOOLTIPS.abc} />{sortIcon("abc")}
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {paginatedProducts.map((product) => {
-                      const brandRevenue = revenueCalculations.brandTotals.get(product.brand || "Sin marca") || 1;
-                      const catRevenue = revenueCalculations.categoryTotals.get(product.category || "Sin categoría") || 1;
-                      const porcMarca = (product.revenue / brandRevenue) * 100;
-                      const porcCat = (product.revenue / catRevenue) * 100;
-                      const porcTotal = revenueCalculations.totalRevenue > 0 ? (product.revenue / revenueCalculations.totalRevenue) * 100 : 0;
-
+                    {paginatedProducts.map((p) => {
+                      const brandRev = revenueCalcs.brandT.get(p.brand || "Sin marca") || 1;
+                      const catRev = revenueCalcs.catT.get(p.category || "Sin categoria") || 1;
+                      const pMarca = (p.revenue / brandRev) * 100;
+                      const pCat = (p.revenue / catRev) * 100;
+                      const pTotal = revenueCalcs.total > 0 ? (p.revenue / revenueCalcs.total) * 100 : 0;
                       return (
-                        <tr
-                          key={product.id}
-                          className="hover:bg-gray-50 transition-colors"
-                        >
+                        <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              {product.imageUrl && (
-                                <img
-                                  src={product.imageUrl}
-                                  alt={product.name}
-                                  className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                                  onClick={() => setEnlargedImage({ url: product.imageUrl!, name: product.name })}
-                                />
+                              {p.imageUrl && (
+                                <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80" onClick={() => setEnlargedImage({ url: p.imageUrl!, name: p.name })} />
                               )}
                               <div>
-                                <div className="font-medium text-gray-900">
-                                  {product.name}
-                                </div>
-                                <div className="text-xs text-gray-500 mb-2">
-                                  {product.sku || "â"}
-                                </div>
-                                <div className="flex gap-2">
-                                  {product.brand && (
-                                    <span className="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-medium">
-                                      {product.brand}
-                                    </span>
-                                  )}
-                                  {product.category && (
-                                    <span className="inline-block px-2 py-0.5 bg-teal-100 text-teal-700 rounded text-[10px] font-medium">
-                                      {product.category}
-                                    </span>
-                                  )}
+                                <div className="font-medium text-gray-900">{p.name}</div>
+                                <div className="text-xs text-gray-500 mb-1">{p.sku || "--"}</div>
+                                <div className="flex gap-1.5">
+                                  {p.brand && <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-medium">{p.brand}</span>}
+                                  {p.category && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded text-[10px] font-medium">{p.category}</span>}
                                 </div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right font-medium text-gray-900">
-                            {formatARS(product.revenue)}
-                          </td>
-                          <td className="px-6 py-4 text-right text-gray-700">
-                            {(porcMarca ?? 0).toFixed(1)}%
-                          </td>
-                          <td className="px-6 py-4 text-right text-gray-700">
-                            {(porcCat ?? 0).toFixed(1)}%
-                          </td>
-                          <td className="px-6 py-4 text-right text-gray-700">
-                            {(porcTotal ?? 0).toFixed(1)}%
-                          </td>
-                          <td className="px-6 py-4 text-right text-gray-700">
-                            {formatCompact(product.unitsSold)}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-center">
-                              <TrendIndicator
-                                wowRevenuePct={product.trendData.wowRevenuePct}
-                              />
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={`font-medium ${(product.stock ?? 0) === 0 ? "text-red-600" : "text-gray-900"}`}>
-                              {(product.stock ?? 0) === 0 ? "0" : (product.stock ?? 0)}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <StockBadge
-                              daysOfStock={product.stockData.daysOfStock}
-                              stockHealth={product.stockData.stockHealth}
-                              stock={product.stock}
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <ABCBadge abcClass={product.trendData.abcClass} />
-                          </td>
+                          <td className="px-6 py-4 text-right font-medium text-gray-900">{formatARS(p.revenue)}</td>
+                          <td className="px-6 py-4 text-right text-gray-700">{pMarca.toFixed(1)}%</td>
+                          <td className="px-6 py-4 text-right text-gray-700">{pCat.toFixed(1)}%</td>
+                          <td className="px-6 py-4 text-right text-gray-700">{pTotal.toFixed(1)}%</td>
+                          <td className="px-6 py-4 text-right text-gray-700">{formatCompact(p.unitsSold)}</td>
+                          <td className="px-6 py-4 text-center"><TrendIndicator value={p.trendData.wowRevenuePct} /></td>
+                          <td className="px-6 py-4 text-center"><span className={`font-medium ${(p.stock ?? 0) === 0 ? "text-red-600" : "text-gray-900"}`}>{p.stock ?? 0}</span></td>
+                          <td className="px-6 py-4 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>
+                          <td className="px-6 py-4 text-center"><ABCBadge abcClass={p.trendData.abcClass} /></td>
                         </tr>
                       );
                     })}
@@ -1396,118 +817,80 @@ export default function ProductsPageV10() {
                 </table>
               </div>
             </div>
-
             {/* Pagination */}
-            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between text-sm">
-              <div className="text-gray-600">
-                Mostrando {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filtered.length)}-{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} de {filtered.length} productos
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Anterior
-                </button>
-                <span className="px-4 py-1 text-gray-700 font-medium">
-                  Página {currentPage} de {totalPages}
+            {totalPages > 1 && (
+              <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between text-sm">
+                <span className="text-gray-600">
+                  Mostrando {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filtered.length)}-{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} de {filtered.length}
                 </span>
-                <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Siguiente
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-700">Anterior</button>
+                  <span className="px-4 py-1 text-gray-700 font-medium">Pag {currentPage} de {totalPages}</span>
+                  <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="px-3 py-1 border border-gray-300 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-700">Siguiente</button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        </div>
-      )}
 
-
-      {/* BOLSAS DE COMPRA */}
-      {activeTab === "overview" && bagsAnalytics && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-xl border border-amber-200">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-2xl">=</span>
-            <h3 className="text-lg font-semibold text-amber-900">Bolsas de Compra</h3>
-            <span className="ml-auto text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
-              Últimos 30 días
-            </span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="bg-white/80 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-1">Unidades Vendidas</p>
-              <p className="text-xl font-bold text-amber-800">{(bagsAnalytics?.totalBagsSold ?? 0)?.toLocaleString("es-AR")}</p>
-            </div>
-            <div className="bg-white/80 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-1">Revenue</p>
-              <p className="text-xl font-bold text-amber-800">{"$" + (bagsAnalytics?.bagsRevenue ?? 0)?.toLocaleString("es-AR")}</p>
-            </div>
-            <div className="bg-white/80 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-1">Stock Actual</p>
-              <p className="text-xl font-bold text-amber-800">{(bagsAnalytics?.currentStock?.total ?? 0)?.toLocaleString("es-AR")}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">Grande: {(bagsAnalytics?.currentStock?.grande ?? 0)?.toLocaleString("es-AR")} | Chica: {(bagsAnalytics?.currentStock?.chica ?? 0)?.toLocaleString("es-AR")}</p>
-            </div>
-            <div className="bg-white/80 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-1">Adopción</p>
-              <p className="text-xl font-bold text-amber-800">{(bagsAnalytics?.bagAdoptionPct ?? 0)}%</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{(bagsAnalytics?.ordersWithBags ?? 0)} de {(bagsAnalytics?.totalOrders ?? 0)} órdenes</p>
-              <div className="w-full bg-amber-200 rounded-full h-1.5 mt-1.5">
-                <div className="bg-amber-600 h-1.5 rounded-full transition-all" style={{ width: Math.min((bagsAnalytics?.bagAdoptionPct ?? 0), 100) + "%" }} />
+          {/* Bags Analytics */}
+          {bagsAnalytics && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-xl border border-amber-200">
+              <div className="flex items-center gap-2 mb-4">
+                <ShoppingBag className="w-5 h-5 text-amber-700" />
+                <h3 className="text-lg font-semibold text-amber-900">Bolsas de Compra</h3>
+                <span className="ml-auto text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">Periodo seleccionado</span>
               </div>
-            </div>
-          </div>
-          {(bagsAnalytics?.breakdown ?? []).length > 0 && (
-            <div className="flex gap-2 flex-wrap">
-              {(bagsAnalytics?.breakdown ?? []).map((bag: any, i: number) => (
-                <span key={i} className="text-xs bg-white/60 text-amber-800 px-2 py-1 rounded border border-amber-200">
-                  {bag.name.length > 40 ? bag.name.substring(0, 40) + "..." : bag.name}: {bag.unitsSold}u Â· stock {bag.stock ?? "N/A"}
-                </span>
-              ))}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-white/80 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Unidades Vendidas</p>
+                  <p className="text-xl font-bold text-amber-800">{bagsAnalytics.totalBagsSold.toLocaleString("es-AR")}</p>
+                </div>
+                <div className="bg-white/80 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Revenue</p>
+                  <p className="text-xl font-bold text-amber-800">${bagsAnalytics.bagsRevenue.toLocaleString("es-AR")}</p>
+                </div>
+                <div className="bg-white/80 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Stock Actual</p>
+                  <p className="text-xl font-bold text-amber-800">{bagsAnalytics.currentStock.total.toLocaleString("es-AR")}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Grande: {bagsAnalytics.currentStock.grande.toLocaleString("es-AR")} | Chica: {bagsAnalytics.currentStock.chica.toLocaleString("es-AR")}</p>
+                </div>
+                <div className="bg-white/80 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Adopcion</p>
+                  <p className="text-xl font-bold text-amber-800">{bagsAnalytics.bagAdoptionPct}%</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{bagsAnalytics.ordersWithBags} de {bagsAnalytics.totalOrders} ordenes</p>
+                  <div className="w-full bg-amber-200 rounded-full h-1.5 mt-1.5">
+                    <div className="bg-amber-600 h-1.5 rounded-full" style={{ width: Math.min(bagsAnalytics.bagAdoptionPct, 100) + "%" }} />
+                  </div>
+                </div>
+              </div>
+              {bagsAnalytics.breakdown.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {bagsAnalytics.breakdown.map((bag, i) => (
+                    <span key={i} className="text-xs bg-white/60 text-amber-800 px-2 py-1 rounded border border-amber-200">
+                      {bag.name.length > 40 ? bag.name.substring(0, 40) + "..." : bag.name}: {bag.unitsSold}u - stock {bag.stock ?? "N/A"}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* TAB 2: TENDENCIAS DE VENTA */}
+      {/* ──────────────── TAB: TENDENCIAS ─────────────── */}
       {activeTab === "trends" && (
         <div className="space-y-6">
           {/* Category Evolution */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">
-              Evolución por Categoría
-            </h3>
+            <h3 className="font-semibold text-gray-900 mb-4">Evolucion por Categoria</h3>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={categoryTrends}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="weekStart"
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(date) => {
-                    const d = new Date(date);
-                    return `${d.getDate()}/${d.getMonth() + 1}`;
-                  }}
-                />
+                <XAxis dataKey="weekStart" tick={{ fontSize: 12 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
                 <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => formatARS(value)}
-                  labelFormatter={(date) => {
-                    const d = new Date(date);
-                    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
-                  }}
-                />
-                {categoryDistribution.slice(0, 5).map((cat, idx) => (
-                  <Area
-                    key={cat.name}
-                    type="monotone"
-                    dataKey={cat.name}
-                    fill={cat.color}
-                    stroke={cat.color}
-                    fillOpacity={0.3}
-                  />
+                <Tooltip formatter={(v: any) => formatARS(v)} labelFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`; }} />
+                {categoryDistribution.slice(0, 5).map((c) => (
+                  <Area key={c.name} type="monotone" dataKey={c.name} fill={c.color} stroke={c.color} fillOpacity={0.3} />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
@@ -1515,99 +898,47 @@ export default function ProductsPageV10() {
 
           {/* Brand Evolution */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">
-              Evolución por Marca
-            </h3>
+            <h3 className="font-semibold text-gray-900 mb-4">Evolucion por Marca</h3>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={brandTrends}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="weekStart"
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(date) => {
-                    const d = new Date(date);
-                    return `${d.getDate()}/${d.getMonth() + 1}`;
-                  }}
-                />
+                <XAxis dataKey="weekStart" tick={{ fontSize: 12 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
                 <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => formatARS(value)}
-                  labelFormatter={(date) => {
-                    const d = new Date(date);
-                    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
-                  }}
-                />
-                {brandDistribution.slice(0, 5).map((brand, idx) => (
-                  <Area
-                    key={brand.name}
-                    type="monotone"
-                    dataKey={brand.name}
-                    fill={brand.color}
-                    stroke={brand.color}
-                    fillOpacity={0.3}
-                  />
+                <Tooltip formatter={(v: any) => formatARS(v)} labelFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`; }} />
+                {brandDistribution.slice(0, 5).map((b) => (
+                  <Area key={b.name} type="monotone" dataKey={b.name} fill={b.color} stroke={b.color} fillOpacity={0.3} />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Top Growing Products */}
+          {/* Top Growing */}
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl shadow-sm border border-green-200">
             <h3 className="font-semibold text-green-900 mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Top Productos en Alza
+              <TrendingUp className="w-5 h-5" /> Top Productos en Alza
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-green-100">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-green-900">
-                      #
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold text-green-900">
-                      Producto
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold text-green-900">
-                      WoW%
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold text-green-900">
-                      Facturación 30d
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-green-900">
-                      Sparkline
-                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-green-900">#</th>
+                    <th className="px-4 py-3 text-left font-semibold text-green-900">Producto</th>
+                    <th className="px-4 py-3 text-right font-semibold text-green-900">WoW%</th>
+                    <th className="px-4 py-3 text-right font-semibold text-green-900">Facturacion</th>
+                    <th className="px-4 py-3 text-center font-semibold text-green-900">Sparkline</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-green-200">
-                  {topGrowing.map((product, idx) => (
-                    <tr key={product.id} className="hover:bg-green-100/50">
-                      <td className="px-4 py-3 text-green-900 font-bold">
-                        {idx + 1}
-                      </td>
+                  {topGrowing.map((p, i) => (
+                    <tr key={p.id} className="hover:bg-green-100/50">
+                      <td className="px-4 py-3 text-green-900 font-bold">{i + 1}</td>
                       <td className="px-4 py-3 flex items-center gap-2">
-                        {product.imageUrl && (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="w-6 h-6 rounded object-cover"
-                          />
-                        )}
-                        <span className="text-green-900 font-medium">
-                          {product.name}
-                        </span>
+                        {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-6 h-6 rounded object-cover" />}
+                        <span className="text-green-900 font-medium">{p.name}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-green-600 font-bold">
-                        +{(product.trendData?.wowRevenuePct ?? 0).toFixed(1)}%
-                      </td>
-                      <td className="px-4 py-3 text-right text-green-900 font-medium">
-                        {formatARS(product.revenue)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Sparkline
-                          data={product.trendData.weeklyTrend.map((w) => w.revenue)}
-                          color="#10b981"
-                        />
-                      </td>
+                      <td className="px-4 py-3 text-right text-green-600 font-bold">+{p.trendData.wowRevenuePct.toFixed(1)}%</td>
+                      <td className="px-4 py-3 text-right text-green-900 font-medium">{formatARS(p.revenue)}</td>
+                      <td className="px-4 py-3 text-center"><Sparkline data={p.trendData.weeklyTrend.map((w) => w.revenue)} color="#10b981" /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -1615,63 +946,33 @@ export default function ProductsPageV10() {
             </div>
           </div>
 
-          {/* Top Declining Products */}
+          {/* Top Declining */}
           <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-xl shadow-sm border border-red-200">
             <h3 className="font-semibold text-red-900 mb-4 flex items-center gap-2">
-              <TrendingDown className="w-5 h-5" />
-              Productos en Caída
+              <TrendingDown className="w-5 h-5" /> Productos en Caida
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-red-100">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-red-900">
-                      #
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold text-red-900">
-                      Producto
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold text-red-900">
-                      WoW%
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold text-red-900">
-                      Facturación 30d
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-red-900">
-                      Sparkline
-                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-red-900">#</th>
+                    <th className="px-4 py-3 text-left font-semibold text-red-900">Producto</th>
+                    <th className="px-4 py-3 text-right font-semibold text-red-900">WoW%</th>
+                    <th className="px-4 py-3 text-right font-semibold text-red-900">Facturacion</th>
+                    <th className="px-4 py-3 text-center font-semibold text-red-900">Sparkline</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-red-200">
-                  {topDeclining.map((product, idx) => (
-                    <tr key={product.id} className="hover:bg-red-100/50">
-                      <td className="px-4 py-3 text-red-900 font-bold">
-                        {idx + 1}
-                      </td>
+                  {topDeclining.map((p, i) => (
+                    <tr key={p.id} className="hover:bg-red-100/50">
+                      <td className="px-4 py-3 text-red-900 font-bold">{i + 1}</td>
                       <td className="px-4 py-3 flex items-center gap-2">
-                        {product.imageUrl && (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="w-6 h-6 rounded object-cover"
-                          />
-                        )}
-                        <span className="text-red-900 font-medium">
-                          {product.name}
-                        </span>
+                        {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-6 h-6 rounded object-cover" />}
+                        <span className="text-red-900 font-medium">{p.name}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-red-600 font-bold">
-                        {(product.trendData?.wowRevenuePct ?? 0).toFixed(1)}%
-                      </td>
-                      <td className="px-4 py-3 text-right text-red-900 font-medium">
-                        {formatARS(product.revenue)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Sparkline
-                          data={product.trendData.weeklyTrend.map((w) => w.revenue)}
-                          color="#ef4444"
-                        />
-                      </td>
+                      <td className="px-4 py-3 text-right text-red-600 font-bold">{p.trendData.wowRevenuePct.toFixed(1)}%</td>
+                      <td className="px-4 py-3 text-right text-red-900 font-medium">{formatARS(p.revenue)}</td>
+                      <td className="px-4 py-3 text-center"><Sparkline data={p.trendData.weeklyTrend.map((w) => w.revenue)} color="#ef4444" /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -1681,148 +982,62 @@ export default function ProductsPageV10() {
         </div>
       )}
 
-      {/* TAB 3: STOCK INTELIGENTE */}
+      {/* ──────────────── TAB: STOCK INTELIGENTE ──────── */}
       {activeTab === "stock" && (
         <div className="space-y-6">
-          {/* KPI Cards */}
+          {/* Stock KPIs */}
           {stockSummary && (
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total en Stock</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-2">
-                      {formatCompact(stockSummary.totalStockUnits)}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">unidades</p>
-                  </div>
-                  <Package className="w-12 h-12 text-blue-500 opacity-20" />
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Valor Inventario</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-2">
-                      {formatARS(stockSummary.totalStockValue)}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">capital</p>
-                  </div>
-                  <DollarSign className="w-12 h-12 text-green-500 opacity-20" />
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Productos en Riesgo</p>
-                    <p className="text-3xl font-bold text-amber-600 mt-2">
-                      {stockSummary.criticalCount + stockSummary.lowCount}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {stockSummary.criticalCount} crítico,{" "}
-                      {stockSummary.lowCount} bajo
-                    </p>
-                  </div>
-                  <AlertTriangle className="w-12 h-12 text-amber-500 opacity-20" />
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Productos Muertos</p>
-                    <p className="text-3xl font-bold text-red-600 mt-2">
-                      {stockSummary.deadCount}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">sin venta</p>
-                  </div>
-                  <Zap className="w-12 h-12 text-red-500 opacity-20" />
-                </div>
-              </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiCard icon={<Package size={16} className="text-blue-600" />} iconBg="bg-blue-50" label="Total en Stock" value={formatCompact(stockSummary.totalStockUnits)} subtitle="unidades" />
+              <KpiCard icon={<DollarSign size={16} className="text-green-600" />} iconBg="bg-green-50" label="Valor Inventario" value={formatARS(stockSummary.totalStockValue)} subtitle="capital" />
+              <KpiCard icon={<AlertTriangle size={16} className="text-amber-600" />} iconBg="bg-amber-50" label="En Riesgo" value={String(stockSummary.criticalCount + stockSummary.lowCount)} subtitle={`${stockSummary.criticalCount} critico, ${stockSummary.lowCount} bajo`} />
+              <KpiCard icon={<Zap size={16} className="text-red-600" />} iconBg="bg-red-50" label="Stock Muerto" value={String(stockSummary.deadCount)} subtitle="sin venta" />
             </div>
           )}
 
-          {/* Stock Health Pie Chart */}
+          {/* Stock Health Pie */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">
-              Salud General del Inventario
-            </h3>
-            <div className="grid grid-cols-3 gap-6">
+            <h3 className="font-semibold text-gray-900 mb-4">Salud General del Inventario</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="flex justify-center">
                 <ResponsiveContainer width={250} height={250}>
                   <PieChart>
-                    <Pie
-                      data={distributionData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {distributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
+                    <Pie data={distributionData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value">
+                      {distributionData.map((e, i) => <Cell key={i} fill={e.color} />)}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-
               <div className="col-span-2 space-y-3">
-                {distributionData.map((item) => (
-                  <div
-                    key={item.name}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-sm font-medium text-gray-900">
-                        {item.name}
-                      </span>
+                {distributionData.map((item) => {
+                  const total = distributionData.reduce((s, d) => s + d.value, 0);
+                  return (
+                    <div key={item.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-900">{item.value}</span>
+                        <span className="text-xs text-gray-600">({total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%)</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-gray-900">
-                        {item.value}
-                      </span>
-                      <span className="text-xs text-gray-600">
-                        (
-                        {(
-                          (item.value /
-                            distributionData.reduce((sum, d) => sum + d.value, 0)) *
-                          100
-                        ).toFixed(1)}
-                        %)
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
 
           {/* Stock por Marca */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">
-              Stock por Marca (Top 10)
-            </h3>
+            <h3 className="font-semibold text-gray-900 mb-4">Stock por Marca (Top 10)</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart
-                data={stockByBrandData}
-                layout="vertical"
-                margin={{ top: 0, right: 0, bottom: 0, left: 120 }}
-              >
+              <BarChart data={stockByBrandData} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 120 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis type="number" />
                 <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => `${value} unidades`}
-                />
+                <Tooltip formatter={(v: any) => `${v} unidades`} />
                 <Bar dataKey="units" fill="#6366f1" radius={4} />
               </BarChart>
             </ResponsiveContainer>
@@ -1830,56 +1045,25 @@ export default function ProductsPageV10() {
 
           {/* ABC Classification */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">
-              Clasificación ABC por Velocidad de Venta
-            </h3>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={abcChartData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis type="number" />
-                <YAxis dataKey="clase" type="category" width={100} />
-                <Tooltip
-                  formatter={(value) => value}
-                  labelFormatter={(label) =>
-                    typeof label === "number" ? `${label} productos` : label
-                  }
-                />
-                <Bar dataKey="count" fill="#6366f1" radius={4} />
-              </BarChart>
-            </ResponsiveContainer>
-            <div className="mt-6 grid grid-cols-3 gap-4 text-center">
+            <h3 className="font-semibold text-gray-900 mb-4">Clasificacion ABC</h3>
+            <div className="grid grid-cols-3 gap-4 text-center">
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-sm font-semibold text-green-900">
-                  Clase A
-                </p>
-                <p className="text-2xl font-bold text-green-600 mt-1">
-                  {abcCounts.A}
-                </p>
-                <p className="text-xs text-green-700 mt-1">
-                  {((abcCounts.A / (filtered.length || 1)) * 100).toFixed(1)}%
-                </p>
+                <p className="text-sm font-semibold text-green-900">Clase A</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">{abcCounts.A}</p>
+                <p className="text-xs text-green-700 mt-1">{((abcCounts.A / (filtered.length || 1)) * 100).toFixed(1)}% de productos</p>
+                <p className="text-[10px] text-green-600 mt-0.5">80% del revenue</p>
               </div>
               <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                <p className="text-sm font-semibold text-amber-900">
-                  Clase B
-                </p>
-                <p className="text-2xl font-bold text-amber-600 mt-1">
-                  {abcCounts.B}
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  {((abcCounts.B / (filtered.length || 1)) * 100).toFixed(1)}%
-                </p>
+                <p className="text-sm font-semibold text-amber-900">Clase B</p>
+                <p className="text-2xl font-bold text-amber-600 mt-1">{abcCounts.B}</p>
+                <p className="text-xs text-amber-700 mt-1">{((abcCounts.B / (filtered.length || 1)) * 100).toFixed(1)}% de productos</p>
+                <p className="text-[10px] text-amber-600 mt-0.5">15% del revenue</p>
               </div>
               <div className="p-4 bg-gray-100 rounded-lg border border-gray-300">
-                <p className="text-sm font-semibold text-gray-900">
-                  Clase C
-                </p>
-                <p className="text-2xl font-bold text-gray-600 mt-1">
-                  {abcCounts.C}
-                </p>
-                <p className="text-xs text-gray-700 mt-1">
-                  {((abcCounts.C / (filtered.length || 1)) * 100).toFixed(1)}%
-                </p>
+                <p className="text-sm font-semibold text-gray-900">Clase C</p>
+                <p className="text-2xl font-bold text-gray-600 mt-1">{abcCounts.C}</p>
+                <p className="text-xs text-gray-700 mt-1">{((abcCounts.C / (filtered.length || 1)) * 100).toFixed(1)}% de productos</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">5% del revenue</p>
               </div>
             </div>
           </div>
@@ -1887,114 +1071,52 @@ export default function ProductsPageV10() {
           {/* Stock Alerts */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-              Alertas de Quiebre de Stock
+              <AlertTriangle className="w-5 h-5 text-amber-600" /> Alertas de Quiebre de Stock
             </h3>
             <p className="text-sm text-gray-600 mb-4">
-              {stockAlerts.length} producto{stockAlerts.length !== 1 ? 's' : ''} en alerta ({stockSummary?.criticalCount || 0} crítico{stockSummary?.criticalCount !== 1 ? 's' : ''}, {stockSummary?.lowCount || 0} bajo{stockSummary?.lowCount !== 1 ? 's' : ''})
+              {stockAlerts.length} producto{stockAlerts.length !== 1 ? "s" : ""} en alerta
             </p>
             {stockAlerts.length === 0 ? (
-              <p className="text-gray-500 py-8">
-                No hay productos con alertas de quiebre.
-              </p>
+              <p className="text-gray-500 py-8 text-center">No hay productos con alertas de quiebre.</p>
             ) : (
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-6 py-3 text-left font-semibold text-gray-700">
-                          Producto
-                        </th>
-                        <th className="px-6 py-3 text-right font-semibold text-gray-700">
-                          Stock Actual
-                        </th>
-                        <th className="px-6 py-3 text-right font-semibold text-gray-700">
-                          Velocidad
-                        </th>
-                        <th className="px-6 py-3 text-center font-semibold text-gray-700">
-                          Días Restantes
-                        </th>
-                        <th className="px-6 py-3 text-left font-semibold text-gray-700">
-                          Fecha Quiebre
-                        </th>
+                        <th className="px-6 py-3 text-left font-semibold text-gray-700">Producto</th>
+                        <th className="px-6 py-3 text-right font-semibold text-gray-700">Stock</th>
+                        <th className="px-6 py-3 text-right font-semibold text-gray-700">Velocidad</th>
+                        <th className="px-6 py-3 text-center font-semibold text-gray-700">Dias</th>
+                        <th className="px-6 py-3 text-left font-semibold text-gray-700">Fecha Quiebre</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {stockAlertsPaginated.map((product) => {
-                        const bgClass =
-                          product.stockData.stockHealth === "critical"
-                            ? "bg-red-50"
-                            : "bg-amber-50";
-                        return (
-                          <tr key={product.id} className={bgClass}>
-                            <td className="px-6 py-4 flex items-center gap-3">
-                              {product.imageUrl && (
-                                <img
-                                  src={product.imageUrl}
-                                  alt={product.name}
-                                  className="w-8 h-8 rounded object-cover"
-                                />
-                              )}
-                              <div>
-                                <div className="font-medium text-gray-900">
-                                  {product.name}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {product.sku || "â"}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-right font-medium text-gray-900">
-                              {product.stock ?? 0}
-                            </td>
-                            <td className="px-6 py-4 text-right text-gray-700">
-                              {(product.stockData?.dailySalesRate ?? 0).toFixed(1)}{" "}
-                              uds/día
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <StockBadge
-                                daysOfStock={product.stockData.daysOfStock}
-                                stockHealth={product.stockData.stockHealth}
-                                stock={product.stock}
-                              />
-                            </td>
-                            <td className="px-6 py-4 text-gray-700">
-                              {product.stockData.stockoutDate
-                                ? new Date(
-                                    product.stockData.stockoutDate
-                                  ).toLocaleDateString("es-AR")
-                                : "â"}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {stockAlertsPaginated.map((p) => (
+                        <tr key={p.id} className={p.stockData.stockHealth === "critical" ? "bg-red-50" : "bg-amber-50"}>
+                          <td className="px-6 py-4 flex items-center gap-3">
+                            {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover" />}
+                            <div>
+                              <div className="font-medium text-gray-900">{p.name}</div>
+                              <div className="text-xs text-gray-500">{p.sku || "--"}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right font-medium text-gray-900">{p.stock ?? 0}</td>
+                          <td className="px-6 py-4 text-right text-gray-700">{p.stockData.dailySalesRate.toFixed(1)} uds/dia</td>
+                          <td className="px-6 py-4 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>
+                          <td className="px-6 py-4 text-gray-700">{p.stockData.stockoutDate ? new Date(p.stockData.stockoutDate).toLocaleDateString("es-AR") : "--"}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
                 {stockAlertsTotalPages > 1 && (
                   <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between text-sm mt-4">
-                    <div className="text-gray-600">
-                      Mostrando {Math.min((stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE + 1, stockAlerts.length)}-{Math.min(stockAlertsPage * STOCK_ITEMS_PER_PAGE, stockAlerts.length)} de {stockAlerts.length} alertas
-                    </div>
+                    <span className="text-gray-600">Mostrando {Math.min((stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE + 1, stockAlerts.length)}-{Math.min(stockAlertsPage * STOCK_ITEMS_PER_PAGE, stockAlerts.length)} de {stockAlerts.length}</span>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setStockAlertsPage(Math.max(1, stockAlertsPage - 1))}
-                        disabled={stockAlertsPage === 1}
-                        className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        Anterior
-                      </button>
-                      <span className="px-4 py-1 text-gray-700 font-medium">
-                        Página {stockAlertsPage} de {stockAlertsTotalPages}
-                      </span>
-                      <button
-                        onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))}
-                        disabled={stockAlertsPage === stockAlertsTotalPages}
-                        className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        Siguiente
-                      </button>
+                      <button onClick={() => setStockAlertsPage(Math.max(1, stockAlertsPage - 1))} disabled={stockAlertsPage === 1} className="px-3 py-1 border rounded-md bg-white disabled:opacity-50">Anterior</button>
+                      <span className="px-4 py-1 font-medium">Pag {stockAlertsPage}/{stockAlertsTotalPages}</span>
+                      <button onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))} disabled={stockAlertsPage === stockAlertsTotalPages} className="px-3 py-1 border rounded-md bg-white disabled:opacity-50">Siguiente</button>
                     </div>
                   </div>
                 )}
@@ -2005,85 +1127,41 @@ export default function ProductsPageV10() {
           {/* Dead Stock */}
           <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-xl shadow-sm border border-red-200">
             <h3 className="font-semibold text-red-900 mb-2 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              Stock Muerto â Capital Inmovilizado
+              <AlertTriangle className="w-5 h-5" /> Stock Muerto - Capital Inmovilizado
             </h3>
-            <p className="text-sm text-red-800 mb-4">
-              Capital total inmovilizado: {formatARS(deadStockCapital)}
-            </p>
+            <p className="text-sm text-red-800 mb-4">Capital total inmovilizado: {formatARS(deadStockCapital)}</p>
             {deadStock.length === 0 ? (
-              <p className="text-red-700 py-8">
-                No hay productos con stock muerto.
-              </p>
+              <p className="text-red-700 py-8 text-center">No hay productos con stock muerto.</p>
             ) : (
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-red-100 border-b border-red-300">
                       <tr>
-                        <th className="px-6 py-3 text-left font-semibold text-red-900">
-                          Producto
-                        </th>
-                        <th className="px-6 py-3 text-right font-semibold text-red-900">
-                          Stock
-                        </th>
-                        <th className="px-6 py-3 text-right font-semibold text-red-900">
-                          Valor
-                        </th>
-                        <th className="px-6 py-3 text-left font-semibold text-red-900">
-                          Última Venta
-                        </th>
-                        <th className="px-6 py-3 text-right font-semibold text-red-900">
-                          Días sin Venta
-                        </th>
+                        <th className="px-6 py-3 text-left font-semibold text-red-900">Producto</th>
+                        <th className="px-6 py-3 text-right font-semibold text-red-900">Stock</th>
+                        <th className="px-6 py-3 text-right font-semibold text-red-900">Valor</th>
+                        <th className="px-6 py-3 text-left font-semibold text-red-900">Ultima Venta</th>
+                        <th className="px-6 py-3 text-right font-semibold text-red-900">Dias sin Venta</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-red-200">
-                      {deadStockPaginated.map((product) => {
-                        const lastSaleDate = product.stockData.lastSaleDate
-                          ? new Date(product.stockData.lastSaleDate)
-                          : null;
-                        const daysNoSale = lastSaleDate
-                          ? Math.floor(
-                              (new Date().getTime() - lastSaleDate.getTime()) /
-                                (1000 * 60 * 60 * 24)
-                            )
-                          : null;
+                      {deadStockPaginated.map((p) => {
+                        const lastSale = p.stockData.lastSaleDate ? new Date(p.stockData.lastSaleDate) : null;
+                        const daysNoSale = lastSale ? Math.floor((Date.now() - lastSale.getTime()) / 86400000) : null;
                         return (
-                          <tr key={product.id} className="hover:bg-red-100/50">
+                          <tr key={p.id} className="hover:bg-red-100/50">
                             <td className="px-6 py-4 flex items-center gap-3">
-                              {product.imageUrl && (
-                                <img
-                                  src={product.imageUrl}
-                                  alt={product.name}
-                                  className="w-8 h-8 rounded object-cover"
-                                />
-                              )}
+                              {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover" />}
                               <div>
-                                <div className="font-medium text-red-900">
-                                  {product.name}
-                                </div>
-                                <div className="text-xs text-red-700">
-                                  {product.sku || "â"}
-                                </div>
+                                <div className="font-medium text-red-900">{p.name}</div>
+                                <div className="text-xs text-red-700">{p.sku || "--"}</div>
                               </div>
                             </td>
-                            <td className="px-6 py-4 text-right font-medium text-red-900">
-                              {product.stock ?? 0}
-                            </td>
-                            <td className="px-6 py-4 text-right font-bold text-red-600">
-                              {formatARS(
-                                (product.stock ?? 0) * product.avgPrice
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-red-700">
-                              {lastSaleDate
-                                ? lastSaleDate.toLocaleDateString("es-AR")
-                                : "â"}
-                            </td>
-                            <td className="px-6 py-4 text-right text-red-900 font-semibold">
-                              {daysNoSale ?? "â"}
-                            </td>
+                            <td className="px-6 py-4 text-right font-medium text-red-900">{p.stock ?? 0}</td>
+                            <td className="px-6 py-4 text-right font-bold text-red-600">{formatARS((p.stock ?? 0) * p.avgPrice)}</td>
+                            <td className="px-6 py-4 text-red-700">{lastSale ? lastSale.toLocaleDateString("es-AR") : "--"}</td>
+                            <td className="px-6 py-4 text-right text-red-900 font-semibold">{daysNoSale ?? "--"}</td>
                           </tr>
                         );
                       })}
@@ -2092,27 +1170,11 @@ export default function ProductsPageV10() {
                 </div>
                 {deadStockTotalPages > 1 && (
                   <div className="border-t border-red-200 px-6 py-4 bg-red-50 flex items-center justify-between text-sm mt-4">
-                    <div className="text-red-700">
-                      Mostrando {Math.min((deadStockPage - 1) * STOCK_ITEMS_PER_PAGE + 1, deadStock.length)}-{Math.min(deadStockPage * STOCK_ITEMS_PER_PAGE, deadStock.length)} de {deadStock.length} productos muertos
-                    </div>
+                    <span className="text-red-700">Mostrando {Math.min((deadStockPage - 1) * STOCK_ITEMS_PER_PAGE + 1, deadStock.length)}-{Math.min(deadStockPage * STOCK_ITEMS_PER_PAGE, deadStock.length)} de {deadStock.length}</span>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setDeadStockPage(Math.max(1, deadStockPage - 1))}
-                        disabled={deadStockPage === 1}
-                        className="px-3 py-1 border border-red-300 rounded-md text-red-700 bg-white hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        Anterior
-                      </button>
-                      <span className="px-4 py-1 text-red-700 font-medium">
-                        Página {deadStockPage} de {deadStockTotalPages}
-                      </span>
-                      <button
-                        onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))}
-                        disabled={deadStockPage === deadStockTotalPages}
-                        className="px-3 py-1 border border-red-300 rounded-md text-red-700 bg-white hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        Siguiente
-                      </button>
+                      <button onClick={() => setDeadStockPage(Math.max(1, deadStockPage - 1))} disabled={deadStockPage === 1} className="px-3 py-1 border border-red-300 rounded-md bg-white disabled:opacity-50 text-red-700">Anterior</button>
+                      <span className="px-4 py-1 text-red-700 font-medium">Pag {deadStockPage}/{deadStockTotalPages}</span>
+                      <button onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))} disabled={deadStockPage === deadStockTotalPages} className="px-3 py-1 border border-red-300 rounded-md bg-white disabled:opacity-50 text-red-700">Siguiente</button>
                     </div>
                   </div>
                 )}

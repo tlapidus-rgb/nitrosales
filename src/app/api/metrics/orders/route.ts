@@ -61,9 +61,10 @@ export async function GET(request: NextRequest) {
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 30 * MS_PER_DAY);
 
-    // ── Source filter ──
+    // ── Source filter (validated whitelist to prevent SQL injection) ──
+    const VALID_SOURCES = ["VTEX", "MELI"];
     const sourceParam = searchParams.get("source")?.toUpperCase();
-    const sourceFilter = sourceParam && sourceParam !== "ALL" ? sourceParam : null;
+    const sourceFilter = sourceParam && VALID_SOURCES.includes(sourceParam) ? sourceParam : null;
 
     // ── Pagination ──
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
     const prevFrom = new Date(dateFrom.getTime() - periodMs);
     const prevTo = new Date(dateFrom.getTime() - 1);
 
-    // ── Build source WHERE fragment ──
+    // ── Build source WHERE fragment (safe: sourceFilter validated against whitelist) ──
     const srcWhere = sourceFilter ? `AND o."source" = '${sourceFilter}'` : "";
     const srcWhereSimple = sourceFilter ? `AND "source" = '${sourceFilter}'` : "";
 
@@ -387,6 +388,24 @@ export async function GET(request: NextRequest) {
     `, dateFrom, dateTo);
     const cancelledOrders = Number(cancelledResult[0].cnt);
 
+    // Previous period daily sales for comparison chart
+    const prevDailySales = await prisma.$queryRawUnsafe<Array<{
+      day: string; orders: string; revenue: string;
+    }>>(`
+      SELECT
+        TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
+        COUNT(*)::text AS orders,
+        COALESCE(SUM("totalValue"), 0)::text AS revenue
+      FROM orders
+      WHERE "organizationId" = '${ORG_ID}'
+        AND "orderDate" >= $1
+        AND "orderDate" <= $2
+        AND status NOT IN ('CANCELLED', 'RETURNED')
+        ${srcWhereSimple}
+      GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')
+      ORDER BY day ASC
+    `, prevFrom, prevTo);
+
     // Promotion breakdown for pie chart
     const promotionBreakdown = await prisma.$queryRawUnsafe<Array<{
       promo: string;
@@ -448,6 +467,11 @@ export async function GET(request: NextRequest) {
           avgTicket: Math.round(pctChange(avgTicket, prevAvgTicket) * 10) / 10,
         },
       },
+      prevDailySales: prevDailySales.map(d => ({
+        day: d.day,
+        orders: Number(d.orders),
+        revenue: Number(d.revenue),
+      })),
       dailySales: dailySales.map(d => ({
         day: d.day,
         orders: Number(d.orders),

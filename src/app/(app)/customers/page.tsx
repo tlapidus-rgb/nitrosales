@@ -4,34 +4,28 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  Tooltip, ResponsiveContainer, AreaChart, Area, Legend,
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import {
-  Users, Search, Calendar, ArrowUpRight, ArrowDownRight, XCircle,
+  Users, Search, ArrowUpRight, ArrowDownRight, XCircle,
   TrendingUp, MapPin, Star, AlertTriangle, Heart, UserPlus,
+  ChevronDown, DollarSign, ShoppingCart, RefreshCw,
 } from "lucide-react";
+import {
+  KpiCard, ChangeBadge, DateRangeFilter, SourceFilter,
+} from "@/components/dashboard";
 
-const COLORS = ["#6366f1","#10b981","#f59e0b","#ef4444","#06b6d4","#8b5cf6","#f97316"];
+const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#f97316"];
 
 const SEGMENT_COLORS: Record<string, string> = {
-  Champions: "#10b981",
-  Leales: "#6366f1",
-  Nuevos: "#06b6d4",
-  Potenciales: "#f59e0b",
-  Ocasionales: "#94a3b8",
-  "En riesgo": "#ef4444",
-  Perdidos: "#9ca3af",
+  Champions: "#10b981", Leales: "#6366f1", Nuevos: "#06b6d4",
+  Potenciales: "#f59e0b", Ocasionales: "#94a3b8", "En riesgo": "#ef4444", Perdidos: "#9ca3af",
 };
 
 const SEGMENT_ICONS: Record<string, any> = {
-  Champions: Star,
-  Leales: Heart,
-  Nuevos: UserPlus,
-  Potenciales: TrendingUp,
-  Ocasionales: Users,
-  "En riesgo": AlertTriangle,
-  Perdidos: XCircle,
+  Champions: Star, Leales: Heart, Nuevos: UserPlus,
+  Potenciales: TrendingUp, Ocasionales: Users, "En riesgo": AlertTriangle, Perdidos: XCircle,
 };
 
 const QUICK_RANGES = [
@@ -48,7 +42,6 @@ function toDateInputValue(date: Date): string {
 export default function CustomersPage() {
   const defaultTo = new Date();
   const defaultFrom = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-
   const [dateFrom, setDateFrom] = useState(toDateInputValue(defaultFrom));
   const [dateTo, setDateTo] = useState(toDateInputValue(defaultTo));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(365);
@@ -58,6 +51,8 @@ export default function CustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [segmentFilter, setSegmentFilter] = useState<string | null>(null);
+  const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -94,9 +89,13 @@ export default function CustomersPage() {
     setCurrentPage(1);
   };
 
+  // Filtered customers (search + segment)
   const filteredCustomers = useMemo(() => {
     if (!data) return [];
     let customers = [...data.customers];
+    if (segmentFilter) {
+      customers = customers.filter((c: any) => c.segment === segmentFilter);
+    }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       customers = customers.filter(
@@ -104,24 +103,13 @@ export default function CustomersPage() {
       );
     }
     return customers;
-  }, [data, searchTerm]);
-
-  const ChangeBadge = ({ value }: { value: number }) => {
-    if (value === 0) return <span className="text-xs text-gray-400">--</span>;
-    const isPositive = value > 0;
-    return (
-      <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${isPositive ? "text-emerald-600" : "text-red-500"}`}>
-        {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-        {Math.abs(value).toFixed(1)}%
-      </span>
-    );
-  };
+  }, [data, searchTerm, segmentFilter]);
 
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3" />
           <p className="text-gray-500">Cargando clientes...</p>
         </div>
       </div>
@@ -140,88 +128,65 @@ export default function CustomersPage() {
   }
 
   if (!data) return null;
-
   const { kpis } = data;
 
   return (
     <div className="space-y-6">
       {/* HEADER + FILTERS */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
             <p className="text-sm text-gray-500 mt-0.5">Segmentacion y comportamiento de compra</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">Canal:</span>
-            {["ALL", "VTEX", "MELI"].map((s) => (
-              <button key={s} onClick={() => { setSource(s); setCurrentPage(1); }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${source === s ? "bg-indigo-600 text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}>
-                {s === "ALL" ? "Todos" : s}
-              </button>
-            ))}
-          </div>
+          <SourceFilter source={source} onSourceChange={(s) => { setSource(s); setCurrentPage(1); }} />
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            {QUICK_RANGES.map((r) => (
-              <button key={r.days} onClick={() => handleQuickRange(r.days)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeQuickRange === r.days ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}>
-                {r.label}
-              </button>
-            ))}
-          </div>
-          <div className="w-px h-6 bg-gray-200" />
-          <div className="flex items-center gap-2">
-            <Calendar size={14} className="text-gray-400" />
-            <input type="date" value={dateFrom} onChange={(e) => handleDateChange("from", e.target.value)}
-              className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white" />
-            <span className="text-xs text-gray-400">a</span>
-            <input type="date" value={dateTo} onChange={(e) => handleDateChange("to", e.target.value)}
-              className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white" />
-          </div>
-          {loading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600" />}
-        </div>
+        <DateRangeFilter
+          dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
+          quickRanges={QUICK_RANGES} onQuickRange={handleQuickRange}
+          onDateChange={handleDateChange} loading={loading}
+        />
       </div>
 
       {/* KPI CARDS */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-emerald-50 rounded-lg"><Users size={16} className="text-emerald-600" /></div>
-            <span className="text-xs text-gray-500 font-medium">Clientes unicos</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{kpis.totalCustomers.toLocaleString("es-AR")}</p>
-          <div className="mt-1"><ChangeBadge value={kpis.changes.customers} /><span className="text-[10px] text-gray-400 ml-1">vs periodo anterior</span></div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-indigo-50 rounded-lg"><TrendingUp size={16} className="text-indigo-600" /></div>
-            <span className="text-xs text-gray-500 font-medium">Tasa de recompra</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{kpis.repeatRate}%</p>
-          <div className="mt-1"><span className="text-[10px] text-gray-400">{kpis.avgOrdersPerCustomer} ordenes/cliente promedio</span></div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-purple-50 rounded-lg"><Users size={16} className="text-purple-600" /></div>
-            <span className="text-xs text-gray-500 font-medium">Gasto promedio/cliente</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{formatARS(kpis.avgSpentPerCustomer)}</p>
-          <div className="mt-1"><ChangeBadge value={kpis.changes.avgSpent} /><span className="text-[10px] text-gray-400 ml-1">vs periodo anterior</span></div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-blue-50 rounded-lg"><UserPlus size={16} className="text-blue-600" /></div>
-            <span className="text-xs text-gray-500 font-medium">Clientes nuevos</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{kpis.newCustomers.toLocaleString("es-AR")}</p>
-          <div className="mt-1"><span className="text-[10px] text-gray-400">primera compra en el periodo</span></div>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
+        <KpiCard icon={<Users size={16} className="text-emerald-600" />} iconBg="bg-emerald-50"
+          label="Clientes unicos" value={kpis.totalCustomers.toLocaleString("es-AR")} change={kpis.changes.customers} />
+        <KpiCard icon={<RefreshCw size={16} className="text-indigo-600" />} iconBg="bg-indigo-50"
+          label="Tasa de recompra" value={`${kpis.repeatRate}%`}
+          subtitle={`${kpis.avgOrdersPerCustomer} ordenes/cliente promedio`} />
+        <KpiCard icon={<DollarSign size={16} className="text-purple-600" />} iconBg="bg-purple-50"
+          label="Gasto promedio/cliente" value={formatARS(kpis.avgSpentPerCustomer)} change={kpis.changes.avgSpent} />
+        <KpiCard icon={<UserPlus size={16} className="text-blue-600" />} iconBg="bg-blue-50"
+          label="Clientes nuevos" value={kpis.newCustomers.toLocaleString("es-AR")}
+          subtitle="primera compra en el periodo" />
       </div>
 
-      {/* ROW: RFM SEGMENTS PIE + FREQUENCY BAR */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* NEW VS RETURNING CHART */}
+      {data.newVsReturning && data.newVsReturning.length > 1 && (
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Clientes nuevos vs recurrentes por mes</h2>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={data.newVsReturning}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false}
+                tickFormatter={(m) => { try { const [y, mo] = m.split("-"); return `${mo}/${y.slice(2)}`; } catch { return m; } }} />
+              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
+              <Tooltip contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
+                formatter={(v: number, name: string) => [v, name === "newCustomers" ? "Nuevos" : "Recurrentes"]} />
+              <Legend formatter={(name) => name === "newCustomers" ? "Nuevos" : "Recurrentes"} />
+              <Bar dataKey="newCustomers" stackId="a" fill="#06b6d4" radius={[0, 0, 0, 0]} name="newCustomers" />
+              <Bar dataKey="returningCustomers" stackId="a" fill="#6366f1" radius={[4, 4, 0, 0]} name="returningCustomers" />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-[10px] text-gray-400 mt-2 text-center">
+            Si los nuevos bajan, hay problema de adquisicion. Si los recurrentes bajan, hay problema de retencion.
+          </p>
+        </div>
+      )}
+
+      {/* RFM SEGMENTS PIE + FREQUENCY BAR */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-800 mb-4">Segmentos de clientes</h2>
           <div className="flex gap-4">
@@ -241,10 +206,11 @@ export default function CustomersPage() {
               {data.rfmSegments.map((s: any) => {
                 const Icon = SEGMENT_ICONS[s.segment] || Users;
                 return (
-                  <div key={s.segment} className="flex items-center gap-2">
+                  <div key={s.segment} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5 -mx-1 transition-colors"
+                    onClick={() => setSegmentFilter(segmentFilter === s.segment ? null : s.segment)}>
                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: SEGMENT_COLORS[s.segment] || "#94a3b8" }} />
                     <Icon size={12} className="text-gray-400" />
-                    <span className="text-xs text-gray-600 flex-1">{s.segment}</span>
+                    <span className={`text-xs flex-1 ${segmentFilter === s.segment ? "text-gray-900 font-semibold" : "text-gray-600"}`}>{s.segment}</span>
                     <span className="text-xs font-medium text-gray-800">{s.customers}</span>
                   </div>
                 );
@@ -267,39 +233,113 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* TOP CITIES */}
+      {/* CLV BY SEGMENT */}
+      {data.clvBySegment && data.clvBySegment.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">Valor estimado por segmento (CLV)</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {data.clvBySegment.map((s: any) => {
+              const Icon = SEGMENT_ICONS[s.segment] || Users;
+              return (
+                <div key={s.segment} className="border border-gray-100 rounded-lg p-3 hover:shadow-sm transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: SEGMENT_COLORS[s.segment] || "#94a3b8" }} />
+                    <Icon size={12} className="text-gray-400" />
+                    <span className="text-xs font-medium text-gray-700">{s.segment}</span>
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">{formatCompact(s.estimatedCLV)}</p>
+                  <p className="text-[10px] text-gray-400">CLV estimado</p>
+                  <div className="mt-2 flex gap-3 text-[10px] text-gray-500">
+                    <span>Ticket: {formatCompact(s.avgTicket)}</span>
+                    <span>{s.avgOrders} ord.</span>
+                    <span>{s.customerCount} cl.</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-gray-400 mt-3 text-center">
+            CLV = Ticket promedio x Ordenes promedio. Usado para definir cuanto invertir en adquirir/retener cada segmento.
+          </p>
+        </div>
+      )}
+
+      {/* TOP CITIES (improved with ticket + repeat rate) */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">Top ciudades</h2>
-        <div className="space-y-2.5">
-          {data.topCities.map((c: any) => {
-            const maxCustomers = data.topCities[0]?.customers || 1;
-            const pct = (c.customers / maxCustomers) * 100;
-            return (
-              <div key={c.city} className="flex items-center gap-3">
-                <div className="flex items-center gap-2 w-48">
-                  <MapPin size={12} className="text-gray-400" />
-                  <span className="text-xs text-gray-700 truncate">{c.city}</span>
-                </div>
-                <div className="flex-1 bg-gray-100 rounded-full h-2">
-                  <div className="h-2 rounded-full bg-indigo-500 transition-all" style={{ width: `${pct}%` }} />
-                </div>
-                <span className="text-xs font-medium text-gray-800 w-16 text-right">{c.customers} cl.</span>
-                <span className="text-xs text-gray-400 w-20 text-right">{formatCompact(c.revenue)}</span>
-              </div>
-            );
-          })}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Ciudad</th>
+                <th className="text-right text-[11px] font-medium text-gray-500 pb-2 px-2">Clientes</th>
+                <th className="text-right text-[11px] font-medium text-gray-500 pb-2 px-2">Revenue</th>
+                <th className="text-right text-[11px] font-medium text-gray-500 pb-2 px-2">Ticket prom.</th>
+                <th className="text-right text-[11px] font-medium text-gray-500 pb-2 px-2">Recompra</th>
+                <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2 w-1/3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.topCities.map((c: any) => {
+                const maxCustomers = data.topCities[0]?.customers || 1;
+                const pct = (c.customers / maxCustomers) * 100;
+                return (
+                  <tr key={c.city} className="border-b border-gray-50">
+                    <td className="py-2 px-2">
+                      <div className="flex items-center gap-2">
+                        <MapPin size={12} className="text-gray-400" />
+                        <span className="text-xs text-gray-700">{c.city}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 px-2 text-right"><span className="text-xs font-medium text-gray-800">{c.customers}</span></td>
+                    <td className="py-2 px-2 text-right"><span className="text-xs text-gray-600">{formatCompact(c.revenue)}</span></td>
+                    <td className="py-2 px-2 text-right"><span className="text-xs text-gray-600">{c.avgTicket ? formatCompact(c.avgTicket) : "-"}</span></td>
+                    <td className="py-2 px-2 text-right">
+                      <span className={`text-xs font-medium ${(c.repeatPct || 0) >= 20 ? "text-emerald-600" : "text-gray-600"}`}>
+                        {c.repeatPct ? `${c.repeatPct}%` : "-"}
+                      </span>
+                    </td>
+                    <td className="py-2 px-2">
+                      <div className="bg-gray-100 rounded-full h-1.5">
+                        <div className="h-1.5 rounded-full bg-indigo-500 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* CUSTOMERS TABLE */}
+      {/* CUSTOMERS TABLE with segment filter */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-800">Listado de clientes</h2>
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Buscar por nombre o email..." value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white w-64" />
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">Listado de clientes</h2>
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="text" placeholder="Buscar por nombre o email..." value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white w-64" />
+            </div>
+          </div>
+          {/* Segment filter chips */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button onClick={() => setSegmentFilter(null)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${!segmentFilter ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}>
+              Todos
+            </button>
+            {data.rfmSegments.map((s: any) => {
+              const Icon = SEGMENT_ICONS[s.segment] || Users;
+              return (
+                <button key={s.segment} onClick={() => setSegmentFilter(segmentFilter === s.segment ? null : s.segment)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all inline-flex items-center gap-1.5 ${segmentFilter === s.segment ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}>
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: segmentFilter === s.segment ? "#fff" : SEGMENT_COLORS[s.segment] || "#94a3b8" }} />
+                  {s.segment} ({s.customers})
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -319,21 +359,56 @@ export default function CustomersPage() {
             </thead>
             <tbody>
               {filteredCustomers.map((c: any) => (
-                <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                  <td className="py-2.5 px-2"><span className="text-xs text-gray-700 font-medium">{c.name}</span></td>
-                  <td className="py-2.5 px-2"><span className="text-[10px] text-gray-400 truncate max-w-[150px] block">{c.email}</span></td>
-                  <td className="py-2.5 px-2"><span className="text-xs text-gray-600">{c.city || "-"}</span></td>
-                  <td className="py-2.5 px-2 text-right"><span className="text-xs text-gray-600">{c.orders}</span></td>
-                  <td className="py-2.5 px-2 text-right"><span className="text-xs font-medium text-gray-800">{formatARS(c.totalSpent)}</span></td>
-                  <td className="py-2.5 px-2 text-right"><span className="text-xs text-gray-600">{formatARS(c.avgTicket)}</span></td>
-                  <td className="py-2.5 px-2"><span className="text-xs text-gray-600">{c.lastOrder}</span></td>
-                  <td className="py-2.5 px-2 text-center">
-                    <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium"
-                      style={{ backgroundColor: `${SEGMENT_COLORS[c.segment] || "#94a3b8"}15`, color: SEGMENT_COLORS[c.segment] || "#94a3b8" }}>
-                      {c.segment}
-                    </span>
-                  </td>
-                </tr>
+                <React.Fragment key={c.id}>
+                  <tr className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                    onClick={() => setExpandedCustomerId(expandedCustomerId === c.id ? null : c.id)}>
+                    <td className="py-2.5 px-2">
+                      <div className="flex items-center gap-1">
+                        <ChevronDown size={12} className={`text-gray-400 transition-transform ${expandedCustomerId === c.id ? "rotate-180" : ""}`} />
+                        <span className="text-xs text-gray-700 font-medium">{c.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-2"><span className="text-[10px] text-gray-400 truncate max-w-[150px] block">{c.email}</span></td>
+                    <td className="py-2.5 px-2"><span className="text-xs text-gray-600">{c.city || "-"}</span></td>
+                    <td className="py-2.5 px-2 text-right"><span className="text-xs text-gray-600">{c.orders}</span></td>
+                    <td className="py-2.5 px-2 text-right"><span className="text-xs font-medium text-gray-800">{formatARS(c.totalSpent)}</span></td>
+                    <td className="py-2.5 px-2 text-right"><span className="text-xs text-gray-600">{formatARS(c.avgTicket)}</span></td>
+                    <td className="py-2.5 px-2"><span className="text-xs text-gray-600">{c.lastOrder}</span></td>
+                    <td className="py-2.5 px-2 text-center">
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium"
+                        style={{ backgroundColor: `${SEGMENT_COLORS[c.segment] || "#94a3b8"}15`, color: SEGMENT_COLORS[c.segment] || "#94a3b8" }}>
+                        {c.segment}
+                      </span>
+                    </td>
+                  </tr>
+                  {/* Expanded customer detail */}
+                  {expandedCustomerId === c.id && (
+                    <tr className="bg-gray-50/80">
+                      <td colSpan={8} className="px-6 py-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Primera compra</p>
+                            <p className="text-xs font-medium text-gray-700">{c.firstOrder || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Ultima compra</p>
+                            <p className="text-xs font-medium text-gray-700">{c.lastOrder || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Dias sin comprar</p>
+                            <p className={`text-xs font-medium ${(c.recencyDays || 0) > 90 ? "text-red-600" : (c.recencyDays || 0) > 30 ? "text-amber-600" : "text-emerald-600"}`}>
+                              {c.recencyDays || 0} dias
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Ordenes totales (lifetime)</p>
+                            <p className="text-xs font-medium text-gray-700">{c.lifetimeOrders || c.orders}</p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
               {filteredCustomers.length === 0 && (
                 <tr><td colSpan={8} className="text-center py-8 text-xs text-gray-400">No se encontraron clientes</td></tr>
@@ -346,7 +421,7 @@ export default function CustomersPage() {
         {data.pagination && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
             <div className="text-xs text-gray-500">
-              Pagina {currentPage} de {data.pagination.totalPages || 0}{" . "}{data.pagination.totalCustomers} clientes en total
+              Pagina {currentPage} de {data.pagination.totalPages || 0} - {data.pagination.totalCustomers} clientes en total
             </div>
             <div className="flex gap-2">
               <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}
