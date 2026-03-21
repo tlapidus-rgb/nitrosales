@@ -23,6 +23,7 @@ export interface MetricSnapshot {
   aov: number;
   sessions?: number;
   conversionRate?: number;
+  cogsCoverage?: number; // % of order items that have costPrice (0-100)
 }
 
 export interface AnomalyResult {
@@ -153,8 +154,9 @@ export function detectRuleBasedAnomalies(
     });
   }
 
-  // Gross margin compression
-  if (marginDiff <= THRESHOLDS.grossMarginDrop) {
+  // Gross margin compression — solo si hay datos de costo cargados (>20% coverage)
+  const hasCostData = (current.cogsCoverage ?? 0) > 20;
+  if (hasCostData && marginDiff <= THRESHOLDS.grossMarginDrop) {
     anomalies.push({
       type: "ALERT",
       priority: "HIGH",
@@ -219,9 +221,12 @@ PERIODO ANTERIOR (7 dias previos):
 
 ${additionalContext ? `CONTEXTO ADICIONAL:\n${additionalContext}` : ""}
 
+COBERTURA DE DATOS DE COSTO: ${current.cogsCoverage ?? 0}% de los items tienen precio de costo cargado.
+
 INSTRUCCIONES:
 - Busca patrones que reglas fijas NO detectarian: correlaciones entre metricas, contexto estacional (feriados argentinos, dia del nino, Black Friday, Hot Sale), tendencias graduales peligrosas, oportunidades ocultas.
 - NO repitas lo que detectarian reglas simples (ej: "revenue bajo X%"). Eso ya lo cubrimos.
+- IMPORTANTE: Si la cobertura de datos de costo es baja (<50%), NO generes alertas sobre margen bruto, ganancia bruta o COGS. Esos numeros no son confiables porque faltan datos de costo. No menciones el margen 100% como anomalia.
 - Solo genera insights si HAY algo genuinamente interesante. Si todo es normal, devuelve array vacio.
 - Maximo 3 insights.
 - Responde SOLO con JSON valido, sin markdown ni backticks.

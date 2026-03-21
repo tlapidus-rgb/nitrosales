@@ -48,6 +48,23 @@ export async function GET(req: NextRequest) {
       const fromPrev = new Date(`${fourteenDaysAgo.toISOString().split("T")[0]}T00:00:00.000-03:00`);
       const toPrev = new Date(`${sevenDaysAgo.toISOString().split("T")[0]}T00:00:00.000-03:00`);
 
+      // Check COGS data coverage (what % of order items have cost data)
+      const cogsCoverageResult = await prisma.$queryRaw<[{ total: string; with_cost: string }]>`
+        SELECT
+          COUNT(*)::text as total,
+          COUNT(CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NOT NULL THEN 1 END)::text as with_cost
+        FROM order_items oi
+        INNER JOIN orders o ON oi."orderId" = o.id
+        LEFT JOIN products p ON oi."productId" = p.id
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND o."orderDate" >= ${fromCurrent}
+          AND o."orderDate" <= ${toCurrent}
+      `;
+      const totalItems = parseInt(cogsCoverageResult[0].total) || 0;
+      const itemsWithCost = parseInt(cogsCoverageResult[0].with_cost) || 0;
+      const cogsCoverage = totalItems > 0 ? Math.round((itemsWithCost / totalItems) * 100) : 0;
+
       // Current period
       const [curRevResult, curCogsResult, curAdResult] = await Promise.all([
         prisma.$queryRaw<[{ revenue: string; orders: string; units: string }]>`
@@ -147,6 +164,7 @@ export async function GET(req: NextRequest) {
         roas: curAdSpend > 0 ? Math.round((curConvValue / curAdSpend) * 100) / 100 : 0,
         cpa: curConversions > 0 ? Math.round((curAdSpend / curConversions) * 100) / 100 : 0,
         aov: curOrders > 0 ? Math.round(curRevenue / curOrders) : 0,
+        cogsCoverage,
       };
 
       // Parse previous
