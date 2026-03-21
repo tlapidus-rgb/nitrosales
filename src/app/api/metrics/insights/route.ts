@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import * as crypto from "crypto";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const revalidate = 3600;
-
-const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 
 interface Insight {
   type: "urgente" | "oportunidad" | "alerta" | "tip";
@@ -44,6 +43,7 @@ async function getAccessToken(sa: any) {
 
 export async function GET() {
   try {
+    const ORG_ID = await getOrganizationId();
     /* ── 1. Fetch products with sales ── */
     const products = await prisma.product.findMany({
       where: { organizationId: ORG_ID, isActive: true },

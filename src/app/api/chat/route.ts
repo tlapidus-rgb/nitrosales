@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db/client";
+import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -579,8 +580,7 @@ export async function POST(req: Request) {
 
     const { message, history } = await req.json();
 
-    const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
-    if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
+    const org = await getOrganization();
 
     let metricsContext = "";
     try {

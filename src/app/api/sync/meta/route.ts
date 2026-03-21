@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { MetaAdsConnector } from "@/lib/connectors/meta-ads";
 import { classifyCreative } from "@/lib/classification/ad-classifier";
+import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -14,11 +15,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const org = await prisma.organization.findFirst({
-    where: { slug: "elmundodeljuguete" },
-  });
-  if (!org)
-    return NextResponse.json({ error: "Org not found" }, { status: 404 });
+  const org = await getOrganization();
 
   const metaToken = process.env.META_ADS_ACCESS_TOKEN || "";
   const metaAdAccount = process.env.META_ADS_AD_ACCOUNT_ID || "";

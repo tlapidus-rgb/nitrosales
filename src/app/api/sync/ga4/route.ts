@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import * as crypto from "crypto";
+import { getOrganization } from "@/lib/auth-guard";
 
 // Generate JWT for Google service account auth
 function createJWT(serviceAccount: any) {
@@ -55,8 +56,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Failed to get access token" }, { status: 401 });
     }
 
-    const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
-    if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
+    const org = await getOrganization();
 
     // Fetch last 30 days of GA4 data
     const now = new Date();

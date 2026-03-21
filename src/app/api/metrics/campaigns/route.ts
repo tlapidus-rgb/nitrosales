@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const revalidate = 0;
-const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 
 export async function GET(request: Request) {
   try {
+    const ORG_ID = await getOrganizationId();
     const { searchParams } = new URL(request.url);
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
@@ -272,6 +273,7 @@ export async function GET(request: Request) {
 // ── PATCH: Update campaign funnel stage ──
 export async function PATCH(request: Request) {
   try {
+    const ORG_ID = await getOrganizationId();
     const body = await request.json();
     const { campaignId, funnelStage } = body;
 

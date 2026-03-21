@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 import { getVtexConfig } from "@/lib/vtex-credentials";
+import { getOrganization } from "@/lib/auth-guard";
 
 
 // Ã¢ÂÂÃ¢ÂÂ GET: cleanup-cancelled phase Ã¢ÂÂÃ¢ÂÂ
@@ -15,13 +16,12 @@ export async function GET(req: Request) {
     if (syncKey !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
-    
+
     if (!["cleanup-cancelled", "fix-all-statuses"].includes(phase || "")) {
       return NextResponse.json({ error: "Use phase=cleanup-cancelled or phase=fix-all-statuses" }, { status: 400 });
     }
 
-    const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
-    if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
+    const org = await getOrganization();
 
     const vtexConfig = await getVtexConfig(org.id);
     const account = vtexConfig.creds.accountName;
@@ -141,8 +141,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const org = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
-    if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 });
+    const org = await getOrganization();
 
     const vtexConfig = await getVtexConfig(org.id);
     const account = vtexConfig.creds.accountName;

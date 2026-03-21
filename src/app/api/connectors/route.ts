@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
-const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
-
 export async function GET() {
+  const ORG_ID = await getOrganizationId();
   try {
     const connections = await prisma.connection.findMany({
       where: { organizationId: ORG_ID },

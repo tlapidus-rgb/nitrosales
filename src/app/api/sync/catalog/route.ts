@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 const VTEX_SEARCH_BASE = "https://mundojuguete.vtexcommercestable.com.br/api/catalog_system/pub/products/search";
 const PAGE_SIZE = 50;
 const DEFAULT_MAX_PAGES = 10; // 500 products per call — safe within 60s
@@ -49,7 +48,7 @@ function extractPrice(items: any[]): number {
 
 /* ── main sync (with pagination support) ─────────── */
 
-async function syncCatalog(startPage: number, maxPages: number) {
+async function syncCatalog(startPage: number, maxPages: number, ORG_ID: string) {
   const syncedAt = new Date();
   const vtexIds: string[] = [];
   let created = 0;
@@ -167,6 +166,7 @@ async function syncCatalog(startPage: number, maxPages: number) {
 /* ── route handlers ──────────────────────────────── */
 
 export async function GET(req: NextRequest) {
+  const ORG_ID = await getOrganizationId();
   const key = req.nextUrl.searchParams.get("key");
   if (key !== process.env.NEXTAUTH_SECRET) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
   const startPage = parseInt(req.nextUrl.searchParams.get("from") || "0");
   const maxPages = parseInt(req.nextUrl.searchParams.get("pages") || String(DEFAULT_MAX_PAGES));
   try {
-    const result = await syncCatalog(startPage, maxPages);
+    const result = await syncCatalog(startPage, maxPages, ORG_ID);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Catalog sync error:", error);
@@ -183,6 +183,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const ORG_ID = await getOrganizationId();
   try {
     const body = await req.json().catch(() => ({}));
     const syncKey = body.syncKey || body.key;
@@ -191,7 +192,7 @@ export async function POST(req: NextRequest) {
     }
     const startPage = body.from || 0;
     const maxPages = body.pages || DEFAULT_MAX_PAGES;
-    const result = await syncCatalog(startPage, maxPages);
+    const result = await syncCatalog(startPage, maxPages, ORG_ID);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Catalog sync error:", error);

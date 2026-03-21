@@ -17,13 +17,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
-
 export async function GET(req: NextRequest) {
+  const ORG_ID = await getOrganizationId();
   const startTime = Date.now();
 
   try {

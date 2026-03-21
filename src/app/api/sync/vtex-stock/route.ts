@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
+import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,7 @@ export async function GET(req: Request) {
     const batchSize = parseInt(url.searchParams.get("batch") || "20");
     const offset = parseInt(url.searchParams.get("offset") || "0");
 
-    const org = await prisma.organization.findFirst({
-      where: { slug: "elmundodeljuguete" },
-    });
-    if (!org)
-      return NextResponse.json({ error: "Org not found" }, { status: 404 });
+    const org = await getOrganization();
 
     const vtexConfig = await getVtexConfig(org.id);
     const account = vtexConfig.creds.accountName;

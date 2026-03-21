@@ -1,22 +1,22 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db/client";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
-
 async function updateConnectionStatus(
   platform: string,
   success: boolean,
+  orgId: string,
   errorMsg?: string
 ) {
   try {
     await prisma.connection.upsert({
       where: {
         organizationId_platform: {
-          organizationId: ORG_ID,
+          organizationId: orgId,
           platform: platform as any,
         },
       },
@@ -26,7 +26,7 @@ async function updateConnectionStatus(
         lastSyncError: success ? null : errorMsg || "Unknown error",
       },
       create: {
-        organizationId: ORG_ID,
+        organizationId: orgId,
         platform: platform as any,
         status: success ? "ACTIVE" : "ERROR",
         lastSyncAt: new Date(),
@@ -40,6 +40,7 @@ async function updateConnectionStatus(
 }
 
 export async function POST() {
+  const ORG_ID = await getOrganizationId();
   const session = await getServerSession();
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -103,21 +104,25 @@ export async function POST() {
     updateConnectionStatus(
       "VTEX",
       vtexRes.status === "fulfilled" && !results.vtex.error,
+      ORG_ID,
       results.vtex.error
     ),
     updateConnectionStatus(
       "GA4",
       ga4Res.status === "fulfilled" && !results.ga4.error,
+      ORG_ID,
       results.ga4.error
     ),
     updateConnectionStatus(
       "GOOGLE_ADS",
       gadsRes.status === "fulfilled" && !results.googleAds.error,
+      ORG_ID,
       results.googleAds.error
     ),
     updateConnectionStatus(
       "META_ADS",
       metaRes.status === "fulfilled" && !results.metaAds.error,
+      ORG_ID,
       results.metaAds.error
     ),
   ]);

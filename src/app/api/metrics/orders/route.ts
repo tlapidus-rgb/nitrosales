@@ -7,9 +7,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const revalidate = 0; // No cache while debugging
-const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // Auto-migrate: add source column if it doesn't exist
@@ -41,6 +41,7 @@ let migrated = false;
 
 export async function GET(request: NextRequest) {
   try {
+    const ORG_ID = await getOrganizationId();
     if (!migrated) {
       await ensureSourceColumn();
       await ensurePromotionColumn();

@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { VtexConnector } from "@/lib/connectors/vtex";
 import { getVtexCredentials } from "@/lib/vtex-credentials";
+import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -37,12 +38,7 @@ export async function GET(req: NextRequest) {
     const noCache = req.nextUrl.searchParams.get("nocache") === "true";
 
     // 2. Org
-    const org = await prisma.organization.findFirst({
-      where: { slug: "elmundodeljuguete" },
-    });
-    if (!org) {
-      return NextResponse.json({ error: "Org no encontrada" }, { status: 404 });
-    }
+    const org = await getOrganization();
 
     // 3. VTEX creds (centralized)
     const vtexCreds = await getVtexCredentials(org.id);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { markSyncSuccess } from "@/lib/sync-tracker";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/sync-lock";
+import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,12 +19,7 @@ async function runSync(syncKey: string) {
   }
 
   try {
-  const org = await prisma.organization.findFirst({
-    where: { slug: "elmundodeljuguete" },
-  });
-
-  if (!org)
-    return NextResponse.json({ error: "Org not found" }, { status: 404 });
+  const org = await getOrganization();
 
   const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
 

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const revalidate = 0;
-const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 
 type ProductMetrics = {
   id: string;
@@ -78,8 +78,9 @@ type APIResponse = {
 
 export async function GET(request: Request): Promise<NextResponse<APIResponse>> {
   try {
+    const ORG_ID = await getOrganizationId();
     const now = new Date();
-    
+
     // Parse optional from/to date params (default: last 30 days)
     const { searchParams } = new URL(request.url);
     const fromParam = searchParams.get("from");

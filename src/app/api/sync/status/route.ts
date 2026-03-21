@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const org = await prisma.organization.findFirst({
-    where: { slug: "elmundodeljuguete" },
-  });
-
-  if (!org) {
-    return NextResponse.json({ error: "Org not found" }, { status: 404 });
-  }
+  const org = await getOrganization();
 
   // Get last sync timestamps from Connection table
   const connections = await prisma.connection.findMany({

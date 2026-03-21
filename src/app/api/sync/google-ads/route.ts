@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { GoogleAdsConnector } from "@/lib/connectors/google-ads";
 import { classifyCreative } from "@/lib/classification/ad-classifier";
+import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -92,12 +93,7 @@ export async function GET(req: Request) {
     }
 
     // Get org
-    const org = await prisma.organization.findFirst({
-      where: { slug: "elmundodeljuguete" },
-    });
-    if (!org) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
-    }
+    const org = await getOrganization();
 
     // Step 1: Get access token
     const accessToken = await getAccessToken();
@@ -532,14 +528,12 @@ export async function GET(req: Request) {
     console.error("Google Ads sync error:", error);
     // Update connection status to ERROR
     try {
-      const errOrg = await prisma.organization.findFirst({ where: { slug: "elmundodeljuguete" } });
-      if (errOrg) {
-        await prisma.connection.upsert({
-          where: { organizationId_platform: { organizationId: errOrg.id, platform: "GOOGLE_ADS" } },
-          update: { status: "ERROR", lastSyncAt: new Date(), lastSyncError: error.message },
-          create: { organizationId: errOrg.id, platform: "GOOGLE_ADS", status: "ERROR", lastSyncAt: new Date(), lastSyncError: error.message, credentials: {} },
-        });
-      }
+      const errOrg = await getOrganization();
+      await prisma.connection.upsert({
+        where: { organizationId_platform: { organizationId: errOrg.id, platform: "GOOGLE_ADS" } },
+        update: { status: "ERROR", lastSyncAt: new Date(), lastSyncError: error.message },
+        create: { organizationId: errOrg.id, platform: "GOOGLE_ADS", status: "ERROR", lastSyncAt: new Date(), lastSyncError: error.message, credentials: {} },
+      });
     } catch (_) {}
     return NextResponse.json(
       {

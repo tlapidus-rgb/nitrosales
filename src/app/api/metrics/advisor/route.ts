@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import * as crypto from "crypto";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
-
-const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
 
 /* ── JWT auth for GA4 ──────────────── */
 function createJWT(sa: any) {
@@ -34,7 +33,7 @@ async function getAccessToken(sa: any) {
 }
 
 /* ── Build full commercial context ── */
-async function buildContext() {
+async function buildContext(ORG_ID: string) {
   const products = await prisma.product.findMany({
     where: { organizationId: ORG_ID, isActive: true },
     select: { id: true, name: true, stock: true, brand: true, category: true },
@@ -360,12 +359,13 @@ function formatNum(n: number): string {
 /* ── API Handler ── */
 export async function POST(req: Request) {
   try {
+    const ORG_ID = await getOrganizationId();
     const { message } = await req.json();
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "message is required" }, { status: 400 });
     }
 
-    const ctx = await buildContext();
+    const ctx = await buildContext(ORG_ID);
     const response = generateResponse(message.trim(), ctx);
 
     return NextResponse.json({ response, status: "ok" });
