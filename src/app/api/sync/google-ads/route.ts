@@ -234,12 +234,129 @@ export async function GET(req: Request) {
       }
     }
 
+    // Step 5b: Sync Ad Groups
+    let adGroupsUpserted = 0;
+    let adGroupMetricsUpserted = 0;
+    const adGroupMap: Record<string, string> = {}; // externalId -> dbId
+
+    try {
+      const adGroupResults = await queryGoogleAds(
+        accessToken,
+        `SELECT
+          ad_group.id,
+          ad_group.name,
+          ad_group.status,
+          ad_group.type,
+          campaign.id
+        FROM ad_group
+        WHERE ad_group.status != 'REMOVED'
+          AND campaign.status != 'REMOVED'`
+      );
+
+      for (const row of adGroupResults) {
+        const ag = row.adGroup;
+        const campaignExternalId = String(row.campaign?.id);
+        const dbCampaignId = campaignMap[campaignExternalId];
+        if (!ag || !dbCampaignId) continue;
+
+        const externalId = String(ag.id);
+        const adGroup = await prisma.adSet.upsert({
+          where: {
+            organizationId_externalId_platform: {
+              organizationId: org.id,
+              externalId,
+              platform: "GOOGLE",
+            },
+          },
+          update: {
+            name: ag.name,
+            status: ag.status || "UNKNOWN",
+            optimizationGoal: ag.type || null,
+            campaignId: dbCampaignId,
+          },
+          create: {
+            organizationId: org.id,
+            externalId,
+            platform: "GOOGLE",
+            name: ag.name,
+            status: ag.status || "UNKNOWN",
+            optimizationGoal: ag.type || null,
+            campaignId: dbCampaignId,
+          },
+        });
+        adGroupMap[externalId] = adGroup.id;
+        adGroupsUpserted++;
+      }
+
+      // Fetch ad group level metrics
+      const agMetricResults = await queryGoogleAds(
+        accessToken,
+        `SELECT
+          ad_group.id,
+          segments.date,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.conversions,
+          metrics.conversions_value
+        FROM ad_group
+        WHERE segments.date BETWEEN '${formatDate(startDate)}' AND '${formatDate(endDate)}'
+          AND ad_group.status != 'REMOVED'
+          AND campaign.status != 'REMOVED'`
+      );
+
+      for (const row of agMetricResults) {
+        try {
+          const agExternalId = String(row.adGroup?.id);
+          const dbAdGroupId = adGroupMap[agExternalId];
+          if (!dbAdGroupId) continue;
+
+          const dateStr = row.segments?.date;
+          if (!dateStr) continue;
+
+          await prisma.adSetMetricDaily.upsert({
+            where: {
+              adSetId_date: {
+                adSetId: dbAdGroupId,
+                date: new Date(dateStr + "T00:00:00Z"),
+              },
+            },
+            update: {
+              platform: "GOOGLE",
+              impressions: parseInt(row.metrics?.impressions || "0"),
+              clicks: parseInt(row.metrics?.clicks || "0"),
+              spend: microsToCurrency(row.metrics?.costMicros || "0"),
+              conversions: Math.round(parseFloat(row.metrics?.conversions || "0")),
+              conversionValue: parseFloat(row.metrics?.conversionsValue || "0"),
+              organizationId: org.id,
+            },
+            create: {
+              adSetId: dbAdGroupId,
+              date: new Date(dateStr + "T00:00:00Z"),
+              platform: "GOOGLE",
+              impressions: parseInt(row.metrics?.impressions || "0"),
+              clicks: parseInt(row.metrics?.clicks || "0"),
+              spend: microsToCurrency(row.metrics?.costMicros || "0"),
+              conversions: Math.round(parseFloat(row.metrics?.conversions || "0")),
+              conversionValue: parseFloat(row.metrics?.conversionsValue || "0"),
+              organizationId: org.id,
+            },
+          });
+          adGroupMetricsUpserted++;
+        } catch (e: any) {
+          console.error("Google ad group metric upsert error:", e.message);
+        }
+      }
+    } catch (e: any) {
+      console.error("Google ad group sync error (non-fatal):", e.message);
+    }
+
     // Step 6: Sync individual ads
     let adsUpserted = 0;
     let adMetricsUpserted = 0;
 
     try {
-      // Fetch ads
+      // Fetch ads (now also getting ad_group.id)
       const adResults = await queryGoogleAds(
         accessToken,
         `SELECT
@@ -251,6 +368,7 @@ export async function GET(req: Request) {
           ad_group_ad.ad.responsive_display_ad.headlines,
           ad_group_ad.ad.responsive_display_ad.descriptions,
           ad_group_ad.status,
+          ad_group.id,
           campaign.id,
           campaign.name
         FROM ad_group_ad
@@ -261,7 +379,9 @@ export async function GET(req: Request) {
       for (const row of adResults) {
         const ad = row.adGroupAd?.ad;
         const campaignExternalId = String(row.campaign?.id);
+        const adGroupExternalId = String(row.adGroup?.id);
         const dbCampaignId = campaignMap[campaignExternalId];
+        const dbAdGroupId = adGroupExternalId ? adGroupMap[adGroupExternalId] : null;
         if (!ad || !dbCampaignId) continue;
 
         const adExternalId = String(ad.id);
@@ -295,6 +415,7 @@ export async function GET(req: Request) {
             classificationAuto: classification.type,
             classificationScore: classification.confidence,
             campaignId: dbCampaignId,
+            adSetId: dbAdGroupId,
           },
           create: {
             organizationId: org.id,
@@ -307,6 +428,7 @@ export async function GET(req: Request) {
             description,
             classificationAuto: classification.type,
             classificationScore: classification.confidence,
+            adSetId: dbAdGroupId,
             campaignId: dbCampaignId,
           },
         });
@@ -394,6 +516,8 @@ export async function GET(req: Request) {
       status: "ok",
       campaigns: campaignResults.length,
       campaignsSynced: Object.keys(campaignMap).length,
+      adGroupsUpserted,
+      adGroupMetricsUpserted,
       metricsRows: metricsResults.length,
       metricsUpserted,
       metricsErrors,

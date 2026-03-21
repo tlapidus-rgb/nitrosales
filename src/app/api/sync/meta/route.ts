@@ -166,6 +166,146 @@ export async function GET(req: Request) {
     }
   }
 
+  // Step 3b: Sync Ad Sets
+  let adSetsUpserted = 0;
+  let adSetMetricsUpserted = 0;
+  const adSetMap: Record<string, string> = {}; // externalId -> dbId
+
+  try {
+    // Fetch all ad sets from account
+    const adSetsRes = await fetch(
+      `https://graph.facebook.com/v19.0/${metaAdAccount}/adsets?fields=id,name,status,campaign_id,daily_budget,bid_strategy,optimization_goal,targeting&limit=500&access_token=${metaToken}`
+    );
+    const adSetsData = await adSetsRes.json();
+
+    if (adSetsData.data) {
+      for (const as of adSetsData.data) {
+        const dbCampaignId = campaignMap[as.campaign_id];
+        if (!dbCampaignId) continue;
+
+        // Summarize targeting info
+        const targeting = as.targeting;
+        let targetingInfo = null;
+        if (targeting) {
+          const parts = [];
+          if (targeting.age_min || targeting.age_max) parts.push(`${targeting.age_min || 18}-${targeting.age_max || 65}+`);
+          if (targeting.genders?.length) parts.push(targeting.genders.includes(1) ? "M" : targeting.genders.includes(2) ? "F" : "All");
+          if (targeting.geo_locations?.countries?.length) parts.push(targeting.geo_locations.countries.join(","));
+          if (targeting.interests?.length) parts.push(`${targeting.interests.length} interests`);
+          if (targeting.custom_audiences?.length) parts.push(`${targeting.custom_audiences.length} custom audiences`);
+          targetingInfo = parts.join(" | ");
+        }
+
+        const adSet = await prisma.adSet.upsert({
+          where: {
+            organizationId_externalId_platform: {
+              organizationId: org.id,
+              externalId: as.id,
+              platform: "META",
+            },
+          },
+          update: {
+            name: as.name,
+            status: as.status === "ACTIVE" ? "ACTIVE" : as.status === "PAUSED" ? "PAUSED" : "ARCHIVED",
+            dailyBudget: as.daily_budget ? parseFloat(as.daily_budget) / 100 : null,
+            bidStrategy: as.bid_strategy || null,
+            optimizationGoal: as.optimization_goal || null,
+            targetingInfo,
+            campaignId: dbCampaignId,
+          },
+          create: {
+            organizationId: org.id,
+            externalId: as.id,
+            platform: "META",
+            name: as.name,
+            status: as.status === "ACTIVE" ? "ACTIVE" : as.status === "PAUSED" ? "PAUSED" : "ARCHIVED",
+            dailyBudget: as.daily_budget ? parseFloat(as.daily_budget) / 100 : null,
+            bidStrategy: as.bid_strategy || null,
+            optimizationGoal: as.optimization_goal || null,
+            targetingInfo,
+            campaignId: dbCampaignId,
+          },
+        });
+        adSetMap[as.id] = adSet.id;
+        adSetsUpserted++;
+      }
+    }
+
+    // Fetch ad set level insights
+    const adSetInsightsRes = await fetch(
+      `https://graph.facebook.com/v19.0/${metaAdAccount}/insights?fields=adset_id,spend,impressions,clicks,actions,action_values,reach,frequency&time_range={"since":"${since}","until":"${until}"}&time_increment=1&level=adset&limit=500&access_token=${metaToken}`
+    );
+    const adSetInsightsData = await adSetInsightsRes.json();
+
+    if (adSetInsightsData.data) {
+      for (const day of adSetInsightsData.data) {
+        const dbAdSetId = adSetMap[day.adset_id];
+        if (!dbAdSetId) continue;
+
+        const purchases = day.actions?.find((a: any) => a.action_type === "purchase")?.value || 0;
+        const purchaseValue = day.action_values?.find((a: any) => a.action_type === "purchase")?.value || 0;
+
+        await prisma.adSetMetricDaily.upsert({
+          where: {
+            adSetId_date: {
+              adSetId: dbAdSetId,
+              date: new Date(day.date_start),
+            },
+          },
+          update: {
+            platform: "META",
+            spend: parseFloat(day.spend || "0"),
+            impressions: parseInt(day.impressions || "0"),
+            clicks: parseInt(day.clicks || "0"),
+            conversions: parseInt(purchases),
+            conversionValue: parseFloat(purchaseValue),
+            reach: day.reach ? parseInt(day.reach) : null,
+            frequency: day.frequency ? parseFloat(day.frequency) : null,
+            organizationId: org.id,
+          },
+          create: {
+            adSetId: dbAdSetId,
+            date: new Date(day.date_start),
+            platform: "META",
+            spend: parseFloat(day.spend || "0"),
+            impressions: parseInt(day.impressions || "0"),
+            clicks: parseInt(day.clicks || "0"),
+            conversions: parseInt(purchases),
+            conversionValue: parseFloat(purchaseValue),
+            reach: day.reach ? parseInt(day.reach) : null,
+            frequency: day.frequency ? parseFloat(day.frequency) : null,
+            organizationId: org.id,
+          },
+        });
+        adSetMetricsUpserted++;
+      }
+
+      // Handle pagination for ad set insights
+      let nextAdSetPage = adSetInsightsData.paging?.next;
+      while (nextAdSetPage) {
+        const pageRes = await fetch(nextAdSetPage);
+        const pageData = await pageRes.json();
+        if (pageData.data) {
+          for (const day of pageData.data) {
+            const dbAdSetId = adSetMap[day.adset_id];
+            if (!dbAdSetId) continue;
+            const purchases = day.actions?.find((a: any) => a.action_type === "purchase")?.value || 0;
+            const purchaseValue = day.action_values?.find((a: any) => a.action_type === "purchase")?.value || 0;
+            await prisma.adSetMetricDaily.upsert({
+              where: { adSetId_date: { adSetId: dbAdSetId, date: new Date(day.date_start) } },
+              update: { platform: "META", spend: parseFloat(day.spend || "0"), impressions: parseInt(day.impressions || "0"), clicks: parseInt(day.clicks || "0"), conversions: parseInt(purchases), conversionValue: parseFloat(purchaseValue), organizationId: org.id },
+              create: { adSetId: dbAdSetId, date: new Date(day.date_start), platform: "META", spend: parseFloat(day.spend || "0"), impressions: parseInt(day.impressions || "0"), clicks: parseInt(day.clicks || "0"), conversions: parseInt(purchases), conversionValue: parseFloat(purchaseValue), organizationId: org.id },
+            });
+            adSetMetricsUpserted++;
+          }
+        }
+        nextAdSetPage = pageData.paging?.next;
+      }
+    }
+  } catch (e: any) {
+    console.error("Meta ad set sync error (non-fatal):", e.message);
+  }
+
   // Step 4: Sync individual ads (creatives)
   let adsUpserted = 0;
   let adMetricsUpserted = 0;
@@ -176,20 +316,20 @@ export async function GET(req: Request) {
       adAccountId: metaAdAccount,
     });
 
-    // Fetch all ads from account
+    // Fetch all ads from account (now also getting adset_id)
     const allAds = await connector.fetchAllAds();
 
     for (const ad of allAds) {
-      // Find the campaign in our DB (ad has campaign_id from the API)
       const adCampaignId = (ad as any).campaign_id;
+      const adAdSetId = (ad as any).adset_id;
       const dbCampaignId = adCampaignId ? campaignMap[adCampaignId] : null;
+      const dbAdSetId = adAdSetId ? adSetMap[adAdSetId] : null;
       if (!dbCampaignId) continue;
 
       const adType = MetaAdsConnector.detectAdType(ad);
       const mediaUrls = MetaAdsConnector.extractMediaUrls(ad);
       const creative = ad.adcreatives?.data?.[0];
 
-      // Auto-classify
       const classification = classifyCreative({
         adName: ad.name,
         campaignName: campaignsData.data?.find((c: any) => c.id === adCampaignId)?.name,
@@ -217,6 +357,7 @@ export async function GET(req: Request) {
           headline: creative?.title || creative?.name || null,
           description: creative?.body || null,
           ctaType: creative?.call_to_action_type || null,
+          adSetId: dbAdSetId,
           classificationAuto: classification.type,
           classificationScore: classification.confidence,
           campaignId: dbCampaignId,
@@ -235,6 +376,7 @@ export async function GET(req: Request) {
           classificationAuto: classification.type,
           classificationScore: classification.confidence,
           campaignId: dbCampaignId,
+          adSetId: dbAdSetId,
         },
       });
       adsUpserted++;
@@ -328,10 +470,13 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     campaignsUpserted,
+    adSetsUpserted,
+    adSetMetricsUpserted,
     metricsUpserted,
     adsUpserted,
     adMetricsUpserted,
     cleanedUpAllCampaigns: cleanedUp,
     campaigns: Object.keys(campaignMap).length,
+    adSets: Object.keys(adSetMap).length,
   });
 }

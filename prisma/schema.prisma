@@ -246,9 +246,62 @@ model AdCampaign {
   organization   Organization @relation(fields: [organizationId], references: [id])
   dailyMetrics   AdMetricDaily[]
   adCreatives    AdCreative[]
+  adSets         AdSet[]
 
   @@unique([organizationId, externalId, platform])
   @@map("ad_campaigns")
+}
+
+// Ad Set (Meta) / Ad Group (Google) — nivel intermedio entre Campaign y Ad
+model AdSet {
+  id            String     @id @default(cuid())
+  externalId    String                           // ID del ad set/ad group en la plataforma
+  platform      AdPlatform
+  name          String
+  status        String     @default("ACTIVE")    // ACTIVE, PAUSED, REMOVED
+  bidStrategy   String?                          // CBO, ABO, tCPA, tROAS, etc.
+  dailyBudget   Decimal?   @db.Decimal(12, 2)    // Presupuesto diario si aplica
+  targetingInfo String?                          // Info resumida del targeting (JSON o texto)
+  optimizationGoal String?                       // CONVERSIONS, LINK_CLICKS, IMPRESSIONS, etc.
+
+  // Metricas agregadas (se calculan en sync)
+  campaignId     String
+  campaign       AdCampaign @relation(fields: [campaignId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  adCreatives    AdCreative[] @relation("AdSetCreatives")
+  dailyMetrics   AdSetMetricDaily[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, externalId, platform])
+  @@index([campaignId])
+  @@index([organizationId, platform])
+  @@map("ad_sets")
+}
+
+// Metricas diarias a nivel Ad Set / Ad Group
+model AdSetMetricDaily {
+  id              String     @id @default(cuid())
+  date            DateTime   @db.Date
+  platform        AdPlatform
+  impressions     Int        @default(0)
+  clicks          Int        @default(0)
+  spend           Decimal    @default(0) @db.Decimal(12, 2)
+  conversions     Int        @default(0)
+  conversionValue Decimal    @default(0) @db.Decimal(12, 2)
+  reach           Int?
+  frequency       Float?
+
+  adSetId         String
+  adSet           AdSet @relation(fields: [adSetId], references: [id])
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([adSetId, date])
+  @@index([organizationId, date])
+  @@index([organizationId, platform, date])
+  @@map("ad_set_metrics_daily")
 }
 
 enum AdPlatform {
@@ -311,6 +364,8 @@ model AdCreative {
   // Relations
   campaignId     String
   campaign       AdCampaign @relation(fields: [campaignId], references: [id])
+  adSetId        String?
+  adSet          AdSet? @relation("AdSetCreatives", fields: [adSetId], references: [id])
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   dailyMetrics   AdCreativeMetricDaily[]
@@ -319,6 +374,7 @@ model AdCreative {
   updatedAt      DateTime @updatedAt
 
   @@unique([organizationId, externalId, platform])
+  @@index([adSetId])
   @@index([organizationId, campaignId])
   @@index([organizationId, platform])
   @@map("ad_creatives")

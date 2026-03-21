@@ -182,7 +182,7 @@ export class MetaAdsConnector {
   // ── Todos los anuncios de la cuenta ──
   async fetchAllAds(): Promise<MetaAd[]> {
     const url = `${META_BASE_URL}/${this.adAccountId}/ads?` +
-      `fields=id,name,status,campaign_id,adcreatives{id,name,title,body,image_url,thumbnail_url,video_id,call_to_action_type,object_type}` +
+      `fields=id,name,status,campaign_id,adset_id,adcreatives{id,name,title,body,image_url,thumbnail_url,video_id,call_to_action_type,object_type}` +
       `&access_token=${this.accessToken}&limit=200`;
     try {
       const response = await fetch(url);

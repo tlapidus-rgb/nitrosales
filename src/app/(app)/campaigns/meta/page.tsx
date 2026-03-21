@@ -13,8 +13,8 @@ import {
   DollarSign, Eye, MousePointer, ShoppingCart, Target, Zap,
   Users, Radio, ArrowUp, ArrowDown, Download, TrendingUp,
   ArrowUpRight, ArrowDownRight, GripVertical, AlertTriangle,
-  BarChart3, Layers, ChevronRight, RefreshCw, Image, Film,
-  Tag, Palette, Sparkles,
+  BarChart3, Layers, ChevronRight, ChevronDown, RefreshCw, Image, Film,
+  Tag, Palette, Sparkles, Megaphone, LayoutGrid,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────── */
@@ -381,6 +381,12 @@ export default function MetaAdsPage() {
   const [draggedAdId, setDraggedAdId] = useState<string | null>(null);
   const [dragOverType, setDragOverType] = useState<string | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  // Drill-down state
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
+  const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
+  const [adSetsCache, setAdSetsCache] = useState<Record<string, any>>({});
+  const [adsCache, setAdsCache] = useState<Record<string, any[]>>({});
+  const [drillLoading, setDrillLoading] = useState<Record<string, boolean>>({});
 
   /* ── Fetch sync status ─────────────────────────── */
   useEffect(() => {
@@ -458,6 +464,60 @@ export default function MetaAdsPage() {
       console.error("Failed to update classification:", e);
     }
   }, [fetchAds]);
+
+  /* ── Drill-down handlers ─────────────────────── */
+  const toggleCampaignExpand = useCallback(async (campaignId: string) => {
+    setExpandedCampaigns((prev) => {
+      const next = new Set(prev);
+      if (next.has(campaignId)) {
+        next.delete(campaignId);
+      } else {
+        next.add(campaignId);
+        // Fetch ad sets if not cached
+        if (!adSetsCache[campaignId]) {
+          setDrillLoading((l) => ({ ...l, [campaignId]: true }));
+          fetch(`/api/metrics/campaigns/drilldown?platform=META&campaignId=${campaignId}&from=${dateFrom}&to=${dateTo}`)
+            .then((r) => r.json())
+            .then((d) => {
+              setAdSetsCache((c) => ({ ...c, [campaignId]: d.adSets || [] }));
+            })
+            .catch(() => {})
+            .finally(() => setDrillLoading((l) => ({ ...l, [campaignId]: false })));
+        }
+      }
+      return next;
+    });
+  }, [adSetsCache, dateFrom, dateTo]);
+
+  const toggleAdSetExpand = useCallback(async (adSetId: string) => {
+    setExpandedAdSets((prev) => {
+      const next = new Set(prev);
+      if (next.has(adSetId)) {
+        next.delete(adSetId);
+      } else {
+        next.add(adSetId);
+        if (!adsCache[adSetId]) {
+          setDrillLoading((l) => ({ ...l, [adSetId]: true }));
+          fetch(`/api/metrics/campaigns/drilldown?platform=META&adSetId=${adSetId}&from=${dateFrom}&to=${dateTo}`)
+            .then((r) => r.json())
+            .then((d) => {
+              setAdsCache((c) => ({ ...c, [adSetId]: d.ads || [] }));
+            })
+            .catch(() => {})
+            .finally(() => setDrillLoading((l) => ({ ...l, [adSetId]: false })));
+        }
+      }
+      return next;
+    });
+  }, [adsCache, dateFrom, dateTo]);
+
+  // Clear drill-down cache when dates change
+  useEffect(() => {
+    setAdSetsCache({});
+    setAdsCache({});
+    setExpandedCampaigns(new Set());
+    setExpandedAdSets(new Set());
+  }, [dateFrom, dateTo]);
 
   /* ── Derived data ──────────────────────────────── */
   const campaigns = data?.campaigns || [];
@@ -1005,13 +1065,16 @@ export default function MetaAdsPage() {
             </div>
           )}
 
-          {/* ── TAB: Campaigns Table ─────────────────── */}
+          {/* ── TAB: Campaigns Drill-down Table ─────── */}
           {activeTab === "campaigns" && (
             <div>
               <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900">
-                  Campanas Meta ({campaigns.length})
-                </h3>
+                <div>
+                  <h3 className="font-semibold text-gray-900">
+                    Campanas Meta ({campaigns.length})
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Hace clic en una campana para ver sus conjuntos de anuncios y anuncios</p>
+                </div>
                 <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors">
                   <Download className="w-4 h-4" /> Exportar CSV
                 </button>
@@ -1023,59 +1086,177 @@ export default function MetaAdsPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Campana</th>
-                        <th className="px-3 py-3 text-center font-semibold text-gray-700">Funnel</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[280px]">Nombre</th>
                         <th className="px-3 py-3 text-center font-semibold text-gray-700">Estado</th>
                         <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("spend")}>Gasto<SortIcon field="spend" /></th>
                         <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("impressions")}>Impr.<SortIcon field="impressions" /></th>
                         <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("reach")}>Alcance<SortIcon field="reach" /></th>
                         <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("clicks")}>Clicks<SortIcon field="clicks" /></th>
                         <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("ctr")}>CTR<SortIcon field="ctr" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("cpm")}>CPM<SortIcon field="cpm" /></th>
                         <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("conversions")}>Conv.<SortIcon field="conversions" /></th>
                         <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("conversionValue")}>Revenue<SortIcon field="conversionValue" /></th>
                         <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("roas")}>ROAS<SortIcon field="roas" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("frequency")}>Freq.<SortIcon field="frequency" /></th>
+                        <th className="px-3 py-3 text-right font-semibold text-gray-700">CPA</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {sorted.map((c: any) => (
-                        <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900 truncate max-w-[220px]" title={c.name}>{c.name}</div>
-                            {c.objective && <div className="text-[10px] text-gray-400 mt-0.5">{c.objective.replace(/^FUNNEL:(TOF|MOF|BOF)\|/, "")}</div>}
-                          </td>
-                          <td className="px-3 py-3 text-center"><FunnelStageBadge stage={c.funnelStage} /></td>
-                          <td className="px-3 py-3 text-center"><StatusBadge status={c.status} /></td>
-                          <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(c.spend)}</td>
-                          <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.impressions)}</td>
-                          <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.reach)}</td>
-                          <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.clicks)}</td>
-                          <td className="px-3 py-3 text-right text-gray-700">{c.ctr}%</td>
-                          <td className="px-3 py-3 text-right text-gray-700">{formatARS(c.cpm)}</td>
-                          <td className="px-3 py-3 text-right text-gray-700">{c.conversions}</td>
-                          <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(c.conversionValue)}</td>
-                          <td className="px-3 py-3 text-center"><RoasBadge value={c.roas} stage={c.funnelStage} /></td>
-                          <td className={`px-3 py-3 text-right font-medium ${c.frequency > 5 ? "text-red-600" : c.frequency > 3 ? "text-amber-600" : "text-gray-700"}`}>
-                            {c.frequency}x
-                          </td>
-                        </tr>
-                      ))}
+                    <tbody>
+                      {sorted.map((c: any) => {
+                        const isExpanded = expandedCampaigns.has(c.id);
+                        const campaignAdSets = adSetsCache[c.id] || [];
+                        const isLoadingAdSets = drillLoading[c.id];
+                        return (
+                          <React.Fragment key={c.id}>
+                            {/* ── Campaign Row ── */}
+                            <tr
+                              className="hover:bg-purple-50/30 transition-colors cursor-pointer border-b border-gray-100 group"
+                              onClick={() => toggleCampaignExpand(c.id)}
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>
+                                    <ChevronRight size={14} className="text-purple-500" />
+                                  </span>
+                                  <Megaphone size={14} className="text-purple-400 flex-shrink-0" />
+                                  <div className="min-w-0">
+                                    <div className="font-medium text-gray-900 truncate max-w-[220px]" title={c.name}>{c.name}</div>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <FunnelStageBadge stage={c.funnelStage} />
+                                      {c.objective && <span className="text-[9px] text-gray-400">{c.objective.replace(/^FUNNEL:(TOF|MOF|BOF)\|/, "").substring(0, 30)}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-center"><StatusBadge status={c.status} /></td>
+                              <td className="px-3 py-3 text-right text-gray-900 font-semibold">{formatARS(c.spend)}</td>
+                              <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.impressions)}</td>
+                              <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.reach)}</td>
+                              <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.clicks)}</td>
+                              <td className="px-3 py-3 text-right text-gray-700">{c.ctr}%</td>
+                              <td className="px-3 py-3 text-right text-gray-700">{c.conversions}</td>
+                              <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(c.conversionValue)}</td>
+                              <td className="px-3 py-3 text-center"><RoasBadge value={c.roas} stage={c.funnelStage} /></td>
+                              <td className="px-3 py-3 text-right text-gray-700">{formatARS(c.costPerConversion)}</td>
+                            </tr>
+
+                            {/* ── Ad Sets (expanded) ── */}
+                            {isExpanded && (
+                              <>
+                                {isLoadingAdSets ? (
+                                  <tr><td colSpan={11} className="bg-purple-50/20">
+                                    <div className="flex items-center gap-2 px-8 py-3 text-xs text-gray-500">
+                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-500" />
+                                      Cargando conjuntos de anuncios...
+                                    </div>
+                                  </td></tr>
+                                ) : campaignAdSets.length === 0 ? (
+                                  <tr><td colSpan={11} className="bg-purple-50/20 px-8 py-3 text-xs text-gray-400">
+                                    Sin conjuntos de anuncios sincronizados para esta campana
+                                  </td></tr>
+                                ) : (
+                                  campaignAdSets.map((as: any) => {
+                                    const isAsExpanded = expandedAdSets.has(as.id);
+                                    const adSetAds = adsCache[as.id] || [];
+                                    const isLoadingAds = drillLoading[as.id];
+                                    return (
+                                      <React.Fragment key={as.id}>
+                                        {/* ── Ad Set Row ── */}
+                                        <tr
+                                          className="hover:bg-blue-50/30 transition-colors cursor-pointer bg-gray-50/50 border-b border-gray-100"
+                                          onClick={(e) => { e.stopPropagation(); toggleAdSetExpand(as.id); }}
+                                        >
+                                          <td className="pl-10 pr-4 py-2.5">
+                                            <div className="flex items-center gap-2">
+                                              <span className={`transition-transform duration-200 ${isAsExpanded ? "rotate-90" : ""}`}>
+                                                <ChevronRight size={12} className="text-blue-500" />
+                                              </span>
+                                              <LayoutGrid size={13} className="text-blue-400 flex-shrink-0" />
+                                              <div className="min-w-0">
+                                                <div className="font-medium text-gray-800 text-xs truncate max-w-[200px]" title={as.name}>{as.name}</div>
+                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                  {as.optimizationGoal && <span className="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">{as.optimizationGoal}</span>}
+                                                  {as.adsCount > 0 && <span className="text-[9px] text-gray-400">{as.adsCount} anuncios</span>}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </td>
+                                          <td className="px-3 py-2.5 text-center"><StatusBadge status={as.status} /></td>
+                                          <td className="px-3 py-2.5 text-right text-gray-700 font-medium text-xs">{formatARS(as.spend)}</td>
+                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatCompact(as.impressions)}</td>
+                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatCompact(as.reach)}</td>
+                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatCompact(as.clicks)}</td>
+                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{as.ctr}%</td>
+                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{as.conversions}</td>
+                                          <td className="px-3 py-2.5 text-right text-gray-700 font-medium text-xs">{formatARS(as.conversionValue)}</td>
+                                          <td className="px-3 py-2.5 text-center"><RoasBadge value={as.roas} /></td>
+                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatARS(as.costPerConversion)}</td>
+                                        </tr>
+
+                                        {/* ── Ads (expanded from ad set) ── */}
+                                        {isAsExpanded && (
+                                          <>
+                                            {isLoadingAds ? (
+                                              <tr><td colSpan={11} className="bg-blue-50/20">
+                                                <div className="flex items-center gap-2 px-14 py-2 text-xs text-gray-500">
+                                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-400" />
+                                                  Cargando anuncios...
+                                                </div>
+                                              </td></tr>
+                                            ) : adSetAds.length === 0 ? (
+                                              <tr><td colSpan={11} className="bg-blue-50/20 px-14 py-2 text-xs text-gray-400">
+                                                Sin anuncios sincronizados para este conjunto
+                                              </td></tr>
+                                            ) : (
+                                              adSetAds.map((ad: any) => (
+                                                <tr key={ad.id} className="bg-blue-50/10 hover:bg-blue-50/30 border-b border-gray-50 transition-colors">
+                                                  <td className="pl-16 pr-4 py-2">
+                                                    <div className="flex items-center gap-2">
+                                                      {ad.type === "VIDEO" ? <Film size={12} className="text-pink-400" /> : <Image size={12} className="text-emerald-400" />}
+                                                      <div className="min-w-0">
+                                                        <div className="text-xs text-gray-700 truncate max-w-[180px]" title={ad.name}>{ad.name}</div>
+                                                        {ad.classification && ad.classification !== "OTHER" && (
+                                                          <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded mt-0.5 inline-block">{ad.classification}</span>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  </td>
+                                                  <td className="px-3 py-2 text-center"><StatusBadge status={ad.status} /></td>
+                                                  <td className="px-3 py-2 text-right text-gray-600 text-[11px]">{formatARS(ad.spend)}</td>
+                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatCompact(ad.impressions)}</td>
+                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatCompact(ad.reach || 0)}</td>
+                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatCompact(ad.clicks)}</td>
+                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{ad.ctr}%</td>
+                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{ad.conversions}</td>
+                                                  <td className="px-3 py-2 text-right text-gray-600 text-[11px]">{formatARS(ad.conversionValue)}</td>
+                                                  <td className="px-3 py-2 text-center"><RoasBadge value={ad.roas} /></td>
+                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatARS(ad.costPerConversion)}</td>
+                                                </tr>
+                                              ))
+                                            )}
+                                          </>
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })
+                                )}
+                              </>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                     <tfoot className="bg-gray-50 border-t-2 border-gray-300">
                       <tr className="font-bold">
                         <td className="px-4 py-3 text-gray-900">TOTAL</td>
-                        <td /><td />
+                        <td />
                         <td className="px-3 py-3 text-right text-gray-900">{formatARS(totals.spend || 0)}</td>
                         <td className="px-3 py-3 text-right text-gray-900">{formatCompact(totals.impressions || 0)}</td>
                         <td className="px-3 py-3 text-right text-gray-900">{formatCompact(totals.reach || 0)}</td>
                         <td className="px-3 py-3 text-right text-gray-900">{formatCompact(totals.clicks || 0)}</td>
                         <td className="px-3 py-3 text-right text-gray-900">{globalCtr}%</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatARS(Number(globalCpm))}</td>
                         <td className="px-3 py-3 text-right text-gray-900">{totals.conversions || 0}</td>
                         <td className="px-3 py-3 text-right text-gray-900">{formatARS(totals.conversionValue || 0)}</td>
                         <td className="px-3 py-3 text-center"><RoasBadge value={Number(globalRoas)} /></td>
-                        <td className="px-3 py-3 text-right text-gray-900">{globalFrequency}x</td>
+                        <td className="px-3 py-3 text-right text-gray-900">{formatARS(Number(globalCostPerConv))}</td>
                       </tr>
                     </tfoot>
                   </table>
