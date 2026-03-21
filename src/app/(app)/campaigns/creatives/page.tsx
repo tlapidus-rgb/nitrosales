@@ -727,4 +727,3 @@ export default function CreativesVideoPage() {
     </div>
   );
 }
-
