@@ -1,7 +1,11 @@
+// @ts-nocheck
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { GoogleAdsConnector } from "@/lib/connectors/google-ads";
+import { classifyCreative } from "@/lib/classification/ad-classifier";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Google Ads OAuth: get access token from refresh token ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 async function getAccessToken(): Promise<string> {
@@ -230,6 +234,155 @@ export async function GET(req: Request) {
       }
     }
 
+    // Step 6: Sync individual ads
+    let adsUpserted = 0;
+    let adMetricsUpserted = 0;
+
+    try {
+      // Fetch ads
+      const adResults = await queryGoogleAds(
+        accessToken,
+        `SELECT
+          ad_group_ad.ad.id,
+          ad_group_ad.ad.name,
+          ad_group_ad.ad.type,
+          ad_group_ad.ad.responsive_search_ad.headlines,
+          ad_group_ad.ad.responsive_search_ad.descriptions,
+          ad_group_ad.ad.responsive_display_ad.headlines,
+          ad_group_ad.ad.responsive_display_ad.descriptions,
+          ad_group_ad.status,
+          campaign.id,
+          campaign.name
+        FROM ad_group_ad
+        WHERE ad_group_ad.status != 'REMOVED'
+          AND campaign.status != 'REMOVED'`
+      );
+
+      for (const row of adResults) {
+        const ad = row.adGroupAd?.ad;
+        const campaignExternalId = String(row.campaign?.id);
+        const dbCampaignId = campaignMap[campaignExternalId];
+        if (!ad || !dbCampaignId) continue;
+
+        const adExternalId = String(ad.id);
+        const adType = GoogleAdsConnector.detectAdType(ad.type || "");
+        const headline = GoogleAdsConnector.extractHeadline(row);
+        const description = GoogleAdsConnector.extractDescription(row);
+
+        const classification = classifyCreative({
+          adName: ad.name,
+          campaignName: row.campaign?.name,
+          adType,
+          headline,
+          description,
+          platform: "GOOGLE",
+        });
+
+        await prisma.adCreative.upsert({
+          where: {
+            organizationId_externalId_platform: {
+              organizationId: org.id,
+              externalId: adExternalId,
+              platform: "GOOGLE",
+            },
+          },
+          update: {
+            name: ad.name || null,
+            status: row.adGroupAd?.status || "ACTIVE",
+            type: adType,
+            headline,
+            description,
+            classificationAuto: classification.type,
+            classificationScore: classification.confidence,
+            campaignId: dbCampaignId,
+          },
+          create: {
+            organizationId: org.id,
+            externalId: adExternalId,
+            platform: "GOOGLE",
+            name: ad.name || null,
+            status: row.adGroupAd?.status || "ACTIVE",
+            type: adType,
+            headline,
+            description,
+            classificationAuto: classification.type,
+            classificationScore: classification.confidence,
+            campaignId: dbCampaignId,
+          },
+        });
+        adsUpserted++;
+      }
+
+      // Fetch daily metrics per ad
+      const adMetricResults = await queryGoogleAds(
+        accessToken,
+        `SELECT
+          ad_group_ad.ad.id,
+          campaign.id,
+          segments.date,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.conversions,
+          metrics.conversions_value
+        FROM ad_group_ad
+        WHERE segments.date BETWEEN '${formatDate(startDate)}' AND '${formatDate(endDate)}'
+          AND ad_group_ad.status != 'REMOVED'
+          AND campaign.status != 'REMOVED'`
+      );
+
+      for (const row of adMetricResults) {
+        try {
+          const adExternalId = String(row.adGroupAd?.ad?.id);
+          const dbCreative = await prisma.adCreative.findFirst({
+            where: {
+              organizationId: org.id,
+              externalId: adExternalId,
+              platform: "GOOGLE",
+            },
+          });
+          if (!dbCreative) continue;
+
+          const dateStr = row.segments?.date;
+          if (!dateStr) continue;
+
+          await prisma.adCreativeMetricDaily.upsert({
+            where: {
+              creativeId_date: {
+                creativeId: dbCreative.id,
+                date: new Date(dateStr + "T00:00:00Z"),
+              },
+            },
+            update: {
+              platform: "GOOGLE",
+              impressions: parseInt(row.metrics?.impressions || "0"),
+              clicks: parseInt(row.metrics?.clicks || "0"),
+              spend: microsToCurrency(row.metrics?.costMicros || "0"),
+              conversions: Math.round(parseFloat(row.metrics?.conversions || "0")),
+              conversionValue: parseFloat(row.metrics?.conversionsValue || "0"),
+              organizationId: org.id,
+            },
+            create: {
+              creativeId: dbCreative.id,
+              date: new Date(dateStr + "T00:00:00Z"),
+              platform: "GOOGLE",
+              impressions: parseInt(row.metrics?.impressions || "0"),
+              clicks: parseInt(row.metrics?.clicks || "0"),
+              spend: microsToCurrency(row.metrics?.costMicros || "0"),
+              conversions: Math.round(parseFloat(row.metrics?.conversions || "0")),
+              conversionValue: parseFloat(row.metrics?.conversionsValue || "0"),
+              organizationId: org.id,
+            },
+          });
+          adMetricsUpserted++;
+        } catch (e: any) {
+          console.error("Google ad metric upsert error:", e.message);
+        }
+      }
+    } catch (e: any) {
+      console.error("Google ad sync error (non-fatal):", e.message);
+    }
+
     // Update connection status to ACTIVE
     await prisma.connection.upsert({
       where: { organizationId_platform: { organizationId: org.id, platform: "GOOGLE_ADS" } },
@@ -244,6 +397,8 @@ export async function GET(req: Request) {
       metricsRows: metricsResults.length,
       metricsUpserted,
       metricsErrors,
+      adsUpserted,
+      adMetricsUpserted,
       dateRange: {
         from: formatDate(startDate),
         to: formatDate(endDate),

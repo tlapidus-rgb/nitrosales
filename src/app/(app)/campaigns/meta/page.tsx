@@ -13,7 +13,8 @@ import {
   DollarSign, Eye, MousePointer, ShoppingCart, Target, Zap,
   Users, Radio, ArrowUp, ArrowDown, Download, TrendingUp,
   ArrowUpRight, ArrowDownRight, GripVertical, AlertTriangle,
-  BarChart3, Layers, ChevronRight, RefreshCw,
+  BarChart3, Layers, ChevronRight, RefreshCw, Image, Film,
+  Tag, Palette, Sparkles,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────── */
@@ -373,7 +374,12 @@ export default function MetaAdsPage() {
   const [sortField, setSortField] = useState("spend");
   const [sortAsc, setSortAsc] = useState(false);
   const [chartMode, setChartMode] = useState<"spend" | "roas" | "reach">("spend");
-  const [activeTab, setActiveTab] = useState<"funnel" | "campaigns" | "performance">("funnel");
+  const [activeTab, setActiveTab] = useState<"funnel" | "campaigns" | "performance" | "creatives">("funnel");
+  const [adsData, setAdsData] = useState<any>(null);
+  const [adsLoading, setAdsLoading] = useState(false);
+  const [classFilter, setClassFilter] = useState<string | null>(null);
+  const [draggedAdId, setDraggedAdId] = useState<string | null>(null);
+  const [dragOverType, setDragOverType] = useState<string | null>(null);
 
   /* ── Fetch ─────────────────────────────────────── */
   const fetchData = useCallback(() => {
@@ -386,6 +392,21 @@ export default function MetaAdsPage() {
   }, [dateFrom, dateTo]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Fetch ads when switching to creatives tab
+  const fetchAds = useCallback(() => {
+    setAdsLoading(true);
+    const classParam = classFilter ? `&classification=${classFilter}` : "";
+    fetch(`/api/metrics/ads?platform=META&from=${dateFrom}&to=${dateTo}${classParam}`)
+      .then((r) => r.json())
+      .then((d) => setAdsData(d))
+      .catch(() => {})
+      .finally(() => setAdsLoading(false));
+  }, [dateFrom, dateTo, classFilter]);
+
+  useEffect(() => {
+    if (activeTab === "creatives") fetchAds();
+  }, [activeTab, fetchAds]);
 
   /* ── Date handlers ─────────────────────────────── */
   const handleQuickRange = (days: number) => {
@@ -411,6 +432,20 @@ export default function MetaAdsPage() {
       console.error("Failed to assign funnel stage:", e);
     }
   }, [fetchData]);
+
+  /* ── Classification drag handler ──────────────── */
+  const handleClassificationChange = useCallback(async (creativeId: string, newType: string) => {
+    try {
+      await fetch("/api/metrics/ads", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creativeId, classification: newType }),
+      });
+      fetchAds();
+    } catch (e) {
+      console.error("Failed to update classification:", e);
+    }
+  }, [fetchAds]);
 
   /* ── Derived data ──────────────────────────────── */
   const campaigns = data?.campaigns || [];
@@ -545,6 +580,7 @@ export default function MetaAdsPage() {
             {([
               { key: "funnel" as const, label: "Funnel & Budget", icon: <Layers size={14} /> },
               { key: "performance" as const, label: "Performance", icon: <TrendingUp size={14} /> },
+              { key: "creatives" as const, label: "Creativos", icon: <Palette size={14} /> },
               { key: "campaigns" as const, label: "Campanas", icon: <BarChart3 size={14} /> },
             ]).map((tab) => (
               <button
@@ -694,6 +730,260 @@ export default function MetaAdsPage() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── TAB: Creativos ──────────────────────── */}
+          {activeTab === "creatives" && (
+            <div className="p-6 space-y-6">
+              {adsLoading && !adsData ? (
+                <div className="flex items-center justify-center h-48">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mr-3" />
+                  <span className="text-gray-500">Cargando creativos...</span>
+                </div>
+              ) : !adsData?.creatives?.length ? (
+                <div className="text-center py-16">
+                  <Palette className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 mb-1">No hay creativos sincronizados aun</p>
+                  <p className="text-xs text-gray-400">Los creativos se sincronizan con el proximo sync de datos</p>
+                </div>
+              ) : (
+                <>
+                  {/* Classification Breakdown Chart */}
+                  {adsData.classificationBreakdown?.length > 0 && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-5">
+                      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Sparkles size={16} className="text-purple-600" />
+                        Performance por Tipo de Creativo
+                      </h3>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* ROAS by Type */}
+                        <div>
+                          <p className="text-xs text-gray-500 mb-3 font-medium">ROAS por Tipo</p>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={adsData.classificationBreakdown} layout="vertical">
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}x`} />
+                              <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={80} />
+                              <Tooltip formatter={(v: number) => [`${v}x`, "ROAS"]} />
+                              <Bar dataKey="roas" radius={[0, 4, 4, 0]}>
+                                {adsData.classificationBreakdown.map((entry: any, i: number) => (
+                                  <Cell key={i} fill={entry.color} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        {/* Spend by Type */}
+                        <div>
+                          <p className="text-xs text-gray-500 mb-3 font-medium">Inversion por Tipo</p>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <PieChart>
+                              <Pie
+                                data={adsData.classificationBreakdown}
+                                cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+                                dataKey="spend" nameKey="label"
+                                paddingAngle={2}
+                              >
+                                {adsData.classificationBreakdown.map((entry: any, i: number) => (
+                                  <Cell key={i} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(v: number) => [formatARS(v), "Gasto"]} />
+                              <Legend
+                                verticalAlign="bottom"
+                                iconType="circle"
+                                iconSize={8}
+                                formatter={(value: string) => <span className="text-xs text-gray-600">{value}</span>}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      {/* Classification Summary Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-5">
+                        {adsData.classificationBreakdown.map((cls: any) => (
+                          <button
+                            key={cls.type}
+                            onClick={() => setClassFilter(classFilter === cls.type ? null : cls.type)}
+                            className={`p-3 rounded-lg border transition-all text-left ${
+                              classFilter === cls.type
+                                ? "border-purple-400 bg-purple-50 shadow-sm"
+                                : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cls.color }} />
+                              <span className="text-xs font-semibold text-gray-700">{cls.label}</span>
+                              <span className="text-[10px] text-gray-400 ml-auto">{cls.count}</span>
+                            </div>
+                            <div className="text-sm font-bold text-gray-900">{formatARS(cls.spend)}</div>
+                            <div className="flex gap-3 mt-1">
+                              <span className="text-[10px] text-gray-500">ROAS: <b>{cls.roas}x</b></span>
+                              <span className="text-[10px] text-gray-500">CTR: <b>{cls.ctr}%</b></span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Classification Drag & Drop Board */}
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                          <Tag size={16} className="text-purple-600" />
+                          Clasificacion de Creativos
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Arrastra anuncios entre categorias para reclasificar. La IA clasifica automaticamente y vos podes corregir.
+                        </p>
+                      </div>
+                      {classFilter && (
+                        <button onClick={() => setClassFilter(null)} className="text-xs text-purple-600 hover:underline">
+                          Ver todos
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Classification Columns */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                      {(adsData.classificationTypes || []).slice(0, 10).map((ct: any) => {
+                        const typeCreatives = adsData.creatives.filter((c: any) => c.classification === ct.value);
+                        const isDragOver = dragOverType === ct.value;
+                        if (classFilter && classFilter !== ct.value && typeCreatives.length === 0) return null;
+
+                        return (
+                          <div
+                            key={ct.value}
+                            onDragOver={(e) => { e.preventDefault(); setDragOverType(ct.value); }}
+                            onDragLeave={() => setDragOverType(null)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              if (draggedAdId) handleClassificationChange(draggedAdId, ct.value);
+                              setDraggedAdId(null);
+                              setDragOverType(null);
+                            }}
+                            className={`rounded-xl border-2 transition-all ${
+                              isDragOver ? "border-purple-400 bg-purple-50 shadow-lg scale-[1.01]" : "border-gray-100"
+                            }`}
+                          >
+                            <div className="p-3 border-b border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ct.color }} />
+                                <span className="text-xs font-semibold text-gray-700">{ct.label}</span>
+                                <span className="text-[10px] text-gray-400 ml-auto">{typeCreatives.length}</span>
+                              </div>
+                            </div>
+                            <div className="p-2 space-y-1.5 max-h-[300px] overflow-y-auto">
+                              {typeCreatives.length === 0 && (
+                                <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
+                                  <p className="text-[10px] text-gray-400">Arrastra aqui</p>
+                                </div>
+                              )}
+                              {typeCreatives.slice(0, 8).map((ad: any) => (
+                                <div
+                                  key={ad.id}
+                                  draggable
+                                  onDragStart={() => setDraggedAdId(ad.id)}
+                                  onDragEnd={() => { setDraggedAdId(null); setDragOverType(null); }}
+                                  className={`bg-white rounded-lg border border-gray-200 p-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${
+                                    draggedAdId === ad.id ? "opacity-40 scale-95" : ""
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-1.5">
+                                    <GripVertical size={10} className="text-gray-300 mt-0.5 flex-shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-[10px] font-medium text-gray-900 truncate" title={ad.name}>{ad.name}</p>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className="text-[9px] text-gray-400">{formatARS(ad.spend)}</span>
+                                        <span className="text-[9px] text-gray-300">|</span>
+                                        <span className="text-[9px] font-medium" style={{ color: ad.roas >= 3 ? "#10b981" : ad.roas >= 1 ? "#f59e0b" : "#ef4444" }}>{ad.roas}x</span>
+                                      </div>
+                                      {ad.classificationManual && (
+                                        <span className="text-[8px] text-purple-500 mt-0.5 inline-block">manual</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              {typeCreatives.length > 8 && (
+                                <p className="text-[9px] text-gray-400 text-center py-1">+{typeCreatives.length - 8} mas</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Creatives Table */}
+                  <div className="bg-white rounded-xl border border-gray-200">
+                    <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                        <Film size={16} className="text-purple-600" />
+                        Todos los Creativos ({adsData.creatives.length})
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Anuncio</th>
+                            <th className="px-3 py-3 text-center font-semibold text-gray-700">Tipo</th>
+                            <th className="px-3 py-3 text-center font-semibold text-gray-700">Clasificacion</th>
+                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Gasto</th>
+                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Impr.</th>
+                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Clicks</th>
+                            <th className="px-3 py-3 text-right font-semibold text-gray-700">CTR</th>
+                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Conv.</th>
+                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Revenue</th>
+                            <th className="px-3 py-3 text-center font-semibold text-gray-700">ROAS</th>
+                            <th className="px-3 py-3 text-right font-semibold text-gray-700">CPA</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {adsData.creatives.map((ad: any) => {
+                            const clsInfo = adsData.classificationTypes?.find((ct: any) => ct.value === ad.classification);
+                            return (
+                              <tr key={ad.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="font-medium text-gray-900 truncate max-w-[220px]" title={ad.name}>{ad.name}</div>
+                                  <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[220px]" title={ad.campaignName}>{ad.campaignName}</div>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{ad.type}</span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span
+                                    className="text-[10px] px-2 py-0.5 rounded-full font-medium text-white"
+                                    style={{ backgroundColor: clsInfo?.color || "#6B7280" }}
+                                  >
+                                    {clsInfo?.label || ad.classification}
+                                  </span>
+                                  {ad.classificationManual && (
+                                    <span className="ml-1 text-[8px] text-purple-500">manual</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(ad.spend)}</td>
+                                <td className="px-3 py-3 text-right text-gray-700">{formatCompact(ad.impressions)}</td>
+                                <td className="px-3 py-3 text-right text-gray-700">{formatCompact(ad.clicks)}</td>
+                                <td className="px-3 py-3 text-right text-gray-700">{ad.ctr}%</td>
+                                <td className="px-3 py-3 text-right text-gray-700">{ad.conversions}</td>
+                                <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(ad.conversionValue)}</td>
+                                <td className="px-3 py-3 text-center"><RoasBadge value={ad.roas} /></td>
+                                <td className="px-3 py-3 text-right text-gray-700">{formatARS(ad.costPerConversion)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

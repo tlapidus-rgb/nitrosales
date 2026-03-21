@@ -193,6 +193,88 @@ export class GoogleAdsConnector {
     return (typeof micros === "string" ? parseInt(micros) : micros) / 1_000_000;
   }
 
+  // ── Anuncios individuales (ad_group_ad) ──
+  async fetchAds() {
+    const gaql = `
+      SELECT
+        ad_group_ad.ad.id,
+        ad_group_ad.ad.name,
+        ad_group_ad.ad.type,
+        ad_group_ad.ad.final_urls,
+        ad_group_ad.ad.responsive_search_ad.headlines,
+        ad_group_ad.ad.responsive_search_ad.descriptions,
+        ad_group_ad.ad.responsive_display_ad.headlines,
+        ad_group_ad.ad.responsive_display_ad.descriptions,
+        ad_group_ad.ad.responsive_display_ad.marketing_images,
+        ad_group_ad.ad.image_ad.image_url,
+        ad_group_ad.ad.video_ad.video.id,
+        ad_group_ad.status,
+        campaign.id,
+        campaign.name,
+        ad_group.id,
+        ad_group.name
+      FROM ad_group_ad
+      WHERE ad_group_ad.status != 'REMOVED'
+        AND campaign.status != 'REMOVED'
+    `;
+    return this.query(gaql);
+  }
+
+  // ── Metricas diarias por anuncio ──
+  async fetchAdMetrics(params: {
+    startDate: string;
+    endDate: string;
+  }) {
+    const gaql = `
+      SELECT
+        ad_group_ad.ad.id,
+        ad_group_ad.ad.name,
+        campaign.id,
+        segments.date,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.cost_micros,
+        metrics.conversions,
+        metrics.conversions_value
+      FROM ad_group_ad
+      WHERE segments.date BETWEEN '${params.startDate}' AND '${params.endDate}'
+        AND ad_group_ad.status != 'REMOVED'
+        AND campaign.status != 'REMOVED'
+    `;
+    return this.query(gaql);
+  }
+
+  // ── Detectar tipo de anuncio Google ──
+  static detectAdType(adType: string): string {
+    const type = (adType || "").toUpperCase();
+    if (type.includes("RESPONSIVE_SEARCH")) return "RESPONSIVE_SEARCH";
+    if (type.includes("RESPONSIVE_DISPLAY")) return "RESPONSIVE_DISPLAY";
+    if (type.includes("IMAGE")) return "IMAGE";
+    if (type.includes("VIDEO")) return "VIDEO";
+    if (type.includes("SHOPPING")) return "SHOPPING_PRODUCT";
+    if (type.includes("APP")) return "APP";
+    if (type.includes("CALL")) return "CALL";
+    return "UNKNOWN";
+  }
+
+  // ── Extraer headline de distintos tipos de ad ──
+  static extractHeadline(row: any): string | null {
+    const ad = row.adGroupAd?.ad;
+    if (!ad) return null;
+    if (ad.responsiveSearchAd?.headlines?.[0]?.text) return ad.responsiveSearchAd.headlines[0].text;
+    if (ad.responsiveDisplayAd?.headlines?.[0]?.text) return ad.responsiveDisplayAd.headlines[0].text;
+    return ad.name || null;
+  }
+
+  // ── Extraer description ──
+  static extractDescription(row: any): string | null {
+    const ad = row.adGroupAd?.ad;
+    if (!ad) return null;
+    if (ad.responsiveSearchAd?.descriptions?.[0]?.text) return ad.responsiveSearchAd.descriptions[0].text;
+    if (ad.responsiveDisplayAd?.descriptions?.[0]?.text) return ad.responsiveDisplayAd.descriptions[0].text;
+    return null;
+  }
+
   // ── Test de conexión ──
   async testConnection(): Promise<boolean> {
     try {

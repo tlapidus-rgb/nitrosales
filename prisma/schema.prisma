@@ -31,9 +31,12 @@ model Organization {
   orders      Order[]
   products    Product[]
   customers   Customer[]
-  adCampaigns AdCampaign[]
-  adMetrics   AdMetricDaily[]
-  webMetrics  WebMetricDaily[]
+  adCampaigns              AdCampaign[]
+  adMetrics                AdMetricDaily[]
+  adCreatives              AdCreative[]
+  adCreativeMetrics        AdCreativeMetricDaily[]
+  adCreativeClassifications AdCreativeClassification[]
+  webMetrics               WebMetricDaily[]
   funnelData  FunnelDaily[]
   botChats    BotChat[]
   insights    Insight[]
@@ -242,6 +245,7 @@ model AdCampaign {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   dailyMetrics   AdMetricDaily[]
+  adCreatives    AdCreative[]
 
   @@unique([organizationId, externalId, platform])
   @@map("ad_campaigns")
@@ -277,6 +281,89 @@ model AdMetricDaily {
   @@index([organizationId, date])
   @@index([organizationId, platform, date])
   @@map("ad_metrics_daily")
+}
+
+// ─────────────────────────────────────────────
+// ANUNCIOS / CREATIVOS (nivel ad individual)
+// ─────────────────────────────────────────────
+
+// Cada anuncio individual dentro de una campana
+model AdCreative {
+  id            String     @id @default(cuid())
+  externalId    String                           // ID del ad en Meta/Google
+  platform      AdPlatform
+  name          String?                          // Nombre del anuncio
+  status        String     @default("ACTIVE")    // ACTIVE, PAUSED, DELETED
+  createdDate   DateTime?  @db.Date              // Cuando se creo en la plataforma
+
+  // Creative details
+  type          String     @default("UNKNOWN")   // IMAGE, VIDEO, CAROUSEL, COLLECTION, RESPONSIVE_SEARCH, RESPONSIVE_DISPLAY
+  mediaUrls     String[]                         // URLs de imagenes/videos del creativo
+  headline      String?                          // Texto principal del ad
+  description   String?                          // Texto secundario
+  ctaType       String?                          // CTA: SHOP_NOW, LEARN_MORE, etc.
+
+  // Classification (AI + manual)
+  classificationAuto    String?                  // Tipo detectado por IA: UGC, PRODUCT, TESTIMONIAL, LIFESTYLE, PROMO, etc.
+  classificationManual  String?                  // Override del usuario
+  classificationScore   Float?                   // Confianza de la clasificacion (0-1)
+
+  // Relations
+  campaignId     String
+  campaign       AdCampaign @relation(fields: [campaignId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  dailyMetrics   AdCreativeMetricDaily[]
+  classifications AdCreativeClassification[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, externalId, platform])
+  @@index([organizationId, campaignId])
+  @@index([organizationId, platform])
+  @@map("ad_creatives")
+}
+
+// Metricas diarias por anuncio individual
+model AdCreativeMetricDaily {
+  id              String     @id @default(cuid())
+  date            DateTime   @db.Date
+  platform        AdPlatform
+  impressions     Int        @default(0)
+  clicks          Int        @default(0)
+  spend           Decimal    @default(0) @db.Decimal(12, 2)
+  conversions     Int        @default(0)
+  conversionValue Decimal    @default(0) @db.Decimal(12, 2)
+  reach           Int?                            // Meta: personas unicas
+  frequency       Float?                          // Meta: frecuencia
+
+  creativeId      String
+  creative        AdCreative @relation(fields: [creativeId], references: [id])
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([creativeId, date])
+  @@index([organizationId, date])
+  @@index([organizationId, platform, date])
+  @@map("ad_creative_metrics_daily")
+}
+
+// Historial de clasificaciones (audit trail para ML)
+model AdCreativeClassification {
+  id                    String   @id @default(cuid())
+  classificationBefore  String?
+  classificationAfter   String
+  source                String   // AUTO o MANUAL
+  reason                String?  // Por que el usuario cambio la clasificacion
+
+  creativeId     String
+  creative       AdCreative @relation(fields: [creativeId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, creativeId])
+  @@map("ad_creative_classifications")
 }
 
 // ─────────────────────────────────────────────
