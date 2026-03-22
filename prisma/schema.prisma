@@ -42,6 +42,9 @@ model Organization {
   funnelData  FunnelDaily[]
   botChats    BotChat[]
   insights    Insight[]
+  pixelVisitors            PixelVisitor[]
+  pixelEvents              PixelEvent[]
+  pixelAttributions        PixelAttribution[]
 
   @@map("organizations")
 }
@@ -145,6 +148,7 @@ model Order {
   customerId      String?
   customer        Customer?    @relation(fields: [customerId], references: [id])
   items           OrderItem[]
+  pixelAttributions PixelAttribution[]
 
   @@unique([organizationId, externalId])
   @@index([organizationId, orderDate])
@@ -227,6 +231,7 @@ model Customer {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   orders         Order[]
+  pixelVisitors  PixelVisitor[]
 
   @@unique([organizationId, externalId])
   @@index([organizationId, lastOrderAt])
@@ -253,6 +258,7 @@ model AdCampaign {
   dailyMetrics   AdMetricDaily[]
   adCreatives    AdCreative[]
   adSets         AdSet[]
+  pixelAttributions PixelAttribution[]
 
   @@unique([organizationId, externalId, platform])
   @@map("ad_campaigns")
@@ -383,6 +389,7 @@ model AdCreative {
   organization   Organization @relation(fields: [organizationId], references: [id])
   dailyMetrics   AdCreativeMetricDaily[]
   classifications AdCreativeClassification[]
+  pixelAttributions PixelAttribution[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -564,4 +571,120 @@ enum InsightPriority {
   HIGH
   MEDIUM
   LOW
+}
+
+// ─────────────────────────────────────────────
+// NITROPIXEL — Tracking first-party
+// ─────────────────────────────────────────────
+
+enum AttributionModel {
+  LAST_CLICK
+  FIRST_CLICK
+  LINEAR
+  NITRO
+}
+
+// Cada visitante unico identificado por el pixel
+model PixelVisitor {
+  id              String    @id @default(cuid())
+  visitorId       String                          // UUID del cookie _np_vid
+  email           String?                         // Cuando se identifica (checkout, login)
+  firstSeenAt     DateTime  @default(now()) @db.Timestamptz
+  lastSeenAt      DateTime  @default(now()) @db.Timestamptz
+  totalSessions   Int       @default(1)
+  totalPageViews  Int       @default(0)
+  deviceTypes     String[]  @default([])          // ["mobile", "desktop"]
+  clickIds        Json?                           // { fbclid, gclid, ttclid, last_utm_source, last_utm_medium, last_utm_campaign }
+  country         String?
+  region          String?
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id])
+
+  events          PixelEvent[]
+  aliases         PixelVisitorAlias[]
+  attributions    PixelAttribution[]
+
+  @@unique([organizationId, visitorId])
+  @@index([organizationId, email])
+  @@index([organizationId, lastSeenAt])
+  @@map("pixel_visitors")
+}
+
+// Alias para merge de identidades cross-device
+model PixelVisitorAlias {
+  id              String   @id @default(cuid())
+  oldVisitorId    String                          // El visitor_id que se mergeo
+  createdAt       DateTime @default(now())
+
+  visitorId       String
+  visitor         PixelVisitor @relation(fields: [visitorId], references: [id])
+
+  @@unique([oldVisitorId])
+  @@map("pixel_visitor_aliases")
+}
+
+// Cada evento capturado por el pixel
+model PixelEvent {
+  id              String    @id @default(cuid())
+  type            String                          // PAGE_VIEW, ADD_TO_CART, PURCHASE, VIEW_PRODUCT, IDENTIFY, CUSTOM
+  sessionId       String                          // UUID de la sesion
+  pageUrl         String?
+  referrer        String?
+  props           Json?                           // Datos del evento (item_id, value, order_id, etc.)
+  clickIds        Json?                           // { fbclid, gclid } activos al momento del evento
+  utmParams       Json?                           // { source, medium, campaign, content, term }
+  deviceType      String?                         // mobile, desktop, tablet
+  country         String?
+  region          String?
+  ipHash          String?                         // Hash del IP (para dedup, no PII)
+  userAgent       String?
+  timestamp       DateTime  @db.Timestamptz       // Timestamp del evento (del cliente)
+  receivedAt      DateTime  @default(now()) @db.Timestamptz // Cuando lo recibio el server
+
+  // CAPI status
+  capiSent        Boolean   @default(false)       // Se envio a Meta CAPI?
+  capiSentAt      DateTime? @db.Timestamptz
+  capiEventId     String?                         // Event ID para dedup con Meta Pixel
+
+  visitorId       String
+  visitor         PixelVisitor @relation(fields: [visitorId], references: [id])
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, type, timestamp])
+  @@index([organizationId, sessionId])
+  @@index([visitorId, timestamp])
+  @@index([organizationId, capiSent])
+  @@map("pixel_events")
+}
+
+// Atribucion de orders a touchpoints del pixel
+model PixelAttribution {
+  id                  String           @id @default(cuid())
+  model               AttributionModel
+  touchpoints         Json                        // [{ timestamp, source, medium, campaign, clickId, page, eventId }]
+  touchpointCount     Int              @default(1)
+  attributedValue     Decimal          @db.Decimal(12, 2)
+  conversionLag       Int?                        // Dias entre primer touch y compra
+
+  orderId             String
+  order               Order @relation(fields: [orderId], references: [id])
+  visitorId           String
+  visitor             PixelVisitor @relation(fields: [visitorId], references: [id])
+  campaignId          String?
+  campaign            AdCampaign? @relation(fields: [campaignId], references: [id])
+  creativeId          String?
+  creative            AdCreative? @relation(fields: [creativeId], references: [id])
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  createdAt           DateTime @default(now())
+
+  @@unique([orderId, model])
+  @@index([organizationId, createdAt])
+  @@index([campaignId])
+  @@index([creativeId])
+  @@map("pixel_attributions")
 }
