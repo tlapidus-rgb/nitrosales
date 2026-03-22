@@ -60,8 +60,8 @@ function detectDevice(ua: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Org ID del header
-    const orgId = request.headers.get('x-np-org');
+    // 1. Org ID del header O query param (sendBeacon no puede setear headers)
+    const orgId = request.headers.get('x-np-org') || request.nextUrl.searchParams.get('org');
     if (!orgId) {
       return new NextResponse(null, { status: 204 });
     }

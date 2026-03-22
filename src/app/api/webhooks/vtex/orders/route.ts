@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 import { getVtexConfig } from "@/lib/vtex-credentials";
+import { calculateAttribution } from "@/lib/pixel/attribution";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -254,6 +255,25 @@ export async function POST(req: NextRequest) {
       itemsCreated++;
     }
 
+    // ── NitroPixel: Match order con visitor para atribución ──
+    // Este bloque NUNCA puede romper el webhook. Si falla, solo loguea.
+    let pixelAttribution = false;
+    try {
+      if (profile?.email) {
+        const pixelVisitor = await prisma.pixelVisitor.findFirst({
+          where: { organizationId: org.id, email: profile.email.toLowerCase().trim() }
+        });
+        if (pixelVisitor) {
+          await calculateAttribution(order.id, pixelVisitor.id, org.id);
+          pixelAttribution = true;
+          console.log(`[NitroPixel] Attribution calculated for order ${orderId} via visitor ${pixelVisitor.visitorId}`);
+        }
+      }
+    } catch (pixelError) {
+      // NitroPixel error NUNCA rompe el webhook
+      console.error('[NitroPixel] Error matching order with visitor:', pixelError);
+    }
+
     const elapsed = Date.now() - startTime;
     console.log(
       `[Webhook:Orders] Processed ${orderId}: ${itemsCreated} items, ${productsCreated} products, ${elapsed}ms`
@@ -266,6 +286,7 @@ export async function POST(req: NextRequest) {
       itemsCreated,
       productsCreated,
       customer: customerId ? "linked" : "none",
+      pixelAttribution,
       elapsedMs: elapsed,
     });
   } catch (error: any) {
