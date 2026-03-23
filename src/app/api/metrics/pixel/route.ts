@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
             WHERE pa."organizationId" = ${ORG_ID}
               AND pa."createdAt" >= ${dateFrom}
               AND pa."createdAt" <= ${dateTo}
-              AND pa.model = 'NITRO'
+              AND pa.model::text = 'NITRO'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -227,7 +227,7 @@ export async function GET(request: NextRequest) {
             WHERE pa."organizationId" = ${ORG_ID}
               AND pa."createdAt" >= ${dateFrom}
               AND pa."createdAt" <= ${dateTo}
-              AND pa.model = ${selectedModel}
+              AND pa.model::text = ${selectedModel}
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -243,7 +243,7 @@ export async function GET(request: NextRequest) {
             WHERE pa."organizationId" = ${ORG_ID}
               AND pa."createdAt" >= ${dateFrom}
               AND pa."createdAt" <= ${dateTo}
-              AND pa.model = ${selectedModel}
+              AND pa.model::text = ${selectedModel}
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -258,7 +258,7 @@ export async function GET(request: NextRequest) {
             WHERE pa."organizationId" = ${ORG_ID}
               AND pa."createdAt" >= ${dateFrom}
               AND pa."createdAt" <= ${dateTo}
-              AND pa.model = ${selectedModel}
+              AND pa.model::text = ${selectedModel}
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -283,7 +283,7 @@ export async function GET(request: NextRequest) {
         WHERE pa."organizationId" = ${ORG_ID}
           AND pa."createdAt" >= ${dateFrom}
           AND pa."createdAt" <= ${dateTo}
-          AND pa.model = ${selectedModel}
+          AND pa.model::text = ${selectedModel}
         GROUP BY 1
         ORDER BY MIN(COALESCE(pa."conversionLag", 999))
       ` as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
