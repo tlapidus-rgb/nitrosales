@@ -39,7 +39,23 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
     const offset = (page - 1) * pageSize;
 
+    // ── Attribution model selector ──
+    const validModels = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO"];
+    const modelParam = (searchParams.get("model") || "LAST_CLICK").toUpperCase();
+    const selectedModel = validModels.includes(modelParam) ? modelParam : "LAST_CLICK";
+
     const daysInPeriod = Math.max(1, Math.round(periodMs / MS_PER_DAY));
+
+    // ── Nitro Weights (custom per org, default 30/40/30) ──
+    const org = await prisma.organization.findUnique({
+      where: { id: ORG_ID },
+      select: { settings: true },
+    });
+    const orgSettings = (org?.settings as Record<string, any>) || {};
+    const nitroWeights = orgSettings.nitroWeights || { first: 30, last: 40, middle: 30 };
+    const wFirst = nitroWeights.first;
+    const wLast = nitroWeights.last;
+    const wMiddle = nitroWeights.middle;
 
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
@@ -176,22 +192,78 @@ export async function GET(request: NextRequest) {
         avgValue: number; avgTouchpoints: number;
       }>>,
 
-      // 9. Attribution by source (from touchpoints JSON)
-      prisma.$queryRaw`
-        SELECT
-          COALESCE(tp->>'source', 'direct') as source,
-          COUNT(DISTINCT pa."orderId")::int as orders,
-          SUM(pa."attributedValue")::float as revenue
-        FROM pixel_attributions pa,
-        jsonb_array_elements(pa.touchpoints::jsonb) as tp
-        WHERE pa."organizationId" = ${ORG_ID}
-          AND pa."createdAt" >= ${dateFrom}
-          AND pa."createdAt" <= ${dateTo}
-          AND pa.model = 'LAST_CLICK'
-        GROUP BY 1
-        ORDER BY revenue DESC
-        LIMIT 10
-      ` as Promise<Array<{ source: string; orders: number; revenue: number }>>,
+      // 9. Attribution by source (weighted for NITRO, simple for others)
+      (selectedModel === "NITRO"
+        ? prisma.$queryRaw`
+            SELECT
+              COALESCE(tp->>'source', 'direct') as source,
+              COUNT(DISTINCT pa."orderId")::int as orders,
+              SUM(
+                CASE
+                  WHEN pa."touchpointCount" = 1 THEN pa."attributedValue"
+                  WHEN tp_ord = 1 THEN pa."attributedValue" * ${wFirst} / 100.0
+                  WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" * ${wLast} / 100.0
+                  ELSE pa."attributedValue" * ${wMiddle} / 100.0 / GREATEST(pa."touchpointCount" - 2, 1)
+                END
+              )::float as revenue
+            FROM pixel_attributions pa,
+            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            WHERE pa."organizationId" = ${ORG_ID}
+              AND pa."createdAt" >= ${dateFrom}
+              AND pa."createdAt" <= ${dateTo}
+              AND pa.model = 'NITRO'
+            GROUP BY 1
+            ORDER BY revenue DESC
+            LIMIT 10
+          `
+        : selectedModel === "LAST_CLICK"
+        ? prisma.$queryRaw`
+            SELECT
+              COALESCE(tp->>'source', 'direct') as source,
+              COUNT(DISTINCT pa."orderId")::int as orders,
+              SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
+            FROM pixel_attributions pa,
+            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            WHERE pa."organizationId" = ${ORG_ID}
+              AND pa."createdAt" >= ${dateFrom}
+              AND pa."createdAt" <= ${dateTo}
+              AND pa.model = ${selectedModel}
+            GROUP BY 1
+            ORDER BY revenue DESC
+            LIMIT 10
+          `
+        : selectedModel === "FIRST_CLICK"
+        ? prisma.$queryRaw`
+            SELECT
+              COALESCE(tp->>'source', 'direct') as source,
+              COUNT(DISTINCT pa."orderId")::int as orders,
+              SUM(CASE WHEN tp_ord = 1 THEN pa."attributedValue" ELSE 0 END)::float as revenue
+            FROM pixel_attributions pa,
+            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            WHERE pa."organizationId" = ${ORG_ID}
+              AND pa."createdAt" >= ${dateFrom}
+              AND pa."createdAt" <= ${dateTo}
+              AND pa.model = ${selectedModel}
+            GROUP BY 1
+            ORDER BY revenue DESC
+            LIMIT 10
+          `
+        : prisma.$queryRaw`
+            SELECT
+              COALESCE(tp->>'source', 'direct') as source,
+              COUNT(DISTINCT pa."orderId")::int as orders,
+              SUM(pa."attributedValue" / GREATEST(pa."touchpointCount", 1))::float as revenue
+            FROM pixel_attributions pa,
+            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            WHERE pa."organizationId" = ${ORG_ID}
+              AND pa."createdAt" >= ${dateFrom}
+              AND pa."createdAt" <= ${dateTo}
+              AND pa.model = ${selectedModel}
+            GROUP BY 1
+            ORDER BY revenue DESC
+            LIMIT 10
+          `
+      ) as Promise<Array<{ source: string; orders: number; revenue: number }>>,
 
       // 10. Conversion lag distribution
       prisma.$queryRaw`
@@ -211,7 +283,7 @@ export async function GET(request: NextRequest) {
         WHERE pa."organizationId" = ${ORG_ID}
           AND pa."createdAt" >= ${dateFrom}
           AND pa."createdAt" <= ${dateTo}
-          AND pa.model = 'LAST_CLICK'
+          AND pa.model = ${selectedModel}
         GROUP BY 1
         ORDER BY MIN(COALESCE(pa."conversionLag", 999))
       ` as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
@@ -350,6 +422,8 @@ export async function GET(request: NextRequest) {
         dateTo: dateTo.toISOString(),
         daysInPeriod,
         timezone: "America/Argentina/Buenos_Aires",
+        attributionModel: selectedModel,
+        nitroWeights,
       },
     });
   } catch (error) {

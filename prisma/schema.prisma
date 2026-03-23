@@ -23,6 +23,7 @@ model Organization {
   name      String                          // "El Mundo del Juguete"
   slug      String   @unique                // "el-mundo-del-juguete" (para URLs)
   plan      Plan     @default(STARTER)      // Plan de suscripción
+  settings  Json     @default("{}")         // Config flexible: { nitroWeights: { first: 30, last: 40, middle: 30 } }
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

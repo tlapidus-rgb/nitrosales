@@ -36,6 +36,17 @@ const MODEL_LABELS: Record<string, string> = {
   LINEAR: "Linear",
   NITRO: "Nitro",
 };
+const MODEL_DESCRIPTIONS: Record<string, string> = {
+  LAST_CLICK: "100% del credito al ultimo canal antes de la compra",
+  FIRST_CLICK: "100% del credito al primer canal que trajo al cliente",
+  LINEAR: "Credito repartido en partes iguales entre todos los canales",
+  NITRO: "",
+};
+const NITRO_EXPLANATION = "El modelo Nitro pondera el credito de cada venta segun el rol de cada canal en el recorrido del cliente. " +
+  "El ultimo contacto (el que cerro la venta) recibe la mayor parte, el primer contacto (el que descubrio tu marca) " +
+  "recibe la segunda parte, y los contactos intermedios comparten el resto.";
+const MODEL_ORDER = ["NITRO", "LAST_CLICK", "FIRST_CLICK", "LINEAR"];
+const DEFAULT_NITRO_WEIGHTS = { first: 30, last: 40, middle: 30 };
 
 // ── Types ──
 interface PixelData {
@@ -70,7 +81,7 @@ interface PixelData {
     deviceType: string | null; timestamp: string; sessionId: string;
   }>;
   pagination: { page: number; pageSize: number; totalCount: number; totalPages: number };
-  meta: { dateFrom: string; dateTo: string; daysInPeriod: number };
+  meta: { dateFrom: string; dateTo: string; daysInPeriod: number; nitroWeights?: { first: number; last: number; middle: number } };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -93,6 +104,16 @@ export default function PixelPage() {
   // Chart toggle
   const [dailyMetric, setDailyMetric] = useState<"visitors" | "sessions" | "pageViews">("visitors");
 
+  // Attribution model selector — Nitro is the default
+  const [selectedModel, setSelectedModel] = useState<string>("NITRO");
+
+  // Nitro custom weights
+  const [nitroWeights, setNitroWeights] = useState(DEFAULT_NITRO_WEIGHTS);
+  const [editingWeights, setEditingWeights] = useState(DEFAULT_NITRO_WEIGHTS);
+  const [weightsOpen, setWeightsOpen] = useState(false); // closed by default, user clicks to open
+  const [savingWeights, setSavingWeights] = useState(false);
+  const [weightsError, setWeightsError] = useState<string | null>(null);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -101,7 +122,7 @@ export default function PixelPage() {
     setError(null);
     try {
       const res = await fetch(
-        `/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&page=${currentPage}&pageSize=20`
+        `/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&page=${currentPage}&pageSize=20&model=${selectedModel}`
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
@@ -111,9 +132,57 @@ export default function PixelPage() {
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, currentPage]);
+  }, [dateFrom, dateTo, currentPage, selectedModel]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Fetch Nitro weights on mount
+  useEffect(() => {
+    fetch("/api/settings/attribution")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.weights) {
+          setNitroWeights(d.weights);
+          setEditingWeights(d.weights);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Update weights when data comes back with meta.nitroWeights
+  useEffect(() => {
+    if (data?.meta && (data.meta as any).nitroWeights) {
+      const w = (data.meta as any).nitroWeights;
+      setNitroWeights(w);
+      setEditingWeights(w);
+    }
+  }, [data]);
+
+  const saveNitroWeights = async () => {
+    const sum = editingWeights.first + editingWeights.last + editingWeights.middle;
+    if (sum !== 100) {
+      setWeightsError(`Los pesos deben sumar 100% (actual: ${sum}%)`);
+      return;
+    }
+    setSavingWeights(true);
+    setWeightsError(null);
+    try {
+      const res = await fetch("/api/settings/attribution", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingWeights),
+      });
+      if (!res.ok) throw new Error("Error al guardar");
+      setNitroWeights(editingWeights);
+      setWeightsOpen(false);
+      // Re-fetch data if NITRO is selected to reflect new weights
+      if (selectedModel === "NITRO") fetchData();
+    } catch {
+      setWeightsError("Error al guardar la configuracion");
+    } finally {
+      setSavingWeights(false);
+    }
+  };
 
   const setQuickRange = (days: number) => {
     const to = new Date();
@@ -469,10 +538,225 @@ export default function PixelPage() {
           {/* ATTRIBUTION SECTION                                      */}
           {/* ══════════════════════════════════════════════════════════ */}
           <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-4">
-            <h2 className="text-sm font-semibold text-gray-200 mb-4">Atribucion</h2>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-200">Atribucion</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {selectedModel === "NITRO"
+                    ? `${nitroWeights.last}% ultimo contacto · ${nitroWeights.first}% primer contacto · ${nitroWeights.middle}% intermedios`
+                    : MODEL_DESCRIPTIONS[selectedModel]}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 bg-white/[0.03] rounded-lg p-1">
+                {MODEL_ORDER.map((model) => (
+                  <button
+                    key={model}
+                    onClick={() => setSelectedModel(model)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      selectedModel === model
+                        ? model === "NITRO"
+                          ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                          : "bg-white/10 text-gray-200 border border-white/20"
+                        : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.05] border border-transparent"
+                    }`}
+                  >
+                    {MODEL_LABELS[model]}
+                    {model === "NITRO" && <span className="ml-1 text-[9px] opacity-60">recomendado</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Nitro Explanation + Weights Config ── */}
+            {selectedModel === "NITRO" && (
+              <div className="mb-4 space-y-3">
+                {/* Explanation card */}
+                <div className="bg-orange-500/[0.04] border border-orange-500/10 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-4 h-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-300 leading-relaxed">{NITRO_EXPLANATION}</p>
+                      <div className="flex items-center gap-4 mt-3">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-cyan-500" />
+                          <span className="text-[11px] text-gray-400">Ultimo: <span className="text-cyan-400 font-medium">{nitroWeights.last}%</span></span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                          <span className="text-[11px] text-gray-400">Primero: <span className="text-orange-400 font-medium">{nitroWeights.first}%</span></span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                          <span className="text-[11px] text-gray-400">Intermedios: <span className="text-purple-400 font-medium">{nitroWeights.middle}%</span></span>
+                        </div>
+                      </div>
+                      {/* Mini weight bar */}
+                      <div className="h-1.5 rounded-full overflow-hidden flex mt-2">
+                        <div className="bg-cyan-500 transition-all" style={{ width: `${nitroWeights.last}%` }} />
+                        <div className="bg-orange-500 transition-all" style={{ width: `${nitroWeights.first}%` }} />
+                        <div className="bg-purple-500 transition-all" style={{ width: `${nitroWeights.middle}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customize toggle */}
+                <button
+                  onClick={() => setWeightsOpen(!weightsOpen)}
+                  className="flex items-center gap-2 text-xs text-gray-500 hover:text-orange-400 transition-colors"
+                >
+                  <svg className={`w-3 h-3 transition-transform ${weightsOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  Personalizar ponderacion
+                </button>
+
+                {weightsOpen && (
+                  <div className="bg-white/[0.03] border border-orange-500/10 rounded-xl p-4 space-y-4">
+                    <p className="text-xs text-gray-500">
+                      Ajusta como se distribuye el credito de cada venta entre los canales que participaron.
+                      Los 3 valores deben sumar 100%.
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      {/* First Touch */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1.5">Primer contacto</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={editingWeights.first}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              const remaining = 100 - v;
+                              const ratio = editingWeights.last + editingWeights.middle > 0
+                                ? editingWeights.last / (editingWeights.last + editingWeights.middle)
+                                : 0.5;
+                              setEditingWeights({
+                                first: v,
+                                last: Math.round(remaining * ratio),
+                                middle: remaining - Math.round(remaining * ratio),
+                              });
+                            }}
+                            className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-orange-500"
+                          />
+                          <span className="text-sm font-mono text-orange-400 w-10 text-right">{editingWeights.first}%</span>
+                        </div>
+                      </div>
+
+                      {/* Last Touch */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1.5">Ultimo contacto</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={editingWeights.last}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              const remaining = 100 - v;
+                              const ratio = editingWeights.first + editingWeights.middle > 0
+                                ? editingWeights.first / (editingWeights.first + editingWeights.middle)
+                                : 0.5;
+                              setEditingWeights({
+                                first: Math.round(remaining * ratio),
+                                last: v,
+                                middle: remaining - Math.round(remaining * ratio),
+                              });
+                            }}
+                            className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-cyan-500"
+                          />
+                          <span className="text-sm font-mono text-cyan-400 w-10 text-right">{editingWeights.last}%</span>
+                        </div>
+                      </div>
+
+                      {/* Middle */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1.5">Intermedios</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={editingWeights.middle}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              const remaining = 100 - v;
+                              const ratio = editingWeights.first + editingWeights.last > 0
+                                ? editingWeights.first / (editingWeights.first + editingWeights.last)
+                                : 0.5;
+                              setEditingWeights({
+                                first: Math.round(remaining * ratio),
+                                last: remaining - Math.round(remaining * ratio),
+                                middle: v,
+                              });
+                            }}
+                            className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-purple-500"
+                          />
+                          <span className="text-sm font-mono text-purple-400 w-10 text-right">{editingWeights.middle}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Visual weight bar */}
+                    <div className="h-3 rounded-full overflow-hidden flex">
+                      <div className="bg-orange-500 transition-all" style={{ width: `${editingWeights.first}%` }} />
+                      <div className="bg-cyan-500 transition-all" style={{ width: `${editingWeights.last}%` }} />
+                      <div className="bg-purple-500 transition-all" style={{ width: `${editingWeights.middle}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-500 -mt-2">
+                      <span>Primero {editingWeights.first}%</span>
+                      <span>Ultimo {editingWeights.last}%</span>
+                      <span>Intermedios {editingWeights.middle}%</span>
+                    </div>
+
+                    {weightsError && (
+                      <p className="text-xs text-red-400">{weightsError}</p>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        onClick={() => {
+                          setEditingWeights(DEFAULT_NITRO_WEIGHTS);
+                        }}
+                        className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                      >
+                        Restaurar default (30/40/30)
+                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingWeights(nitroWeights);
+                            setWeightsOpen(false);
+                            setWeightsError(null);
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-white/5 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={saveNitroWeights}
+                          disabled={savingWeights || (editingWeights.first + editingWeights.last + editingWeights.middle !== 100)}
+                          className="px-4 py-1.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 disabled:opacity-40 transition-colors"
+                        >
+                          {savingWeights ? "Guardando..." : "Guardar"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {hasAttribution ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Attribution by Model */}
+                {/* Attribution by Model — comparison chart */}
                 <div>
                   <h3 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">Comparacion de Modelos</h3>
                   <ResponsiveContainer width="100%" height={220}>
@@ -497,14 +781,32 @@ export default function PixelPage() {
                         formatter={(v: number) => [fmtARS(v), "Revenue"]}
                         labelFormatter={(v) => MODEL_LABELS[v] || v}
                       />
-                      <Bar dataKey="revenue" fill="#f97316" radius={[0, 4, 4, 0]} />
+                      <Bar
+                        dataKey="revenue"
+                        radius={[0, 4, 4, 0]}
+                        fill="#f97316"
+                        // Highlight the selected model bar
+                        shape={(props: any) => {
+                          const isSelected = props?.model === selectedModel || props?.payload?.model === selectedModel;
+                          return (
+                            <rect
+                              {...props}
+                              fill={isSelected ? "#f97316" : "rgba(249,115,22,0.3)"}
+                              rx={4}
+                              ry={4}
+                            />
+                          );
+                        }}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
 
-                {/* Attribution by Source */}
+                {/* Attribution by Source — filtered by selected model */}
                 <div>
-                  <h3 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">Revenue por Canal</h3>
+                  <h3 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">
+                    Revenue por Canal <span className="text-orange-400/60">({MODEL_LABELS[selectedModel]})</span>
+                  </h3>
                   {d.attribution.bySource.length > 0 ? (
                     <div className="space-y-2">
                       {d.attribution.bySource.map((src, i) => (
