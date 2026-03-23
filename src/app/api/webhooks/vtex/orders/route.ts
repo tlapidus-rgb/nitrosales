@@ -260,13 +260,69 @@ export async function POST(req: NextRequest) {
     let pixelAttribution = false;
     try {
       if (profile?.email) {
-        const pixelVisitor = await prisma.pixelVisitor.findFirst({
-          where: { organizationId: org.id, email: profile.email.toLowerCase().trim() }
+        const emailLower = profile.email.toLowerCase().trim();
+
+        // Strategy 1: Match by email on pixelVisitor
+        let pixelVisitor = await prisma.pixelVisitor.findFirst({
+          where: { organizationId: org.id, email: emailLower }
         });
+
+        // Strategy 2: If no email match, find visitor who was on /checkout/ recently
+        // This catches anonymous visitors who didn't get identified via JS yet
+        if (!pixelVisitor) {
+          const orderTime = new Date(vtexOrder.creationDate);
+          const windowStart = new Date(orderTime.getTime() - 30 * 60 * 1000); // 30 min before order
+
+          const checkoutEvent: any[] = await prisma.$queryRaw`
+            SELECT pe."visitorId"
+            FROM pixel_events pe
+            WHERE pe."organizationId" = ${org.id}
+              AND pe.timestamp >= ${windowStart}
+              AND pe.timestamp <= ${orderTime}
+              AND pe."pageUrl" LIKE '%/checkout/%'
+            ORDER BY pe.timestamp DESC
+            LIMIT 1
+          `;
+
+          if (checkoutEvent.length > 0) {
+            pixelVisitor = await prisma.pixelVisitor.findUnique({
+              where: { id: checkoutEvent[0].visitorId }
+            });
+
+            // Link email to this visitor for future matches
+            if (pixelVisitor) {
+              await prisma.pixelVisitor.update({
+                where: { id: pixelVisitor.id },
+                data: { email: emailLower }
+              });
+              console.log(`[NitroPixel] Linked visitor ${pixelVisitor.visitorId} to ${emailLower} via checkout heuristic`);
+            }
+          }
+        }
+
         if (pixelVisitor) {
           await calculateAttribution(order.id, pixelVisitor.id, org.id);
+
+          // Create PURCHASE event in pixel_events so dashboard shows buyers
+          await prisma.$executeRaw`
+            INSERT INTO pixel_events (id, "organizationId", "visitorId", "sessionId", type, "pageUrl", "deviceType", timestamp, "referrer")
+            VALUES (
+              gen_random_uuid()::text,
+              ${org.id},
+              ${pixelVisitor.id},
+              ${'webhook-' + orderId},
+              'PURCHASE',
+              ${'/checkout/orderPlaced?og=' + orderId},
+              NULL,
+              NOW(),
+              NULL
+            )
+          `;
+
           pixelAttribution = true;
-          console.log(`[NitroPixel] Attribution calculated for order ${orderId} via visitor ${pixelVisitor.visitorId}`);
+          console.log(`[NitroPixel] Attribution + PURCHASE event for order ${orderId} via visitor ${pixelVisitor.visitorId}`);
+        } else {
+          console.log(`[NitroPixel] No visitor match for order ${orderId} (email: ${emailLower})`);
         }
       }
     } catch (pixelError) {

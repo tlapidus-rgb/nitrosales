@@ -220,6 +220,45 @@ function generatePixelScript(orgId: string): string {
     // ─── PageView automatico ───
     trackEvent('PAGE_VIEW', { title: document.title });
 
+    // ─── VTEX Checkout: auto-detect email ───
+    // En VTEX Smart Checkout, el email del comprador esta en el orderForm.
+    // Lo intentamos capturar para vincular visitante anonimo con email.
+    function tryVtexIdentify() {
+      try {
+        // Method 1: vtexjs global (disponible en checkout VTEX)
+        if (window.vtexjs && window.vtexjs.checkout && window.vtexjs.checkout.orderForm) {
+          var em = window.vtexjs.checkout.orderForm.clientProfileData;
+          if (em && em.email) { identify({ email: em.email }); return; }
+        }
+        // Method 2: VTEX orderForm API (funciona en cualquier pagina del dominio)
+        fetch('/api/checkout/pub/orderForm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: '{}'
+        }).then(function(r) { return r.json(); }).then(function(of) {
+          if (of && of.clientProfileData && of.clientProfileData.email) {
+            identify({ email: of.clientProfileData.email });
+          }
+        }).catch(function() {});
+      } catch(e) {}
+    }
+
+    // Solo intentar en paginas de checkout o order confirmation
+    if (/checkout|orderPlaced|gatewayCallback/i.test(window.location.href)) {
+      // Intentar inmediatamente
+      tryVtexIdentify();
+      // Reintentar despues de 3s (el email puede cargarse despues)
+      setTimeout(tryVtexIdentify, 3000);
+      // Escuchar cambios en orderForm (VTEX emite evento custom)
+      try {
+        $(window).on('orderFormUpdated.vtex', function(_, of) {
+          if (of && of.clientProfileData && of.clientProfileData.email) {
+            identify({ email: of.clientProfileData.email });
+          }
+        });
+      } catch(e) {}
+    }
+
     // ─── Flush antes de cerrar pagina ───
     window.addEventListener('beforeunload', function() {
       try { flush(); } catch(e) {}
