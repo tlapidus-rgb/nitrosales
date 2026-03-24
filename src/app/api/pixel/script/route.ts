@@ -55,6 +55,25 @@ function generatePixelScript(orgId: string): string {
       });
     }
 
+    // ─── Root domain detection (cross-subdomain cookies) ───
+    // Handles LATAM multi-part TLDs: .com.ar, .com.br, .com.mx, etc.
+    // Returns ".mitienda.com.ar" from "www.mitienda.com.ar"
+    var _rootDomain = (function() {
+      try {
+        var host = window.location.hostname;
+        if (!host || /^\\d+\\./.test(host) || host === 'localhost') return ''; // IP or localhost: no domain attr
+        var multiTld = /\\.(com|co|net|org|edu|gov|gob)\\.(ar|br|mx|cl|co|pe|uy|py|ec|ve|bo)$/;
+        var parts = host.split('.');
+        if (multiTld.test(host) && parts.length >= 3) {
+          return '.' + parts.slice(-3).join('.');
+        }
+        if (parts.length >= 2) {
+          return '.' + parts.slice(-2).join('.');
+        }
+        return '';
+      } catch(e) { return ''; }
+    })();
+
     function getCookie(name) {
       var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
       return m ? decodeURIComponent(m[1]) : null;
@@ -62,12 +81,13 @@ function generatePixelScript(orgId: string): string {
 
     function setCookie(name, value, days) {
       var d = new Date();
+      var domainStr = _rootDomain ? ';domain=' + _rootDomain : '';
       if (days > 0) {
         d.setTime(d.getTime() + days * 86400000);
-        document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/;SameSite=Lax';
+        document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/;SameSite=Lax' + domainStr;
       } else {
         // Session cookie (no expires)
-        document.cookie = name + '=' + encodeURIComponent(value) + ';path=/;SameSite=Lax';
+        document.cookie = name + '=' + encodeURIComponent(value) + ';path=/;SameSite=Lax' + domainStr;
       }
     }
 

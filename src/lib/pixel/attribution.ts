@@ -20,6 +20,53 @@ interface Touchpoint {
   eventId: string;
 }
 
+// ─── Referrer-based source detection ───
+// Reduces false "direct" by classifying organic, social, and referral traffic.
+// Only used when there are NO click IDs or UTM params (i.e. unpaid traffic).
+
+const REFERRER_RULES: Array<{ pattern: RegExp; source: string; medium: string }> = [
+  // Search engines → organic
+  { pattern: /google\.\w+/, source: 'google', medium: 'organic' },
+  { pattern: /bing\.com/, source: 'bing', medium: 'organic' },
+  { pattern: /yahoo\.com/, source: 'yahoo', medium: 'organic' },
+  { pattern: /duckduckgo\.com/, source: 'duckduckgo', medium: 'organic' },
+  { pattern: /baidu\.com/, source: 'baidu', medium: 'organic' },
+  // Social → social organic
+  { pattern: /facebook\.com|fb\.com/, source: 'meta', medium: 'social' },
+  { pattern: /instagram\.com/, source: 'meta', medium: 'social' },
+  { pattern: /l\.instagram\.com/, source: 'meta', medium: 'social' },
+  { pattern: /tiktok\.com/, source: 'tiktok', medium: 'social' },
+  { pattern: /twitter\.com|x\.com|t\.co/, source: 'twitter', medium: 'social' },
+  { pattern: /linkedin\.com|lnkd\.in/, source: 'linkedin', medium: 'social' },
+  { pattern: /youtube\.com|youtu\.be/, source: 'youtube', medium: 'social' },
+  { pattern: /pinterest\.com/, source: 'pinterest', medium: 'social' },
+  // Messaging → referral
+  { pattern: /whatsapp\.com|wa\.me/, source: 'whatsapp', medium: 'referral' },
+  { pattern: /t\.me|telegram\.org/, source: 'telegram', medium: 'referral' },
+  // Marketplaces (Argentina) → referral
+  { pattern: /mercadolibre\.com/, source: 'mercadolibre', medium: 'referral' },
+  // Email providers → email
+  { pattern: /mail\.google\.com|gmail\.com/, source: 'gmail', medium: 'email' },
+  { pattern: /outlook\.com|hotmail\.com/, source: 'outlook', medium: 'email' },
+];
+
+function detectSourceFromReferrer(referrer: string | null | undefined): { source: string; medium: string } | null {
+  if (!referrer) return null;
+  try {
+    const hostname = new URL(referrer).hostname.toLowerCase();
+    for (const rule of REFERRER_RULES) {
+      if (rule.pattern.test(hostname)) {
+        return { source: rule.source, medium: rule.medium };
+      }
+    }
+    // Unknown external referrer → generic referral
+    if (hostname && hostname.length > 0) {
+      return { source: hostname.replace(/^www\./, ''), medium: 'referral' };
+    }
+  } catch { /* invalid URL, ignore */ }
+  return null;
+}
+
 // ─── Calculate Attribution ───
 
 export async function calculateAttribution(
@@ -54,6 +101,7 @@ export async function calculateAttribution(
         clickIds: true,
         utmParams: true,
         pageUrl: true,
+        referrer: true,
       }
     });
 
@@ -100,20 +148,35 @@ export async function calculateAttribution(
       });
     }
 
-    // If no touchpoints with attribution signal, use first and last page view
+    // If no touchpoints with attribution signal, try referrer-based detection.
+    // Before defaulting to "direct", check if any PAGE_VIEW has a known referrer.
     if (touchpoints.length === 0) {
+      // Try to find a PAGE_VIEW with a classified referrer
+      let referrerSource: { source: string; medium: string } | null = null;
+      for (const ev of events) {
+        if (ev.type === 'PAGE_VIEW' && ev.referrer) {
+          referrerSource = detectSourceFromReferrer(ev.referrer);
+          if (referrerSource) break;
+        }
+      }
+
+      const fallbackSource = referrerSource?.source || 'direct';
+      const fallbackMedium = referrerSource?.medium || undefined;
+
       const firstEvent = events[0];
       const lastEvent = events[events.length - 1];
       touchpoints.push({
         timestamp: firstEvent.timestamp.toISOString(),
-        source: 'direct',
+        source: fallbackSource,
+        medium: fallbackMedium,
         page: firstEvent.pageUrl || undefined,
         eventId: firstEvent.id,
       });
       if (firstEvent.id !== lastEvent.id) {
         touchpoints.push({
           timestamp: lastEvent.timestamp.toISOString(),
-          source: 'direct',
+          source: fallbackSource,
+          medium: fallbackMedium,
           page: lastEvent.pageUrl || undefined,
           eventId: lastEvent.id,
         });

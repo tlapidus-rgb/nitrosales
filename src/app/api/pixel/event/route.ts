@@ -46,6 +46,42 @@ function isRateLimited(orgId: string): boolean {
   return entry.count > RATE_LIMIT;
 }
 
+// ─── PAGE_VIEW dedup (prevents inflation from double GTM loads) ───
+// Key: "sessionId|pageUrl" → timestamp. Discard if same key within 2 seconds.
+// Map auto-cleans entries older than 10 seconds to prevent memory growth.
+
+const recentPageViews = new Map<string, number>();
+const PV_DEDUP_WINDOW = 2000; // ms
+const PV_CLEANUP_INTERVAL = 10000; // ms
+
+function isDuplicatePageView(sessionId: string, pageUrl: string): boolean {
+  const key = `${sessionId}|${pageUrl}`;
+  const now = Date.now();
+  const lastSeen = recentPageViews.get(key);
+  if (lastSeen && (now - lastSeen) < PV_DEDUP_WINDOW) {
+    return true; // Duplicate — discard
+  }
+  recentPageViews.set(key, now);
+  // Lazy cleanup: remove stale entries every ~100 calls
+  if (recentPageViews.size > 500) {
+    for (const [k, ts] of recentPageViews) {
+      if (now - ts > PV_CLEANUP_INTERVAL) recentPageViews.delete(k);
+    }
+  }
+  return false;
+}
+
+// ─── Bot detection by User-Agent ───
+// Filters crawlers, scrapers, and monitoring bots that inflate metrics.
+// Conservative list: only well-known bots to avoid false positives.
+
+const BOT_PATTERNS = /bot|crawl|spider|slurp|facebookexternalhit|bingpreview|googlebot|yandex|baidu|duckduckbot|semrush|ahrefs|mj12bot|dotbot|petalbot|bytespider|gptbot|claudebot|applebot|twitterbot|linkedinbot|whatsapp|telegrambot|pingdom|uptimerobot|statuspage|headlesschrome|phantomjs|lighthouse|pagespeed/i;
+
+function isBot(ua: string): boolean {
+  if (!ua || ua.length < 10) return true; // Empty or suspicious UA
+  return BOT_PATTERNS.test(ua);
+}
+
 // ─── Device type from User-Agent ───
 
 function detectDevice(ua: string): string {
@@ -68,6 +104,12 @@ export async function POST(request: NextRequest) {
 
     // 2. Rate limit
     if (isRateLimited(orgId)) {
+      return new NextResponse(null, { status: 204 });
+    }
+
+    // 2b. Bot filtering — discard crawlers/scrapers silently
+    const userAgentEarly = request.headers.get('user-agent') || '';
+    if (isBot(userAgentEarly)) {
       return new NextResponse(null, { status: 204 });
     }
 
@@ -106,12 +148,19 @@ export async function POST(request: NextRequest) {
     const ipHashed = ip ? hashIP(ip) : undefined;
     const country = request.headers.get('x-vercel-ip-country') || undefined;
     const region = request.headers.get('x-vercel-ip-country-region') || undefined;
-    const userAgent = request.headers.get('user-agent') || '';
+    const userAgent = userAgentEarly; // Already captured above for bot check
 
     // 5. Procesar cada evento
     for (const event of events) {
       try {
         if (!event.visitor_id || !event.session_id || !event.type) continue;
+
+        // Dedup PAGE_VIEW: discard if same session+page within 2 seconds (double GTM load)
+        if (event.type === 'PAGE_VIEW' && event.page_url) {
+          if (isDuplicatePageView(event.session_id, event.page_url)) {
+            continue;
+          }
+        }
 
         const deviceType = event.device_type || detectDevice(userAgent);
 
@@ -188,7 +237,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Create the event
-        await prisma.pixelEvent.create({
+        const createdEvent = await prisma.pixelEvent.create({
           data: {
             type: event.type,
             sessionId: event.session_id,
@@ -208,6 +257,31 @@ export async function POST(request: NextRequest) {
             organizationId: orgId,
           }
         });
+
+        // ─── CAPI: Send PURCHASE to Meta Conversions API (non-blocking) ───
+        if (event.type === 'PURCHASE' && capiEventId) {
+          try {
+            const { sendCapiPurchase } = await import('@/lib/pixel/capi');
+            // Fire-and-forget: don't await, don't block the response
+            sendCapiPurchase(orgId, {
+              orderId: String(event.props?.orderId || ''),
+              total: Number(event.props?.total || 0),
+              currency: String(event.props?.currency || 'ARS'),
+              email: event.props?.email as string | undefined,
+              products: event.props?.products as any[] | undefined,
+              eventId: capiEventId,
+              sourceUrl: event.page_url,
+              userAgent,
+              ipAddress: ip,
+              fbclid: event.click_ids?.fbclid,
+            }, createdEvent.id).catch(err => {
+              console.error('[NitroPixel CAPI] Non-fatal error:', err);
+            });
+          } catch (capiErr) {
+            // CAPI import/call failure is non-fatal
+            console.error('[NitroPixel CAPI] Import error:', capiErr);
+          }
+        }
       } catch (eventError) {
         // Error en un evento individual no rompe los demas
         console.error('[NitroPixel] Error processing event:', event.type, eventError);
