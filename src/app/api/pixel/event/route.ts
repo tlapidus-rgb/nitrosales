@@ -122,6 +122,47 @@ export async function POST(request: NextRequest) {
           continue; // IDENTIFY no se guarda como PixelEvent
         }
 
+        // ─── PURCHASE dedup by orderId ───
+        // Client-side may fire PURCHASE from dataLayer + orderPlacedAPI.
+        // Server-side webhook also creates PURCHASE events.
+        // Dedup by orderId to prevent double-counting.
+        if (event.type === 'PURCHASE' && event.props?.orderId) {
+          const orderId = String(event.props.orderId);
+          const existing = await prisma.pixelEvent.findFirst({
+            where: {
+              organizationId: orgId,
+              type: 'PURCHASE',
+              props: { path: ['orderId'], equals: orderId }
+            }
+          });
+          if (existing) {
+            console.log(`[NitroPixel] Skipping duplicate PURCHASE for order ${orderId}`);
+            continue;
+          }
+        }
+
+        // ─── PURCHASE: also trigger attribution calculation ───
+        if (event.type === 'PURCHASE' && event.props?.orderId) {
+          try {
+            const orderId = String(event.props.orderId);
+            // Find matching order in database (created by webhook)
+            const order = await prisma.order.findFirst({
+              where: {
+                organizationId: orgId,
+                externalId: { contains: orderId.replace(/-\d+$/, '') } // Handle VTEX order suffixes
+              }
+            });
+            if (order) {
+              // Import and run attribution
+              const { calculateAttribution } = await import('@/lib/pixel/attribution');
+              await calculateAttribution(order.id, visitor.id, orgId);
+              console.log(`[NitroPixel] Client-side attribution for order ${orderId} visitor ${visitor.visitorId}`);
+            }
+          } catch (attrError) {
+            console.error('[NitroPixel] Attribution error (non-fatal):', attrError);
+          }
+        }
+
         // Generate CAPI event ID for purchase events (for dedup with Meta Pixel)
         const capiEventId = event.type === 'PURCHASE'
           ? `np_${event.visitor_id.slice(0, 8)}_${Date.now()}`
@@ -141,7 +182,7 @@ export async function POST(request: NextRequest) {
             country,
             region,
             ipHash: ipHashed,
-            userAgent: userAgent.slice(0, 500), // Truncar UA largo
+            userAgent: userAgent.slice(0, 500),
             timestamp: new Date(event.timestamp),
             capiEventId,
             visitorId: visitor.id,
