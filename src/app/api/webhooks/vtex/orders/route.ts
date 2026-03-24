@@ -271,8 +271,12 @@ export async function POST(req: NextRequest) {
       });
 
       if (existingPurchase) {
+        // Client-side pixel already tracked this purchase — calculate attribution now
+        // (Client-side fires PURCHASE before webhook creates Order, so attribution
+        //  couldn't be calculated at event-receive time. Webhook has the Order → do it now.)
+        await calculateAttribution(order.id, existingPurchase.visitorId, org.id);
         pixelAttribution = true;
-        console.log(`[NitroPixel] PURCHASE already tracked client-side for order ${orderId} (visitor ${existingPurchase.visitorId})`);
+        console.log(`[NitroPixel] Attribution calculated for client-side PURCHASE: order ${orderId}, visitor ${existingPurchase.visitorId}`);
       } else if (profile?.email) {
         const emailLower = profile.email.toLowerCase().trim();
 
