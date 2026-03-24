@@ -73,6 +73,13 @@ export async function GET(request: NextRequest) {
       conversionLagResult,
       recentEventsResult,
       eventCountResult,
+      // ── NEW: 6 queries for redesigned dashboard ──
+      totalOrdersResult,
+      adSpendBySourceResult,
+      recentJourneysResult,
+      clickIdCoverageResult,
+      dailyRevenueResult,
+      prevAttrRevenueResult,
     ] = await Promise.all([
       // 1. Live status
       prisma.$queryRaw`
@@ -318,6 +325,95 @@ export async function GET(request: NextRequest) {
           AND timestamp >= ${dateFrom}
           AND timestamp <= ${dateTo}
       ` as Promise<Array<{ total: number }>>,
+
+      // ── NEW QUERIES FOR REDESIGNED DASHBOARD ──
+
+      // 13. Total orders in period (for attribution rate)
+      prisma.$queryRaw`
+        SELECT COUNT(*)::int as total
+        FROM orders
+        WHERE "organizationId" = ${ORG_ID}
+          AND "orderDate" >= ${dateFrom}
+          AND "orderDate" <= ${dateTo}
+      ` as Promise<Array<{ total: number }>>,
+
+      // 14. Ad spend + platform metrics grouped by source (META/GOOGLE)
+      prisma.$queryRaw`
+        SELECT
+          LOWER(amd.platform::text) as source,
+          SUM(amd.spend)::float as spend,
+          SUM(amd.conversions)::int as "platformConversions",
+          SUM(amd."conversionValue")::float as "platformRevenue"
+        FROM ad_metric_daily amd
+        WHERE amd."organizationId" = ${ORG_ID}
+          AND amd.date >= ${dateFrom}::date
+          AND amd.date <= ${dateTo}::date
+        GROUP BY 1
+      ` as Promise<Array<{ source: string; spend: number; platformConversions: number; platformRevenue: number }>>,
+
+      // 15. Recent journeys (last 15 attributed orders with touchpoints)
+      prisma.$queryRaw`
+        SELECT
+          pa."orderId",
+          o."externalId" as "orderExternalId",
+          pa."attributedValue"::float as revenue,
+          pa."touchpointCount",
+          pa."conversionLag",
+          pa.touchpoints,
+          o."orderDate",
+          o.status as "orderStatus"
+        FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
+        WHERE pa."organizationId" = ${ORG_ID}
+          AND pa."createdAt" >= ${dateFrom}
+          AND pa."createdAt" <= ${dateTo}
+          AND pa.model::text = ${selectedModel}
+        ORDER BY o."orderDate" DESC
+        LIMIT 15
+      ` as Promise<Array<{
+        orderId: string; orderExternalId: string; revenue: number;
+        touchpointCount: number; conversionLag: number | null;
+        touchpoints: any; orderDate: Date; orderStatus: string;
+      }>>,
+
+      // 16. Click ID coverage (pixel health)
+      prisma.$queryRaw`
+        SELECT
+          COUNT(*) FILTER (WHERE pe."clickIds" IS NOT NULL AND pe."clickIds"::text != '{}' AND pe."clickIds"::text != 'null')::int as "withClickId",
+          COUNT(*)::int as total
+        FROM pixel_events pe
+        WHERE pe."organizationId" = ${ORG_ID}
+          AND pe.timestamp >= ${dateFrom}
+          AND pe.timestamp <= ${dateTo}
+      ` as Promise<Array<{ withClickId: number; total: number }>>,
+
+      // 17. Daily revenue from attributions (for revenue chart)
+      prisma.$queryRaw`
+        SELECT
+          TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
+          SUM(pa."attributedValue")::float as revenue,
+          COUNT(*)::int as orders
+        FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
+        WHERE pa."organizationId" = ${ORG_ID}
+          AND pa."createdAt" >= ${dateFrom}
+          AND pa."createdAt" <= ${dateTo}
+          AND pa.model::text = ${selectedModel}
+        GROUP BY 1
+        ORDER BY 1
+      ` as Promise<Array<{ day: string; revenue: number; orders: number }>>,
+
+      // 18. Previous period attribution revenue (for business KPI changes)
+      prisma.$queryRaw`
+        SELECT
+          COUNT(*)::int as "ordersAttributed",
+          SUM(pa."attributedValue")::float as revenue
+        FROM pixel_attributions pa
+        WHERE pa."organizationId" = ${ORG_ID}
+          AND pa."createdAt" >= ${prevFrom}
+          AND pa."createdAt" <= ${prevTo}
+          AND pa.model::text = ${selectedModel}
+      ` as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -370,6 +466,89 @@ export async function GET(request: NextRequest) {
 
     const totalEvents = eventCountResult[0]?.total || 0;
 
+    // ── NEW: Process business KPIs ──
+    const selectedModelData = attributionByModelResult.find((m) => m.model === selectedModel);
+    const pixelRevenue = selectedModelData?.revenue || 0;
+    const ordersAttributed = selectedModelData?.ordersAttributed || 0;
+    const totalOrders = totalOrdersResult[0]?.total || 0;
+    const totalAdSpend = adSpendBySourceResult.reduce((sum, s) => sum + (s.spend || 0), 0);
+    const pixelRoas = totalAdSpend > 0 ? Math.round((pixelRevenue / totalAdSpend) * 100) / 100 : 0;
+    const attributionRate = totalOrders > 0 ? Math.round((ordersAttributed / totalOrders) * 100) : 0;
+    const aov = ordersAttributed > 0 ? Math.round(pixelRevenue / ordersAttributed) : 0;
+    const prevAttr = prevAttrRevenueResult[0];
+    const prevPixelRevenue = prevAttr?.revenue || 0;
+    const prevOrdersAttr = prevAttr?.ordersAttributed || 0;
+    const prevRoas = totalAdSpend > 0 ? (prevPixelRevenue / totalAdSpend) : 0;
+
+    // ── NEW: Build channelRoas (merge pixel attribution + platform metrics) ──
+    const adSpendMap = new Map(adSpendBySourceResult.map((s) => [s.source, s]));
+    const channelRoas = attributionBySource.map((ch) => {
+      const platform = adSpendMap.get(ch.source) || { spend: 0, platformConversions: 0, platformRevenue: 0 };
+      const chSpend = platform.spend || 0;
+      return {
+        source: ch.source,
+        orders: ch.orders,
+        pixelRevenue: ch.revenue || 0,
+        platformRevenue: platform.platformRevenue || 0,
+        spend: chSpend,
+        platformConversions: platform.platformConversions || 0,
+        pixelRoas: chSpend > 0 ? Math.round(((ch.revenue || 0) / chSpend) * 100) / 100 : 0,
+        platformRoas: chSpend > 0 ? Math.round(((platform.platformRevenue || 0) / chSpend) * 100) / 100 : 0,
+        diffPercent: (platform.platformRevenue || 0) > 0 && (ch.revenue || 0) > 0
+          ? Math.round((((ch.revenue || 0) - (platform.platformRevenue || 0)) / (platform.platformRevenue || 0)) * 100)
+          : null,
+      };
+    });
+
+    // ── NEW: Funnel from event types ──
+    const evtMap = new Map(eventTypesResult.map((e) => [e.type, e.count]));
+    const funnel = {
+      pageView: evtMap.get("PAGE_VIEW") || 0,
+      viewProduct: evtMap.get("VIEW_PRODUCT") || 0,
+      addToCart: evtMap.get("ADD_TO_CART") || 0,
+      purchase: evtMap.get("PURCHASE") || 0,
+    };
+
+    // ── NEW: Daily revenue merged with daily spend ──
+    const dailySpendResult = await prisma.$queryRaw`
+      SELECT
+        TO_CHAR(amd.date, 'YYYY-MM-DD') as day,
+        SUM(amd.spend)::float as spend
+      FROM ad_metric_daily amd
+      WHERE amd."organizationId" = ${ORG_ID}
+        AND amd.date >= ${dateFrom}::date
+        AND amd.date <= ${dateTo}::date
+      GROUP BY 1
+    ` as Array<{ day: string; spend: number }>;
+    const spendByDay = new Map(dailySpendResult.map((d) => [d.day, d.spend]));
+    const dailyRevenue = dailyRevenueResult.map((d) => {
+      const daySpend = spendByDay.get(d.day) || 0;
+      return {
+        ...d,
+        spend: daySpend,
+        roas: daySpend > 0 ? Math.round((d.revenue / daySpend) * 100) / 100 : 0,
+      };
+    });
+
+    // ── NEW: Pixel health ──
+    const clickCov = clickIdCoverageResult[0];
+    const pixelHealth = {
+      attributionRate,
+      clickCoverage: {
+        clickIdRate: (clickCov?.total || 0) > 0 ? Math.round(((clickCov?.withClickId || 0) / clickCov.total) * 100) : 0,
+        total: clickCov?.total || 0,
+        withClickId: clickCov?.withClickId || 0,
+      },
+      eventsInPeriod: totalEvents,
+    };
+
+    // ── NEW: Recent journeys ──
+    const recentJourneys = recentJourneysResult.map((j) => ({
+      ...j,
+      orderDate: new Date(j.orderDate).toISOString(),
+      touchpoints: Array.isArray(j.touchpoints) ? j.touchpoints : (typeof j.touchpoints === "string" ? JSON.parse(j.touchpoints) : j.touchpoints || []),
+    }));
+
     return NextResponse.json({
       liveStatus: {
         status,
@@ -394,6 +573,28 @@ export async function GET(request: NextRequest) {
         },
       },
 
+      // ── NEW: Business-focused KPIs ──
+      businessKpis: {
+        pixelRevenue,
+        pixelRoas,
+        ordersAttributed,
+        attributionRate,
+        aov,
+        totalAdSpend,
+        totalOrders,
+        changes: {
+          pixelRevenue: pctChange(pixelRevenue, prevPixelRevenue),
+          ordersAttributed: pctChange(ordersAttributed, prevOrdersAttr),
+          pixelRoas: pctChange(pixelRoas * 100, prevRoas * 100),
+        },
+      },
+      channelRoas,
+      funnel,
+      dailyRevenue,
+      recentJourneys,
+      pixelHealth,
+
+      // ── Existing fields (unchanged) ──
       dailyVisitors: dailyVisitorsResult,
       deviceBreakdown,
       eventTypes,
