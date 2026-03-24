@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
       ? payments.map((p: any) => p.paymentSystemName || p.group).join(", ")
       : null;
 
-    const promoNames = (vtexOrder.ratesAndBenefitsData || [])
+    const promoNames = (Array.isArray(vtexOrder.ratesAndBenefitsData) ? vtexOrder.ratesAndBenefitsData : [])
       .map((r: any) => r.name)
       .filter(Boolean)
       .join(', ') || null;
