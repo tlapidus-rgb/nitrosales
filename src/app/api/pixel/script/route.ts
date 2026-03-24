@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     status: 200,
     headers: {
       'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+      'Cache-Control': 'public, max-age=300, s-maxage=300',
       'Access-Control-Allow-Origin': '*',
     }
   });
@@ -135,12 +135,14 @@ function generatePixelScript(orgId: string): string {
 
     function flush() {
       if (queue.length === 0) return;
+      timer = null; // Reset timer so enqueue can set new ones
       var batch = queue.splice(0, MAX_BATCH);
       var payload = JSON.stringify({ events: batch });
 
-      // Usar sendBeacon (no bloquea navegacion)
+      // Usar sendBeacon con text/plain para evitar CORS preflight
+      // (application/json triggerea preflight que VTEX checkout bloquea silenciosamente)
       if (navigator.sendBeacon) {
-        var blob = new Blob([payload], { type: 'application/json' });
+        var blob = new Blob([payload], { type: 'text/plain' });
         navigator.sendBeacon(ENDPOINT + '?org=' + ORG_ID, blob);
       } else {
         // Fallback a fetch fire-and-forget
@@ -148,7 +150,7 @@ function generatePixelScript(orgId: string): string {
           fetch(ENDPOINT, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
+              'Content-Type': 'text/plain',
               'x-np-org': ORG_ID
             },
             body: payload,
