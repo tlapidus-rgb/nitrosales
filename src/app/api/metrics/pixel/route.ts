@@ -344,7 +344,7 @@ export async function GET(request: NextRequest) {
           SUM(amd.spend)::float as spend,
           SUM(amd.conversions)::int as "platformConversions",
           SUM(amd."conversionValue")::float as "platformRevenue"
-        FROM ad_metric_daily amd
+        FROM ad_metrics_daily amd
         WHERE amd."organizationId" = ${ORG_ID}
           AND amd.date >= ${dateFrom}::date
           AND amd.date <= ${dateTo}::date
@@ -361,7 +361,7 @@ export async function GET(request: NextRequest) {
           pa."conversionLag",
           pa.touchpoints,
           o."orderDate",
-          o.status as "orderStatus"
+          o.status::text as "orderStatus"
         FROM pixel_attributions pa
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
@@ -514,7 +514,7 @@ export async function GET(request: NextRequest) {
       SELECT
         TO_CHAR(amd.date, 'YYYY-MM-DD') as day,
         SUM(amd.spend)::float as spend
-      FROM ad_metric_daily amd
+      FROM ad_metrics_daily amd
       WHERE amd."organizationId" = ${ORG_ID}
         AND amd.date >= ${dateFrom}::date
         AND amd.date <= ${dateTo}::date
