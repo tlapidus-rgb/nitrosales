@@ -75,7 +75,11 @@ function isDuplicatePageView(sessionId: string, pageUrl: string): boolean {
 // Filters crawlers, scrapers, and monitoring bots that inflate metrics.
 // Conservative list: only well-known bots to avoid false positives.
 
-const BOT_PATTERNS = /bot|crawl|spider|slurp|facebookexternalhit|bingpreview|googlebot|yandex|baidu|duckduckbot|semrush|ahrefs|mj12bot|dotbot|petalbot|bytespider|gptbot|claudebot|applebot|twitterbot|linkedinbot|whatsapp|telegrambot|pingdom|uptimerobot|statuspage|headlesschrome|phantomjs|lighthouse|pagespeed/i;
+// IMPORTANT: Do NOT add "whatsapp" here — WhatsApp in-app browser includes "WhatsApp"
+// in its User-Agent and blocking it would silently drop all WhatsApp traffic (huge in LATAM).
+// facebookexternalhit already covers Meta's link preview bot separately.
+// Similarly, do NOT add "telegram" — only "telegrambot" matches the bot, not the in-app browser.
+const BOT_PATTERNS = /bot|crawl|spider|slurp|facebookexternalhit|bingpreview|googlebot|yandex|baidu|duckduckbot|semrush|ahrefs|mj12bot|dotbot|petalbot|bytespider|gptbot|claudebot|applebot|twitterbot|linkedinbot|telegrambot|pingdom|uptimerobot|statuspage|headlesschrome|phantomjs|lighthouse|pagespeed/i;
 
 function isBot(ua: string): boolean {
   if (!ua || ua.length < 10) return true; // Empty or suspicious UA
