@@ -60,15 +60,26 @@ export async function calculateAttribution(
     if (events.length === 0) return;
 
     // 3. Build touchpoints from events that have attribution signals
+    //    IMPORTANT: Only events with click IDs or UTM source count as touchpoints.
+    //    PURCHASE, IDENTIFY, and DEBUG events are NEVER touchpoints — they are
+    //    conversion/identification events, not traffic sources.
+    //    Without this filter, checkout pages that lose cookies across domains
+    //    (e.g. VTEX checkout on different subdomain) create false "direct" touchpoints.
     const touchpoints: Touchpoint[] = [];
+    const NON_TOUCHPOINT_TYPES = new Set([
+      'PURCHASE', 'IDENTIFY', 'DEBUG_NO_PURCHASE', 'CUSTOM'
+    ]);
 
     for (const event of events) {
+      // Skip event types that are never traffic touchpoints
+      if (NON_TOUCHPOINT_TYPES.has(event.type)) continue;
+
       const clicks = (event.clickIds as Record<string, string>) || {};
       const utms = (event.utmParams as Record<string, string>) || {};
 
       // Only count as touchpoint if there's a click ID or UTM source
       const hasSignal = Object.keys(clicks).length > 0 || utms.source;
-      if (!hasSignal && event.type === 'PAGE_VIEW') continue; // Skip generic page views
+      if (!hasSignal) continue; // Skip any event without attribution signals
 
       // Determine click type
       let clickId: string | undefined;
