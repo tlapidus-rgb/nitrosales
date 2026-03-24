@@ -103,26 +103,39 @@ function generatePixelScript(orgId: string): string {
         if (v) utmParams[k.replace('utm_', '')] = v;
       });
 
-      // Guardar click IDs en cookie si hay alguno
+      // Guardar click IDs en cookie + localStorage (cross-domain fallback)
       if (Object.keys(clickIds).length > 0) {
         setCookie('_np_click', JSON.stringify(clickIds), COOKIE_DAYS_CLICK);
+        try { localStorage.setItem('_np_click', JSON.stringify(clickIds)); } catch(e) {}
       } else {
-        // Recuperar de cookie previo
+        // Recuperar de cookie primero, luego localStorage (cross-domain)
         var saved = getCookie('_np_click');
+        if (!saved) { try { saved = localStorage.getItem('_np_click'); } catch(e) {} }
         if (saved) {
           try { clickIds = JSON.parse(saved); } catch(e) {}
         }
       }
 
-      // Guardar UTMs en cookie
+      // Guardar UTMs en cookie + localStorage
       if (Object.keys(utmParams).length > 0) {
         setCookie('_np_utm', JSON.stringify(utmParams), COOKIE_DAYS_CLICK);
+        try { localStorage.setItem('_np_utm', JSON.stringify(utmParams)); } catch(e) {}
       } else {
         var savedUtm = getCookie('_np_utm');
+        if (!savedUtm) { try { savedUtm = localStorage.getItem('_np_utm'); } catch(e) {} }
         if (savedUtm) {
           try { utmParams = JSON.parse(savedUtm); } catch(e) {}
         }
       }
+
+      // Persist visitor ID in localStorage too (survives cross-domain)
+      try {
+        if (!getCookie('_np_vid') && localStorage.getItem('_np_vid')) {
+          vid = localStorage.getItem('_np_vid');
+          setCookie('_np_vid', vid, COOKIE_DAYS_VID);
+        }
+        localStorage.setItem('_np_vid', vid);
+      } catch(e) {}
     } catch(e) {}
 
     // ─── Device detection ───
@@ -139,24 +152,31 @@ function generatePixelScript(orgId: string): string {
       var batch = queue.splice(0, MAX_BATCH);
       var payload = JSON.stringify({ events: batch });
 
-      // Usar sendBeacon con text/plain para evitar CORS preflight
+      // Enviar con text/plain para evitar CORS preflight
       // (application/json triggerea preflight que VTEX checkout bloquea silenciosamente)
-      if (navigator.sendBeacon) {
+      // fetch+keepalive es más confiable que sendBeacon (Triple Whale pattern)
+      var sent = false;
+      try {
+        if (typeof fetch !== 'undefined') {
+          fetch(ENDPOINT + '?org=' + ORG_ID, {
+            method: 'POST',
+            body: payload,
+            keepalive: true,
+            headers: { 'Content-Type': 'text/plain' }
+          }).catch(function(err) {
+            // fetch falló — fallback a sendBeacon
+            if (!sent && navigator.sendBeacon) {
+              var blob = new Blob([payload], { type: 'text/plain' });
+              navigator.sendBeacon(ENDPOINT + '?org=' + ORG_ID, blob);
+            }
+          });
+          sent = true;
+        }
+      } catch(e) {}
+      // Último fallback: sendBeacon
+      if (!sent && navigator.sendBeacon) {
         var blob = new Blob([payload], { type: 'text/plain' });
         navigator.sendBeacon(ENDPOINT + '?org=' + ORG_ID, blob);
-      } else {
-        // Fallback a fetch fire-and-forget
-        try {
-          fetch(ENDPOINT, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'text/plain',
-              'x-np-org': ORG_ID
-            },
-            body: payload,
-            keepalive: true
-          }).catch(function() {});
-        } catch(e) {}
       }
 
       // Si quedan eventos, programar otro flush
@@ -395,11 +415,14 @@ function generatePixelScript(orgId: string): string {
     scanDataLayer();
     hookDataLayer();
 
-    // Re-scan dataLayer periodically on orderPlaced pages (VTEX may push late)
+    // Re-scan dataLayer agresivamente en orderPlaced pages (VTEX puede pushear tarde)
     if (/orderPlaced/i.test(window.location.href)) {
+      setTimeout(scanDataLayer, 500);
       setTimeout(scanDataLayer, 1000);
+      setTimeout(scanDataLayer, 2000);
       setTimeout(scanDataLayer, 3000);
-      setTimeout(scanDataLayer, 6000);
+      setTimeout(scanDataLayer, 5000);
+      setTimeout(scanDataLayer, 8000);
     }
 
     // ══════════════════════════════════════════════════════════════

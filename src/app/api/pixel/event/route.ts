@@ -71,17 +71,31 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 204 });
     }
 
-    // 3. Parse body
+    // 3. Parse body — MUST use request.text() + JSON.parse()
+    // sendBeacon envía con Content-Type: text/plain para evitar CORS preflight.
+    // request.json() puede fallar silenciosamente con text/plain en algunos runtimes.
+    // Esto causaba que TODOS los eventos del pixel se descartaran sin log.
     let body: { events: PixelEventPayload[] };
     try {
-      body = await request.json();
-    } catch {
+      const rawText = await request.text();
+      if (!rawText || rawText.trim() === '') {
+        console.warn('[NitroPixel] Empty body received');
+        return new NextResponse(null, { status: 204 });
+      }
+      body = JSON.parse(rawText);
+    } catch (parseError) {
+      console.error('[NitroPixel] Failed to parse event body:', parseError);
       return new NextResponse(null, { status: 204 });
     }
 
     if (!body.events || !Array.isArray(body.events) || body.events.length === 0) {
+      console.warn('[NitroPixel] No events array in body or empty array');
       return new NextResponse(null, { status: 204 });
     }
+
+    // Log event batch receipt for debugging
+    const eventTypes = body.events.map(e => e.type).join(',');
+    console.log(`[NitroPixel] Received ${body.events.length} events [${eventTypes}] from org ${orgId}`);
 
     // Limitar a 10 eventos por request (prevenir abuse)
     const events = body.events.slice(0, 10);
@@ -167,6 +181,11 @@ export async function POST(request: NextRequest) {
         const capiEventId = event.type === 'PURCHASE'
           ? `np_${event.visitor_id.slice(0, 8)}_${Date.now()}`
           : undefined;
+
+        // Log PURCHASE events for visibility (critical for debugging)
+        if (event.type === 'PURCHASE') {
+          console.log(`[NitroPixel] PURCHASE event received: orderId=${event.props?.orderId}, visitor=${event.visitor_id}, source=${event.props?.source}`);
+        }
 
         // Create the event
         await prisma.pixelEvent.create({
