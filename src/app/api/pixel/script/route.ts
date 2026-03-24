@@ -235,12 +235,30 @@ function generatePixelScript(orgId: string): string {
 
     function processOrderPlaced(dl) {
       try {
-        if (!dl || !dl.transactionId) return;
-        if (_sentPurchases[dl.transactionId]) return;
-        _sentPurchases[dl.transactionId] = true;
+        if (!dl) return;
 
-        // Extract email from visitorContactInfo array or string
+        // ─── Extract orderId from ALL possible VTEX formats ───
+        var orderId = dl.transactionId;  // Flat format (checkout6)
+        // VTEX IO Enhanced Ecommerce format
+        if (!orderId && dl.ecommerce && dl.ecommerce.purchase && dl.ecommerce.purchase.actionField) {
+          orderId = dl.ecommerce.purchase.actionField.id;
+        }
+        // GA4 format
+        if (!orderId && dl.ecommerce) {
+          orderId = dl.ecommerce.transaction_id;
+        }
+        // orderGroup fallback (VTEX confirmation page)
+        if (!orderId && dl.orderGroup) {
+          orderId = dl.orderGroup;
+        }
+        if (!orderId) return;
+
+        if (_sentPurchases[orderId]) return;
+        _sentPurchases[orderId] = true;
+
+        // ─── Extract email from ALL possible locations ───
         var email = null;
+        // Flat format: visitorContactInfo
         if (dl.visitorContactInfo) {
           var vci = dl.visitorContactInfo;
           if (Array.isArray(vci)) {
@@ -253,16 +271,29 @@ function generatePixelScript(orgId: string): string {
             email = vci;
           }
         }
-        // Fallback: visitorContactPhone might contain email in some VTEX configs
         if (!email && dl.visitorEmail) email = dl.visitorEmail;
+        // Enhanced Ecommerce format
+        if (!email && dl.ecommerce && dl.ecommerce.purchase && dl.ecommerce.purchase.actionField) {
+          email = dl.ecommerce.purchase.actionField.email;
+        }
 
         // IDENTIFY first (so server links visitor to email before PURCHASE)
         if (email) {
           identify({ email: email });
         }
 
-        // Build products array
+        // ─── Extract total from ALL possible locations ───
+        var total = dl.transactionTotal || 0;
+        if (!total && dl.ecommerce && dl.ecommerce.purchase && dl.ecommerce.purchase.actionField) {
+          total = parseFloat(dl.ecommerce.purchase.actionField.revenue) || 0;
+        }
+        if (!total && dl.ecommerce && dl.ecommerce.value) {
+          total = parseFloat(dl.ecommerce.value) || 0;
+        }
+
+        // ─── Extract products from ALL possible formats ───
         var products = [];
+        // Flat format (checkout6)
         if (dl.transactionProducts && Array.isArray(dl.transactionProducts)) {
           dl.transactionProducts.forEach(function(p) {
             products.push({
@@ -273,14 +304,36 @@ function generatePixelScript(orgId: string): string {
             });
           });
         }
+        // Enhanced Ecommerce format
+        if (products.length === 0 && dl.ecommerce && dl.ecommerce.purchase && dl.ecommerce.purchase.products) {
+          dl.ecommerce.purchase.products.forEach(function(p) {
+            products.push({
+              id: p.id || p.sku || '',
+              name: p.name || '',
+              price: parseFloat(p.price) || 0,
+              quantity: parseInt(p.quantity) || 1
+            });
+          });
+        }
+        // GA4 items format
+        if (products.length === 0 && dl.ecommerce && dl.ecommerce.items) {
+          dl.ecommerce.items.forEach(function(p) {
+            products.push({
+              id: p.item_id || p.id || '',
+              name: p.item_name || p.name || '',
+              price: parseFloat(p.price) || 0,
+              quantity: parseInt(p.quantity) || 1
+            });
+          });
+        }
 
         // Fire PURCHASE event with full order data
         trackEvent('PURCHASE', {
-          orderId: dl.transactionId,
-          total: dl.transactionTotal || 0,
+          orderId: orderId,
+          total: total,
           shipping: dl.transactionShipping || 0,
           tax: dl.transactionTax || 0,
-          currency: dl.transactionCurrency || 'ARS',
+          currency: dl.transactionCurrency || dl.currency || 'ARS',
           email: email || '',
           products: products,
           source: 'dataLayer'
@@ -291,13 +344,28 @@ function generatePixelScript(orgId: string): string {
       } catch(e) {}
     }
 
+    // Helper: check if a dataLayer entry looks like a purchase event
+    function isPurchaseEntry(entry) {
+      if (!entry) return false;
+      // VTEX checkout6 flat format
+      if (entry.event === 'orderPlaced') return true;
+      if (entry.transactionId) return true;
+      // GA4 / VTEX IO format
+      if (entry.event === 'purchase') return true;
+      // Enhanced Ecommerce with nested purchase data
+      if (entry.ecommerce && entry.ecommerce.purchase) return true;
+      // VTEX orderGroup present
+      if (entry.orderGroup) return true;
+      return false;
+    }
+
     // Scan existing dataLayer entries (orderPlaced may already be there)
     function scanDataLayer() {
       try {
         if (!window.dataLayer || !Array.isArray(window.dataLayer)) return;
         for (var i = 0; i < window.dataLayer.length; i++) {
           var entry = window.dataLayer[i];
-          if (entry && (entry.event === 'orderPlaced' || entry.transactionId)) {
+          if (isPurchaseEntry(entry)) {
             processOrderPlaced(entry);
           }
         }
@@ -313,7 +381,7 @@ function generatePixelScript(orgId: string): string {
           var result = originalPush.apply(window.dataLayer, arguments);
           for (var i = 0; i < arguments.length; i++) {
             var arg = arguments[i];
-            if (arg && (arg.event === 'orderPlaced' || arg.transactionId)) {
+            if (isPurchaseEntry(arg)) {
               processOrderPlaced(arg);
             }
           }
@@ -324,6 +392,13 @@ function generatePixelScript(orgId: string): string {
 
     scanDataLayer();
     hookDataLayer();
+
+    // Re-scan dataLayer periodically on orderPlaced pages (VTEX may push late)
+    if (/orderPlaced/i.test(window.location.href)) {
+      setTimeout(scanDataLayer, 1000);
+      setTimeout(scanDataLayer, 3000);
+      setTimeout(scanDataLayer, 6000);
+    }
 
     // ══════════════════════════════════════════════════════════════
     // LAYER 2: VTEX Checkout — email identification + orderForm
@@ -483,6 +558,35 @@ function generatePixelScript(orgId: string): string {
     // Fire on orderPlaced page after a delay (let dataLayer fire first)
     if (/orderPlaced/i.test(window.location.href)) {
       setTimeout(tryOrderPlacedPageScrape, 3000);
+
+      // DEBUG: If no purchase captured after 10s, send debug info
+      setTimeout(function() {
+        try {
+          if (Object.keys(_sentPurchases).length === 0) {
+            var dlInfo = [];
+            if (window.dataLayer) {
+              for (var i = 0; i < Math.min(window.dataLayer.length, 30); i++) {
+                var e = window.dataLayer[i];
+                dlInfo.push({
+                  idx: i,
+                  event: e.event || null,
+                  hasTxId: !!e.transactionId,
+                  hasEcom: !!e.ecommerce,
+                  hasOG: !!e.orderGroup,
+                  keys: Object.keys(e).slice(0, 15).join(',')
+                });
+              }
+            }
+            trackEvent('DEBUG_NO_PURCHASE', {
+              message: 'orderPlaced page loaded but no purchase detected',
+              url: window.location.href,
+              dataLayerLength: window.dataLayer ? window.dataLayer.length : 0,
+              entries: dlInfo
+            });
+            setTimeout(flush, 100);
+          }
+        } catch(ex) {}
+      }, 10000);
     }
 
     // ─── Flush antes de cerrar pagina ───
