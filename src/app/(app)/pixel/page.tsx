@@ -233,7 +233,7 @@ export default function PixelPage() {
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(7);
 
   // Chart toggle
-  const [dailyMetric, setDailyMetric] = useState<"revenue" | "roas" | "visitors">("revenue");
+  // dailyMetric state removed — chart now shows all three metrics simultaneously
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   // Attribution model selector — Nitro is the default
@@ -947,45 +947,106 @@ export default function PixelPage() {
             {/* DAILY TREND TABLE (Resumen tab only)                     */}
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && (
-              <div className="rounded-2xl bg-white border border-gray-200 p-4">
-                {/* Header + metric toggle */}
-                <div className="flex items-center justify-between mb-3">
+              <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                   <h2 className="text-sm font-semibold text-gray-800">Tendencia Diaria</h2>
-                  <div className="flex gap-1">
-                    {(["revenue", "roas", "visitors"] as const).map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => setDailyMetric(m)}
-                        className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
-                          dailyMetric === m
-                            ? "bg-orange-100 text-orange-600"
-                            : "text-gray-500 hover:text-gray-700"
-                        }`}
-                      >
-                        {m === "revenue" ? "Revenue" : m === "roas" ? "ROAS" : "Visitantes"}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-4 text-[11px] text-gray-500">
+                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-orange-400/80" /> Inversión</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-400/80" /> Facturación</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-cyan-500 rounded" /> ROAS</span>
                   </div>
                 </div>
 
-                {/* Sparkline */}
+                {/* Combined Chart: Spend (area) + Revenue (area) + ROAS (line, right axis) */}
                 {(() => {
-                  const sparkData = dailyMetric === "visitors"
-                    ? (d.dailyVisitors || []).map((v: any) => ({ v: v.visitors }))
-                    : (d.dailyRevenue || []).map((v: any) => ({ v: dailyMetric === "roas" ? v.roas : v.revenue }));
-                  const sparkColor = dailyMetric === "roas" ? "#06b6d4" : "#f97316";
-                  return sparkData.length > 1 ? (
-                    <div className="mb-3">
-                      <ResponsiveContainer width="100%" height={40}>
-                        <AreaChart data={sparkData}>
+                  const chartData = (d.dailyRevenue || [])
+                    .slice()
+                    .sort((a: any, b: any) => a.day.localeCompare(b.day))
+                    .map((v: any) => ({
+                      day: v.day,
+                      label: v.day.split("-").slice(1).join("/"),
+                      spend: Math.round(v.spend || 0),
+                      revenue: Math.round(v.revenue || 0),
+                      roas: v.roas || 0,
+                    }));
+                  return chartData.length > 1 ? (
+                    <div className="px-4 pt-4 pb-2">
+                      <ResponsiveContainer width="100%" height={220}>
+                        <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                           <defs>
-                            <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={sparkColor} stopOpacity={0.25} />
-                              <stop offset="95%" stopColor={sparkColor} stopOpacity={0} />
+                            <linearGradient id="gradSpend" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#fb923c" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#fb923c" stopOpacity={0.03} />
+                            </linearGradient>
+                            <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#34d399" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#34d399" stopOpacity={0.03} />
                             </linearGradient>
                           </defs>
-                          <Area type="monotone" dataKey="v" stroke={sparkColor} strokeWidth={1.5} fill="url(#sparkGrad)" dot={false} />
-                        </AreaChart>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 10, fill: "#9ca3af" }}
+                            axisLine={{ stroke: "#e5e7eb" }}
+                            tickLine={false}
+                            interval={Math.max(0, Math.floor(chartData.length / 8))}
+                          />
+                          <YAxis
+                            yAxisId="money"
+                            tick={{ fontSize: 10, fill: "#9ca3af" }}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={(v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}K` : `${v}`}
+                            width={50}
+                          />
+                          <YAxis
+                            yAxisId="roas"
+                            orientation="right"
+                            tick={{ fontSize: 10, fill: "#06b6d4" }}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={(v: number) => `${v}x`}
+                            width={35}
+                          />
+                          <Tooltip
+                            contentStyle={{ background: "#1f2937", border: "none", borderRadius: "8px", fontSize: "11px", color: "#f9fafb" }}
+                            labelStyle={{ color: "#9ca3af", marginBottom: "4px" }}
+                            formatter={(value: any, name: string) => {
+                              if (name === "roas") return [`${Number(value).toFixed(2)}x`, "ROAS"];
+                              return [fmtARS(Number(value)), name === "spend" ? "Inversión" : "Facturación"];
+                            }}
+                          />
+                          <Area
+                            yAxisId="money"
+                            type="monotone"
+                            dataKey="spend"
+                            stroke="#fb923c"
+                            strokeWidth={1.5}
+                            fill="url(#gradSpend)"
+                            dot={false}
+                            activeDot={{ r: 3, strokeWidth: 0, fill: "#fb923c" }}
+                          />
+                          <Area
+                            yAxisId="money"
+                            type="monotone"
+                            dataKey="revenue"
+                            stroke="#34d399"
+                            strokeWidth={1.5}
+                            fill="url(#gradRevenue)"
+                            dot={false}
+                            activeDot={{ r: 3, strokeWidth: 0, fill: "#34d399" }}
+                          />
+                          <Line
+                            yAxisId="roas"
+                            type="monotone"
+                            dataKey="roas"
+                            stroke="#06b6d4"
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 4, strokeWidth: 2, fill: "#fff", stroke: "#06b6d4" }}
+                          />
+                        </ComposedChart>
                       </ResponsiveContainer>
                     </div>
                   ) : null;
