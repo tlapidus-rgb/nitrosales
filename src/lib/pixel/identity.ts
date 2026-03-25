@@ -5,6 +5,7 @@
 // Conecta visitor IDs anonimos con emails y Customers.
 
 import { prisma } from '@/lib/db/client';
+import { calculateAttribution } from '@/lib/pixel/attribution';
 import crypto from 'crypto';
 
 // ─── Types ───
@@ -175,6 +176,35 @@ export async function identifyVisitor(
       await prisma.pixelVisitor.delete({ where: { id: currentVisitor.id } });
 
       console.log(`[NitroPixel] Merged visitor ${visitorId} into ${existingWithEmail.visitorId} (email: ${email})`);
+
+      // ─── DEFERRED ATTRIBUTION (post-merge) ───
+      // After merging, the surviving visitor now has all events from both.
+      // Check for unattributed orders from the associated customer.
+      try {
+        const customer = await prisma.customer.findFirst({
+          where: { organizationId, email }
+        });
+        if (customer) {
+          const customerOrders = await prisma.order.findMany({
+            where: { customerId: customer.id, organizationId },
+            select: { id: true, externalId: true },
+            orderBy: { orderDate: 'desc' },
+            take: 10,
+          });
+          for (const order of customerOrders) {
+            const existingAttr = await prisma.pixelAttribution.findFirst({
+              where: { orderId: order.id, visitorId: existingWithEmail.id, model: 'LAST_CLICK' }
+            });
+            if (!existingAttr) {
+              await calculateAttribution(order.id, existingWithEmail.id, organizationId);
+              console.log(`[NitroPixel] DEFERRED ATTRIBUTION (merge): Order ${order.externalId} attributed to merged visitor ${existingWithEmail.visitorId}`);
+            }
+          }
+        }
+      } catch (deferredError) {
+        console.error('[NitroPixel] Deferred attribution error post-merge (non-fatal):', deferredError);
+      }
+
       return existingWithEmail;
     }
 
@@ -195,6 +225,49 @@ export async function identifyVisitor(
         data: { customerId: customer.id }
       });
       console.log(`[NitroPixel] Linked visitor ${visitorId} to customer ${customer.id} via email ${email}`);
+
+      // ─── DEFERRED ATTRIBUTION ───
+      // Now that we know this visitor's email matches a customer, check for
+      // unattributed orders from this customer. This solves the timing problem:
+      // webhook arrives → can't find visitor → order gets no attribution →
+      // later, visitor identifies → NOW we can attribute retroactively.
+      //
+      // Also handles orders attributed to a webhook-heuristic visitor:
+      // if the webhook used Strategy 4 (recent-activity) and guessed wrong,
+      // we now have the REAL visitor via email confirmation.
+      try {
+        // Find orders from this customer
+        const customerOrders = await prisma.order.findMany({
+          where: {
+            customerId: customer.id,
+            organizationId,
+          },
+          select: { id: true, externalId: true },
+          orderBy: { orderDate: 'desc' },
+          take: 10, // Limit to recent orders to avoid processing ancient history
+        });
+
+        for (const order of customerOrders) {
+          // Check if attribution already exists for this order with this visitor
+          const existingAttribution = await prisma.pixelAttribution.findFirst({
+            where: {
+              orderId: order.id,
+              visitorId: updated.id,
+              model: 'LAST_CLICK',
+            }
+          });
+
+          if (!existingAttribution) {
+            // No attribution with this visitor → either no attribution at all,
+            // or attributed to wrong visitor. Calculate with the real one.
+            await calculateAttribution(order.id, updated.id, organizationId);
+            console.log(`[NitroPixel] DEFERRED ATTRIBUTION: Order ${order.externalId} attributed to visitor ${visitorId} via email bridge (${email})`);
+          }
+        }
+      } catch (deferredError) {
+        // Deferred attribution failure is non-fatal
+        console.error('[NitroPixel] Deferred attribution error (non-fatal):', deferredError);
+      }
     }
 
     return updated;

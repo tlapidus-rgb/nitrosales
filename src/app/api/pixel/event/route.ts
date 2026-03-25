@@ -194,41 +194,108 @@ export async function POST(request: NextRequest) {
           event.props = { identified: true };
         }
 
-        // ─── PURCHASE dedup by orderId ───
+        // ─── PURCHASE dedup + reconciliation ───
         // Client-side may fire PURCHASE from dataLayer + orderPlacedAPI.
         // Server-side webhook also creates PURCHASE events.
-        // Dedup by orderId to prevent double-counting.
+        //
+        // CRITICAL FIX: OrderId format mismatch between browser and webhook.
+        // Browser sends: "1619951503020" (from dataLayer/orderPlaced URL)
+        // Webhook stores: "1619951503020-01" (VTEX format with suffix)
+        // Old code used exact match → 0% overlap → duplicate events everywhere.
+        //
+        // New logic:
+        // 1. Normalize orderId by stripping VTEX suffix for comparison
+        // 2. If webhook PURCHASE already exists → DON'T skip!
+        //    Instead, MERGE: update the webhook event to link to this browser visitor
+        //    (browser visitor has real click IDs and tracking data)
+        // 3. Re-trigger attribution with the real browser visitor
         if (event.type === 'PURCHASE' && event.props?.orderId) {
-          const orderId = String(event.props.orderId);
+          const rawOrderId = String(event.props.orderId);
+          const orderIdBase = rawOrderId.replace(/-\d+$/, ''); // Strip VTEX suffix
+
+          // Search with string_contains to match both formats
           const existing = await prisma.pixelEvent.findFirst({
             where: {
               organizationId: orgId,
               type: 'PURCHASE',
-              props: { path: ['orderId'], equals: orderId }
+              props: { path: ['orderId'], string_contains: orderIdBase }
             }
           });
+
           if (existing) {
-            console.log(`[NitroPixel] Skipping duplicate PURCHASE for order ${orderId}`);
+            const existingSource = (existing.props as any)?.source;
+
+            // Case A: Exact same event from same visitor → true duplicate, skip
+            if (existing.visitorId === visitor.id) {
+              console.log(`[NitroPixel] Skipping true duplicate PURCHASE for order ${rawOrderId}`);
+              continue;
+            }
+
+            // Case B: Webhook event exists, browser visitor arrives → MERGE
+            // The browser visitor has real tracking data (click IDs, UTMs, referrer).
+            // The webhook visitor was matched heuristically (checkout page, email, etc).
+            // Browser data is MORE RELIABLE for attribution → re-link.
+            if (existingSource === 'webhook') {
+              console.log(`[NitroPixel] RECONCILIATION: Browser PURCHASE for order ${rawOrderId} found webhook event. Merging visitor ${visitor.visitorId} → replacing webhook visitor ${existing.visitorId}`);
+
+              // Update the webhook event to point to the browser visitor
+              await prisma.pixelEvent.update({
+                where: { id: existing.id },
+                data: {
+                  visitorId: visitor.id,
+                  props: {
+                    ...(existing.props as any || {}),
+                    _reconciled: true,
+                    _reconciledAt: new Date().toISOString(),
+                    _originalVisitorId: existing.visitorId,
+                    _reconciledFrom: 'browser-merge',
+                  }
+                }
+              });
+
+              // Re-trigger attribution with the real browser visitor
+              try {
+                const order = await prisma.order.findFirst({
+                  where: {
+                    organizationId: orgId,
+                    externalId: { contains: orderIdBase }
+                  }
+                });
+                if (order) {
+                  const { calculateAttribution } = await import('@/lib/pixel/attribution');
+                  await calculateAttribution(order.id, visitor.id, orgId);
+                  console.log(`[NitroPixel] RECONCILIATION: Re-attributed order ${rawOrderId} to browser visitor ${visitor.visitorId}`);
+                }
+              } catch (reconAttrError) {
+                console.error('[NitroPixel] Reconciliation attribution error (non-fatal):', reconAttrError);
+              }
+
+              continue; // Don't create a new event — we updated the existing one
+            }
+
+            // Case C: Browser duplicate from same client (dataLayer + orderPlacedAPI both fired)
+            console.log(`[NitroPixel] Skipping duplicate PURCHASE for order ${rawOrderId} (source: ${existingSource})`);
             continue;
           }
         }
 
-        // ─── PURCHASE: also trigger attribution calculation ───
+        // ─── PURCHASE: trigger attribution calculation ───
         if (event.type === 'PURCHASE' && event.props?.orderId) {
           try {
-            const orderId = String(event.props.orderId);
+            const rawOrderId = String(event.props.orderId);
+            const orderIdBase = rawOrderId.replace(/-\d+$/, '');
             // Find matching order in database (created by webhook)
             const order = await prisma.order.findFirst({
               where: {
                 organizationId: orgId,
-                externalId: { contains: orderId.replace(/-\d+$/, '') } // Handle VTEX order suffixes
+                externalId: { contains: orderIdBase }
               }
             });
             if (order) {
               // Import and run attribution
               const { calculateAttribution } = await import('@/lib/pixel/attribution');
               await calculateAttribution(order.id, visitor.id, orgId);
-              console.log(`[NitroPixel] Client-side attribution for order ${orderId} visitor ${visitor.visitorId}`);
+              console.log(`[NitroPixel] Client-side attribution for order ${rawOrderId} visitor ${visitor.visitorId}`);
             }
           } catch (attrError) {
             console.error('[NitroPixel] Attribution error (non-fatal):', attrError);

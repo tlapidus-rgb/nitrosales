@@ -298,32 +298,60 @@ export async function POST(req: NextRequest) {
         console.log(`[NitroPixel] Strategy 1 HIT: Found client-side PURCHASE, visitor=${matchedVisitorId}`);
       }
 
-      // ── Strategy 2: Checkout/orderPlaced page heuristic ──
-      // Find visitor who was on /checkout/ or orderPlaced within window of order creation.
-      // This is the MOST RELIABLE strategy because it matches by behavior, not email.
+      // ── Strategy 2: Email-first checkout heuristic ──
+      // Two sub-strategies:
+      //   2a) If we have the customer email, find a visitor identified with that SAME email
+      //       who was active during checkout. This is very reliable.
+      //   2b) Fallback: Find any visitor on /checkout/ pages within the time window.
+      //       Less reliable but still useful for single-concurrent-checkout stores.
       if (!matchedVisitorId) {
         const orderTime = new Date(vtexOrder.creationDate);
         const windowStart = new Date(orderTime.getTime() - 60 * 60 * 1000); // 60 min window
-        // Also look 5 min AFTER order creation for race condition (pixel fires after webhook)
         const windowEnd = new Date(orderTime.getTime() + 5 * 60 * 1000);
 
-        const checkoutEvent: any[] = await prisma.$queryRaw`
-          SELECT pe."visitorId"
-          FROM pixel_events pe
-          WHERE pe."organizationId" = ${org.id}
-            AND pe.timestamp >= ${windowStart}
-            AND pe.timestamp <= ${windowEnd}
-            AND (pe."pageUrl" LIKE '%/checkout/%' OR pe."pageUrl" LIKE '%orderPlaced%')
-          ORDER BY pe.timestamp DESC
-          LIMIT 1
-        `;
+        // 2a) Email-matched visitor with checkout activity
+        if (realEmail) {
+          const emailCheckout: any[] = await prisma.$queryRaw`
+            SELECT pv.id as "visitorId"
+            FROM pixel_visitors pv
+            INNER JOIN pixel_events pe ON pe."visitorId" = pv.id
+            WHERE pv."organizationId" = ${org.id}
+              AND pv.email = ${realEmail}
+              AND pe.timestamp >= ${windowStart}
+              AND pe.timestamp <= ${windowEnd}
+              AND (pe."pageUrl" LIKE '%/checkout/%' OR pe."pageUrl" LIKE '%orderPlaced%'
+                   OR pe.type IN ('CHECKOUT_SHIPPING', 'CHECKOUT_PAYMENT', 'IDENTIFY'))
+            ORDER BY pe.timestamp DESC
+            LIMIT 1
+          `;
+          if (emailCheckout.length > 0) {
+            matchedVisitorId = emailCheckout[0].visitorId;
+            matchStrategy = 'email-checkout-heuristic';
+            console.log(`[NitroPixel] Strategy 2a HIT: Email+checkout match (${realEmail}), visitor=${matchedVisitorId}`);
+          }
+        }
 
-        if (checkoutEvent.length > 0) {
-          matchedVisitorId = checkoutEvent[0].visitorId;
-          matchStrategy = 'checkout-heuristic';
-          console.log(`[NitroPixel] Strategy 2 HIT: Checkout heuristic, visitor=${matchedVisitorId}`);
-        } else {
-          console.log(`[NitroPixel] Strategy 2 MISS: No checkout events in window [${windowStart.toISOString()} → ${windowEnd.toISOString()}]`);
+        // 2b) Generic checkout heuristic (any visitor on checkout pages)
+        if (!matchedVisitorId) {
+          const checkoutEvent: any[] = await prisma.$queryRaw`
+            SELECT pe."visitorId"
+            FROM pixel_events pe
+            WHERE pe."organizationId" = ${org.id}
+              AND pe.timestamp >= ${windowStart}
+              AND pe.timestamp <= ${windowEnd}
+              AND (pe."pageUrl" LIKE '%/checkout/%' OR pe."pageUrl" LIKE '%orderPlaced%'
+                   OR pe.type IN ('CHECKOUT_SHIPPING', 'CHECKOUT_PAYMENT'))
+            ORDER BY pe.timestamp DESC
+            LIMIT 1
+          `;
+
+          if (checkoutEvent.length > 0) {
+            matchedVisitorId = checkoutEvent[0].visitorId;
+            matchStrategy = 'checkout-heuristic';
+            console.log(`[NitroPixel] Strategy 2b HIT: Checkout heuristic, visitor=${matchedVisitorId}`);
+          } else {
+            console.log(`[NitroPixel] Strategy 2 MISS: No checkout events in window [${windowStart.toISOString()} → ${windowEnd.toISOString()}]`);
+          }
         }
       }
 
@@ -383,6 +411,8 @@ export async function POST(req: NextRequest) {
 
         // Create server-side PURCHASE event if client-side didn't already
         if (matchStrategy !== 'client-side-purchase') {
+          // Store BOTH the full orderId AND the base for dedup matching
+          // The event receiver uses string_contains on orderIdBase to find this event
           await prisma.$executeRaw`
             INSERT INTO pixel_events (id, "organizationId", "visitorId", "sessionId", type, "pageUrl", "deviceType", timestamp, "referrer", props)
             VALUES (
@@ -395,7 +425,15 @@ export async function POST(req: NextRequest) {
               NULL,
               NOW(),
               NULL,
-              ${JSON.stringify({ orderId, total: totalValue, source: 'webhook', email: realEmail || profile?.email })}::jsonb
+              ${JSON.stringify({
+                orderId,
+                orderIdBase,
+                total: totalValue,
+                source: 'webhook',
+                matchStrategy,
+                email: realEmail || profile?.email,
+                _provisional: matchStrategy !== 'email-match' && matchStrategy !== 'email-checkout-heuristic',
+              })}::jsonb
             )
           `;
         }
