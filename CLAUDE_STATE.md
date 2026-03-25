@@ -318,3 +318,74 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 10. ✅ Pregunte al usuario antes de deployar?
 
 **Si alguno de estos puntos no se cumple, DETENER y corregir antes de continuar.**
+
+---
+
+## NITROPIXEL — Estado del Pixel de Atribucion
+
+### Ultima actualizacion: 2026-03-24
+
+### Archivos del Pixel
+
+| Archivo | Estado | Notas |
+|---------|--------|-------|
+| src/lib/pixel/attribution.ts | ACTIVO | Motor de atribucion session-based v2. 4 modelos: LAST_CLICK, FIRST_CLICK, LINEAR, NITRO. |
+| src/app/api/pixel/script/route.ts | ACTIVO | Script JS servido a tiendas via GTM. Fresh/stale signal detection. |
+| src/app/api/pixel/event/route.ts | ACTIVO | Receptor de eventos. Bot filter, CAPI integration. |
+| src/app/api/metrics/pixel/route.ts | ACTIVO | Dashboard API con 18+ queries paralelas. |
+| src/app/api/metrics/pixel/discrepancy/route.ts | NUEVO | Revenue discrepancy report (pixel vs plataforma). |
+| src/lib/pixel/capi.ts | ACTIVO | Meta Conversions API integration. |
+| src/lib/pixel/identity.ts | ACTIVO | Identity resolution, cross-device merge. |
+
+### Commits del Pixel (cronologico)
+
+| Commit | Descripcion |
+|--------|-------------|
+| 773449c | Phase 1: CAPI, cross-domain cookies, bot filter, PAGE_VIEW dedup, organic detection |
+| 7b4e06b | Fix: remove 'whatsapp' from BOT_PATTERNS (bloqueaba WhatsApp in-app browser) |
+| cd8a5c7 | Phase 2: attribution window configurable, early identify, discrepancy report, view-through |
+| 797abd3 | Session-based touchpoint engine: fresh/stale signals, _isLanding fix, session dedup |
+| 3e7871e | Audit fixes: backward compat, unknown sessionId by day, internal referrer protection |
+
+### Funcionalidades Completadas
+
+- Cross-domain cookie persistence (LATAM multi-part TLDs: .com.ar, .com.br, etc.)
+- Bot filtering (BOT_PATTERNS regex, UA validation) — CUIDADO: WhatsApp NO es bot
+- PAGE_VIEW deduplication (1 per session)
+- Organic/social/referral source detection via referrer
+- Session-based touchpoint engine (1 touchpoint per session, not per event)
+- Fresh vs stale signal detection (_signals_fresh, _is_landing flags)
+- Configurable attribution window (7/14/30/60 days via org.settings.attributionWindowDays)
+- Early identification (VTEX profile API, login forms, account pages)
+- Revenue discrepancy report (pixel vs Meta/Google reported)
+- View-through attribution (organic visits + active ad spend)
+- Meta CAPI integration (fire-and-forget on PURCHASE)
+- XSS protection on orgId parameter
+- localStorage null-safety for visitor ID recovery
+
+### PENDIENTES PIXEL
+
+#### PENDIENTE #1: Comparacion NitroPixel vs GA4 (para 2026-03-25)
+- **Que**: Sincronizar GA4 y comparar visitantes unicos del 24/03 entre NitroPixel y GA4.
+- **Por que**: El pixel empezo a funcionar bien la noche del 23/03. El 24/03 es el primer dia completo.
+  GA4 no tenia data sincronizada de ese dia al momento de consultar. Manana deberia estar disponible.
+- **Query GA4**: web_metrics_daily.users (totalUsers de GA4 Data API)
+- **Query NitroPixel**: COUNT(DISTINCT visitorId) de pixel_events
+- **Que esperamos**: NitroPixel reporte entre +10% y +30% mas que GA4 (cookies directas vs modelo
+  estadistico de GA4 + consent mode). Si la diferencia es mayor, investigar cookie regeneration.
+- **Dato de referencia**: GA4 muestra ~5300 users el 11/03 (dia Hot Sale). NitroPixel mostro 5324
+  visitors el 24/03 — orden de magnitud consistente.
+- **Accion**: Correr el script de comparacion Python (psycopg2 directo a Railway) con data de ambos
+  sistemas para el 24/03 completo. Evaluar si totalPageViews necesita filtro type='PAGE_VIEW'.
+
+#### PENDIENTE #2: totalPageViews cuenta TODOS los eventos, no solo PAGE_VIEW
+- **Que**: La query del dashboard usa COUNT(*) como "totalPageViews" pero cuenta IDENTIFY,
+  ADD_TO_CART, PURCHASE, etc. Deberia ser COUNT(*) FILTER (WHERE type = 'PAGE_VIEW').
+- **Impacto**: Numero inflado en el dashboard. No afecta atribucion ni visitantes unicos.
+- **Prioridad**: Baja — corregir cuando se trabaje en el dashboard.
+
+#### PENDIENTE #3: Warnings de la auditoria (no criticos, para futuro)
+- View-through detection usa ventana de 24h (podria ser configurable)
+- Session timeout no enforzado server-side (sesiones largas sin actividad)
+- Script cache 5min puede causar data mixta durante deploys
+- Implicit any en sort callback (attribution.ts linea 178)
