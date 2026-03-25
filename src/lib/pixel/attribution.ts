@@ -146,10 +146,13 @@ export async function calculateAttribution(
     ]);
 
     // Step 1: Group events by session
+    // Events without sessionId are grouped by day to prevent unrelated events
+    // from merging into a single artificial session (CRITICAL: avoids misattribution)
     const sessionMap = new Map<string, typeof events>();
     for (const event of events) {
       if (NON_TOUCHPOINT_TYPES.has(event.type)) continue;
-      const sid = event.sessionId || '_unknown';
+      const sid = event.sessionId
+        || `_unknown_${Math.floor(event.timestamp.getTime() / (24 * 60 * 60 * 1000))}`;
       if (!sessionMap.has(sid)) sessionMap.set(sid, []);
       sessionMap.get(sid)!.push(event);
     }
@@ -175,7 +178,6 @@ export async function calculateAttribution(
       sessionEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
       const firstEvent = sessionEvents[0];
       const props = (firstEvent.props as Record<string, any>) || {};
-      const signalsFresh = props._signals_fresh === true;
       const isLanding = props._is_landing === true;
 
       // Find the landing event (first event with _is_landing=true, or just firstEvent)
@@ -193,6 +195,14 @@ export async function calculateAttribution(
 
       const clicks = (landingEvent.clickIds as Record<string, string>) || {};
       const utms = (landingEvent.utmParams as Record<string, string>) || {};
+
+      // BACKWARD COMPAT: Pre-deployment events have _signals_fresh=undefined.
+      // We treat undefined as "assume fresh" if click IDs exist, because old events
+      // were captured before we started tracking freshness — safer to attribute than lose.
+      // Explicitly false means the pixel KNOWS they're stale (post-deployment).
+      const signalsFreshRaw = props._signals_fresh; // true | false | undefined
+      const signalsFresh = signalsFreshRaw === true
+        || (signalsFreshRaw === undefined && Object.keys(clicks).length > 0);
       const hasClicks = Object.keys(clicks).length > 0;
       const hasUtms = !!utms.source;
 
@@ -249,12 +259,27 @@ export async function calculateAttribution(
 
         if (sessionReferrerSource) {
           // Referrer detected — this is organic, social, or referral traffic
-          source = sessionReferrerSource.source;
-          medium = sessionReferrerSource.medium;
-          confidence = 'referrer';
-          // Ignore stale click IDs — the referrer tells us the REAL source
-          clickId = undefined;
-          clickType = undefined;
+          // BUT: if we also have stale click IDs AND the referrer is a generic referral
+          // (not a known search engine or social platform), prefer the click IDs.
+          // This prevents internal redirects or unknown referrers from overriding paid attribution.
+          const isKnownExternalSource = ['google', 'bing', 'yahoo', 'duckduckgo', 'baidu',
+            'meta', 'tiktok', 'twitter', 'linkedin', 'youtube', 'pinterest',
+            'whatsapp', 'telegram', 'mercadolibre', 'gmail', 'outlook'].includes(sessionReferrerSource.source);
+
+          if (hasClicks && !isKnownExternalSource) {
+            // Stale click IDs + unknown referrer → prefer click IDs (likely internal redirect)
+            source = utms.source || (clickType === 'fbclid' ? 'meta' : clickType === 'gclid' ? 'google' : undefined);
+            medium = utms.medium || 'cpc';
+            campaign = utms.campaign;
+            confidence = 'stale_cookie';
+          } else {
+            source = sessionReferrerSource.source;
+            medium = sessionReferrerSource.medium;
+            confidence = 'referrer';
+            // Only clear click IDs for known external sources (not stale cookies)
+            clickId = undefined;
+            clickType = undefined;
+          }
         } else if (hasClicks && !signalsFresh) {
           // Stale click IDs from cookie — low confidence, previous campaign
           source = utms.source || (clickType === 'fbclid' ? 'meta' : clickType === 'gclid' ? 'google' : undefined);
@@ -284,8 +309,9 @@ export async function calculateAttribution(
     // Step 3: Sort sessions chronologically
     sessionSources.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-    // Step 4: Deduplicate consecutive sessions with same source+medium+campaign
-    // (e.g., user returns 3 times from same Meta campaign = 1 touchpoint, not 3)
+    // Step 4: Deduplicate consecutive sessions with same source+medium+campaign+clickId
+    // Only deduplicates STALE cookie sessions (same cookies carried over).
+    // Fresh clicks with different click IDs = different ad interactions = separate touchpoints.
     const touchpoints: Touchpoint[] = [];
     let prevKey = '';
 
