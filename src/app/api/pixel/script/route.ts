@@ -255,7 +255,15 @@ function generatePixelScript(orgId: string): string {
         is_landing: _isLanding && isFirstEvent, // TRUE = first event of a new session
         timestamp: Date.now(),
         page_url: window.location.href,
-        referrer: document.referrer || '',
+        referrer: (function() {
+          try {
+            var ref = document.referrer || '';
+            if (!ref) return '';
+            var refHost = new URL(ref).hostname.toLowerCase().replace(/^www\\./, '');
+            var ownHost = window.location.hostname.toLowerCase().replace(/^www\\./, '');
+            return refHost === ownHost ? '' : ref;
+          } catch(e) { return document.referrer || ''; }
+        })(),
         device_type: deviceType
       });
     }

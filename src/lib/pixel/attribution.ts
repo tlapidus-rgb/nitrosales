@@ -51,10 +51,33 @@ const REFERRER_RULES: Array<{ pattern: RegExp; source: string; medium: string }>
   { pattern: /outlook\.com|hotmail\.com/, source: 'outlook', medium: 'email' },
 ];
 
-function detectSourceFromReferrer(referrer: string | null | undefined): { source: string; medium: string } | null {
+/**
+ * Extract the canonical domain from a hostname (strips www. and trailing dots).
+ * e.g. "www.elmundodeljuguete.com.ar." → "elmundodeljuguete.com.ar"
+ */
+function canonicalDomain(hostname: string): string {
+  return hostname.replace(/^www\./, '').replace(/\.$/, '').toLowerCase();
+}
+
+/**
+ * Detect source/medium from a referrer URL.
+ * Returns null for self-referrals (referrer matches the store's own domain).
+ * @param storeDomains - Set of canonical domains belonging to this store
+ */
+function detectSourceFromReferrer(
+  referrer: string | null | undefined,
+  storeDomains?: Set<string>
+): { source: string; medium: string } | null {
   if (!referrer) return null;
   try {
     const hostname = new URL(referrer).hostname.toLowerCase();
+    const canonical = canonicalDomain(hostname);
+
+    // Self-referral filter: if the referrer is the store itself, treat as no referrer (→ direct)
+    if (storeDomains && storeDomains.has(canonical)) {
+      return null;
+    }
+
     for (const rule of REFERRER_RULES) {
       if (rule.pattern.test(hostname)) {
         return { source: rule.source, medium: rule.medium };
@@ -62,7 +85,7 @@ function detectSourceFromReferrer(referrer: string | null | undefined): { source
     }
     // Unknown external referrer → generic referral
     if (hostname && hostname.length > 0) {
-      return { source: hostname.replace(/^www\./, ''), medium: 'referral' };
+      return { source: canonical, medium: 'referral' };
     }
   } catch { /* invalid URL, ignore */ }
   return null;
@@ -121,6 +144,19 @@ export async function calculateAttribution(
     });
 
     if (events.length === 0) return;
+
+    // ─── Build store domain set for self-referral filtering ───
+    // Extract the store's own domain(s) from pageUrl of its events.
+    // This avoids needing manual config — the pixel events tell us the domain.
+    const storeDomains = new Set<string>();
+    for (const event of events) {
+      if (event.pageUrl) {
+        try {
+          const host = new URL(event.pageUrl).hostname.toLowerCase();
+          storeDomains.add(canonicalDomain(host));
+        } catch { /* skip malformed URLs */ }
+      }
+    }
 
     // ══════════════════════════════════════════════════════════════
     // SESSION-BASED TOUCHPOINT ENGINE (v2)
@@ -243,7 +279,7 @@ export async function calculateAttribution(
         // No fresh signals — try referrer, then stale cookies, then direct
         // Use landingEvent referrer (most reliable for this session)
         const referrerSource = landingEvent.referrer
-          ? detectSourceFromReferrer(landingEvent.referrer)
+          ? detectSourceFromReferrer(landingEvent.referrer, storeDomains)
           : null;
 
         // Also check if ANY event in this session has a usable referrer (landing page might not)
@@ -251,7 +287,7 @@ export async function calculateAttribution(
         if (!sessionReferrerSource) {
           for (const ev of sessionEvents) {
             if (ev.referrer) {
-              sessionReferrerSource = detectSourceFromReferrer(ev.referrer);
+              sessionReferrerSource = detectSourceFromReferrer(ev.referrer, storeDomains);
               if (sessionReferrerSource) break;
             }
           }
@@ -372,7 +408,7 @@ export async function calculateAttribution(
     if (touchpoints.length === 0) {
       const firstEvent = events[0];
       const referrerSource = firstEvent.referrer
-        ? detectSourceFromReferrer(firstEvent.referrer) : null;
+        ? detectSourceFromReferrer(firstEvent.referrer, storeDomains) : null;
       touchpoints.push({
         timestamp: firstEvent.timestamp.toISOString(),
         source: referrerSource?.source || 'direct',
