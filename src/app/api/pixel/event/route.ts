@@ -183,12 +183,15 @@ export async function POST(request: NextRequest) {
 
         if (!visitor) continue;
 
-        // Handle IDENTIFY events specially
+        // Handle IDENTIFY events: identify visitor AND persist event for funnel tracking
         if (event.type === 'IDENTIFY' && event.props?.email) {
           await identifyVisitor(orgId, event.visitor_id, {
             email: event.props.email as string
           });
-          continue; // IDENTIFY no se guarda como PixelEvent
+          // NOTE: Do NOT continue — let the event be saved as PixelEvent below
+          // so the dashboard can count identified visitors via event type queries.
+          // The email is stripped from props to avoid storing PII in pixel_events.
+          event.props = { identified: true };
         }
 
         // ─── PURCHASE dedup by orderId ───

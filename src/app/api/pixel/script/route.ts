@@ -415,6 +415,153 @@ function generatePixelScript(orgId: string): string {
       } catch(e) {}
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // LAYER 1.5: VTEX dataLayer — Product View & Add to Cart
+    // ══════════════════════════════════════════════════════════════
+    // VTEX pushes ecommerce events to dataLayer for product views
+    // and cart interactions. Without intercepting these, the funnel
+    // shows 0 for "Vieron Producto" and "Carrito".
+    //
+    // VTEX formats:
+    // - checkout6 flat: { event: 'productView', ... }
+    // - Enhanced Ecommerce: { ecommerce: { detail: {...} } }
+    // - GA4: { event: 'view_item', ecommerce: { items: [...] } }
+    // - addToCart: { event: 'addToCart', ... } or { event: 'add_to_cart', ... }
+    // ══════════════════════════════════════════════════════════════
+
+    var _sentProductViews = {}; // Dedup: productId → true (avoid counting same product twice per session)
+
+    function processProductView(dl) {
+      try {
+        if (!dl) return;
+
+        // Extract product info from ALL possible VTEX formats
+        var productId = null;
+        var productName = null;
+        var productPrice = null;
+        var productCategory = null;
+
+        // Format 1: VTEX checkout6 flat (productView event)
+        if (dl.productId || dl.productName) {
+          productId = dl.productId || dl.skuId || null;
+          productName = dl.productName || dl.productTitle || null;
+          productPrice = dl.productPrice || null;
+          productCategory = dl.productCategory || dl.productDepartment || null;
+        }
+
+        // Format 2: Enhanced Ecommerce detail action
+        if (!productId && dl.ecommerce && dl.ecommerce.detail) {
+          var products = dl.ecommerce.detail.products || dl.ecommerce.detail.items || [];
+          if (products.length > 0) {
+            var p = products[0];
+            productId = p.id || p.item_id || null;
+            productName = p.name || p.item_name || null;
+            productPrice = parseFloat(p.price) || null;
+            productCategory = p.category || p.item_category || null;
+          }
+        }
+
+        // Format 3: GA4 view_item
+        if (!productId && dl.ecommerce && dl.ecommerce.items) {
+          var items = dl.ecommerce.items;
+          if (items.length > 0) {
+            productId = items[0].item_id || items[0].id || null;
+            productName = items[0].item_name || items[0].name || null;
+            productPrice = parseFloat(items[0].price) || null;
+            productCategory = items[0].item_category || null;
+          }
+        }
+
+        // Dedup: same product in same session = 1 event
+        var dedupKey = productId || productName || '';
+        if (!dedupKey || _sentProductViews[dedupKey]) return;
+        _sentProductViews[dedupKey] = true;
+
+        trackEvent('VIEW_PRODUCT', {
+          productId: productId || '',
+          productName: productName || '',
+          price: productPrice || 0,
+          category: productCategory || '',
+          source: 'dataLayer'
+        });
+      } catch(e) {}
+    }
+
+    function processAddToCart(dl) {
+      try {
+        if (!dl) return;
+
+        var products = [];
+
+        // Format 1: VTEX checkout6 flat (addToCart event with productId)
+        if (dl.productId || dl.skuId) {
+          products.push({
+            id: dl.productId || dl.skuId || '',
+            name: dl.productName || '',
+            price: dl.productPrice || 0,
+            quantity: dl.quantity || 1
+          });
+        }
+
+        // Format 2: Enhanced Ecommerce add action
+        if (products.length === 0 && dl.ecommerce && dl.ecommerce.add) {
+          var addProducts = dl.ecommerce.add.products || dl.ecommerce.add.items || [];
+          addProducts.forEach(function(p) {
+            products.push({
+              id: p.id || p.item_id || '',
+              name: p.name || p.item_name || '',
+              price: parseFloat(p.price) || 0,
+              quantity: parseInt(p.quantity) || 1
+            });
+          });
+        }
+
+        // Format 3: GA4 add_to_cart with ecommerce.items
+        if (products.length === 0 && dl.ecommerce && dl.ecommerce.items) {
+          dl.ecommerce.items.forEach(function(p) {
+            products.push({
+              id: p.item_id || p.id || '',
+              name: p.item_name || p.name || '',
+              price: parseFloat(p.price) || 0,
+              quantity: parseInt(p.quantity) || 1
+            });
+          });
+        }
+
+        if (products.length === 0) return;
+
+        trackEvent('ADD_TO_CART', {
+          products: products,
+          totalValue: products.reduce(function(sum, p) { return sum + (p.price * p.quantity); }, 0),
+          source: 'dataLayer'
+        });
+      } catch(e) {}
+    }
+
+    // Detect product view entries in dataLayer
+    function isProductViewEntry(entry) {
+      if (!entry) return false;
+      // VTEX checkout6: event = 'productView'
+      if (entry.event === 'productView') return true;
+      // GA4: event = 'view_item'
+      if (entry.event === 'view_item') return true;
+      // Enhanced Ecommerce: ecommerce.detail present
+      if (entry.ecommerce && entry.ecommerce.detail) return true;
+      return false;
+    }
+
+    // Detect add-to-cart entries in dataLayer
+    function isAddToCartEntry(entry) {
+      if (!entry) return false;
+      // VTEX: event = 'addToCart'
+      if (entry.event === 'addToCart') return true;
+      // GA4: event = 'add_to_cart'
+      if (entry.event === 'add_to_cart') return true;
+      // Enhanced Ecommerce: ecommerce.add present
+      if (entry.ecommerce && entry.ecommerce.add) return true;
+      return false;
+    }
+
     // Helper: check if a dataLayer entry looks like a purchase event
     function isPurchaseEntry(entry) {
       if (!entry) return false;
@@ -430,7 +577,7 @@ function generatePixelScript(orgId: string): string {
       return false;
     }
 
-    // Scan existing dataLayer entries (orderPlaced may already be there)
+    // Scan existing dataLayer entries (events may already be there)
     function scanDataLayer() {
       try {
         if (!window.dataLayer || !Array.isArray(window.dataLayer)) return;
@@ -438,6 +585,10 @@ function generatePixelScript(orgId: string): string {
           var entry = window.dataLayer[i];
           if (isPurchaseEntry(entry)) {
             processOrderPlaced(entry);
+          } else if (isProductViewEntry(entry)) {
+            processProductView(entry);
+          } else if (isAddToCartEntry(entry)) {
+            processAddToCart(entry);
           }
         }
       } catch(e) {}
@@ -454,6 +605,10 @@ function generatePixelScript(orgId: string): string {
             var arg = arguments[i];
             if (isPurchaseEntry(arg)) {
               processOrderPlaced(arg);
+            } else if (isProductViewEntry(arg)) {
+              processProductView(arg);
+            } else if (isAddToCartEntry(arg)) {
+              processAddToCart(arg);
             }
           }
           return result;
@@ -463,6 +618,31 @@ function generatePixelScript(orgId: string): string {
 
     scanDataLayer();
     hookDataLayer();
+
+    // ── URL-based product page fallback ──
+    // If we're on a VTEX product page (URL ends in /p or matches product pattern)
+    // and dataLayer didn't fire a productView within 2s, fire VIEW_PRODUCT from URL.
+    // This ensures product views are tracked even if dataLayer is broken or delayed.
+    (function() {
+      try {
+        var url = window.location.pathname;
+        // VTEX product pages: /product-name/p or /product-name-SKU/p
+        var isProductPage = /\/p\/?$/.test(url) || /\/p\?/.test(window.location.href);
+        if (isProductPage) {
+          setTimeout(function() {
+            // Only fire if dataLayer didn't already generate a VIEW_PRODUCT
+            if (Object.keys(_sentProductViews).length === 0) {
+              // Extract product name from page title or URL
+              var name = document.title.replace(/\s*[-|].*$/, '').trim();
+              trackEvent('VIEW_PRODUCT', {
+                productName: name || '',
+                source: 'url_fallback'
+              });
+            }
+          }, 2000);
+        }
+      } catch(e) {}
+    })();
 
     // Re-scan dataLayer agresivamente en orderPlaced pages (VTEX puede pushear tarde)
     if (/orderPlaced/i.test(window.location.href)) {
