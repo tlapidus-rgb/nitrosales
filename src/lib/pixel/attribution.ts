@@ -18,6 +18,7 @@ interface Touchpoint {
   clickType?: string; // fbclid, gclid, ttclid
   page?: string;
   eventId: string;
+  viewThrough?: string; // "possible_view_through:meta+google" — ad spend detected near organic visit
 }
 
 // ─── Referrer-based source detection ───
@@ -82,15 +83,27 @@ export async function calculateAttribution(
     });
     if (!order) return;
 
-    // 2. Get all events from this visitor in the last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // 2. Read org settings for attribution window (default: 30 days)
+    //    Clients can configure 7, 14, 30, or 60 day windows via settings.attributionWindowDays
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true }
+    });
+    const orgSettings = (org?.settings as Record<string, any>) || {};
+    const VALID_WINDOWS = [7, 14, 30, 60];
+    const windowDays = VALID_WINDOWS.includes(orgSettings.attributionWindowDays)
+      ? orgSettings.attributionWindowDays
+      : 30;
+
+    // 3. Get all events from this visitor within the attribution window
+    const windowStart = new Date();
+    windowStart.setDate(windowStart.getDate() - windowDays);
 
     const events = await prisma.pixelEvent.findMany({
       where: {
         visitorId,
         organizationId,
-        timestamp: { gte: thirtyDaysAgo },
+        timestamp: { gte: windowStart },
         type: { not: 'IDENTIFY' } // Skip identify events
       },
       orderBy: { timestamp: 'asc' },
@@ -163,6 +176,34 @@ export async function calculateAttribution(
       const fallbackSource = referrerSource?.source || 'direct';
       const fallbackMedium = referrerSource?.medium || undefined;
 
+      // ── View-through detection ──
+      // If the first visit is organic/direct but ad platforms had active spend
+      // around that time, flag as potential view-through (user saw ad, didn't click,
+      // but later searched/visited directly). This is metadata only — doesn't change
+      // attribution calculations, but gives visibility into assisted conversions.
+      let viewThroughSignal: string | undefined;
+      if ((fallbackSource === 'google' && fallbackMedium === 'organic') || fallbackSource === 'direct') {
+        try {
+          const firstEventTime = events[0].timestamp;
+          const vtWindowStart = new Date(firstEventTime.getTime() - 24 * 60 * 60 * 1000); // 24h before first visit
+          const activeAdSpend = await prisma.$queryRaw`
+            SELECT LOWER(platform::text) as platform, SUM(spend)::float as spend
+            FROM ad_metrics_daily
+            WHERE "organizationId" = ${organizationId}
+              AND date >= ${vtWindowStart}::date
+              AND date <= ${firstEventTime}::date
+              AND spend > 0
+            GROUP BY 1
+          ` as Array<{ platform: string; spend: number }>;
+
+          if (activeAdSpend.length > 0) {
+            // There was active ad spend within 24h before this organic/direct visit
+            const platforms = activeAdSpend.map(a => a.platform).join('+');
+            viewThroughSignal = `possible_view_through:${platforms}`;
+          }
+        } catch { /* Non-fatal: view-through detection is optional metadata */ }
+      }
+
       const firstEvent = events[0];
       const lastEvent = events[events.length - 1];
       touchpoints.push({
@@ -171,6 +212,7 @@ export async function calculateAttribution(
         medium: fallbackMedium,
         page: firstEvent.pageUrl || undefined,
         eventId: firstEvent.id,
+        ...(viewThroughSignal && { viewThrough: viewThroughSignal }),
       });
       if (firstEvent.id !== lastEvent.id) {
         touchpoints.push({
@@ -250,7 +292,7 @@ export async function calculateAttribution(
       });
     }
 
-    console.log(`[NitroPixel] Attribution calculated for order ${orderId}: ${touchpoints.length} touchpoints, lag ${conversionLag}d, campaign ${matchedCampaignId || 'none'}`);
+    console.log(`[NitroPixel] Attribution calculated for order ${orderId}: ${touchpoints.length} touchpoints, lag ${conversionLag}d, window ${windowDays}d, campaign ${matchedCampaignId || 'none'}`);
   } catch (error) {
     console.error('[NitroPixel] Error calculating attribution:', error);
     // NO re-throw — atribucion fallida no debe romper nada

@@ -17,7 +17,17 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const script = generatePixelScript(orgId);
+  // Sanitize orgId: only allow alphanumeric + cuid chars to prevent XSS injection
+  // orgId is interpolated directly into JavaScript source, so must be safe
+  const safeOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, '');
+  if (safeOrgId !== orgId || safeOrgId.length === 0) {
+    return new NextResponse('// NitroPixel: invalid org parameter', {
+      status: 200,
+      headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
+    });
+  }
+
+  const script = generatePixelScript(safeOrgId);
 
   return new NextResponse(script, {
     status: 200,
@@ -150,11 +160,14 @@ function generatePixelScript(orgId: string): string {
 
       // Persist visitor ID in localStorage too (survives cross-domain)
       try {
-        if (!getCookie('_np_vid') && localStorage.getItem('_np_vid')) {
-          vid = localStorage.getItem('_np_vid');
+        var storedVid = localStorage.getItem('_np_vid');
+        if (!getCookie('_np_vid') && storedVid && storedVid.length > 10) {
+          vid = storedVid;
           setCookie('_np_vid', vid, COOKIE_DAYS_VID);
         }
-        localStorage.setItem('_np_vid', vid);
+        if (vid && vid.length > 10) {
+          localStorage.setItem('_np_vid', vid);
+        }
       } catch(e) {}
     } catch(e) {}
 
@@ -534,6 +547,116 @@ function generatePixelScript(orgId: string): string {
       setTimeout(observeCheckoutEmail, 3000);
       setTimeout(observeCheckoutEmail, 8000);
       listenOrderFormUpdated();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // LAYER 2.5: Early Identification — login & account pages
+    // ══════════════════════════════════════════════════════════════
+    // Identifies visitors BEFORE checkout to improve cross-device
+    // and cross-session attribution. Captures email from:
+    // 1. VTEX authentication cookie (VtexIdclientAutCookie)
+    // 2. VTEX profile API (already logged-in users)
+    // 3. Account/login page DOM (email fields)
+    // 4. Generic login form detection on any page
+    // ══════════════════════════════════════════════════════════════
+
+    // Method A: VTEX profile API (works if user is logged in, any page)
+    function tryVtexProfileIdentify() {
+      try {
+        // Only try if VTEX auth cookie exists (avoid unnecessary API calls)
+        if (!getCookie('VtexIdclientAutCookie')) return;
+        if (_identifiedEmail) return; // Already identified
+
+        fetch('/api/vtexid/pub/authenticated/user', {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        }).then(function(r) {
+          if (!r.ok) return;
+          return r.json();
+        }).then(function(user) {
+          if (user && user.user && user.user.indexOf('@') > -1) {
+            if (user.user !== _identifiedEmail) {
+              _identifiedEmail = user.user;
+              identify({ email: user.user });
+            }
+          }
+        }).catch(function() {});
+      } catch(e) {}
+    }
+
+    // Method B: Observe login/register form submissions on any page
+    function observeLoginForms() {
+      try {
+        // Watch for form submissions that contain email fields
+        document.addEventListener('submit', function(e) {
+          try {
+            var form = e.target;
+            if (!form || !form.querySelectorAll) return;
+            var emailInputs = form.querySelectorAll('input[type="email"], input[name="email"], input[name="userName"], input[id*="email"], input[id*="Email"]');
+            for (var i = 0; i < emailInputs.length; i++) {
+              var val = emailInputs[i].value;
+              if (val && val.indexOf('@') > -1 && val !== _identifiedEmail) {
+                _identifiedEmail = val;
+                identify({ email: val });
+                return;
+              }
+            }
+          } catch(ex) {}
+        }, true); // capture phase to catch before SPA prevents default
+
+        // Also check for VTEX login success via cookie appearance
+        // Poll VtexIdclientAutCookie for 30s after page load (covers SPA login)
+        var _loginPollCount = 0;
+        var _loginPollTimer = setInterval(function() {
+          _loginPollCount++;
+          if (_loginPollCount > 10 || _identifiedEmail) {
+            clearInterval(_loginPollTimer);
+            return;
+          }
+          if (getCookie('VtexIdclientAutCookie') && !_identifiedEmail) {
+            tryVtexProfileIdentify();
+          }
+        }, 3000);
+      } catch(e) {}
+    }
+
+    // Method C: Account page email extraction (VTEX /account, /profile)
+    function tryAccountPageIdentify() {
+      try {
+        // Look for email in common VTEX account page selectors
+        var selectors = [
+          '.vtex-profile-form__email input',
+          '.vtex-my-account__email',
+          '[data-testid="email-display"]',
+          '.profile-email',
+          '.client-profile-data .email',
+          'input[name="email"][readonly]',
+          'input[name="email"][disabled]'
+        ];
+        for (var i = 0; i < selectors.length; i++) {
+          var el = document.querySelector(selectors[i]);
+          if (!el) continue;
+          var val = el.value || el.textContent || el.innerText || '';
+          val = val.trim();
+          if (val && val.indexOf('@') > -1 && val !== _identifiedEmail) {
+            _identifiedEmail = val;
+            identify({ email: val });
+            return;
+          }
+        }
+      } catch(e) {}
+    }
+
+    // Run early identification on ALL pages (not just checkout)
+    // Delayed to not compete with initial page load
+    setTimeout(tryVtexProfileIdentify, 2000);
+    observeLoginForms();
+
+    // Extra detection on account/profile pages
+    if (/account|profile|login|registro|mi-cuenta/i.test(window.location.href)) {
+      setTimeout(tryAccountPageIdentify, 1000);
+      setTimeout(tryAccountPageIdentify, 3000);
+      setTimeout(tryAccountPageIdentify, 6000);
     }
 
     // ══════════════════════════════════════════════════════════════

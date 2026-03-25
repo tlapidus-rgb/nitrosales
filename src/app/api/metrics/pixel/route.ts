@@ -53,6 +53,10 @@ export async function GET(request: NextRequest) {
     });
     const orgSettings = (org?.settings as Record<string, any>) || {};
     const nitroWeights = orgSettings.nitroWeights || { first: 30, last: 40, middle: 30 };
+    const VALID_WINDOWS = [7, 14, 30, 60];
+    const attributionWindowDays = VALID_WINDOWS.includes(orgSettings.attributionWindowDays)
+      ? orgSettings.attributionWindowDays
+      : 30;
     const wFirst = nitroWeights.first;
     const wLast = nitroWeights.last;
     const wMiddle = nitroWeights.middle;
@@ -624,6 +628,7 @@ export async function GET(request: NextRequest) {
         daysInPeriod,
         timezone: "America/Argentina/Buenos_Aires",
         attributionModel: selectedModel,
+        attributionWindowDays,
         nitroWeights,
       },
     });
