@@ -32,10 +32,11 @@ const REFERRER_RULES: Array<{ pattern: RegExp; source: string; medium: string }>
   { pattern: /yahoo\.com/, source: 'yahoo', medium: 'organic' },
   { pattern: /duckduckgo\.com/, source: 'duckduckgo', medium: 'organic' },
   { pattern: /baidu\.com/, source: 'baidu', medium: 'organic' },
-  // Social → social organic
-  { pattern: /facebook\.com|fb\.com/, source: 'meta', medium: 'social' },
-  { pattern: /instagram\.com/, source: 'meta', medium: 'social' },
-  { pattern: /l\.instagram\.com/, source: 'meta', medium: 'social' },
+  // Social → social organic (separated by platform for clarity)
+  { pattern: /l\.instagram\.com/, source: 'instagram', medium: 'social' },
+  { pattern: /instagram\.com/, source: 'instagram', medium: 'social' },
+  { pattern: /facebook\.com|fb\.com|m\.facebook\.com/, source: 'facebook', medium: 'social' },
+  { pattern: /threads\.com/, source: 'threads', medium: 'social' },
   { pattern: /tiktok\.com/, source: 'tiktok', medium: 'social' },
   { pattern: /twitter\.com|x\.com|t\.co/, source: 'twitter', medium: 'social' },
   { pattern: /linkedin\.com|lnkd\.in/, source: 'linkedin', medium: 'social' },
@@ -299,7 +300,7 @@ export async function calculateAttribution(
           // (not a known search engine or social platform), prefer the click IDs.
           // This prevents internal redirects or unknown referrers from overriding paid attribution.
           const isKnownExternalSource = ['google', 'bing', 'yahoo', 'duckduckgo', 'baidu',
-            'meta', 'tiktok', 'twitter', 'linkedin', 'youtube', 'pinterest',
+            'meta', 'facebook', 'instagram', 'threads', 'tiktok', 'twitter', 'linkedin', 'youtube', 'pinterest',
             'whatsapp', 'telegram', 'mercadolibre', 'gmail', 'outlook'].includes(sessionReferrerSource.source);
 
           if (hasClicks && !isKnownExternalSource) {
