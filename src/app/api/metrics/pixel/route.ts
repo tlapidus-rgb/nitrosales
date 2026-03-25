@@ -84,6 +84,8 @@ export async function GET(request: NextRequest) {
       clickIdCoverageResult,
       dailyRevenueResult,
       prevAttrRevenueResult,
+      // ── Per-day coverage for accurate ROAS scaling ──
+      perDayCoverageResult,
     ] = await Promise.all([
       // 1. Live status
       prisma.$queryRaw`
@@ -420,6 +422,27 @@ export async function GET(request: NextRequest) {
           AND pa."createdAt" <= ${prevTo}
           AND pa.model::text = ${selectedModel}
       ` as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
+
+      // 19. Per-day coverage: total orders vs attributed orders per day
+      //     Used for accurate ROAS scaling instead of uniform coverage ratio
+      prisma.$queryRaw`
+        SELECT
+          TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
+          COUNT(*)::int as "totalOrders",
+          COUNT(DISTINCT pa."orderId")::int as "attributedOrders"
+        FROM orders o
+        LEFT JOIN (
+          SELECT DISTINCT "orderId"
+          FROM pixel_attributions
+          WHERE "organizationId" = ${ORG_ID}
+            AND model::text = ${selectedModel}
+        ) pa ON pa."orderId" = o.id
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+        GROUP BY 1
+        ORDER BY 1
+      ` as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -481,11 +504,16 @@ export async function GET(request: NextRequest) {
     const attributionRate = totalOrders > 0 ? Math.round((ordersAttributed / totalOrders) * 100) : 0;
     const aov = ordersAttributed > 0 ? Math.round(pixelRevenue / ordersAttributed) : 0;
 
-    // ── ROAS calculation: scale by attribution coverage ──
-    // Raw ROAS divides attributed revenue by TOTAL ad spend, which is misleading
-    // when coverage < 100%. Scaled ROAS projects the attributed revenue to full
-    // coverage: if we attributed $1M from 50% of orders, projected = $2M.
-    const coverageRatio = totalOrders > 0 ? ordersAttributed / totalOrders : 0;
+    // ── ROAS calculation: per-day coverage scaling ──
+    // Instead of a single uniform coverage ratio (which is distorted when some
+    // days have 0% and others 98% coverage), we compute an "effective coverage"
+    // using only days where the pixel was active (attributedOrders > 0).
+    // This avoids pre-pixel-deployment days from dragging down the ratio.
+    const perDayCoverage = (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>);
+    const activeDays = perDayCoverage.filter(d => d.attributedOrders > 0);
+    const effectiveTotalOrders = activeDays.reduce((s, d) => s + d.totalOrders, 0);
+    const effectiveAttributedOrders = activeDays.reduce((s, d) => s + d.attributedOrders, 0);
+    const coverageRatio = effectiveTotalOrders > 0 ? effectiveAttributedOrders / effectiveTotalOrders : 0;
     const projectedRevenue = coverageRatio > 0 ? pixelRevenue / coverageRatio : 0;
     const pixelRoasRaw = totalAdSpend > 0 ? Math.round((pixelRevenue / totalAdSpend) * 100) / 100 : 0;
     const pixelRoas = totalAdSpend > 0 ? Math.round((projectedRevenue / totalAdSpend) * 100) / 100 : 0;
@@ -610,6 +638,10 @@ export async function GET(request: NextRequest) {
         },
       },
       channelRoas,
+      perDayCoverage: perDayCoverage.map(d => ({
+        ...d,
+        coverage: d.totalOrders > 0 ? Math.round((d.attributedOrders / d.totalOrders) * 100) : 0,
+      })),
       funnel,
       dailyRevenue,
       recentJourneys,

@@ -58,8 +58,7 @@ export async function GET(request: NextRequest) {
       platformByCampaignResult,
       dailyPixelResult,
       dailyPlatformResult,
-      totalOrdersResult,
-      attributedOrdersResult,
+      perDayCoverageResult,
     ] = await Promise.all([
 
       // 1. Pixel revenue by source (from attribution touchpoints)
@@ -221,26 +220,38 @@ export async function GET(request: NextRequest) {
         ORDER BY 1
       ` as Promise<Array<{ day: string; source: string; revenue: number; spend: number }>>,
 
-      // 7. Total orders in period (for coverage ratio)
+      // 7. Per-day coverage: total orders vs attributed orders per day
+      //    For accurate ROAS scaling (excludes pre-pixel days)
       prisma.$queryRaw`
-        SELECT COUNT(*)::int as total FROM orders
-        WHERE "organizationId" = ${ORG_ID}
-          AND "orderDate" >= ${dateFrom} AND "orderDate" <= ${dateTo}
-      ` as Promise<Array<{ total: number }>>,
-
-      // 8. Attributed orders in period
-      prisma.$queryRaw`
-        SELECT COUNT(DISTINCT "orderId")::int as total FROM pixel_attributions
-        WHERE "organizationId" = ${ORG_ID}
-          AND "createdAt" >= ${dateFrom} AND "createdAt" <= ${dateTo}
-          AND model::text = ${selectedModel}
-      ` as Promise<Array<{ total: number }>>,
+        SELECT
+          TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
+          COUNT(*)::int as "totalOrders",
+          COUNT(DISTINCT pa."orderId")::int as "attributedOrders"
+        FROM orders o
+        LEFT JOIN (
+          SELECT DISTINCT "orderId"
+          FROM pixel_attributions
+          WHERE "organizationId" = ${ORG_ID}
+            AND model::text = ${selectedModel}
+        ) pa ON pa."orderId" = o.id
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+        GROUP BY 1
+        ORDER BY 1
+      ` as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
     ]);
 
-    // ── Attribution coverage ratio for scaling ──
-    const totalOrders = totalOrdersResult[0]?.total || 0;
-    const attributedOrders = attributedOrdersResult[0]?.total || 0;
-    const coverageRatio = totalOrders > 0 ? attributedOrders / totalOrders : 0;
+    // ── Per-day coverage for accurate scaling ──
+    // Only count days where the pixel was active (attributedOrders > 0)
+    // to avoid pre-pixel days from distorting the coverage ratio.
+    const perDayCoverage = (perDayCoverageResult as Array<{ day: string; totalOrders: number; attributedOrders: number }>);
+    const activeDays = perDayCoverage.filter(d => d.attributedOrders > 0);
+    const totalOrders = perDayCoverage.reduce((s, d) => s + d.totalOrders, 0);
+    const attributedOrders = activeDays.reduce((s, d) => s + d.attributedOrders, 0);
+    const coverageRatio = activeDays.reduce((s, d) => s + d.totalOrders, 0) > 0
+      ? attributedOrders / activeDays.reduce((s, d) => s + d.totalOrders, 0)
+      : 0;
 
     // ══════════════════════════════════════════════════════════
     // BUILD DISCREPANCY ANALYSIS
