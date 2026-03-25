@@ -323,7 +323,7 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 
 ## NITROPIXEL — Estado del Pixel de Atribucion
 
-### Ultima actualizacion: 2026-03-24
+### Ultima actualizacion: 2026-03-25
 
 ### Archivos del Pixel
 
@@ -346,6 +346,10 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 | cd8a5c7 | Phase 2: attribution window configurable, early identify, discrepancy report, view-through |
 | 797abd3 | Session-based touchpoint engine: fresh/stale signals, _isLanding fix, session dedup |
 | 3e7871e | Audit fixes: backward compat, unknown sessionId by day, internal referrer protection |
+| 8462cdd | CLAUDE_STATE.md update with NitroPixel section and pending tasks |
+| 1333e46 | Complete conversion funnel tracking: VIEW_PRODUCT, ADD_TO_CART, IDENTIFY fix |
+| 420db69 | FIX CRITICO: regex escaping bug en template literal + ADD_TO_CART via VTEX orderForm API |
+| 8e7cba6 | SPA navigation tracking: pushState/popstate/hashchange hooks para VTEX SPA |
 
 ### Funcionalidades Completadas
 
@@ -362,21 +366,25 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 - Meta CAPI integration (fire-and-forget on PURCHASE)
 - XSS protection on orgId parameter
 - localStorage null-safety for visitor ID recovery
+- Conversion funnel tracking: VIEW_PRODUCT (dataLayer + URL fallback + SPA), ADD_TO_CART (dataLayer + VTEX orderForm API)
+- IDENTIFY events now persist to pixel_events (email stripped for PII)
+- SPA navigation tracking: pushState, replaceState, popstate, hashchange hooks
+- ADD_TO_CART via VTEX orderForm API interception (fetch + XMLHttpRequest)
+- VTEX dataLayer interception: productView, addToCart, view_item, add_to_cart, Enhanced Ecommerce
 
 ### PENDIENTES PIXEL
 
-#### PENDIENTE #1: Comparacion NitroPixel vs GA4 (para 2026-03-25)
-- **Que**: Sincronizar GA4 y comparar visitantes unicos del 24/03 entre NitroPixel y GA4.
-- **Por que**: El pixel empezo a funcionar bien la noche del 23/03. El 24/03 es el primer dia completo.
-  GA4 no tenia data sincronizada de ese dia al momento de consultar. Manana deberia estar disponible.
-- **Query GA4**: web_metrics_daily.users (totalUsers de GA4 Data API)
-- **Query NitroPixel**: COUNT(DISTINCT visitorId) de pixel_events
-- **Que esperamos**: NitroPixel reporte entre +10% y +30% mas que GA4 (cookies directas vs modelo
-  estadistico de GA4 + consent mode). Si la diferencia es mayor, investigar cookie regeneration.
-- **Dato de referencia**: GA4 muestra ~5300 users el 11/03 (dia Hot Sale). NitroPixel mostro 5324
-  visitors el 24/03 — orden de magnitud consistente.
-- **Accion**: Correr el script de comparacion Python (psycopg2 directo a Railway) con data de ambos
-  sistemas para el 24/03 completo. Evaluar si totalPageViews necesita filtro type='PAGE_VIEW'.
+#### PENDIENTE #1: RESUELTO — Comparacion NitroPixel vs GA4
+- **Resultado 2026-03-25**: GA4 sync esta ROTO desde 19/03 (muestra 1-12 sesiones/dia vs 300-570 antes).
+  La service account o property ID puede haber cambiado. Datos confiables solo hasta 18/03.
+- **Baseline GA4 (pre-19/03)**: avg 8,468 users/dia, 10.5 pages/session, 106K PVs/dia.
+- **NitroPixel 24/03**: 5,087 visitors, 1.9 pages/session, 10,850 PVs.
+- **Diagnostico**: NitroPixel mostraba MENOS que GA4 porque no trackeaba SPA navigation.
+  VTEX es SPA, y GA4 cuenta cada navegacion interna. FIX aplicado en commit 8e7cba6.
+- **POST-FIX esperado**: Con SPA tracking, NitroPixel deberia subir a ~8-10 pages/session,
+  acercandose a GA4. Visitantes unicos deberian ser similares o ligeramente mayores.
+- **ACCION PENDIENTE**: Verificar GA4 service account — datos rotos desde 19/03. Revisar
+  GA4_SERVICE_ACCOUNT_KEY y GA4_PROPERTY_ID en Vercel env vars.
 
 #### PENDIENTE #2: totalPageViews cuenta TODOS los eventos, no solo PAGE_VIEW
 - **Que**: La query del dashboard usa COUNT(*) como "totalPageViews" pero cuenta IDENTIFY,
@@ -389,3 +397,17 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 - Session timeout no enforzado server-side (sesiones largas sin actividad)
 - Script cache 5min puede causar data mixta durante deploys
 - Implicit any en sort callback (attribution.ts linea 178)
+
+#### PENDIENTE #4: Verificar que VIEW_PRODUCT y ADD_TO_CART fluyen post-deploy
+- Los commits 420db69 y 8e7cba6 se deployaron el 25/03 ~01:00 UTC.
+- Esperar trafico de producto y verificar que existen events type='VIEW_PRODUCT' y 'ADD_TO_CART'.
+- El regex escaping bug impedia TODOS los VIEW_PRODUCT. Ya corregido.
+- ADD_TO_CART ahora intercepta VTEX orderForm API (fetch + XHR).
+- SPA tracking genera PAGE_VIEW + VIEW_PRODUCT en navegaciones internas.
+
+#### PENDIENTE #5: GA4 sync roto desde 19/03
+- Los datos de GA4 en web_metrics_daily muestran 1-12 sesiones/dia desde 19/03 (vs 300-570 antes).
+- Causa probable: service account perdio acceso, o GA4 property ID cambio.
+- Verificar: GA4_SERVICE_ACCOUNT_KEY y GA4_PROPERTY_ID en Vercel environment variables.
+- Verificar en Google Analytics admin que la service account nitrosales-analytics@nitrosales-489804
+  tiene acceso de lectura al property.
