@@ -1066,81 +1066,85 @@ export default function PixelPage() {
                   ) : null;
                 })()}
 
-                {/* Table */}
-                <div className="overflow-x-auto">
+                {/* Table — ad-attributed only, scrollable */}
+                <div className="border-t border-gray-200">
                   <table className="w-full text-xs">
-                    <thead>
+                    <thead className="sticky top-0 bg-white z-10">
                       <tr className="text-gray-500 border-b border-gray-200">
-                        <th className="text-left py-2 px-2 font-medium w-8"></th>
+                        <th className="text-left py-2 px-3 font-medium w-8"></th>
                         <th className="text-left py-2 px-2 font-medium">Fecha</th>
-                        <th className="text-right py-2 px-2 font-medium">Revenue</th>
+                        <th className="text-right py-2 px-2 font-medium">Inversión</th>
+                        <th className="text-right py-2 px-2 font-medium">Fact. Ads</th>
                         <th className="text-right py-2 px-2 font-medium">Órdenes</th>
-                        <th className="text-right py-2 px-2 font-medium">Spend</th>
                         <th className="text-right py-2 px-2 font-medium">ROAS</th>
-                        <th className="text-right py-2 px-2 font-medium">Visitantes</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {(d.dailyChannelBreakdown || []).map((day: any) => {
-                        const isExpanded = expandedDay === day.day;
-                        const dayParts = day.day.split("-");
-                        const dayLabel = `${dayParts[2]}/${dayParts[1]}`;
-                        return (
-                          <Fragment key={day.day}>
-                            {/* Main day row */}
-                            <tr
-                              onClick={() => setExpandedDay(isExpanded ? null : day.day)}
-                              className="border-b border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors text-gray-700"
-                            >
-                              <td className="py-2.5 px-2 text-gray-500">
-                                <svg className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                              </td>
-                              <td className="py-2.5 px-2 font-medium">{dayLabel}</td>
-                              <td className="py-2.5 px-2 text-right font-medium">{fmtCompact(day.totalRevenue)}</td>
-                              <td className="py-2.5 px-2 text-right">{fmt(day.totalOrders)}</td>
-                              <td className="py-2.5 px-2 text-right text-red-500/80">{fmtCompact(day.totalSpend)}</td>
-                              <td className="py-2.5 px-2 text-right">
-                                <span className={day.totalRoas >= 3 ? "text-emerald-600" : day.totalRoas >= 1 ? "text-amber-600" : "text-red-500"}>
-                                  {day.totalRoas > 0 ? `${day.totalRoas}x` : "-"}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-2 text-right text-gray-400">{fmt(day.visitors)}</td>
-                            </tr>
-                            {/* Expanded channel sub-rows */}
-                            {isExpanded && day.channels.map((ch: any) => (
-                              <tr key={`${day.day}-${ch.source}`} className="border-b border-gray-100 bg-gray-50/50 text-gray-500">
-                                <td className="py-1.5 px-2"></td>
-                                <td className="py-1.5 px-2 pl-6 text-[11px]">
-                                  <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
-                                    ch.source === "google" ? "bg-emerald-400" :
-                                    ch.source === "meta" ? "bg-blue-400" :
-                                    ch.source === "facebook" ? "bg-blue-400" :
-                                    ch.source === "instagram" ? "bg-pink-400" :
-                                    ch.source === "direct" ? "bg-gray-400" :
-                                    "bg-amber-400"
-                                  }`} />
-                                  {ch.source}
-                                </td>
-                                <td className="py-1.5 px-2 text-right text-[11px]">{fmtCompact(ch.revenue)}</td>
-                                <td className="py-1.5 px-2 text-right text-[11px]">{ch.orders}</td>
-                                <td className="py-1.5 px-2 text-right text-[11px] text-red-500/60">{ch.spend > 0 ? fmtCompact(ch.spend) : "-"}</td>
-                                <td className="py-1.5 px-2 text-right text-[11px]">
-                                  {ch.roas > 0 ? (
-                                    <span className={ch.roas >= 3 ? "text-emerald-600/70" : ch.roas >= 1 ? "text-amber-600/70" : "text-red-500/70"}>
-                                      {ch.roas}x
-                                    </span>
-                                  ) : "-"}
-                                </td>
-                                <td className="py-1.5 px-2 text-right text-[11px]">-</td>
-                              </tr>
-                            ))}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
                   </table>
+                  <div className="max-h-[240px] overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {(d.dailyChannelBreakdown || []).map((day: any) => {
+                          const isExpanded = expandedDay === day.day;
+                          const dayParts = day.day.split("-");
+                          const dayLabel = `${dayParts[2]}/${dayParts[1]}`;
+                          // Only paid channels
+                          const paidChannels = (day.channels || []).filter((ch: any) => ch.spend > 0);
+                          const adRevenue = paidChannels.reduce((s: number, ch: any) => s + (ch.revenue || 0), 0);
+                          const adSpend = paidChannels.reduce((s: number, ch: any) => s + (ch.spend || 0), 0);
+                          const adOrders = paidChannels.reduce((s: number, ch: any) => s + (ch.orders || 0), 0);
+                          const adRoas = adSpend > 0 ? Math.round((adRevenue / adSpend) * 100) / 100 : 0;
+                          return (
+                            <Fragment key={day.day}>
+                              <tr
+                                onClick={() => setExpandedDay(isExpanded ? null : day.day)}
+                                className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors text-gray-700"
+                              >
+                                <td className="py-2 px-3 text-gray-400 w-8">
+                                  {paidChannels.length > 1 && (
+                                    <svg className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  )}
+                                </td>
+                                <td className="py-2 px-2 font-medium">{dayLabel}</td>
+                                <td className="py-2 px-2 text-right text-orange-600/80">{adSpend > 0 ? fmtCompact(adSpend) : "-"}</td>
+                                <td className="py-2 px-2 text-right font-medium text-emerald-700">{adRevenue > 0 ? fmtCompact(adRevenue) : "-"}</td>
+                                <td className="py-2 px-2 text-right text-gray-500">{adOrders > 0 ? fmt(adOrders) : "-"}</td>
+                                <td className="py-2 px-2 text-right">
+                                  <span className={adRoas >= 3 ? "text-emerald-600 font-medium" : adRoas >= 1 ? "text-amber-600" : "text-red-500"}>
+                                    {adRoas > 0 ? `${adRoas}x` : "-"}
+                                  </span>
+                                </td>
+                              </tr>
+                              {isExpanded && paidChannels.map((ch: any) => (
+                                <tr key={`${day.day}-${ch.source}`} className="border-b border-gray-50 bg-gray-50/50 text-gray-500">
+                                  <td className="py-1.5 px-3"></td>
+                                  <td className="py-1.5 px-2 pl-5 text-[11px]">
+                                    <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                      ch.source === "google" ? "bg-emerald-400" :
+                                      ch.source === "meta" ? "bg-blue-400" :
+                                      "bg-amber-400"
+                                    }`} />
+                                    {ch.source}
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right text-[11px] text-orange-500/60">{fmtCompact(ch.spend)}</td>
+                                  <td className="py-1.5 px-2 text-right text-[11px]">{fmtCompact(ch.revenue)}</td>
+                                  <td className="py-1.5 px-2 text-right text-[11px]">{ch.orders}</td>
+                                  <td className="py-1.5 px-2 text-right text-[11px]">
+                                    {ch.roas > 0 ? (
+                                      <span className={ch.roas >= 3 ? "text-emerald-600/70" : ch.roas >= 1 ? "text-amber-600/70" : "text-red-500/70"}>
+                                        {ch.roas}x
+                                      </span>
+                                    ) : "-"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
