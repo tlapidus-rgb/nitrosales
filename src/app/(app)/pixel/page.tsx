@@ -254,6 +254,15 @@ export default function PixelPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Ventas por Anuncio section
+  const [salesBySource, setSalesBySource] = useState<Array<{
+    source: string; campaign: string | null; medium: string | null;
+    revenue: number; orders: number; units: number; avgTicket: number;
+    products: Array<{ name: string; image: string | null; sku: string | null; units: number; revenue: number; avgPrice: number }>;
+  }> | null>(null);
+  const [selectedSource, setSelectedSource] = useState<number>(0);
+  const [salesLoading, setSalesLoading] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -272,6 +281,19 @@ export default function PixelPage() {
   }, [dateFrom, dateTo, currentPage, selectedModel]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Fetch sales by source data
+  useEffect(() => {
+    setSalesLoading(true);
+    fetch(`/api/metrics/pixel/sales-by-source?from=${dateFrom}&to=${dateTo}&model=${selectedModel}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setSalesBySource(d.sources || []);
+        setSelectedSource(0);
+      })
+      .catch(() => setSalesBySource(null))
+      .finally(() => setSalesLoading(false));
+  }, [dateFrom, dateTo, selectedModel]);
 
   // Fetch Nitro weights on mount
   useEffect(() => {
@@ -1295,6 +1317,168 @@ export default function PixelPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {/* VENTAS POR ANUNCIO — Two-panel layout (mockup v2)          */}
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {salesBySource && salesBySource.length > 0 && (
+          <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Ventas por Anuncio</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Que vendio cada canal/campana — Modelo: {MODEL_LABELS[selectedModel] || selectedModel}
+              </p>
+            </div>
+
+            <div className="flex flex-col md:flex-row min-h-[400px]">
+              {/* Left panel: Source list */}
+              <div className="md:w-[340px] border-r border-gray-100 overflow-y-auto max-h-[600px]">
+                {salesBySource.map((src, idx) => {
+                  const info = getSourceInfo(src.source);
+                  const isSelected = idx === selectedSource;
+                  return (
+                    <button
+                      key={`${src.source}-${src.campaign || idx}`}
+                      onClick={() => setSelectedSource(idx)}
+                      className={`w-full text-left px-5 py-4 border-b border-gray-50 transition-colors ${
+                        isSelected ? "bg-blue-50 border-l-4 border-l-blue-500" : "hover:bg-gray-50 border-l-4 border-l-transparent"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
+                          style={{ backgroundColor: info.color }}
+                        >
+                          {info.icon}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-gray-900 text-sm truncate">
+                            {info.label}
+                            {src.campaign && (
+                              <span className="font-normal text-gray-500 ml-1 text-xs">/ {src.campaign}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
+                            <span>{fmtARS(src.revenue)}</span>
+                            <span className="text-gray-300">|</span>
+                            <span>{src.orders} {src.orders === 1 ? "orden" : "ordenes"}</span>
+                            <span className="text-gray-300">|</span>
+                            <span>{src.units} uds</span>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path d="M9 5l7 7-7 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Right panel: Product detail */}
+              <div className="flex-1 p-6 overflow-y-auto max-h-[600px]">
+                {(() => {
+                  const selected = salesBySource[selectedSource];
+                  if (!selected) return null;
+                  const info = getSourceInfo(selected.source);
+
+                  return (
+                    <>
+                      {/* Source summary cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                        <div className="bg-gray-50 rounded-xl p-3 text-center">
+                          <div className="text-lg font-bold text-gray-900">{fmtARS(selected.revenue)}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">Facturacion</div>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-3 text-center">
+                          <div className="text-lg font-bold text-gray-900">{selected.orders}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">Ordenes</div>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-3 text-center">
+                          <div className="text-lg font-bold text-gray-900">{selected.units}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">Unidades</div>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-3 text-center">
+                          <div className="text-lg font-bold text-gray-900">{fmtARS(selected.avgTicket)}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">Ticket Prom.</div>
+                        </div>
+                      </div>
+
+                      {/* Product table */}
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                        Productos vendidos via {info.label}
+                        {selected.campaign && <span className="font-normal text-gray-400"> / {selected.campaign}</span>}
+                      </h3>
+
+                      {selected.products.length === 0 ? (
+                        <p className="text-sm text-gray-400 py-8 text-center">Sin datos de productos</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {selected.products.map((prod, pidx) => (
+                            <div
+                              key={pidx}
+                              className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                            >
+                              {/* Product image */}
+                              <div className="w-14 h-14 rounded-lg bg-white border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                                {prod.image ? (
+                                  <img
+                                    src={prod.image}
+                                    alt={prod.name}
+                                    className="w-full h-full object-contain"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                    <path d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                                  </svg>
+                                )}
+                              </div>
+
+                              {/* Product info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-gray-900 truncate">{prod.name}</div>
+                                {prod.sku && (
+                                  <div className="text-xs text-gray-400 mt-0.5">SKU: {prod.sku}</div>
+                                )}
+                              </div>
+
+                              {/* Stats */}
+                              <div className="flex items-center gap-5 shrink-0">
+                                <div className="text-center">
+                                  <div className="text-sm font-semibold text-gray-900">{prod.units}</div>
+                                  <div className="text-[10px] text-gray-400 uppercase">Uds</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-sm font-semibold text-gray-900">{fmtARS(prod.avgPrice)}</div>
+                                  <div className="text-[10px] text-gray-400 uppercase">Precio</div>
+                                </div>
+                                <div className="text-center min-w-[80px]">
+                                  <div className="text-sm font-bold text-gray-900">{fmtARS(prod.revenue)}</div>
+                                  <div className="text-[10px] text-gray-400 uppercase">Total</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {salesBySource && salesBySource.length === 0 && !salesLoading && (
+          <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-8 text-center">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Ventas por Anuncio</h2>
+            <p className="text-sm text-gray-400">No hay ventas atribuidas en este periodo</p>
+          </div>
         )}
 
         {/* Legend */}
