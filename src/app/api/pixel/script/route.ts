@@ -110,14 +110,20 @@ function generatePixelScript(orgId: string): string {
 
     // ─── Session ID (cookie de sesion, expira al cerrar browser) ───
     var sid = getCookie('_np_sid');
+    var _isNewSession = !sid; // MUST be computed BEFORE creating the session cookie
     if (!sid) {
       sid = uuid();
       setCookie('_np_sid', sid, 0);
     }
 
-    // ─── Click IDs de la URL ───
+    // ─── Click IDs & UTMs — with fresh vs stale tracking ───
+    // CRITICAL: We must distinguish signals from the CURRENT URL (fresh = user just
+    // clicked an ad) vs signals recovered from cookies (stale = from a previous session).
+    // Without this, returning organic/direct visitors get falsely attributed to old ads.
     var clickIds = {};
     var utmParams = {};
+    var _signalsFresh = false; // TRUE = click IDs or UTMs came from current URL
+    var _isLanding = _isNewSession; // TRUE = first page of a new session (computed before cookie creation)
     try {
       var params = new URLSearchParams(window.location.search);
       var clickKeys = ['fbclid', 'gclid', 'ttclid', 'li_fat_id', 'msclkid'];
@@ -133,8 +139,13 @@ function generatePixelScript(orgId: string): string {
         if (v) utmParams[k.replace('utm_', '')] = v;
       });
 
-      // Guardar click IDs en cookie + localStorage (cross-domain fallback)
-      if (Object.keys(clickIds).length > 0) {
+      // Determine if signals are fresh (from URL) or stale (from cookie)
+      var hasUrlClickIds = Object.keys(clickIds).length > 0;
+      var hasUrlUtms = Object.keys(utmParams).length > 0;
+      _signalsFresh = hasUrlClickIds || hasUrlUtms;
+
+      // Guardar FRESH click IDs en cookie + localStorage (cross-domain fallback)
+      if (hasUrlClickIds) {
         setCookie('_np_click', JSON.stringify(clickIds), COOKIE_DAYS_CLICK);
         try { localStorage.setItem('_np_click', JSON.stringify(clickIds)); } catch(e) {}
       } else {
@@ -146,8 +157,8 @@ function generatePixelScript(orgId: string): string {
         }
       }
 
-      // Guardar UTMs en cookie + localStorage
-      if (Object.keys(utmParams).length > 0) {
+      // Guardar FRESH UTMs en cookie + localStorage
+      if (hasUrlUtms) {
         setCookie('_np_utm', JSON.stringify(utmParams), COOKIE_DAYS_CLICK);
         try { localStorage.setItem('_np_utm', JSON.stringify(utmParams)); } catch(e) {}
       } else {
@@ -229,7 +240,10 @@ function generatePixelScript(orgId: string): string {
     }
 
     // ─── Track event ───
+    var _eventIndex = 0; // Tracks event order within this page load
     function trackEvent(type, props) {
+      var isFirstEvent = (_eventIndex === 0);
+      _eventIndex++;
       enqueue({
         type: type,
         props: props || {},
@@ -237,6 +251,8 @@ function generatePixelScript(orgId: string): string {
         session_id: sid,
         click_ids: clickIds,
         utm_params: utmParams,
+        signals_fresh: _signalsFresh, // TRUE = click IDs/UTMs from current URL, not cookie
+        is_landing: _isLanding && isFirstEvent, // TRUE = first event of a new session
         timestamp: Date.now(),
         page_url: window.location.href,
         referrer: document.referrer || '',

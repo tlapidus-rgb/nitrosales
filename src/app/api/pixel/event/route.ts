@@ -21,6 +21,8 @@ interface PixelEventPayload {
   session_id: string;
   click_ids?: Record<string, string>;
   utm_params?: Record<string, string>;
+  signals_fresh?: boolean; // TRUE = click IDs/UTMs from current URL, FALSE = from cookie
+  is_landing?: boolean;    // TRUE = first event of a new session (session entry point)
   timestamp: number;  // Unix ms del cliente
   page_url?: string;
   referrer?: string;
@@ -241,13 +243,23 @@ export async function POST(request: NextRequest) {
         }
 
         // Create the event
+        // Merge signals_fresh and is_landing into props to avoid schema migration
+        // These flags are critical for accurate multi-touch attribution:
+        // - signals_fresh: distinguishes paid clicks from stale cookie data
+        // - is_landing: marks session entry points for session-level touchpoint dedup
+        const enrichedProps = {
+          ...(event.props || {}),
+          ...(event.signals_fresh !== undefined && { _signals_fresh: event.signals_fresh }),
+          ...(event.is_landing !== undefined && { _is_landing: event.is_landing }),
+        };
+
         const createdEvent = await prisma.pixelEvent.create({
           data: {
             type: event.type,
             sessionId: event.session_id,
             pageUrl: event.page_url || undefined,
             referrer: event.referrer || undefined,
-            props: event.props || undefined,
+            props: Object.keys(enrichedProps).length > 0 ? enrichedProps : undefined,
             clickIds: event.click_ids || undefined,
             utmParams: event.utm_params || undefined,
             deviceType,

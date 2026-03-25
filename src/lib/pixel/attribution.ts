@@ -110,119 +110,250 @@ export async function calculateAttribution(
       select: {
         id: true,
         type: true,
+        sessionId: true,
         timestamp: true,
         clickIds: true,
         utmParams: true,
         pageUrl: true,
         referrer: true,
+        props: true, // Contains _signals_fresh and _is_landing flags
       }
     });
 
     if (events.length === 0) return;
 
-    // 3. Build touchpoints from events that have attribution signals
-    //    IMPORTANT: Only events with click IDs or UTM source count as touchpoints.
-    //    PURCHASE, IDENTIFY, and DEBUG events are NEVER touchpoints — they are
-    //    conversion/identification events, not traffic sources.
-    //    Without this filter, checkout pages that lose cookies across domains
-    //    (e.g. VTEX checkout on different subdomain) create false "direct" touchpoints.
-    const touchpoints: Touchpoint[] = [];
+    // ══════════════════════════════════════════════════════════════
+    // SESSION-BASED TOUCHPOINT ENGINE (v2)
+    // ══════════════════════════════════════════════════════════════
+    // The key insight: ONE touchpoint per session, not per event.
+    //
+    // Previous logic counted every event with click IDs as a touchpoint,
+    // which caused 3 critical problems:
+    // 1. Cookie contamination: stale click IDs from old sessions made
+    //    organic/direct visits look like paid traffic
+    // 2. Touchpoint inflation: 10 page views in one session = 10 identical
+    //    touchpoints instead of 1
+    // 3. Invisible organic visits: referrer detection never ran because
+    //    stale cookie signals already generated touchpoints
+    //
+    // New logic: Group events by session → detect source per session →
+    // deduplicate consecutive identical sources → one touchpoint per
+    // unique channel interaction.
+    // ══════════════════════════════════════════════════════════════
+
     const NON_TOUCHPOINT_TYPES = new Set([
       'PURCHASE', 'IDENTIFY', 'DEBUG_NO_PURCHASE', 'CUSTOM'
     ]);
 
+    // Step 1: Group events by session
+    const sessionMap = new Map<string, typeof events>();
     for (const event of events) {
-      // Skip event types that are never traffic touchpoints
       if (NON_TOUCHPOINT_TYPES.has(event.type)) continue;
+      const sid = event.sessionId || '_unknown';
+      if (!sessionMap.has(sid)) sessionMap.set(sid, []);
+      sessionMap.get(sid)!.push(event);
+    }
 
-      const clicks = (event.clickIds as Record<string, string>) || {};
-      const utms = (event.utmParams as Record<string, string>) || {};
+    // Step 2: Determine the source for each session
+    interface SessionSource {
+      timestamp: Date;
+      source: string;
+      medium?: string;
+      campaign?: string;
+      clickId?: string;
+      clickType?: string;
+      page?: string;
+      eventId: string;
+      viewThrough?: string;
+      confidence: 'fresh_click' | 'fresh_utm' | 'referrer' | 'stale_cookie' | 'direct';
+    }
 
-      // Only count as touchpoint if there's a click ID or UTM source
-      const hasSignal = Object.keys(clicks).length > 0 || utms.source;
-      if (!hasSignal) continue; // Skip any event without attribution signals
+    const sessionSources: SessionSource[] = [];
 
-      // Determine click type
+    for (const [_sid, sessionEvents] of sessionMap) {
+      // Sort by timestamp (should already be sorted, but be safe)
+      sessionEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      const firstEvent = sessionEvents[0];
+      const props = (firstEvent.props as Record<string, any>) || {};
+      const signalsFresh = props._signals_fresh === true;
+      const isLanding = props._is_landing === true;
+
+      // Find the landing event (first event with _is_landing=true, or just firstEvent)
+      // The landing event has the most reliable referrer for this session
+      let landingEvent = firstEvent;
+      if (!isLanding) {
+        for (const ev of sessionEvents) {
+          const evProps = (ev.props as Record<string, any>) || {};
+          if (evProps._is_landing === true) {
+            landingEvent = ev;
+            break;
+          }
+        }
+      }
+
+      const clicks = (landingEvent.clickIds as Record<string, string>) || {};
+      const utms = (landingEvent.utmParams as Record<string, string>) || {};
+      const hasClicks = Object.keys(clicks).length > 0;
+      const hasUtms = !!utms.source;
+
+      // Determine click type from click IDs
       let clickId: string | undefined;
       let clickType: string | undefined;
       if (clicks.fbclid) { clickId = clicks.fbclid; clickType = 'fbclid'; }
       else if (clicks.gclid) { clickId = clicks.gclid; clickType = 'gclid'; }
       else if (clicks.ttclid) { clickId = clicks.ttclid; clickType = 'ttclid'; }
+      else if (clicks.li_fat_id) { clickId = clicks.li_fat_id; clickType = 'li_fat_id'; }
+      else if (clicks.msclkid) { clickId = clicks.msclkid; clickType = 'msclkid'; }
 
-      touchpoints.push({
-        timestamp: event.timestamp.toISOString(),
-        source: utms.source || (clickType === 'fbclid' ? 'meta' : clickType === 'gclid' ? 'google' : undefined),
-        medium: utms.medium || (clickId ? 'cpc' : undefined),
-        campaign: utms.campaign,
-        clickId,
-        clickType,
-        page: event.pageUrl || undefined,
-        eventId: event.id,
-      });
-    }
+      // Priority-based source detection:
+      // 1. FRESH click IDs from URL → paid click (highest confidence)
+      // 2. FRESH UTMs from URL → tracked campaign
+      // 3. Referrer on landing event → organic/social/referral
+      // 4. Stale click IDs from cookie → previous campaign (low confidence)
+      // 5. Direct (no signal at all)
 
-    // If no touchpoints with attribution signal, try referrer-based detection.
-    // Before defaulting to "direct", check if any PAGE_VIEW has a known referrer.
-    if (touchpoints.length === 0) {
-      // Try to find a PAGE_VIEW with a classified referrer
-      let referrerSource: { source: string; medium: string } | null = null;
-      for (const ev of events) {
-        if (ev.type === 'PAGE_VIEW' && ev.referrer) {
-          referrerSource = detectSourceFromReferrer(ev.referrer);
-          if (referrerSource) break;
+      let source: string | undefined;
+      let medium: string | undefined;
+      let campaign: string | undefined;
+      let confidence: SessionSource['confidence'];
+
+      if (signalsFresh && hasClicks) {
+        // Fresh paid click — highest quality touchpoint
+        source = utms.source || (clickType === 'fbclid' ? 'meta' : clickType === 'gclid' ? 'google' : clickType === 'ttclid' ? 'tiktok' : clickType === 'li_fat_id' ? 'linkedin' : clickType === 'msclkid' ? 'microsoft' : undefined);
+        medium = utms.medium || 'cpc';
+        campaign = utms.campaign;
+        confidence = 'fresh_click';
+      } else if (signalsFresh && hasUtms) {
+        // Fresh UTMs without click ID (e.g., email campaign, WhatsApp link with UTMs)
+        source = utms.source;
+        medium = utms.medium;
+        campaign = utms.campaign;
+        confidence = 'fresh_utm';
+      } else {
+        // No fresh signals — try referrer, then stale cookies, then direct
+        // Use landingEvent referrer (most reliable for this session)
+        const referrerSource = landingEvent.referrer
+          ? detectSourceFromReferrer(landingEvent.referrer)
+          : null;
+
+        // Also check if ANY event in this session has a usable referrer (landing page might not)
+        let sessionReferrerSource = referrerSource;
+        if (!sessionReferrerSource) {
+          for (const ev of sessionEvents) {
+            if (ev.referrer) {
+              sessionReferrerSource = detectSourceFromReferrer(ev.referrer);
+              if (sessionReferrerSource) break;
+            }
+          }
+        }
+
+        if (sessionReferrerSource) {
+          // Referrer detected — this is organic, social, or referral traffic
+          source = sessionReferrerSource.source;
+          medium = sessionReferrerSource.medium;
+          confidence = 'referrer';
+          // Ignore stale click IDs — the referrer tells us the REAL source
+          clickId = undefined;
+          clickType = undefined;
+        } else if (hasClicks && !signalsFresh) {
+          // Stale click IDs from cookie — low confidence, previous campaign
+          source = utms.source || (clickType === 'fbclid' ? 'meta' : clickType === 'gclid' ? 'google' : undefined);
+          medium = utms.medium || 'cpc';
+          campaign = utms.campaign;
+          confidence = 'stale_cookie';
+        } else {
+          // No signals at all — direct traffic
+          source = 'direct';
+          confidence = 'direct';
         }
       }
 
-      const fallbackSource = referrerSource?.source || 'direct';
-      const fallbackMedium = referrerSource?.medium || undefined;
+      sessionSources.push({
+        timestamp: landingEvent.timestamp,
+        source: source || 'direct',
+        medium,
+        campaign,
+        clickId: confidence === 'referrer' ? undefined : clickId, // Don't carry stale clickIds into referrer touchpoints
+        clickType: confidence === 'referrer' ? undefined : clickType,
+        page: landingEvent.pageUrl || undefined,
+        eventId: landingEvent.id,
+        confidence,
+      });
+    }
 
-      // ── View-through detection ──
-      // If the first visit is organic/direct but ad platforms had active spend
-      // around that time, flag as potential view-through (user saw ad, didn't click,
-      // but later searched/visited directly). This is metadata only — doesn't change
-      // attribution calculations, but gives visibility into assisted conversions.
-      let viewThroughSignal: string | undefined;
-      if ((fallbackSource === 'google' && fallbackMedium === 'organic') || fallbackSource === 'direct') {
+    // Step 3: Sort sessions chronologically
+    sessionSources.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    // Step 4: Deduplicate consecutive sessions with same source+medium+campaign
+    // (e.g., user returns 3 times from same Meta campaign = 1 touchpoint, not 3)
+    const touchpoints: Touchpoint[] = [];
+    let prevKey = '';
+
+    for (const session of sessionSources) {
+      const key = `${session.source}|${session.medium || ''}|${session.campaign || ''}|${session.clickId || ''}`;
+
+      if (key === prevKey && session.confidence === 'stale_cookie') {
+        // Skip: same source as previous session AND it's from stale cookies
+        // This prevents "returning to the same campaign" from inflating touchpoints
+        continue;
+      }
+
+      // Different source/medium/campaign, or same but with fresh signals = new touchpoint
+      touchpoints.push({
+        timestamp: session.timestamp.toISOString(),
+        source: session.source,
+        medium: session.medium,
+        campaign: session.campaign,
+        clickId: session.clickId,
+        clickType: session.clickType,
+        page: session.page,
+        eventId: session.eventId,
+        viewThrough: session.viewThrough,
+      });
+
+      prevKey = key;
+    }
+
+    // Step 5: View-through detection for organic/direct touchpoints
+    // If the ONLY touchpoints are organic/direct but ads were running, flag it
+    if (touchpoints.length > 0) {
+      const hasOnlyOrganicOrDirect = touchpoints.every(
+        tp => tp.source === 'direct' || tp.medium === 'organic' || tp.medium === 'social' || tp.medium === 'referral'
+      );
+      if (hasOnlyOrganicOrDirect) {
         try {
-          const firstEventTime = events[0].timestamp;
-          const vtWindowStart = new Date(firstEventTime.getTime() - 24 * 60 * 60 * 1000); // 24h before first visit
+          const firstTime = new Date(touchpoints[0].timestamp);
+          const vtWindowStart = new Date(firstTime.getTime() - 24 * 60 * 60 * 1000);
           const activeAdSpend = await prisma.$queryRaw`
             SELECT LOWER(platform::text) as platform, SUM(spend)::float as spend
             FROM ad_metrics_daily
             WHERE "organizationId" = ${organizationId}
               AND date >= ${vtWindowStart}::date
-              AND date <= ${firstEventTime}::date
+              AND date <= ${firstTime}::date
               AND spend > 0
             GROUP BY 1
           ` as Array<{ platform: string; spend: number }>;
 
           if (activeAdSpend.length > 0) {
-            // There was active ad spend within 24h before this organic/direct visit
             const platforms = activeAdSpend.map(a => a.platform).join('+');
-            viewThroughSignal = `possible_view_through:${platforms}`;
+            touchpoints[0].viewThrough = `possible_view_through:${platforms}`;
           }
-        } catch { /* Non-fatal: view-through detection is optional metadata */ }
+        } catch { /* Non-fatal */ }
       }
+    }
 
+    // Step 6: Fallback — if still no touchpoints (all events were non-touchpoint types)
+    if (touchpoints.length === 0) {
       const firstEvent = events[0];
-      const lastEvent = events[events.length - 1];
+      const referrerSource = firstEvent.referrer
+        ? detectSourceFromReferrer(firstEvent.referrer) : null;
       touchpoints.push({
         timestamp: firstEvent.timestamp.toISOString(),
-        source: fallbackSource,
-        medium: fallbackMedium,
+        source: referrerSource?.source || 'direct',
+        medium: referrerSource?.medium,
         page: firstEvent.pageUrl || undefined,
         eventId: firstEvent.id,
-        ...(viewThroughSignal && { viewThrough: viewThroughSignal }),
       });
-      if (firstEvent.id !== lastEvent.id) {
-        touchpoints.push({
-          timestamp: lastEvent.timestamp.toISOString(),
-          source: fallbackSource,
-          medium: fallbackMedium,
-          page: lastEvent.pageUrl || undefined,
-          eventId: lastEvent.id,
-        });
-      }
     }
 
     // 4. Try to match click IDs with campaigns
