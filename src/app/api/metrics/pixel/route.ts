@@ -86,6 +86,9 @@ export async function GET(request: NextRequest) {
       prevAttrRevenueResult,
       // ── Per-day coverage for accurate ROAS scaling ──
       perDayCoverageResult,
+      // ── Per-day per-source breakdown for daily trend table ──
+      dailyChannelRevenueResult,
+      dailyChannelSpendResult,
     ] = await Promise.all([
       // 1. Live status
       prisma.$queryRaw`
@@ -444,6 +447,45 @@ export async function GET(request: NextRequest) {
         GROUP BY 1
         ORDER BY 1
       ` as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
+
+      // 20. Per-day per-source pixel revenue (for daily trend table)
+      // Uses LAST_CLICK logic here; model-specific SQL would add too much complexity.
+      // The selected model is respected via the model filter.
+      prisma.$queryRaw`
+        SELECT
+          TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
+          COALESCE(tp->>'source', 'direct') as source,
+          COUNT(DISTINCT pa."orderId")::int as orders,
+          SUM(
+            CASE
+              WHEN pa."touchpointCount" = 1 THEN pa."attributedValue"
+              WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue"
+              ELSE 0
+            END
+          )::float as revenue
+        FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
+        , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+        WHERE pa."organizationId" = ${ORG_ID}
+          AND pa."createdAt" >= ${dateFrom}
+          AND pa."createdAt" <= ${dateTo}
+          AND pa.model::text = ${selectedModel}
+        GROUP BY 1, 2
+        ORDER BY 1 DESC, revenue DESC
+      ` as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>,
+
+      // 21. Per-day per-platform ad spend (for daily trend table)
+      prisma.$queryRaw`
+        SELECT
+          TO_CHAR(amd.date, 'YYYY-MM-DD') as day,
+          LOWER(amd.platform::text) as source,
+          SUM(amd.spend)::float as spend
+        FROM ad_metrics_daily amd
+        WHERE amd."organizationId" = ${ORG_ID}
+          AND amd.date >= ${dateFrom}::date
+          AND amd.date <= ${dateTo}::date
+        GROUP BY 1, 2
+      ` as Promise<Array<{ day: string; source: string; spend: number }>>,
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -578,6 +620,55 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // ── Daily channel breakdown (for trend table) ──
+    const dailyChRevenue = dailyChannelRevenueResult as Array<{ day: string; source: string; orders: number; revenue: number }>;
+    const dailyChSpend = dailyChannelSpendResult as Array<{ day: string; source: string; spend: number }>;
+    const visitorsMap = new Map((dailyVisitorsResult as Array<{ day: string; visitors: number }>).map(d => [d.day, d.visitors]));
+
+    // Build day → source → { revenue, orders, spend }
+    const dayChannelMap = new Map<string, Map<string, { revenue: number; orders: number; spend: number }>>();
+    for (const row of dailyChRevenue) {
+      if (!dayChannelMap.has(row.day)) dayChannelMap.set(row.day, new Map());
+      const ch = dayChannelMap.get(row.day)!;
+      const existing = ch.get(row.source) || { revenue: 0, orders: 0, spend: 0 };
+      existing.revenue += row.revenue || 0;
+      existing.orders += row.orders || 0;
+      ch.set(row.source, existing);
+    }
+    for (const row of dailyChSpend) {
+      if (!dayChannelMap.has(row.day)) dayChannelMap.set(row.day, new Map());
+      const ch = dayChannelMap.get(row.day)!;
+      const existing = ch.get(row.source) || { revenue: 0, orders: 0, spend: 0 };
+      existing.spend += row.spend || 0;
+      ch.set(row.source, existing);
+    }
+
+    const dailyChannelBreakdown = Array.from(dayChannelMap.entries())
+      .sort(([a], [b]) => b.localeCompare(a)) // newest first
+      .map(([day, channelMap]) => {
+        const channels = Array.from(channelMap.entries())
+          .map(([source, data]) => ({
+            source,
+            revenue: Math.round(data.revenue * 100) / 100,
+            orders: data.orders,
+            spend: Math.round(data.spend * 100) / 100,
+            roas: data.spend > 0 ? Math.round((data.revenue / data.spend) * 100) / 100 : 0,
+          }))
+          .sort((a, b) => b.revenue - a.revenue);
+
+        const totalRevenue = channels.reduce((s, c) => s + c.revenue, 0);
+        const totalSpend = channels.reduce((s, c) => s + c.spend, 0);
+        return {
+          day,
+          totalRevenue: Math.round(totalRevenue * 100) / 100,
+          totalOrders: channels.reduce((s, c) => s + c.orders, 0),
+          totalSpend: Math.round(totalSpend * 100) / 100,
+          totalRoas: totalSpend > 0 ? Math.round((totalRevenue / totalSpend) * 100) / 100 : 0,
+          visitors: visitorsMap.get(day) || 0,
+          channels,
+        };
+      });
+
     // ── NEW: Pixel health ──
     const clickCov = clickIdCoverageResult[0];
     // Pixel age: days since first event (for contextualizing conversion lag)
@@ -653,6 +744,7 @@ export async function GET(request: NextRequest) {
       })),
       funnel,
       dailyRevenue,
+      dailyChannelBreakdown,
       recentJourneys,
       pixelHealth,
 

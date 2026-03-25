@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar, ComposedChart, Line,
@@ -182,6 +182,11 @@ interface PixelData {
   funnel: { pageView: number; viewProduct: number; addToCart: number; purchase: number };
   dailyVisitors: Array<{ day: string; visitors: number; sessions: number; pageViews: number }>;
   dailyRevenue: Array<{ day: string; revenue: number; orders: number; spend: number; roas: number }>;
+  dailyChannelBreakdown: Array<{
+    day: string; totalRevenue: number; totalOrders: number; totalSpend: number;
+    totalRoas: number; visitors: number;
+    channels: Array<{ source: string; revenue: number; orders: number; spend: number; roas: number }>;
+  }>;
   recentJourneys: Array<{
     orderId: string; orderExternalId: string; revenue: number;
     touchpointCount: number; conversionLag: number;
@@ -192,6 +197,7 @@ interface PixelData {
     attributionRate: number;
     clickCoverage: { total: number; withClickId: number; clickIdRate: number };
     eventsInPeriod: number;
+    pixelAgeDays?: number;
   };
   deviceBreakdown: Array<{ device: string; count: number; percentage: number }>;
   eventTypes: Array<{ type: string; count: number; uniqueVisitors: number; percentage: number }>;
@@ -228,6 +234,7 @@ export default function PixelPage() {
 
   // Chart toggle
   const [dailyMetric, setDailyMetric] = useState<"revenue" | "roas" | "visitors">("revenue");
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   // Attribution model selector — Nitro is the default
   const [selectedModel, setSelectedModel] = useState<string>("NITRO");
@@ -915,11 +922,12 @@ export default function PixelPage() {
             )}
 
             {/* ══════════════════════════════════════════════════════════ */}
-            {/* DAILY CHART (Resumen tab only)                           */}
+            {/* DAILY TREND TABLE (Resumen tab only)                     */}
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && (
               <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-4">
-                <div className="flex items-center justify-between mb-4">
+                {/* Header + metric toggle */}
+                <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold text-gray-200">Tendencia Diaria</h2>
                   <div className="flex gap-1">
                     {(["revenue", "roas", "visitors"] as const).map((m) => (
@@ -937,45 +945,106 @@ export default function PixelPage() {
                     ))}
                   </div>
                 </div>
-                <ResponsiveContainer width="100%" height={280}>
-                  {dailyMetric === "visitors" ? (
-                    <AreaChart data={d.dailyVisitors}>
-                      <defs>
-                        <linearGradient id="npGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                      <XAxis dataKey="day" tickFormatter={(v) => { const p = v.split("-"); return `${p[2]}/${p[1]}`; }} tick={{ fill: "#6b7280", fontSize: 11 }} stroke="rgba(255,255,255,0.1)" />
-                      <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} stroke="rgba(255,255,255,0.1)" allowDecimals={false} />
-                      <Tooltip contentStyle={{ backgroundColor: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }} labelFormatter={(v) => { const p = String(v).split("-"); return `${p[2]}/${p[1]}/${p[0]}`; }} formatter={(v: number) => [fmt(v), "Visitantes"]} />
-                      <Area type="monotone" dataKey="visitors" stroke="#f97316" strokeWidth={2} fill="url(#npGrad)" />
-                    </AreaChart>
-                  ) : (
-                    <ComposedChart data={d.dailyRevenue || []}>
-                      <defs>
-                        <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                      <XAxis dataKey="day" tickFormatter={(v) => { const p = v.split("-"); return `${p[2]}/${p[1]}`; }} tick={{ fill: "#6b7280", fontSize: 11 }} stroke="rgba(255,255,255,0.1)" />
-                      <YAxis yAxisId="left" tick={{ fill: "#6b7280", fontSize: 11 }} stroke="rgba(255,255,255,0.1)" tickFormatter={(v) => dailyMetric === "revenue" ? fmtCompact(v) : `${v}x`} />
-                      {dailyMetric === "revenue" && (
-                        <>
-                          <Bar yAxisId="left" dataKey="spend" fill="rgba(239,68,68,0.3)" radius={[2, 2, 0, 0]} name="Spend" />
-                          <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="#f97316" strokeWidth={2} fill="url(#revGrad)" name="Revenue" />
-                        </>
-                      )}
-                      {dailyMetric === "roas" && (
-                        <Line yAxisId="left" type="monotone" dataKey="roas" stroke="#06b6d4" strokeWidth={2.5} dot={{ r: 3, fill: "#06b6d4" }} name="ROAS" />
-                      )}
-                      <Tooltip contentStyle={{ backgroundColor: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }} labelFormatter={(v) => { const p = String(v).split("-"); return `${p[2]}/${p[1]}/${p[0]}`; }} formatter={(v: number, name: string) => [name === "ROAS" ? `${v}x` : fmtARS(v), name === "spend" ? "Spend" : name === "revenue" ? "Revenue" : "ROAS"]} />
-                    </ComposedChart>
-                  )}
-                </ResponsiveContainer>
+
+                {/* Sparkline */}
+                {(() => {
+                  const sparkData = dailyMetric === "visitors"
+                    ? (d.dailyVisitors || []).map((v: any) => ({ v: v.visitors }))
+                    : (d.dailyRevenue || []).map((v: any) => ({ v: dailyMetric === "roas" ? v.roas : v.revenue }));
+                  const sparkColor = dailyMetric === "roas" ? "#06b6d4" : "#f97316";
+                  return sparkData.length > 1 ? (
+                    <div className="mb-3">
+                      <ResponsiveContainer width="100%" height={40}>
+                        <AreaChart data={sparkData}>
+                          <defs>
+                            <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={sparkColor} stopOpacity={0.25} />
+                              <stop offset="95%" stopColor={sparkColor} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Area type="monotone" dataKey="v" stroke={sparkColor} strokeWidth={1.5} fill="url(#sparkGrad)" dot={false} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-gray-500 border-b border-white/5">
+                        <th className="text-left py-2 px-2 font-medium w-8"></th>
+                        <th className="text-left py-2 px-2 font-medium">Fecha</th>
+                        <th className="text-right py-2 px-2 font-medium">Revenue</th>
+                        <th className="text-right py-2 px-2 font-medium">Órdenes</th>
+                        <th className="text-right py-2 px-2 font-medium">Spend</th>
+                        <th className="text-right py-2 px-2 font-medium">ROAS</th>
+                        <th className="text-right py-2 px-2 font-medium">Visitantes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(d.dailyChannelBreakdown || []).map((day: any) => {
+                        const isExpanded = expandedDay === day.day;
+                        const dayParts = day.day.split("-");
+                        const dayLabel = `${dayParts[2]}/${dayParts[1]}`;
+                        return (
+                          <Fragment key={day.day}>
+                            {/* Main day row */}
+                            <tr
+                              onClick={() => setExpandedDay(isExpanded ? null : day.day)}
+                              className="border-b border-white/5 hover:bg-white/[0.03] cursor-pointer transition-colors text-gray-200"
+                            >
+                              <td className="py-2.5 px-2 text-gray-500">
+                                <svg className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </td>
+                              <td className="py-2.5 px-2 font-medium">{dayLabel}</td>
+                              <td className="py-2.5 px-2 text-right font-medium">{fmtCompact(day.totalRevenue)}</td>
+                              <td className="py-2.5 px-2 text-right">{fmt(day.totalOrders)}</td>
+                              <td className="py-2.5 px-2 text-right text-red-400/80">{fmtCompact(day.totalSpend)}</td>
+                              <td className="py-2.5 px-2 text-right">
+                                <span className={day.totalRoas >= 3 ? "text-emerald-400" : day.totalRoas >= 1 ? "text-amber-400" : "text-red-400"}>
+                                  {day.totalRoas > 0 ? `${day.totalRoas}x` : "-"}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-2 text-right text-gray-400">{fmt(day.visitors)}</td>
+                            </tr>
+                            {/* Expanded channel sub-rows */}
+                            {isExpanded && day.channels.map((ch: any) => (
+                              <tr key={`${day.day}-${ch.source}`} className="border-b border-white/[0.02] bg-white/[0.01] text-gray-400">
+                                <td className="py-1.5 px-2"></td>
+                                <td className="py-1.5 px-2 pl-6 text-[11px]">
+                                  <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                    ch.source === "google" ? "bg-emerald-400" :
+                                    ch.source === "meta" ? "bg-blue-400" :
+                                    ch.source === "facebook" ? "bg-blue-400" :
+                                    ch.source === "instagram" ? "bg-pink-400" :
+                                    ch.source === "direct" ? "bg-gray-400" :
+                                    "bg-amber-400"
+                                  }`} />
+                                  {ch.source}
+                                </td>
+                                <td className="py-1.5 px-2 text-right text-[11px]">{fmtCompact(ch.revenue)}</td>
+                                <td className="py-1.5 px-2 text-right text-[11px]">{ch.orders}</td>
+                                <td className="py-1.5 px-2 text-right text-[11px] text-red-400/60">{ch.spend > 0 ? fmtCompact(ch.spend) : "-"}</td>
+                                <td className="py-1.5 px-2 text-right text-[11px]">
+                                  {ch.roas > 0 ? (
+                                    <span className={ch.roas >= 3 ? "text-emerald-400/70" : ch.roas >= 1 ? "text-amber-400/70" : "text-red-400/70"}>
+                                      {ch.roas}x
+                                    </span>
+                                  ) : "-"}
+                                </td>
+                                <td className="py-1.5 px-2 text-right text-[11px]">-</td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
