@@ -254,9 +254,9 @@ export default function PixelPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Ventas por Anuncio section
+  // Ventas por Canal section
   const [salesBySource, setSalesBySource] = useState<Array<{
-    source: string; campaign: string | null; medium: string | null;
+    source: string;
     revenue: number; orders: number; units: number; avgTicket: number;
     products: Array<{ name: string; image: string | null; sku: string | null; units: number; revenue: number; avgPrice: number }>;
   }> | null>(null);
@@ -1326,9 +1326,9 @@ export default function PixelPage() {
           <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
             {/* Header */}
             <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Ventas por Anuncio</h2>
+              <h2 className="text-lg font-bold text-gray-900">Ventas por Canal</h2>
               <p className="text-xs text-gray-500 mt-1">
-                Que vendio cada canal/campana — Modelo: {MODEL_LABELS[selectedModel] || selectedModel}
+                Que productos vendio cada canal — Modelo: {MODEL_LABELS[selectedModel] || selectedModel}
               </p>
             </div>
 
@@ -1340,7 +1340,7 @@ export default function PixelPage() {
                   const isSelected = idx === selectedSource;
                   return (
                     <button
-                      key={`${src.source}-${src.campaign || idx}`}
+                      key={`${src.source}-${idx}`}
                       onClick={() => setSelectedSource(idx)}
                       className={`w-full text-left px-5 py-4 border-b border-gray-50 transition-colors ${
                         isSelected ? "bg-blue-50 border-l-4 border-l-blue-500" : "hover:bg-gray-50 border-l-4 border-l-transparent"
@@ -1356,9 +1356,6 @@ export default function PixelPage() {
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-gray-900 text-sm truncate">
                             {info.label}
-                            {src.campaign && (
-                              <span className="font-normal text-gray-500 ml-1 text-xs">/ {src.campaign}</span>
-                            )}
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
                             <span>{fmtARS(src.revenue)}</span>
@@ -1411,7 +1408,6 @@ export default function PixelPage() {
                       {/* Product table */}
                       <h3 className="text-sm font-semibold text-gray-700 mb-3">
                         Productos vendidos via {info.label}
-                        {selected.campaign && <span className="font-normal text-gray-400"> / {selected.campaign}</span>}
                       </h3>
 
                       {selected.products.length === 0 ? (
@@ -1476,7 +1472,7 @@ export default function PixelPage() {
 
         {salesBySource && salesBySource.length === 0 && !salesLoading && (
           <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-8 text-center">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Ventas por Anuncio</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Ventas por Canal</h2>
             <p className="text-sm text-gray-400">No hay ventas atribuidas en este periodo</p>
           </div>
         )}

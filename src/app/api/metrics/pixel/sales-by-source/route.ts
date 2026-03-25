@@ -112,12 +112,10 @@ export async function GET(request: NextRequest) {
       ORDER BY oi."totalPrice" DESC
     `;
 
-    // ── Step 3: Build the response grouped by source ──
-    // Group by source+campaign for more granularity
+    // ── Step 3: Build the response grouped by source (channel only) ──
+    // Group by source only — campaign detail belongs in the campaigns section
     interface SourceGroup {
       source: string;
-      campaign: string | null;
-      medium: string | null;
       revenue: number;
       orders: number;
       units: number;
@@ -139,25 +137,21 @@ export async function GET(request: NextRequest) {
       itemsByOrder.get(item.orderId)!.push(item);
     }
 
-    // Group by source key
+    // Group by source key (channel only, no campaign)
     const sourceMap = new Map<string, {
       source: string;
-      campaign: string | null;
-      medium: string | null;
       revenue: number;
       orderIds: Set<string>;
       productMap: Map<string, { name: string; image: string | null; sku: string | null; units: number; revenue: number; priceSum: number; priceCount: number }>;
     }>();
 
     for (const order of attributedOrders) {
-      // Group by source + campaign for granularity
-      const key = `${order.source}||${order.campaign || ''}`;
+      // Group by source only (channel level)
+      const key = order.source;
 
       if (!sourceMap.has(key)) {
         sourceMap.set(key, {
           source: order.source,
-          campaign: order.campaign,
-          medium: order.medium,
           revenue: 0,
           orderIds: new Set(),
           productMap: new Map(),
@@ -199,8 +193,6 @@ export async function GET(request: NextRequest) {
         const totalUnits = Array.from(g.productMap.values()).reduce((s, p) => s + p.units, 0);
         return {
           source: g.source,
-          campaign: g.campaign,
-          medium: g.medium,
           revenue: Math.round(g.revenue),
           orders: g.orderIds.size,
           units: totalUnits,
