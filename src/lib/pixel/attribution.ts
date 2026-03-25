@@ -346,17 +346,25 @@ export async function calculateAttribution(
     sessionSources.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
     // Step 4: Deduplicate consecutive sessions with same source+medium+campaign+clickId
-    // Only deduplicates STALE cookie sessions (same cookies carried over).
-    // Fresh clicks with different click IDs = different ad interactions = separate touchpoints.
+    // Deduplicates when:
+    //  - Same key AND stale cookies (old behavior)
+    //  - Same key AND referrer-based without distinct click IDs (e.g. two Google organic sessions)
+    //  - Same key AND direct (multiple direct visits in a row)
+    // Does NOT deduplicate:
+    //  - Fresh clicks with different click IDs = different ad interactions = separate touchpoints
     const touchpoints: Touchpoint[] = [];
     let prevKey = '';
 
     for (const session of sessionSources) {
       const key = `${session.source}|${session.medium || ''}|${session.campaign || ''}|${session.clickId || ''}`;
 
-      if (key === prevKey && session.confidence === 'stale_cookie') {
-        // Skip: same source as previous session AND it's from stale cookies
-        // This prevents "returning to the same campaign" from inflating touchpoints
+      const canDedup = session.confidence === 'stale_cookie'
+        || session.confidence === 'referrer'
+        || session.confidence === 'direct';
+
+      if (key === prevKey && canDedup) {
+        // Skip: same source as previous session AND no fresh unique click signals
+        // This prevents returning to the same channel from inflating touchpoints
         continue;
       }
 

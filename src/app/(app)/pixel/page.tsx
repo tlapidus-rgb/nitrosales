@@ -90,12 +90,22 @@ function getCreditsForModel(
       credits[src] = (credits[src] || 0) + (i === count - 1 ? 100 - share * (count - 1) : share);
     });
   } else {
-    // NITRO
+    // NITRO — weighted model
+    // When there are no middle touchpoints (count=2), redistribute middle weight
+    // proportionally to first and last so total always sums to 100%.
     touchpoints.forEach((tp, i) => {
       const src = tp?.source || "direct";
       let pct: number;
       if (count === 1) {
         pct = 100;
+      } else if (count === 2) {
+        // No middle touchpoints — redistribute middle weight proportionally
+        const total = weights.first + weights.last;
+        if (i === 0) {
+          pct = Math.round((weights.first / total) * 100);
+        } else {
+          pct = 100 - Math.round((weights.first / total) * 100);
+        }
       } else if (i === 0) {
         pct = weights.first;
       } else if (i === count - 1) {

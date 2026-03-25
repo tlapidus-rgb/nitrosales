@@ -69,6 +69,8 @@ export async function GET(request: NextRequest) {
               SUM(
                 CASE
                   WHEN pa."touchpointCount" = 1 THEN pa."attributedValue"
+                  WHEN pa."touchpointCount" = 2 AND tp_ord = 1 THEN pa."attributedValue" * ${wFirst}::float / (${wFirst}::float + ${wLast}::float)
+                  WHEN pa."touchpointCount" = 2 AND tp_ord = 2 THEN pa."attributedValue" * ${wLast}::float / (${wFirst}::float + ${wLast}::float)
                   WHEN tp_ord = 1 THEN pa."attributedValue" * ${wFirst} / 100.0
                   WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" * ${wLast} / 100.0
                   ELSE pa."attributedValue" * ${wMiddle} / 100.0 / GREATEST(pa."touchpointCount" - 2, 1)
