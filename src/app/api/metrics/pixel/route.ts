@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
         SELECT
           COUNT(DISTINCT pe."visitorId")::int as "totalVisitors",
           COUNT(DISTINCT pe."sessionId")::int as "totalSessions",
-          COUNT(*)::int as "totalPageViews",
+          COUNT(*) FILTER (WHERE pe.type = 'PAGE_VIEW')::int as "totalPageViews",
           COUNT(DISTINCT CASE WHEN pe.type = 'IDENTIFY' THEN pe."visitorId" END)::int as "identifiedVisitors",
           COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "cartVisitors",
           COUNT(DISTINCT CASE WHEN pe.type = 'PURCHASE' THEN pe."visitorId" END)::int as "purchaseVisitors"
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
         SELECT
           COUNT(DISTINCT pe."visitorId")::int as "totalVisitors",
           COUNT(DISTINCT pe."sessionId")::int as "totalSessions",
-          COUNT(*)::int as "totalPageViews"
+          COUNT(*) FILTER (WHERE pe.type = 'PAGE_VIEW')::int as "totalPageViews"
         FROM pixel_events pe
         WHERE pe."organizationId" = ${ORG_ID}
           AND pe.timestamp >= ${prevFrom}
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
           TO_CHAR(DATE(pe.timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
           COUNT(DISTINCT pe."visitorId")::int as visitors,
           COUNT(DISTINCT pe."sessionId")::int as sessions,
-          COUNT(*)::int as "pageViews"
+          COUNT(*) FILTER (WHERE pe.type = 'PAGE_VIEW')::int as "pageViews"
         FROM pixel_events pe
         WHERE pe."organizationId" = ${ORG_ID}
           AND pe.timestamp >= ${dateFrom}

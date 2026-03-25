@@ -893,16 +893,119 @@ function generatePixelScript(orgId: string): string {
       } catch(e) {}
     }
 
-    // Run checkout detection on checkout/orderPlaced pages
+    // ══════════════════════════════════════════════════════════════
+    // AGGRESSIVE CHECKOUT IDENTIFICATION
+    // ══════════════════════════════════════════════════════════════
+    // Problem: passive detection (timeouts at 2/5/10s) only captures 13%
+    // of checkout visitors. Users take 30+ seconds to enter email.
+    // Solution: continuous polling + hash change + MutationObserver
+    // ══════════════════════════════════════════════════════════════
+
     if (/checkout|orderPlaced|gatewayCallback/i.test(window.location.href)) {
+      // Initial detection attempts
       tryVtexIdentify();
-      setTimeout(tryVtexIdentify, 2000);
-      setTimeout(tryVtexIdentify, 5000);
-      setTimeout(tryVtexIdentify, 10000);
       observeCheckoutEmail();
-      setTimeout(observeCheckoutEmail, 3000);
-      setTimeout(observeCheckoutEmail, 8000);
       listenOrderFormUpdated();
+
+      // Continuous orderForm polling — every 5s for 2 minutes
+      var _identifyPollCount = 0;
+      var _identifyPollInterval = setInterval(function() {
+        _identifyPollCount++;
+        if (_identifyPollCount > 24 || _identifiedEmail) {
+          clearInterval(_identifyPollInterval);
+          return;
+        }
+        tryVtexIdentify();
+        observeCheckoutEmail();
+      }, 5000);
+
+      // Hash change detection — VTEX navigates: #/email → #/profile → #/shipping
+      // When user moves past email step, the orderForm should have their email
+      window.addEventListener('hashchange', function() {
+        if (_identifiedEmail) return;
+        var h = window.location.hash;
+        // User passed email step or is on profile/shipping/payment
+        if (/\/(profile|shipping|payment)/i.test(h)) {
+          tryVtexIdentify();
+          // Also try after a delay (orderForm might need time to update)
+          setTimeout(tryVtexIdentify, 1000);
+          setTimeout(tryVtexIdentify, 3000);
+        }
+        // User is ON the email step — start watching for email input
+        if (/\/email/i.test(h)) {
+          observeCheckoutEmail();
+          setTimeout(observeCheckoutEmail, 2000);
+          setTimeout(observeCheckoutEmail, 5000);
+        }
+      });
+
+      // MutationObserver — watches for DOM changes on checkout forms
+      // Catches email field population that other methods miss
+      try {
+        var _emailObserver = new MutationObserver(function(mutations) {
+          if (_identifiedEmail) { _emailObserver.disconnect(); return; }
+          observeCheckoutEmail();
+        });
+        // Observe the main checkout container
+        var checkoutContainer = document.querySelector('.orderform-template, #orderform, .checkout-container, body');
+        if (checkoutContainer) {
+          _emailObserver.observe(checkoutContainer, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: ['value']
+          });
+          // Auto-disconnect after 3 minutes to save resources
+          setTimeout(function() { _emailObserver.disconnect(); }, 180000);
+        }
+      } catch(e) {}
+
+      // VTEX cookie detection — after login, VTEX sets VtexIdclientAutCookie
+      // Poll for this cookie and use profile API to get email
+      var _cookiePollCount = 0;
+      var _cookiePollInterval = setInterval(function() {
+        _cookiePollCount++;
+        if (_cookiePollCount > 30 || _identifiedEmail) {
+          clearInterval(_cookiePollInterval);
+          return;
+        }
+        if (getCookie('VtexIdclientAutCookie') && !_identifiedEmail) {
+          tryVtexProfileIdentify();
+          tryVtexIdentify();
+        }
+      }, 4000);
+
+      // Input event listener — catch email typing in real-time
+      try {
+        document.addEventListener('change', function(e) {
+          if (_identifiedEmail) return;
+          var target = e.target;
+          if (target && target.tagName === 'INPUT' &&
+              (target.type === 'email' || target.name === 'email' || target.id === 'client-email' ||
+               target.className.indexOf('email') > -1)) {
+            var val = target.value;
+            if (val && val.indexOf('@') > -1 && val !== _identifiedEmail) {
+              _identifiedEmail = val;
+              identify({ email: val });
+            }
+          }
+        }, true);
+
+        // Also listen for blur on email-like inputs (captures autocomplete)
+        document.addEventListener('blur', function(e) {
+          if (_identifiedEmail) return;
+          var target = e.target;
+          if (target && target.tagName === 'INPUT' &&
+              (target.type === 'email' || target.name === 'email' || target.id === 'client-email')) {
+            var val = target.value;
+            if (val && val.indexOf('@') > -1 && val !== _identifiedEmail) {
+              _identifiedEmail = val;
+              identify({ email: val });
+            }
+          }
+        }, true);
+      } catch(e) {}
     }
 
     // ══════════════════════════════════════════════════════════════
