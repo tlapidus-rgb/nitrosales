@@ -596,6 +596,8 @@ export async function GET(request: NextRequest) {
       pageView: evtMap.get("PAGE_VIEW") || 0,
       viewProduct: evtMap.get("VIEW_PRODUCT") || 0,
       addToCart: evtMap.get("ADD_TO_CART") || 0,
+      checkoutShipping: evtMap.get("CHECKOUT_SHIPPING") || 0,
+      checkoutPayment: evtMap.get("CHECKOUT_PAYMENT") || 0,
       purchase: evtMap.get("PURCHASE") || 0,
     };
 

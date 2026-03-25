@@ -179,7 +179,7 @@ interface PixelData {
     spend: number; platformConversions: number; pixelRoas: number; platformRoas: number;
     diffPercent: number | null;
   }>;
-  funnel: { pageView: number; viewProduct: number; addToCart: number; purchase: number };
+  funnel: { pageView: number; viewProduct: number; addToCart: number; checkoutShipping: number; checkoutPayment: number; purchase: number };
   dailyVisitors: Array<{ day: string; visitors: number; sessions: number; pageViews: number }>;
   dailyRevenue: Array<{ day: string; revenue: number; orders: number; spend: number; roas: number }>;
   dailyChannelBreakdown: Array<{
@@ -1051,32 +1051,63 @@ export default function PixelPage() {
             {/* ══════════════════════════════════════════════════════════ */}
             {/* FUNNEL (Resumen tab only)                                */}
             {/* ══════════════════════════════════════════════════════════ */}
-            {activeTab === "resumen" && d.funnel && d.funnel.pageView > 0 && (
-              <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-4">
-                <h2 className="text-sm font-semibold text-gray-200 mb-4">Funnel de Conversion</h2>
-                <div className="flex items-end gap-2 h-32">
-                  {[
-                    { label: "Visitantes", value: d.funnel.pageView, color: "#6366F1" },
-                    { label: "Vieron Producto", value: d.funnel.viewProduct, color: "#A855F7" },
-                    { label: "Carrito", value: d.funnel.addToCart, color: "#F59E0B" },
-                    { label: "Compraron", value: d.funnel.purchase, color: "#22C55E" },
-                  ].map((step, i, arr) => {
-                    const maxVal = arr[0].value || 1;
-                    const heightPct = Math.max((step.value / maxVal) * 100, 4);
-                    const prevValue = i > 0 ? arr[i - 1].value : 0;
-                    const stepRate = prevValue > 0 ? Math.round((step.value / prevValue) * 100) : 100;
-                    return (
-                      <div key={step.label} className="flex-1 flex flex-col items-center gap-1">
-                        <span className="text-xs text-gray-400">{i > 0 ? `${stepRate}%` : ""}</span>
-                        <div className="w-full rounded-t-lg transition-all" style={{ height: `${heightPct}%`, backgroundColor: step.color, opacity: 0.8 }} />
-                        <span className="text-[11px] text-gray-300 font-medium">{fmt(step.value)}</span>
-                        <span className="text-[10px] text-gray-500 text-center leading-tight">{step.label}</span>
-                      </div>
-                    );
-                  })}
+            {activeTab === "resumen" && d.funnel && d.funnel.pageView > 0 && (() => {
+              const funnelSteps = [
+                { label: "Visitantes", value: d.funnel.pageView, color: "#6366F1", bg: "rgba(99,102,241,0.15)" },
+                { label: "Vieron Producto", value: d.funnel.viewProduct, color: "#8B5CF6", bg: "rgba(139,92,246,0.15)" },
+                { label: "Agregaron al Carrito", value: d.funnel.addToCart, color: "#A855F7", bg: "rgba(168,85,247,0.15)" },
+                { label: "Eligieron Entrega", value: d.funnel.checkoutShipping, color: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
+                { label: "Eligieron Pago", value: d.funnel.checkoutPayment, color: "#F97316", bg: "rgba(249,115,22,0.15)" },
+                { label: "Compraron", value: d.funnel.purchase, color: "#22C55E", bg: "rgba(34,197,94,0.15)" },
+              ];
+              const maxVal = funnelSteps[0].value || 1;
+              return (
+                <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-4">
+                  <h2 className="text-sm font-semibold text-gray-200 mb-4">Funnel de Conversión</h2>
+                  <div className="flex flex-col gap-1">
+                    {funnelSteps.map((step, i) => {
+                      const widthPct = Math.max((step.value / maxVal) * 100, 8);
+                      const prevValue = i > 0 ? funnelSteps[i - 1].value : 0;
+                      const stepRate = prevValue > 0 ? ((step.value / prevValue) * 100).toFixed(1) : null;
+                      const overallRate = i > 0 ? ((step.value / maxVal) * 100).toFixed(1) : null;
+                      return (
+                        <Fragment key={step.label}>
+                          {i > 0 && stepRate && (
+                            <div className="flex items-center gap-2 pl-2 -my-0.5">
+                              <svg width="12" height="12" viewBox="0 0 12 12" className="text-gray-500 flex-shrink-0">
+                                <path d="M6 2 L6 10 M3 7 L6 10 L9 7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              <span className="text-[10px] text-gray-500">{stepRate}%</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 relative" style={{ minHeight: '32px' }}>
+                              <div
+                                className="absolute inset-y-0 left-0 rounded-lg transition-all"
+                                style={{ width: `${widthPct}%`, backgroundColor: step.bg, borderLeft: `3px solid ${step.color}` }}
+                              />
+                              <div className="relative flex items-center justify-between px-3 py-1.5" style={{ width: `${Math.max(widthPct, 40)}%` }}>
+                                <span className="text-[11px] text-gray-300 font-medium truncate">{step.label}</span>
+                                <span className="text-[11px] text-gray-200 font-semibold ml-2 flex-shrink-0">{fmt(step.value)}</span>
+                              </div>
+                            </div>
+                            {overallRate && (
+                              <span className="text-[10px] text-gray-500 w-12 text-right flex-shrink-0">{overallRate}%</span>
+                            )}
+                          </div>
+                        </Fragment>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
+                    <span className="text-[10px] text-gray-500">Tasa de conversión general</span>
+                    <span className="text-sm font-semibold" style={{ color: '#22C55E' }}>
+                      {((d.funnel.purchase / maxVal) * 100).toFixed(2)}%
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* ══════════════════════════════════════════════════════════ */}
             {/* CONVERSION LAG (Resumen tab only)                        */}

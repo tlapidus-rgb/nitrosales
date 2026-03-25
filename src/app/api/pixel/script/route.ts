@@ -906,6 +906,69 @@ function generatePixelScript(orgId: string): string {
     }
 
     // ══════════════════════════════════════════════════════════════
+    // LAYER 2.3: VTEX Checkout Step Tracking
+    // ══════════════════════════════════════════════════════════════
+    // Detects VTEX Smart Checkout steps via hash changes:
+    //   #/cart → #/profile → #/shipping → #/payment → orderPlaced
+    // Fires CHECKOUT_SHIPPING and CHECKOUT_PAYMENT events.
+    // ══════════════════════════════════════════════════════════════
+
+    var _firedCheckoutSteps = {};
+
+    function detectCheckoutStep(hash) {
+      try {
+        if (!hash) hash = window.location.hash;
+        // VTEX shipping step: user selects delivery method
+        if (/\\/shipping/i.test(hash) && !_firedCheckoutSteps['shipping']) {
+          _firedCheckoutSteps['shipping'] = true;
+          enqueue({ type: 'CHECKOUT_SHIPPING', props: { step: 'shipping' } });
+        }
+        // VTEX payment step: user selects payment method
+        if (/\\/payment/i.test(hash) && !_firedCheckoutSteps['payment']) {
+          _firedCheckoutSteps['payment'] = true;
+          enqueue({ type: 'CHECKOUT_PAYMENT', props: { step: 'payment' } });
+        }
+      } catch(e) {}
+    }
+
+    // Track checkout steps on checkout pages
+    if (/\\/checkout/i.test(window.location.pathname)) {
+      // Check current hash on load
+      detectCheckoutStep();
+      // Listen for hash changes (VTEX SPA navigation)
+      window.addEventListener('hashchange', function() {
+        detectCheckoutStep();
+      });
+      // Also poll for VTEX step detection via DOM (fallback)
+      // VTEX sometimes updates steps without hash change
+      var _checkoutPollCount = 0;
+      var _checkoutPollInterval = setInterval(function() {
+        _checkoutPollCount++;
+        if (_checkoutPollCount > 60) { clearInterval(_checkoutPollInterval); return; }
+        // Check for shipping step via DOM
+        if (!_firedCheckoutSteps['shipping']) {
+          var shippingEl = document.querySelector('.shipping-data .vtex-omnishipping-1-x-deliveryGroup, .shipping-data .shp-option-text, #shipping-option-delivery');
+          if (shippingEl) {
+            _firedCheckoutSteps['shipping'] = true;
+            enqueue({ type: 'CHECKOUT_SHIPPING', props: { step: 'shipping', detection: 'dom' } });
+          }
+        }
+        // Check for payment step via DOM
+        if (!_firedCheckoutSteps['payment']) {
+          var paymentEl = document.querySelector('.payment-group .payment-group-item, #payment-group-creditCardPaymentGroup, .PaymentCardNumber');
+          if (paymentEl) {
+            _firedCheckoutSteps['payment'] = true;
+            enqueue({ type: 'CHECKOUT_PAYMENT', props: { step: 'payment', detection: 'dom' } });
+          }
+        }
+        // All steps detected, stop polling
+        if (_firedCheckoutSteps['shipping'] && _firedCheckoutSteps['payment']) {
+          clearInterval(_checkoutPollInterval);
+        }
+      }, 2000);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // LAYER 2.5: Early Identification — login & account pages
     // ══════════════════════════════════════════════════════════════
     // Identifies visitors BEFORE checkout to improve cross-device
