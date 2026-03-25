@@ -1014,14 +1014,26 @@ export default function PixelPage() {
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && d.attribution?.conversionLag?.length > 0 && (
               <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-4">
-                <h2 className="text-sm font-semibold text-gray-200 mb-1">Tiempo hasta la Compra</h2>
-                <p className="text-xs text-gray-500 mb-4">Dias entre el primer contacto y la conversion</p>
+                <div className="flex items-center justify-between mb-1">
+                  <h2 className="text-sm font-semibold text-gray-200">Tiempo hasta la Compra</h2>
+                  {d.pixelHealth?.pixelAgeDays !== undefined && d.pixelHealth.pixelAgeDays <= 30 && (
+                    <span className="text-[10px] text-amber-400/80 bg-amber-400/10 px-2 py-0.5 rounded-full">
+                      Pixel activo hace {d.pixelHealth.pixelAgeDays} {d.pixelHealth.pixelAgeDays === 1 ? "día" : "días"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mb-4">
+                  Días entre el primer contacto del pixel y la conversión
+                  {d.pixelHealth?.pixelAgeDays !== undefined && d.pixelHealth.pixelAgeDays <= 7 && (
+                    <span className="text-amber-400/60"> — datos limitados por la edad del pixel</span>
+                  )}
+                </p>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={d.attribution.conversionLag}>
+                  <BarChart data={d.attribution.conversionLag.filter((b: any) => b.bucket !== "unknown")}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                     <XAxis dataKey="bucket" tick={{ fill: "#9ca3af", fontSize: 11 }} stroke="rgba(255,255,255,0.1)" />
                     <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} stroke="rgba(255,255,255,0.1)" allowDecimals={false} />
-                    <Tooltip contentStyle={{ backgroundColor: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }} formatter={(v: number, name: string) => [name === "orders" ? `${v} ordenes` : fmtARS(v), name === "orders" ? "Ordenes" : "Revenue"]} labelFormatter={(v) => `${v} dias`} />
+                    <Tooltip contentStyle={{ backgroundColor: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }} formatter={(v: number, name: string) => [name === "orders" ? `${v} órdenes` : fmtARS(v), name === "orders" ? "Órdenes" : "Revenue"]} labelFormatter={(v) => `${v}`} />
                     <Bar dataKey="orders" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

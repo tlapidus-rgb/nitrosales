@@ -450,12 +450,14 @@ export async function calculateAttribution(
       if (campaign) matchedCampaignId = campaign.id;
     }
 
-    // 5. Calculate conversion lag
+    // 5. Calculate conversion lag (days between first touch and order)
+    // Clamped to >= 0: negative values happen when the pixel event fires
+    // slightly after VTEX records the order (same-session timing difference).
     const firstTouchDate = new Date(touchpoints[0].timestamp);
     const orderDate = order.orderDate;
-    const conversionLag = Math.floor(
+    const conversionLag = Math.max(0, Math.floor(
       (orderDate.getTime() - firstTouchDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    ));
 
     const totalValue = Number(order.totalValue);
 

@@ -281,16 +281,17 @@ export async function GET(request: NextRequest) {
       ) as Promise<Array<{ source: string; orders: number; revenue: number }>>,
 
       // 10. Conversion lag distribution
+      // Negative lags are treated as 0 (same-session: pixel fires after VTEX order)
       prisma.$queryRaw`
         SELECT
           CASE
             WHEN pa."conversionLag" IS NULL THEN 'unknown'
-            WHEN pa."conversionLag" = 0 THEN '0'
-            WHEN pa."conversionLag" BETWEEN 1 AND 3 THEN '1-3'
-            WHEN pa."conversionLag" BETWEEN 4 AND 7 THEN '4-7'
-            WHEN pa."conversionLag" BETWEEN 8 AND 14 THEN '8-14'
-            WHEN pa."conversionLag" BETWEEN 15 AND 30 THEN '15-30'
-            ELSE '30+'
+            WHEN pa."conversionLag" <= 0 THEN 'Mismo día'
+            WHEN pa."conversionLag" BETWEEN 1 AND 3 THEN '1-3 días'
+            WHEN pa."conversionLag" BETWEEN 4 AND 7 THEN '4-7 días'
+            WHEN pa."conversionLag" BETWEEN 8 AND 14 THEN '8-14 días'
+            WHEN pa."conversionLag" BETWEEN 15 AND 30 THEN '15-30 días'
+            ELSE '30+ días'
           END as bucket,
           COUNT(*)::int as orders,
           SUM(pa."attributedValue")::float as revenue
@@ -300,7 +301,7 @@ export async function GET(request: NextRequest) {
           AND pa."createdAt" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
         GROUP BY 1
-        ORDER BY MIN(COALESCE(pa."conversionLag", 999))
+        ORDER BY MIN(COALESCE(GREATEST(pa."conversionLag", 0), 999))
       ` as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
 
       // 11. Recent events
@@ -579,6 +580,13 @@ export async function GET(request: NextRequest) {
 
     // ── NEW: Pixel health ──
     const clickCov = clickIdCoverageResult[0];
+    // Pixel age: days since first event (for contextualizing conversion lag)
+    const firstEventDate = ls?.lastEventAt ? new Date(ls.lastEventAt) : null;
+    // Use the earliest event timestamp from the liveStatus query
+    const pixelAgeDays = perDayCoverage.length > 0
+      ? Math.floor((Date.now() - new Date(perDayCoverage.find(d => d.attributedOrders > 0)?.day || Date.now()).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
     const pixelHealth = {
       attributionRate,
       clickCoverage: {
@@ -587,6 +595,7 @@ export async function GET(request: NextRequest) {
         withClickId: clickCov?.withClickId || 0,
       },
       eventsInPeriod: totalEvents,
+      pixelAgeDays,
     };
 
     // ── NEW: Recent journeys ──
