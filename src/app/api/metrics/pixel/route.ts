@@ -341,12 +341,15 @@ export async function GET(request: NextRequest) {
       // ── NEW QUERIES FOR REDESIGNED DASHBOARD ──
 
       // 13. Total orders in period (for attribution rate)
+      // Exclude cancelled/pending/zero-value — only count real completed orders
       prisma.$queryRaw`
         SELECT COUNT(*)::int as total
         FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${dateFrom}
           AND "orderDate" <= ${dateTo}
+          AND status NOT IN ('CANCELLED', 'PENDING')
+          AND "totalValue" > 0
       ` as Promise<Array<{ total: number }>>,
 
       // 14. Ad spend + platform metrics grouped by source (META/GOOGLE)
@@ -364,6 +367,7 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ source: string; spend: number; platformConversions: number; platformRevenue: number }>>,
 
       // 15. Recent journeys (last 15 attributed orders with touchpoints)
+      // Filter out cancelled/pending orders — only show real completed orders
       prisma.$queryRaw`
         SELECT
           pa."orderId",
@@ -380,6 +384,8 @@ export async function GET(request: NextRequest) {
           AND pa."createdAt" >= ${dateFrom}
           AND pa."createdAt" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."totalValue" > 0
         ORDER BY o."orderDate" DESC
         LIMIT 15
       ` as Promise<Array<{
@@ -411,6 +417,8 @@ export async function GET(request: NextRequest) {
           AND pa."createdAt" >= ${dateFrom}
           AND pa."createdAt" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."totalValue" > 0
         GROUP BY 1
         ORDER BY 1
       ` as Promise<Array<{ day: string; revenue: number; orders: number }>>,
@@ -444,6 +452,8 @@ export async function GET(request: NextRequest) {
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."totalValue" > 0
         GROUP BY 1
         ORDER BY 1
       ` as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
@@ -470,6 +480,8 @@ export async function GET(request: NextRequest) {
           AND pa."createdAt" >= ${dateFrom}
           AND pa."createdAt" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."totalValue" > 0
         GROUP BY 1, 2
         ORDER BY 1 DESC, revenue DESC
       ` as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>,

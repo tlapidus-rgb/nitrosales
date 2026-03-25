@@ -389,8 +389,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ── Strategy 4: Most recent visitor with site activity ──
-      // CRITICAL: Exclude webhook sessions to prevent cascading contamination.
+      // ── Strategy 4: Most recent visitor with BROWSING activity ──
+      // Only match visitors with real browsing events (PAGE_VIEW on product/category pages).
+      // Visitors whose only activity is checkout pages produce useless "direct /checkout" touchpoints
+      // with no attribution signals. Excluding checkout-only visitors improves data quality.
       if (!matchedVisitorId) {
         const orderTime = new Date(vtexOrder.creationDate);
         const windowStart = new Date(orderTime.getTime() - 2 * 60 * 60 * 1000); // 2 hour window
@@ -402,6 +404,9 @@ export async function POST(req: NextRequest) {
           WHERE pv."organizationId" = ${org.id}
             AND pv.email IS NULL
             AND pe."sessionId" NOT LIKE 'webhook-%'
+            AND pe.type = 'PAGE_VIEW'
+            AND pe."pageUrl" NOT LIKE '%/checkout/%'
+            AND pe."pageUrl" NOT LIKE '%orderPlaced%'
             AND pe.timestamp >= ${windowStart}
             AND pe.timestamp <= ${orderTime}
           ORDER BY pe.timestamp DESC

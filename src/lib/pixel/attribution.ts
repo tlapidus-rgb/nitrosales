@@ -391,6 +391,22 @@ export async function calculateAttribution(
       prevKey = key;
     }
 
+    // Step 4b: Remove "checkout-only" touchpoints that have no attribution signal.
+    // These appear when a visitor's only tracked page is /checkout/... with no UTMs or referrer.
+    // They produce noisy "direct /checkout" entries with zero insight value.
+    // Keep them only if they're the ONLY touchpoint (better than nothing).
+    if (touchpoints.length > 1) {
+      const filtered = touchpoints.filter(tp => {
+        if (!tp.page) return true;
+        const isCheckoutOnly = /\/checkout\//i.test(tp.page) && tp.source === 'direct' && !tp.campaign && !tp.clickId;
+        return !isCheckoutOnly;
+      });
+      if (filtered.length > 0) {
+        touchpoints.length = 0;
+        touchpoints.push(...filtered);
+      }
+    }
+
     // Step 5: View-through detection for organic/direct touchpoints
     // If the ONLY touchpoints are organic/direct but ads were running, flag it
     if (touchpoints.length > 0) {
