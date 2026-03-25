@@ -478,9 +478,18 @@ export async function GET(request: NextRequest) {
     const ordersAttributed = selectedModelData?.ordersAttributed || 0;
     const totalOrders = totalOrdersResult[0]?.total || 0;
     const totalAdSpend = adSpendBySourceResult.reduce((sum, s) => sum + (s.spend || 0), 0);
-    const pixelRoas = totalAdSpend > 0 ? Math.round((pixelRevenue / totalAdSpend) * 100) / 100 : 0;
     const attributionRate = totalOrders > 0 ? Math.round((ordersAttributed / totalOrders) * 100) : 0;
     const aov = ordersAttributed > 0 ? Math.round(pixelRevenue / ordersAttributed) : 0;
+
+    // ── ROAS calculation: scale by attribution coverage ──
+    // Raw ROAS divides attributed revenue by TOTAL ad spend, which is misleading
+    // when coverage < 100%. Scaled ROAS projects the attributed revenue to full
+    // coverage: if we attributed $1M from 50% of orders, projected = $2M.
+    const coverageRatio = totalOrders > 0 ? ordersAttributed / totalOrders : 0;
+    const projectedRevenue = coverageRatio > 0 ? pixelRevenue / coverageRatio : 0;
+    const pixelRoasRaw = totalAdSpend > 0 ? Math.round((pixelRevenue / totalAdSpend) * 100) / 100 : 0;
+    const pixelRoas = totalAdSpend > 0 ? Math.round((projectedRevenue / totalAdSpend) * 100) / 100 : 0;
+
     const prevAttr = prevAttrRevenueResult[0];
     const prevPixelRevenue = prevAttr?.revenue || 0;
     const prevOrdersAttr = prevAttr?.ordersAttributed || 0;
@@ -491,17 +500,21 @@ export async function GET(request: NextRequest) {
     const channelRoas = attributionBySource.map((ch) => {
       const platform = adSpendMap.get(ch.source) || { spend: 0, platformConversions: 0, platformRevenue: 0 };
       const chSpend = platform.spend || 0;
+      // Scale channel revenue by overall attribution coverage
+      const chProjectedRevenue = coverageRatio > 0 ? (ch.revenue || 0) / coverageRatio : 0;
       return {
         source: ch.source,
         orders: ch.orders,
         pixelRevenue: ch.revenue || 0,
+        projectedRevenue: Math.round(chProjectedRevenue),
         platformRevenue: platform.platformRevenue || 0,
         spend: chSpend,
         platformConversions: platform.platformConversions || 0,
-        pixelRoas: chSpend > 0 ? Math.round(((ch.revenue || 0) / chSpend) * 100) / 100 : 0,
+        pixelRoas: chSpend > 0 ? Math.round((chProjectedRevenue / chSpend) * 100) / 100 : 0,
+        pixelRoasRaw: chSpend > 0 ? Math.round(((ch.revenue || 0) / chSpend) * 100) / 100 : 0,
         platformRoas: chSpend > 0 ? Math.round(((platform.platformRevenue || 0) / chSpend) * 100) / 100 : 0,
-        diffPercent: (platform.platformRevenue || 0) > 0 && (ch.revenue || 0) > 0
-          ? Math.round((((ch.revenue || 0) - (platform.platformRevenue || 0)) / (platform.platformRevenue || 0)) * 100)
+        diffPercent: (platform.platformRevenue || 0) > 0 && chProjectedRevenue > 0
+          ? Math.round(((chProjectedRevenue - (platform.platformRevenue || 0)) / (platform.platformRevenue || 0)) * 100)
           : null,
       };
     });
@@ -582,7 +595,9 @@ export async function GET(request: NextRequest) {
       // ── NEW: Business-focused KPIs ──
       businessKpis: {
         pixelRevenue,
+        projectedRevenue: Math.round(projectedRevenue),
         pixelRoas,
+        pixelRoasRaw,
         ordersAttributed,
         attributionRate,
         aov,

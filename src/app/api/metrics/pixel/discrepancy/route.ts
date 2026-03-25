@@ -58,6 +58,8 @@ export async function GET(request: NextRequest) {
       platformByCampaignResult,
       dailyPixelResult,
       dailyPlatformResult,
+      totalOrdersResult,
+      attributedOrdersResult,
     ] = await Promise.all([
 
       // 1. Pixel revenue by source (from attribution touchpoints)
@@ -218,7 +220,27 @@ export async function GET(request: NextRequest) {
         GROUP BY 1, 2
         ORDER BY 1
       ` as Promise<Array<{ day: string; source: string; revenue: number; spend: number }>>,
+
+      // 7. Total orders in period (for coverage ratio)
+      prisma.$queryRaw`
+        SELECT COUNT(*)::int as total FROM orders
+        WHERE "organizationId" = ${ORG_ID}
+          AND "orderDate" >= ${dateFrom} AND "orderDate" <= ${dateTo}
+      ` as Promise<Array<{ total: number }>>,
+
+      // 8. Attributed orders in period
+      prisma.$queryRaw`
+        SELECT COUNT(DISTINCT "orderId")::int as total FROM pixel_attributions
+        WHERE "organizationId" = ${ORG_ID}
+          AND "createdAt" >= ${dateFrom} AND "createdAt" <= ${dateTo}
+          AND model::text = ${selectedModel}
+      ` as Promise<Array<{ total: number }>>,
     ]);
+
+    // ── Attribution coverage ratio for scaling ──
+    const totalOrders = totalOrdersResult[0]?.total || 0;
+    const attributedOrders = attributedOrdersResult[0]?.total || 0;
+    const coverageRatio = totalOrders > 0 ? attributedOrders / totalOrders : 0;
 
     // ══════════════════════════════════════════════════════════
     // BUILD DISCREPANCY ANALYSIS
@@ -235,22 +257,25 @@ export async function GET(request: NextRequest) {
         const platformConversions = platform?.conversions || 0;
         const platformSpend = platform?.spend || 0;
 
-        const delta = pixel.revenue - platformRevenue;
+        // Scale pixel revenue by attribution coverage for fair comparison
+        const projectedRevenue = coverageRatio > 0 ? pixel.revenue / coverageRatio : pixel.revenue;
+        const delta = projectedRevenue - platformRevenue;
         const deltaPercent = platformRevenue > 0
           ? Math.round((delta / platformRevenue) * 100)
-          : (pixel.revenue > 0 ? 100 : 0);
+          : (projectedRevenue > 0 ? 100 : 0);
 
         return {
           source: pixel.source,
-          pixelRevenue: Math.round(pixel.revenue * 100) / 100,
+          pixelRevenue: Math.round(projectedRevenue * 100) / 100,
+          pixelRevenueRaw: Math.round(pixel.revenue * 100) / 100,
           pixelOrders: pixel.orders,
           platformRevenue: Math.round(platformRevenue * 100) / 100,
           platformConversions,
           spend: Math.round(platformSpend * 100) / 100,
           delta: Math.round(delta * 100) / 100,
           deltaPercent,
-          // ROAS comparison
-          pixelRoas: platformSpend > 0 ? Math.round((pixel.revenue / platformSpend) * 100) / 100 : 0,
+          // ROAS comparison (using projected revenue)
+          pixelRoas: platformSpend > 0 ? Math.round((projectedRevenue / platformSpend) * 100) / 100 : 0,
           platformRoas: platformSpend > 0 ? Math.round((platformRevenue / platformSpend) * 100) / 100 : 0,
           // Verdict: platform over-reports if delta is negative
           verdict: deltaPercent < -15 ? 'PLATFORM_OVER_REPORTS'
@@ -283,21 +308,23 @@ export async function GET(request: NextRequest) {
 
         const platformRevenue = platform?.revenue || 0;
         const platformSpend = platform?.spend || 0;
-        const delta = pixel.revenue - platformRevenue;
+        const projCampaignRevenue = coverageRatio > 0 ? pixel.revenue / coverageRatio : pixel.revenue;
+        const delta = projCampaignRevenue - platformRevenue;
         const deltaPercent = platformRevenue > 0
           ? Math.round((delta / platformRevenue) * 100)
-          : (pixel.revenue > 0 ? 100 : 0);
+          : (projCampaignRevenue > 0 ? 100 : 0);
 
         return {
           campaign: pixel.campaign,
           source: pixel.source,
-          pixelRevenue: Math.round(pixel.revenue * 100) / 100,
+          pixelRevenue: Math.round(projCampaignRevenue * 100) / 100,
+          pixelRevenueRaw: Math.round(pixel.revenue * 100) / 100,
           pixelOrders: pixel.orders,
           platformRevenue: Math.round(platformRevenue * 100) / 100,
           spend: Math.round(platformSpend * 100) / 100,
           delta: Math.round(delta * 100) / 100,
           deltaPercent,
-          pixelRoas: platformSpend > 0 ? Math.round((pixel.revenue / platformSpend) * 100) / 100 : 0,
+          pixelRoas: platformSpend > 0 ? Math.round((projCampaignRevenue / platformSpend) * 100) / 100 : 0,
           platformRoas: platformSpend > 0 ? Math.round((platformRevenue / platformSpend) * 100) / 100 : 0,
         };
       });
@@ -343,6 +370,9 @@ export async function GET(request: NextRequest) {
           ? Math.round((totalDelta / totalPlatformRevenue) * 100) : 0,
         pixelRoas: totalSpend > 0 ? Math.round((totalPixelRevenue / totalSpend) * 100) / 100 : 0,
         platformRoas: totalSpend > 0 ? Math.round((totalPlatformRevenue / totalSpend) * 100) / 100 : 0,
+        attributionCoverage: Math.round(coverageRatio * 100),
+        totalOrders,
+        attributedOrders,
         verdict: totalDelta < 0 ? 'Las plataformas sobre-reportan revenue' : 'Las plataformas sub-reportan revenue',
       },
       bySource: sourceDiscrepancy,
