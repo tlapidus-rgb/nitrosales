@@ -330,9 +330,12 @@ export async function calculateAttribution(
         }
       }
 
+      // Normalize common source aliases for consistency
+      const normalizedSource = (source || 'direct').replace(/^ig$/, 'instagram');
+
       sessionSources.push({
         timestamp: landingEvent.timestamp,
-        source: source || 'direct',
+        source: normalizedSource,
         medium,
         campaign,
         clickId: confidence === 'referrer' ? undefined : clickId, // Don't carry stale clickIds into referrer touchpoints
