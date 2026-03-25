@@ -310,6 +310,9 @@ export async function POST(req: NextRequest) {
         const windowEnd = new Date(orderTime.getTime() + 5 * 60 * 1000);
 
         // 2a) Email-matched visitor with checkout activity
+        // CRITICAL: Exclude webhook-created events (sessionId LIKE 'webhook-%')
+        // to prevent cascading contamination where webhook PURCHASE events
+        // feed back into the checkout heuristic and create a "black hole" visitor.
         if (realEmail) {
           const emailCheckout: any[] = await prisma.$queryRaw`
             SELECT pv.id as "visitorId"
@@ -319,6 +322,7 @@ export async function POST(req: NextRequest) {
               AND pv.email = ${realEmail}
               AND pe.timestamp >= ${windowStart}
               AND pe.timestamp <= ${windowEnd}
+              AND pe."sessionId" NOT LIKE 'webhook-%'
               AND (pe."pageUrl" LIKE '%/checkout/%' OR pe."pageUrl" LIKE '%orderPlaced%'
                    OR pe.type IN ('CHECKOUT_SHIPPING', 'CHECKOUT_PAYMENT', 'IDENTIFY'))
             ORDER BY pe.timestamp DESC
@@ -332,6 +336,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 2b) Generic checkout heuristic (any visitor on checkout pages)
+        // CRITICAL: Exclude webhook-created events to prevent cascading contamination.
         if (!matchedVisitorId) {
           const checkoutEvent: any[] = await prisma.$queryRaw`
             SELECT pe."visitorId"
@@ -339,6 +344,7 @@ export async function POST(req: NextRequest) {
             WHERE pe."organizationId" = ${org.id}
               AND pe.timestamp >= ${windowStart}
               AND pe.timestamp <= ${windowEnd}
+              AND pe."sessionId" NOT LIKE 'webhook-%'
               AND (pe."pageUrl" LIKE '%/checkout/%' OR pe."pageUrl" LIKE '%orderPlaced%'
                    OR pe.type IN ('CHECKOUT_SHIPPING', 'CHECKOUT_PAYMENT'))
             ORDER BY pe.timestamp DESC
@@ -371,6 +377,7 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Strategy 4: Most recent visitor with site activity ──
+      // CRITICAL: Exclude webhook sessions to prevent cascading contamination.
       if (!matchedVisitorId) {
         const orderTime = new Date(vtexOrder.creationDate);
         const windowStart = new Date(orderTime.getTime() - 2 * 60 * 60 * 1000); // 2 hour window
@@ -381,6 +388,7 @@ export async function POST(req: NextRequest) {
           INNER JOIN pixel_events pe ON pe."visitorId" = pv.id
           WHERE pv."organizationId" = ${org.id}
             AND pv.email IS NULL
+            AND pe."sessionId" NOT LIKE 'webhook-%'
             AND pe.timestamp >= ${windowStart}
             AND pe.timestamp <= ${orderTime}
           ORDER BY pe.timestamp DESC
@@ -398,12 +406,14 @@ export async function POST(req: NextRequest) {
 
       // ── Execute attribution if we found a visitor ──
       if (matchedVisitorId) {
-        // Update visitor with real email (not VTEX masked)
+        // Update visitor with real email — but ONLY if visitor has no email yet.
+        // Overwriting an existing email would contaminate identity resolution
+        // (a visitor matched by checkout heuristic might belong to a DIFFERENT customer).
         if (realEmail) {
-          await prisma.pixelVisitor.update({
-            where: { id: matchedVisitorId },
+          await prisma.pixelVisitor.updateMany({
+            where: { id: matchedVisitorId, OR: [{ email: null }, { email: '' }, { email: realEmail }] },
             data: { email: realEmail }
-          }).catch(() => {}); // Don't fail if update errors (e.g. unique constraint)
+          }).catch(() => {}); // Don't fail if update errors
         }
 
         // Calculate attribution

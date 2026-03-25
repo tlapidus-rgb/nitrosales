@@ -188,6 +188,9 @@ export async function calculateAttribution(
     const sessionMap = new Map<string, typeof events>();
     for (const event of events) {
       if (NON_TOUCHPOINT_TYPES.has(event.type)) continue;
+      // Skip webhook-created events — they have no real browsing signals
+      // and their /checkout/orderPlaced pageUrl would create false "direct" touchpoints.
+      if (event.sessionId?.startsWith('webhook-')) continue;
       const sid = event.sessionId
         || `_unknown_${Math.floor(event.timestamp.getTime() / (24 * 60 * 60 * 1000))}`;
       if (!sessionMap.has(sid)) sessionMap.set(sid, []);
