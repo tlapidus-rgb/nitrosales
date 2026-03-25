@@ -24,7 +24,7 @@ const fmtCompact = (n: number) => {
 const pctBadge = (v: number) =>
   v > 0 ? `+${v}%` : v < 0 ? `${v}%` : "0%";
 const pctColor = (v: number) =>
-  v > 0 ? "text-emerald-400" : v < 0 ? "text-red-400" : "text-gray-400";
+  v > 0 ? "text-emerald-600" : v < 0 ? "text-red-600" : "text-gray-400";
 
 const COLORS = ["#f97316", "#06b6d4", "#a855f7", "#22c55e", "#eab308", "#ec4899"];
 const EVENT_LABELS: Record<string, string> = {
@@ -137,7 +137,7 @@ function InfoTip({ text }: { text: string }) {
         <path d="M12 16v-4m0-4h.01" />
       </svg>
       {show && (
-        <span className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-gray-100 text-[11px] leading-relaxed rounded-lg px-3 py-2 w-56 z-50 shadow-xl border border-white/10 pointer-events-none">
+        <span className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-gray-100 text-[11px] leading-relaxed rounded-lg px-3 py-2 w-56 z-50 shadow-xl border border-gray-200 pointer-events-none">
           {text}
         </span>
       )}
@@ -354,9 +354,9 @@ export default function PixelPage() {
   // ── Loading state ──
   if (loading && !data) {
     return (
-      <div className="min-h-screen bg-nitro-bg p-6 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
         <div className="flex items-center gap-3 text-gray-400">
-          <div className="w-2 h-2 rounded-full bg-nitro-orange animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
           <span>Cargando datos del pixel...</span>
         </div>
       </div>
@@ -365,11 +365,11 @@ export default function PixelPage() {
 
   if (error && !data) {
     return (
-      <div className="min-h-screen bg-nitro-bg p-6 flex items-center justify-center">
-        <div className="text-red-400 text-center">
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <div className="text-red-600 text-center">
           <p className="text-lg font-semibold mb-2">Error al cargar datos</p>
           <p className="text-sm text-gray-500">{error}</p>
-          <button onClick={fetchData} className="mt-4 px-4 py-2 bg-white/10 rounded-lg text-sm hover:bg-white/20">
+          <button onClick={fetchData} className="mt-4 px-4 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200 text-gray-700">
             Reintentar
           </button>
         </div>
@@ -383,11 +383,11 @@ export default function PixelPage() {
   const bk = d.businessKpis || { pixelRevenue: 0, pixelRoas: 0, ordersAttributed: 0, attributionRate: 0, aov: 0, totalAdSpend: 0, totalOrders: 0, changes: { pixelRevenue: 0, ordersAttributed: 0, pixelRoas: 0 } };
 
   return (
-    <div className="min-h-screen bg-nitro-bg">
+    <div className="min-h-screen bg-gray-50">
       {/* ══════════════════════════════════════════════════════════ */}
       {/* STICKY HEADER                                            */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-40 bg-nitro-bg/95 backdrop-blur-sm border-b border-white/5">
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3">
           {/* Top bar: Title + Period selector */}
           <div className="flex items-center justify-between mb-3">
@@ -396,7 +396,7 @@ export default function PixelPage() {
                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
               </div>
               <div>
-                <h1 className="text-lg font-bold text-white">NitroPixel</h1>
+                <h1 className="text-lg font-bold text-gray-900">NitroPixel</h1>
                 <p className="text-xs text-gray-500">Revenue Attribution</p>
               </div>
             </div>
@@ -407,8 +407,8 @@ export default function PixelPage() {
                   onClick={() => setQuickRange(days)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     activeQuickRange === days
-                      ? "bg-nitro-orange text-white shadow-sm"
-                      : "text-gray-400 hover:bg-white/5"
+                      ? "bg-orange-500 text-white shadow-sm"
+                      : "text-gray-400 hover:bg-gray-100"
                   }`}
                 >
                   {`${days}d`}
@@ -419,14 +419,14 @@ export default function PixelPage() {
                   type="date"
                   value={dateFrom}
                   onChange={(e) => { setDateFrom(e.target.value); setActiveQuickRange(null); }}
-                  className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-gray-300"
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-700"
                 />
                 <span className="text-gray-500 text-xs">→</span>
                 <input
                   type="date"
                   value={dateTo}
                   onChange={(e) => { setDateTo(e.target.value); setActiveQuickRange(null); }}
-                  className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-gray-300"
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-700"
                 />
               </div>
             </div>
@@ -436,7 +436,7 @@ export default function PixelPage() {
           <div className="flex items-center gap-2 pb-3">
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mr-1">Modelo</span>
             <InfoTip text="El modelo de atribucion define como se reparte el credito de una venta entre los distintos canales que toco el cliente antes de comprar. Cambia de modelo y vas a ver como cambian todos los numeros." />
-            <div className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-1 ml-2">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 ml-2">
               {MODEL_ORDER.map((model) => (
                 <button
                   key={model}
@@ -445,8 +445,8 @@ export default function PixelPage() {
                     selectedModel === model
                       ? model === "NITRO"
                         ? "bg-orange-500 text-white shadow-sm"
-                        : "bg-white/10 text-gray-200 shadow-sm"
-                      : "text-gray-500 hover:text-gray-300"
+                        : "bg-white text-gray-700 shadow-sm border border-gray-200"
+                      : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
                   {model === "NITRO" && (
@@ -462,10 +462,10 @@ export default function PixelPage() {
 
           {/* ═══ MODEL DESCRIPTION BAR ═══ */}
           <div className={`rounded-lg px-4 py-2.5 mb-2 flex items-start gap-3 ${
-            selectedModel === "NITRO" ? "bg-orange-500/5 border border-orange-500/20" : "bg-white/[0.02] border border-white/5"
+            selectedModel === "NITRO" ? "bg-orange-500/5 border border-orange-500/20" : "bg-white border border-gray-200"
           }`}>
             <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 ${
-              selectedModel === "NITRO" ? "bg-orange-500/20" : "bg-white/10"
+              selectedModel === "NITRO" ? "bg-orange-500/20" : "bg-gray-200"
             }`}>
               {selectedModel === "LAST_CLICK" && <span className="text-xs font-bold text-gray-400">L</span>}
               {selectedModel === "FIRST_CLICK" && <span className="text-xs font-bold text-gray-400">F</span>}
@@ -502,7 +502,7 @@ export default function PixelPage() {
                   </div>
 
                   {/* Weight bar */}
-                  <div className="h-2.5 rounded-full overflow-hidden flex bg-white/10">
+                  <div className="h-2.5 rounded-full overflow-hidden flex bg-gray-200">
                     <div className="bg-cyan-500 transition-all duration-300" style={{ width: `${nitroWeights.last}%` }} />
                     <div className="bg-orange-500 transition-all duration-300" style={{ width: `${nitroWeights.first}%` }} />
                     <div className="bg-purple-500 transition-all duration-300" style={{ width: `${nitroWeights.middle}%` }} />
@@ -519,7 +519,7 @@ export default function PixelPage() {
 
                   {/* Weight Editor Panel */}
                   {weightsOpen && (
-                    <div className="mt-3 bg-white/[0.03] border border-orange-500/20 rounded-xl p-4">
+                    <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl p-4">
                       <p className="text-xs text-gray-500 mb-4">Ajusta los pesos y los otros se redistribuyen automaticamente. Deben sumar 100%.</p>
                       <div className="grid grid-cols-3 gap-6">
                         {[
@@ -546,7 +546,7 @@ export default function PixelPage() {
                                     [otherKeys[1]]: remaining - Math.round(remaining * ratio),
                                   } as any);
                                 }}
-                                className="flex-1 h-2 bg-white/10 rounded-full appearance-none cursor-pointer"
+                                className="flex-1 h-2 bg-gray-200 rounded-full appearance-none cursor-pointer"
                                 style={{ accentColor: color === "cyan" ? "#06b6d4" : color === "orange" ? "#f97316" : "#a855f7" }}
                               />
                               <span className="text-lg font-bold w-12 text-right" style={{ color: color === "cyan" ? "#06b6d4" : color === "orange" ? "#f97316" : "#a855f7" }}>
@@ -557,18 +557,18 @@ export default function PixelPage() {
                         ))}
                       </div>
                       {/* Preview bar */}
-                      <div className="h-2 rounded-full overflow-hidden flex mt-4 bg-white/10">
+                      <div className="h-2 rounded-full overflow-hidden flex mt-4 bg-gray-200">
                         <div className="bg-cyan-500 transition-all" style={{ width: `${editingWeights.last}%` }}/>
                         <div className="bg-orange-500 transition-all" style={{ width: `${editingWeights.first}%` }}/>
                         <div className="bg-purple-500 transition-all" style={{ width: `${editingWeights.middle}%` }}/>
                       </div>
-                      {weightsError && <p className="text-xs text-red-400 mt-2">{weightsError}</p>}
+                      {weightsError && <p className="text-xs text-red-500 mt-2">{weightsError}</p>}
                       <div className="flex items-center justify-between mt-4">
-                        <button onClick={() => setEditingWeights({ ...DEFAULT_NITRO_WEIGHTS })} className="text-xs text-gray-500 hover:text-gray-300 underline">
+                        <button onClick={() => setEditingWeights({ ...DEFAULT_NITRO_WEIGHTS })} className="text-xs text-gray-500 hover:text-gray-700 underline">
                           Restaurar default (40/30/30)
                         </button>
                         <div className="flex gap-2">
-                          <button onClick={() => { setEditingWeights(nitroWeights); setWeightsOpen(false); setWeightsError(null); }} className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-white/5">Cancelar</button>
+                          <button onClick={() => { setEditingWeights(nitroWeights); setWeightsOpen(false); setWeightsError(null); }} className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100">Cancelar</button>
                           <button
                             onClick={saveNitroWeights}
                             disabled={savingWeights || (editingWeights.first + editingWeights.last + editingWeights.middle !== 100)}
@@ -579,7 +579,7 @@ export default function PixelPage() {
                         </div>
                       </div>
                       {editingWeights.first + editingWeights.last + editingWeights.middle !== 100 && (
-                        <p className="text-xs text-red-400 mt-2">Los pesos deben sumar 100% (actual: {editingWeights.first + editingWeights.last + editingWeights.middle}%)</p>
+                        <p className="text-xs text-red-500 mt-2">Los pesos deben sumar 100% (actual: {editingWeights.first + editingWeights.last + editingWeights.middle}%)</p>
                       )}
                     </div>
                   )}
@@ -597,7 +597,7 @@ export default function PixelPage() {
             ]).map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-all ${
-                  activeTab === tab.id ? "border-orange-500 text-orange-400" : "border-transparent text-gray-500 hover:text-gray-300"
+                  activeTab === tab.id ? "border-orange-500 text-orange-400" : "border-transparent text-gray-500 hover:text-gray-700"
                 }`}>
                 {tab.label}
               </button>
@@ -630,10 +630,10 @@ export default function PixelPage() {
             <div>
               <span className={`text-sm font-semibold ${
                 d.liveStatus.status === "LIVE"
-                  ? "text-emerald-400"
+                  ? "text-emerald-600"
                   : d.liveStatus.status === "ACTIVE"
-                  ? "text-amber-400"
-                  : "text-red-400"
+                  ? "text-amber-600"
+                  : "text-red-500"
               }`}>
                 {d.liveStatus.status === "LIVE" ? "EN VIVO" : d.liveStatus.status === "ACTIVE" ? "ACTIVO" : "INACTIVO"}
               </span>
@@ -650,32 +650,32 @@ export default function PixelPage() {
           <div className="flex items-center gap-4 text-xs">
             <div className="text-center">
               <p className="text-gray-500">Atribucion</p>
-              <p className={`font-semibold ${(d.pixelHealth?.attributionRate || 0) >= 50 ? "text-emerald-400" : (d.pixelHealth?.attributionRate || 0) >= 25 ? "text-amber-400" : "text-red-400"}`}>
+              <p className={`font-semibold ${(d.pixelHealth?.attributionRate || 0) >= 50 ? "text-emerald-600" : (d.pixelHealth?.attributionRate || 0) >= 25 ? "text-amber-600" : "text-red-500"}`}>
                 {d.pixelHealth?.attributionRate || 0}%
               </p>
             </div>
-            <div className="w-px h-6 bg-white/10" />
+            <div className="w-px h-6 bg-gray-200" />
             <div className="text-center">
               <p className="text-gray-500">Click IDs<InfoTip text="Porcentaje de visitantes que llegaron con un click ID (fbclid, gclid). Mas alto = mejor atribucion." /></p>
-              <p className="font-medium text-gray-300">{d.pixelHealth?.clickCoverage?.clickIdRate || 0}%</p>
+              <p className="font-medium text-gray-700">{d.pixelHealth?.clickCoverage?.clickIdRate || 0}%</p>
             </div>
-            <div className="w-px h-6 bg-white/10" />
+            <div className="w-px h-6 bg-gray-200" />
             <div className="text-center">
               <p className="text-gray-500">Eventos<InfoTip text="Total de eventos que el pixel registro en este periodo." /></p>
-              <p className="font-medium text-gray-300">{fmt(d.liveStatus.totalEvents)}</p>
+              <p className="font-medium text-gray-700">{fmt(d.liveStatus.totalEvents)}</p>
             </div>
           </div>
         </div>
 
         {/* ═══ EMPTY STATE ═══ */}
         {!hasData && (
-          <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-12 text-center">
+          <div className="rounded-2xl bg-white border border-gray-200 p-12 text-center">
             <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-amber-500/10 flex items-center justify-center">
-              <svg className="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-200 mb-1">Pixel activado</h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">Pixel activado</h3>
             <p className="text-sm text-gray-400 max-w-md mx-auto">
               NitroPixel esta instalado y funcionando. Los primeros eventos apareceran cuando los visitantes
               naveguen la tienda.
@@ -732,27 +732,27 @@ export default function PixelPage() {
             {/* LIVE ORDERS WITH JOURNEY (Resumen + Ordenes tabs)        */}
             {/* ══════════════════════════════════════════════════════════ */}
             {(activeTab === "resumen" || activeTab === "ordenes") && d.recentJourneys && d.recentJourneys.length > 0 && (
-              <div className="rounded-2xl bg-white/[0.02] border border-white/5 overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+              <div className="rounded-2xl bg-white border border-gray-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="relative flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"/>
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"/>
                     </span>
-                    <h2 className="text-base font-semibold text-gray-200">Ordenes en Vivo</h2>
+                    <h2 className="text-base font-semibold text-gray-800">Ordenes en Vivo</h2>
                     <InfoTip text="Cada orden muestra su recorrido completo y como el modelo de atribucion seleccionado reparte el credito entre los canales." />
-                    <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full ml-2">Modelo: {MODEL_LABELS[selectedModel]}</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full ml-2">Modelo: {MODEL_LABELS[selectedModel]}</span>
                   </div>
                 </div>
 
-                <div className="divide-y divide-white/[0.03]">
+                <div className="divide-y divide-gray-100">
                   {d.recentJourneys.slice(0, activeTab === "ordenes" ? 15 : 5).map((journey) => {
                     const isExpanded = expandedJourney === journey.orderId;
                     const touchpoints = Array.isArray(journey.touchpoints) ? journey.touchpoints : [];
                     const creditSummary = getCreditsForModel(touchpoints, selectedModel, nitroWeights);
 
                     return (
-                      <div key={journey.orderId} className="hover:bg-white/[0.01] transition-colors">
+                      <div key={journey.orderId} className="hover:bg-gray-50 transition-colors">
                         {/* Order row */}
                         <div className="px-5 py-3 flex items-center gap-4 cursor-pointer" onClick={() => setExpandedJourney(isExpanded ? null : journey.orderId)}>
                           <svg className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M9 5l7 7-7 7"/></svg>
@@ -760,11 +760,11 @@ export default function PixelPage() {
                           <span className="text-xs text-gray-500 w-24">
                             {new Date(journey.orderDate).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                           </span>
-                          <span className="text-sm font-bold text-gray-200 w-24">{fmtARS(journey.revenue)}</span>
+                          <span className="text-sm font-bold text-gray-800 w-24">{fmtARS(journey.revenue)}</span>
                           <span className="text-xs text-gray-500 w-20">{journey.touchpointCount} touchpoints</span>
                           {/* Credit mini-bar */}
                           <div className="flex-1 flex items-center gap-2">
-                            <div className="flex-1 h-3 rounded-full overflow-hidden flex bg-white/5">
+                            <div className="flex-1 h-3 rounded-full overflow-hidden flex bg-gray-200">
                               {creditSummary.map((c, ci) => (
                                 <div key={ci} className="h-full transition-all" style={{ width: `${c.pct}%`, backgroundColor: c.color }} title={`${c.label}: ${c.pct}%`} />
                               ))}
@@ -772,22 +772,22 @@ export default function PixelPage() {
                             <span className="text-xs text-gray-500 w-16 text-right">{creditSummary[0]?.label}</span>
                           </div>
                           {journey.conversionLag !== null && (
-                            <span className="text-[10px] text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">{journey.conversionLag}d</span>
+                            <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{journey.conversionLag}d</span>
                           )}
                         </div>
 
                         {/* Expanded Journey */}
                         {isExpanded && (
                           <div className="px-5 pb-5 ml-10">
-                            <div className="bg-white/[0.02] rounded-xl p-5 border border-white/5">
+                            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
                               {/* Credit Distribution */}
                               {creditSummary.length > 0 && (
-                                <div className="mb-4 bg-white/[0.03] rounded-lg p-3 border border-white/5">
+                                <div className="mb-4 bg-white rounded-lg p-3 border border-gray-200">
                                   <div className="flex items-center gap-2 mb-2">
                                     <span className="text-xs font-semibold text-gray-400">Distribucion del credito</span>
                                     <InfoTip text={`Asi reparte el modelo ${MODEL_LABELS[selectedModel]} el credito de esta venta (${fmtARS(journey.revenue)}) entre los canales que participaron.`} />
                                   </div>
-                                  <div className="h-4 rounded-full overflow-hidden flex bg-white/5 mb-2">
+                                  <div className="h-4 rounded-full overflow-hidden flex bg-gray-200 mb-2">
                                     {creditSummary.map((c, ci) => (
                                       <div key={ci} className="h-full flex items-center justify-center transition-all"
                                         style={{ width: `${c.pct}%`, backgroundColor: c.color }}>
@@ -799,7 +799,7 @@ export default function PixelPage() {
                                     {creditSummary.map((c, ci) => (
                                       <div key={ci} className="flex items-center gap-1.5">
                                         <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }}/>
-                                        <span className="text-xs text-gray-400">{c.label}: <strong className="text-gray-200">{c.pct}%</strong></span>
+                                        <span className="text-xs text-gray-400">{c.label}: <strong className="text-gray-800">{c.pct}%</strong></span>
                                       </div>
                                     ))}
                                   </div>
@@ -817,13 +817,13 @@ export default function PixelPage() {
                                         <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-2" style={{ borderColor: info.color, backgroundColor: `${info.color}22` }}>
                                           <span className="text-[10px] font-bold text-white">{info.icon}</span>
                                         </div>
-                                        {!isLast && <div className="w-0.5 h-6 bg-white/10"/>}
+                                        {!isLast && <div className="w-0.5 h-6 bg-gray-200"/>}
                                       </div>
                                       <div className="pt-1 pb-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="text-xs font-medium text-gray-300">{info.label}</span>
+                                          <span className="text-xs font-medium text-gray-700">{info.label}</span>
                                           {tp.campaign && <span className="text-[10px] text-gray-500">{tp.campaign}</span>}
-                                          {tp.clickType && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-gray-500">{tp.clickType}</span>}
+                                          {tp.clickType && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{tp.clickType}</span>}
                                           <span className="text-[10px] text-gray-600">
                                             {new Date(tp.timestamp).toLocaleString("es-AR", {
                                               timeZone: "America/Argentina/Buenos_Aires",
@@ -840,11 +840,11 @@ export default function PixelPage() {
                                 <div className="flex items-start gap-3 relative">
                                   <div className="flex flex-col items-center">
                                     <div className="w-7 h-7 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center flex-shrink-0">
-                                      <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>
+                                      <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>
                                     </div>
                                   </div>
                                   <div className="pt-1">
-                                    <span className="text-xs font-semibold text-emerald-400">Compra — {fmtARS(journey.revenue)}</span>
+                                    <span className="text-xs font-semibold text-emerald-600">Compra — {fmtARS(journey.revenue)}</span>
                                     <p className="text-[10px] text-gray-600">
                                       {new Date(journey.orderDate).toLocaleString("es-AR", {
                                         timeZone: "America/Argentina/Buenos_Aires",
@@ -856,10 +856,10 @@ export default function PixelPage() {
                               </div>
 
                               {/* Attribution Summary */}
-                              <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-4 text-xs text-gray-500 flex-wrap">
-                                <span>Modelo: <strong className="text-gray-300">{MODEL_LABELS[selectedModel]}</strong></span>
-                                <span>Fuente principal: <strong className="text-gray-300">{creditSummary[0]?.label} ({creditSummary[0]?.pct}%)</strong></span>
-                                <span>Touchpoints: <strong className="text-gray-300">{journey.touchpointCount}</strong></span>
+                              <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+                                <span>Modelo: <strong className="text-gray-700">{MODEL_LABELS[selectedModel]}</strong></span>
+                                <span>Fuente principal: <strong className="text-gray-700">{creditSummary[0]?.label} ({creditSummary[0]?.pct}%)</strong></span>
+                                <span>Touchpoints: <strong className="text-gray-700">{journey.touchpointCount}</strong></span>
                               </div>
                             </div>
                           </div>
@@ -875,11 +875,11 @@ export default function PixelPage() {
             {/* CHANNEL TABLE (Resumen + Canales tabs)                   */}
             {/* ══════════════════════════════════════════════════════════ */}
             {(activeTab === "resumen" || activeTab === "canales") && (d.channelRoas?.length > 0 || hasAttribution) && (
-              <div className="rounded-2xl bg-white/[0.02] border border-white/5 overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/5">
+              <div className="rounded-2xl bg-white border border-gray-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-200">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-semibold text-gray-200">Rendimiento por Canal</h2>
-                    <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">Modelo: {MODEL_LABELS[selectedModel]}</span>
+                    <h2 className="text-base font-semibold text-gray-800">Rendimiento por Canal</h2>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Modelo: {MODEL_LABELS[selectedModel]}</span>
                     <InfoTip text="Los numeros de esta tabla cambian segun el modelo de atribucion seleccionado. Proba cambiar entre Nitro, Last Click, First Click y Linear para ver como se redistribuye el credito." />
                   </div>
                 </div>
@@ -887,7 +887,7 @@ export default function PixelPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-white/[0.02] border-b border-white/5">
+                        <tr className="bg-gray-50 border-b border-gray-200">
                           <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Canal</th>
                           <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Inversion</th>
                           <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Rev. Pixel<InfoTip text="Revenue atribuido por NitroPixel segun el modelo seleccionado. Es TU verdad." /></th>
@@ -899,26 +899,26 @@ export default function PixelPage() {
                           <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">AOV<InfoTip text="Ticket promedio de las ordenes de este canal." /></th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/[0.03]">
+                      <tbody className="divide-y divide-gray-100">
                         {d.channelRoas.map((ch) => {
                           const info = getSourceInfo(ch.source);
                           const cpa = ch.spend > 0 && ch.orders > 0 ? Math.round(ch.spend / ch.orders) : 0;
                           const aov = ch.orders > 0 ? Math.round(ch.pixelRevenue / ch.orders) : 0;
                           return (
-                            <tr key={ch.source} className="hover:bg-white/[0.02] transition-colors">
+                            <tr key={ch.source} className="hover:bg-gray-50 transition-colors">
                               <td className="px-3 py-3">
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: info.color }}>
                                     {info.icon}
                                   </div>
-                                  <span className="text-gray-300 capitalize">{info.label}</span>
+                                  <span className="text-gray-700 capitalize">{info.label}</span>
                                 </div>
                               </td>
                               <td className="px-3 py-3 text-right text-gray-400 font-medium">{ch.spend > 0 ? fmtARS(ch.spend) : "-"}</td>
-                              <td className="px-3 py-3 text-right text-gray-200 font-bold">{fmtARS(ch.pixelRevenue)}</td>
+                              <td className="px-3 py-3 text-right text-gray-800 font-bold">{fmtARS(ch.pixelRevenue)}</td>
                               <td className="px-3 py-3 text-right text-gray-500">{ch.platformRevenue > 0 ? fmtARS(ch.platformRevenue) : "-"}</td>
                               <td className="px-3 py-3 text-right text-gray-400">{ch.orders}</td>
-                              <td className="px-3 py-3 text-right font-semibold text-orange-400">{ch.pixelRoas > 0 ? `${ch.pixelRoas}x` : "-"}</td>
+                              <td className="px-3 py-3 text-right font-semibold text-orange-600">{ch.pixelRoas > 0 ? `${ch.pixelRoas}x` : "-"}</td>
                               <td className="px-3 py-3 text-right text-gray-500">{ch.platformRoas > 0 ? `${ch.platformRoas}x` : "-"}</td>
                               <td className="px-3 py-3 text-right text-gray-400">{cpa > 0 ? fmtARS(cpa) : "-"}</td>
                               <td className="px-3 py-3 text-right text-gray-400">{aov > 0 ? fmtARS(aov) : "-"}</td>
@@ -934,8 +934,8 @@ export default function PixelPage() {
                 {/* Over-reporting alert */}
                 {d.channelRoas && d.channelRoas.some((ch) => ch.platformRevenue > 0 && ch.pixelRevenue > 0 && ch.platformRevenue > ch.pixelRevenue) && (
                   <div className="px-5 py-3 bg-amber-500/5 border-t border-amber-500/20 flex items-center gap-3">
-                    <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    <p className="text-xs text-amber-200/80">
+                    <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <p className="text-xs text-amber-700">
                       <strong>Las plataformas sobre-reportan.</strong> Usa los numeros de NitroPixel ({MODEL_LABELS[selectedModel]}) para tus decisiones de presupuesto.
                     </p>
                   </div>
@@ -947,10 +947,10 @@ export default function PixelPage() {
             {/* DAILY TREND TABLE (Resumen tab only)                     */}
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && (
-              <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-4">
+              <div className="rounded-2xl bg-white border border-gray-200 p-4">
                 {/* Header + metric toggle */}
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold text-gray-200">Tendencia Diaria</h2>
+                  <h2 className="text-sm font-semibold text-gray-800">Tendencia Diaria</h2>
                   <div className="flex gap-1">
                     {(["revenue", "roas", "visitors"] as const).map((m) => (
                       <button
@@ -958,8 +958,8 @@ export default function PixelPage() {
                         onClick={() => setDailyMetric(m)}
                         className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
                           dailyMetric === m
-                            ? "bg-nitro-orange/20 text-nitro-orange"
-                            : "text-gray-500 hover:text-gray-300"
+                            ? "bg-orange-100 text-orange-600"
+                            : "text-gray-500 hover:text-gray-700"
                         }`}
                       >
                         {m === "revenue" ? "Revenue" : m === "roas" ? "ROAS" : "Visitantes"}
@@ -995,7 +995,7 @@ export default function PixelPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-gray-500 border-b border-white/5">
+                      <tr className="text-gray-500 border-b border-gray-200">
                         <th className="text-left py-2 px-2 font-medium w-8"></th>
                         <th className="text-left py-2 px-2 font-medium">Fecha</th>
                         <th className="text-right py-2 px-2 font-medium">Revenue</th>
@@ -1015,7 +1015,7 @@ export default function PixelPage() {
                             {/* Main day row */}
                             <tr
                               onClick={() => setExpandedDay(isExpanded ? null : day.day)}
-                              className="border-b border-white/5 hover:bg-white/[0.03] cursor-pointer transition-colors text-gray-200"
+                              className="border-b border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors text-gray-700"
                             >
                               <td className="py-2.5 px-2 text-gray-500">
                                 <svg className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1025,9 +1025,9 @@ export default function PixelPage() {
                               <td className="py-2.5 px-2 font-medium">{dayLabel}</td>
                               <td className="py-2.5 px-2 text-right font-medium">{fmtCompact(day.totalRevenue)}</td>
                               <td className="py-2.5 px-2 text-right">{fmt(day.totalOrders)}</td>
-                              <td className="py-2.5 px-2 text-right text-red-400/80">{fmtCompact(day.totalSpend)}</td>
+                              <td className="py-2.5 px-2 text-right text-red-500/80">{fmtCompact(day.totalSpend)}</td>
                               <td className="py-2.5 px-2 text-right">
-                                <span className={day.totalRoas >= 3 ? "text-emerald-400" : day.totalRoas >= 1 ? "text-amber-400" : "text-red-400"}>
+                                <span className={day.totalRoas >= 3 ? "text-emerald-600" : day.totalRoas >= 1 ? "text-amber-600" : "text-red-500"}>
                                   {day.totalRoas > 0 ? `${day.totalRoas}x` : "-"}
                                 </span>
                               </td>
@@ -1035,7 +1035,7 @@ export default function PixelPage() {
                             </tr>
                             {/* Expanded channel sub-rows */}
                             {isExpanded && day.channels.map((ch: any) => (
-                              <tr key={`${day.day}-${ch.source}`} className="border-b border-white/[0.02] bg-white/[0.01] text-gray-400">
+                              <tr key={`${day.day}-${ch.source}`} className="border-b border-gray-100 bg-gray-50/50 text-gray-500">
                                 <td className="py-1.5 px-2"></td>
                                 <td className="py-1.5 px-2 pl-6 text-[11px]">
                                   <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
@@ -1050,10 +1050,10 @@ export default function PixelPage() {
                                 </td>
                                 <td className="py-1.5 px-2 text-right text-[11px]">{fmtCompact(ch.revenue)}</td>
                                 <td className="py-1.5 px-2 text-right text-[11px]">{ch.orders}</td>
-                                <td className="py-1.5 px-2 text-right text-[11px] text-red-400/60">{ch.spend > 0 ? fmtCompact(ch.spend) : "-"}</td>
+                                <td className="py-1.5 px-2 text-right text-[11px] text-red-500/60">{ch.spend > 0 ? fmtCompact(ch.spend) : "-"}</td>
                                 <td className="py-1.5 px-2 text-right text-[11px]">
                                   {ch.roas > 0 ? (
-                                    <span className={ch.roas >= 3 ? "text-emerald-400/70" : ch.roas >= 1 ? "text-amber-400/70" : "text-red-400/70"}>
+                                    <span className={ch.roas >= 3 ? "text-emerald-600/70" : ch.roas >= 1 ? "text-amber-600/70" : "text-red-500/70"}>
                                       {ch.roas}x
                                     </span>
                                   ) : "-"}
@@ -1084,8 +1084,8 @@ export default function PixelPage() {
               ];
               const maxVal = funnelSteps[0].value || 1;
               return (
-                <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-4">
-                  <h2 className="text-sm font-semibold text-gray-200 mb-4">Funnel de Conversión</h2>
+                <div className="rounded-2xl bg-white border border-gray-200 p-4">
+                  <h2 className="text-sm font-semibold text-gray-800 mb-4">Funnel de Conversión</h2>
                   <div className="flex flex-col gap-1">
                     {funnelSteps.map((step, i) => {
                       const widthPct = Math.max((step.value / maxVal) * 100, 8);
@@ -1121,8 +1121,8 @@ export default function PixelPage() {
                                 }}
                               />
                               <div className="relative flex items-center justify-between px-3 py-1.5" style={{ width: isEmpty ? '100%' : `${Math.max(widthPct, 40)}%` }}>
-                                <span className="text-[11px] text-gray-300 font-medium truncate">{step.label}</span>
-                                <span className="text-[11px] text-gray-200 font-semibold ml-2 flex-shrink-0">
+                                <span className="text-[11px] text-gray-700 font-medium truncate">{step.label}</span>
+                                <span className="text-[11px] text-gray-800 font-semibold ml-2 flex-shrink-0">
                                   {isEmpty ? <span className="text-[10px] text-gray-500 font-normal italic">Esperando datos...</span> : fmt(step.value)}
                                 </span>
                               </div>
@@ -1135,7 +1135,7 @@ export default function PixelPage() {
                       );
                     })}
                   </div>
-                  <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
+                  <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
                     <span className="text-[10px] text-gray-500">Tasa de conversión general</span>
                     <span className="text-sm font-semibold" style={{ color: '#22C55E' }}>
                       {((d.funnel.purchase / maxVal) * 100).toFixed(2)}%
@@ -1149,11 +1149,11 @@ export default function PixelPage() {
             {/* CONVERSION LAG (Resumen tab only)                        */}
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && d.attribution?.conversionLag?.length > 0 && (
-              <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-4">
+              <div className="rounded-2xl bg-white border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-sm font-semibold text-gray-200">Tiempo hasta la Compra</h2>
+                  <h2 className="text-sm font-semibold text-gray-800">Tiempo hasta la Compra</h2>
                   {d.pixelHealth?.pixelAgeDays !== undefined && d.pixelHealth.pixelAgeDays <= 30 && (
-                    <span className="text-[10px] text-amber-400/80 bg-amber-400/10 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] text-amber-600/80 bg-amber-400/10 px-2 py-0.5 rounded-full">
                       Pixel activo hace {d.pixelHealth.pixelAgeDays} {d.pixelHealth.pixelAgeDays === 1 ? "día" : "días"}
                     </span>
                   )}
@@ -1161,7 +1161,7 @@ export default function PixelPage() {
                 <p className="text-xs text-gray-500 mb-4">
                   Días entre el primer contacto del pixel y la conversión
                   {d.pixelHealth?.pixelAgeDays !== undefined && d.pixelHealth.pixelAgeDays <= 7 && (
-                    <span className="text-amber-400/60"> — datos limitados por la edad del pixel</span>
+                    <span className="text-amber-600/60"> — datos limitados por la edad del pixel</span>
                   )}
                 </p>
                 <ResponsiveContainer width="100%" height={200}>
@@ -1181,32 +1181,32 @@ export default function PixelPage() {
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                <div className="rounded-xl bg-white border border-gray-200 p-4">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Match Rate<InfoTip text="Porcentaje de ordenes que NitroPixel pudo atribuir a un canal." /></span>
                     <div className={`w-2 h-2 rounded-full ${bk.attributionRate >= 50 ? "bg-emerald-400" : bk.attributionRate >= 25 ? "bg-amber-400" : "bg-red-400"}`}/>
                   </div>
-                  <span className="text-xl font-bold text-gray-200">{bk.attributionRate}%</span>
+                  <span className="text-xl font-bold text-gray-800">{bk.attributionRate}%</span>
                 </div>
-                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                <div className="rounded-xl bg-white border border-gray-200 p-4">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Eventos/hora<InfoTip text="Eventos que el pixel recibe por hora. Si cae mucho, algo se rompio." /></span>
                     <div className={`w-2 h-2 rounded-full ${d.liveStatus.lastHourEvents > 0 ? "bg-emerald-400" : "bg-red-400"}`}/>
                   </div>
-                  <span className="text-xl font-bold text-gray-200">{fmt(d.liveStatus.lastHourEvents)}</span>
+                  <span className="text-xl font-bold text-gray-800">{fmt(d.liveStatus.lastHourEvents)}</span>
                 </div>
-                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                <div className="rounded-xl bg-white border border-gray-200 p-4">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Click IDs<InfoTip text="Porcentaje de visitas con click ID (fbclid/gclid). Mas alto = mejor atribucion." /></span>
                     <div className={`w-2 h-2 rounded-full ${(d.pixelHealth?.clickCoverage?.clickIdRate || 0) >= 30 ? "bg-emerald-400" : "bg-amber-400"}`}/>
                   </div>
-                  <span className="text-xl font-bold text-gray-200">{d.pixelHealth?.clickCoverage?.clickIdRate || 0}%</span>
+                  <span className="text-xl font-bold text-gray-800">{d.pixelHealth?.clickCoverage?.clickIdRate || 0}%</span>
                 </div>
-                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                <div className="rounded-xl bg-white border border-gray-200 p-4">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">AOV<InfoTip text="Ticket promedio de ordenes atribuidas." /></span>
                   </div>
-                  <span className="text-xl font-bold text-gray-200">{bk.aov > 0 ? fmtARS(bk.aov) : "-"}</span>
+                  <span className="text-xl font-bold text-gray-800">{bk.aov > 0 ? fmtARS(bk.aov) : "-"}</span>
                 </div>
               </div>
             )}
@@ -1215,21 +1215,21 @@ export default function PixelPage() {
             {/* TRACKING DETAILS (collapsible, all tabs)                 */}
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && (
-              <div className="rounded-2xl bg-white/[0.02] border border-white/5">
+              <div className="rounded-2xl bg-white border border-gray-200">
                 <button
                   onClick={() => setShowTrackingDetails(!showTrackingDetails)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-white/[0.01] transition-colors"
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold text-gray-300">Tracking Details</h2>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-500">{fmt(d.kpis.totalVisitors)} visitantes · {fmt(d.kpis.totalSessions)} sesiones</span>
+                    <h2 className="text-sm font-semibold text-gray-700">Tracking Details</h2>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{fmt(d.kpis.totalVisitors)} visitantes · {fmt(d.kpis.totalSessions)} sesiones</span>
                   </div>
                   <svg className={`w-4 h-4 text-gray-500 transition-transform ${showTrackingDetails ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
                 {showTrackingDetails && (
-                  <div className="px-4 pb-4 space-y-4 border-t border-white/5 pt-4">
+                  <div className="px-4 pb-4 space-y-4 border-t border-gray-200 pt-4">
                     {/* Tracking KPIs */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <KpiCard label="Visitantes" value={fmt(d.kpis.totalVisitors)} change={d.kpis.changes.visitors} color="indigo" />
@@ -1259,7 +1259,7 @@ export default function PixelPage() {
                                 <div key={dev.device} className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                                    <span className="text-sm text-gray-300 capitalize">{dev.device}</span>
+                                    <span className="text-sm text-gray-700 capitalize">{dev.device}</span>
                                   </div>
                                   <span className="text-sm text-gray-400">{dev.percentage}%</span>
                                 </div>
@@ -1275,8 +1275,8 @@ export default function PixelPage() {
                             {d.eventTypes.map((evt) => (
                               <div key={evt.type} className="flex items-center gap-3">
                                 <div className="w-24 text-xs text-gray-400 truncate">{EVENT_LABELS[evt.type] || evt.type}</div>
-                                <div className="flex-1 h-5 bg-white/5 rounded-lg overflow-hidden">
-                                  <div className="h-full bg-gradient-to-r from-nitro-orange/60 to-nitro-orange/30 rounded-lg flex items-center px-2" style={{ width: `${Math.max(evt.percentage, 3)}%` }}>
+                                <div className="flex-1 h-5 bg-gray-100 rounded-lg overflow-hidden">
+                                  <div className="h-full bg-gradient-to-r from-orange-400 to-orange-200 rounded-lg flex items-center px-2" style={{ width: `${Math.max(evt.percentage, 3)}%` }}>
                                     <span className="text-[10px] text-white font-medium">{fmt(evt.count)}</span>
                                   </div>
                                 </div>
@@ -1294,7 +1294,7 @@ export default function PixelPage() {
                         <h3 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">Paginas Populares</h3>
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="text-gray-500 text-xs border-b border-white/5">
+                            <tr className="text-gray-500 text-xs border-b border-gray-200">
                               <th className="text-left pb-2 font-medium">URL</th>
                               <th className="text-right pb-2 font-medium">Views</th>
                               <th className="text-right pb-2 font-medium">Visitantes</th>
@@ -1302,8 +1302,8 @@ export default function PixelPage() {
                           </thead>
                           <tbody>
                             {d.popularPages.map((p, i) => (
-                              <tr key={i} className="border-b border-white/[0.03]">
-                                <td className="py-2 text-gray-300 max-w-md truncate text-xs">{cleanUrl(p.url)}</td>
+                              <tr key={i} className="border-b border-gray-100">
+                                <td className="py-2 text-gray-700 max-w-md truncate text-xs">{cleanUrl(p.url)}</td>
                                 <td className="py-2 text-right text-gray-400 text-xs">{fmt(p.pageViews)}</td>
                                 <td className="py-2 text-right text-gray-400 text-xs">{fmt(p.uniqueVisitors)}</td>
                               </tr>
@@ -1359,9 +1359,9 @@ export default function PixelPage() {
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
                             <span>{fmtARS(src.revenue)}</span>
-                            <span className="text-gray-300">|</span>
+                            <span className="text-gray-700">|</span>
                             <span>{src.orders} {src.orders === 1 ? "orden" : "ordenes"}</span>
-                            <span className="text-gray-300">|</span>
+                            <span className="text-gray-700">|</span>
                             <span>{src.units} uds</span>
                           </div>
                         </div>
@@ -1429,7 +1429,7 @@ export default function PixelPage() {
                                     loading="lazy"
                                   />
                                 ) : (
-                                  <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                  <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                     <path d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
                                   </svg>
                                 )}
@@ -1512,24 +1512,24 @@ function KpiCard({
   sub?: string;
 }) {
   const colorMap: Record<string, string> = {
-    indigo: "from-indigo-500/10 to-transparent border-indigo-500/10",
-    cyan: "from-cyan-500/10 to-transparent border-cyan-500/10",
-    purple: "from-purple-500/10 to-transparent border-purple-500/10",
-    orange: "from-orange-500/10 to-transparent border-orange-500/10",
-    green: "from-emerald-500/10 to-transparent border-emerald-500/10",
-    pink: "from-pink-500/10 to-transparent border-pink-500/10",
-    gray: "from-gray-500/10 to-transparent border-gray-500/10",
+    indigo: "bg-white border-indigo-200",
+    cyan: "bg-white border-cyan-200",
+    purple: "bg-white border-purple-200",
+    orange: "bg-white border-orange-200",
+    green: "bg-white border-emerald-200",
+    pink: "bg-white border-pink-200",
+    gray: "bg-white border-gray-200",
   };
 
   return (
-    <div className={`rounded-xl bg-gradient-to-br ${colorMap[color] || colorMap.gray} border p-4 hover:shadow-md transition-shadow`}>
+    <div className={`rounded-xl ${colorMap[color] || colorMap.gray} border p-4 shadow-sm hover:shadow-md transition-shadow`}>
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
           {label}{info && <InfoTip text={info} />}
         </span>
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-white">{value}</span>
+        <span className="text-2xl font-bold text-gray-900">{value}</span>
         {change !== undefined && <span className={`text-xs font-medium ${pctColor(change)}`}>{pctBadge(change)}</span>}
       </div>
       {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
