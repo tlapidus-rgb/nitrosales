@@ -32,6 +32,51 @@ function normalizeSource(raw: string): string {
   return SOURCE_NORMALIZATION[lower] || lower;
 }
 
+/** Format utm_content into a readable name: "video-preventa-mochila" → "Video Preventa Mochila" */
+function formatContentName(content: string): string {
+  return content
+    .replace(/[=_-]+/g, " ")
+    .replace(/%3[dD]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/** Build a human-readable display name for an ad group */
+function buildDisplayName(opts: {
+  source: string;
+  medium: string | null;
+  campaign: string | null;
+  adContent: string | null;
+  creativeName: string | null;
+}): string {
+  // Priority 1: matched creative name from ad_creatives table
+  if (opts.creativeName) return opts.creativeName;
+
+  // Priority 2: formatted utm_content
+  if (opts.adContent) return formatContentName(opts.adContent);
+
+  // Priority 3: campaign name
+  if (opts.campaign) return opts.campaign;
+
+  // Priority 4: source + medium based label
+  const s = opts.source;
+  const m = (opts.medium || "").toLowerCase();
+
+  if (s === "direct") return "Tráfico Directo";
+  if (s === "google" && m === "cpc") return "Google Ads (CPC)";
+  if (s === "google" && m === "organic") return "Google (Orgánico)";
+  if (s === "google") return "Google";
+  if (s === "meta" && m === "social-paid") return "Meta Ads (Paid)";
+  if (s === "meta") return "Meta";
+  if (m === "referral") return `${s} (Referral)`;
+  if (m === "email") return `${s} (Email)`;
+
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const ORG_ID = await getOrganizationId();
@@ -49,8 +94,7 @@ export async function GET(request: NextRequest) {
     const modelParam = (searchParams.get("model") || "LAST_CLICK").toUpperCase();
     const selectedModel = validModels.includes(modelParam) ? modelParam : "LAST_CLICK";
 
-    // ── Step 1: Get attributed orders with source + campaign from touchpoints ──
-    // Also extract the visitorId so we can look up utm_content from their events
+    // ── Step 1: Get attributed orders with source + campaign + medium from touchpoints ──
     const attributedOrders: Array<{
       orderId: string;
       externalId: string;
@@ -108,8 +152,6 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Step 2: For paid-source orders, find utm_content from visitor events ──
-    // utm_content typically maps to the ad ID or ad name
-    // Use a single query that joins attributions → events to get content
     const contentByVisitor = new Map<string, { content: string; campaign: string | null }>();
 
     try {
@@ -148,12 +190,9 @@ export async function GET(request: NextRequest) {
       }
     } catch (e) {
       console.error("[sales-by-ad] utm_content query error:", e);
-      // Non-fatal: continue without utm_content data
     }
 
     // ── Step 3: Get order items for all attributed orders ──
-    const orderIds = attributedOrders.map((o) => o.orderId);
-
     const orderItems: Array<{
       orderId: string;
       productName: string;
@@ -191,7 +230,7 @@ export async function GET(request: NextRequest) {
       itemsByOrder.get(item.orderId)!.push(item);
     }
 
-    // ── Step 4: Try to match utm_content values with ad_creatives for names/thumbnails ──
+    // ── Step 4: Try to match utm_content values with ad_creatives ──
     const allContentValues = [...new Set(
       Array.from(contentByVisitor.values()).map((v) => v.content).filter(Boolean)
     )];
@@ -200,7 +239,6 @@ export async function GET(request: NextRequest) {
 
     if (allContentValues.length > 0) {
       try {
-        // Try matching utm_content against ad_creative externalId or name
         const matchedCreatives: Array<{
           externalId: string;
           name: string;
@@ -226,17 +264,17 @@ export async function GET(request: NextRequest) {
         }
       } catch (e) {
         console.error("[sales-by-ad] creative matching error:", e);
-        // Non-fatal: continue without creative thumbnails
       }
     }
 
-    // ── Step 5: Group orders by ad (source + campaign + content) ──
+    // ── Step 5: Group orders by ad (source + campaign + medium + content) ──
     interface AdGroup {
       adKey: string;
       source: string;
       campaign: string | null;
-      adContent: string | null; // utm_content
-      adName: string | null; // from ad_creatives or utm_content
+      medium: string | null;
+      adContent: string | null;
+      adName: string;
       thumbnailUrl: string | null;
       revenue: number;
       orderIds: Set<string>;
@@ -254,17 +292,19 @@ export async function GET(request: NextRequest) {
     for (const order of attributedOrders) {
       const source = normalizeSource(order.source);
       const campaign = order.campaign || null;
+      const medium = order.medium || null;
 
       // Get utm_content for this visitor (if available)
       const visitorContent = contentByVisitor.get(order.visitorId);
       const adContent = visitorContent?.content || null;
 
-      // Build a unique key per ad
-      // If we have utm_content, use source + campaign + content
-      // Otherwise, use source + campaign (grouped at campaign level)
-      const adKey = adContent
-        ? `${source}|${campaign || ""}|${adContent}`
-        : `${source}|${campaign || ""}`;
+      // Build a unique key per ad: source + campaign + medium + content
+      const adKey = [
+        source,
+        campaign || "",
+        medium || "",
+        adContent || "",
+      ].join("|");
 
       // Try to get creative info
       const creativeInfo = adContent ? creativesByExternalId.get(adContent) : null;
@@ -274,8 +314,15 @@ export async function GET(request: NextRequest) {
           adKey,
           source,
           campaign,
+          medium,
           adContent,
-          adName: creativeInfo?.name || adContent || null,
+          adName: buildDisplayName({
+            source,
+            medium,
+            campaign,
+            adContent,
+            creativeName: creativeInfo?.name || null,
+          }),
           thumbnailUrl: creativeInfo?.thumbnailUrl || null,
           revenue: 0,
           orderIds: new Set(),
@@ -321,6 +368,8 @@ export async function GET(request: NextRequest) {
           adKey: g.adKey,
           source: g.source,
           campaign: g.campaign,
+          medium: g.medium,
+          adContent: g.adContent,
           adName: g.adName,
           thumbnailUrl: g.thumbnailUrl,
           revenue: Math.round(g.revenue),

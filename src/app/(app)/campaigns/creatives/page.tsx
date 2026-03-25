@@ -355,12 +355,11 @@ function ExpandedDetail({ creative }: { creative: any }) {
 
 const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string }> = {
   meta: { icon: "M", color: "#1877F2", label: "Meta" },
-  facebook: { icon: "M", color: "#1877F2", label: "Meta" },
-  instagram: { icon: "M", color: "#1877F2", label: "Meta" },
   google: { icon: "G", color: "#4285F4", label: "Google" },
-  youtube: { icon: "G", color: "#4285F4", label: "Google" },
   direct: { icon: "D", color: "#6b7280", label: "Directo" },
-  organic: { icon: "O", color: "#10b981", label: "Organico" },
+  "gocuotas.com": { icon: "$", color: "#10b981", label: "GoCuotas" },
+  icommarketing: { icon: "E", color: "#f59e0b", label: "Email" },
+  duckduckgo: { icon: "D", color: "#de5833", label: "DuckDuckGo" },
   email: { icon: "E", color: "#f59e0b", label: "Email" },
   referral: { icon: "R", color: "#8b5cf6", label: "Referral" },
 };
@@ -395,6 +394,7 @@ export default function CreativesVideoPage() {
   const [salesData, setSalesData] = useState<any[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
   const [selectedAd, setSelectedAd] = useState<string | null>(null);
+  const [salesSourceFilter, setSalesSourceFilter] = useState<string>("ALL");
 
   /* ── Fetch creatives ────────────────────────────── */
   useEffect(() => {
@@ -410,11 +410,12 @@ export default function CreativesVideoPage() {
   useEffect(() => {
     if (activeTab !== "sales") return;
     setSalesLoading(true);
+    setSalesSourceFilter("ALL");
     fetch(`/api/metrics/pixel/sales-by-ad?from=${dateFrom}&to=${dateTo}`)
       .then((r) => r.json())
       .then((d) => {
         setSalesData(d.ads || []);
-        if (d.ads?.length > 0 && !selectedAd) setSelectedAd(d.ads[0].adKey);
+        if (d.ads?.length > 0) setSelectedAd(d.ads[0].adKey);
       })
       .catch(() => {})
       .finally(() => setSalesLoading(false));
@@ -504,6 +505,27 @@ export default function CreativesVideoPage() {
     if (sortField === field) setSortAsc(!sortAsc);
     else { setSortField(field); setSortAsc(false); }
   }, [sortField, sortAsc]);
+
+  /* ── Filtered sales data by source ──────────────── */
+  const filteredSalesData = useMemo(() => {
+    if (salesSourceFilter === "ALL") return salesData;
+    return salesData.filter((a: any) => a.source === salesSourceFilter);
+  }, [salesData, salesSourceFilter]);
+
+  /* ── Available sources for filter chips ─────────── */
+  const salesSources = useMemo(() => {
+    const sources = new Set(salesData.map((a: any) => a.source));
+    return Array.from(sources).sort();
+  }, [salesData]);
+
+  /* ── Auto-select first ad when filter changes ──── */
+  useEffect(() => {
+    if (filteredSalesData.length > 0) {
+      // Only auto-select if current selection is not in filtered data
+      const current = filteredSalesData.find((a: any) => a.adKey === selectedAd);
+      if (!current) setSelectedAd(filteredSalesData[0].adKey);
+    }
+  }, [filteredSalesData]);
 
   /* ── Selected ad data for Ventas por Anuncio ──── */
   const selectedAdData = useMemo(() => {
@@ -843,15 +865,52 @@ export default function CreativesVideoPage() {
               <p className="text-gray-400 text-xs mt-1">Las ventas se atribuyen a anuncios a traves del parametro utm_content del pixel</p>
             </div>
           ) : (
+            <>
+            {/* Source Filter Chips */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-500 font-medium">Filtrar:</span>
+              <button
+                onClick={() => { setSalesSourceFilter("ALL"); setSelectedAd(null); }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  salesSourceFilter === "ALL"
+                    ? "bg-gray-900 text-white"
+                    : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Todos ({salesData.length})
+              </button>
+              {salesSources.map((src) => {
+                const info = SOURCE_ICONS[src] || SOURCE_ICONS.direct;
+                const count = salesData.filter((a: any) => a.source === src).length;
+                return (
+                  <button
+                    key={src}
+                    onClick={() => { setSalesSourceFilter(src); setSelectedAd(null); }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
+                      salesSourceFilter === src
+                        ? "text-white"
+                        : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+                    }`}
+                    style={salesSourceFilter === src ? { backgroundColor: info.color } : {}}
+                  >
+                    <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ backgroundColor: salesSourceFilter === src ? "rgba(255,255,255,0.3)" : info.color }}>
+                      {info.icon}
+                    </span>
+                    {info.label} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Panel: Ad List */}
               <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-4 border-b border-gray-200">
                   <h3 className="font-semibold text-gray-900 text-sm">Anuncios con ventas</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{salesData.length} anuncios</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{filteredSalesData.length} anuncios</p>
                 </div>
                 <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
-                  {salesData.map((ad: any) => {
+                  {filteredSalesData.map((ad: any) => {
                     const isSelected = selectedAd === ad.adKey;
                     const sourceInfo = SOURCE_ICONS[ad.source] || SOURCE_ICONS.direct;
                     return (
@@ -871,8 +930,13 @@ export default function CreativesVideoPage() {
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-gray-900 truncate">{ad.adName || ad.campaign || "Sin nombre"}</p>
-                            <p className="text-[10px] text-gray-400 truncate">{ad.campaign || "-"}</p>
+                            <p className="text-xs font-medium text-gray-900 truncate">{ad.adName}</p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="w-3 h-3 rounded-full flex items-center justify-center text-[7px] font-bold text-white" style={{ backgroundColor: sourceInfo.color }}>
+                                {sourceInfo.icon}
+                              </span>
+                              <p className="text-[10px] text-gray-400 truncate">{ad.campaign || ad.medium || sourceInfo.label}</p>
+                            </div>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs font-bold text-gray-900">{formatARS(ad.revenue)}</span>
                               <span className="text-[10px] text-gray-400">{ad.orders} ord</span>
@@ -947,6 +1011,7 @@ export default function CreativesVideoPage() {
                 )}
               </div>
             </div>
+            </>
           )}
         </>
       )}
