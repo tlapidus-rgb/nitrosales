@@ -294,6 +294,70 @@ function generatePixelScript(orgId: string): string {
     // ─── PageView automatico ───
     trackEvent('PAGE_VIEW', { title: document.title });
 
+    // ─── SPA Navigation Tracking ───
+    // VTEX is a Single Page Application — internal navigation (category browsing,
+    // product clicks, search) uses pushState/replaceState without full page reloads.
+    // Without this hook, NitroPixel only tracks the initial page load (~1.9 pages/session
+    // vs GA4's ~10.5). This intercepts History API to fire PAGE_VIEW on each navigation.
+    (function() {
+      try {
+        var _lastUrl = window.location.href;
+        var _lastTitle = document.title;
+
+        function onUrlChange() {
+          var newUrl = window.location.href;
+          if (newUrl === _lastUrl) return; // Same URL, ignore
+          _lastUrl = newUrl;
+          // Wait a tick for the page title to update
+          setTimeout(function() {
+            var newTitle = document.title || _lastTitle;
+            _lastTitle = newTitle;
+            trackEvent('PAGE_VIEW', { title: newTitle, spa: true });
+
+            // Check if new URL is a product page → fire VIEW_PRODUCT
+            var pathname = window.location.pathname;
+            var isProduct = /\\/p\\/?$/.test(pathname) || /\\/p\\?/.test(window.location.href);
+            if (isProduct) {
+              setTimeout(function() {
+                // Only if dataLayer didn't generate a VIEW_PRODUCT for this product
+                var productName = document.title.replace(/\\s*[-|].*$/, '').trim();
+                var dedupKey = productName || pathname;
+                if (!_sentProductViews[dedupKey]) {
+                  _sentProductViews[dedupKey] = true;
+                  trackEvent('VIEW_PRODUCT', {
+                    productName: productName || '',
+                    source: 'spa_navigation'
+                  });
+                }
+              }, 1500); // Wait for page content to render
+            }
+          }, 100);
+        }
+
+        // Intercept pushState
+        var origPushState = history.pushState;
+        history.pushState = function() {
+          var result = origPushState.apply(this, arguments);
+          onUrlChange();
+          return result;
+        };
+
+        // Intercept replaceState
+        var origReplaceState = history.replaceState;
+        history.replaceState = function() {
+          var result = origReplaceState.apply(this, arguments);
+          onUrlChange();
+          return result;
+        };
+
+        // Listen for popstate (back/forward navigation)
+        window.addEventListener('popstate', onUrlChange);
+
+        // Also watch for hashchange (VTEX checkout uses #/cart, #/payment, etc.)
+        window.addEventListener('hashchange', onUrlChange);
+      } catch(e) {}
+    })();
+
     // ══════════════════════════════════════════════════════════════
     // LAYER 1: VTEX dataLayer — orderPlaced purchase detection
     // ══════════════════════════════════════════════════════════════
