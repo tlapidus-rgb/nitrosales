@@ -112,7 +112,25 @@ export async function GET(request: NextRequest) {
       ORDER BY oi."totalPrice" DESC
     `;
 
-    // ── Step 3: Build the response grouped by source (channel only) ──
+    // ── Step 3: Normalize related sources into canonical channels ──
+    // facebook, instagram, fb → meta | google, youtube → google | etc.
+    const SOURCE_NORMALIZATION: Record<string, string> = {
+      facebook: 'meta',
+      fb: 'meta',
+      instagram: 'meta',
+      ig: 'meta',
+      meta: 'meta',
+      google: 'google',
+      youtube: 'google',
+      yt: 'google',
+    };
+
+    function normalizeSource(raw: string): string {
+      const lower = (raw || 'direct').toLowerCase().trim();
+      return SOURCE_NORMALIZATION[lower] || lower;
+    }
+
+    // ── Step 4: Build the response grouped by source (channel only) ──
     // Group by source only — campaign detail belongs in the campaigns section
     interface SourceGroup {
       source: string;
@@ -146,12 +164,12 @@ export async function GET(request: NextRequest) {
     }>();
 
     for (const order of attributedOrders) {
-      // Group by source only (channel level)
-      const key = order.source;
+      // Group by normalized source (channel level)
+      const key = normalizeSource(order.source);
 
       if (!sourceMap.has(key)) {
         sourceMap.set(key, {
-          source: order.source,
+          source: key,
           revenue: 0,
           orderIds: new Set(),
           productMap: new Map(),
