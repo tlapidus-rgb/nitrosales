@@ -953,23 +953,37 @@ export default function PixelPage() {
                   <h2 className="text-sm font-semibold text-gray-800">Tendencia Diaria</h2>
                   <div className="flex items-center gap-4 text-[11px] text-gray-500">
                     <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-orange-400/80" /> Inversión</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-400/80" /> Facturación</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-400/80" /> Facturación Ads</span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-cyan-500 rounded" /> ROAS</span>
                   </div>
                 </div>
 
-                {/* Combined Chart: Spend (area) + Revenue (area) + ROAS (line, right axis) */}
+                {/* Combined Chart: Spend (area) + Ad Revenue (area) + ROAS (line, right axis) */}
                 {(() => {
+                  // Build a map from dailyChannelBreakdown: only revenue from channels with spend > 0
+                  const adRevenueByDay = new Map<string, { adRevenue: number; adSpend: number }>();
+                  for (const day of (d.dailyChannelBreakdown || [])) {
+                    const paid = (day.channels || []).filter((ch: any) => ch.spend > 0);
+                    adRevenueByDay.set(day.day, {
+                      adRevenue: Math.round(paid.reduce((s: number, ch: any) => s + (ch.revenue || 0), 0)),
+                      adSpend: Math.round(paid.reduce((s: number, ch: any) => s + (ch.spend || 0), 0)),
+                    });
+                  }
                   const chartData = (d.dailyRevenue || [])
                     .slice()
                     .sort((a: any, b: any) => a.day.localeCompare(b.day))
-                    .map((v: any) => ({
-                      day: v.day,
-                      label: v.day.split("-").slice(1).join("/"),
-                      spend: Math.round(v.spend || 0),
-                      revenue: Math.round(v.revenue || 0),
-                      roas: v.roas || 0,
-                    }));
+                    .map((v: any) => {
+                      const ad = adRevenueByDay.get(v.day);
+                      const spend = ad?.adSpend ?? Math.round(v.spend || 0);
+                      const revenue = ad?.adRevenue ?? 0;
+                      return {
+                        day: v.day,
+                        label: v.day.split("-").slice(1).join("/"),
+                        spend,
+                        revenue,
+                        roas: spend > 0 ? Math.round((revenue / spend) * 100) / 100 : 0,
+                      };
+                    });
                   return chartData.length > 1 ? (
                     <div className="px-4 pt-4 pb-2">
                       <ResponsiveContainer width="100%" height={220}>
@@ -1014,7 +1028,7 @@ export default function PixelPage() {
                             labelStyle={{ color: "#9ca3af", marginBottom: "4px" }}
                             formatter={(value: any, name: string) => {
                               if (name === "roas") return [`${Number(value).toFixed(2)}x`, "ROAS"];
-                              return [fmtARS(Number(value)), name === "spend" ? "Inversión" : "Facturación"];
+                              return [fmtARS(Number(value)), name === "spend" ? "Inversión" : "Facturación Ads"];
                             }}
                           />
                           <Area
