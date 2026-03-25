@@ -1067,9 +1067,16 @@ export default function PixelPage() {
                   <div className="flex flex-col gap-1">
                     {funnelSteps.map((step, i) => {
                       const widthPct = Math.max((step.value / maxVal) * 100, 8);
-                      const prevValue = i > 0 ? funnelSteps[i - 1].value : 0;
-                      const stepRate = prevValue > 0 ? ((step.value / prevValue) * 100).toFixed(1) : null;
-                      const overallRate = i > 0 ? ((step.value / maxVal) * 100).toFixed(1) : null;
+                      // Find the last step with data before this one for step rate
+                      let prevWithData = 0;
+                      for (let j = i - 1; j >= 0; j--) {
+                        if (funnelSteps[j].value > 0) { prevWithData = funnelSteps[j].value; break; }
+                      }
+                      const stepRate = i > 0 && prevWithData > 0 && step.value > 0
+                        ? ((step.value / prevWithData) * 100).toFixed(1) : null;
+                      const overallRate = i > 0 && step.value > 0
+                        ? ((step.value / maxVal) * 100).toFixed(1) : null;
+                      const isEmpty = step.value === 0;
                       return (
                         <Fragment key={step.label}>
                           {i > 0 && stepRate && (
@@ -1080,15 +1087,22 @@ export default function PixelPage() {
                               <span className="text-[10px] text-gray-500">{stepRate}%</span>
                             </div>
                           )}
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3" style={isEmpty ? { opacity: 0.4 } : undefined}>
                             <div className="flex-1 relative" style={{ minHeight: '32px' }}>
                               <div
                                 className="absolute inset-y-0 left-0 rounded-lg transition-all"
-                                style={{ width: `${widthPct}%`, backgroundColor: step.bg, borderLeft: `3px solid ${step.color}` }}
+                                style={{
+                                  width: isEmpty ? '100%' : `${widthPct}%`,
+                                  backgroundColor: isEmpty ? 'rgba(255,255,255,0.03)' : step.bg,
+                                  borderLeft: `3px solid ${isEmpty ? 'rgba(255,255,255,0.1)' : step.color}`,
+                                  borderStyle: isEmpty ? 'dashed' : 'solid',
+                                }}
                               />
-                              <div className="relative flex items-center justify-between px-3 py-1.5" style={{ width: `${Math.max(widthPct, 40)}%` }}>
+                              <div className="relative flex items-center justify-between px-3 py-1.5" style={{ width: isEmpty ? '100%' : `${Math.max(widthPct, 40)}%` }}>
                                 <span className="text-[11px] text-gray-300 font-medium truncate">{step.label}</span>
-                                <span className="text-[11px] text-gray-200 font-semibold ml-2 flex-shrink-0">{fmt(step.value)}</span>
+                                <span className="text-[11px] text-gray-200 font-semibold ml-2 flex-shrink-0">
+                                  {isEmpty ? <span className="text-[10px] text-gray-500 font-normal italic">Esperando datos...</span> : fmt(step.value)}
+                                </span>
                               </div>
                             </div>
                             {overallRate && (
