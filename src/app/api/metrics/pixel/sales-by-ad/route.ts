@@ -109,29 +109,46 @@ export async function GET(request: NextRequest) {
 
     // ── Step 2: For paid-source orders, find utm_content from visitor events ──
     // utm_content typically maps to the ad ID or ad name
-    const visitorIds = [...new Set(attributedOrders.map((o) => o.visitorId))];
-
-    // Query events that have utmParams.content for these visitors
-    const visitorUtmContent: Array<{
-      visitorId: string;
-      content: string;
-      campaign: string | null;
-    }> = await prisma.$queryRaw`
-      SELECT DISTINCT ON (pe."visitorId")
-        pe."visitorId",
-        pe."utmParams"::jsonb ->> 'content' as content,
-        pe."utmParams"::jsonb ->> 'campaign' as campaign
-      FROM pixel_events pe
-      WHERE pe."visitorId" = ANY(${visitorIds})
-        AND pe."utmParams" IS NOT NULL
-        AND pe."utmParams"::jsonb ->> 'content' IS NOT NULL
-        AND pe."utmParams"::jsonb ->> 'content' != ''
-      ORDER BY pe."visitorId", pe.timestamp DESC
-    `;
-
+    // Use a single query that joins attributions → events to get content
     const contentByVisitor = new Map<string, { content: string; campaign: string | null }>();
-    for (const row of visitorUtmContent) {
-      contentByVisitor.set(row.visitorId, { content: row.content, campaign: row.campaign });
+
+    try {
+      const visitorUtmContent: Array<{
+        visitorId: string;
+        content: string;
+        campaign: string | null;
+      }> = await prisma.$queryRaw`
+        SELECT DISTINCT ON (sub."visitorId")
+          sub."visitorId", sub.content, sub.campaign
+        FROM (
+          SELECT
+            pe."visitorId",
+            pe."utmParams" ->> 'content' as content,
+            pe."utmParams" ->> 'campaign' as campaign,
+            pe.timestamp
+          FROM pixel_events pe
+          WHERE pe."organizationId" = ${ORG_ID}
+            AND pe."utmParams" IS NOT NULL
+            AND pe."utmParams" ->> 'content' IS NOT NULL
+            AND pe."utmParams" ->> 'content' != ''
+            AND pe."visitorId" IN (
+              SELECT DISTINCT pa2."visitorId"
+              FROM pixel_attributions pa2
+              WHERE pa2."organizationId" = ${ORG_ID}
+                AND pa2.model::text = ${selectedModel}
+                AND pa2."createdAt" >= ${dateFrom}
+                AND pa2."createdAt" <= ${dateTo}
+            )
+        ) sub
+        ORDER BY sub."visitorId", sub.timestamp DESC
+      `;
+
+      for (const row of visitorUtmContent) {
+        contentByVisitor.set(row.visitorId, { content: row.content, campaign: row.campaign });
+      }
+    } catch (e) {
+      console.error("[sales-by-ad] utm_content query error:", e);
+      // Non-fatal: continue without utm_content data
     }
 
     // ── Step 3: Get order items for all attributed orders ──
@@ -156,7 +173,14 @@ export async function GET(request: NextRequest) {
         oi."totalPrice"::float
       FROM order_items oi
       JOIN products p ON p.id = oi."productId"
-      WHERE oi."orderId" = ANY(${orderIds})
+      WHERE oi."orderId" IN (
+        SELECT pa3."orderId"
+        FROM pixel_attributions pa3
+        WHERE pa3."organizationId" = ${ORG_ID}
+          AND pa3.model::text = ${selectedModel}
+          AND pa3."createdAt" >= ${dateFrom}
+          AND pa3."createdAt" <= ${dateTo}
+      )
       ORDER BY oi."totalPrice" DESC
     `;
 
@@ -175,24 +199,34 @@ export async function GET(request: NextRequest) {
     let creativesByExternalId = new Map<string, { name: string; thumbnailUrl: string | null }>();
 
     if (allContentValues.length > 0) {
-      // Try matching utm_content against ad_creative externalId or name
-      const matchedCreatives: Array<{
-        externalId: string;
-        name: string;
-        thumbnailUrl: string | null;
-      }> = await prisma.$queryRaw`
-        SELECT
-          ac."externalId",
-          ac.name,
-          ac."mediaUrls"::jsonb ->> 0 as "thumbnailUrl"
-        FROM ad_creatives ac
-        WHERE ac."organizationId" = ${ORG_ID}
-          AND (ac."externalId" = ANY(${allContentValues}) OR ac.name = ANY(${allContentValues}))
-      `;
+      try {
+        // Try matching utm_content against ad_creative externalId or name
+        const matchedCreatives: Array<{
+          externalId: string;
+          name: string;
+          thumbnailUrl: string | null;
+        }> = await prisma.$queryRaw`
+          SELECT
+            ac."externalId",
+            ac.name,
+            CASE
+              WHEN ac."mediaUrls" IS NOT NULL AND jsonb_array_length(ac."mediaUrls"::jsonb) > 0
+              THEN ac."mediaUrls"::jsonb ->> 0
+              ELSE NULL
+            END as "thumbnailUrl"
+          FROM ad_creatives ac
+          WHERE ac."organizationId" = ${ORG_ID}
+            AND ac."externalId" IN (
+              SELECT unnest(${allContentValues}::text[])
+            )
+        `;
 
-      for (const c of matchedCreatives) {
-        creativesByExternalId.set(c.externalId, { name: c.name, thumbnailUrl: c.thumbnailUrl });
-        creativesByExternalId.set(c.name, { name: c.name, thumbnailUrl: c.thumbnailUrl });
+        for (const c of matchedCreatives) {
+          creativesByExternalId.set(c.externalId, { name: c.name, thumbnailUrl: c.thumbnailUrl });
+        }
+      } catch (e) {
+        console.error("[sales-by-ad] creative matching error:", e);
+        // Non-fatal: continue without creative thumbnails
       }
     }
 
