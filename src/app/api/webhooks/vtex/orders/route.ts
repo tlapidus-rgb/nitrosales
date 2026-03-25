@@ -116,15 +116,23 @@ export async function POST(req: NextRequest) {
 
     const vtexOrder = await orderRes.json();
 
-    // ── FILTER: Skip incomplete orders ──
+    // ── FILTER: Skip incomplete/ghost orders ──
     const vtexStatus = (vtexOrder.status || "").toLowerCase().trim();
-    if (!vtexStatus || vtexStatus === "") {
-      console.warn(`[Webhook:Orders] Skipping incomplete order ${orderId} (empty VTEX status)`);
-      return NextResponse.json({ ok: true, orderId, skipped: true, reason: "incomplete-empty-status" });
+    if (!vtexStatus || vtexStatus === "" || vtexStatus === "null" || vtexStatus === "undefined") {
+      console.warn(`[Webhook:Orders] Skipping ghost order ${orderId} (empty/invalid status: "${vtexOrder.status}")`);
+      return NextResponse.json({ ok: true, orderId, skipped: true, reason: "ghost-order" });
     }
+
+    const totalValue = (vtexOrder.value || 0) / 100;
+
+    // Skip zero-value orders (test orders, incomplete checkouts)
+    if (totalValue <= 0) {
+      console.warn(`[Webhook:Orders] Skipping zero-value order ${orderId} (value: ${totalValue})`);
+      return NextResponse.json({ ok: true, orderId, skipped: true, reason: "zero-value" });
+    }
+
     // ── Upsert Order ──
     const nsStatus = mapVtexStatus(vtexOrder.status || state);
-    const totalValue = (vtexOrder.value || 0) / 100;
     const items = vtexOrder.items || [];
     const shippingCost = (vtexOrder.totals?.find((t: any) => t.id === "Shipping")?.value || 0);
     const discountValue = Math.abs(vtexOrder.totals?.find((t: any) => t.id === "Discounts")?.value || 0);
@@ -281,19 +289,24 @@ export async function POST(req: NextRequest) {
 
       // ── Strategy 1: Client-side PURCHASE event already exists ──
       // Pixel fires PURCHASE on orderPlaced page. If we find it, use its visitor.
+      // CRITICAL: Exclude webhook-created PURCHASE events (sessionId LIKE 'webhook-%')
+      // to prevent the cascading contamination loop where:
+      //   webhook creates PURCHASE → VTEX re-sends status update → Strategy 1 finds
+      //   the webhook-created PURCHASE → attributes to same (wrong) visitor → loop
       let matchedVisitorId: string | null = null;
       let matchStrategy = '';
 
-      const existingPurchase = await prisma.pixelEvent.findFirst({
-        where: {
-          organizationId: org.id,
-          type: 'PURCHASE',
-          props: { path: ['orderId'], string_contains: orderIdBase }
-        }
-      });
+      const existingPurchase: any[] = await prisma.$queryRaw`
+        SELECT "visitorId" FROM pixel_events
+        WHERE "organizationId" = ${org.id}
+          AND type = 'PURCHASE'
+          AND "sessionId" NOT LIKE 'webhook-%'
+          AND props->>'orderId' LIKE ${orderIdBase + '%'}
+        LIMIT 1
+      `;
 
-      if (existingPurchase) {
-        matchedVisitorId = existingPurchase.visitorId;
+      if (existingPurchase.length > 0) {
+        matchedVisitorId = existingPurchase[0].visitorId;
         matchStrategy = 'client-side-purchase';
         console.log(`[NitroPixel] Strategy 1 HIT: Found client-side PURCHASE, visitor=${matchedVisitorId}`);
       }
