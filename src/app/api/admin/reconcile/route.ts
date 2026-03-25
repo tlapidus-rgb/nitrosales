@@ -98,12 +98,14 @@ export async function POST(request: Request) {
         }
 
         // ── Strategy 2: OrderId match (re-scan PURCHASE events) ──
+        // IMPORTANT: Exclude webhook-created events to prevent cascading contamination
         if (!matchedVisitorId) {
           const orderIdBase = order.externalId.replace(/-\d+$/, '');
           const purchaseMatch: any[] = await prisma.$queryRaw`
             SELECT "visitorId" FROM pixel_events
             WHERE "organizationId" = ${org.id}
             AND type = 'PURCHASE'
+            AND "sessionId" NOT LIKE 'webhook-%'
             AND props->>'orderId' LIKE ${orderIdBase + '%'}
             LIMIT 1
           `;
@@ -121,6 +123,7 @@ export async function POST(request: Request) {
           const windowEnd = new Date(orderTime.getTime() + 10 * 60 * 1000);
 
           // Prefer visitor with same email if available
+          // IMPORTANT: Exclude webhook-created events to prevent cascading contamination
           let checkoutVisitor: any[] = [];
           if (order.customerEmail) {
             checkoutVisitor = await prisma.$queryRaw`
@@ -128,6 +131,7 @@ export async function POST(request: Request) {
               FROM pixel_visitors pv
               INNER JOIN pixel_events pe ON pe."visitorId" = pv.id
               WHERE pv."organizationId" = ${org.id}
+                AND pe."sessionId" NOT LIKE 'webhook-%'
                 AND pv.email = ${order.customerEmail}
                 AND pe.timestamp >= ${windowStart}
                 AND pe.timestamp <= ${windowEnd}
@@ -137,11 +141,13 @@ export async function POST(request: Request) {
           }
 
           // Fallback: any visitor on checkout pages
+          // IMPORTANT: Exclude webhook-created events to prevent cascading contamination
           if (checkoutVisitor.length === 0) {
             checkoutVisitor = await prisma.$queryRaw`
               SELECT pe."visitorId"
               FROM pixel_events pe
               WHERE pe."organizationId" = ${org.id}
+                AND pe."sessionId" NOT LIKE 'webhook-%'
                 AND pe.timestamp >= ${windowStart}
                 AND pe.timestamp <= ${windowEnd}
                 AND (pe."pageUrl" LIKE '%/checkout/%'
