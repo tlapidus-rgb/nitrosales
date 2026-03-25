@@ -627,19 +627,107 @@ function generatePixelScript(orgId: string): string {
       try {
         var url = window.location.pathname;
         // VTEX product pages: /product-name/p or /product-name-SKU/p
-        var isProductPage = /\/p\/?$/.test(url) || /\/p\?/.test(window.location.href);
+        var isProductPage = /\\/p\\/?$/.test(url) || /\\/p\\?/.test(window.location.href);
         if (isProductPage) {
           setTimeout(function() {
             // Only fire if dataLayer didn't already generate a VIEW_PRODUCT
             if (Object.keys(_sentProductViews).length === 0) {
               // Extract product name from page title or URL
-              var name = document.title.replace(/\s*[-|].*$/, '').trim();
+              var name = document.title.replace(/\\s*[-|].*$/, '').trim();
               trackEvent('VIEW_PRODUCT', {
                 productName: name || '',
                 source: 'url_fallback'
               });
             }
           }, 2000);
+        }
+      } catch(e) {}
+    })();
+
+    // ── ADD_TO_CART: Intercept VTEX orderForm API calls ──
+    // VTEX adds items to cart via POST /api/checkout/pub/orderForm/{id}/items
+    // We intercept fetch() to detect this without requiring dataLayer/GTM support.
+    // Also intercept "buy button" clicks as a fallback.
+    (function() {
+      try {
+        // Method 1: Intercept fetch() for VTEX orderForm items endpoint
+        if (typeof window.fetch === 'function') {
+          var _originalFetch = window.fetch;
+          window.fetch = function(url, opts) {
+            var result = _originalFetch.apply(this, arguments);
+            try {
+              var urlStr = typeof url === 'string' ? url : (url && url.url ? url.url : '');
+              // VTEX add-to-cart: POST /api/checkout/pub/orderForm/{id}/items
+              if (opts && opts.method && opts.method.toUpperCase() === 'POST' &&
+                  urlStr.indexOf('/api/checkout/pub/orderForm/') > -1 &&
+                  urlStr.indexOf('/items') > -1) {
+                result.then(function(response) {
+                  try {
+                    // Clone response so original consumer isn't affected
+                    response.clone().json().then(function(data) {
+                      if (data && data.items && data.items.length > 0) {
+                        var products = data.items.map(function(item) {
+                          return {
+                            id: item.productId || item.id || '',
+                            name: item.name || '',
+                            price: (item.sellingPrice || item.price || 0) / 100,
+                            quantity: item.quantity || 1
+                          };
+                        });
+                        trackEvent('ADD_TO_CART', {
+                          products: products,
+                          totalValue: products.reduce(function(s, p) { return s + p.price * p.quantity; }, 0),
+                          source: 'vtex_orderform_api'
+                        });
+                      }
+                    }).catch(function() {});
+                  } catch(e) {}
+                }).catch(function() {});
+              }
+            } catch(e) {}
+            return result;
+          };
+        }
+
+        // Method 2: Intercept XMLHttpRequest for older VTEX implementations
+        if (typeof XMLHttpRequest !== 'undefined') {
+          var _origOpen = XMLHttpRequest.prototype.open;
+          var _origSend = XMLHttpRequest.prototype.send;
+          XMLHttpRequest.prototype.open = function(method, url) {
+            this._npMethod = method;
+            this._npUrl = url;
+            return _origOpen.apply(this, arguments);
+          };
+          XMLHttpRequest.prototype.send = function() {
+            var self = this;
+            try {
+              if (self._npMethod && self._npMethod.toUpperCase() === 'POST' &&
+                  self._npUrl && self._npUrl.indexOf('/api/checkout/pub/orderForm/') > -1 &&
+                  self._npUrl.indexOf('/items') > -1) {
+                self.addEventListener('load', function() {
+                  try {
+                    var data = JSON.parse(self.responseText);
+                    if (data && data.items && data.items.length > 0) {
+                      var products = data.items.map(function(item) {
+                        return {
+                          id: item.productId || item.id || '',
+                          name: item.name || '',
+                          price: (item.sellingPrice || item.price || 0) / 100,
+                          quantity: item.quantity || 1
+                        };
+                      });
+                      trackEvent('ADD_TO_CART', {
+                        products: products,
+                        totalValue: products.reduce(function(s, p) { return s + p.price * p.quantity; }, 0),
+                        source: 'vtex_orderform_xhr'
+                      });
+                    }
+                  } catch(e) {}
+                });
+              }
+            } catch(e) {}
+            return _origSend.apply(this, arguments);
+          };
         }
       } catch(e) {}
     })();
