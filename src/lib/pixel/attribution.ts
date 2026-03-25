@@ -353,29 +353,27 @@ export async function calculateAttribution(
     sessionSources.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
     // Step 4: Deduplicate consecutive sessions with same source+medium+campaign+clickId
-    // Deduplicates when:
-    //  - Same key AND stale cookies (old behavior)
-    //  - Same key AND referrer-based without distinct click IDs (e.g. two Google organic sessions)
-    //  - Same key AND direct (multiple direct visits in a row)
-    // Does NOT deduplicate:
-    //  - Fresh clicks with different click IDs = different ad interactions = separate touchpoints
+    // A new touchpoint is only created when:
+    //  - The source/medium/campaign combo changes (user came from a different channel), OR
+    //  - The click ID changes (user clicked a DIFFERENT ad in the same channel)
+    // Same key with same clickId = same ad interaction persisted via cookie = NOT a new touchpoint.
+    // This prevents stale cookies from inflating touchpoint counts
+    // (e.g. 5× "google cpc" with the same gclid cookie = 1 touchpoint, not 5).
     const touchpoints: Touchpoint[] = [];
     let prevKey = '';
 
     for (const session of sessionSources) {
       const key = `${session.source}|${session.medium || ''}|${session.campaign || ''}|${session.clickId || ''}`;
 
-      const canDedup = session.confidence === 'stale_cookie'
-        || session.confidence === 'referrer'
-        || session.confidence === 'direct';
-
-      if (key === prevKey && canDedup) {
-        // Skip: same source as previous session AND no fresh unique click signals
-        // This prevents returning to the same channel from inflating touchpoints
+      if (key === prevKey) {
+        // Same source+medium+campaign+clickId as previous touchpoint.
+        // Whether it's fresh_click, stale_cookie, referrer, or direct — if the key
+        // is identical, it's the same channel interaction repeating (cookie persistence).
+        // Only a DIFFERENT key (different source, campaign, or clickId) creates a new touchpoint.
         continue;
       }
 
-      // Different source/medium/campaign, or same but with fresh signals = new touchpoint
+      // Different source/medium/campaign/clickId = genuinely new touchpoint
       touchpoints.push({
         timestamp: session.timestamp.toISOString(),
         source: session.source,
