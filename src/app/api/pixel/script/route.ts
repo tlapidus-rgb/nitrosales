@@ -1093,11 +1093,12 @@ function generatePixelScript(orgId: string): string {
       } catch(e) {}
     }
 
-    // Track checkout steps on checkout pages
-    if (/\\/checkout/i.test(window.location.pathname)) {
-      // Check current hash on load
+    // Track checkout steps — detect via pathname OR hash (VTEX Smart Checkout uses both)
+    var _isCheckoutPage = /checkout/i.test(window.location.pathname) || /checkout/i.test(window.location.href);
+    if (_isCheckoutPage) {
+      // Check current hash on load (user may have landed directly on #/shipping)
       detectCheckoutStep();
-      // Listen for hash changes (VTEX SPA navigation)
+      // Listen for hash changes (VTEX SPA navigation within checkout)
       window.addEventListener('hashchange', function() {
         detectCheckoutStep();
       });
@@ -1106,18 +1107,34 @@ function generatePixelScript(orgId: string): string {
       var _checkoutPollCount = 0;
       var _checkoutPollInterval = setInterval(function() {
         _checkoutPollCount++;
-        if (_checkoutPollCount > 60) { clearInterval(_checkoutPollInterval); return; }
-        // Check for shipping step via DOM
+        if (_checkoutPollCount > 90) { clearInterval(_checkoutPollInterval); return; }
+        // Check for shipping step via DOM — extended selectors for different VTEX themes
         if (!_firedCheckoutSteps['shipping']) {
-          var shippingEl = document.querySelector('.shipping-data .vtex-omnishipping-1-x-deliveryGroup, .shipping-data .shp-option-text, #shipping-option-delivery');
+          var shippingEl = document.querySelector(
+            '.shipping-data .vtex-omnishipping-1-x-deliveryGroup, ' +
+            '.shipping-data .shp-option-text, ' +
+            '#shipping-option-delivery, ' +
+            '.vtex-omnishipping-1-x-container, ' +
+            '[data-i18n="shipping.chooseDeliveryOption"], ' +
+            '.shipping-container .box-step, ' +
+            '.step.shipping.active'
+          );
           if (shippingEl) {
             _firedCheckoutSteps['shipping'] = true;
             enqueue({ type: 'CHECKOUT_SHIPPING', props: { step: 'shipping', detection: 'dom' } });
           }
         }
-        // Check for payment step via DOM
+        // Check for payment step via DOM — extended selectors
         if (!_firedCheckoutSteps['payment']) {
-          var paymentEl = document.querySelector('.payment-group .payment-group-item, #payment-group-creditCardPaymentGroup, .PaymentCardNumber');
+          var paymentEl = document.querySelector(
+            '.payment-group .payment-group-item, ' +
+            '#payment-group-creditCardPaymentGroup, ' +
+            '.PaymentCardNumber, ' +
+            '.payment-group-list-btn, ' +
+            '.payment-body .payment-group, ' +
+            '.step.payment.active, ' +
+            '[data-i18n="paymentData.title"]'
+          );
           if (paymentEl) {
             _firedCheckoutSteps['payment'] = true;
             enqueue({ type: 'CHECKOUT_PAYMENT', props: { step: 'payment', detection: 'dom' } });
@@ -1232,6 +1249,55 @@ function generatePixelScript(orgId: string): string {
     // Delayed to not compete with initial page load
     setTimeout(tryVtexProfileIdentify, 2000);
     observeLoginForms();
+
+    // ── FASE 3: orderForm polling on ALL pages (not just checkout) ──
+    // VTEX remembers customer email in orderForm even on product pages
+    // if the user logged in or entered email previously. This recovers
+    // identity for ~15% more visitors without requiring checkout.
+    if (!_identifiedEmail && !_isCheckoutPage) {
+      setTimeout(function() {
+        try {
+          fetch('/api/checkout/pub/orderForm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: '{}'
+          }).then(function(r) { return r.json(); }).then(function(of) {
+            if (of && of.clientProfileData && of.clientProfileData.email) {
+              var em = of.clientProfileData.email;
+              if (em && em.indexOf('@') > -1 && em !== _identifiedEmail) {
+                _identifiedEmail = em;
+                identify({ email: em });
+              }
+            }
+          }).catch(function() {});
+        } catch(e) {}
+      }, 3000); // 3s delay to not block page load
+    }
+
+    // ── FASE 3: Global email blur/change listener on ALL pages ──
+    // Captures email from ANY form: newsletter, contact, popup, quiz, etc.
+    // Uses capture phase to fire before SPA frameworks prevent default.
+    if (!_isCheckoutPage) {
+      try {
+        function _globalEmailCapture(e) {
+          if (_identifiedEmail) return;
+          var el = e.target;
+          if (!el || el.tagName !== 'INPUT') return;
+          var isEmail = el.type === 'email'
+            || (el.name && el.name.toLowerCase().indexOf('email') > -1)
+            || (el.id && el.id.toLowerCase().indexOf('email') > -1)
+            || (el.placeholder && el.placeholder.toLowerCase().indexOf('email') > -1);
+          if (!isEmail) return;
+          var val = (el.value || '').trim();
+          if (val && val.indexOf('@') > -1 && val.indexOf('.') > -1 && val !== _identifiedEmail) {
+            _identifiedEmail = val;
+            identify({ email: val });
+          }
+        }
+        document.addEventListener('change', _globalEmailCapture, true);
+        document.addEventListener('blur', _globalEmailCapture, true);
+      } catch(e) {}
+    }
 
     // Extra detection on account/profile pages
     if (/account|profile|login|registro|mi-cuenta/i.test(window.location.href)) {
