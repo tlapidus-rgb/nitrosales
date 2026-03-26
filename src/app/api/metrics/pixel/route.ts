@@ -671,12 +671,28 @@ export async function GET(request: NextRequest) {
 
     // ── NEW: Funnel from event types ──
     const evtMap = new Map(eventTypesResult.map((e) => [e.type, e.uniqueVisitors]));
+    // CHECKOUT_SHIPPING and CHECKOUT_PAYMENT: only count events where the pageUrl
+    // hash matches the correct step. VTEX pre-loads DOM elements for later steps,
+    // so DOM-detected events on #/cart or #/email are false positives.
+    const checkoutCorrected = await prisma.$queryRaw`
+      SELECT type, COUNT(DISTINCT "visitorId")::int as "uniqueVisitors"
+      FROM pixel_events
+      WHERE "organizationId" = ${ORG_ID}
+        AND timestamp >= ${dateFrom}
+        AND timestamp <= ${dateTo}
+        AND (
+          (type = 'CHECKOUT_SHIPPING' AND "pageUrl" LIKE '%#/shipping%')
+          OR (type = 'CHECKOUT_PAYMENT' AND "pageUrl" LIKE '%#/payment%')
+        )
+      GROUP BY type
+    ` as Array<{ type: string; uniqueVisitors: number }>;
+    const correctedMap = new Map(checkoutCorrected.map((e) => [e.type, e.uniqueVisitors]));
     const funnel = {
       pageView: evtMap.get("PAGE_VIEW") || 0,
       viewProduct: evtMap.get("VIEW_PRODUCT") || 0,
       addToCart: evtMap.get("ADD_TO_CART") || 0,
-      checkoutShipping: evtMap.get("CHECKOUT_SHIPPING") || 0,
-      checkoutPayment: evtMap.get("CHECKOUT_PAYMENT") || 0,
+      checkoutShipping: correctedMap.get("CHECKOUT_SHIPPING") || 0,
+      checkoutPayment: correctedMap.get("CHECKOUT_PAYMENT") || 0,
       // PURCHASE uses real orders from orders table (webOrders) instead of pixel_events.
       // Reason: webhook-created PURCHASE events have NOW() timestamps which pollute
       // the date filter (old orders with status changes today appear as today's buyers).
