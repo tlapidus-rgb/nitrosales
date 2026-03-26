@@ -391,28 +391,28 @@ export async function calculateAttribution(
     // Step 3: Sort sessions chronologically
     sessionSources.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-    // Step 4: Deduplicate consecutive sessions with same source+medium+campaign+clickId
-    // A new touchpoint is only created when:
-    //  - The source/medium/campaign combo changes (user came from a different channel), OR
-    //  - The click ID changes (user clicked a DIFFERENT ad in the same channel)
-    // Same key with same clickId = same ad interaction persisted via cookie = NOT a new touchpoint.
-    // This prevents stale cookies from inflating touchpoint counts
-    // (e.g. 5× "google cpc" with the same gclid cookie = 1 touchpoint, not 5).
+    // Step 4: Deduplicate consecutive sessions at SOURCE+MEDIUM level
+    // A new touchpoint is created only when the SOURCE or MEDIUM changes.
+    // Multiple clicks on the same platform (e.g., 5 different Google Ads with
+    // different gclids) are collapsed into a single touchpoint because for
+    // attribution purposes, what matters is "user engaged with Google Ads",
+    // not which specific ad variant they clicked.
+    // This matches how Triple Whale and other attribution tools summarize
+    // the customer journey at the channel level.
     const touchpoints: Touchpoint[] = [];
-    let prevKey = '';
+    let prevSourceKey = '';
 
     for (const session of sessionSources) {
-      const key = `${session.source}|${session.medium || ''}|${session.campaign || ''}|${session.clickId || ''}`;
+      // Dedup key: source + medium only (campaign and clickId are details, not channel changes)
+      const sourceKey = `${session.source}|${session.medium || ''}`;
 
-      if (key === prevKey) {
-        // Same source+medium+campaign+clickId as previous touchpoint.
-        // Whether it's fresh_click, stale_cookie, referrer, or direct — if the key
-        // is identical, it's the same channel interaction repeating (cookie persistence).
-        // Only a DIFFERENT key (different source, campaign, or clickId) creates a new touchpoint.
+      if (sourceKey === prevSourceKey) {
+        // Same channel as previous touchpoint (e.g., consecutive Google cpc sessions).
+        // Skip — user is re-engaging with the same channel.
         continue;
       }
 
-      // Different source/medium/campaign/clickId = genuinely new touchpoint
+      // Different channel = new touchpoint (e.g., Google cpc → Meta social-paid)
       touchpoints.push({
         timestamp: session.timestamp.toISOString(),
         source: session.source,
@@ -425,7 +425,7 @@ export async function calculateAttribution(
         viewThrough: session.viewThrough,
       });
 
-      prevKey = key;
+      prevSourceKey = sourceKey;
     }
 
     // Step 4b: Remove "checkout-only" touchpoints that have no attribution signal.
