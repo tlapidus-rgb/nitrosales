@@ -158,6 +158,18 @@ export async function POST(req: NextRequest) {
       .filter(Boolean)
       .join(', ') || null;
 
+    // ── Check if this order already exists (for dedup logic) ──
+    const existingOrder = await prisma.order.findUnique({
+      where: {
+        organizationId_externalId: {
+          organizationId: org.id,
+          externalId: orderId,
+        },
+      },
+      select: { id: true },
+    });
+    const isNewOrder = !existingOrder;
+
     const order = await prisma.order.upsert({
       where: {
         organizationId_externalId: {
@@ -225,8 +237,12 @@ export async function POST(req: NextRequest) {
           city: vtexOrder.shippingData?.address?.city || null,
           state: vtexOrder.shippingData?.address?.state || null,
           lastOrderAt: new Date(vtexOrder.creationDate),
-          totalOrders: { increment: 1 },
-          totalSpent: { increment: totalValue },
+          // Only increment counters for NEW orders — re-processing status changes
+          // would inflate totalOrders/totalSpent on every webhook call
+          ...(isNewOrder ? {
+            totalOrders: { increment: 1 },
+            totalSpent: { increment: totalValue },
+          } : {}),
         },
       });
       customerId = customer.id;
@@ -292,8 +308,17 @@ export async function POST(req: NextRequest) {
     // Multiple strategies to link VTEX order → pixel visitor → attribution.
     // Priority: 1) Client-side PURCHASE event, 2) Checkout heuristic, 3) Real email, 4) Recent activity
     // Este bloque NUNCA puede romper el webhook. Si falla, solo loguea.
+    //
+    // DEDUP: Only run attribution for NEW orders. Status updates (payment-approved,
+    // invoiced, etc.) re-trigger this webhook but should NOT create duplicate
+    // PURCHASE events, duplicate CAPI conversions, or recalculate attribution.
     let pixelAttribution = false;
+    if (!isNewOrder) {
+      console.log(`[NitroPixel] Skipping attribution for ${orderId} — order already exists (status update)`);
+      pixelAttribution = true; // Assume it was already done
+    }
     try {
+      if (isNewOrder) {
       const orderIdBase = orderId.replace(/-\d+$/, ''); // Strip VTEX suffix: "1619691502674-01" → "1619691502674"
       const realEmail = profile?.email ? extractRealEmail(profile.email) : null;
       console.log(`[NitroPixel] Starting attribution for order ${orderId} (base: ${orderIdBase}, realEmail: ${realEmail}, vtexEmail: ${profile?.email})`);
@@ -570,6 +595,7 @@ export async function POST(req: NextRequest) {
           }).catch(err => console.error('[NitroPixel CAPI webhook unmatched] Non-fatal:', err));
         }
       }
+      } // end if (isNewOrder)
     } catch (pixelError) {
       // NitroPixel error NUNCA rompe el webhook
       console.error('[NitroPixel] Error matching order with visitor:', pixelError);
