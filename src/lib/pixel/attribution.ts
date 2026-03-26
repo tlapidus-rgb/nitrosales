@@ -101,6 +101,7 @@ function detectSourceFromReferrer(
       /mobbex\.com/,                // Mobbex (AR)
       /getnet\.com/,                // Getnet (BR/AR)
       /payu\.com/,                  // PayU (LATAM)
+      /gocuotas\.com/,             // GoCuotas (AR) — installment payment gateway
     ];
     if (PAYMENT_GATEWAY_PATTERNS.some(p => p.test(hostname))) {
       return null;
