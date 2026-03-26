@@ -376,13 +376,16 @@ function generatePixelScript(orgId: string): string {
       _eventIndex++;
       var mergedProps = props || {};
       if (_fingerprint) mergedProps._fp = _fingerprint;
+      // Only send clickIds/utmParams if they have actual content (avoid empty {} noise)
+      var _hasClickIds = Object.keys(clickIds).some(function(k) { return !!clickIds[k]; });
+      var _hasUtmParams = Object.keys(utmParams).length > 0;
       enqueue({
         type: type,
         props: mergedProps,
         visitor_id: vid,
         session_id: sid,
-        click_ids: clickIds,
-        utm_params: utmParams,
+        click_ids: _hasClickIds ? clickIds : null,
+        utm_params: _hasUtmParams ? utmParams : null,
         signals_fresh: _signalsFresh, // TRUE = click IDs/UTMs from current URL, not cookie
         is_landing: _isLanding && isFirstEvent, // TRUE = first event of a new session
         timestamp: Date.now(),
@@ -1401,11 +1404,12 @@ function generatePixelScript(orgId: string): string {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // LAYER 3: VTEX OMS orderPlaced page direct scraping
+    // LAYER 3: VTEX OMS orderPlaced page — multiple API strategies
     // ══════════════════════════════════════════════════════════════
-    // On the VTEX orderPlaced confirmation page, order data is
-    // also available via the OMS API. This is the LAST RESORT
-    // backup if dataLayer didn't fire.
+    // VTEX orderPlaced page may NOT push transaction data to dataLayer.
+    // We try multiple API endpoints to get order data. If ALL fail,
+    // we fire a minimal PURCHASE with just the og (order group) ID
+    // so the webhook can match Strategy 1 (client-side PURCHASE).
     // ══════════════════════════════════════════════════════════════
 
     function tryOrderPlacedPageScrape() {
@@ -1419,14 +1423,29 @@ function generatePixelScript(orgId: string): string {
         // Already captured via dataLayer?
         if (_sentPurchases[orderGroupId]) return;
 
-        // Try to get order data from VTEX API
+        // Also try to identify from vtexjs orderForm (may still have email)
+        try {
+          if (window.vtexjs && window.vtexjs.checkout && window.vtexjs.checkout.orderForm) {
+            var cpd = window.vtexjs.checkout.orderForm.clientProfileData;
+            if (cpd && cpd.email && cpd.email !== _identifiedEmail) {
+              _identifiedEmail = cpd.email;
+              identify({ email: cpd.email });
+            }
+          }
+        } catch(e2) {}
+
+        // Strategy A: VTEX public order-group API
         fetch('/api/checkout/pub/orders/order-group/' + orderGroupId, {
           headers: { 'Accept': 'application/json' }
-        }).then(function(r) { return r.json(); }).then(function(orders) {
-          if (!Array.isArray(orders) || orders.length === 0) return;
+        }).then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        }).then(function(orders) {
+          if (!Array.isArray(orders) || orders.length === 0) throw new Error('empty');
           orders.forEach(function(order) {
             if (_sentPurchases[order.orderId]) return;
             _sentPurchases[order.orderId] = true;
+            _sentPurchases[orderGroupId] = true;
 
             var email = null;
             if (order.clientProfileData && order.clientProfileData.email) {
@@ -1460,42 +1479,87 @@ function generatePixelScript(orgId: string): string {
 
             setTimeout(flush, 100);
           });
-        }).catch(function() {});
+        }).catch(function(errA) {
+          // Strategy A failed — try Strategy B: VTEX OMS public orderForm
+          if (_sentPurchases[orderGroupId]) return;
+
+          fetch('/api/checkout/pub/orderForm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: '{}'
+          }).then(function(r) { return r.json(); }).then(function(of) {
+            if (_sentPurchases[orderGroupId]) return;
+            // Try to get email from orderForm even if no order data
+            if (of && of.clientProfileData && of.clientProfileData.email) {
+              if (of.clientProfileData.email !== _identifiedEmail) {
+                _identifiedEmail = of.clientProfileData.email;
+                identify({ email: of.clientProfileData.email });
+              }
+            }
+          }).catch(function() {});
+
+          // Strategy C: DOM scraping — VTEX may render order details in page
+          try {
+            var totalEl = document.querySelector('.totalPrice, .order-total, [data-bind="totalPrice"]');
+            var total = totalEl ? parseFloat(totalEl.textContent.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0 : 0;
+
+            // Even without total, fire minimal PURCHASE with og ID
+            // The webhook will match this via Strategy 1 and fill real data
+            if (!_sentPurchases[orderGroupId]) {
+              _sentPurchases[orderGroupId] = true;
+              trackEvent('PURCHASE', {
+                orderId: orderGroupId,
+                total: total,
+                currency: 'ARS',
+                email: _identifiedEmail || '',
+                source: 'orderPlacedFallback'
+              });
+              setTimeout(flush, 100);
+            }
+          } catch(errC) {
+            // Last resort: fire with just og ID
+            if (!_sentPurchases[orderGroupId]) {
+              _sentPurchases[orderGroupId] = true;
+              trackEvent('PURCHASE', {
+                orderId: orderGroupId,
+                total: 0,
+                currency: 'ARS',
+                email: _identifiedEmail || '',
+                source: 'orderPlacedMinimal'
+              });
+              setTimeout(flush, 100);
+            }
+          }
+        });
       } catch(e) {}
     }
 
-    // Fire on orderPlaced page after a delay (let dataLayer fire first)
+    // Fire on orderPlaced page — staggered attempts
     if (/orderPlaced/i.test(window.location.href)) {
-      setTimeout(tryOrderPlacedPageScrape, 3000);
+      // Layer 3 scrape with increasing delays (VTEX APIs may be slow)
+      setTimeout(tryOrderPlacedPageScrape, 2000);
+      setTimeout(tryOrderPlacedPageScrape, 5000);
 
-      // DEBUG: If no purchase captured after 10s, send debug info
+      // Safety net: if nothing captured after 8s, guarantee a PURCHASE fires
       setTimeout(function() {
         try {
           if (Object.keys(_sentPurchases).length === 0) {
-            var dlInfo = [];
-            if (window.dataLayer) {
-              for (var i = 0; i < Math.min(window.dataLayer.length, 30); i++) {
-                var e = window.dataLayer[i];
-                dlInfo.push({
-                  idx: i,
-                  event: e.event || null,
-                  hasTxId: !!e.transactionId,
-                  hasEcom: !!e.ecommerce,
-                  hasOG: !!e.orderGroup,
-                  keys: Object.keys(e).slice(0, 15).join(',')
-                });
-              }
+            var ogMatch = window.location.href.match(/[?&]og=([^&]+)/);
+            if (ogMatch) {
+              var ogId = ogMatch[1];
+              _sentPurchases[ogId] = true;
+              trackEvent('PURCHASE', {
+                orderId: ogId,
+                total: 0,
+                currency: 'ARS',
+                email: _identifiedEmail || '',
+                source: 'orderPlacedSafetyNet'
+              });
+              setTimeout(flush, 100);
             }
-            trackEvent('DEBUG_NO_PURCHASE', {
-              message: 'orderPlaced page loaded but no purchase detected',
-              url: window.location.href,
-              dataLayerLength: window.dataLayer ? window.dataLayer.length : 0,
-              entries: dlInfo
-            });
-            setTimeout(flush, 100);
           }
         } catch(ex) {}
-      }, 10000);
+      }, 8000);
     }
 
     // ─── Flush antes de cerrar pagina ───

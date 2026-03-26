@@ -348,7 +348,7 @@ export async function POST(req: NextRequest) {
               AND pe.timestamp <= ${windowEnd}
               AND pe."sessionId" NOT LIKE 'webhook-%'
               AND (pe."pageUrl" LIKE '%/checkout/%' OR pe."pageUrl" LIKE '%orderPlaced%'
-                   OR pe.type IN ('CHECKOUT_SHIPPING', 'CHECKOUT_PAYMENT', 'IDENTIFY'))
+                   OR pe.type IN ('INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING', 'CHECKOUT_PAYMENT', 'IDENTIFY'))
             ORDER BY pe.timestamp DESC
             LIMIT 1
           `;
