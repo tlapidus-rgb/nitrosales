@@ -677,7 +677,11 @@ export async function GET(request: NextRequest) {
       addToCart: evtMap.get("ADD_TO_CART") || 0,
       checkoutShipping: evtMap.get("CHECKOUT_SHIPPING") || 0,
       checkoutPayment: evtMap.get("CHECKOUT_PAYMENT") || 0,
-      purchase: evtMap.get("PURCHASE") || 0,
+      // PURCHASE uses real orders from orders table (webOrders) instead of pixel_events.
+      // Reason: webhook-created PURCHASE events have NOW() timestamps which pollute
+      // the date filter (old orders with status changes today appear as today's buyers).
+      // Browser-originated steps above don't have this problem.
+      purchase: webOrders,
     };
 
     // ── NEW: Daily revenue merged with daily spend ──
