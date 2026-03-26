@@ -341,16 +341,22 @@ export async function GET(request: NextRequest) {
       // ── NEW QUERIES FOR REDESIGNED DASHBOARD ──
 
       // 13. Total orders in period (for attribution rate)
-      // Exclude cancelled/pending/zero-value — only count real completed orders
+      // Exclude cancelled/pending/zero-value AND marketplace orders (MercadoLibre)
+      // Marketplace orders cannot be tracked by the pixel (checkout happens on ML)
       prisma.$queryRaw`
-        SELECT COUNT(*)::int as total
+        SELECT
+          COUNT(*)::int as total,
+          COUNT(*) FILTER (WHERE "trafficSource" = 'Marketplace')::int as "marketplaceOrders",
+          SUM("totalValue") FILTER (WHERE "trafficSource" = 'Marketplace')::float as "marketplaceRevenue",
+          COUNT(*) FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace')::int as "webOrders",
+          SUM("totalValue") FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace')::float as "webRevenue"
         FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${dateFrom}
           AND "orderDate" <= ${dateTo}
           AND status NOT IN ('CANCELLED', 'PENDING')
           AND "totalValue" > 0
-      ` as Promise<Array<{ total: number }>>,
+      ` as Promise<Array<{ total: number; marketplaceOrders: number; marketplaceRevenue: number; webOrders: number; webRevenue: number }>>,
 
       // 14. Ad spend + platform metrics grouped by source (META/GOOGLE)
       prisma.$queryRaw`
@@ -437,6 +443,7 @@ export async function GET(request: NextRequest) {
 
       // 19. Per-day coverage: total orders vs attributed orders per day
       //     Used for accurate ROAS scaling instead of uniform coverage ratio
+      //     Excludes marketplace orders (MercadoLibre) which can't be pixel-tracked
       prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
@@ -454,6 +461,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" <= ${dateTo}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         GROUP BY 1
         ORDER BY 1
       ` as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
@@ -555,8 +563,13 @@ export async function GET(request: NextRequest) {
     const pixelRevenue = selectedModelData?.revenue || 0;
     const ordersAttributed = selectedModelData?.ordersAttributed || 0;
     const totalOrders = totalOrdersResult[0]?.total || 0;
+    const webOrders = totalOrdersResult[0]?.webOrders || 0;
+    const webRevenue = totalOrdersResult[0]?.webRevenue || 0;
+    const marketplaceOrders = totalOrdersResult[0]?.marketplaceOrders || 0;
+    const marketplaceRevenue = totalOrdersResult[0]?.marketplaceRevenue || 0;
     const totalAdSpend = adSpendBySourceResult.reduce((sum, s) => sum + (s.spend || 0), 0);
-    const attributionRate = totalOrders > 0 ? Math.round((ordersAttributed / totalOrders) * 100) : 0;
+    // Attribution rate uses web-only orders (marketplace orders can't be pixel-tracked)
+    const attributionRate = webOrders > 0 ? Math.round((ordersAttributed / webOrders) * 100) : 0;
     const aov = ordersAttributed > 0 ? Math.round(pixelRevenue / ordersAttributed) : 0;
 
     // ── ROAS calculation: per-day coverage scaling ──
@@ -745,6 +758,10 @@ export async function GET(request: NextRequest) {
         aov,
         totalAdSpend,
         totalOrders,
+        webOrders,
+        webRevenue: Math.round(webRevenue),
+        marketplaceOrders,
+        marketplaceRevenue: Math.round(marketplaceRevenue),
         changes: {
           pixelRevenue: pctChange(pixelRevenue, prevPixelRevenue),
           ordersAttributed: pctChange(ordersAttributed, prevOrdersAttr),

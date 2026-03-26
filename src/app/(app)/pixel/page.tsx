@@ -172,6 +172,10 @@ interface PixelData {
     aov: number;
     totalAdSpend: number;
     totalOrders: number;
+    webOrders: number;
+    webRevenue: number;
+    marketplaceOrders: number;
+    marketplaceRevenue: number;
     changes: { pixelRevenue: number; ordersAttributed: number; pixelRoas: number };
   };
   channelRoas: Array<{
@@ -380,7 +384,7 @@ export default function PixelPage() {
   const d = data!;
   const hasData = d.liveStatus.totalEvents > 0;
   const hasAttribution = d.attribution?.byModel?.length > 0;
-  const bk = d.businessKpis || { pixelRevenue: 0, pixelRoas: 0, ordersAttributed: 0, attributionRate: 0, aov: 0, totalAdSpend: 0, totalOrders: 0, changes: { pixelRevenue: 0, ordersAttributed: 0, pixelRoas: 0 } };
+  const bk = d.businessKpis || { pixelRevenue: 0, pixelRoas: 0, ordersAttributed: 0, attributionRate: 0, aov: 0, totalAdSpend: 0, totalOrders: 0, webOrders: 0, webRevenue: 0, marketplaceOrders: 0, marketplaceRevenue: 0, changes: { pixelRevenue: 0, ordersAttributed: 0, pixelRoas: 0 } };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -706,12 +710,12 @@ export default function PixelPage() {
                   info="Por cada $1 que gastas en ads, NitroPixel detecto que volvieron esta cantidad en ventas reales."
                 />
                 <KpiCard
-                  label="Ordenes"
+                  label="Ordenes Web"
                   value={fmt(bk.ordersAttributed)}
                   change={bk.changes.ordersAttributed}
                   color="indigo"
-                  info="Total de ordenes atribuidas a un canal de origen."
-                  sub={`De ${fmt(bk.totalOrders)} totales`}
+                  info="Ordenes del sitio web atribuidas a un canal. Excluye MercadoLibre (se trackea aparte)."
+                  sub={bk.marketplaceOrders > 0 ? `${fmt(bk.webOrders)} web + ${fmt(bk.marketplaceOrders)} ML` : `De ${fmt(bk.totalOrders)} totales`}
                 />
                 <KpiCard
                   label="Tasa Conversion"
@@ -1262,10 +1266,11 @@ export default function PixelPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="rounded-xl bg-white border border-gray-200 p-4">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Match Rate<InfoTip text="Porcentaje de ordenes que NitroPixel pudo atribuir a un canal." /></span>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Match Rate (Web)<InfoTip text="Porcentaje de ordenes WEB que NitroPixel pudo atribuir. Excluye MercadoLibre (no trackeable por pixel)." /></span>
                     <div className={`w-2 h-2 rounded-full ${bk.attributionRate >= 50 ? "bg-emerald-400" : bk.attributionRate >= 25 ? "bg-amber-400" : "bg-red-400"}`}/>
                   </div>
                   <span className="text-xl font-bold text-gray-800">{bk.attributionRate}%</span>
+                  {bk.marketplaceOrders > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{fmt(bk.marketplaceOrders)} ML excluidas</p>}
                 </div>
                 <div className="rounded-xl bg-white border border-gray-200 p-4">
                   <div className="flex items-center justify-between mb-1">
