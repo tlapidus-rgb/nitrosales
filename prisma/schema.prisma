@@ -582,6 +582,7 @@ enum AttributionModel {
   LAST_CLICK
   FIRST_CLICK
   LINEAR
+  TIME_DECAY
   NITRO
 }
 
@@ -598,6 +599,7 @@ model PixelVisitor {
   clickIds        Json?                           // { fbclid, gclid, ttclid, last_utm_source, last_utm_medium, last_utm_campaign }
   country         String?
   region          String?
+  fingerprintHash String?                         // Browser fingerprint hash (data-only, NOT used for merge)
 
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id])
@@ -611,6 +613,7 @@ model PixelVisitor {
   @@unique([organizationId, visitorId])
   @@index([organizationId, email])
   @@index([organizationId, lastSeenAt])
+  @@index([organizationId, fingerprintHash])
   @@map("pixel_visitors")
 }
 
@@ -682,10 +685,13 @@ model PixelAttribution {
   organizationId      String
   organization        Organization @relation(fields: [organizationId], references: [id])
   createdAt           DateTime @default(now())
+  isAssisted          Boolean  @default(false)          // True if this touchpoint assisted but didn't get last-click credit
+  assistedValue       Decimal  @default(0) @db.Decimal(12, 2)  // Revenue attributed as assisted conversion
 
   @@unique([orderId, model])
   @@index([organizationId, createdAt])
   @@index([campaignId])
   @@index([creativeId])
+  @@index([organizationId, isAssisted])
   @@map("pixel_attributions")
 }

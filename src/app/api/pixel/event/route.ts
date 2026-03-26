@@ -183,6 +183,21 @@ export async function POST(request: NextRequest) {
 
         if (!visitor) continue;
 
+        // ── Store browser fingerprint (data-only, never used for merge) ──
+        // The fingerprint is generated client-side and sent as _fp in props.
+        // We store it on the visitor record for future cross-session analysis.
+        if (event.props?._fp && typeof event.props._fp === 'string') {
+          try {
+            await prisma.$executeRawUnsafe(
+              'UPDATE pixel_visitors SET "fingerprintHash" = $1 WHERE id = $2 AND "fingerprintHash" IS NULL',
+              event.props._fp,
+              visitor.id
+            );
+          } catch (_fpErr) {
+            // Non-fatal — fingerprint storage is optional
+          }
+        }
+
         // Handle IDENTIFY events: identify visitor AND persist event for funnel tracking
         if (event.type === 'IDENTIFY' && event.props?.email) {
           await identifyVisitor(orgId, event.visitor_id, {

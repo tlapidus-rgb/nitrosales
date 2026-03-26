@@ -245,6 +245,77 @@ function generatePixelScript(orgId: string): string {
     var deviceType = /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' :
                      /Tablet|iPad/i.test(navigator.userAgent) ? 'tablet' : 'desktop';
 
+    // ─── Browser Fingerprint (lightweight, for analytics only) ───
+    // Generates a stable hash from canvas, screen, timezone, language, WebGL.
+    // Stored in cookie + localStorage for cross-session persistence.
+    // IMPORTANT: This is DATA-ONLY — never used for visitor merge/lookup.
+    // Sent as _fp in event props for future cross-session analysis.
+    var _fingerprint = (function() {
+      try {
+        // Check cached first
+        var cached = getCookie('_np_fp');
+        if (!cached) { try { cached = localStorage.getItem('_np_fp'); } catch(e) {} }
+        if (cached && cached.length > 10) return cached;
+
+        var components = [];
+
+        // Canvas fingerprint
+        try {
+          var c = document.createElement('canvas');
+          c.width = 200; c.height = 30;
+          var ctx = c.getContext('2d');
+          if (ctx) {
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#f60';
+            ctx.fillRect(125,1,62,20);
+            ctx.fillStyle = '#069';
+            ctx.fillText('NP.fp', 2, 15);
+            ctx.fillStyle = 'rgba(102,204,0,0.7)';
+            ctx.fillText('NP.fp', 4, 17);
+            components.push(c.toDataURL().slice(0, 100));
+          } else { components.push('no-canvas'); }
+        } catch(e) { components.push('no-canvas'); }
+
+        // Screen
+        components.push(screen.width + 'x' + screen.height + 'x' + (screen.colorDepth || 24));
+
+        // Timezone
+        try {
+          components.push(Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown-tz');
+        } catch(e) { components.push('no-tz'); }
+
+        // Language
+        components.push(navigator.languages ? navigator.languages.join(',') : (navigator.language || 'unknown'));
+
+        // Platform + cores
+        components.push((navigator.platform || 'unknown') + '|' + (navigator.hardwareConcurrency || 0));
+
+        // WebGL renderer
+        try {
+          var gl = document.createElement('canvas').getContext('webgl');
+          if (gl) {
+            var ext = gl.getExtension('WEBGL_debug_renderer_info');
+            components.push(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'no-webgl-ext');
+          } else { components.push('no-webgl'); }
+        } catch(e) { components.push('no-webgl'); }
+
+        // Simple hash (djb2)
+        var raw = components.join('|||');
+        var hash = 5381;
+        for (var i = 0; i < raw.length; i++) {
+          hash = ((hash << 5) + hash) + raw.charCodeAt(i);
+          hash = hash & hash; // Convert to 32bit int
+        }
+        var fp = 'fp_' + (hash >>> 0).toString(36) + '_' + raw.length.toString(36);
+
+        // Persist
+        setCookie('_np_fp', fp, 365);
+        try { localStorage.setItem('_np_fp', fp); } catch(e) {}
+        return fp;
+      } catch(e) { return null; }
+    })();
+
     // ─── Event queue + batching ───
     var queue = [];
     var timer = null;
@@ -303,9 +374,11 @@ function generatePixelScript(orgId: string): string {
     function trackEvent(type, props) {
       var isFirstEvent = (_eventIndex === 0);
       _eventIndex++;
+      var mergedProps = props || {};
+      if (_fingerprint) mergedProps._fp = _fingerprint;
       enqueue({
         type: type,
-        props: props || {},
+        props: mergedProps,
         visitor_id: vid,
         session_id: sid,
         click_ids: clickIds,

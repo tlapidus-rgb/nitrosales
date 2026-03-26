@@ -12,10 +12,31 @@ import { getOrganizationId } from "@/lib/auth-guard";
 export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// ── Materialized view refresh (at most every 60 min) ──
+let _lastMvRefresh = 0;
+const MV_REFRESH_INTERVAL = 60 * 60 * 1000; // 1 hour
+
+async function maybeRefreshMaterializedView() {
+  const now = Date.now();
+  if (now - _lastMvRefresh < MV_REFRESH_INTERVAL) return;
+  _lastMvRefresh = now;
+  try {
+    await prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY pixel_daily_summary');
+  } catch {
+    // Non-fatal — view may not exist or concurrent refresh not supported
+    try {
+      await prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW pixel_daily_summary');
+    } catch { /* ignore */ }
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const ORG_ID = await getOrganizationId();
     const { searchParams } = new URL(request.url);
+
+    // Refresh materialized view if stale (non-blocking, fire-and-forget)
+    maybeRefreshMaterializedView().catch(() => {});
 
     // ── Parse date range (defaults to last 7 days, Argentina timezone UTC-3) ──
     const now = new Date();
