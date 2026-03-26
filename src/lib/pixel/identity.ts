@@ -116,6 +116,25 @@ export async function identifyVisitor(
     const email = props.email.toLowerCase().trim();
     if (!email || !email.includes('@')) return null;
 
+    // ─── Email validation: domain blacklist + format check ───
+    // Prevents disposable/test emails from polluting identity graph
+    const BLACKLISTED_DOMAINS = [
+      'test.com', 'example.com', 'temp-mail.org', 'guerrillamail.com',
+      'mailinator.com', 'yopmail.com', 'throwaway.email', '10minutemail.com',
+      'trashmail.com', 'fakeinbox.com', 'tempmail.com', 'sharklasers.com',
+      'guerrillamailblock.com', 'grr.la', 'dispostable.com',
+    ];
+    const emailDomain = email.split('@')[1];
+    if (!emailDomain || BLACKLISTED_DOMAINS.includes(emailDomain)) {
+      console.log(`[NitroPixel] Blocked disposable email domain: ${emailDomain}`);
+      return null;
+    }
+    // Stricter format validation (must have valid TLD)
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+      console.log(`[NitroPixel] Invalid email format rejected: ${email}`);
+      return null;
+    }
+
     // Buscar el visitor actual
     const currentVisitor = await prisma.pixelVisitor.findUnique({
       where: {

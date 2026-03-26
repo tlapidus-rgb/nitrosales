@@ -1,11 +1,12 @@
 // ══════════════════════════════════════════════════════════════
 // NitroPixel — Meta Conversions API (CAPI)
 // ══════════════════════════════════════════════════════════════
-// Envía eventos PURCHASE server-side a Meta para:
+// Envía eventos server-side a Meta para:
 // 1. Mejorar Event Match Quality (EMQ) → mejor optimización de campañas
 // 2. Capturar conversiones que el browser-side pixel pierde (ad blockers, ITP)
 // 3. Dedup con el Meta Pixel del browser via event_id
 //
+// Supported events: Purchase, ViewContent, AddToCart, InitiateCheckout
 // Docs: https://developers.facebook.com/docs/marketing-api/conversions-api
 // ══════════════════════════════════════════════════════════════
 
@@ -150,6 +151,180 @@ export async function sendCapiPurchase(
   } catch (error) {
     // CAPI failure must NEVER break event processing
     console.error('[NitroPixel CAPI] Error sending to Meta:', error);
+    return false;
+  }
+}
+
+// ─── Generic CAPI Event Sender (Full-Funnel) ───
+// Supports ViewContent, AddToCart, InitiateCheckout, Purchase
+// sendCapiPurchase remains the primary Purchase sender (backward compat)
+
+type CAPIEventName = 'ViewContent' | 'AddToCart' | 'InitiateCheckout' | 'Purchase';
+
+interface CAPIGenericData {
+  eventId: string;
+  sourceUrl?: string;
+  userAgent?: string;
+  ipAddress?: string;
+  email?: string;
+  phone?: string;
+  fbclid?: string;
+  fbc?: string;
+  fbp?: string;
+  // Product data (ViewContent, AddToCart)
+  productId?: string;
+  productName?: string;
+  productPrice?: number;
+  category?: string;
+  // Cart/Checkout data
+  value?: number;
+  currency?: string;
+  numItems?: number;
+  // Purchase data (use sendCapiPurchase for purchases instead)
+  orderId?: string;
+  products?: Array<{ id: string; name: string; price: number; quantity: number }>;
+}
+
+async function resolveMetaCredentials(organizationId: string): Promise<{ pixelId: string; accessToken: string } | null> {
+  const connection = await prisma.connection.findFirst({
+    where: {
+      organizationId,
+      platform: 'META' as any,
+      status: 'ACTIVE' as any,
+    },
+    select: { credentials: true }
+  });
+
+  let pixelId: string | undefined;
+  let accessToken: string | undefined;
+
+  if (connection?.credentials) {
+    const creds = connection.credentials as Record<string, string>;
+    pixelId = creds.pixelId || creds.pixel_id;
+    accessToken = creds.accessToken || creds.access_token;
+  }
+
+  if (!pixelId || !accessToken) {
+    pixelId = pixelId || process.env.META_PIXEL_ID;
+    accessToken = accessToken || process.env.META_ADS_ACCESS_TOKEN;
+  }
+
+  if (!pixelId || !accessToken) return null;
+  return { pixelId, accessToken };
+}
+
+function buildUserData(data: CAPIGenericData): Record<string, any> {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const userData: Record<string, any> = {};
+  if (data.email) userData.em = [sha256(data.email)];
+  if (data.phone) userData.ph = [sha256(data.phone.replace(/[^0-9]/g, ''))];
+  if (data.ipAddress) userData.client_ip_address = data.ipAddress;
+  if (data.userAgent) userData.client_user_agent = data.userAgent;
+  if (data.fbclid) userData.fbc = data.fbc || `fb.1.${timestamp}.${data.fbclid}`;
+  if (data.fbp) userData.fbp = data.fbp;
+  userData.country = [sha256('ar')];
+  return userData;
+}
+
+function buildCustomData(eventName: CAPIEventName, data: CAPIGenericData): Record<string, any> {
+  const customData: Record<string, any> = {};
+
+  switch (eventName) {
+    case 'ViewContent':
+      if (data.productId) customData.content_ids = [data.productId];
+      if (data.productName) customData.content_name = data.productName;
+      if (data.productPrice) customData.value = data.productPrice;
+      if (data.category) customData.content_category = data.category;
+      customData.content_type = 'product';
+      customData.currency = data.currency || 'ARS';
+      break;
+
+    case 'AddToCart':
+      if (data.productId) customData.content_ids = [data.productId];
+      if (data.productName) customData.content_name = data.productName;
+      customData.content_type = 'product';
+      customData.value = data.productPrice || data.value || 0;
+      customData.currency = data.currency || 'ARS';
+      break;
+
+    case 'InitiateCheckout':
+      if (data.value) customData.value = data.value;
+      if (data.numItems) customData.num_items = data.numItems;
+      customData.currency = data.currency || 'ARS';
+      break;
+
+    case 'Purchase':
+      customData.value = data.value || 0;
+      customData.currency = data.currency || 'ARS';
+      if (data.orderId) customData.order_id = data.orderId;
+      if (data.products && data.products.length > 0) {
+        customData.contents = data.products.map(p => ({
+          id: p.id, quantity: p.quantity, item_price: p.price,
+        }));
+        customData.content_type = 'product';
+        customData.num_items = data.products.reduce((sum, p) => sum + p.quantity, 0);
+      }
+      break;
+  }
+
+  return customData;
+}
+
+export async function sendCapiEvent(
+  organizationId: string,
+  eventName: CAPIEventName,
+  data: CAPIGenericData,
+  pixelEventId?: string
+): Promise<boolean> {
+  try {
+    const creds = await resolveMetaCredentials(organizationId);
+    if (!creds) return false;
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const userData = buildUserData(data);
+    const customData = buildCustomData(eventName, data);
+
+    const eventPayload = {
+      data: [{
+        event_name: eventName,
+        event_time: timestamp,
+        event_id: data.eventId,
+        event_source_url: data.sourceUrl || undefined,
+        action_source: 'website' as const,
+        user_data: userData,
+        custom_data: customData,
+      }],
+    };
+
+    const url = `https://graph.facebook.com/v21.0/${creds.pixelId}/events?access_token=${creds.accessToken}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(eventPayload),
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => 'unknown');
+      console.error(`[NitroPixel CAPI] ${eventName} error ${response.status}: ${errorBody}`);
+      return false;
+    }
+
+    const result = await response.json();
+    console.log(`[NitroPixel CAPI] ${eventName} sent: events_received=${result.events_received}`);
+
+    // Mark the PixelEvent as capiSent
+    if (pixelEventId) {
+      await prisma.pixelEvent.update({
+        where: { id: pixelEventId },
+        data: { capiSent: true, capiSentAt: new Date() }
+      }).catch(() => {});
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`[NitroPixel CAPI] Error sending ${eventName} to Meta:`, error);
     return false;
   }
 }

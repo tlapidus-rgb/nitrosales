@@ -383,6 +383,57 @@ export async function POST(request: NextRequest) {
             console.error('[NitroPixel CAPI] Import error:', capiErr);
           }
         }
+
+        // ─── CAPI: Send funnel events to Meta (non-blocking, fire-and-forget) ───
+        // ViewContent, AddToCart, InitiateCheckout → improves Meta's funnel optimization
+        const CAPI_FUNNEL_EVENTS: Record<string, 'ViewContent' | 'AddToCart' | 'InitiateCheckout'> = {
+          'VIEW_CONTENT': 'ViewContent',
+          'VIEW_PRODUCT': 'ViewContent',   // Alias used in our pixel
+          'ADD_TO_CART': 'AddToCart',
+          'CHECKOUT_SHIPPING': 'InitiateCheckout',  // First checkout step = InitiateCheckout for Meta
+          'INITIATE_CHECKOUT': 'InitiateCheckout',
+        };
+        const capiEventName = CAPI_FUNNEL_EVENTS[event.type];
+        if (capiEventName && createdEvent) {
+          try {
+            const { sendCapiEvent } = await import('@/lib/pixel/capi');
+            sendCapiEvent(orgId, capiEventName, {
+              eventId: `${event.type}_${createdEvent.id}`,
+              sourceUrl: event.page_url,
+              userAgent,
+              ipAddress: ip,
+              email: visitor?.email || (event.props?.email as string | undefined),
+              fbclid: event.click_ids?.fbclid,
+              productId: event.props?.product_id as string | undefined,
+              productName: event.props?.product_name as string | undefined,
+              productPrice: event.props?.price ? Number(event.props.price) : undefined,
+              category: event.props?.category as string | undefined,
+            }, createdEvent.id).catch(err => {
+              console.error(`[NitroPixel CAPI] ${capiEventName} non-fatal error:`, err);
+            });
+          } catch (capiFunnelErr) {
+            console.error('[NitroPixel CAPI] Funnel import error:', capiFunnelErr);
+          }
+        }
+
+        // ─── Google Ads: Send PURCHASE conversion (non-blocking, fire-and-forget) ───
+        // Only fires when gclid is present (visitor came from Google Ads)
+        if (event.type === 'PURCHASE' && event.click_ids?.gclid && createdEvent) {
+          try {
+            const { sendGoogleConversion } = await import('@/lib/pixel/google-ads');
+            sendGoogleConversion(orgId, {
+              gclid: event.click_ids.gclid,
+              orderId: String(event.props?.orderId || ''),
+              total: Number(event.props?.total || 0),
+              currency: String(event.props?.currency || 'ARS'),
+              email: visitor?.email || (event.props?.email as string | undefined),
+            }, createdEvent.id).catch(err => {
+              console.error('[NitroPixel GoogleAds] Non-fatal error:', err);
+            });
+          } catch (googleErr) {
+            console.error('[NitroPixel GoogleAds] Import error:', googleErr);
+          }
+        }
       } catch (eventError) {
         // Error en un evento individual no rompe los demas
         console.error('[NitroPixel] Error processing event:', event.type, eventError);

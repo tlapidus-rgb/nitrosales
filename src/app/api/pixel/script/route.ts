@@ -1115,9 +1115,16 @@ function generatePixelScript(orgId: string): string {
           var target = e.target;
           if (target && target.tagName === 'INPUT' &&
               (target.type === 'email' || target.name === 'email' || target.id === 'client-email' ||
-               target.className.indexOf('email') > -1)) {
+               target.className.indexOf('email') > -1 ||
+               target.autocomplete === 'email' ||
+               (target.placeholder && target.placeholder.toLowerCase().indexOf('email') > -1))) {
             var val = target.value;
             if (val && val.indexOf('@') > -1 && val !== _identifiedEmail) {
+              // Client-side blacklist: skip disposable/test domains
+              var domain = val.split('@')[1];
+              if (domain) domain = domain.toLowerCase();
+              var blacklist = ['test.com','example.com','temp-mail.org','guerrillamail.com','mailinator.com','yopmail.com'];
+              if (blacklist.indexOf(domain) > -1) return;
               _identifiedEmail = val;
               identify({ email: val });
             }
@@ -1129,9 +1136,17 @@ function generatePixelScript(orgId: string): string {
           if (_identifiedEmail) return;
           var target = e.target;
           if (target && target.tagName === 'INPUT' &&
-              (target.type === 'email' || target.name === 'email' || target.id === 'client-email')) {
+              (target.type === 'email' || target.name === 'email' || target.id === 'client-email' ||
+               target.autocomplete === 'email' ||
+               (target.placeholder && target.placeholder.toLowerCase().indexOf('email') > -1) ||
+               (target.name && target.name.toLowerCase().indexOf('email') > -1))) {
             var val = target.value;
             if (val && val.indexOf('@') > -1 && val !== _identifiedEmail) {
+              // Client-side blacklist: skip disposable/test domains
+              var domain = val.split('@')[1];
+              if (domain) domain = domain.toLowerCase();
+              var blacklist = ['test.com','example.com','temp-mail.org','guerrillamail.com','mailinator.com','yopmail.com'];
+              if (blacklist.indexOf(domain) > -1) return;
               _identifiedEmail = val;
               identify({ email: val });
             }
@@ -1149,8 +1164,14 @@ function generatePixelScript(orgId: string): string {
     // ══════════════════════════════════════════════════════════════
 
     var _firedCheckoutSteps = {};
+    var _firedInitiateCheckout = false;
 
     function detectCheckoutStep(hash) {
+      // ─── INITIATE_CHECKOUT: fire once when user first enters any checkout step ───
+      if (!_firedInitiateCheckout) {
+        _firedInitiateCheckout = true;
+        trackEvent('INITIATE_CHECKOUT', { step: 'enter', detection: 'hash', url: window.location.href });
+      }
       try {
         if (!hash) hash = window.location.hash;
         // VTEX shipping step: user selects delivery method
