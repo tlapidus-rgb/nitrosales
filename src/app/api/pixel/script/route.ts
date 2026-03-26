@@ -1060,14 +1060,14 @@ function generatePixelScript(orgId: string): string {
         if (_identifiedEmail) return;
         var h = window.location.hash;
         // User passed email step or is on profile/shipping/payment
-        if (/\/(profile|shipping|payment)/i.test(h)) {
+        if (/\\/(profile|shipping|payment)/i.test(h)) {
           tryVtexIdentify();
           // Also try after a delay (orderForm might need time to update)
           setTimeout(tryVtexIdentify, 1000);
           setTimeout(tryVtexIdentify, 3000);
         }
         // User is ON the email step — start watching for email input
-        if (/\/email/i.test(h)) {
+        if (/\\/email/i.test(h)) {
           observeCheckoutEmail();
           setTimeout(observeCheckoutEmail, 2000);
           setTimeout(observeCheckoutEmail, 5000);
