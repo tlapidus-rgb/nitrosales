@@ -108,22 +108,12 @@ function generatePixelScript(orgId: string): string {
       setCookie('_np_vid', vid, COOKIE_DAYS_VID);
     }
 
-    // ─── Session ID (cookie de sesion, expira al cerrar browser) ───
-    var sid = getCookie('_np_sid');
-    var _isNewSession = !sid; // MUST be computed BEFORE creating the session cookie
-    if (!sid) {
-      sid = uuid();
-      setCookie('_np_sid', sid, 0);
-    }
-
-    // ─── Click IDs & UTMs — with fresh vs stale tracking ───
-    // CRITICAL: We must distinguish signals from the CURRENT URL (fresh = user just
-    // clicked an ad) vs signals recovered from cookies (stale = from a previous session).
-    // Without this, returning organic/direct visitors get falsely attributed to old ads.
+    // ─── Click IDs & UTMs — MUST be parsed BEFORE session logic ───
+    // We need to know if there are fresh click IDs in the URL to decide whether
+    // to force a new session (like Triple Whale does).
     var clickIds = {};
     var utmParams = {};
-    var _signalsFresh = false; // TRUE = click IDs or UTMs came from current URL
-    var _isLanding = _isNewSession; // TRUE = first page of a new session (computed before cookie creation)
+    var _signalsFresh = false;
     try {
       var params = new URLSearchParams(window.location.search);
       var clickKeys = ['fbclid', 'gclid', 'ttclid', 'li_fat_id', 'msclkid'];
@@ -138,13 +128,83 @@ function generatePixelScript(orgId: string): string {
         var v = params.get(k);
         if (v) utmParams[k.replace('utm_', '')] = v;
       });
+    } catch(e) {}
 
-      // Determine if signals are fresh (from URL) or stale (from cookie)
-      var hasUrlClickIds = Object.keys(clickIds).length > 0;
-      var hasUrlUtms = Object.keys(utmParams).length > 0;
-      _signalsFresh = hasUrlClickIds || hasUrlUtms;
+    var hasUrlClickIds = Object.keys(clickIds).length > 0;
+    var hasUrlUtms = Object.keys(utmParams).length > 0;
+    _signalsFresh = hasUrlClickIds || hasUrlUtms;
 
-      // Guardar FRESH click IDs en cookie + localStorage (cross-domain fallback)
+    // ─── Session ID — with forced reset on new ad clicks ───
+    // CRITICAL for cross-platform attribution: when a user clicks a NEW ad
+    // (different click ID than what's in the cookie), we MUST start a new session.
+    // Without this, a Google Ads click at 14:00 and a Meta Ads click at 16:00
+    // stay in the same session, and only Google gets credit.
+    // This mirrors Triple Whale's behavior.
+    var sid = getCookie('_np_sid');
+    var _forceNewSession = false;
+
+    if (sid && hasUrlClickIds) {
+      // Check if the new click IDs differ from what's stored
+      var savedClickRaw = getCookie('_np_click');
+      if (savedClickRaw) {
+        try {
+          var savedClicks = JSON.parse(savedClickRaw);
+          // Compare: if any click ID key changed value, or a new platform appeared
+          var isDifferentClick = false;
+          for (var ck in clickIds) {
+            if (!savedClicks[ck] || savedClicks[ck] !== clickIds[ck]) {
+              isDifferentClick = true;
+              break;
+            }
+          }
+          // Also check if platform changed entirely (e.g., had gclid, now has fbclid)
+          if (!isDifferentClick) {
+            for (var sk in savedClicks) {
+              if (savedClicks[sk] && !clickIds[sk]) {
+                isDifferentClick = true;
+                break;
+              }
+            }
+          }
+          if (isDifferentClick) {
+            _forceNewSession = true;
+          }
+        } catch(e) {
+          _forceNewSession = true; // Can't parse old cookie → treat as new
+        }
+      }
+      // No saved clicks but URL has clicks → also force new session
+      // (could be first paid click after organic sessions)
+      if (!savedClickRaw && hasUrlClickIds) {
+        _forceNewSession = true;
+      }
+    }
+
+    // Also force new session if URL has fresh UTMs and they differ from saved
+    if (sid && hasUrlUtms && !_forceNewSession) {
+      var savedUtmRaw = getCookie('_np_utm');
+      if (savedUtmRaw) {
+        try {
+          var savedUtms = JSON.parse(savedUtmRaw);
+          if (utmParams.source !== savedUtms.source || utmParams.medium !== savedUtms.medium || utmParams.campaign !== savedUtms.campaign) {
+            _forceNewSession = true;
+          }
+        } catch(e) { _forceNewSession = true; }
+      } else {
+        _forceNewSession = true; // Had no UTMs, now has → new campaign click
+      }
+    }
+
+    var _isNewSession = !sid || _forceNewSession;
+    if (_isNewSession) {
+      sid = uuid();
+      setCookie('_np_sid', sid, 0);
+    }
+
+    var _isLanding = _isNewSession;
+
+    // ─── Persist click IDs & UTMs ───
+    try {
       if (hasUrlClickIds) {
         setCookie('_np_click', JSON.stringify(clickIds), COOKIE_DAYS_CLICK);
         try { localStorage.setItem('_np_click', JSON.stringify(clickIds)); } catch(e) {}
@@ -157,7 +217,6 @@ function generatePixelScript(orgId: string): string {
         }
       }
 
-      // Guardar FRESH UTMs en cookie + localStorage
       if (hasUrlUtms) {
         setCookie('_np_utm', JSON.stringify(utmParams), COOKIE_DAYS_CLICK);
         try { localStorage.setItem('_np_utm', JSON.stringify(utmParams)); } catch(e) {}

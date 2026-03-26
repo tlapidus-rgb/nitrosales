@@ -182,19 +182,58 @@ export async function calculateAttribution(
       'PURCHASE', 'IDENTIFY', 'DEBUG_NO_PURCHASE', 'CUSTOM'
     ]);
 
-    // Step 1: Group events by session
-    // Events without sessionId are grouped by day to prevent unrelated events
-    // from merging into a single artificial session (CRITICAL: avoids misattribution)
+    // Step 1: Group events by session, with sub-session splitting
+    // When a user clicks a new ad within the same browser session (session cookie
+    // didn't reset), the click IDs change mid-session. We detect this and split
+    // into sub-sessions so each ad click becomes its own touchpoint.
+    // This handles historical data where the pixel didn't force session resets.
     const sessionMap = new Map<string, typeof events>();
+
+    // Helper: extract the "click signature" from an event
+    const clickSig = (ev: typeof events[0]): string => {
+      const c = (ev.clickIds as Record<string, string>) || {};
+      const u = (ev.utmParams as Record<string, string>) || {};
+      // Key: which platform click + which source/campaign
+      const cid = c.fbclid || c.gclid || c.ttclid || c.li_fat_id || c.msclkid || '';
+      return `${cid}|${u.source || ''}|${u.campaign || ''}`;
+    };
+
     for (const event of events) {
       if (NON_TOUCHPOINT_TYPES.has(event.type)) continue;
-      // Skip webhook-created events — they have no real browsing signals
-      // and their /checkout/orderPlaced pageUrl would create false "direct" touchpoints.
       if (event.sessionId?.startsWith('webhook-')) continue;
-      const sid = event.sessionId
+      const baseSid = event.sessionId
         || `_unknown_${Math.floor(event.timestamp.getTime() / (24 * 60 * 60 * 1000))}`;
-      if (!sessionMap.has(sid)) sessionMap.set(sid, []);
-      sessionMap.get(sid)!.push(event);
+
+      // For the first event in a session, just add it normally
+      if (!sessionMap.has(baseSid)) {
+        sessionMap.set(baseSid, [event]);
+        continue;
+      }
+
+      const currentEvents = sessionMap.get(baseSid)!;
+      const lastEvent = currentEvents[currentEvents.length - 1];
+      const lastSig = clickSig(lastEvent);
+      const thisSig = clickSig(event);
+
+      // If click signature changed AND the new event has fresh signals,
+      // split into a new sub-session
+      const evProps = (event.props as Record<string, any>) || {};
+      const evClicks = (event.clickIds as Record<string, string>) || {};
+      const hasNewClicks = Object.keys(evClicks).some(k => evClicks[k]);
+      const isFresh = evProps._signals_fresh === true
+        || (evProps._signals_fresh === undefined && hasNewClicks);
+
+      if (thisSig !== lastSig && isFresh && hasNewClicks) {
+        // New ad click within same session → create sub-session
+        const subSid = `${baseSid}_sub_${sessionMap.size}`;
+        sessionMap.set(subSid, [event]);
+        // Mark this event as a landing for the new sub-session
+        if (!evProps._is_landing) {
+          (event as any).props = { ...evProps, _is_landing: true };
+        }
+      } else {
+        currentEvents.push(event);
+      }
     }
 
     // Step 2: Determine the source for each session
