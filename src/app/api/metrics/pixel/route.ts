@@ -670,7 +670,7 @@ export async function GET(request: NextRequest) {
     });
 
     // ── NEW: Funnel from event types ──
-    const evtMap = new Map(eventTypesResult.map((e) => [e.type, e.count]));
+    const evtMap = new Map(eventTypesResult.map((e) => [e.type, e.uniqueVisitors]));
     const funnel = {
       pageView: evtMap.get("PAGE_VIEW") || 0,
       viewProduct: evtMap.get("VIEW_PRODUCT") || 0,
