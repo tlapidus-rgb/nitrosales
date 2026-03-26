@@ -79,6 +79,33 @@ function detectSourceFromReferrer(
       return null;
     }
 
+    // Payment gateway exclusion: redirects from payment processors should NOT
+    // count as traffic sources. When a user pays via MercadoPago/Payway/etc.,
+    // they get redirected back to the store with the gateway as referrer.
+    // We treat these like self-referrals (return null → preserves previous touchpoint).
+    const PAYMENT_GATEWAY_PATTERNS = [
+      /mercadopago\.com/,           // MercadoPago (AR, BR, MX, etc.)
+      /mercadolivre\.com/,          // MercadoLivre (BR)
+      /payway\.com/,                // Payway (AR)
+      /todopago\.com/,              // TodoPago (AR)
+      /decidir\.com/,               // Decidir/Prisma (AR)
+      /sps-decidir\.com/,           // SPS Decidir (AR)
+      /prismamediosdepago\.com/,    // Prisma Medios de Pago (AR)
+      /naranjax\.com/,              // Naranja X (AR)
+      /rapipago\.com/,              // Rapipago (AR)
+      /pagofacil\.com/,             // PagoFácil (AR)
+      /paypal\.com/,                // PayPal
+      /stripe\.com/,                // Stripe
+      /checkout\.vtex\.com/,        // VTEX Checkout (internal)
+      /vtexpayments\.com/,          // VTEX Payments
+      /mobbex\.com/,                // Mobbex (AR)
+      /getnet\.com/,                // Getnet (BR/AR)
+      /payu\.com/,                  // PayU (LATAM)
+    ];
+    if (PAYMENT_GATEWAY_PATTERNS.some(p => p.test(hostname))) {
+      return null;
+    }
+
     for (const rule of REFERRER_RULES) {
       if (rule.pattern.test(hostname)) {
         return { source: rule.source, medium: rule.medium };
