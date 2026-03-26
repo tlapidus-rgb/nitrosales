@@ -198,9 +198,12 @@ export async function GET(request: NextRequest) {
           AVG(pa."attributedValue")::float as "avgValue",
           AVG(pa."touchpointCount")::float as "avgTouchpoints"
         FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
-          AND pa."createdAt" >= ${dateFrom}
-          AND pa."createdAt" <= ${dateTo}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."totalValue" > 0
         GROUP BY 1
         ORDER BY revenue DESC
       ` as Promise<Array<{
@@ -209,6 +212,7 @@ export async function GET(request: NextRequest) {
       }>>,
 
       // 9. Attribution by source (weighted for NITRO, simple for others)
+      // NOTE: Filter by o."orderDate" (not pa."createdAt") so date filters work correctly
       (selectedModel === "NITRO"
         ? prisma.$queryRaw`
             SELECT
@@ -224,12 +228,14 @@ export async function GET(request: NextRequest) {
                   ELSE pa."attributedValue" * ${wMiddle} / 100.0 / GREATEST(pa."touchpointCount" - 2, 1)
                 END
               )::float as revenue
-            FROM pixel_attributions pa,
-            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            FROM pixel_attributions pa
+            JOIN orders o ON o.id = pa."orderId"
+            , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
-              AND pa."createdAt" >= ${dateFrom}
-              AND pa."createdAt" <= ${dateTo}
+              AND o."orderDate" >= ${dateFrom}
+              AND o."orderDate" <= ${dateTo}
               AND pa.model::text = 'NITRO'
+              AND o.status NOT IN ('CANCELLED', 'PENDING')
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -240,12 +246,14 @@ export async function GET(request: NextRequest) {
               COALESCE(tp->>'source', 'direct') as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
-            FROM pixel_attributions pa,
-            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            FROM pixel_attributions pa
+            JOIN orders o ON o.id = pa."orderId"
+            , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
-              AND pa."createdAt" >= ${dateFrom}
-              AND pa."createdAt" <= ${dateTo}
+              AND o."orderDate" >= ${dateFrom}
+              AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
+              AND o.status NOT IN ('CANCELLED', 'PENDING')
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -256,12 +264,14 @@ export async function GET(request: NextRequest) {
               COALESCE(tp->>'source', 'direct') as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = 1 THEN pa."attributedValue" ELSE 0 END)::float as revenue
-            FROM pixel_attributions pa,
-            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            FROM pixel_attributions pa
+            JOIN orders o ON o.id = pa."orderId"
+            , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
-              AND pa."createdAt" >= ${dateFrom}
-              AND pa."createdAt" <= ${dateTo}
+              AND o."orderDate" >= ${dateFrom}
+              AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
+              AND o.status NOT IN ('CANCELLED', 'PENDING')
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -271,12 +281,14 @@ export async function GET(request: NextRequest) {
               COALESCE(tp->>'source', 'direct') as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(pa."attributedValue" / GREATEST(pa."touchpointCount", 1))::float as revenue
-            FROM pixel_attributions pa,
-            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            FROM pixel_attributions pa
+            JOIN orders o ON o.id = pa."orderId"
+            , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
-              AND pa."createdAt" >= ${dateFrom}
-              AND pa."createdAt" <= ${dateTo}
+              AND o."orderDate" >= ${dateFrom}
+              AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
+              AND o.status NOT IN ('CANCELLED', 'PENDING')
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -299,10 +311,12 @@ export async function GET(request: NextRequest) {
           COUNT(*)::int as orders,
           SUM(pa."attributedValue")::float as revenue
         FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
-          AND pa."createdAt" >= ${dateFrom}
-          AND pa."createdAt" <= ${dateTo}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
         GROUP BY 1
         ORDER BY MIN(COALESCE(GREATEST(pa."conversionLag", 0), 999))
       ` as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
@@ -387,8 +401,8 @@ export async function GET(request: NextRequest) {
         FROM pixel_attributions pa
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
-          AND pa."createdAt" >= ${dateFrom}
-          AND pa."createdAt" <= ${dateTo}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
@@ -420,8 +434,8 @@ export async function GET(request: NextRequest) {
         FROM pixel_attributions pa
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
-          AND pa."createdAt" >= ${dateFrom}
-          AND pa."createdAt" <= ${dateTo}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
@@ -435,10 +449,12 @@ export async function GET(request: NextRequest) {
           COUNT(*)::int as "ordersAttributed",
           SUM(pa."attributedValue")::float as revenue
         FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
-          AND pa."createdAt" >= ${prevFrom}
-          AND pa."createdAt" <= ${prevTo}
+          AND o."orderDate" >= ${prevFrom}
+          AND o."orderDate" <= ${prevTo}
           AND pa.model::text = ${selectedModel}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
       ` as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
 
       // 19. Per-day coverage: total orders vs attributed orders per day
@@ -485,8 +501,8 @@ export async function GET(request: NextRequest) {
         JOIN orders o ON o.id = pa."orderId"
         , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
         WHERE pa."organizationId" = ${ORG_ID}
-          AND pa."createdAt" >= ${dateFrom}
-          AND pa."createdAt" <= ${dateTo}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
