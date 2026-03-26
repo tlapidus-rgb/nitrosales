@@ -1,6 +1,12 @@
 // ══════════════════════════════════════════════════════════════
 // NitroPixel — Script Server
 // ══════════════════════════════════════════════════════════════
+// ⛔ CORE PROTEGIDO — NO MODIFICAR SIN AUTORIZACION DEL FUNDADOR
+// Ver CORE-ATTRIBUTION.md para documentacion completa.
+// Estabilizado: 26 de Marzo de 2026
+// ATENCION: Los regex dentro del template literal usan \\/ (doble escape).
+// NO cambiar a \/ — eso rompe el script entero (se interpreta como comentario).
+// ══════════════════════════════════════════════════════════════
 // GET /api/pixel/script?org={orgId}
 // Sirve el snippet JS del pixel, configurado con el orgId.
 // Se instala via GTM como <script src="..."></script>

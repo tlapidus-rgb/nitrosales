@@ -1,6 +1,13 @@
 // ══════════════════════════════════════════════════════════════
 // Pixel Metrics API — NitroPixel Dashboard
 // ══════════════════════════════════════════════════════════════
+// ⛔ CORE PROTEGIDO — NO MODIFICAR SIN AUTORIZACION DEL FUNDADOR
+// Ver CORE-ATTRIBUTION.md para documentacion completa.
+// Estabilizado: 26 de Marzo de 2026
+// CRITICO: La query de "Ordenes en Vivo" (#15) usa LEFT JOIN para
+// mostrar todas las ordenes, incluyendo las no atribuidas. NO cambiar
+// a INNER JOIN — eso oculta ventas que el pixel no pudo vincular.
+// ══════════════════════════════════════════════════════════════
 // GET /api/metrics/pixel?from=2026-03-23&to=2026-03-30
 // Timezone: Argentina (UTC-3)
 // ══════════════════════════════════════════════════════════════

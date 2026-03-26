@@ -1,6 +1,13 @@
 // ══════════════════════════════════════════════════════════════
 // Webhook: VTEX Order Notifications (Real-time)
 // ══════════════════════════════════════════════════════════════
+// ⛔ CORE PROTEGIDO — NO MODIFICAR SIN AUTORIZACION DEL FUNDADOR
+// Ver CORE-ATTRIBUTION.md para documentacion completa.
+// Estabilizado: 26 de Marzo de 2026
+// CRITICO: La logica de isNewOrder (deduplicacion) y el bloque de
+// atribucion NO se deben modificar. VTEX envia multiples webhooks
+// por orden (cada cambio de estado) y el sistema solo procesa la primera.
+// ══════════════════════════════════════════════════════════════
 // Endpoint: POST /api/webhooks/vtex/orders
 // VTEX Order Hook envía una notificación cada vez que una orden
 // cambia de estado. Este endpoint recibe la notificación y

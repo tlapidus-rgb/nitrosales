@@ -1,6 +1,10 @@
 // ══════════════════════════════════════════════════════════════
 // NitroPixel — Attribution Engine
 // ══════════════════════════════════════════════════════════════
+// ⛔ CORE PROTEGIDO — NO MODIFICAR SIN AUTORIZACION DEL FUNDADOR
+// Ver CORE-ATTRIBUTION.md para documentacion completa.
+// Estabilizado: 26 de Marzo de 2026
+// ══════════════════════════════════════════════════════════════
 // Calcula atribucion de orders a campanas de ads.
 // Cruza click IDs del pixel (fbclid, gclid) con campanas existentes.
 // Soporta 5 modelos: LAST_CLICK, FIRST_CLICK, LINEAR, TIME_DECAY, NITRO.
