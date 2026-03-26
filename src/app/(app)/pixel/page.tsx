@@ -251,6 +251,15 @@ export default function PixelPage() {
   const [savingWeights, setSavingWeights] = useState(false);
   const [weightsError, setWeightsError] = useState<string | null>(null);
 
+  // Attribution window settings
+  const [windowOpen, setWindowOpen] = useState(false);
+  const [globalWindow, setGlobalWindow] = useState(30);
+  const [editingGlobalWindow, setEditingGlobalWindow] = useState(30);
+  const [channelWindows, setChannelWindows] = useState<Record<string, number | null>>({});
+  const [editingChannelWindows, setEditingChannelWindows] = useState<Record<string, number | null>>({});
+  const [savingWindow, setSavingWindow] = useState(false);
+  const [windowError, setWindowError] = useState<string | null>(null);
+
   // Tabs + sections
   const [activeTab, setActiveTab] = useState<"resumen" | "ordenes" | "canales">("resumen");
   const [showTrackingDetails, setShowTrackingDetails] = useState(false);
@@ -300,7 +309,7 @@ export default function PixelPage() {
       .finally(() => setSalesLoading(false));
   }, [dateFrom, dateTo, selectedModel]);
 
-  // Fetch Nitro weights on mount
+  // Fetch attribution settings on mount (weights + windows)
   useEffect(() => {
     fetch("/api/settings/attribution")
       .then((r) => r.json())
@@ -308,6 +317,14 @@ export default function PixelPage() {
         if (d.weights) {
           setNitroWeights(d.weights);
           setEditingWeights(d.weights);
+        }
+        if (d.attributionWindowDays) {
+          setGlobalWindow(d.attributionWindowDays);
+          setEditingGlobalWindow(d.attributionWindowDays);
+        }
+        if (d.channelWindows) {
+          setChannelWindows(d.channelWindows);
+          setEditingChannelWindows(d.channelWindows);
         }
       })
       .catch(() => {});
@@ -344,6 +361,41 @@ export default function PixelPage() {
       setWeightsError("Error al guardar la configuracion");
     } finally {
       setSavingWeights(false);
+    }
+  };
+
+  const saveWindowSettings = async () => {
+    setSavingWindow(true);
+    setWindowError(null);
+    try {
+      // Clean channel windows: remove null entries (means "use global")
+      const cleanCW: Record<string, number | null> = {};
+      for (const [ch, val] of Object.entries(editingChannelWindows)) {
+        if (val !== null && val !== editingGlobalWindow) {
+          cleanCW[ch] = val;
+        } else {
+          cleanCW[ch] = null; // will be removed by API
+        }
+      }
+      const res = await fetch("/api/settings/attribution", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          attributionWindowDays: editingGlobalWindow,
+          channelWindows: cleanCW,
+        }),
+      });
+      if (!res.ok) throw new Error("Error al guardar");
+      const data = await res.json();
+      setGlobalWindow(data.attributionWindowDays);
+      setChannelWindows(data.channelWindows);
+      setEditingChannelWindows(data.channelWindows);
+      setWindowOpen(false);
+      fetchData(); // Refresh data with new windows
+    } catch {
+      setWindowError("Error al guardar la configuracion");
+    } finally {
+      setSavingWindow(false);
     }
   };
 
@@ -591,6 +643,105 @@ export default function PixelPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* ═══ ATTRIBUTION WINDOW CONFIG ═══ */}
+          <div className="mt-3">
+            <button
+              onClick={() => { setWindowOpen(!windowOpen); setEditingGlobalWindow(globalWindow); setEditingChannelWindows({...channelWindows}); setWindowError(null); }}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-400 transition-colors"
+            >
+              <svg className={`w-3 h-3 transition-transform ${windowOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7"/></svg>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              Configurar ventana de atribucion
+              <span className="text-gray-400 font-normal ml-1">({globalWindow}d global{Object.keys(channelWindows).length > 0 ? ` + ${Object.keys(channelWindows).length} override${Object.keys(channelWindows).length > 1 ? 's' : ''}` : ''})</span>
+            </button>
+
+            {windowOpen && (
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-xs text-gray-500 mb-4">Define cuantos dias hacia atras se consideran los touchpoints para la atribucion. Podes usar una ventana global o personalizarla por canal.</p>
+
+                {/* Global window selector */}
+                <div className="mb-4">
+                  <label className="text-xs font-medium text-gray-600 mb-2 block">Ventana global</label>
+                  <div className="flex gap-2">
+                    {[7, 14, 30, 60].map(d => (
+                      <button
+                        key={d}
+                        onClick={() => setEditingGlobalWindow(d)}
+                        className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                          editingGlobalWindow === d
+                            ? "bg-blue-500 text-white shadow-sm"
+                            : "bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-500"
+                        }`}
+                      >
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Per-channel overrides */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-2 block">Overrides por canal <span className="text-gray-400 font-normal">(opcional)</span></label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {["meta", "google", "instagram", "tiktok", "direct", "email", "whatsapp", "referral"].map(ch => {
+                      const info = getSourceInfo(ch);
+                      const val = editingChannelWindows[ch];
+                      const isOverridden = val !== null && val !== undefined;
+                      return (
+                        <div key={ch} className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${isOverridden ? "border-blue-300 bg-white" : "border-gray-200 bg-gray-50"}`}>
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0" style={{ background: info.color }}>
+                            {info.icon}
+                          </span>
+                          <span className="text-xs text-gray-700 flex-1 truncate">{info.label}</span>
+                          <select
+                            value={isOverridden ? String(val) : "global"}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setEditingChannelWindows(prev => ({
+                                ...prev,
+                                [ch]: v === "global" ? null : Number(v),
+                              }));
+                            }}
+                            className="text-xs bg-transparent border-none text-right font-semibold text-blue-600 cursor-pointer focus:outline-none w-16"
+                          >
+                            <option value="global">Global</option>
+                            <option value="1">1d</option>
+                            <option value="7">7d</option>
+                            <option value="14">14d</option>
+                            <option value="30">30d</option>
+                            <option value="60">60d</option>
+                            <option value="90">90d</option>
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {windowError && <p className="text-xs text-red-500 mt-3">{windowError}</p>}
+
+                <div className="flex items-center justify-between mt-4">
+                  <button
+                    onClick={() => { setEditingGlobalWindow(30); setEditingChannelWindows({}); }}
+                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Restaurar default (30d, sin overrides)
+                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setWindowOpen(false); setWindowError(null); }} className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100">Cancelar</button>
+                    <button
+                      onClick={saveWindowSettings}
+                      disabled={savingWindow}
+                      className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    >
+                      {savingWindow ? "Guardando..." : "Guardar ventana"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ═══ NAV TABS ═══ */}

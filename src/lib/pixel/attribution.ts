@@ -118,10 +118,16 @@ export async function calculateAttribution(
     const windowDays = VALID_WINDOWS.includes(orgSettings.attributionWindowDays)
       ? orgSettings.attributionWindowDays
       : 30;
+    const channelWindows: Record<string, number> = orgSettings.channelWindows || {};
 
-    // 3. Get all events from this visitor within the attribution window
+    // Use the widest window (global or any channel override) for the initial query
+    // so we don't lose data from channels with longer windows.
+    const allWindowValues = [windowDays, ...Object.values(channelWindows)];
+    const maxWindowDays = Math.max(...allWindowValues);
+
+    // 3. Get all events from this visitor within the WIDEST attribution window
     const windowStart = new Date();
-    windowStart.setDate(windowStart.getDate() - windowDays);
+    windowStart.setDate(windowStart.getDate() - maxWindowDays);
 
     const primaryEvents = await prisma.pixelEvent.findMany({
       where: {
@@ -542,6 +548,24 @@ export async function calculateAttribution(
       }
     }
 
+    // Step 5b: Per-channel window filtering
+    // If channelWindows overrides exist, each touchpoint is checked against its
+    // channel's specific window. E.g., if global=30d but meta=7d, a Meta touchpoint
+    // older than 7 days before the order is discarded.
+    // If ALL touchpoints are filtered out, keep the last one as fallback.
+    if (Object.keys(channelWindows).length > 0 && touchpoints.length > 0) {
+      const filtered = touchpoints.filter(tp => {
+        const chWindow = channelWindows[tp.source || 'direct'] ?? windowDays;
+        const cutoff = new Date(order.orderDate.getTime() - chWindow * 86400000);
+        return new Date(tp.timestamp) >= cutoff;
+      });
+      if (filtered.length > 0) {
+        touchpoints.length = 0;
+        touchpoints.push(...filtered);
+      }
+      // If filtered is empty, keep original touchpoints (at least the last one)
+    }
+
     // Step 6: Fallback — if still no touchpoints (all events were non-touchpoint types)
     if (touchpoints.length === 0) {
       const firstEvent = events[0];
@@ -658,7 +682,8 @@ export async function calculateAttribution(
       }
     }
 
-    console.log(`[NitroPixel] Attribution calculated for order ${orderId}: ${touchpoints.length} touchpoints, lag ${conversionLag}d, window ${windowDays}d, campaign ${matchedCampaignId || 'none'}`);
+    const chOverrides = Object.keys(channelWindows).length > 0 ? `, channelOverrides: ${JSON.stringify(channelWindows)}` : '';
+    console.log(`[NitroPixel] Attribution calculated for order ${orderId}: ${touchpoints.length} touchpoints, lag ${conversionLag}d, window ${windowDays}d${chOverrides}, campaign ${matchedCampaignId || 'none'}`);
   } catch (error) {
     console.error('[NitroPixel] Error calculating attribution:', error);
     // NO re-throw — atribucion fallida no debe romper nada
