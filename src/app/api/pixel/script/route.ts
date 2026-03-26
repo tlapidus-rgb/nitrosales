@@ -1156,12 +1156,12 @@ function generatePixelScript(orgId: string): string {
         // VTEX shipping step: user selects delivery method
         if (/\\/shipping/i.test(hash) && !_firedCheckoutSteps['shipping']) {
           _firedCheckoutSteps['shipping'] = true;
-          enqueue({ type: 'CHECKOUT_SHIPPING', props: { step: 'shipping' } });
+          trackEvent('CHECKOUT_SHIPPING', { step: 'shipping', detection: 'hash' });
         }
         // VTEX payment step: user selects payment method
         if (/\\/payment/i.test(hash) && !_firedCheckoutSteps['payment']) {
           _firedCheckoutSteps['payment'] = true;
-          enqueue({ type: 'CHECKOUT_PAYMENT', props: { step: 'payment' } });
+          trackEvent('CHECKOUT_PAYMENT', { step: 'payment', detection: 'hash' });
         }
       } catch(e) {}
     }
@@ -1194,7 +1194,7 @@ function generatePixelScript(orgId: string): string {
           );
           if (shippingEl) {
             _firedCheckoutSteps['shipping'] = true;
-            enqueue({ type: 'CHECKOUT_SHIPPING', props: { step: 'shipping', detection: 'dom' } });
+            trackEvent('CHECKOUT_SHIPPING', { step: 'shipping', detection: 'dom' });
           }
         }
         // Check for payment step via DOM — extended selectors
@@ -1210,7 +1210,7 @@ function generatePixelScript(orgId: string): string {
           );
           if (paymentEl) {
             _firedCheckoutSteps['payment'] = true;
-            enqueue({ type: 'CHECKOUT_PAYMENT', props: { step: 'payment', detection: 'dom' } });
+            trackEvent('CHECKOUT_PAYMENT', { step: 'payment', detection: 'dom' });
           }
         }
         // All steps detected, stop polling
