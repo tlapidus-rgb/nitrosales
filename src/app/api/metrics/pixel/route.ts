@@ -413,24 +413,23 @@ export async function GET(request: NextRequest) {
         GROUP BY 1
       ` as Promise<Array<{ source: string; spend: number; platformConversions: number; platformRevenue: number }>>,
 
-      // 15. Recent journeys (last 15 attributed orders with touchpoints)
-      // Filter out cancelled/pending orders — only show real completed orders
+      // 15. Recent journeys (all orders — LEFT JOIN attribution so unmatched orders also appear)
       prisma.$queryRaw`
         SELECT
-          pa."orderId",
+          o.id as "orderId",
           o."externalId" as "orderExternalId",
-          pa."attributedValue"::float as revenue,
-          pa."touchpointCount",
+          COALESCE(pa."attributedValue", o."totalValue")::float as revenue,
+          COALESCE(pa."touchpointCount", 0) as "touchpointCount",
           pa."conversionLag",
           pa.touchpoints,
           o."orderDate",
-          o.status::text as "orderStatus"
-        FROM pixel_attributions pa
-        JOIN orders o ON o.id = pa."orderId"
-        WHERE pa."organizationId" = ${ORG_ID}
+          o.status::text as "orderStatus",
+          CASE WHEN pa.id IS NOT NULL THEN true ELSE false END as "isAttributed"
+        FROM orders o
+        LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa.model::text = ${selectedModel}
+        WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
-          AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
@@ -440,6 +439,7 @@ export async function GET(request: NextRequest) {
         orderId: string; orderExternalId: string; revenue: number;
         touchpointCount: number; conversionLag: number | null;
         touchpoints: any; orderDate: Date; orderStatus: string;
+        isAttributed: boolean;
       }>>,
 
       // 16. Click ID coverage (pixel health)

@@ -196,6 +196,7 @@ interface PixelData {
     touchpointCount: number; conversionLag: number;
     touchpoints: Array<{ timestamp: string; source?: string; medium?: string; campaign?: string; clickType?: string; page?: string }>;
     orderDate: string; orderStatus: string;
+    isAttributed?: boolean;
   }>;
   pixelHealth: {
     attributionRate: number;
@@ -918,15 +919,21 @@ export default function PixelPage() {
                           </span>
                           <span className="text-sm font-bold text-gray-800 w-24">{fmtARS(journey.revenue)}</span>
                           <span className="text-xs text-gray-500 w-20">{journey.touchpointCount} touchpoints</span>
-                          {/* Credit mini-bar */}
-                          <div className="flex-1 flex items-center gap-2">
-                            <div className="flex-1 h-3 rounded-full overflow-hidden flex bg-gray-200">
-                              {creditSummary.map((c, ci) => (
-                                <div key={ci} className="h-full transition-all" style={{ width: `${c.pct}%`, backgroundColor: c.color }} title={`${c.label}: ${c.pct}%`} />
-                              ))}
+                          {/* Credit mini-bar or unattributed badge */}
+                          {journey.isAttributed === false ? (
+                            <div className="flex-1 flex items-center gap-2">
+                              <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Sin atribuir</span>
                             </div>
-                            <span className="text-xs text-gray-500 w-16 text-right">{creditSummary[0]?.label}</span>
-                          </div>
+                          ) : (
+                            <div className="flex-1 flex items-center gap-2">
+                              <div className="flex-1 h-3 rounded-full overflow-hidden flex bg-gray-200">
+                                {creditSummary.map((c, ci) => (
+                                  <div key={ci} className="h-full transition-all" style={{ width: `${c.pct}%`, backgroundColor: c.color }} title={`${c.label}: ${c.pct}%`} />
+                                ))}
+                              </div>
+                              <span className="text-xs text-gray-500 w-16 text-right">{creditSummary[0]?.label}</span>
+                            </div>
+                          )}
                           {journey.conversionLag !== null && (
                             <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{journey.conversionLag}d</span>
                           )}
@@ -936,6 +943,12 @@ export default function PixelPage() {
                         {isExpanded && (
                           <div className="px-5 pb-5 ml-10">
                             <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                              {/* Unattributed order message */}
+                              {journey.isAttributed === false && (
+                                <div className="mb-4 bg-amber-50 rounded-lg p-3 border border-amber-200">
+                                  <span className="text-xs text-amber-800">El pixel no pudo vincular esta orden con una sesion de navegacion. La venta fue registrada por el webhook de VTEX pero no se encontro el recorrido del comprador en el browser.</span>
+                                </div>
+                              )}
                               {/* Credit Distribution */}
                               {creditSummary.length > 0 && (
                                 <div className="mb-4 bg-white rounded-lg p-3 border border-gray-200">
