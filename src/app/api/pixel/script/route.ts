@@ -1211,8 +1211,10 @@ function generatePixelScript(orgId: string): string {
       var _checkoutPollInterval = setInterval(function() {
         _checkoutPollCount++;
         if (_checkoutPollCount > 90) { clearInterval(_checkoutPollInterval); return; }
-        // Check for shipping step via DOM — extended selectors for different VTEX themes
-        if (!_firedCheckoutSteps['shipping']) {
+        // Check for shipping step via DOM — only if hash confirms user is on shipping step
+        // VTEX pre-loads DOM elements for later steps, so DOM-only detection fires too early
+        var _currentHash = (window.location.hash || '').toLowerCase();
+        if (!_firedCheckoutSteps['shipping'] && _currentHash.indexOf('shipping') !== -1) {
           var shippingEl = document.querySelector(
             '.shipping-data .vtex-omnishipping-1-x-deliveryGroup, ' +
             '.shipping-data .shp-option-text, ' +
@@ -1227,8 +1229,8 @@ function generatePixelScript(orgId: string): string {
             trackEvent('CHECKOUT_SHIPPING', { step: 'shipping', detection: 'dom' });
           }
         }
-        // Check for payment step via DOM — extended selectors
-        if (!_firedCheckoutSteps['payment']) {
+        // Check for payment step via DOM — only if hash confirms user is on payment step
+        if (!_firedCheckoutSteps['payment'] && _currentHash.indexOf('payment') !== -1) {
           var paymentEl = document.querySelector(
             '.payment-group .payment-group-item, ' +
             '#payment-group-creditCardPaymentGroup, ' +
