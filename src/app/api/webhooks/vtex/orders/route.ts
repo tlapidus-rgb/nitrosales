@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db/client";
 import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 import { calculateAttribution } from "@/lib/pixel/attribution";
+import { sendCapiPurchase } from "@/lib/pixel/capi";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -532,8 +533,42 @@ export async function POST(req: NextRequest) {
 
         pixelAttribution = true;
         console.log(`[NitroPixel] Attribution SUCCESS for order ${orderId} via ${matchStrategy}, visitor=${matchedVisitorId}`);
+
+        // ── Send to Meta CAPI (server-side conversion) ──
+        // Fire-and-forget: never blocks webhook, never fails the response.
+        // Uses the matched visitor's fbclid for better Event Match Quality.
+        const matchedVisitorData = await prisma.pixelVisitor.findUnique({
+          where: { id: matchedVisitorId! },
+          select: { clickIds: true, email: true }
+        }).catch(() => null);
+        const visitorClickIds = (matchedVisitorData?.clickIds as Record<string, string>) || {};
+
+        sendCapiPurchase(org.id, {
+          orderId,
+          total: totalValue,
+          currency: 'ARS',
+          email: realEmail || matchedVisitorData?.email || undefined,
+          phone: profile?.phone ? profile.phone.replace(/[^0-9+]/g, '') : undefined,
+          eventId: `np_wh_${orderId}_${Date.now()}`,
+          fbclid: visitorClickIds.fbclid || undefined,
+          ipAddress: undefined, // Not available from webhook
+          userAgent: undefined,
+        }).catch(err => console.error('[NitroPixel CAPI webhook] Non-fatal:', err));
       } else {
         console.log(`[NitroPixel] Attribution FAILED for order ${orderId}: no visitor match. realEmail=${realEmail}. All 4 strategies exhausted.`);
+
+        // Even without visitor match, send to Meta CAPI with email-only data
+        // Meta can still match ~30% of conversions with hashed email alone
+        if (realEmail) {
+          sendCapiPurchase(org.id, {
+            orderId,
+            total: totalValue,
+            currency: 'ARS',
+            email: realEmail,
+            phone: profile?.phone ? profile.phone.replace(/[^0-9+]/g, '') : undefined,
+            eventId: `np_wh_${orderId}_${Date.now()}`,
+          }).catch(err => console.error('[NitroPixel CAPI webhook unmatched] Non-fatal:', err));
+        }
       }
     } catch (pixelError) {
       // NitroPixel error NUNCA rompe el webhook

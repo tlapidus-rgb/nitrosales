@@ -54,17 +54,24 @@ export async function sendCapiPurchase(
       select: { credentials: true }
     });
 
-    if (!connection?.credentials) {
-      // No Meta connection — skip silently (not all orgs have Meta connected)
-      return false;
+    // Resolve credentials: Connection table (multi-tenant) → env vars (single-tenant fallback)
+    let pixelId: string | undefined;
+    let accessToken: string | undefined;
+
+    if (connection?.credentials) {
+      const creds = connection.credentials as Record<string, string>;
+      pixelId = creds.pixelId || creds.pixel_id;
+      accessToken = creds.accessToken || creds.access_token;
     }
 
-    const creds = connection.credentials as Record<string, string>;
-    const pixelId = creds.pixelId || creds.pixel_id;
-    const accessToken = creds.accessToken || creds.access_token;
+    // Fallback to env vars (for single-tenant deployments like NitroSales)
+    if (!pixelId || !accessToken) {
+      pixelId = pixelId || process.env.META_PIXEL_ID;
+      accessToken = accessToken || process.env.META_ADS_ACCESS_TOKEN;
+    }
 
     if (!pixelId || !accessToken) {
-      console.warn('[NitroPixel CAPI] Meta connection missing pixelId or accessToken');
+      // Neither Connection nor env vars have credentials — skip silently
       return false;
     }
 
