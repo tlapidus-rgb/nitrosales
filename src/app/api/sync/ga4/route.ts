@@ -129,11 +129,83 @@ export async function POST(req: Request) {
       });
     }
 
+    // === FUNNEL DATA (GA4 ecommerce events) ===
+    let funnelNew = 0;
+    let funnelSkipped = 0;
+    try {
+      const funnelRes = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer " + accessToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            dateRanges: [{ startDate, endDate }],
+            dimensions: [{ name: "date" }],
+            metrics: [
+              { name: "totalUsers" },
+              { name: "itemsViewed" },
+              { name: "addToCarts" },
+              { name: "checkouts" },
+              { name: "ecommercePurchases" },
+            ],
+          }),
+        }
+      );
+
+      if (funnelRes.ok) {
+        const funnelData = await funnelRes.json();
+        const funnelRows = funnelData.rows || [];
+
+        // Get existing funnel dates to skip
+        const existingFunnel = await prisma.funnelDaily.findMany({
+          where: { organizationId: org.id },
+          select: { date: true },
+        });
+        const existingFunnelDates = new Set(
+          existingFunnel.map((f: any) => f.date.toISOString().split("T")[0])
+        );
+
+        const newFunnelRows = funnelRows.filter((row: any) => {
+          const d = row.dimensionValues[0].value;
+          const dateStr = d.substring(0, 4) + "-" + d.substring(4, 6) + "-" + d.substring(6, 8);
+          return !existingFunnelDates.has(dateStr);
+        });
+
+        if (newFunnelRows.length > 0) {
+          await prisma.funnelDaily.createMany({
+            data: newFunnelRows.map((row: any) => {
+              const d = row.dimensionValues[0].value;
+              const dateStr = d.substring(0, 4) + "-" + d.substring(4, 6) + "-" + d.substring(6, 8);
+              const m = row.metricValues;
+              return {
+                organizationId: org.id,
+                date: new Date(dateStr),
+                visitors: parseInt(m[0].value || "0"),
+                productViews: parseInt(m[1].value || "0"),
+                addToCarts: parseInt(m[2].value || "0"),
+                checkoutStarts: parseInt(m[3].value || "0"),
+                purchases: parseInt(m[4].value || "0"),
+              };
+            }),
+            skipDuplicates: true,
+          });
+        }
+
+        funnelNew = newFunnelRows.length;
+        funnelSkipped = funnelRows.length - newFunnelRows.length;
+      }
+    } catch (funnelErr: any) {
+      console.error("[GA4 Sync] Funnel sync error:", funnelErr.message);
+      // Non-fatal: web metrics already saved, funnel is bonus
+    }
+
     return NextResponse.json({
       ok: true,
-      totalRows: rows.length,
-      new: newRows.length,
-      skipped: rows.length - newRows.length,
+      webMetrics: { totalRows: rows.length, new: newRows.length, skipped: rows.length - newRows.length },
+      funnel: { new: funnelNew, skipped: funnelSkipped },
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

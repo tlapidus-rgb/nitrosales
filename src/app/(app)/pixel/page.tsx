@@ -183,7 +183,7 @@ interface PixelData {
     spend: number; platformConversions: number; pixelRoas: number; platformRoas: number;
     diffPercent: number | null;
   }>;
-  funnel: { pageView: number; viewProduct: number; addToCart: number; checkoutShipping: number; checkoutPayment: number; purchase: number };
+  funnel: { pageView: number; viewProduct: number; addToCart: number; checkoutStart: number; purchase: number };
   dailyVisitors: Array<{ day: string; visitors: number; sessions: number; pageViews: number }>;
   dailyRevenue: Array<{ day: string; revenue: number; orders: number; spend: number; roas: number }>;
   dailyChannelBreakdown: Array<{
@@ -768,6 +768,13 @@ export default function PixelPage() {
       {/* ══════════════════════════════════════════════════════════ */}
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
+        {/* ═══ NITROPIXEL ATTRIBUTION SECTION ═══ */}
+        <div className="flex items-center gap-2 mt-2 mb-1">
+          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+          <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">NitroPixel Attribution</span>
+          <div className="flex-1 h-px bg-indigo-200" />
+        </div>
+
         {/* ═══ PIXEL HEALTH BAR ═══ */}
         <div className={`rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
           d.liveStatus.status === "LIVE"
@@ -1254,21 +1261,23 @@ export default function PixelPage() {
             )}
 
             {/* ══════════════════════════════════════════════════════════ */}
-            {/* FUNNEL (Resumen tab only)                                */}
+            {/* FUNNEL (Resumen tab only) — Powered by GA4               */}
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && d.funnel && d.funnel.pageView > 0 && (() => {
               const funnelSteps = [
                 { label: "Visitantes", value: d.funnel.pageView, color: "#6366F1", bg: "rgba(99,102,241,0.15)" },
                 { label: "Vieron Producto", value: d.funnel.viewProduct, color: "#8B5CF6", bg: "rgba(139,92,246,0.15)" },
                 { label: "Agregaron al Carrito", value: d.funnel.addToCart, color: "#A855F7", bg: "rgba(168,85,247,0.15)" },
-                { label: "Eligieron Entrega", value: d.funnel.checkoutShipping, color: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
-                { label: "Eligieron Pago", value: d.funnel.checkoutPayment, color: "#F97316", bg: "rgba(249,115,22,0.15)" },
+                { label: "Iniciaron Checkout", value: d.funnel.checkoutStart, color: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
                 { label: "Compraron", value: d.funnel.purchase, color: "#22C55E", bg: "rgba(34,197,94,0.15)" },
               ];
               const maxVal = funnelSteps[0].value || 1;
               return (
                 <div className="rounded-2xl bg-white border border-gray-200 p-4">
-                  <h2 className="text-sm font-semibold text-gray-800 mb-4">Funnel de Conversión</h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-sm font-semibold text-gray-800">Funnel de Conversión</h2>
+                    <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Fuente: Google Analytics 4</span>
+                  </div>
                   <div className="flex flex-col gap-1">
                     {funnelSteps.map((step, i) => {
                       const widthPct = Math.max((step.value / maxVal) * 100, 8);

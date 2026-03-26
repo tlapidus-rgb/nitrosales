@@ -669,35 +669,30 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // ── NEW: Funnel from event types ──
-    const evtMap = new Map(eventTypesResult.map((e) => [e.type, e.uniqueVisitors]));
-    // CHECKOUT_SHIPPING and CHECKOUT_PAYMENT: only count events where the pageUrl
-    // hash matches the correct step. VTEX pre-loads DOM elements for later steps,
-    // so DOM-detected events on #/cart or #/email are false positives.
-    const checkoutCorrected = await prisma.$queryRaw`
-      SELECT type, COUNT(DISTINCT "visitorId")::int as "uniqueVisitors"
-      FROM pixel_events
-      WHERE "organizationId" = ${ORG_ID}
-        AND timestamp >= ${dateFrom}
-        AND timestamp <= ${dateTo}
-        AND (
-          (type = 'CHECKOUT_SHIPPING' AND "pageUrl" LIKE '%#/shipping%')
-          OR (type = 'CHECKOUT_PAYMENT' AND "pageUrl" LIKE '%#/payment%')
-        )
-      GROUP BY type
-    ` as Array<{ type: string; uniqueVisitors: number }>;
-    const correctedMap = new Map(checkoutCorrected.map((e) => [e.type, e.uniqueVisitors]));
+    // ── Funnel from GA4 (FunnelDaily) ──
+    // GA4 ecommerce events are more reliable than pixel_events for funnel.
+    // pixel_events had issues: VTEX DOM pre-loading, webhook timestamp contamination,
+    // and unreliable checkout step detection.
+    const funnelData = await prisma.funnelDaily.aggregate({
+      where: {
+        organizationId: ORG_ID,
+        date: { gte: dateFrom, lte: dateTo },
+      },
+      _sum: {
+        visitors: true,
+        productViews: true,
+        addToCarts: true,
+        checkoutStarts: true,
+        purchases: true,
+      },
+    });
+    const fSum = funnelData._sum;
     const funnel = {
-      pageView: evtMap.get("PAGE_VIEW") || 0,
-      viewProduct: evtMap.get("VIEW_PRODUCT") || 0,
-      addToCart: evtMap.get("ADD_TO_CART") || 0,
-      checkoutShipping: correctedMap.get("CHECKOUT_SHIPPING") || 0,
-      checkoutPayment: correctedMap.get("CHECKOUT_PAYMENT") || 0,
-      // PURCHASE uses real orders from orders table (webOrders) instead of pixel_events.
-      // Reason: webhook-created PURCHASE events have NOW() timestamps which pollute
-      // the date filter (old orders with status changes today appear as today's buyers).
-      // Browser-originated steps above don't have this problem.
-      purchase: webOrders,
+      pageView: fSum.visitors || 0,
+      viewProduct: fSum.productViews || 0,
+      addToCart: fSum.addToCarts || 0,
+      checkoutStart: fSum.checkoutStarts || 0,
+      purchase: fSum.purchases || 0,
     };
 
     // ── NEW: Daily revenue merged with daily spend ──
