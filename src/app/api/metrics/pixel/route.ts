@@ -204,6 +204,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" <= ${dateTo}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         GROUP BY 1
         ORDER BY revenue DESC
       ` as Promise<Array<{
@@ -236,6 +237,7 @@ export async function GET(request: NextRequest) {
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = 'NITRO'
               AND o.status NOT IN ('CANCELLED', 'PENDING')
+              AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -254,6 +256,7 @@ export async function GET(request: NextRequest) {
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
               AND o.status NOT IN ('CANCELLED', 'PENDING')
+              AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -272,6 +275,7 @@ export async function GET(request: NextRequest) {
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
               AND o.status NOT IN ('CANCELLED', 'PENDING')
+              AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -289,6 +293,7 @@ export async function GET(request: NextRequest) {
               AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
               AND o.status NOT IN ('CANCELLED', 'PENDING')
+              AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -317,6 +322,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         GROUP BY 1
         ORDER BY MIN(COALESCE(GREATEST(pa."conversionLag", 0), 999))
       ` as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
@@ -406,6 +412,7 @@ export async function GET(request: NextRequest) {
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         ORDER BY o."orderDate" DESC
         LIMIT 15
       ` as Promise<Array<{
@@ -439,6 +446,7 @@ export async function GET(request: NextRequest) {
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         GROUP BY 1
         ORDER BY 1
       ` as Promise<Array<{ day: string; revenue: number; orders: number }>>,
@@ -455,6 +463,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" <= ${prevTo}
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
       ` as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
 
       // 19. Per-day coverage: total orders vs attributed orders per day
@@ -506,6 +515,7 @@ export async function GET(request: NextRequest) {
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
         GROUP BY 1, 2
         ORDER BY 1 DESC, revenue DESC
       ` as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>,
