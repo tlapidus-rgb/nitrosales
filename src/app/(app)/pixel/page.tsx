@@ -263,7 +263,7 @@ export default function PixelPage() {
 
   // Tabs + sections
   const [activeTab, setActiveTab] = useState<"resumen" | "ordenes" | "canales">("resumen");
-  const [showTrackingDetails, setShowTrackingDetails] = useState(false);
+
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
 
   // Pagination
@@ -768,13 +768,6 @@ export default function PixelPage() {
       {/* ══════════════════════════════════════════════════════════ */}
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
-        {/* ═══ NITROPIXEL ATTRIBUTION SECTION ═══ */}
-        <div className="flex items-center gap-2 mt-2 mb-1">
-          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-          <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">NitroPixel Attribution</span>
-          <div className="flex-1 h-px bg-indigo-200" />
-        </div>
-
         {/* ═══ PIXEL HEALTH BAR ═══ */}
         <div className={`rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
           d.liveStatus.status === "LIVE"
@@ -1261,83 +1254,6 @@ export default function PixelPage() {
             )}
 
             {/* ══════════════════════════════════════════════════════════ */}
-            {/* FUNNEL (Resumen tab only) — Powered by GA4               */}
-            {/* ══════════════════════════════════════════════════════════ */}
-            {activeTab === "resumen" && d.funnel && d.funnel.pageView > 0 && (() => {
-              const funnelSteps = [
-                { label: "Visitantes", value: d.funnel.pageView, color: "#6366F1", bg: "rgba(99,102,241,0.15)" },
-                { label: "Vieron Producto", value: d.funnel.viewProduct, color: "#8B5CF6", bg: "rgba(139,92,246,0.15)" },
-                { label: "Agregaron al Carrito", value: d.funnel.addToCart, color: "#A855F7", bg: "rgba(168,85,247,0.15)" },
-                { label: "Iniciaron Checkout", value: d.funnel.checkoutStart, color: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
-                { label: "Compraron", value: d.funnel.purchase, color: "#22C55E", bg: "rgba(34,197,94,0.15)" },
-              ];
-              const maxVal = funnelSteps[0].value || 1;
-              return (
-                <div className="rounded-2xl bg-white border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold text-gray-800">Funnel de Conversión</h2>
-                    <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Fuente: Google Analytics 4</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {funnelSteps.map((step, i) => {
-                      const widthPct = Math.max((step.value / maxVal) * 100, 8);
-                      // Find the last step with data before this one for step rate
-                      let prevWithData = 0;
-                      for (let j = i - 1; j >= 0; j--) {
-                        if (funnelSteps[j].value > 0) { prevWithData = funnelSteps[j].value; break; }
-                      }
-                      const stepRate = i > 0 && prevWithData > 0 && step.value > 0
-                        ? ((step.value / prevWithData) * 100).toFixed(1) : null;
-                      const overallRate = i > 0 && step.value > 0
-                        ? ((step.value / maxVal) * 100).toFixed(1) : null;
-                      const isEmpty = step.value === 0;
-                      return (
-                        <Fragment key={step.label}>
-                          {i > 0 && stepRate && (
-                            <div className="flex items-center gap-2 pl-2 -my-0.5">
-                              <svg width="12" height="12" viewBox="0 0 12 12" className="text-gray-500 flex-shrink-0">
-                                <path d="M6 2 L6 10 M3 7 L6 10 L9 7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                              <span className="text-[10px] text-gray-500">{stepRate}%</span>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-3" style={isEmpty ? { opacity: 0.4 } : undefined}>
-                            <div className="flex-1 relative" style={{ minHeight: '32px' }}>
-                              <div
-                                className="absolute inset-y-0 left-0 rounded-lg transition-all"
-                                style={{
-                                  width: isEmpty ? '100%' : `${widthPct}%`,
-                                  backgroundColor: isEmpty ? 'rgba(255,255,255,0.03)' : step.bg,
-                                  borderLeft: `3px solid ${isEmpty ? 'rgba(255,255,255,0.1)' : step.color}`,
-                                  borderStyle: isEmpty ? 'dashed' : 'solid',
-                                }}
-                              />
-                              <div className="relative flex items-center justify-between px-3 py-1.5" style={{ width: isEmpty ? '100%' : `${Math.max(widthPct, 40)}%` }}>
-                                <span className="text-[11px] text-gray-700 font-medium truncate">{step.label}</span>
-                                <span className="text-[11px] text-gray-800 font-semibold ml-2 flex-shrink-0">
-                                  {isEmpty ? <span className="text-[10px] text-gray-500 font-normal italic">Esperando datos...</span> : fmt(step.value)}
-                                </span>
-                              </div>
-                            </div>
-                            {overallRate && (
-                              <span className="text-[10px] text-gray-500 w-12 text-right flex-shrink-0">{overallRate}%</span>
-                            )}
-                          </div>
-                        </Fragment>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
-                    <span className="text-[10px] text-gray-500">Tasa de conversión general</span>
-                    <span className="text-sm font-semibold" style={{ color: '#22C55E' }}>
-                      {((d.funnel.purchase / maxVal) * 100).toFixed(2)}%
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* ══════════════════════════════════════════════════════════ */}
             {/* CONVERSION LAG (Resumen tab only)                        */}
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && d.attribution?.conversionLag?.length > 0 && (
@@ -1404,111 +1320,6 @@ export default function PixelPage() {
               </div>
             )}
 
-            {/* ══════════════════════════════════════════════════════════ */}
-            {/* TRACKING DETAILS (collapsible, all tabs)                 */}
-            {/* ══════════════════════════════════════════════════════════ */}
-            {activeTab === "resumen" && (
-              <div className="rounded-2xl bg-white border border-gray-200">
-                <button
-                  onClick={() => setShowTrackingDetails(!showTrackingDetails)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold text-gray-700">Tracking Details</h2>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{fmt(d.kpis.totalVisitors)} visitantes · {fmt(d.kpis.totalSessions)} sesiones</span>
-                  </div>
-                  <svg className={`w-4 h-4 text-gray-500 transition-transform ${showTrackingDetails ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {showTrackingDetails && (
-                  <div className="px-4 pb-4 space-y-4 border-t border-gray-200 pt-4">
-                    {/* Tracking KPIs */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <KpiCard label="Visitantes" value={fmt(d.kpis.totalVisitors)} change={d.kpis.changes.visitors} color="indigo" />
-                      <KpiCard label="Sesiones" value={fmt(d.kpis.totalSessions)} change={d.kpis.changes.sessions} color="cyan" />
-                      <KpiCard label="Page Views" value={fmt(d.kpis.totalPageViews)} change={d.kpis.changes.pageViews} color="purple" />
-                      <KpiCard label="Pags/Sesion" value={String(d.kpis.pagesPerSession)} color="orange" />
-                    </div>
-
-                    {/* Devices + Event Types */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div>
-                        <h3 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">Dispositivos</h3>
-                        {d.deviceBreakdown.length > 0 ? (
-                          <div className="flex items-center gap-6">
-                            <div className="w-32 h-32">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                  <Pie data={d.deviceBreakdown} dataKey="count" nameKey="device" cx="50%" cy="50%" outerRadius={55} strokeWidth={0}>
-                                    {d.deviceBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                                  </Pie>
-                                  <Tooltip contentStyle={{ backgroundColor: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }} />
-                                </PieChart>
-                              </ResponsiveContainer>
-                            </div>
-                            <div className="flex-1 space-y-2">
-                              {d.deviceBreakdown.map((dev, i) => (
-                                <div key={dev.device} className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                                    <span className="text-sm text-gray-700 capitalize">{dev.device}</span>
-                                  </div>
-                                  <span className="text-sm text-gray-400">{dev.percentage}%</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : <EmptySection text="Sin datos de dispositivos" />}
-                      </div>
-                      <div>
-                        <h3 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">Tipos de Eventos</h3>
-                        {d.eventTypes.length > 0 ? (
-                          <div className="space-y-2">
-                            {d.eventTypes.map((evt) => (
-                              <div key={evt.type} className="flex items-center gap-3">
-                                <div className="w-24 text-xs text-gray-400 truncate">{EVENT_LABELS[evt.type] || evt.type}</div>
-                                <div className="flex-1 h-5 bg-gray-100 rounded-lg overflow-hidden">
-                                  <div className="h-full bg-gradient-to-r from-orange-400 to-orange-200 rounded-lg flex items-center px-2" style={{ width: `${Math.max(evt.percentage, 3)}%` }}>
-                                    <span className="text-[10px] text-white font-medium">{fmt(evt.count)}</span>
-                                  </div>
-                                </div>
-                                <div className="w-10 text-right text-xs text-gray-500">{evt.percentage}%</div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : <EmptySection text="Sin eventos" />}
-                      </div>
-                    </div>
-
-                    {/* Popular Pages */}
-                    {d.popularPages.length > 0 && (
-                      <div>
-                        <h3 className="text-xs text-gray-500 mb-3 uppercase tracking-wide">Paginas Populares</h3>
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-gray-500 text-xs border-b border-gray-200">
-                              <th className="text-left pb-2 font-medium">URL</th>
-                              <th className="text-right pb-2 font-medium">Views</th>
-                              <th className="text-right pb-2 font-medium">Visitantes</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {d.popularPages.map((p, i) => (
-                              <tr key={i} className="border-b border-gray-100">
-                                <td className="py-2 text-gray-700 max-w-md truncate text-xs">{cleanUrl(p.url)}</td>
-                                <td className="py-2 text-right text-gray-400 text-xs">{fmt(p.pageViews)}</td>
-                                <td className="py-2 text-right text-gray-400 text-xs">{fmt(p.uniqueVisitors)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
           </>
         )}
 
