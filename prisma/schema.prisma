@@ -139,6 +139,8 @@ model Order {
   shippingCost    Decimal?    @db.Decimal(12, 2)
   discountValue   Decimal?    @db.Decimal(12, 2)
   promotionNames  String?                         // Nombres de promociones aplicadas (de VTEX ratesAndBenefitsData/priceTags)
+  deliveryType    String?                         // "pickup" | "shipping" — inferred from VTEX logisticsInfo
+  pickupStoreName String?                         // Nombre amigable de la sucursal (si es retiro)
   deviceType      String?                         // mobile, desktop, tablet
   orderDate       DateTime    @db.Timestamptz      // Fecha del pedido (UTC from VTEX)
   createdAt       DateTime    @default(now())
