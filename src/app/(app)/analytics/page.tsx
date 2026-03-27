@@ -131,6 +131,7 @@ export default function AnalyticsPage() {
   };
 
   // ── Product filters & sorting ──
+  const [prodSearch, setProdSearch] = useState("");
   const [prodCatFilter, setProdCatFilter] = useState("");
   const [prodBrandFilter, setProdBrandFilter] = useState("");
   const [prodSort, setProdSort] = useState<{ col: "views" | "purchases" | "revenue" | "viewToPurchaseRate"; dir: "asc" | "desc" }>({ col: "views", dir: "desc" });
@@ -138,13 +139,17 @@ export default function AnalyticsPage() {
   const filteredProducts = useMemo(() => {
     if (!ga4?.products) return [];
     let list = ga4.products;
+    if (prodSearch) {
+      const q = prodSearch.toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+    }
     if (prodCatFilter) list = list.filter(p => p.category === prodCatFilter);
     if (prodBrandFilter) list = list.filter(p => p.brand === prodBrandFilter);
     return [...list].sort((a, b) => {
       const av = a[prodSort.col], bv = b[prodSort.col];
       return prodSort.dir === "desc" ? bv - av : av - bv;
     });
-  }, [ga4?.products, prodCatFilter, prodBrandFilter, prodSort]);
+  }, [ga4?.products, prodSearch, prodCatFilter, prodBrandFilter, prodSort]);
 
   const productCategories = useMemo(() => {
     if (!ga4?.products) return [];
@@ -374,6 +379,9 @@ export default function AnalyticsPage() {
         <SectionCard title="Productos: Vistos vs Vendidos" badge={`${filteredProducts.length} productos`}>
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-2 mb-3">
+            <input type="text" value={prodSearch} onChange={e => setProdSearch(e.target.value)}
+              placeholder="Buscar por nombre o SKU..."
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-600 outline-none focus:border-indigo-300 w-48" />
             <select value={prodCatFilter} onChange={e => setProdCatFilter(e.target.value)}
               className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 outline-none focus:border-indigo-300">
               <option value="">Todas las categorías</option>
@@ -384,8 +392,8 @@ export default function AnalyticsPage() {
               <option value="">Todas las marcas</option>
               {productBrands.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
-            {(prodCatFilter || prodBrandFilter) && (
-              <button onClick={() => { setProdCatFilter(""); setProdBrandFilter(""); }}
+            {(prodSearch || prodCatFilter || prodBrandFilter) && (
+              <button onClick={() => { setProdSearch(""); setProdCatFilter(""); setProdBrandFilter(""); }}
                 className="text-[10px] text-indigo-600 hover:text-indigo-800 underline">Limpiar filtros</button>
             )}
           </div>
