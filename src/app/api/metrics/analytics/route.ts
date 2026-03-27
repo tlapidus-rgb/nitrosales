@@ -191,10 +191,18 @@ export async function GET(req: Request) {
       sessions: num(r, 0), purchases: num(r, 1),
     })).sort((a: any, b: any) => a.day - b.day);
 
-    const newVsReturning = nvrRows.map((r: any) => ({
-      type: str(r, 0) === "new" ? "Nuevos" : "Recurrentes",
-      sessions: num(r, 0), users: num(r, 1), purchases: num(r, 2), revenue: flt(r, 3),
-    }));
+    // Aggregate new vs returning (GA4 returns "new", "returning", "(not set)")
+    // We merge "returning" + "(not set)" into "Recurrentes"
+    const nvrAgg: Record<string, { sessions: number; users: number; purchases: number; revenue: number }> = {};
+    for (const r of nvrRows) {
+      const key = str(r, 0) === "new" ? "Nuevos" : "Recurrentes";
+      if (!nvrAgg[key]) nvrAgg[key] = { sessions: 0, users: 0, purchases: 0, revenue: 0 };
+      nvrAgg[key].sessions += num(r, 0);
+      nvrAgg[key].users += num(r, 1);
+      nvrAgg[key].purchases += num(r, 2);
+      nvrAgg[key].revenue += flt(r, 3);
+    }
+    const newVsReturning = Object.entries(nvrAgg).map(([type, data]) => ({ type, ...data }));
 
     // Cart abandonment — user-scoped (unique users per funnel step, not event counts)
     // dailyFunnelRows now has dimension: eventName, metric: totalUsers

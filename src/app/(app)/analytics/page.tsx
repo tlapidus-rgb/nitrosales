@@ -269,28 +269,38 @@ export default function AnalyticsPage() {
       {/* ═══ NUEVOS VS RECURRENTES + ABANDONO ═══ */}
       {ga4 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {ga4.newVsReturning.length > 0 && (
-            <SectionCard title="Nuevos vs Recurrentes">
-              <div className="grid grid-cols-2 gap-3">
-                {ga4.newVsReturning.map(nv => {
-                  const total = ga4.newVsReturning.reduce((s, x) => s + x.revenue, 0);
-                  const pct = total > 0 ? Math.round((nv.revenue / total) * 100) : 0;
-                  return (
-                    <div key={nv.type} className={`rounded-xl border p-3 ${nv.type === "Nuevos" ? "bg-indigo-50/50 border-indigo-200" : "bg-emerald-50/50 border-emerald-200"}`}>
-                      <p className="text-xs text-gray-500 mb-1">{nv.type}</p>
-                      <p className="text-lg font-bold text-gray-800">{fmt(nv.users)}</p>
-                      <div className="mt-2 space-y-1 text-[11px] text-gray-600">
-                        <div className="flex justify-between"><span>Sesiones</span><span className="font-medium">{fmt(nv.sessions)}</span></div>
-                        <div className="flex justify-between"><span>Compras</span><span className="font-medium">{fmt(nv.purchases)}</span></div>
-                        <div className="flex justify-between"><span>Revenue</span><span className="font-medium">{fmtARS(nv.revenue)}</span></div>
-                        <div className="flex justify-between"><span>% del total</span><span className="font-medium">{pct}%</span></div>
+          {ga4.newVsReturning.length > 0 && (() => {
+            const total = ga4.newVsReturning.reduce((s, x) => s + x.revenue, 0);
+            return (
+              <SectionCard title="Nuevos vs Recurrentes">
+                <div className="grid grid-cols-2 gap-3">
+                  {ga4.newVsReturning.map(nv => {
+                    const pct = total > 0 ? Math.round((nv.revenue / total) * 100) : 0;
+                    const convRate = nv.sessions > 0 ? Math.round((nv.purchases / nv.sessions) * 10000) / 100 : 0;
+                    return (
+                      <div key={nv.type} className={`rounded-xl border p-3 ${nv.type === "Nuevos" ? "bg-indigo-50/50 border-indigo-200" : "bg-emerald-50/50 border-emerald-200"}`}>
+                        <p className="text-xs text-gray-500 mb-1">{nv.type}</p>
+                        <p className="text-lg font-bold text-gray-800">{fmt(nv.users)} <span className="text-[10px] font-normal text-gray-400">usuarios</span></p>
+                        <div className="mt-2 space-y-1 text-[11px] text-gray-600">
+                          <div className="flex justify-between"><span>Sesiones</span><span className="font-medium">{fmt(nv.sessions)}</span></div>
+                          <div className="flex justify-between"><span>Compras</span><span className="font-medium">{fmt(nv.purchases)}</span></div>
+                          <div className="flex justify-between"><span>Revenue</span><span className="font-medium">{fmtARS(nv.revenue)}</span></div>
+                          <div className="flex justify-between"><span>% del revenue</span><span className="font-medium">{pct}%</span></div>
+                          <div className="flex justify-between"><span>Tasa conv.</span><span className={`font-medium ${convRate > 1 ? "text-emerald-600" : "text-gray-500"}`}>{convRate}%</span></div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </SectionCard>
-          )}
+                    );
+                  })}
+                </div>
+                <div className="mt-3 pt-2 border-t border-gray-100 flex items-start gap-1.5">
+                  <svg className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>
+                  <p className="text-[10px] text-gray-400 leading-relaxed">
+                    <b className="text-gray-500">Nuevos</b> = primera visita al sitio. <b className="text-gray-500">Recurrentes</b> = ya visitaron antes. % del revenue muestra cuánto factura cada grupo. Tasa conv. = compras / sesiones.
+                  </p>
+                </div>
+              </SectionCard>
+            );
+          })()}
 
           {ga4.abandonment && (
             <SectionCard title="Abandono de Carrito" badge="Usuarios únicos">
