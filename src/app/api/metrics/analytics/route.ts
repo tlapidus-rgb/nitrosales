@@ -235,10 +235,39 @@ export async function GET(req: Request) {
       conversionRate: num(r, 0) > 0 ? Math.round((num(r, 1) / num(r, 0)) * 10000) / 100 : 0,
     })).filter((b: any) => b.brand !== "(not set)");
 
+    // ── VTEX: Ventas por zona (provincia) con costo de envío ──
+    const zoneRows: any[] = await prisma.$queryRaw`
+      SELECT
+        UPPER(TRIM(c.state)) as state,
+        COUNT(o.id)::int as orders,
+        SUM(o."totalValue"::numeric)::float as revenue,
+        AVG(o."totalValue"::numeric)::float as avg_ticket,
+        AVG(CASE WHEN o."shippingCost" IS NOT NULL AND o."shippingCost" > 0 THEN o."shippingCost"::numeric END)::float as avg_shipping,
+        COUNT(CASE WHEN o."shippingCost" IS NOT NULL AND o."shippingCost" > 0 THEN 1 END)::int as orders_with_shipping
+      FROM orders o
+      JOIN customers c ON o."customerId" = c.id
+      WHERE o."organizationId" = ${org.id}
+        AND o."orderDate" >= ${new Date(startDate)}::timestamp
+        AND o."orderDate" <= ${new Date(endDate + "T23:59:59Z")}::timestamp
+        AND c.state IS NOT NULL AND TRIM(c.state) != ''
+      GROUP BY UPPER(TRIM(c.state))
+      ORDER BY revenue DESC
+    `;
+
+    const salesByZone = zoneRows.map((r: any) => ({
+      zone: r.state,
+      orders: r.orders,
+      revenue: Math.round(r.revenue || 0),
+      avgTicket: Math.round(r.avg_ticket || 0),
+      avgShipping: r.avg_shipping ? Math.round(r.avg_shipping) : null,
+      shippingPct: r.avg_shipping && r.avg_ticket > 0 ? Math.round((r.avg_shipping / r.avg_ticket) * 10000) / 100 : null,
+      ordersWithShipping: r.orders_with_shipping,
+    }));
+
     return NextResponse.json({
       geographic, products, searches, trafficRevenue,
       landingPages, hourly, dayOfWeek, newVsReturning, abandonment,
-      categories, brands,
+      categories, brands, salesByZone,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

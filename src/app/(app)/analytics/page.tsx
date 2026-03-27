@@ -44,6 +44,7 @@ type GA4Data = {
   abandonment: { cartAbandonmentRate: number; checkoutAbandonmentRate: number; totalAddToCarts: number; totalCheckouts: number; totalPurchases: number };
   categories: Array<{ category: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
   brands: Array<{ brand: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
+  salesByZone: Array<{ zone: string; orders: number; revenue: number; avgTicket: number; avgShipping: number | null; shippingPct: number | null; ordersWithShipping: number }>;
 };
 
 function KpiCard({ label, value, sub, change, color }: { label: string; value: string; sub?: string; change?: number; color: string }) {
@@ -619,29 +620,43 @@ export default function AnalyticsPage() {
             </SectionCard>
           )}
 
-          {ga4.geographic?.length > 0 && (
-            <SectionCard title="Ventas por Zona" badge="Regiones y ciudades" maxH="300px">
+          {ga4.salesByZone?.length > 0 && (
+            <SectionCard title="Ventas por Zona" badge="Datos VTEX" maxH="360px">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-white">
                     <tr className="text-gray-500 text-xs border-b border-gray-200">
-                      <th className="text-left pb-2 font-medium">Region</th>
-                      <th className="text-left pb-2 font-medium">Ciudad</th>
-                      <th className="text-right pb-2 font-medium">Sesiones</th>
+                      <th className="text-left pb-2 font-medium">Provincia</th>
+                      <th className="text-right pb-2 font-medium">Órdenes</th>
                       <th className="text-right pb-2 font-medium">Revenue</th>
+                      <th className="text-right pb-2 font-medium">Ticket Prom.</th>
+                      <th className="text-right pb-2 font-medium">Envío Prom.</th>
+                      <th className="text-right pb-2 font-medium">Envío / Ticket</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {ga4.geographic.slice(0, 20).map((g, i) => (
+                    {ga4.salesByZone.map((z, i) => (
                       <tr key={i} className="border-b border-gray-100">
-                        <td className="py-1.5 text-gray-700 text-xs truncate max-w-[100px]">{g.region || "(no set)"}</td>
-                        <td className="py-1.5 text-gray-600 text-xs truncate max-w-[100px]">{g.city || "(no set)"}</td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(g.sessions)}</td>
-                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(g.revenue)}</td>
+                        <td className="py-1.5 text-gray-700 text-xs truncate max-w-[140px] capitalize">{z.zone?.toLowerCase() || "(sin datos)"}</td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(z.orders)}</td>
+                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(z.revenue)}</td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmtARS(z.avgTicket)}</td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{z.avgShipping != null ? fmtARS(z.avgShipping) : <span className="text-gray-400">—</span>}</td>
+                        <td className="py-1.5 text-right text-xs font-medium">
+                          {z.shippingPct != null
+                            ? <span className={z.shippingPct > 15 ? "text-red-500" : z.shippingPct > 10 ? "text-amber-500" : "text-emerald-500"}>{z.shippingPct}%</span>
+                            : <span className="text-gray-400">—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="mt-2 flex items-start gap-1.5">
+                <svg className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>
+                <p className="text-[10px] text-gray-400 leading-relaxed">
+                  Datos de órdenes VTEX. Envío promedio se calcula solo con órdenes que tienen costo de envío registrado. <b className="text-gray-500">Rojo</b> {">"}15%, <b className="text-gray-500">Ámbar</b> 10-15%, <b className="text-gray-500">Verde</b> {"<"}10% del ticket.
+                </p>
               </div>
             </SectionCard>
           )}
