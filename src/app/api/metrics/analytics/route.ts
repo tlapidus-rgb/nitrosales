@@ -42,7 +42,7 @@ async function runReport(
   metrics: string[],
   startDate: string,
   endDate: string,
-  opts?: { limit?: number; orderBy?: { metric: string; desc?: boolean } }
+  opts?: { limit?: number; orderBy?: { metric: string; desc?: boolean }; dimensionFilter?: any }
 ) {
   const body: any = {
     dateRanges: [{ startDate, endDate }],
@@ -53,6 +53,7 @@ async function runReport(
   if (opts?.orderBy) {
     body.orderBys = [{ metric: { metricName: opts.orderBy.metric }, desc: opts.orderBy.desc ?? true }];
   }
+  if (opts?.dimensionFilter) body.dimensionFilter = opts.dimensionFilter;
 
   const res = await fetch(
     `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
@@ -112,8 +113,18 @@ export async function GET(req: Request) {
       runReport(propertyId, token, ["dayOfWeek"], ["sessions", "ecommercePurchases"], startDate, endDate),
       // 7. New vs returning
       runReport(propertyId, token, ["newVsReturning"], ["sessions", "totalUsers", "ecommercePurchases", "purchaseRevenue"], startDate, endDate),
-      // 8. Daily funnel for abandonment trend
-      runReport(propertyId, token, ["date"], ["addToCarts", "checkouts", "ecommercePurchases"], startDate, endDate),
+      // 8. User-scoped funnel: unique users per funnel event (not event counts)
+      runReport(propertyId, token, ["eventName"], ["totalUsers"], startDate, endDate, {
+        dimensionFilter: {
+          orGroup: {
+            expressions: [
+              { filter: { fieldName: "eventName", stringFilter: { value: "add_to_cart" } } },
+              { filter: { fieldName: "eventName", stringFilter: { value: "begin_checkout" } } },
+              { filter: { fieldName: "eventName", stringFilter: { value: "purchase" } } },
+            ],
+          },
+        },
+      }),
       // 9. Category conversion (products viewed vs purchased by category)
       runReport(propertyId, token, ["itemCategory"], ["itemsViewed", "itemsPurchased", "itemRevenue"], startDate, endDate, { limit: 30, orderBy: { metric: "itemsViewed" } }),
       // 10. Brand conversion (products viewed vs purchased by brand)
@@ -185,24 +196,21 @@ export async function GET(req: Request) {
       sessions: num(r, 0), users: num(r, 1), purchases: num(r, 2), revenue: flt(r, 3),
     }));
 
-    // Cart abandonment from daily funnel
-    let totalAddToCarts = 0, totalCheckouts = 0, totalPurchases = 0;
-    const dailyAbandonment = dailyFunnelRows.map((r: any) => {
-      const d = str(r, 0);
-      const dateStr = d.length === 8 ? d.substring(0, 4) + "-" + d.substring(4, 6) + "-" + d.substring(6, 8) : d;
-      const atc = num(r, 0), co = num(r, 1), pu = num(r, 2);
-      totalAddToCarts += atc; totalCheckouts += co; totalPurchases += pu;
-      return {
-        day: dateStr, addToCarts: atc, checkouts: co, purchases: pu,
-        cartAbandonmentRate: atc > 0 ? Math.round(((atc - pu) / atc) * 10000) / 100 : 0,
-      };
-    }).sort((a: any, b: any) => a.day.localeCompare(b.day));
+    // Cart abandonment — user-scoped (unique users per funnel step, not event counts)
+    // dailyFunnelRows now has dimension: eventName, metric: totalUsers
+    const funnelUserMap: Record<string, number> = {};
+    for (const r of dailyFunnelRows) {
+      const eventName = str(r, 0);
+      funnelUserMap[eventName] = num(r, 0);
+    }
+    const usersAddToCart = funnelUserMap["add_to_cart"] || 0;
+    const usersCheckout = funnelUserMap["begin_checkout"] || 0;
+    const usersPurchase = funnelUserMap["purchase"] || 0;
 
     const abandonment = {
-      cartAbandonmentRate: totalAddToCarts > 0 ? Math.round(((totalAddToCarts - totalPurchases) / totalAddToCarts) * 10000) / 100 : 0,
-      checkoutAbandonmentRate: totalCheckouts > 0 ? Math.round(((totalCheckouts - totalPurchases) / totalCheckouts) * 10000) / 100 : 0,
-      totalAddToCarts, totalCheckouts, totalPurchases,
-      daily: dailyAbandonment,
+      cartAbandonmentRate: usersAddToCart > 0 ? Math.round(((usersAddToCart - usersPurchase) / usersAddToCart) * 10000) / 100 : 0,
+      checkoutAbandonmentRate: usersCheckout > 0 ? Math.round(((usersCheckout - usersPurchase) / usersCheckout) * 10000) / 100 : 0,
+      totalAddToCarts: usersAddToCart, totalCheckouts: usersCheckout, totalPurchases: usersPurchase,
     };
 
     // Category conversion

@@ -41,7 +41,7 @@ type GA4Data = {
   hourly: Array<{ hour: number; sessions: number; purchases: number }>;
   dayOfWeek: Array<{ day: number; dayName: string; sessions: number; purchases: number }>;
   newVsReturning: Array<{ type: string; sessions: number; users: number; purchases: number; revenue: number }>;
-  abandonment: { cartAbandonmentRate: number; checkoutAbandonmentRate: number; totalAddToCarts: number; totalCheckouts: number; totalPurchases: number; daily: Array<{ day: string; addToCarts: number; checkouts: number; purchases: number; cartAbandonmentRate: number }> };
+  abandonment: { cartAbandonmentRate: number; checkoutAbandonmentRate: number; totalAddToCarts: number; totalCheckouts: number; totalPurchases: number };
   categories: Array<{ category: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
   brands: Array<{ brand: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
 };
@@ -293,17 +293,17 @@ export default function AnalyticsPage() {
           )}
 
           {ga4.abandonment && (
-            <SectionCard title="Abandono de Carrito">
-              <div className="grid grid-cols-2 gap-3 mb-4">
+            <SectionCard title="Abandono de Carrito" badge="Usuarios únicos">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-red-200 bg-red-50/50 p-3 text-center">
                   <p className="text-[11px] text-gray-500">Abandono Carrito</p>
                   <p className="text-2xl font-bold text-red-600">{ga4.abandonment.cartAbandonmentRate}%</p>
-                  <p className="text-[10px] text-gray-400">{fmt(ga4.abandonment.totalAddToCarts)} agregaron, {fmt(ga4.abandonment.totalPurchases)} compraron</p>
+                  <p className="text-[10px] text-gray-400">{fmt(ga4.abandonment.totalAddToCarts)} usuarios agregaron, {fmt(ga4.abandonment.totalPurchases)} compraron</p>
                 </div>
                 <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 text-center">
                   <p className="text-[11px] text-gray-500">Abandono Checkout</p>
                   <p className="text-2xl font-bold text-amber-600">{ga4.abandonment.checkoutAbandonmentRate}%</p>
-                  <p className="text-[10px] text-gray-400">{fmt(ga4.abandonment.totalCheckouts)} iniciaron, {fmt(ga4.abandonment.totalPurchases)} compraron</p>
+                  <p className="text-[10px] text-gray-400">{fmt(ga4.abandonment.totalCheckouts)} usuarios iniciaron, {fmt(ga4.abandonment.totalPurchases)} compraron</p>
                 </div>
               </div>
             </SectionCard>
