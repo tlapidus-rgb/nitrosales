@@ -264,10 +264,53 @@ export async function GET(req: Request) {
       ordersWithShipping: r.orders_with_shipping,
     }));
 
+    // ── VTEX: Envío vs Retiro en Sucursal ──
+    const deliveryRows: any[] = await prisma.$queryRaw`
+      SELECT
+        "deliveryType",
+        COUNT(*)::int as orders,
+        SUM("totalValue"::numeric)::float as revenue
+      FROM orders
+      WHERE "organizationId" = ${org.id}
+        AND "orderDate" >= ${new Date(startDate)}::timestamp
+        AND "orderDate" <= ${new Date(endDate + "T23:59:59Z")}::timestamp
+        AND "deliveryType" IS NOT NULL
+      GROUP BY "deliveryType"
+    `;
+
+    const deliverySplit = deliveryRows.map((r: any) => ({
+      type: r.deliveryType === "pickup" ? "Retiro en Sucursal" : "Envío a Domicilio",
+      key: r.deliveryType,
+      orders: r.orders,
+      revenue: Math.round(r.revenue || 0),
+    }));
+
+    // ── VTEX: Ventas por sucursal (solo pickup) ──
+    const pickupRows: any[] = await prisma.$queryRaw`
+      SELECT
+        "pickupStoreName" as store,
+        COUNT(*)::int as orders,
+        SUM("totalValue"::numeric)::float as revenue
+      FROM orders
+      WHERE "organizationId" = ${org.id}
+        AND "orderDate" >= ${new Date(startDate)}::timestamp
+        AND "orderDate" <= ${new Date(endDate + "T23:59:59Z")}::timestamp
+        AND "deliveryType" = 'pickup'
+        AND "pickupStoreName" IS NOT NULL
+      GROUP BY "pickupStoreName"
+      ORDER BY orders DESC
+    `;
+
+    const pickupByStore = pickupRows.map((r: any) => ({
+      store: r.store,
+      orders: r.orders,
+      revenue: Math.round(r.revenue || 0),
+    }));
+
     return NextResponse.json({
       geographic, products, searches, trafficRevenue,
       landingPages, hourly, dayOfWeek, newVsReturning, abandonment,
-      categories, brands, salesByZone,
+      categories, brands, salesByZone, deliverySplit, pickupByStore,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

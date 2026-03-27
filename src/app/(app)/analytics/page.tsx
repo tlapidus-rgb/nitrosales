@@ -45,6 +45,8 @@ type GA4Data = {
   categories: Array<{ category: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
   brands: Array<{ brand: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
   salesByZone: Array<{ zone: string; orders: number; revenue: number; avgTicket: number; avgShipping: number | null; shippingPct: number | null; ordersWithShipping: number }>;
+  deliverySplit: Array<{ type: string; key: string; orders: number; revenue: number }>;
+  pickupByStore: Array<{ store: string; orders: number; revenue: number }>;
 };
 
 function KpiCard({ label, value, sub, change, color }: { label: string; value: string; sub?: string; change?: number; color: string }) {
@@ -660,6 +662,86 @@ export default function AnalyticsPage() {
               </div>
             </SectionCard>
           )}
+        </div>
+      )}
+
+      {/* ═══ ENVÍO VS RETIRO EN SUCURSAL ═══ */}
+      {ga4 && (ga4.deliverySplit?.length > 0 || ga4.pickupByStore?.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {ga4.deliverySplit?.length > 0 && (() => {
+            const COLORS = ["#6366F1", "#22C55E"];
+            const totalOrders = ga4.deliverySplit.reduce((s, d) => s + d.orders, 0);
+            return (
+              <SectionCard title="Envío vs Retiro en Sucursal" badge="Datos VTEX">
+                <div className="flex items-center gap-4">
+                  <div className="w-40 h-40 flex-shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={ga4.deliverySplit} dataKey="orders" nameKey="type" cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3}>
+                          {ga4.deliverySplit.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => [fmt(v) + " órdenes", ""]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    {ga4.deliverySplit.map((d, i) => {
+                      const pct = totalOrders > 0 ? Math.round((d.orders / totalOrders) * 100) : 0;
+                      return (
+                        <div key={d.key} className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-gray-700 font-medium">{d.type}</span>
+                              <span className="text-xs text-gray-500">{pct}%</span>
+                            </div>
+                            <div className="flex items-center justify-between mt-0.5">
+                              <span className="text-[10px] text-gray-400">{fmt(d.orders)} órdenes</span>
+                              <span className="text-[10px] text-gray-500 font-medium">{fmtARS(d.revenue)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </SectionCard>
+            );
+          })()}
+
+          {ga4.pickupByStore?.length > 0 && (() => {
+            const STORE_COLORS = ["#6366F1", "#8B5CF6", "#A855F7", "#D946EF", "#EC4899", "#F43F5E", "#F97316", "#EAB308", "#22C55E", "#14B8A6", "#06B6D4", "#3B82F6", "#2563EB", "#7C3AED", "#C026D3", "#E11D48"];
+            const totalPickup = ga4.pickupByStore.reduce((s, p) => s + p.orders, 0);
+            return (
+              <SectionCard title="Ventas por Sucursal" badge="Solo retiros" maxH="320px">
+                <div className="flex items-start gap-4">
+                  <div className="w-40 h-40 flex-shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={ga4.pickupByStore} dataKey="orders" nameKey="store" cx="50%" cy="50%" innerRadius={30} outerRadius={65} paddingAngle={1}>
+                          {ga4.pickupByStore.map((_, i) => <Cell key={i} fill={STORE_COLORS[i % STORE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip formatter={(v: number, _: any, p: any) => [fmt(v) + " retiros", p.payload.store]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 space-y-1 overflow-y-auto" style={{ maxHeight: 200 }}>
+                    {ga4.pickupByStore.map((p, i) => {
+                      const pct = totalPickup > 0 ? Math.round((p.orders / totalPickup) * 100) : 0;
+                      return (
+                        <div key={p.store} className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: STORE_COLORS[i % STORE_COLORS.length] }} />
+                          <span className="text-[11px] text-gray-600 truncate flex-1">{p.store}</span>
+                          <span className="text-[10px] text-gray-500 font-medium">{fmt(p.orders)}</span>
+                          <span className="text-[10px] text-gray-400 w-8 text-right">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </SectionCard>
+            );
+          })()}
         </div>
       )}
 
