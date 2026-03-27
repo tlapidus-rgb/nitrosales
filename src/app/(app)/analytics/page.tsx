@@ -85,6 +85,19 @@ function SectionCard({ title, children, badge, maxH }: { title: string; children
   );
 }
 
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="relative max-w-lg max-h-[80vh] p-2" onClick={e => e.stopPropagation()}>
+        <img src={src} alt={alt} className="max-w-full max-h-[75vh] rounded-xl shadow-2xl bg-white object-contain" />
+        <button onClick={onClose}
+          className="absolute -top-2 -right-2 w-7 h-7 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-500 hover:text-gray-800 text-sm font-bold">×</button>
+        <p className="text-center text-white text-xs mt-2 truncate max-w-[400px] mx-auto">{alt}</p>
+      </div>
+    </div>
+  );
+}
+
 function cleanUrl(url: string) {
   try { const u = new URL(url); return u.pathname + (u.search || ""); }
   catch { return url.replace(/https?:\/\/[^/]+/, "").replace(/\?.*/, ""); }
@@ -130,6 +143,11 @@ export default function AnalyticsPage() {
     else { dt.setHours(23, 59, 59, 999); setRange(r => ({ ...r, to: dt })); }
   };
 
+  // ── Product lightbox & pagination ──
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+  const PRODUCTS_PER_PAGE = 50;
+  const [prodPage, setProdPage] = useState(1);
+
   // ── Product filters & sorting ──
   const [prodSearch, setProdSearch] = useState("");
   const [prodCatFilter, setProdCatFilter] = useState("");
@@ -150,6 +168,12 @@ export default function AnalyticsPage() {
       return prodSort.dir === "desc" ? bv - av : av - bv;
     });
   }, [ga4?.products, prodSearch, prodCatFilter, prodBrandFilter, prodSort]);
+
+  // Reset page when filters change
+  useEffect(() => { setProdPage(1); }, [prodSearch, prodCatFilter, prodBrandFilter, prodSort]);
+
+  const totalProdPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
+  const paginatedProducts = filteredProducts.slice((prodPage - 1) * PRODUCTS_PER_PAGE, prodPage * PRODUCTS_PER_PAGE);
 
   const productCategories = useMemo(() => {
     if (!ga4?.products) return [];
@@ -428,12 +452,13 @@ export default function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((p, i) => (
+                {paginatedProducts.map((p, i) => (
                   <tr key={i} className="border-b border-gray-100 hover:bg-gray-50/50">
                     <td className="py-1.5 pl-1">
                       <div className="flex items-center gap-2">
                         {p.imageUrl ? (
-                          <img src={p.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 bg-gray-100" loading="lazy" />
+                          <img src={p.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 bg-gray-100 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all"
+                            loading="lazy" onClick={() => setLightbox({ src: p.imageUrl!, alt: p.name })} />
                         ) : (
                           <div className="w-8 h-8 rounded bg-gray-100 flex-shrink-0 flex items-center justify-center">
                             <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -462,8 +487,36 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </div>
+          {/* Pagination */}
+          {totalProdPages > 1 && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+              <span className="text-[10px] text-gray-400">
+                {((prodPage - 1) * PRODUCTS_PER_PAGE) + 1}–{Math.min(prodPage * PRODUCTS_PER_PAGE, filteredProducts.length)} de {filteredProducts.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setProdPage(p => Math.max(1, p - 1))} disabled={prodPage === 1}
+                  className="px-2 py-1 text-xs rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">←</button>
+                {Array.from({ length: Math.min(totalProdPages, 7) }, (_, i) => {
+                  let page: number;
+                  if (totalProdPages <= 7) { page = i + 1; }
+                  else if (prodPage <= 4) { page = i + 1; }
+                  else if (prodPage >= totalProdPages - 3) { page = totalProdPages - 6 + i; }
+                  else { page = prodPage - 3 + i; }
+                  return (
+                    <button key={page} onClick={() => setProdPage(page)}
+                      className={`w-7 h-7 text-xs rounded-md ${page === prodPage ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>{page}</button>
+                  );
+                })}
+                <button onClick={() => setProdPage(p => Math.min(totalProdPages, p + 1))} disabled={prodPage === totalProdPages}
+                  className="px-2 py-1 text-xs rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">→</button>
+              </div>
+            </div>
+          )}
         </SectionCard>
       )}
+
+      {/* Image Lightbox */}
+      {lightbox && <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />}
 
       {/* ═══ CONVERSIÓN POR CATEGORÍA + MARCA ═══ */}
       {ga4 && (

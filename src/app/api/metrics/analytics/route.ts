@@ -100,7 +100,7 @@ export async function GET(req: Request) {
       // 1. Geographic
       runReport(propertyId, token, ["region", "city"], ["sessions", "ecommercePurchases", "purchaseRevenue", "totalUsers"], startDate, endDate, { limit: 30, orderBy: { metric: "sessions" } }),
       // 2. Products (views vs purchases) — full catalog with category+brand
-      runReport(propertyId, token, ["itemName", "itemId", "itemCategory", "itemBrand"], ["itemsViewed", "itemsPurchased", "itemRevenue"], startDate, endDate, { limit: 500, orderBy: { metric: "itemsViewed" } }),
+      runReport(propertyId, token, ["itemName", "itemId", "itemCategory", "itemBrand"], ["itemsViewed", "itemsPurchased", "itemRevenue"], startDate, endDate, { limit: 10000, orderBy: { metric: "itemsViewed" } }),
       // 3. Internal searches
       runReport(propertyId, token, ["searchTerm"], ["eventCount"], startDate, endDate, { limit: 20, orderBy: { metric: "eventCount" } }),
       // 4. Traffic sources with revenue
