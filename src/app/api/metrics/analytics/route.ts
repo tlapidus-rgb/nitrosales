@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import * as crypto from "crypto";
 import { getOrganization } from "@/lib/auth-guard";
+import { prisma } from "@/lib/db/client";
 
 // ══════════════════════════════════════════════════════════════
 // Analytics API — GA4 Data for Ecommerce Dashboard
@@ -73,7 +74,7 @@ const flt = (row: any, idx: number) => parseFloat(row.metricValues?.[idx]?.value
 
 export async function GET(req: Request) {
   try {
-    await getOrganization(); // auth check
+    const org = await getOrganization(); // auth check
 
     const url = new URL(req.url);
     const startDate = url.searchParams.get("from") || "";
@@ -97,8 +98,8 @@ export async function GET(req: Request) {
     const [geoRows, productRows, searchRows, trafficRows, landingRows, hourlyRows, dowRows, nvrRows, dailyFunnelRows, categoryRows, brandRows] = await Promise.all([
       // 1. Geographic
       runReport(propertyId, token, ["region", "city"], ["sessions", "ecommercePurchases", "purchaseRevenue", "totalUsers"], startDate, endDate, { limit: 30, orderBy: { metric: "sessions" } }),
-      // 2. Products (views vs purchases)
-      runReport(propertyId, token, ["itemName", "itemId"], ["itemsViewed", "itemsPurchased", "itemRevenue"], startDate, endDate, { limit: 20, orderBy: { metric: "itemRevenue" } }),
+      // 2. Products (views vs purchases) — full catalog with category+brand
+      runReport(propertyId, token, ["itemName", "itemId", "itemCategory", "itemBrand"], ["itemsViewed", "itemsPurchased", "itemRevenue"], startDate, endDate, { limit: 500, orderBy: { metric: "itemsViewed" } }),
       // 3. Internal searches
       runReport(propertyId, token, ["searchTerm"], ["eventCount"], startDate, endDate, { limit: 20, orderBy: { metric: "eventCount" } }),
       // 4. Traffic sources with revenue
@@ -125,10 +126,32 @@ export async function GET(req: Request) {
       sessions: num(r, 0), purchases: num(r, 1), revenue: flt(r, 2), users: num(r, 3),
     }));
 
-    const products = productRows.map((r: any) => ({
-      name: str(r, 0), id: str(r, 1),
+    // Build products with category+brand from GA4
+    const rawProducts = productRows.map((r: any) => ({
+      name: str(r, 0), id: str(r, 1), category: str(r, 2), brand: str(r, 3),
       views: num(r, 0), purchases: num(r, 1), revenue: flt(r, 2),
       viewToPurchaseRate: num(r, 0) > 0 ? Math.round((num(r, 1) / num(r, 0)) * 10000) / 100 : 0,
+      imageUrl: null as string | null,
+    }));
+
+    // Look up product images from DB (match by externalId = GA4 itemId)
+    const productIds = rawProducts.map((p: any) => p.id).filter(Boolean);
+    let imageMap: Record<string, string> = {};
+    if (productIds.length > 0) {
+      try {
+        const dbProducts = await prisma.product.findMany({
+          where: { organizationId: org.id, externalId: { in: productIds } },
+          select: { externalId: true, imageUrl: true },
+        });
+        for (const dp of dbProducts) {
+          if (dp.imageUrl) imageMap[dp.externalId] = dp.imageUrl;
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    const products = rawProducts.map((p: any) => ({
+      ...p,
+      imageUrl: imageMap[p.id] || null,
     }));
 
     const searches = searchRows.map((r: any) => ({

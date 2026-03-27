@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -34,7 +34,7 @@ type PixelData = {
 
 type GA4Data = {
   geographic: Array<{ region: string; city: string; sessions: number; purchases: number; revenue: number; users: number }>;
-  products: Array<{ name: string; id: string; views: number; purchases: number; revenue: number; viewToPurchaseRate: number }>;
+  products: Array<{ name: string; id: string; category: string; brand: string; views: number; purchases: number; revenue: number; viewToPurchaseRate: number; imageUrl: string | null }>;
   searches: Array<{ term: string; count: number }>;
   trafficRevenue: Array<{ source: string; medium: string; sessions: number; users: number; purchases: number; revenue: number; revenuePerSession: number; conversionRate: number }>;
   landingPages: Array<{ path: string; sessions: number; bounceRate: number; purchases: number; revenue: number }>;
@@ -128,6 +128,38 @@ export default function AnalyticsPage() {
     if (isNaN(dt.getTime())) return;
     if (field === "from") { dt.setHours(0, 0, 0, 0); setRange(r => ({ ...r, from: dt })); }
     else { dt.setHours(23, 59, 59, 999); setRange(r => ({ ...r, to: dt })); }
+  };
+
+  // ── Product filters & sorting ──
+  const [prodCatFilter, setProdCatFilter] = useState("");
+  const [prodBrandFilter, setProdBrandFilter] = useState("");
+  const [prodSort, setProdSort] = useState<{ col: "views" | "purchases" | "revenue" | "viewToPurchaseRate"; dir: "asc" | "desc" }>({ col: "views", dir: "desc" });
+
+  const filteredProducts = useMemo(() => {
+    if (!ga4?.products) return [];
+    let list = ga4.products;
+    if (prodCatFilter) list = list.filter(p => p.category === prodCatFilter);
+    if (prodBrandFilter) list = list.filter(p => p.brand === prodBrandFilter);
+    return [...list].sort((a, b) => {
+      const av = a[prodSort.col], bv = b[prodSort.col];
+      return prodSort.dir === "desc" ? bv - av : av - bv;
+    });
+  }, [ga4?.products, prodCatFilter, prodBrandFilter, prodSort]);
+
+  const productCategories = useMemo(() => {
+    if (!ga4?.products) return [];
+    const set = new Set(ga4.products.map(p => p.category).filter(Boolean).filter(c => c !== "(not set)"));
+    return Array.from(set).sort();
+  }, [ga4?.products]);
+
+  const productBrands = useMemo(() => {
+    if (!ga4?.products) return [];
+    const set = new Set(ga4.products.map(p => p.brand).filter(Boolean).filter(b => b !== "(not set)"));
+    return Array.from(set).sort();
+  }, [ga4?.products]);
+
+  const toggleSort = (col: typeof prodSort.col) => {
+    setProdSort(prev => prev.col === col ? { col, dir: prev.dir === "desc" ? "asc" : "desc" } : { col, dir: "desc" });
   };
 
   if (loading) return (
@@ -337,28 +369,72 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* ═══ PRODUCTOS: VISTOS VS VENDIDOS ═══ */}
+      {/* ═══ PRODUCTOS: CATÁLOGO COMPLETO ═══ */}
       {ga4?.products && ga4.products.length > 0 && (
-        <SectionCard title="Productos: Vistos vs Vendidos" badge="Top 20 por revenue">
-          <div className="overflow-x-auto">
+        <SectionCard title="Productos: Vistos vs Vendidos" badge={`${filteredProducts.length} productos`}>
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <select value={prodCatFilter} onChange={e => setProdCatFilter(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 outline-none focus:border-indigo-300">
+              <option value="">Todas las categorías</option>
+              {productCategories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={prodBrandFilter} onChange={e => setProdBrandFilter(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 outline-none focus:border-indigo-300">
+              <option value="">Todas las marcas</option>
+              {productBrands.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            {(prodCatFilter || prodBrandFilter) && (
+              <button onClick={() => { setProdCatFilter(""); setProdBrandFilter(""); }}
+                className="text-[10px] text-indigo-600 hover:text-indigo-800 underline">Limpiar filtros</button>
+            )}
+          </div>
+          {/* Table */}
+          <div className="overflow-y-auto" style={{ maxHeight: "420px" }}>
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 bg-white z-10">
                 <tr className="text-gray-500 text-xs border-b border-gray-200">
-                  <th className="text-left pb-2 font-medium">Producto</th>
-                  <th className="text-right pb-2 font-medium">Vistas</th>
-                  <th className="text-right pb-2 font-medium">Ventas</th>
-                  <th className="text-right pb-2 font-medium">Revenue</th>
-                  <th className="text-right pb-2 font-medium">Vista→Compra</th>
+                  <th className="text-left pb-2 font-medium pl-1">Producto</th>
+                  <th className="text-right pb-2 font-medium cursor-pointer select-none hover:text-indigo-600" onClick={() => toggleSort("views")}>
+                    Vistas {prodSort.col === "views" ? (prodSort.dir === "desc" ? "↓" : "↑") : ""}
+                  </th>
+                  <th className="text-right pb-2 font-medium cursor-pointer select-none hover:text-indigo-600" onClick={() => toggleSort("purchases")}>
+                    Ventas {prodSort.col === "purchases" ? (prodSort.dir === "desc" ? "↓" : "↑") : ""}
+                  </th>
+                  <th className="text-right pb-2 font-medium cursor-pointer select-none hover:text-indigo-600" onClick={() => toggleSort("revenue")}>
+                    Revenue {prodSort.col === "revenue" ? (prodSort.dir === "desc" ? "↓" : "↑") : ""}
+                  </th>
+                  <th className="text-right pb-2 font-medium cursor-pointer select-none hover:text-indigo-600" onClick={() => toggleSort("viewToPurchaseRate")}>
+                    Conv. % {prodSort.col === "viewToPurchaseRate" ? (prodSort.dir === "desc" ? "↓" : "↑") : ""}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {ga4.products.map((p, i) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    <td className="py-2 text-gray-700 text-xs max-w-[200px] truncate">{p.name}</td>
-                    <td className="py-2 text-right text-gray-600 text-xs">{fmt(p.views)}</td>
-                    <td className="py-2 text-right text-gray-600 text-xs">{fmt(p.purchases)}</td>
-                    <td className="py-2 text-right text-gray-800 text-xs font-medium">{fmtARS(p.revenue)}</td>
-                    <td className="py-2 text-right text-xs">
+                {filteredProducts.map((p, i) => (
+                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50/50">
+                    <td className="py-1.5 pl-1">
+                      <div className="flex items-center gap-2">
+                        {p.imageUrl ? (
+                          <img src={p.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 bg-gray-100" loading="lazy" />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                            <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-700 truncate max-w-[180px]">{p.name}</p>
+                          {(p.category || p.brand) && (
+                            <p className="text-[10px] text-gray-400 truncate max-w-[180px]">
+                              {[p.category, p.brand].filter(Boolean).filter(v => v !== "(not set)").join(" · ")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(p.views)}</td>
+                    <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(p.purchases)}</td>
+                    <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(p.revenue)}</td>
+                    <td className="py-1.5 text-right text-xs">
                       <span className={p.viewToPurchaseRate > 2 ? "text-emerald-600 font-medium" : p.viewToPurchaseRate > 0 ? "text-amber-600" : "text-gray-400"}>
                         {p.viewToPurchaseRate}%
                       </span>
