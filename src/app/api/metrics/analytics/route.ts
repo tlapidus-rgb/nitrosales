@@ -249,6 +249,7 @@ export async function GET(req: Request) {
       WHERE o."organizationId" = ${org.id}
         AND o."orderDate" >= ${new Date(startDate)}::timestamp
         AND o."orderDate" <= ${new Date(endDate + "T23:59:59Z")}::timestamp
+        AND o.status NOT IN ('CANCELLED', 'RETURNED')
         AND c.state IS NOT NULL AND TRIM(c.state) != ''
       GROUP BY UPPER(TRIM(c.state))
       ORDER BY revenue DESC
@@ -274,6 +275,7 @@ export async function GET(req: Request) {
       WHERE "organizationId" = ${org.id}
         AND "orderDate" >= ${new Date(startDate)}::timestamp
         AND "orderDate" <= ${new Date(endDate + "T23:59:59Z")}::timestamp
+        AND status NOT IN ('CANCELLED', 'RETURNED')
         AND "deliveryType" IS NOT NULL
       GROUP BY "deliveryType"
     `;
@@ -295,6 +297,7 @@ export async function GET(req: Request) {
       WHERE "organizationId" = ${org.id}
         AND "orderDate" >= ${new Date(startDate)}::timestamp
         AND "orderDate" <= ${new Date(endDate + "T23:59:59Z")}::timestamp
+        AND status NOT IN ('CANCELLED', 'RETURNED')
         AND "deliveryType" = 'pickup'
         AND "pickupStoreName" IS NOT NULL
       GROUP BY "pickupStoreName"
