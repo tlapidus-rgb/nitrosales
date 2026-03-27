@@ -363,17 +363,25 @@ export async function GET(req: Request) {
         } catch {}
       }
 
-      if (detail.deviceInfo || detail.origin) {
-          try {
-            await prisma.order.update({
+      // ── Extract delivery type + pickup store name from VTEX logisticsInfo ──
+      const logInfo = detail.shippingData?.logisticsInfo?.[0];
+      const isPickup = logInfo?.pickupStoreInfo?.isPickupStore === true;
+      const pickupName = logInfo?.pickupStoreInfo?.friendlyName || null;
+      const shipTotalCents = ((detail.totals || []).find((t: any) => t.id === "Shipping") || {}).value || 0;
+
+      try {
+          await prisma.order.update({
               where: { id: order.id },
               data: {
                 deviceType: detail.deviceInfo?.deviceType || null,
                 trafficSource: detail.origin || null,
+                deliveryType: isPickup ? "pickup" : "shipping",
+                pickupStoreName: isPickup ? pickupName : null,
+                shippingCost: shipTotalCents / 100,
               },
             });
           } catch {}
-        }
+
 
         processed++;
       } catch (oe: any) {
