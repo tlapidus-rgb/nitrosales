@@ -286,6 +286,12 @@ export default function AnalyticsPage() {
               <span className="text-[10px] text-gray-500">Tasa de conversión general</span>
               <span className="text-sm font-semibold text-emerald-500">{conversionRate}%</span>
             </div>
+            <div className="mt-2 flex items-start gap-1.5">
+              <svg className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>
+              <p className="text-[10px] text-gray-400 leading-relaxed">
+                Datos provenientes de <b className="text-gray-500">Google Analytics 4</b>. GA4 generalmente registra menos compras que el ecommerce (VTEX) porque depende de que el navegador del usuario ejecute el evento de tracking. Bloqueadores de anuncios, conexiones lentas o cierres prematuros del navegador pueden impedir el registro.
+              </p>
+            </div>
           </SectionCard>
         );
       })()}
