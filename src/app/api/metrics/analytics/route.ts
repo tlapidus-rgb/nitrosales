@@ -156,7 +156,7 @@ export async function GET(req: Request) {
 
     const searches = searchRows.map((r: any) => ({
       term: str(r, 0), count: num(r, 0),
-    }));
+    })).filter((s: any) => s.term && s.term !== "(not set)" && !s.term.startsWith("/"));
 
     const trafficRevenue = trafficRows.map((r: any) => ({
       source: str(r, 0), medium: str(r, 1),
