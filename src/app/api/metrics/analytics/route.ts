@@ -93,8 +93,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "GA4 auth failed" }, { status: 401 });
     }
 
-    // ── 9 GA4 API calls in parallel ──
-    const [geoRows, productRows, searchRows, trafficRows, landingRows, hourlyRows, dowRows, nvrRows, dailyFunnelRows] = await Promise.all([
+    // ── 11 GA4 API calls in parallel ──
+    const [geoRows, productRows, searchRows, trafficRows, landingRows, hourlyRows, dowRows, nvrRows, dailyFunnelRows, categoryRows, brandRows] = await Promise.all([
       // 1. Geographic
       runReport(propertyId, token, ["region", "city"], ["sessions", "ecommercePurchases", "purchaseRevenue", "totalUsers"], startDate, endDate, { limit: 30, orderBy: { metric: "sessions" } }),
       // 2. Products (views vs purchases)
@@ -113,6 +113,10 @@ export async function GET(req: Request) {
       runReport(propertyId, token, ["newVsReturning"], ["sessions", "totalUsers", "ecommercePurchases", "purchaseRevenue"], startDate, endDate),
       // 8. Daily funnel for abandonment trend
       runReport(propertyId, token, ["date"], ["addToCarts", "checkouts", "ecommercePurchases"], startDate, endDate),
+      // 9. Category conversion (products viewed vs purchased by category)
+      runReport(propertyId, token, ["itemCategory"], ["itemsViewed", "itemsPurchased", "itemRevenue"], startDate, endDate, { limit: 30, orderBy: { metric: "itemsViewed" } }),
+      // 10. Brand conversion (products viewed vs purchased by brand)
+      runReport(propertyId, token, ["itemBrand"], ["itemsViewed", "itemsPurchased", "itemRevenue"], startDate, endDate, { limit: 30, orderBy: { metric: "itemsViewed" } }),
     ]);
 
     // ── Transform results ──
@@ -178,9 +182,24 @@ export async function GET(req: Request) {
       daily: dailyAbandonment,
     };
 
+    // Category conversion
+    const categories = categoryRows.map((r: any) => ({
+      category: str(r, 0) || "(sin categoría)",
+      views: num(r, 0), purchases: num(r, 1), revenue: flt(r, 2),
+      conversionRate: num(r, 0) > 0 ? Math.round((num(r, 1) / num(r, 0)) * 10000) / 100 : 0,
+    })).filter((c: any) => c.category !== "(not set)");
+
+    // Brand conversion
+    const brands = brandRows.map((r: any) => ({
+      brand: str(r, 0) || "(sin marca)",
+      views: num(r, 0), purchases: num(r, 1), revenue: flt(r, 2),
+      conversionRate: num(r, 0) > 0 ? Math.round((num(r, 1) / num(r, 0)) * 10000) / 100 : 0,
+    })).filter((b: any) => b.brand !== "(not set)");
+
     return NextResponse.json({
       geographic, products, searches, trafficRevenue,
       landingPages, hourly, dayOfWeek, newVsReturning, abandonment,
+      categories, brands,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

@@ -42,6 +42,8 @@ type GA4Data = {
   dayOfWeek: Array<{ day: number; dayName: string; sessions: number; purchases: number }>;
   newVsReturning: Array<{ type: string; sessions: number; users: number; purchases: number; revenue: number }>;
   abandonment: { cartAbandonmentRate: number; checkoutAbandonmentRate: number; totalAddToCarts: number; totalCheckouts: number; totalPurchases: number; daily: Array<{ day: string; addToCarts: number; checkouts: number; purchases: number; cartAbandonmentRate: number }> };
+  categories: Array<{ category: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
+  brands: Array<{ brand: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
 };
 
 function KpiCard({ label, value, sub, change, color }: { label: string; value: string; sub?: string; change?: number; color: string }) {
@@ -67,14 +69,18 @@ function KpiCard({ label, value, sub, change, color }: { label: string; value: s
   );
 }
 
-function SectionCard({ title, children, badge }: { title: string; children: React.ReactNode; badge?: string }) {
+function SectionCard({ title, children, badge, maxH }: { title: string; children: React.ReactNode; badge?: string; maxH?: string }) {
   return (
     <div className="rounded-2xl bg-white border border-gray-200 p-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-gray-800">{title}</h2>
         {badge && <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{badge}</span>}
       </div>
-      {children}
+      {maxH ? (
+        <div className="overflow-y-auto" style={{ maxHeight: maxH }}>
+          {children}
+        </div>
+      ) : children}
     </div>
   );
 }
@@ -268,38 +274,67 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* ═══ FUENTES DE TRÁFICO CON REVENUE ═══ */}
-      {ga4?.trafficRevenue && ga4.trafficRevenue.length > 0 && (
-        <SectionCard title="Fuentes de Tráfico" badge="Revenue por canal">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 text-xs border-b border-gray-200">
-                  <th className="text-left pb-2 font-medium">Fuente / Medio</th>
-                  <th className="text-right pb-2 font-medium">Sesiones</th>
-                  <th className="text-right pb-2 font-medium">Revenue</th>
-                  <th className="text-right pb-2 font-medium">Compras</th>
-                  <th className="text-right pb-2 font-medium">Conv. %</th>
-                  <th className="text-right pb-2 font-medium">Rev/Sesion</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ga4.trafficRevenue.slice(0, 15).map((t, i) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    <td className="py-2 text-gray-700 text-xs">{t.source} / <span className="text-gray-400">{t.medium}</span></td>
-                    <td className="py-2 text-right text-gray-600 text-xs">{fmt(t.sessions)}</td>
-                    <td className="py-2 text-right text-gray-800 text-xs font-medium">{fmtARS(t.revenue)}</td>
-                    <td className="py-2 text-right text-gray-600 text-xs">{fmt(t.purchases)}</td>
-                    <td className="py-2 text-right text-xs">
-                      <span className={t.conversionRate > 1 ? "text-emerald-600 font-medium" : "text-gray-400"}>{t.conversionRate}%</span>
-                    </td>
-                    <td className="py-2 text-right text-gray-500 text-xs">{fmtARS(t.revenuePerSession)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SectionCard>
+      {/* ═══ FUENTES DE TRÁFICO + LANDING PAGES (side by side, scrollable) ═══ */}
+      {ga4 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {ga4.trafficRevenue?.length > 0 && (
+            <SectionCard title="Fuentes de Tráfico" badge="Revenue por canal" maxH="320px">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="text-gray-500 text-xs border-b border-gray-200">
+                      <th className="text-left pb-2 font-medium">Fuente / Medio</th>
+                      <th className="text-right pb-2 font-medium">Sesiones</th>
+                      <th className="text-right pb-2 font-medium">Revenue</th>
+                      <th className="text-right pb-2 font-medium">Conv. %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ga4.trafficRevenue.slice(0, 15).map((t, i) => (
+                      <tr key={i} className="border-b border-gray-100">
+                        <td className="py-1.5 text-gray-700 text-xs truncate max-w-[140px]">{t.source} / <span className="text-gray-400">{t.medium}</span></td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(t.sessions)}</td>
+                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(t.revenue)}</td>
+                        <td className="py-1.5 text-right text-xs">
+                          <span className={t.conversionRate > 1 ? "text-emerald-600 font-medium" : "text-gray-400"}>{t.conversionRate}%</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          )}
+
+          {ga4.landingPages?.length > 0 && (
+            <SectionCard title="Landing Pages" badge="Páginas de entrada" maxH="320px">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="text-gray-500 text-xs border-b border-gray-200">
+                      <th className="text-left pb-2 font-medium">Página</th>
+                      <th className="text-right pb-2 font-medium">Sesiones</th>
+                      <th className="text-right pb-2 font-medium">Bounce</th>
+                      <th className="text-right pb-2 font-medium">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ga4.landingPages.map((lp, i) => (
+                      <tr key={i} className="border-b border-gray-100">
+                        <td className="py-1.5 text-gray-700 text-xs max-w-[180px] truncate">{cleanUrl(lp.path)}</td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(lp.sessions)}</td>
+                        <td className="py-1.5 text-right text-xs">
+                          <span className={lp.bounceRate > 70 ? "text-red-500" : lp.bounceRate > 50 ? "text-amber-600" : "text-emerald-600"}>{lp.bounceRate}%</span>
+                        </td>
+                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(lp.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          )}
+        </div>
       )}
 
       {/* ═══ PRODUCTOS: VISTOS VS VENDIDOS ═══ */}
@@ -336,58 +371,128 @@ export default function AnalyticsPage() {
         </SectionCard>
       )}
 
-      {/* ═══ LANDING PAGES ═══ */}
-      {ga4?.landingPages && ga4.landingPages.length > 0 && (
-        <SectionCard title="Landing Pages" badge="Páginas de entrada">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 text-xs border-b border-gray-200">
-                  <th className="text-left pb-2 font-medium">Página</th>
-                  <th className="text-right pb-2 font-medium">Sesiones</th>
-                  <th className="text-right pb-2 font-medium">Bounce</th>
-                  <th className="text-right pb-2 font-medium">Compras</th>
-                  <th className="text-right pb-2 font-medium">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ga4.landingPages.map((lp, i) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    <td className="py-2 text-gray-700 text-xs max-w-[250px] truncate">{cleanUrl(lp.path)}</td>
-                    <td className="py-2 text-right text-gray-600 text-xs">{fmt(lp.sessions)}</td>
-                    <td className="py-2 text-right text-xs">
-                      <span className={lp.bounceRate > 70 ? "text-red-500" : lp.bounceRate > 50 ? "text-amber-600" : "text-emerald-600"}>{lp.bounceRate}%</span>
-                    </td>
-                    <td className="py-2 text-right text-gray-600 text-xs">{fmt(lp.purchases)}</td>
-                    <td className="py-2 text-right text-gray-800 text-xs font-medium">{fmtARS(lp.revenue)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SectionCard>
+      {/* ═══ CONVERSIÓN POR CATEGORÍA + MARCA ═══ */}
+      {ga4 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {ga4.categories?.length > 0 && (
+            <SectionCard title="Conversión por Categoría" badge="Productos vistos vs vendidos" maxH="320px">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="text-gray-500 text-xs border-b border-gray-200">
+                      <th className="text-left pb-2 font-medium">Categoría</th>
+                      <th className="text-right pb-2 font-medium">Vistas</th>
+                      <th className="text-right pb-2 font-medium">Ventas</th>
+                      <th className="text-right pb-2 font-medium">Revenue</th>
+                      <th className="text-right pb-2 font-medium">Conv. %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ga4.categories.map((c, i) => (
+                      <tr key={i} className="border-b border-gray-100">
+                        <td className="py-1.5 text-gray-700 text-xs max-w-[150px] truncate">{c.category}</td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(c.views)}</td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(c.purchases)}</td>
+                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(c.revenue)}</td>
+                        <td className="py-1.5 text-right text-xs">
+                          <span className={c.conversionRate > 2 ? "text-emerald-600 font-medium" : c.conversionRate > 0 ? "text-amber-600" : "text-gray-400"}>
+                            {c.conversionRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          )}
+
+          {ga4.brands?.length > 0 && (
+            <SectionCard title="Conversión por Marca" badge="Productos vistos vs vendidos" maxH="320px">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="text-gray-500 text-xs border-b border-gray-200">
+                      <th className="text-left pb-2 font-medium">Marca</th>
+                      <th className="text-right pb-2 font-medium">Vistas</th>
+                      <th className="text-right pb-2 font-medium">Ventas</th>
+                      <th className="text-right pb-2 font-medium">Revenue</th>
+                      <th className="text-right pb-2 font-medium">Conv. %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ga4.brands.map((b, i) => (
+                      <tr key={i} className="border-b border-gray-100">
+                        <td className="py-1.5 text-gray-700 text-xs max-w-[150px] truncate">{b.brand}</td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(b.views)}</td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(b.purchases)}</td>
+                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(b.revenue)}</td>
+                        <td className="py-1.5 text-right text-xs">
+                          <span className={b.conversionRate > 2 ? "text-emerald-600 font-medium" : b.conversionRate > 0 ? "text-amber-600" : "text-gray-400"}>
+                            {b.conversionRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          )}
+        </div>
       )}
 
-      {/* ═══ BÚSQUEDAS INTERNAS ═══ */}
-      {ga4?.searches && ga4.searches.length > 0 && (
-        <SectionCard title="Búsquedas Internas" badge="Qué buscan tus clientes">
-          <div className="space-y-2">
-            {ga4.searches.map((s, i) => {
-              const max = ga4.searches[0]?.count || 1;
-              return (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-40 text-xs text-gray-700 truncate font-medium">{s.term}</div>
-                  <div className="flex-1 h-5 bg-gray-100 rounded-lg overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-indigo-400 to-indigo-200 rounded-lg flex items-center px-2"
-                      style={{ width: `${Math.max((s.count / max) * 100, 5)}%` }}>
-                      <span className="text-[10px] text-white font-medium">{fmt(s.count)}</span>
+      {/* ═══ BÚSQUEDAS INTERNAS + VENTAS POR ZONA ═══ */}
+      {ga4 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {ga4.searches?.length > 0 && (
+            <SectionCard title="Búsquedas Internas" badge="Qué buscan tus clientes" maxH="300px">
+              <div className="space-y-2">
+                {ga4.searches.map((s, i) => {
+                  const max = ga4.searches[0]?.count || 1;
+                  return (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-32 text-xs text-gray-700 truncate font-medium">{s.term}</div>
+                      <div className="flex-1 h-5 bg-gray-100 rounded-lg overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-indigo-400 to-indigo-200 rounded-lg flex items-center px-2"
+                          style={{ width: `${Math.max((s.count / max) * 100, 5)}%` }}>
+                          <span className="text-[10px] text-white font-medium">{fmt(s.count)}</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </SectionCard>
+                  );
+                })}
+              </div>
+            </SectionCard>
+          )}
+
+          {ga4.geographic?.length > 0 && (
+            <SectionCard title="Ventas por Zona" badge="Regiones y ciudades" maxH="300px">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="text-gray-500 text-xs border-b border-gray-200">
+                      <th className="text-left pb-2 font-medium">Region</th>
+                      <th className="text-left pb-2 font-medium">Ciudad</th>
+                      <th className="text-right pb-2 font-medium">Sesiones</th>
+                      <th className="text-right pb-2 font-medium">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ga4.geographic.slice(0, 20).map((g, i) => (
+                      <tr key={i} className="border-b border-gray-100">
+                        <td className="py-1.5 text-gray-700 text-xs truncate max-w-[100px]">{g.region || "(no set)"}</td>
+                        <td className="py-1.5 text-gray-600 text-xs truncate max-w-[100px]">{g.city || "(no set)"}</td>
+                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(g.sessions)}</td>
+                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(g.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          )}
+        </div>
       )}
 
       {/* ═══ HORARIOS Y DÍAS PICO ═══ */}
@@ -429,36 +534,6 @@ export default function AnalyticsPage() {
             </SectionCard>
           )}
         </div>
-      )}
-
-      {/* ═══ MAPA POR ZONA ═══ */}
-      {ga4?.geographic && ga4.geographic.length > 0 && (
-        <SectionCard title="Ventas por Zona" badge="Regiones y ciudades">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 text-xs border-b border-gray-200">
-                  <th className="text-left pb-2 font-medium">Region</th>
-                  <th className="text-left pb-2 font-medium">Ciudad</th>
-                  <th className="text-right pb-2 font-medium">Sesiones</th>
-                  <th className="text-right pb-2 font-medium">Compras</th>
-                  <th className="text-right pb-2 font-medium">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ga4.geographic.slice(0, 20).map((g, i) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    <td className="py-2 text-gray-700 text-xs">{g.region || "(no set)"}</td>
-                    <td className="py-2 text-gray-600 text-xs">{g.city || "(no set)"}</td>
-                    <td className="py-2 text-right text-gray-600 text-xs">{fmt(g.sessions)}</td>
-                    <td className="py-2 text-right text-gray-600 text-xs">{fmt(g.purchases)}</td>
-                    <td className="py-2 text-right text-gray-800 text-xs font-medium">{fmtARS(g.revenue)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SectionCard>
       )}
 
       {/* ═══ DAILY VISITORS TREND ═══ */}
@@ -536,9 +611,9 @@ export default function AnalyticsPage() {
 
       {/* ═══ POPULAR PAGES ═══ */}
       {d.popularPages.length > 0 && (
-        <SectionCard title="Páginas Populares">
+        <SectionCard title="Páginas Populares" maxH="300px">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 bg-white">
               <tr className="text-gray-500 text-xs border-b border-gray-200">
                 <th className="text-left pb-2 font-medium">URL</th>
                 <th className="text-right pb-2 font-medium">Views</th>
@@ -548,9 +623,9 @@ export default function AnalyticsPage() {
             <tbody>
               {d.popularPages.map((p, i) => (
                 <tr key={i} className="border-b border-gray-100">
-                  <td className="py-2 text-gray-700 max-w-md truncate text-xs">{cleanUrl(p.url)}</td>
-                  <td className="py-2 text-right text-gray-400 text-xs">{fmt(p.pageViews)}</td>
-                  <td className="py-2 text-right text-gray-400 text-xs">{fmt(p.uniqueVisitors)}</td>
+                  <td className="py-1.5 text-gray-700 max-w-md truncate text-xs">{cleanUrl(p.url)}</td>
+                  <td className="py-1.5 text-right text-gray-400 text-xs">{fmt(p.pageViews)}</td>
+                  <td className="py-1.5 text-right text-gray-400 text-xs">{fmt(p.uniqueVisitors)}</td>
                 </tr>
               ))}
             </tbody>
