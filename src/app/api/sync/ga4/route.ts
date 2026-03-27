@@ -95,7 +95,18 @@ export async function POST(req: Request) {
     const gaData = await gaRes.json();
     const rows = gaData.rows || [];
 
-    // Get existing dates to skip them
+    // GA4 data for the last 3 days can change as processing completes.
+    // Strategy: delete recent days (last 3) and re-insert fresh, skip older existing dates.
+    const refreshCutoff = new Date();
+    refreshCutoff.setDate(refreshCutoff.getDate() - 3);
+    refreshCutoff.setHours(0, 0, 0, 0);
+
+    // Delete recent web metric rows so they get refreshed
+    await prisma.webMetricDaily.deleteMany({
+      where: { organizationId: org.id, date: { gte: refreshCutoff } },
+    });
+
+    // Get remaining existing dates to skip
     const existingMetrics = await prisma.webMetricDaily.findMany({
       where: { organizationId: org.id },
       select: { date: true },
@@ -159,7 +170,12 @@ export async function POST(req: Request) {
         const funnelData = await funnelRes.json();
         const funnelRows = funnelData.rows || [];
 
-        // Get existing funnel dates to skip
+        // GA4 data for last 3 days can change — delete and refresh
+        await prisma.funnelDaily.deleteMany({
+          where: { organizationId: org.id, date: { gte: refreshCutoff } },
+        });
+
+        // Get remaining existing funnel dates to skip
         const existingFunnel = await prisma.funnelDaily.findMany({
           where: { organizationId: org.id },
           select: { date: true },
@@ -205,7 +221,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       webMetrics: { totalRows: rows.length, new: newRows.length, skipped: rows.length - newRows.length },
-      funnel: { new: funnelNew, skipped: funnelSkipped },
+      funnel: { new: funnelNew, skipped: funnelSkipped, refreshCutoff: refreshCutoff.toISOString().split("T")[0] },
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
