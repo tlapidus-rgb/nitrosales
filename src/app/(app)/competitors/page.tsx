@@ -18,7 +18,7 @@ type CompItem = {
   previousPrice: number | null; url: string; productName: string; imageUrl?: string;
 };
 type PriceRow = {
-  ownProduct: { id: string; name: string; sku: string; price: number; imageUrl?: string };
+  ownProduct: { id: string; name: string; sku: string; price: number; imageUrl?: string; priceStatus?: "ok" | "sin_stock" | "sin_precio" };
   competitors: CompItem[];
   position: number;
   totalInComparison: number;
@@ -390,7 +390,15 @@ export default function CompetitorsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-3 font-bold text-gray-800 tabular-nums">{fmtARS(row.ownProduct.price)}</td>
+                      <td className="px-3 py-3 font-bold tabular-nums">
+                        {row.ownProduct.priceStatus === "sin_stock" ? (
+                          <span className="text-[11px] font-semibold px-2 py-1 rounded bg-gray-100 text-gray-500">Sin stock</span>
+                        ) : row.ownProduct.priceStatus === "sin_precio" ? (
+                          <span className="text-[11px] font-semibold px-2 py-1 rounded bg-amber-50 text-amber-600">Sin precio publicado</span>
+                        ) : (
+                          <span className="text-gray-800">{fmtARS(row.ownProduct.price)}</span>
+                        )}
+                      </td>
                       {stores.map((s: Store) => {
                         if (storeFilter !== "all" && storeFilter !== s.id) return null;
                         const comp = row.competitors.find((c: CompItem) => c.storeId === s.id);
@@ -411,11 +419,15 @@ export default function CompetitorsPage() {
                         );
                       })}
                       <td className="px-3 py-3 text-center">
-                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold ${
-                          row.position === 1 ? "bg-green-100 text-green-800"
-                          : row.position === 2 ? "bg-amber-100 text-amber-800"
-                          : "bg-red-100 text-red-800"
-                        }`}>{row.position}°</span>
+                        {row.ownProduct.priceStatus && row.ownProduct.priceStatus !== "ok" ? (
+                          <span className="text-gray-300">—</span>
+                        ) : (
+                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold ${
+                            row.position === 1 ? "bg-green-100 text-green-800"
+                            : row.position === 2 ? "bg-amber-100 text-amber-800"
+                            : "bg-red-100 text-red-800"
+                          }`}>{row.position}°</span>
+                        )}
                       </td>
                     </tr>
                   ))}

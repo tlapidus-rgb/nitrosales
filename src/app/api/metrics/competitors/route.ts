@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.product.findMany({
         where: { organizationId: orgId, isActive: true },
-        select: { id: true, name: true, sku: true, price: true, imageUrl: true },
+        select: { id: true, name: true, sku: true, price: true, imageUrl: true, stock: true },
       }),
     ]);
 
@@ -97,6 +97,13 @@ export async function GET(req: NextRequest) {
 
       const bestPrice = competitors.length > 0 ? competitors[0] : null;
 
+      // Determinar estado del precio propio
+      const ownStock = Number(own.stock) || 0;
+      let priceStatus: "ok" | "sin_stock" | "sin_precio" = "ok";
+      if (ownPrice < MIN_VALID_OWN_PRICE) {
+        priceStatus = ownStock === 0 ? "sin_stock" : "sin_precio";
+      }
+
       return {
         ownProduct: {
           id: own.id,
@@ -104,6 +111,7 @@ export async function GET(req: NextRequest) {
           sku: own.sku,
           price: ownPrice,
           imageUrl: own.imageUrl,
+          priceStatus,
         },
         competitors,
         position,
