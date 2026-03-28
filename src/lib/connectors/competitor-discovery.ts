@@ -123,7 +123,7 @@ async function fetchVtexProducts(
     try {
       const res = await fetch(
         `${base}/api/catalog_system/pub/products/search/?_from=${from}&_to=${to}`,
-        { headers: BROWSER_HEADERS, signal: AbortSignal.timeout(15000) }
+        { headers: BROWSER_HEADERS, signal: AbortSignal.timeout(8000) }
       );
 
       // VTEX returns 206 Partial Content for paginated results
