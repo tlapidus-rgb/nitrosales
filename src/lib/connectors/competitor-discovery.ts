@@ -17,6 +17,7 @@ export interface OwnProduct {
   id: string;
   name: string;
   sku: string | null;
+  ean: string | null;
   brand: string | null;
   category: string | null;
   price: number;
@@ -32,6 +33,8 @@ export interface DiscoveredProduct {
   matchedOwnProduct?: OwnProduct;
   matchScore: number;
   matchReason: string;
+  competitorEan?: string;
+  matchMethod?: string;
 }
 
 type Platform = "vtex" | "shopify" | "tiendanube" | "woocommerce" | "unknown";
@@ -97,6 +100,9 @@ interface RawProduct {
   currency: string;
   imageUrl?: string;
   method: string;
+  competitorEan?: string;
+  brand?: string;
+  category?: string;
 }
 
 async function fetchVtexProducts(
@@ -149,6 +155,16 @@ async function fetchVtexProducts(
         const category = (item.categories?.[0] || "").replace(/^\//,"").replace(/\/$/,"");
 
         if (name && price > 0) {
+          // Extract competitor EAN from productReference, referenceId, or URL pattern
+          const ref = item.productReference || "";
+          const refIdVal = items[0]?.referenceId?.[0]?.Value || "";
+          const urlEanMatch = link.match(/(\d{12,14})\/p$/);
+          const urlEan = urlEanMatch ? urlEanMatch[1] : "";
+          const competitorEan = (ref.length >= 12 && /^\d+$/.test(ref)) ? ref
+            : (refIdVal.length >= 12 && /^\d+$/.test(refIdVal)) ? refIdVal
+            : (urlEan.length >= 12) ? urlEan
+            : undefined;
+
           products.push({
             url: link,
             name,
@@ -156,6 +172,9 @@ async function fetchVtexProducts(
             currency: "ARS",
             imageUrl,
             method: "vtex-api",
+            competitorEan,
+            brand,
+            category,
           });
         }
       }
@@ -395,15 +414,21 @@ function tokenize(text: string): string[] {
 
 function calculateMatchScore(
   scrapedName: string,
-  ownProduct: OwnProduct
-): { score: number; reason: string } {
+  ownProduct: OwnProduct,
+  competitorEan?: string
+): { score: number; reason: string; method: string } {
   const scrapedNorm = normalize(scrapedName);
+
+  // 0. EAN EXACT MATCH (highest priority — barcode match is 100% reliable)
+  if (competitorEan && ownProduct.ean && competitorEan === ownProduct.ean) {
+    return { score: 100, reason: `EAN exacto: ${competitorEan}`, method: "EAN_EXACT" };
+  }
 
   // 1. Exact SKU match
   if (ownProduct.sku) {
     const skuNorm = normalize(ownProduct.sku);
     if (skuNorm.length >= 3 && scrapedNorm.includes(skuNorm)) {
-      return { score: 95, reason: `SKU match: ${ownProduct.sku}` };
+      return { score: 95, reason: `SKU match: ${ownProduct.sku}`, method: "SKU_MATCH" };
     }
   }
 
@@ -445,20 +470,21 @@ function calculateMatchScore(
     if (found || score >= 80) break;
   }
 
-  return { score: Math.min(score, 100), reason };
+  return { score: Math.min(score, 100), reason, method: "FUZZY_TEXT" };
 }
 
 export function findBestMatch(
   scrapedName: string,
   ownProducts: OwnProduct[],
-  minScore = 50
-): { product: OwnProduct; score: number; reason: string } | null {
-  let bestMatch: { product: OwnProduct; score: number; reason: string } | null = null;
+  minScore = 50,
+  competitorEan?: string
+): { product: OwnProduct; score: number; reason: string; method: string } | null {
+  let bestMatch: { product: OwnProduct; score: number; reason: string; method: string } | null = null;
 
   for (const own of ownProducts) {
-    const { score, reason } = calculateMatchScore(scrapedName, own);
+    const { score, reason, method } = calculateMatchScore(scrapedName, own, competitorEan);
     if (score >= minScore && (!bestMatch || score > bestMatch.score)) {
-      bestMatch = { product: own, score, reason };
+      bestMatch = { product: own, score, reason, method };
     }
   }
 
@@ -500,14 +526,16 @@ export async function discoverCompetitorProducts(
 
   console.log(`[Discovery] Fetched ${rawProducts.length} products via ${platform}`);
 
-  // Phase 3: Match against own catalog
+  // Phase 3: Match against own catalog (EAN > SKU > fuzzy text)
   const discovered: DiscoveredProduct[] = rawProducts.map((rp) => {
-    const match = findBestMatch(rp.name, ownProducts);
+    const match = findBestMatch(rp.name, ownProducts, 50, rp.competitorEan);
     return {
       ...rp,
       matchedOwnProduct: match?.product,
       matchScore: match?.score || 0,
       matchReason: match?.reason || "",
+      competitorEan: rp.competitorEan,
+      matchMethod: match?.method,
     };
   });
 

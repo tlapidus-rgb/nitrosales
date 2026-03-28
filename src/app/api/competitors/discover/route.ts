@@ -35,13 +35,14 @@ export async function POST(req: NextRequest) {
     // Get own products for matching
     const products = await prisma.product.findMany({
       where: { organizationId: org.id, isActive: true },
-      select: { id: true, name: true, sku: true, brand: true, category: true, price: true },
+      select: { id: true, name: true, sku: true, ean: true, brand: true, category: true, price: true },
     });
 
     const ownProducts: OwnProduct[] = products.map((p) => ({
       id: p.id,
       name: p.name,
       sku: p.sku,
+      ean: p.ean,
       brand: p.brand,
       category: p.category,
       price: Number(p.price),
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       store.website,
       ownProducts,
       {
-        maxProducts: 150,
+        maxProducts: 500,
         maxRuntimeMs: 45000, // 45s safety margin (Vercel limit is 60s)
       }
     );
@@ -87,6 +88,8 @@ export async function POST(req: NextRequest) {
           lastScrapedAt: now,
           scrapeStatus: "OK",
           ownProductId: product.matchedOwnProduct?.id || null,
+          competitorEan: product.competitorEan || null,
+          matchMethod: product.matchMethod || "FUZZY_TEXT",
           scrapedData: [{ date: today, price: product.price }],
         })),
         skipDuplicates: true,
@@ -101,6 +104,8 @@ export async function POST(req: NextRequest) {
       price: product.price,
       matchedTo: product.matchedOwnProduct?.name || null,
       score: product.matchScore,
+      matchMethod: product.matchMethod,
+      competitorEan: product.competitorEan,
     }));
 
     return NextResponse.json({

@@ -489,6 +489,7 @@ export class VtexConnector {
             externalId: String(skuId),
             name,
             sku: refId || ean || String(skuId),
+            ean: ean || null,
             brand: brand || null,
             category: category || null,
             price,

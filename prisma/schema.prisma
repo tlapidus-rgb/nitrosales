@@ -199,6 +199,7 @@ model Product {
   externalId    String                           // ID en VTEX/Shopify
   name          String
   sku           String?
+  ean           String?                            // EAN/GTIN-13 barcode
   category      String?
   brand         String?
   price         Decimal  @db.Decimal(12, 2)
@@ -792,6 +793,8 @@ model CompetitorPrice {
   competitor     CompetitorStore @relation(fields: [competitorId], references: [id], onDelete: Cascade)
   ownProductId   String?
   ownProduct     Product? @relation(fields: [ownProductId], references: [id], onDelete: SetNull)
+  competitorEan  String?                          // EAN del producto en tienda competidora
+  matchMethod    String?                          // EAN_EXACT | SKU_MATCH | FUZZY_TEXT
 
   @@index([organizationId])
   @@index([competitorId])
