@@ -397,7 +397,8 @@ export default function CompetitorsPage() {
 
             {/* Add new store */}
             <div className="bg-gray-50 rounded-xl p-4 mb-5">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Agregar Competidor</p>
+              <p className="text-sm font-semibold text-gray-700 mb-2">Agregar Competidor</p>
+              <p className="text-xs text-gray-400 mb-3">Paso 1: Agrega la tienda. Paso 2: Agrega las URLs de cada producto que quieras monitorear.</p>
               <div className="flex gap-2">
                 <input value={newStoreName} onChange={e => setNewStoreName(e.target.value)}
                   placeholder="Nombre (ej: Jugueterias Cody)" className="flex-1 px-3 py-2 border rounded-lg text-sm outline-none focus:border-indigo-400" />
@@ -468,7 +469,16 @@ export default function CompetitorsPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-400">Sin productos monitoreados</p>
+                    <div className="flex items-center gap-3 py-2 px-3 bg-blue-50 rounded-lg">
+                      <span className="text-blue-400 text-lg">💡</span>
+                      <p className="text-xs text-blue-600">Agrega URLs de productos de esta tienda para empezar a monitorear precios.</p>
+                      {showAddProduct !== s.id && (
+                        <button onClick={() => { setShowAddProduct(s.id); setNewProductUrl(""); }}
+                          className="ml-auto px-3 py-1 rounded-lg text-xs font-semibold text-white bg-blue-500 hover:bg-blue-600 whitespace-nowrap">
+                          Agregar URL
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               );
