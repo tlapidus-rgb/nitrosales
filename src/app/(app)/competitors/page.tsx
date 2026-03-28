@@ -52,6 +52,10 @@ export default function CompetitorsPage() {
   // Price history modal
   const [historyProduct, setHistoryProduct] = useState<any>(null);
 
+  // Auto-discovery state
+  const [discovering, setDiscovering] = useState<string | null>(null); // storeId being discovered
+  const [discoveryResult, setDiscoveryResult] = useState<any>(null);
+
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
   const loadData = async () => {
@@ -153,6 +157,28 @@ export default function CompetitorsPage() {
     } catch { showToast("Error"); }
   };
 
+  // Auto-discover products from sitemap
+  const discoverProducts = async (storeId: string) => {
+    setDiscovering(storeId);
+    setDiscoveryResult(null);
+    try {
+      const res = await fetch("/api/competitors/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitorStoreId: storeId }),
+      });
+      const result = await res.json();
+      if (result.error) {
+        showToast(`Error: ${result.error}`);
+      } else {
+        setDiscoveryResult(result);
+        showToast(`${result.created} productos encontrados y mapeados`);
+        loadData();
+      }
+    } catch { showToast("Error en la busqueda automatica"); }
+    finally { setDiscovering(null); }
+  };
+
   // Filtered comparison
   const comparison: PriceRow[] = useMemo(() => {
     if (!data?.priceComparison) return [];
@@ -218,7 +244,7 @@ export default function CompetitorsPage() {
           <div className="text-5xl mb-4">🎯</div>
           <h3 className="text-lg font-bold text-gray-800 mb-2">Agrega tu primer competidor</h3>
           <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
-            Monitoreamos los precios de tus competidores automaticamente. Agrega las URLs de los productos que quieras rastrear y te mostramos comparativas en tiempo real.
+            Agrega un competidor y el sistema busca automaticamente los productos en comun con tu catalogo, scrapea los precios y te muestra comparativas al instante.
           </p>
           <button
             onClick={() => setShowManage(true)}
@@ -398,7 +424,7 @@ export default function CompetitorsPage() {
             {/* Add new store */}
             <div className="bg-gray-50 rounded-xl p-4 mb-5">
               <p className="text-sm font-semibold text-gray-700 mb-2">Agregar Competidor</p>
-              <p className="text-xs text-gray-400 mb-3">Paso 1: Agrega la tienda. Paso 2: Agrega las URLs de cada producto que quieras monitorear.</p>
+              <p className="text-xs text-gray-400 mb-3">Agrega la tienda y usa "Descubrir Productos" para que el sistema encuentre automaticamente los productos en comun con tu catalogo.</p>
               <div className="flex gap-2">
                 <input value={newStoreName} onChange={e => setNewStoreName(e.target.value)}
                   placeholder="Nombre (ej: Jugueterias Cody)" className="flex-1 px-3 py-2 border rounded-lg text-sm outline-none focus:border-indigo-400" />
@@ -426,9 +452,17 @@ export default function CompetitorsPage() {
                       <p className="text-xs text-gray-400">{s.website}</p>
                     </div>
                     <div className="flex gap-2">
+                      <button onClick={() => discoverProducts(s.id)} disabled={discovering === s.id}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5">
+                        {discovering === s.id ? (
+                          <><svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Buscando...</>
+                        ) : (
+                          <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Descubrir Productos</>
+                        )}
+                      </button>
                       <button onClick={() => { setShowAddProduct(s.id); setNewProductUrl(""); }}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 border border-indigo-200 hover:bg-indigo-50">
-                        + Producto
+                        + Manual
                       </button>
                       <button onClick={() => deleteItem("store", s.id)}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50">
@@ -469,20 +503,50 @@ export default function CompetitorsPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="flex items-center gap-3 py-2 px-3 bg-blue-50 rounded-lg">
-                      <span className="text-blue-400 text-lg">💡</span>
-                      <p className="text-xs text-blue-600">Agrega URLs de productos de esta tienda para empezar a monitorear precios.</p>
-                      {showAddProduct !== s.id && (
-                        <button onClick={() => { setShowAddProduct(s.id); setNewProductUrl(""); }}
-                          className="ml-auto px-3 py-1 rounded-lg text-xs font-semibold text-white bg-blue-500 hover:bg-blue-600 whitespace-nowrap">
-                          Agregar URL
-                        </button>
-                      )}
+                    <div className="flex items-center gap-3 py-2 px-3 bg-emerald-50 rounded-lg">
+                      <span className="text-emerald-500 text-lg">🔍</span>
+                      <p className="text-xs text-emerald-700">Usa <strong>"Descubrir Productos"</strong> para buscar automaticamente productos en comun con tu catalogo.</p>
                     </div>
                   )}
                 </div>
               );
             })}
+            {/* Discovery results panel */}
+            {discoveryResult && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mt-3">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="text-sm font-semibold text-emerald-800">Resultado del descubrimiento</p>
+                  <button onClick={() => setDiscoveryResult(null)} className="text-emerald-400 hover:text-emerald-600 text-sm">&times;</button>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="bg-white rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold text-gray-800">{discoveryResult.sitemap?.scraped || 0}</p>
+                    <p className="text-[10px] text-gray-500">Productos encontrados</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold text-emerald-600">{discoveryResult.created || 0}</p>
+                    <p className="text-[10px] text-gray-500">Matcheados y agregados</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold text-gray-400">{discoveryResult.unmatched?.length || 0}</p>
+                    <p className="text-[10px] text-gray-500">Sin match en tu catalogo</p>
+                  </div>
+                </div>
+                {discoveryResult.products?.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold text-emerald-700 mb-1">Productos agregados:</p>
+                    {discoveryResult.products.map((p: any) => (
+                      <div key={p.id} className="flex items-center justify-between text-xs py-1 px-2 bg-white rounded">
+                        <span className="text-gray-700 truncate flex-1">{p.name?.substring(0, 45)}</span>
+                        <span className="font-bold text-gray-800 ml-2">{fmtARS(p.price)}</span>
+                        {p.matchedTo && <span className="text-emerald-600 ml-2 text-[10px]">→ {p.matchedTo.substring(0, 25)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         </div>
       )}
