@@ -8,9 +8,12 @@
 // Uso:
 //   GET /api/sync/prices?key=<NEXTAUTH_SECRET>&offset=0
 //   GET /api/sync/prices?key=<NEXTAUTH_SECRET>&offset=0&dry=true  (sin escribir)
+//   GET /api/sync/prices?key=<NEXTAUTH_SECRET>&offset=0&cat=14    (por categoría)
 //
 // Procesa ~200 productos por llamada (~45s). Llamar múltiples
 // veces incrementando offset para cubrir todo el catálogo.
+// VTEX limita a 2500 resultados sin filtro; usar &cat=ID para
+// acceder a productos más allá de ese límite.
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -56,6 +59,7 @@ export async function GET(req: NextRequest) {
 
     const offset = parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
     const isDryRun = req.nextUrl.searchParams.get("dry") === "true";
+    const categoryId = req.nextUrl.searchParams.get("cat") || ""; // Filtrar por categoría VTEX
 
     // 2. Org + VTEX account name
     const org = await getOrganization();
@@ -77,7 +81,8 @@ export async function GET(req: NextRequest) {
       const from = offset + page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const url = `https://${accountName}.vtexcommercestable.com.br/api/catalog_system/pub/products/search/?_from=${from}&_to=${to}`;
+      const catFilter = categoryId ? `&fq=C:/${categoryId}/` : "";
+      const url = `https://${accountName}.vtexcommercestable.com.br/api/catalog_system/pub/products/search/?_from=${from}&_to=${to}${catFilter}`;
 
       const res = await fetch(url, {
         headers: {
@@ -86,9 +91,29 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      if (!res.ok && res.status !== 206) {
-        console.log(`[PriceSync] VTEX API returned ${res.status} at offset ${from}`);
-        break;
+      // VTEX retorna 206 para paginación y a veces 400 cerca del final
+      // pero aún devuelve datos válidos en ambos casos
+      if (!res.ok && res.status !== 206 && res.status !== 416) {
+        // Intentar parsear de todas formas — VTEX 400 a veces tiene data
+        let maybeProducts: VtexPublicProduct[] = [];
+        try { maybeProducts = await res.json(); } catch { /* ignore */ }
+        if (!Array.isArray(maybeProducts) || maybeProducts.length === 0) {
+          console.log(`[PriceSync] VTEX API returned ${res.status} with no data at offset ${from}`);
+          break;
+        }
+        // Tenemos data a pesar del status code, procesar normalmente
+        for (const product of maybeProducts) {
+          for (const item of product.items || []) {
+            const seller = item.sellers?.[0];
+            const price = seller?.commertialOffer?.Price;
+            const listPrice = seller?.commertialOffer?.ListPrice;
+            if (price && price > 0) {
+              priceMap.set(item.itemId, { price, listPrice: listPrice || price, productName: product.productName });
+            }
+          }
+        }
+        pagesProcessed++;
+        continue;
       }
 
       // Parse total from resources header (format: "0-49/4919")
