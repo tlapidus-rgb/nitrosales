@@ -17,8 +17,8 @@ export const revalidate = 0;
 export const maxDuration = 60;
 
 const CRON_KEY = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
-const SAFETY_TIMEOUT_MS = 45000;
-const BATCH_SIZE = 500; // Products per run
+const SAFETY_TIMEOUT_MS = 40000;
+const BATCH_SIZE = 250; // Products per run (fits within 60s Vercel limit)
 
 export async function GET(req: NextRequest) {
   const start = Date.now();
@@ -67,18 +67,19 @@ export async function GET(req: NextRequest) {
     });
     const existingUrls = new Set(existingPrices.map((p) => p.productUrl));
 
-    // Run discovery from offset
+    // Run discovery from offset (startFrom sends offset directly to VTEX API)
     const { platform, discovered } = await discoverCompetitorProducts(
       store.website,
       ownProducts,
       {
-        maxProducts: offset + BATCH_SIZE, // Fetch up to offset + batch
+        maxProducts: BATCH_SIZE,
         maxRuntimeMs: SAFETY_TIMEOUT_MS,
+        startFrom: offset,
       }
     );
 
-    // Only process products from the offset onwards
-    const batchProducts = discovered.slice(offset);
+    // All products are from the batch (no need to slice)
+    const batchProducts = discovered;
 
     // Filter new (not already monitored)
     const newProducts = batchProducts.filter((d) => !existingUrls.has(d.url));
@@ -120,7 +121,7 @@ export async function GET(req: NextRequest) {
 
     // Determine if there are more products to fetch
     const totalFetched = discovered.length;
-    const hasMore = totalFetched >= offset + BATCH_SIZE;
+    const hasMore = totalFetched >= BATCH_SIZE;
     const nextOffset = hasMore ? offset + BATCH_SIZE : 0;
 
     // Match method stats

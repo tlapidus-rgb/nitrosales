@@ -109,13 +109,14 @@ async function fetchVtexProducts(
   website: string,
   maxProducts: number,
   maxRuntimeMs: number,
-  startTime: number
+  startTime: number,
+  startFrom: number = 0
 ): Promise<RawProduct[]> {
   const base = website.replace(/\/$/, "");
   const products: RawProduct[] = [];
   const pageSize = 50; // VTEX max per page
 
-  for (let from = 0; from < maxProducts; from += pageSize) {
+  for (let from = startFrom; from < startFrom + maxProducts; from += pageSize) {
     if (Date.now() - startTime > maxRuntimeMs) break;
 
     const to = Math.min(from + pageSize - 1, maxProducts - 1);
@@ -437,7 +438,7 @@ function calculateMatchScore(
   const ownTokens = tokenize(ownProduct.name);
 
   if (scrapedTokens.length === 0 || ownTokens.length === 0) {
-    return { score: 0, reason: "No tokens" };
+    return { score: 0, reason: "No tokens", method: "FUZZY_TEXT" };
   }
 
   const commonTokens = ownTokens.filter((t) => scrapedTokens.includes(t));
@@ -499,11 +500,13 @@ export async function discoverCompetitorProducts(
   options: {
     maxProducts?: number;
     maxRuntimeMs?: number;
+    startFrom?: number;
   } = {}
 ): Promise<{ platform: Platform; discovered: DiscoveredProduct[] }> {
   const {
     maxProducts = 500,
     maxRuntimeMs = 50000,
+    startFrom = 0,
   } = options;
 
   const startTime = Date.now();
@@ -516,7 +519,7 @@ export async function discoverCompetitorProducts(
   let rawProducts: RawProduct[] = [];
 
   if (platform === "vtex") {
-    rawProducts = await fetchVtexProducts(website, maxProducts, maxRuntimeMs, startTime);
+    rawProducts = await fetchVtexProducts(website, maxProducts, maxRuntimeMs, startTime, startFrom);
   } else if (platform === "shopify") {
     rawProducts = await fetchShopifyProducts(website, maxProducts, maxRuntimeMs, startTime);
   } else {
