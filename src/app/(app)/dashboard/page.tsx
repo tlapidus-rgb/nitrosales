@@ -65,6 +65,14 @@ const WIDGET_CATALOG: WidgetDef[] = [
   // Productos
   { id: "low-stock", category: "Productos", catColor: "#16a34a", title: "Stock Bajo", dataSource: "products" },
   { id: "dead-stock", category: "Productos", catColor: "#16a34a", title: "Dead Stock", dataSource: "products" },
+
+  // NitroPixel
+  { id: "pixel-revenue", category: "NitroPixel", catColor: "#f59e0b", title: "Revenue Atribuido", dataSource: "pixel" },
+  { id: "pixel-roas", category: "NitroPixel", catColor: "#f59e0b", title: "ROAS Pixel", dataSource: "pixel" },
+  { id: "pixel-orders", category: "NitroPixel", catColor: "#f59e0b", title: "Ordenes Atribuidas", dataSource: "pixel" },
+  { id: "pixel-attribution", category: "NitroPixel", catColor: "#f59e0b", title: "Tasa Atribucion", dataSource: "pixel" },
+  { id: "pixel-visitors", category: "NitroPixel", catColor: "#f59e0b", title: "Visitantes", dataSource: "pixel" },
+  { id: "pixel-identified", category: "NitroPixel", catColor: "#f59e0b", title: "Identificados", dataSource: "pixel" },
 ];
 
 const DEFAULT_WIDGETS = [
@@ -83,6 +91,7 @@ const DATA_SOURCES: Record<string, string> = {
   customers: "/api/metrics/customers",
   pnl: "/api/metrics/pnl",
   products: "/api/metrics/products",
+  pixel: "/api/metrics/pixel",
 };
 
 // ── Helper: format number ──
@@ -110,6 +119,8 @@ function getWidgetData(id: string, allData: Record<string, any>): { value: strin
   const pnl = allData.pnl?.summary;
   const pnlC = allData.pnl?.changes;
   const prod = allData.products?.stockSummary;
+  const px = allData.pixel?.businessKpis;
+  const pxV = allData.pixel?.kpis;
 
   switch (id) {
     // Ventas
@@ -147,6 +158,14 @@ function getWidgetData(id: string, allData: Record<string, any>): { value: strin
     case "low-stock": return prod ? { value: fmt(prod.criticalCount + prod.lowCount), sub: "Productos a reponer" } : null;
     case "dead-stock": return prod ? { value: fmt(prod.deadCount), sub: "Sin ventas 60+ dias" } : null;
 
+    // NitroPixel
+    case "pixel-revenue": return px ? { value: formatARS(px.pixelRevenue), sub: "Atribuido por pixel" } : null;
+    case "pixel-roas": return px ? { value: (px.pixelRoas || 0).toFixed(2) + "x", sub: "Retorno atribuido pixel" } : null;
+    case "pixel-orders": return px ? { value: fmt(px.ordersAttributed), sub: "Con atribucion de canal" } : null;
+    case "pixel-attribution": return px ? { value: fmtPct(px.attributionRate), sub: "Ordenes con canal identificado" } : null;
+    case "pixel-visitors": return pxV ? { value: fmt(pxV.totalVisitors), sub: "Visitantes unicos pixel", change: pxV.changes?.visitors } : null;
+    case "pixel-identified": return pxV ? { value: fmt(pxV.identifiedVisitors), sub: "Con identidad resuelta" } : null;
+
     default: return null;
   }
 }
@@ -164,6 +183,8 @@ export default function DashboardPage() {
   const [saving, setSaving] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // ── Load preferences on mount ──
   useEffect(() => {
@@ -240,6 +261,14 @@ export default function DashboardPage() {
     }
   };
 
+  const reorderWidgets = (fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx) return;
+    const newList = [...activeWidgets];
+    const [moved] = newList.splice(fromIdx, 1);
+    newList.splice(toIdx, 0, moved);
+    setActiveWidgets(newList);
+  };
+
   // ── Chart data ──
   const trends = allData.trends?.days || [];
   const tooltipStyle = { contentStyle: { backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "12px" } };
@@ -299,7 +328,7 @@ export default function DashboardPage() {
         <>
           {/* Widget grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
-            {activeWidgets.map(wId => {
+            {activeWidgets.map((wId, idx) => {
               const def = WIDGET_MAP[wId];
               if (!def) return null;
 
@@ -307,9 +336,21 @@ export default function DashboardPage() {
               if (def.large) return null; // Rendered below in chart section
 
               const d = getWidgetData(wId, allData);
+              const isDragging = dragIndex === idx;
+              const isDragOver = dragOverIndex === idx && dragIndex !== idx;
 
               return (
-                <div key={wId} className={`bg-white rounded-xl shadow-sm p-4 border relative transition-all ${editMode ? "border-dashed border-indigo-300" : ""}`}>
+                <div
+                  key={wId}
+                  draggable={editMode}
+                  onDragStart={(e) => { setDragIndex(idx); e.dataTransfer.effectAllowed = "move"; }}
+                  onDragOver={(e) => { if (editMode) { e.preventDefault(); setDragOverIndex(idx); } }}
+                  onDrop={() => { if (dragIndex !== null) { reorderWidgets(dragIndex, idx); } setDragIndex(null); setDragOverIndex(null); }}
+                  onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+                  className={`bg-white rounded-xl shadow-sm p-4 border relative transition-all ${
+                    editMode ? "border-dashed border-indigo-300 cursor-grab active:cursor-grabbing" : ""
+                  } ${isDragging ? "opacity-40" : ""} ${isDragOver ? "border-solid border-indigo-500 ring-2 ring-indigo-200" : ""}`}
+                >
                   {editMode && (
                     <button
                       onClick={() => removeWidget(wId)}
@@ -347,55 +388,71 @@ export default function DashboardPage() {
           )}
 
           {/* Chart widgets */}
-          {activeWidgets.some(w => WIDGET_MAP[w]?.large) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {activeWidgets.includes("revenue-chart") && (
-                <div className={`bg-white rounded-xl shadow-sm p-6 border relative ${editMode ? "border-dashed border-indigo-300" : ""}`}>
-                  {editMode && (
-                    <button onClick={() => removeWidget("revenue-chart")}
-                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center shadow-md z-10">×</button>
-                  )}
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded" style={{ color: "#059669", background: "#05966915" }}>Ventas</span>
-                    <h3 className="font-semibold text-gray-700">Facturacion diaria</h3>
-                  </div>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={trends}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                      <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
-                      <Tooltip formatter={(value: number) => [formatARS(value), "Revenue"]} labelFormatter={formatDateShort} {...tooltipStyle} />
-                      <Line type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} dot={false} name="Revenue" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+          {(() => {
+            const chartWidgets = activeWidgets.filter(w => WIDGET_MAP[w]?.large);
+            if (chartWidgets.length === 0) return null;
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {chartWidgets.map((cId, ci) => {
+                  const cIdx = activeWidgets.indexOf(cId);
+                  const cDef = WIDGET_MAP[cId];
+                  const cDragging = dragIndex === cIdx;
+                  const cDragOver = dragOverIndex === cIdx && dragIndex !== cIdx;
+                  const chartClass = `bg-white rounded-xl shadow-sm p-6 border relative transition-all ${
+                    editMode ? "border-dashed border-indigo-300 cursor-grab active:cursor-grabbing" : ""
+                  } ${cDragging ? "opacity-40" : ""} ${cDragOver ? "border-solid border-indigo-500 ring-2 ring-indigo-200" : ""}`;
 
-              {activeWidgets.includes("spend-chart") && (
-                <div className={`bg-white rounded-xl shadow-sm p-6 border relative ${editMode ? "border-dashed border-indigo-300" : ""}`}>
-                  {editMode && (
-                    <button onClick={() => removeWidget("spend-chart")}
-                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center shadow-md z-10">×</button>
-                  )}
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded" style={{ color: "#7c3aed", background: "#7c3aed15" }}>Marketing</span>
-                    <h3 className="font-semibold text-gray-700">Inversion publicitaria por plataforma</h3>
-                  </div>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <AreaChart data={trends}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                      <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
-                      <Tooltip formatter={(value: number, name: string) => [formatARS(value), name]} labelFormatter={formatDateShort} {...tooltipStyle} />
-                      <Legend />
-                      <Area type="monotone" dataKey="googleSpend" stackId="1" stroke="#4285f4" fill="#4285f4" fillOpacity={0.6} name="Google Ads" />
-                      <Area type="monotone" dataKey="metaSpend" stackId="1" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} name="Meta Ads" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          )}
+                  const dragProps = editMode ? {
+                    draggable: true,
+                    onDragStart: (e: React.DragEvent) => { setDragIndex(cIdx); e.dataTransfer.effectAllowed = "move"; },
+                    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDragOverIndex(cIdx); },
+                    onDrop: () => { if (dragIndex !== null) reorderWidgets(dragIndex, cIdx); setDragIndex(null); setDragOverIndex(null); },
+                    onDragEnd: () => { setDragIndex(null); setDragOverIndex(null); },
+                  } : {};
+
+                  return (
+                    <div key={cId} className={chartClass} {...dragProps}>
+                      {editMode && (
+                        <button onClick={() => removeWidget(cId)}
+                          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center shadow-md z-10">×</button>
+                      )}
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded"
+                          style={{ color: cDef.catColor, background: cDef.catColor + "15" }}>{cDef.category}</span>
+                        <h3 className="font-semibold text-gray-700">{cDef.title}</h3>
+                      </div>
+
+                      {cId === "revenue-chart" && (
+                        <ResponsiveContainer width="100%" height={260}>
+                          <LineChart data={trends}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                            <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
+                            <Tooltip formatter={(value: number) => [formatARS(value), "Revenue"]} labelFormatter={formatDateShort} {...tooltipStyle} />
+                            <Line type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} dot={false} name="Revenue" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      )}
+
+                      {cId === "spend-chart" && (
+                        <ResponsiveContainer width="100%" height={260}>
+                          <AreaChart data={trends}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                            <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
+                            <Tooltip formatter={(value: number, name: string) => [formatARS(value), name]} labelFormatter={formatDateShort} {...tooltipStyle} />
+                            <Legend />
+                            <Area type="monotone" dataKey="googleSpend" stackId="1" stroke="#4285f4" fill="#4285f4" fillOpacity={0.6} name="Google Ads" />
+                            <Area type="monotone" dataKey="metaSpend" stackId="1" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} name="Meta Ads" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* Add widget button (edit mode) */}
           {editMode && (
