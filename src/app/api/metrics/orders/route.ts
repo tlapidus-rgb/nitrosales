@@ -1,30 +1,29 @@
 // ══════════════════════════════════════════════════════════════
-// Orders API v2 — Dashboard de Órdenes (fixed)
+// Orders API v3 — Dashboard de Órdenes (optimized for 60K+ orders)
 // ══════════════════════════════════════════════════════════════
 // GET /api/metrics/orders?from=2026-03-01&to=2026-03-16&source=VTEX
 // Timezone: Argentina (UTC-3)
+// ══════════════════════════════════════════════════════════════
+// OPTIMIZATION NOTES (v3):
+// - ALL 14 queries now run in parallel (was 10 parallel + 4 sequential)
+// - recentOrders uses lateral join instead of correlated subquery
+// - status::text cast prevents enum serialization issues
+// - promotion_names included in TS type
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 
-export const revalidate = 0; // No cache while debugging
+export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-// Auto-migrate: add source column if it doesn't exist
-async function ensurePromotionColumn() {
+// Auto-migrate: ensure columns exist (runs once per cold start)
+async function ensureColumns() {
   try {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS "promotionNames" TEXT
     `);
-  } catch (e) {
-    // Column likely already exists
-  }
-}
-
-async function ensureSourceColumn() {
-  try {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS "source" TEXT NOT NULL DEFAULT 'VTEX'
     `);
@@ -33,7 +32,7 @@ async function ensureSourceColumn() {
       ON orders ("organizationId", "source", "orderDate")
     `);
   } catch (e) {
-    // Column likely already exists, ignore
+    // Columns/indexes likely already exist
   }
 }
 
@@ -43,8 +42,7 @@ export async function GET(request: NextRequest) {
   try {
     const ORG_ID = await getOrganizationId();
     if (!migrated) {
-      await ensureSourceColumn();
-      await ensurePromotionColumn();
+      await ensureColumns();
       migrated = true;
     }
     const { searchParams } = new URL(request.url);
@@ -54,7 +52,6 @@ export async function GET(request: NextRequest) {
     const toParam = searchParams.get("to");
     const fromParam = searchParams.get("from");
 
-    // Use Argentina timezone (UTC-3) for date boundaries
     const dateTo = toParam
       ? new Date(toParam + "T23:59:59.999-03:00")
       : now;
@@ -83,7 +80,9 @@ export async function GET(request: NextRequest) {
     // ── Count days in period for averages ──
     const daysInPeriod = Math.max(1, Math.ceil(periodMs / MS_PER_DAY));
 
-    /* ── Run ALL queries in PARALLEL ────────────────────────── */
+    /* ══════════════════════════════════════════════════════════
+       ALL 14 QUERIES IN PARALLEL — no sequential queries
+       ══════════════════════════════════════════════════════════ */
     const [
       currentPeriod,
       previousPeriod,
@@ -95,9 +94,13 @@ export async function GET(request: NextRequest) {
       topProducts,
       topCustomers,
       recentOrders,
+      cancelledResult,
+      prevDailySales,
+      promotionBreakdown,
+      totalCountResult,
     ] = await Promise.all([
 
-      /* 1) Current period KPIs — simple WHERE, no FILTER */
+      /* 1) Current period KPIs */
       prisma.$queryRawUnsafe<[{
         total_orders: string;
         total_revenue: string;
@@ -121,7 +124,7 @@ export async function GET(request: NextRequest) {
           ${srcWhereSimple}
       `, dateFrom, dateTo),
 
-      /* 1b) Cancelled/returned count */
+      /* 2) Previous period KPIs */
       prisma.$queryRawUnsafe<[{
         total_orders: string;
         total_revenue: string;
@@ -161,7 +164,7 @@ export async function GET(request: NextRequest) {
         ORDER BY day ASC
       `, dateFrom, dateTo),
 
-      /* 4) Sales by day of week — PROMEDIO diario */
+      /* 4) Sales by day of week */
       prisma.$queryRawUnsafe<Array<{
         day_of_week: number;
         day_name: string;
@@ -187,8 +190,8 @@ export async function GET(request: NextRequest) {
           dow AS day_of_week,
           CASE dow
             WHEN 0 THEN 'Dom' WHEN 1 THEN 'Lun' WHEN 2 THEN 'Mar'
-            WHEN 3 THEN 'Mié' WHEN 4 THEN 'Jue' WHEN 5 THEN 'Vie'
-            WHEN 6 THEN 'Sáb' END AS day_name,
+            WHEN 3 THEN 'Mie' WHEN 4 THEN 'Jue' WHEN 5 THEN 'Vie'
+            WHEN 6 THEN 'Sab' END AS day_name,
           SUM(orders)::text AS total_orders,
           SUM(revenue)::text AS total_revenue,
           COUNT(*)::text AS num_days
@@ -197,7 +200,7 @@ export async function GET(request: NextRequest) {
         ORDER BY dow
       `, dateFrom, dateTo),
 
-      /* 5) Sales by hour — PROMEDIO por hora */
+      /* 5) Sales by hour */
       prisma.$queryRawUnsafe<Array<{
         hour: number;
         total_orders: string;
@@ -249,13 +252,13 @@ export async function GET(request: NextRequest) {
         LIMIT 10
       `, dateFrom, dateTo),
 
-      /* 7) Status breakdown */
+      /* 7) Status breakdown — cast to text to avoid enum serialization issues */
       prisma.$queryRawUnsafe<Array<{
         status: string;
         count: string;
       }>>(`
         SELECT
-          status,
+          status::text AS status,
           COUNT(*)::text AS count
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -281,7 +284,7 @@ export async function GET(request: NextRequest) {
           p.id AS product_id,
           p.name AS product_name,
           COALESCE(p.brand, 'Sin marca') AS brand,
-          COALESCE(p.category, 'Sin categoría') AS category,
+          COALESCE(p.category, 'Sin categoria') AS category,
           p."imageUrl" AS image_url,
           SUM(oi.quantity)::text AS units_sold,
           SUM(oi."totalPrice")::text AS revenue,
@@ -325,7 +328,7 @@ export async function GET(request: NextRequest) {
         LIMIT 10
       `, dateFrom, dateTo),
 
-      /* 10) Recent orders with customer names and items */
+      /* 10) Recent orders — optimized with lateral join instead of correlated subquery */
       prisma.$queryRawUnsafe<Array<{
         id: string;
         external_id: string;
@@ -338,103 +341,103 @@ export async function GET(request: NextRequest) {
         customer_name: string;
         customer_email: string;
         items_json: string;
+        promotion_names: string;
       }>>(`
         SELECT
           o.id,
           o."externalId" AS external_id,
-          o.status,
+          o.status::text AS status,
           o."totalValue"::text AS total_value,
           o."itemCount"::text AS item_count,
           COALESCE(o."paymentMethod", '-') AS payment_method,
           COALESCE(o."source", 'VTEX') AS source,
-          TO_CHAR(o."orderDate" - INTERVAL '3 hours', 'YYYY-MM-DD HH24:MI') AS order_date,
+          TO_CHAR(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') AS order_date,
           TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) AS customer_name,
           COALESCE(c.email, '') AS customer_email,
-          COALESCE(
-            (SELECT json_agg(json_build_object(
-              'name', p.name,
-              'imageUrl', p."imageUrl",
-              'quantity', oi.quantity,
-              'unitPrice', oi."unitPrice",
-              'totalPrice', oi."totalPrice"
-            ))
-            FROM order_items oi
-            LEFT JOIN products p ON p.id = oi."productId"
-            WHERE oi."orderId" = o.id),
-            '[]'
-          )::text AS items_json,
+          COALESCE(items_agg.items_json, '[]') AS items_json,
           COALESCE(o."promotionNames", '') AS promotion_names
         FROM orders o
         LEFT JOIN customers c ON c.id = o."customerId"
+        LEFT JOIN LATERAL (
+          SELECT json_agg(json_build_object(
+            'name', p.name,
+            'imageUrl', p."imageUrl",
+            'quantity', oi.quantity,
+            'unitPrice', oi."unitPrice",
+            'totalPrice', oi."totalPrice"
+          ))::text AS items_json
+          FROM order_items oi
+          LEFT JOIN products p ON p.id = oi."productId"
+          WHERE oi."orderId" = o.id
+        ) items_agg ON true
         WHERE o."organizationId" = '${ORG_ID}'
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
-          ${srcWhere.replace(/o\."source"/g, 'o."source"')}
+          ${srcWhere}
         ORDER BY o."orderDate" DESC
         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+      `, dateFrom, dateTo),
+
+      /* 11) Cancelled count — was sequential, now parallel */
+      prisma.$queryRawUnsafe<[{ cnt: string }]>(`
+        SELECT COUNT(*)::text AS cnt FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+      `, dateFrom, dateTo),
+
+      /* 12) Previous period daily sales — was sequential, now parallel */
+      prisma.$queryRawUnsafe<Array<{
+        day: string; orders: string; revenue: string;
+      }>>(`
+        SELECT
+          TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1
+          AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+        GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')
+        ORDER BY day ASC
+      `, prevFrom, prevTo),
+
+      /* 13) Promotion breakdown — was sequential, now parallel */
+      prisma.$queryRawUnsafe<Array<{
+        promo: string;
+        orders: string;
+        revenue: string;
+      }>>(`
+        SELECT
+          COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo') AS promo,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+        GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo')
+        ORDER BY SUM("totalValue") DESC
+        LIMIT 15
+      `, dateFrom, dateTo),
+
+      /* 14) Total count for pagination — was sequential, now parallel */
+      prisma.$queryRawUnsafe<[{ cnt: string }]>(`
+        SELECT COUNT(*)::text AS cnt FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          ${srcWhereSimple}
       `, dateFrom, dateTo),
     ]);
 
     // ── Process results ──
     const curr = currentPeriod[0];
     const prev = previousPeriod[0];
-
-    // Count cancelled separately
-    const cancelledResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
-      SELECT COUNT(*)::text AS cnt FROM orders
-      WHERE "organizationId" = '${ORG_ID}'
-        AND "orderDate" >= $1 AND "orderDate" <= $2
-        AND status IN ('CANCELLED', 'RETURNED')
-        ${srcWhereSimple}
-    `, dateFrom, dateTo);
     const cancelledOrders = Number(cancelledResult[0].cnt);
-
-    // Previous period daily sales for comparison chart
-    const prevDailySales = await prisma.$queryRawUnsafe<Array<{
-      day: string; orders: string; revenue: string;
-    }>>(`
-      SELECT
-        TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
-        COUNT(*)::text AS orders,
-        COALESCE(SUM("totalValue"), 0)::text AS revenue
-      FROM orders
-      WHERE "organizationId" = '${ORG_ID}'
-        AND "orderDate" >= $1
-        AND "orderDate" <= $2
-        AND status NOT IN ('CANCELLED', 'RETURNED')
-        ${srcWhereSimple}
-      GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')
-      ORDER BY day ASC
-    `, prevFrom, prevTo);
-
-    // Promotion breakdown for pie chart
-    const promotionBreakdown = await prisma.$queryRawUnsafe<Array<{
-      promo: string;
-      orders: string;
-      revenue: string;
-    }>>(`
-      SELECT
-        COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo') AS promo,
-        COUNT(*)::text AS orders,
-        COALESCE(SUM("totalValue"), 0)::text AS revenue
-      FROM orders
-      WHERE "organizationId" = '${ORG_ID}'
-        AND "orderDate" >= $1 AND "orderDate" <= $2
-        AND status NOT IN ('CANCELLED', 'RETURNED')
-        ${srcWhereSimple}
-      GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo')
-      ORDER BY SUM("totalValue") DESC
-      LIMIT 15
-    `, dateFrom, dateTo);
-
-
-    // Total orders count (for pagination)
-    const totalCountResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
-      SELECT COUNT(*)::text AS cnt FROM orders
-      WHERE "organizationId" = '${ORG_ID}'
-        AND "orderDate" >= $1 AND "orderDate" <= $2
-        ${srcWhereSimple}
-    `, dateFrom, dateTo);
     const totalOrderCount = Number(totalCountResult[0].cnt);
 
     const totalOrders = Number(curr.total_orders);
