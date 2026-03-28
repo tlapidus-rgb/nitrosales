@@ -239,8 +239,8 @@ async function fetchVtexProductsByCategory(
     const cat = categories[i];
     lastCategoryIndex = i;
 
-    // Fetch up to 250 products per category (VTEX limit without filter is 2500)
-    for (let from = 0; from < 250; from += 50) {
+    // Fetch up to 100 products per category (keep it fast for 60s limit)
+    for (let from = 0; from < 100; from += 50) {
       if (Date.now() - startTime > maxRuntimeMs) break;
 
       try {
@@ -596,17 +596,17 @@ export async function discoverCompetitorProducts(
 
   const startTime = Date.now();
 
-  // Phase 1: Detect platform
-  const platform = await detectPlatform(website);
-  console.log(`[Discovery] Platform detected: ${platform} for ${website}`);
+  // Phase 1: Detect platform (skip for byCategory mode — assumes VTEX)
+  const platform: Platform = byCategory ? "vtex" : await detectPlatform(website);
+  if (!byCategory) console.log(`[Discovery] Platform detected: ${platform} for ${website}`);
 
   // Phase 2: Fetch products using platform-specific method
   let rawProducts: RawProduct[] = [];
   let lastCategoryIndex: number | undefined;
   let totalCategories: number | undefined;
 
-  if (platform === "vtex" && byCategory) {
-    // Category-based fetch for full catalog coverage
+  if (byCategory) {
+    // Category-based fetch for full catalog coverage (skips platform detection overhead)
     const result = await fetchVtexProductsByCategory(
       website, maxProducts, maxRuntimeMs, startTime, startCategoryIndex
     );
