@@ -54,6 +54,10 @@ export async function GET(req: NextRequest) {
     let totalDiffSum = 0;
     let totalDiffCount = 0;
 
+    // Umbral mínimo de precio propio para considerar válido en comparaciones.
+    // Precios debajo de esto son datos corruptos del sync legacy (precio base, no venta).
+    const MIN_VALID_OWN_PRICE = 500;
+
     const priceComparison = Object.entries(byOwnProduct).map(([productId, prices]) => {
       const own = ownProductMap[productId];
       const ownPrice = Number(own.price);
@@ -63,8 +67,8 @@ export async function GET(req: NextRequest) {
         .map(p => {
           const cPrice = Number(p.currentPrice);
           const diff = ownPrice > 0 ? Math.round(((cPrice - ownPrice) / ownPrice) * 1000) / 10 : 0;
-          // Only count valid diffs (both prices > 0) for average
-          if (ownPrice > 0 && cPrice > 0) {
+          // Only count valid diffs (both prices above minimum threshold) for average
+          if (ownPrice >= MIN_VALID_OWN_PRICE && cPrice > 0) {
             totalDiffSum += diff;
             totalDiffCount++;
           }
@@ -84,11 +88,11 @@ export async function GET(req: NextRequest) {
 
       // Determine position (rank by price, 1 = cheapest)
       // Only rank if own price is > 0 (otherwise position is meaningless)
-      const validPrices = [...competitors.map(c => c.price), ...(ownPrice > 0 ? [ownPrice] : [])].filter(p => p > 0).sort((a, b) => a - b);
-      const position = ownPrice > 0 ? validPrices.indexOf(ownPrice) + 1 : 0;
+      const validPrices = [...competitors.map(c => c.price), ...(ownPrice >= MIN_VALID_OWN_PRICE ? [ownPrice] : [])].filter(p => p > 0).sort((a, b) => a - b);
+      const position = ownPrice >= MIN_VALID_OWN_PRICE ? validPrices.indexOf(ownPrice) + 1 : 0;
 
-      if (ownPrice > 0 && position === 1) cheaperCount++;
-      else if (ownPrice > 0 && position > Math.ceil(validPrices.length / 2)) moreExpensiveCount++;
+      if (ownPrice >= MIN_VALID_OWN_PRICE && position === 1) cheaperCount++;
+      else if (ownPrice >= MIN_VALID_OWN_PRICE && position > Math.ceil(validPrices.length / 2)) moreExpensiveCount++;
 
       const bestPrice = competitors.length > 0 ? competitors[0] : null;
 
