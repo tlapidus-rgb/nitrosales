@@ -23,6 +23,7 @@
     "@prisma/client": "^5.15.0",
     "autoprefixer": "^10.4.0",
     "bcryptjs": "^2.4.3",
+    "cheerio": "^1.2.0",
     "clsx": "^2.1.0",
     "date-fns": "^3.6.0",
     "facebook-nodejs-business-sdk": "^20.0.0",

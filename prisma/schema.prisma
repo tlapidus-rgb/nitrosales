@@ -48,6 +48,8 @@ model Organization {
   pixelAttributions        PixelAttribution[]
   seoQueryDaily            SeoQueryDaily[]
   seoPageDaily             SeoPageDaily[]
+  competitorStores         CompetitorStore[]
+  competitorPrices         CompetitorPrice[]
 
   @@map("organizations")
 }
@@ -212,6 +214,7 @@ model Product {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   orderItems     OrderItem[]
+  competitorPrices CompetitorPrice[]
 
   @@unique([organizationId, externalId])
   @@map("products")
@@ -746,4 +749,52 @@ model SeoPageDaily {
   @@index([organizationId, date])
   @@index([organizationId, landingPage, date])
   @@map("seo_page_daily")
+}
+
+// ══════════════════════════════════════════════════════════════
+// Competencia — Monitoreo de precios de competidores
+// ══════════════════════════════════════════════════════════════
+
+model CompetitorStore {
+  id             String   @id @default(cuid())
+  name           String                          // "Jugueterias Cody"
+  website        String                          // "https://www.cody.com.ar"
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  prices         CompetitorPrice[]
+
+  @@index([organizationId])
+  @@map("competitor_stores")
+}
+
+model CompetitorPrice {
+  id             String    @id @default(cuid())
+  productUrl     String                          // URL del producto en sitio competidor
+  productName    String    @default("")          // Nombre scrapeado
+  currentPrice   Decimal   @default(0)           // Último precio
+  previousPrice  Decimal?                        // Precio anterior (para detectar cambios)
+  currency       String    @default("ARS")
+  imageUrl       String?                         // Imagen scrapeada
+  lastScrapedAt  DateTime?
+  scrapeStatus   String    @default("PENDING")   // PENDING, OK, ERROR
+  scrapeError    String?
+  scrapedData    Json      @default("[]")        // Historial: [{date, price}]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  competitorId   String
+  competitor     CompetitorStore @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  ownProductId   String?
+  ownProduct     Product? @relation(fields: [ownProductId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([competitorId])
+  @@index([ownProductId])
+  @@map("competitor_prices")
 }
