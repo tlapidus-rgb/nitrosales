@@ -1,9 +1,9 @@
 // ══════════════════════════════════════════════════════════════
 // Resumable Competitor Discovery Cron
 // ══════════════════════════════════════════════════════════════
-// Fetches competitor catalog in batches (500 per run) and matches
-// against own products using EAN + fuzzy matching.
-// Picks up where it left off via offset query param.
+// Two modes:
+//   1. Default (offset): paginated search (limited to ~180 products for VTEX)
+//   2. byCategory=true (catIndex): iterates VTEX categories for FULL catalog
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -30,6 +30,8 @@ export async function GET(req: NextRequest) {
   }
 
   const offset = parseInt(searchParams.get("offset") || "0", 10);
+  const catIndex = parseInt(searchParams.get("catIndex") || "0", 10);
+  const byCategory = searchParams.get("byCategory") === "true";
   const storeId = searchParams.get("store") || undefined;
 
   try {
@@ -67,22 +69,18 @@ export async function GET(req: NextRequest) {
     });
     const existingUrls = new Set(existingPrices.map((p) => p.productUrl));
 
-    // Run discovery from offset (startFrom sends offset directly to VTEX API)
-    const { platform, discovered } = await discoverCompetitorProducts(
-      store.website,
-      ownProducts,
-      {
+    // Run discovery
+    const { platform, discovered, lastCategoryIndex, totalCategories } =
+      await discoverCompetitorProducts(store.website, ownProducts, {
         maxProducts: BATCH_SIZE,
         maxRuntimeMs: SAFETY_TIMEOUT_MS,
-        startFrom: offset,
-      }
-    );
-
-    // All products are from the batch (no need to slice)
-    const batchProducts = discovered;
+        ...(byCategory
+          ? { byCategory: true, startCategoryIndex: catIndex }
+          : { startFrom: offset }),
+      });
 
     // Filter new (not already monitored)
-    const newProducts = batchProducts.filter((d) => !existingUrls.has(d.url));
+    const newProducts = discovered.filter((d) => !existingUrls.has(d.url));
     const matchedProducts = newProducts.filter((d) => d.matchScore >= 50);
 
     // Insert new matches
@@ -112,17 +110,20 @@ export async function GET(req: NextRequest) {
       created = result.count;
     }
 
-    // Also update prices for existing matches (price refresh)
-    let priceUpdated = 0;
-    const existingByUrl = new Map<string, string>();
-    for (const ep of existingPrices) {
-      existingByUrl.set(ep.productUrl, ep.productUrl);
-    }
-
-    // Determine if there are more products to fetch
+    // Determine if there are more to fetch
     const totalFetched = discovered.length;
-    const hasMore = totalFetched >= BATCH_SIZE;
-    const nextOffset = hasMore ? offset + BATCH_SIZE : 0;
+    let hasMore: boolean;
+    let nextParams: string;
+
+    if (byCategory) {
+      hasMore = (lastCategoryIndex ?? 0) + 1 < (totalCategories ?? 0);
+      const nextCatIdx = (lastCategoryIndex ?? 0) + 1;
+      nextParams = `byCategory=true&catIndex=${nextCatIdx}`;
+    } else {
+      hasMore = totalFetched >= BATCH_SIZE;
+      const nextOff = offset + BATCH_SIZE;
+      nextParams = `offset=${nextOff}`;
+    }
 
     // Match method stats
     const eanMatches = matchedProducts.filter((p) => p.matchMethod === "EAN_EXACT").length;
@@ -133,7 +134,10 @@ export async function GET(req: NextRequest) {
       ok: true,
       store: store.name,
       platform,
-      offset,
+      mode: byCategory ? "byCategory" : "offset",
+      ...(byCategory
+        ? { catIndex, lastCategoryIndex, totalCategories }
+        : { offset }),
       batchSize: BATCH_SIZE,
       totalFetched,
       newDiscovered: newProducts.length,
@@ -141,10 +145,10 @@ export async function GET(req: NextRequest) {
       created,
       matchMethods: { EAN_EXACT: eanMatches, SKU_MATCH: skuMatches, FUZZY_TEXT: fuzzyMatches },
       hasMore,
-      nextOffset,
       elapsedMs: Date.now() - start,
-      // Provide next URL for easy chaining
-      ...(hasMore ? { nextUrl: `/api/sync/competitor-discovery?key=${CRON_KEY}&offset=${nextOffset}&store=${store.id}` } : {}),
+      ...(hasMore ? {
+        nextUrl: `/api/sync/competitor-discovery?key=${CRON_KEY}&${nextParams}&store=${store.id}`,
+      } : {}),
     });
   } catch (error: any) {
     console.error("[CompetitorDiscovery]", error);

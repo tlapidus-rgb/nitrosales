@@ -105,88 +105,164 @@ interface RawProduct {
   category?: string;
 }
 
+// Parse a VTEX product API item into a RawProduct
+function parseVtexItem(item: any, base: string): RawProduct | null {
+  const name = item.productName || item.productTitle || "";
+  const link = item.link || (item.linkText ? `${base}/${item.linkText}/p` : "");
+
+  let price = 0;
+  const items = item.items || [];
+  if (items.length > 0) {
+    const sellers = items[0].sellers || [];
+    if (sellers.length > 0) {
+      const offer = sellers[0].commertialOffer || {};
+      price = offer.Price || offer.ListPrice || 0;
+    }
+  }
+
+  if (!name || price <= 0) return null;
+
+  const imageUrl = items[0]?.images?.[0]?.imageUrl || undefined;
+  const brand = item.brand || "";
+  const category = (item.categories?.[0] || "").replace(/^\//, "").replace(/\/$/, "");
+
+  const ref = item.productReference || "";
+  const refIdVal = items[0]?.referenceId?.[0]?.Value || "";
+  const urlEanMatch = link.match(/(\d{12,14})\/p$/);
+  const urlEan = urlEanMatch ? urlEanMatch[1] : "";
+  const competitorEan = (ref.length >= 12 && /^\d+$/.test(ref)) ? ref
+    : (refIdVal.length >= 12 && /^\d+$/.test(refIdVal)) ? refIdVal
+    : (urlEan.length >= 12) ? urlEan
+    : undefined;
+
+  return {
+    url: link, name, price, currency: "ARS", imageUrl,
+    method: "vtex-api", competitorEan, brand, category,
+  };
+}
+
+// Fetch a page of VTEX products (generic, with optional category filter)
+async function fetchVtexPage(
+  base: string, from: number, to: number, categoryId?: string
+): Promise<any[]> {
+  const catFilter = categoryId ? `&fq=C:/${categoryId}/` : "";
+  const url = `${base}/api/catalog_system/pub/products/search/?_from=${from}&_to=${to}${catFilter}`;
+  const res = await fetch(url, { headers: BROWSER_HEADERS, signal: AbortSignal.timeout(8000) });
+  if (res.status < 200 || res.status >= 300) return [];
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+// Fetch VTEX category tree (leaf categories for full catalog coverage)
+async function fetchVtexCategories(base: string): Promise<Array<{ id: string; name: string }>> {
+  try {
+    const res = await fetch(`${base}/api/catalog_system/pub/category/tree/3`, {
+      headers: BROWSER_HEADERS, signal: AbortSignal.timeout(5000),
+    });
+    if (res.status !== 200) return [];
+    const tree = await res.json();
+    if (!Array.isArray(tree)) return [];
+
+    const categories: Array<{ id: string; name: string }> = [];
+    function walk(nodes: any[]) {
+      for (const n of nodes) {
+        // Prefer leaf categories (no children) but also include parents
+        categories.push({ id: String(n.id), name: n.name });
+        if (n.children?.length > 0) walk(n.children);
+      }
+    }
+    walk(tree);
+    return categories;
+  } catch {
+    return [];
+  }
+}
+
 async function fetchVtexProducts(
   website: string,
   maxProducts: number,
   maxRuntimeMs: number,
   startTime: number,
-  startFrom: number = 0
+  startFrom: number = 0,
+  categoryId?: string
 ): Promise<RawProduct[]> {
   const base = website.replace(/\/$/, "");
   const products: RawProduct[] = [];
   const pageSize = 50; // VTEX max per page
+  const seenUrls = new Set<string>();
 
   for (let from = startFrom; from < startFrom + maxProducts; from += pageSize) {
     if (Date.now() - startTime > maxRuntimeMs) break;
 
-    const to = Math.min(from + pageSize - 1, maxProducts - 1);
+    const to = Math.min(from + pageSize - 1, startFrom + maxProducts - 1);
     try {
-      const res = await fetch(
-        `${base}/api/catalog_system/pub/products/search/?_from=${from}&_to=${to}`,
-        { headers: BROWSER_HEADERS, signal: AbortSignal.timeout(8000) }
-      );
-
-      // VTEX returns 206 Partial Content for paginated results
-      if (res.status < 200 || res.status >= 300) break;
-      const data = await res.json();
-      if (!Array.isArray(data) || data.length === 0) break;
+      const data = await fetchVtexPage(base, from, to, categoryId);
+      if (data.length === 0) break;
 
       for (const item of data) {
-        const name = item.productName || item.productTitle || "";
-        const link = item.link || (item.linkText
-          ? `${base}/${item.linkText}/p`
-          : "");
-
-        // Get price from first seller's commercial offer
-        let price = 0;
-        const items = item.items || [];
-        if (items.length > 0) {
-          const sellers = items[0].sellers || [];
-          if (sellers.length > 0) {
-            const offer = sellers[0].commertialOffer || {};
-            price = offer.Price || offer.ListPrice || 0;
-          }
-        }
-
-        // Get image
-        const imageUrl = items[0]?.images?.[0]?.imageUrl || undefined;
-
-        // Get brand and category for intelligence
-        const brand = item.brand || "";
-        const category = (item.categories?.[0] || "").replace(/^\//,"").replace(/\/$/,"");
-
-        if (name && price > 0) {
-          // Extract competitor EAN from productReference, referenceId, or URL pattern
-          const ref = item.productReference || "";
-          const refIdVal = items[0]?.referenceId?.[0]?.Value || "";
-          const urlEanMatch = link.match(/(\d{12,14})\/p$/);
-          const urlEan = urlEanMatch ? urlEanMatch[1] : "";
-          const competitorEan = (ref.length >= 12 && /^\d+$/.test(ref)) ? ref
-            : (refIdVal.length >= 12 && /^\d+$/.test(refIdVal)) ? refIdVal
-            : (urlEan.length >= 12) ? urlEan
-            : undefined;
-
-          products.push({
-            url: link,
-            name,
-            price,
-            currency: "ARS",
-            imageUrl,
-            method: "vtex-api",
-            competitorEan,
-            brand,
-            category,
-          });
+        const product = parseVtexItem(item, base);
+        if (product && !seenUrls.has(product.url)) {
+          seenUrls.add(product.url);
+          products.push(product);
         }
       }
-
-      // No delay for API calls (rate limiting not needed for public VTEX API)
     } catch {
       break;
     }
   }
 
   return products;
+}
+
+// Fetch all products by iterating categories (for full catalog coverage)
+async function fetchVtexProductsByCategory(
+  website: string,
+  maxProducts: number,
+  maxRuntimeMs: number,
+  startTime: number,
+  startCategoryIndex: number = 0
+): Promise<{ products: RawProduct[]; lastCategoryIndex: number; totalCategories: number }> {
+  const base = website.replace(/\/$/, "");
+  const categories = await fetchVtexCategories(base);
+  if (categories.length === 0) {
+    return { products: [], lastCategoryIndex: 0, totalCategories: 0 };
+  }
+
+  const seenUrls = new Set<string>();
+  const products: RawProduct[] = [];
+  let lastCategoryIndex = startCategoryIndex;
+
+  for (let i = startCategoryIndex; i < categories.length; i++) {
+    if (Date.now() - startTime > maxRuntimeMs) break;
+    if (products.length >= maxProducts) break;
+
+    const cat = categories[i];
+    lastCategoryIndex = i;
+
+    // Fetch up to 250 products per category (VTEX limit without filter is 2500)
+    for (let from = 0; from < 250; from += 50) {
+      if (Date.now() - startTime > maxRuntimeMs) break;
+
+      try {
+        const data = await fetchVtexPage(base, from, from + 49, cat.id);
+        if (data.length === 0) break;
+
+        for (const item of data) {
+          const product = parseVtexItem(item, base);
+          if (product && !seenUrls.has(product.url)) {
+            seenUrls.add(product.url);
+            products.push(product);
+          }
+        }
+
+        if (data.length < 50) break; // No more in this category
+      } catch {
+        break;
+      }
+    }
+  }
+
+  return { products, lastCategoryIndex, totalCategories: categories.length };
 }
 
 // ── Shopify Product Fetch ──────────────────────────────────────
@@ -501,12 +577,21 @@ export async function discoverCompetitorProducts(
     maxProducts?: number;
     maxRuntimeMs?: number;
     startFrom?: number;
+    byCategory?: boolean;
+    startCategoryIndex?: number;
   } = {}
-): Promise<{ platform: Platform; discovered: DiscoveredProduct[] }> {
+): Promise<{
+  platform: Platform;
+  discovered: DiscoveredProduct[];
+  lastCategoryIndex?: number;
+  totalCategories?: number;
+}> {
   const {
     maxProducts = 500,
     maxRuntimeMs = 50000,
     startFrom = 0,
+    byCategory = false,
+    startCategoryIndex = 0,
   } = options;
 
   const startTime = Date.now();
@@ -517,13 +602,22 @@ export async function discoverCompetitorProducts(
 
   // Phase 2: Fetch products using platform-specific method
   let rawProducts: RawProduct[] = [];
+  let lastCategoryIndex: number | undefined;
+  let totalCategories: number | undefined;
 
-  if (platform === "vtex") {
+  if (platform === "vtex" && byCategory) {
+    // Category-based fetch for full catalog coverage
+    const result = await fetchVtexProductsByCategory(
+      website, maxProducts, maxRuntimeMs, startTime, startCategoryIndex
+    );
+    rawProducts = result.products;
+    lastCategoryIndex = result.lastCategoryIndex;
+    totalCategories = result.totalCategories;
+  } else if (platform === "vtex") {
     rawProducts = await fetchVtexProducts(website, maxProducts, maxRuntimeMs, startTime, startFrom);
   } else if (platform === "shopify") {
     rawProducts = await fetchShopifyProducts(website, maxProducts, maxRuntimeMs, startTime);
   } else {
-    // Fallback: sitemap + scraping (slower, limited)
     rawProducts = await fetchViaSmartSitemap(website, Math.min(maxProducts, 40), maxRuntimeMs, startTime);
   }
 
@@ -545,5 +639,5 @@ export async function discoverCompetitorProducts(
   // Sort: matched first (highest score), then unmatched
   discovered.sort((a, b) => b.matchScore - a.matchScore);
 
-  return { platform, discovered };
+  return { platform, discovered, lastCategoryIndex, totalCategories };
 }
