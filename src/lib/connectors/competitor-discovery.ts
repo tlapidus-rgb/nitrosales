@@ -1,14 +1,16 @@
 // ══════════════════════════════════════════════════════════════
-// Competitor Auto-Discovery — Sitemap crawling + fuzzy matching
+// Competitor Auto-Discovery — Platform detection + API + fuzzy matching
 // ══════════════════════════════════════════════════════════════
-// 1. Crawl sitemap.xml to find product URLs
-// 2. Scrape each product for name + price
-// 3. Fuzzy match against own catalog (name, sku, brand)
-// 4. Auto-create CompetitorPrice entries with mapping
+// Strategy (by platform):
+//   VTEX    → /api/catalog_system/pub/products/search (JSON API, fast)
+//   Shopify → /products.json (JSON API, fast)
+//   Other   → sitemap.xml crawl + HTML scraping (slower fallback)
+//
+// Then: fuzzy match discovered products against own catalog
 // ══════════════════════════════════════════════════════════════
 
 import * as cheerio from "cheerio";
-import { scrapeProductPrice, ScrapeResult } from "./competitor-scraper";
+import { scrapeProductPrice } from "./competitor-scraper";
 
 // ── Types ──────────────────────────────────────────────────────
 export interface OwnProduct {
@@ -28,18 +30,11 @@ export interface DiscoveredProduct {
   imageUrl?: string;
   method: string;
   matchedOwnProduct?: OwnProduct;
-  matchScore: number; // 0-100
+  matchScore: number;
   matchReason: string;
 }
 
-export interface DiscoveryProgress {
-  phase: "sitemap" | "scraping" | "matching" | "done";
-  urlsFound: number;
-  scraped: number;
-  matched: number;
-  errors: number;
-  total: number;
-}
+type Platform = "vtex" | "shopify" | "tiendanube" | "woocommerce" | "unknown";
 
 const BROWSER_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -47,38 +42,242 @@ const BROWSER_HEADERS = {
   "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
 };
 
-// ── Sitemap Crawling ───────────────────────────────────────────
+// ── Platform Detection ─────────────────────────────────────────
 
-/**
- * Discover product URLs from a competitor's sitemap.xml
- * Tries: /sitemap.xml → /sitemap_index.xml → /sitemap-products.xml → robots.txt
- */
-export async function discoverProductUrls(website: string, maxUrls = 200): Promise<string[]> {
+async function detectPlatform(website: string): Promise<Platform> {
   const base = website.replace(/\/$/, "");
+
+  // Try VTEX API first (most common in Argentina)
+  try {
+    const vtexRes = await fetch(`${base}/api/catalog_system/pub/products/search/?_from=0&_to=0`, {
+      headers: BROWSER_HEADERS,
+      signal: AbortSignal.timeout(8000),
+    });
+    if (vtexRes.ok) {
+      const text = await vtexRes.text();
+      if (text.startsWith("[")) return "vtex";
+    }
+  } catch { /* not vtex */ }
+
+  // Try Shopify products.json
+  try {
+    const shopifyRes = await fetch(`${base}/products.json?limit=1`, {
+      headers: { ...BROWSER_HEADERS, Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (shopifyRes.ok) {
+      const text = await shopifyRes.text();
+      if (text.includes('"products"')) return "shopify";
+    }
+  } catch { /* not shopify */ }
+
+  // Check homepage HTML for platform hints
+  try {
+    const homeRes = await fetch(base, {
+      headers: BROWSER_HEADERS,
+      signal: AbortSignal.timeout(10000),
+    });
+    if (homeRes.ok) {
+      const html = await homeRes.text();
+      if (html.includes("tiendanube") || html.includes("Tienda Nube")) return "tiendanube";
+      if (html.includes("woocommerce") || html.includes("WooCommerce")) return "woocommerce";
+    }
+  } catch { /* ignore */ }
+
+  return "unknown";
+}
+
+// ── VTEX Product Fetch ─────────────────────────────────────────
+
+interface RawProduct {
+  url: string;
+  name: string;
+  price: number;
+  currency: string;
+  imageUrl?: string;
+  method: string;
+}
+
+async function fetchVtexProducts(
+  website: string,
+  maxProducts: number,
+  maxRuntimeMs: number,
+  startTime: number
+): Promise<RawProduct[]> {
+  const base = website.replace(/\/$/, "");
+  const products: RawProduct[] = [];
+  const pageSize = 50; // VTEX max per page
+
+  for (let from = 0; from < maxProducts; from += pageSize) {
+    if (Date.now() - startTime > maxRuntimeMs) break;
+
+    const to = Math.min(from + pageSize - 1, maxProducts - 1);
+    try {
+      const res = await fetch(
+        `${base}/api/catalog_system/pub/products/search/?_from=${from}&_to=${to}`,
+        { headers: BROWSER_HEADERS, signal: AbortSignal.timeout(15000) }
+      );
+
+      if (!res.ok) break;
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) break;
+
+      for (const item of data) {
+        const name = item.productName || item.productTitle || "";
+        const link = item.link || item.linkText
+          ? `${base}/${item.linkText || ""}/p`
+          : "";
+
+        // Get price from first seller's commercial offer
+        let price = 0;
+        let currency = "ARS";
+        const items = item.items || [];
+        if (items.length > 0) {
+          const sellers = items[0].sellers || [];
+          if (sellers.length > 0) {
+            const offer = sellers[0].commertialOffer || {};
+            price = offer.Price || offer.ListPrice || 0;
+            currency = offer.CurrencySymbolPosition ? "ARS" : "ARS";
+          }
+        }
+
+        // Get image
+        const imageUrl = items[0]?.images?.[0]?.imageUrl || item.items?.[0]?.images?.[0]?.imageUrl || undefined;
+
+        if (name && price > 0) {
+          products.push({
+            url: link,
+            name,
+            price,
+            currency,
+            imageUrl,
+            method: "vtex-api",
+          });
+        }
+      }
+
+      // Small delay between API pages
+      await new Promise((r) => setTimeout(r, 300));
+    } catch {
+      break;
+    }
+  }
+
+  return products;
+}
+
+// ── Shopify Product Fetch ──────────────────────────────────────
+
+async function fetchShopifyProducts(
+  website: string,
+  maxProducts: number,
+  maxRuntimeMs: number,
+  startTime: number
+): Promise<RawProduct[]> {
+  const base = website.replace(/\/$/, "");
+  const products: RawProduct[] = [];
+  let page = 1;
+
+  while (products.length < maxProducts) {
+    if (Date.now() - startTime > maxRuntimeMs) break;
+
+    try {
+      const res = await fetch(
+        `${base}/products.json?limit=250&page=${page}`,
+        { headers: { ...BROWSER_HEADERS, Accept: "application/json" }, signal: AbortSignal.timeout(15000) }
+      );
+
+      if (!res.ok) break;
+      const data = await res.json();
+      const items = data.products || [];
+      if (items.length === 0) break;
+
+      for (const item of items) {
+        const variant = item.variants?.[0];
+        const price = parseFloat(variant?.price || "0");
+        const name = item.title || "";
+
+        if (name && price > 0) {
+          products.push({
+            url: `${base}/products/${item.handle}`,
+            name,
+            price,
+            currency: "ARS",
+            imageUrl: item.images?.[0]?.src || undefined,
+            method: "shopify-api",
+          });
+        }
+      }
+
+      page++;
+      await new Promise((r) => setTimeout(r, 500));
+    } catch {
+      break;
+    }
+  }
+
+  return products.slice(0, maxProducts);
+}
+
+// ── Sitemap Fallback ───────────────────────────────────────────
+
+async function fetchViaSmartSitemap(
+  website: string,
+  maxProducts: number,
+  maxRuntimeMs: number,
+  startTime: number
+): Promise<RawProduct[]> {
+  const base = website.replace(/\/$/, "");
+  const productUrls = await discoverProductUrls(base, maxProducts * 2);
+
+  const products: RawProduct[] = [];
+  for (const url of productUrls.slice(0, maxProducts)) {
+    if (Date.now() - startTime > maxRuntimeMs) break;
+
+    try {
+      const result = await scrapeProductPrice(url);
+      if (result && result.price > 0) {
+        products.push({
+          url,
+          name: result.name,
+          price: result.price,
+          currency: result.currency,
+          imageUrl: result.imageUrl,
+          method: result.method,
+        });
+      }
+    } catch { /* skip */ }
+
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+
+  return products;
+}
+
+async function discoverProductUrls(base: string, maxUrls: number): Promise<string[]> {
   const productUrls: string[] = [];
 
-  // Try different sitemap locations
   const sitemapCandidates = [
     `${base}/sitemap.xml`,
     `${base}/sitemap_index.xml`,
     `${base}/sitemap-products.xml`,
-    `${base}/sitemap_products.xml`,
     `${base}/product-sitemap.xml`,
   ];
 
-  // Also try to discover from robots.txt
+  // Discover from robots.txt
   try {
     const robotsRes = await fetch(`${base}/robots.txt`, {
       headers: BROWSER_HEADERS,
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(8000),
     });
     if (robotsRes.ok) {
       const robotsTxt = await robotsRes.text();
       const sitemapLines = robotsTxt.match(/Sitemap:\s*(.+)/gi) || [];
       for (const line of sitemapLines) {
         const url = line.replace(/Sitemap:\s*/i, "").trim();
-        if (url && !sitemapCandidates.includes(url)) {
-          sitemapCandidates.unshift(url); // prioritize robots.txt sitemaps
+        // Only add sitemaps from the same domain (VTEX robots.txt sometimes points to wrong domain)
+        if (url && url.includes(new URL(base).hostname) && !sitemapCandidates.includes(url)) {
+          sitemapCandidates.unshift(url);
         }
       }
     }
@@ -97,10 +296,6 @@ export async function discoverProductUrls(website: string, maxUrls = 200): Promi
   return productUrls.slice(0, maxUrls);
 }
 
-/**
- * Parse a sitemap XML and extract product-like URLs.
- * Handles both sitemap index files and regular sitemaps.
- */
 async function parseSitemap(sitemapUrl: string, baseUrl: string, maxUrls: number): Promise<string[]> {
   const res = await fetch(sitemapUrl, {
     headers: { ...BROWSER_HEADERS, Accept: "application/xml,text/xml,*/*" },
@@ -111,11 +306,9 @@ async function parseSitemap(sitemapUrl: string, baseUrl: string, maxUrls: number
   const xml = await res.text();
   const $ = cheerio.load(xml, { xmlMode: true });
 
-  // Check if it's a sitemap index (contains other sitemaps)
   const childSitemaps = $("sitemap loc").map((_, el) => $(el).text()).get();
 
   if (childSitemaps.length > 0) {
-    // It's an index — find product-related sub-sitemaps first
     const productSitemaps = childSitemaps.filter(
       (u: string) => /product|catalog|item|producto/i.test(u)
     );
@@ -132,59 +325,46 @@ async function parseSitemap(sitemapUrl: string, baseUrl: string, maxUrls: number
     return allUrls;
   }
 
-  // Regular sitemap — extract URLs that look like product pages
   const allLocs = $("url loc").map((_, el) => $(el).text()).get();
   return filterProductUrls(allLocs, baseUrl).slice(0, maxUrls);
 }
 
-/**
- * Filter URLs that are likely product pages based on common ecommerce URL patterns
- */
 function filterProductUrls(urls: string[], baseUrl: string): string[] {
-  // Common product URL patterns across platforms
   const productPatterns = [
-    /\/product\//i,          // Generic
-    /\/products\//i,         // Shopify
-    /\/p\//i,                // VTEX
-    /\/producto\//i,         // Spanish
-    /\/productos\//i,        // Spanish
-    /\/item\//i,             // Generic
-    /\/dp\//i,               // Amazon
-    /\/catalog\//i,          // Generic
-    /\/-\/p$/i,              // VTEX pattern ending
-    /\/[a-z0-9-]+-\d+$/i,   // slug-with-id pattern
-    /\/MLA-\d+/i,            // MercadoLibre
+    /\/product\//i,
+    /\/products\//i,
+    /\/p$/i,               // VTEX: /slug/p (no trailing slash)
+    /\/p\//i,              // VTEX: /slug/p/ (with trailing slash)
+    /\/producto\//i,
+    /\/productos\//i,
+    /\/item\//i,
+    /\/dp\//i,
+    /\/-\/p$/i,
+    /\/[a-z0-9_]+-\d+\/p$/i,  // VTEX slug with number + /p
+    /\/MLA-\d+/i,
   ];
 
-  // Anti-patterns (NOT product pages)
   const antiPatterns = [
-    /\/category\//i,
-    /\/categories\//i,
-    /\/tag\//i,
-    /\/blog\//i,
-    /\/page\//i,
-    /\/cart/i,
-    /\/checkout/i,
-    /\/account/i,
-    /\/login/i,
-    /\/search/i,
-    /\/contact/i,
-    /\/about/i,
-    /\/legal/i,
-    /\/privacy/i,
-    /\/terms/i,
+    /\/category\//i, /\/categories\//i, /\/tag\//i, /\/blog\//i,
+    /\/page\//i, /\/cart/i, /\/checkout/i, /\/account/i,
+    /\/login/i, /\/search/i, /\/contact/i, /\/about/i,
+    /\/legal/i, /\/privacy/i, /\/terms/i,
     /\.jpg$|\.png$|\.pdf$/i,
+    /\/brand-/i, /\/category-/i,
   ];
+
+  const hostname = new URL(baseUrl).hostname;
 
   return urls.filter((url) => {
-    // Must be from the same domain
-    if (!url.startsWith(baseUrl) && !url.startsWith("http")) return false;
-    // Must match at least one product pattern OR have enough URL depth (slug-like)
+    try {
+      const urlHost = new URL(url).hostname;
+      if (urlHost !== hostname) return false;
+    } catch {
+      return false;
+    }
     const path = url.replace(baseUrl, "");
     const isProduct = productPatterns.some((p) => p.test(path));
-    const isDeepSlug = path.split("/").filter(Boolean).length >= 2 && /[a-z].*-.*[a-z]/i.test(path);
-    if (!isProduct && !isDeepSlug) return false;
-    // Must NOT match anti-patterns
+    if (!isProduct) return false;
     if (antiPatterns.some((p) => p.test(path))) return false;
     return true;
   });
@@ -192,21 +372,15 @@ function filterProductUrls(urls: string[], baseUrl: string): string[] {
 
 // ── Fuzzy Matching ─────────────────────────────────────────────
 
-/**
- * Normalize a product name for comparison
- */
 function normalize(text: string): string {
   return text
     .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
-    .replace(/[^a-z0-9\s]/g, " ") // remove special chars
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-/**
- * Tokenize a name into meaningful words (filtering stop words)
- */
 function tokenize(text: string): string[] {
   const stopWords = new Set([
     "de", "la", "el", "los", "las", "un", "una", "con", "por", "para",
@@ -216,18 +390,13 @@ function tokenize(text: string): string[] {
   return normalize(text).split(" ").filter((w) => w.length > 1 && !stopWords.has(w));
 }
 
-/**
- * Calculate similarity between two product names (0-100)
- * Uses token overlap + bonus for SKU/brand matches
- */
 function calculateMatchScore(
   scrapedName: string,
   ownProduct: OwnProduct
 ): { score: number; reason: string } {
   const scrapedNorm = normalize(scrapedName);
-  const ownNorm = normalize(ownProduct.name);
 
-  // 1. Exact SKU match (highest confidence)
+  // 1. Exact SKU match
   if (ownProduct.sku) {
     const skuNorm = normalize(ownProduct.sku);
     if (skuNorm.length >= 3 && scrapedNorm.includes(skuNorm)) {
@@ -235,7 +404,7 @@ function calculateMatchScore(
     }
   }
 
-  // 2. Token overlap scoring
+  // 2. Token overlap
   const scrapedTokens = tokenize(scrapedName);
   const ownTokens = tokenize(ownProduct.name);
 
@@ -245,11 +414,10 @@ function calculateMatchScore(
 
   const commonTokens = ownTokens.filter((t) => scrapedTokens.includes(t));
   const overlapRatio = commonTokens.length / Math.max(ownTokens.length, 1);
-  let score = Math.round(overlapRatio * 70); // Max 70 from token overlap
-
+  let score = Math.round(overlapRatio * 70);
   let reason = `${commonTokens.length}/${ownTokens.length} tokens`;
 
-  // 3. Brand bonus (+15 if brand matches)
+  // 3. Brand bonus
   if (ownProduct.brand) {
     const brandNorm = normalize(ownProduct.brand);
     if (brandNorm.length >= 2 && scrapedNorm.includes(brandNorm)) {
@@ -258,27 +426,25 @@ function calculateMatchScore(
     }
   }
 
-  // 4. Consecutive word match bonus (+10 if 3+ consecutive words match)
-  const ownStr = ownTokens.join(" ");
+  // 4. Consecutive word match bonus
   const scrapedStr = scrapedTokens.join(" ");
   for (let len = Math.min(4, ownTokens.length); len >= 3; len--) {
+    let found = false;
     for (let i = 0; i <= ownTokens.length - len; i++) {
       const phrase = ownTokens.slice(i, i + len).join(" ");
       if (scrapedStr.includes(phrase)) {
         score += 10;
         reason += " + frase consecutiva";
+        found = true;
         break;
       }
     }
-    if (score >= 80) break;
+    if (found || score >= 80) break;
   }
 
   return { score: Math.min(score, 100), reason };
 }
 
-/**
- * Find the best matching own product for a scraped product
- */
 export function findBestMatch(
   scrapedName: string,
   ownProducts: OwnProduct[],
@@ -298,111 +464,52 @@ export function findBestMatch(
 
 // ── Full Discovery Pipeline ────────────────────────────────────
 
-/**
- * Full auto-discovery: crawl sitemap → scrape products → match to catalog
- * Returns discovered products with matches
- */
 export async function discoverCompetitorProducts(
   website: string,
   ownProducts: OwnProduct[],
   options: {
-    maxUrls?: number;
-    maxScrape?: number;
-    rateDelayMs?: number;
+    maxProducts?: number;
     maxRuntimeMs?: number;
-    onProgress?: (progress: DiscoveryProgress) => void;
   } = {}
-): Promise<DiscoveredProduct[]> {
+): Promise<{ platform: Platform; discovered: DiscoveredProduct[] }> {
   const {
-    maxUrls = 200,
-    maxScrape = 50,
-    rateDelayMs = 1500,
-    maxRuntimeMs = 55000,
-    onProgress,
+    maxProducts = 500,
+    maxRuntimeMs = 50000,
   } = options;
 
   const startTime = Date.now();
-  const progress: DiscoveryProgress = {
-    phase: "sitemap",
-    urlsFound: 0,
-    scraped: 0,
-    matched: 0,
-    errors: 0,
-    total: 0,
-  };
 
-  const report = () => onProgress?.(progress);
+  // Phase 1: Detect platform
+  const platform = await detectPlatform(website);
+  console.log(`[Discovery] Platform detected: ${platform} for ${website}`);
 
-  // Phase 1: Discover URLs from sitemap
-  report();
-  const urls = await discoverProductUrls(website, maxUrls);
-  progress.urlsFound = urls.length;
-  progress.total = Math.min(urls.length, maxScrape);
-  progress.phase = "scraping";
-  report();
+  // Phase 2: Fetch products using platform-specific method
+  let rawProducts: RawProduct[] = [];
 
-  if (urls.length === 0) {
-    progress.phase = "done";
-    report();
-    return [];
+  if (platform === "vtex") {
+    rawProducts = await fetchVtexProducts(website, maxProducts, maxRuntimeMs, startTime);
+  } else if (platform === "shopify") {
+    rawProducts = await fetchShopifyProducts(website, maxProducts, maxRuntimeMs, startTime);
+  } else {
+    // Fallback: sitemap + scraping (slower, limited)
+    rawProducts = await fetchViaSmartSitemap(website, Math.min(maxProducts, 40), maxRuntimeMs, startTime);
   }
 
-  // Phase 2: Scrape products (rate-limited, with timer)
-  const discovered: DiscoveredProduct[] = [];
-  const urlsToScrape = urls.slice(0, maxScrape);
-
-  for (const url of urlsToScrape) {
-    // Timer safety
-    if (Date.now() - startTime > maxRuntimeMs) break;
-
-    try {
-      const result = await scrapeProductPrice(url);
-      if (result && result.price > 0) {
-        discovered.push({
-          url,
-          name: result.name,
-          price: result.price,
-          currency: result.currency,
-          imageUrl: result.imageUrl,
-          method: result.method,
-          matchScore: 0,
-          matchReason: "",
-        });
-        progress.scraped++;
-      } else {
-        progress.errors++;
-      }
-    } catch {
-      progress.errors++;
-    }
-
-    report();
-
-    // Rate limiting
-    if (rateDelayMs > 0) {
-      await new Promise((r) => setTimeout(r, rateDelayMs));
-    }
-  }
+  console.log(`[Discovery] Fetched ${rawProducts.length} products via ${platform}`);
 
   // Phase 3: Match against own catalog
-  progress.phase = "matching";
-  report();
-
-  for (const product of discovered) {
-    const match = findBestMatch(product.name, ownProducts);
-    if (match) {
-      product.matchedOwnProduct = match.product;
-      product.matchScore = match.score;
-      product.matchReason = match.reason;
-      progress.matched++;
-    }
-  }
+  const discovered: DiscoveredProduct[] = rawProducts.map((rp) => {
+    const match = findBestMatch(rp.name, ownProducts);
+    return {
+      ...rp,
+      matchedOwnProduct: match?.product,
+      matchScore: match?.score || 0,
+      matchReason: match?.reason || "",
+    };
+  });
 
   // Sort: matched first (highest score), then unmatched
   discovered.sort((a, b) => b.matchScore - a.matchScore);
 
-  progress.phase = "done";
-  report();
-
-  return discovered;
+  return { platform, discovered };
 }

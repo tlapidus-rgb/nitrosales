@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 // Competitor Auto-Discovery API
 // ══════════════════════════════════════════════════════════════
-// POST — Crawl competitor sitemap, scrape products, auto-match
+// POST — Detect platform, fetch products via API, auto-match
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -13,7 +13,7 @@ import {
 } from "@/lib/connectors/competitor-discovery";
 
 export const revalidate = 0;
-export const maxDuration = 60; // Vercel function timeout
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +24,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing competitorStoreId" }, { status: 400 });
     }
 
-    // Get the competitor store
     const store = await prisma.competitorStore.findFirst({
       where: { id: competitorStoreId, organizationId: org.id },
     });
@@ -55,15 +54,13 @@ export async function POST(req: NextRequest) {
     });
     const existingUrls = new Set(existingPrices.map((p) => p.productUrl));
 
-    // Run discovery pipeline
-    const discovered = await discoverCompetitorProducts(
+    // Run discovery pipeline (now with platform detection)
+    const { platform, discovered } = await discoverCompetitorProducts(
       store.website,
       ownProducts,
       {
-        maxUrls: 200,
-        maxScrape: 40,      // scrape up to 40 products per run
-        rateDelayMs: 1500,   // 1.5s between requests
-        maxRuntimeMs: 50000, // 50s safety margin
+        maxProducts: 500,
+        maxRuntimeMs: 50000,
       }
     );
 
@@ -105,15 +102,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       store: store.name,
-      sitemap: {
-        urlsFound: discovered.length + newProducts.length, // approximate
-        scraped: discovered.length,
-      },
+      platform,
+      totalInCatalog: discovered.length,
       discovered: newProducts.length,
       matched: newProducts.filter((d) => d.matchScore >= 50).length,
       created: created.length,
       products: created,
-      // Also return unmatched products for manual review
       unmatched: newProducts
         .filter((d) => d.matchScore < 50)
         .slice(0, 20)

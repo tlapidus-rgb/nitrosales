@@ -157,26 +157,29 @@ export default function CompetitorsPage() {
     } catch { showToast("Error"); }
   };
 
-  // Auto-discover products from sitemap
+  // Auto-discover products — runs in background, closes modal
   const discoverProducts = async (storeId: string) => {
     setDiscovering(storeId);
     setDiscoveryResult(null);
-    try {
-      const res = await fetch("/api/competitors/discover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ competitorStoreId: storeId }),
-      });
-      const result = await res.json();
-      if (result.error) {
-        showToast(`Error: ${result.error}`);
-      } else {
-        setDiscoveryResult(result);
-        showToast(`${result.created} productos encontrados y mapeados`);
-        loadData();
-      }
-    } catch { showToast("Error en la busqueda automatica"); }
-    finally { setDiscovering(null); }
+    setShowManage(false); // Close modal so user can keep navigating
+
+    // Run in background (non-blocking)
+    fetch("/api/competitors/discover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ competitorStoreId: storeId }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.error) {
+          showToast(`Error: ${result.error}`);
+        } else {
+          setDiscoveryResult(result);
+          loadData();
+        }
+      })
+      .catch(() => showToast("Error en la busqueda automatica"))
+      .finally(() => setDiscovering(null));
   };
 
   // Filtered comparison
@@ -220,6 +223,47 @@ export default function CompetitorsPage() {
           Gestionar Competidores
         </button>
       </div>
+
+      {/* Discovery in-progress banner (shown outside modal so user can navigate) */}
+      {discovering && (
+        <div className="flex items-center gap-3 mb-5 px-5 py-4 bg-emerald-50 border border-emerald-200 rounded-xl animate-pulse">
+          <svg className="animate-spin h-5 w-5 text-emerald-600" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          <div>
+            <p className="text-sm font-semibold text-emerald-800">Buscando productos del competidor...</p>
+            <p className="text-xs text-emerald-600">Detectando plataforma, leyendo catalogo y matcheando con tus productos. Podes seguir navegando.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Discovery results banner (shown after discovery completes) */}
+      {!discovering && discoveryResult && !showManage && (
+        <div className="mb-5 px-5 py-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-semibold text-emerald-800">
+                Descubrimiento completado — {discoveryResult.created || 0} productos agregados
+              </p>
+              <p className="text-xs text-emerald-600 mt-0.5">
+                {discoveryResult.platform && `Plataforma: ${discoveryResult.platform.toUpperCase()} · `}
+                {discoveryResult.totalInCatalog || 0} productos en catalogo competidor · {discoveryResult.matched || 0} matcheados
+              </p>
+            </div>
+            <button onClick={() => setDiscoveryResult(null)} className="text-emerald-400 hover:text-emerald-600 text-lg leading-none">&times;</button>
+          </div>
+          {discoveryResult.products?.length > 0 && (
+            <div className="mt-3 flex gap-2 flex-wrap">
+              {discoveryResult.products.slice(0, 5).map((p: any) => (
+                <span key={p.id} className="text-[10px] bg-white border border-emerald-200 text-emerald-700 px-2 py-1 rounded-lg">
+                  {p.name?.substring(0, 30)} → {fmtARS(p.price)}
+                </span>
+              ))}
+              {discoveryResult.products.length > 5 && (
+                <span className="text-[10px] text-emerald-500 px-2 py-1">+{discoveryResult.products.length - 5} mas</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Store filter chips */}
       {hasData && (
@@ -515,13 +559,18 @@ export default function CompetitorsPage() {
             {discoveryResult && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mt-3">
                 <div className="flex justify-between items-start mb-2">
-                  <p className="text-sm font-semibold text-emerald-800">Resultado del descubrimiento</p>
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-800">Resultado del descubrimiento</p>
+                    {discoveryResult.platform && (
+                      <p className="text-[10px] text-emerald-600 mt-0.5">Plataforma detectada: <strong>{discoveryResult.platform.toUpperCase()}</strong></p>
+                    )}
+                  </div>
                   <button onClick={() => setDiscoveryResult(null)} className="text-emerald-400 hover:text-emerald-600 text-sm">&times;</button>
                 </div>
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   <div className="bg-white rounded-lg p-2 text-center">
-                    <p className="text-lg font-bold text-gray-800">{discoveryResult.sitemap?.scraped || 0}</p>
-                    <p className="text-[10px] text-gray-500">Productos encontrados</p>
+                    <p className="text-lg font-bold text-gray-800">{discoveryResult.totalInCatalog || discoveryResult.sitemap?.scraped || 0}</p>
+                    <p className="text-[10px] text-gray-500">En catalogo competidor</p>
                   </div>
                   <div className="bg-white rounded-lg p-2 text-center">
                     <p className="text-lg font-bold text-emerald-600">{discoveryResult.created || 0}</p>
