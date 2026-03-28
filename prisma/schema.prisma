@@ -46,6 +46,8 @@ model Organization {
   pixelVisitors            PixelVisitor[]
   pixelEvents              PixelEvent[]
   pixelAttributions        PixelAttribution[]
+  seoQueryDaily            SeoQueryDaily[]
+  seoPageDaily             SeoPageDaily[]
 
   @@map("organizations")
 }
@@ -111,6 +113,7 @@ enum Platform {
   GOOGLE_ADS
   META_ADS
   TIKTOK_ADS
+  GOOGLE_SEARCH_CONSOLE
 }
 
 enum ConnectionStatus {
@@ -696,4 +699,51 @@ model PixelAttribution {
   @@index([creativeId])
   @@index([organizationId, isAssisted])
   @@map("pixel_attributions")
+}
+
+// ─────────────────────────────────────────────
+// DATOS DE SEO (vienen de Google Search Console)
+// ─────────────────────────────────────────────
+
+// Datos de keyword + landing page por día (granular)
+model SeoQueryDaily {
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  keyword         String                          // Search query del usuario en Google
+  landingPage     String                          // URL de la página a la que llegó
+  device          String   @default("ALL")        // DESKTOP, MOBILE, TABLET, ALL
+  country         String   @default("ARG")        // Código de país ISO 3166-1 alpha-3
+
+  impressions     Int      @default(0)            // Veces que apareció en resultados de Google
+  clicks          Int      @default(0)            // Clics desde Google
+  ctr             Float?                          // Click-through rate (clicks/impressions)
+  position        Float?                          // Posición promedio en Google
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, date, keyword, landingPage, device, country])
+  @@index([organizationId, date])
+  @@index([organizationId, keyword, date])
+  @@map("seo_query_daily")
+}
+
+// Datos agregados por landing page por día
+model SeoPageDaily {
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  landingPage     String                          // URL de la página
+
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  ctr             Float?
+  avgPosition     Float?                          // Posición promedio ponderada
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, date, landingPage])
+  @@index([organizationId, date])
+  @@index([organizationId, landingPage, date])
+  @@map("seo_page_daily")
 }

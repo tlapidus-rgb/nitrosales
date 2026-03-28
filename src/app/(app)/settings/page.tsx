@@ -17,6 +17,7 @@ const DEFAULT_CONNECTORS: Connector[] = [
   { platform: "GA4", label: "Google Analytics 4", status: "PENDING", lastSyncAt: null, lastSyncError: null, latestDataAt: null },
   { platform: "GOOGLE_ADS", label: "Google Ads", status: "PENDING", lastSyncAt: null, lastSyncError: null, latestDataAt: null },
   { platform: "META_ADS", label: "Meta Ads", status: "PENDING", lastSyncAt: null, lastSyncError: null, latestDataAt: null },
+  { platform: "GOOGLE_SEARCH_CONSOLE", label: "Google Search Console", status: "PENDING", lastSyncAt: null, lastSyncError: null, latestDataAt: null },
 ];
 
 export default function SettingsPage() {
