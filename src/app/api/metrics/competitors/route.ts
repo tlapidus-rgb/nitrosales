@@ -63,8 +63,11 @@ export async function GET(req: NextRequest) {
         .map(p => {
           const cPrice = Number(p.currentPrice);
           const diff = ownPrice > 0 ? Math.round(((cPrice - ownPrice) / ownPrice) * 1000) / 10 : 0;
-          totalDiffSum += diff;
-          totalDiffCount++;
+          // Only count valid diffs (both prices > 0) for average
+          if (ownPrice > 0 && cPrice > 0) {
+            totalDiffSum += diff;
+            totalDiffCount++;
+          }
           return {
             store: p.competitor.name,
             storeId: p.competitor.id,
@@ -80,11 +83,12 @@ export async function GET(req: NextRequest) {
         .sort((a, b) => a.price - b.price);
 
       // Determine position (rank by price, 1 = cheapest)
-      const allPrices = [...competitors.map(c => c.price), ownPrice].sort((a, b) => a - b);
-      const position = allPrices.indexOf(ownPrice) + 1;
+      // Only rank if own price is > 0 (otherwise position is meaningless)
+      const validPrices = [...competitors.map(c => c.price), ...(ownPrice > 0 ? [ownPrice] : [])].filter(p => p > 0).sort((a, b) => a - b);
+      const position = ownPrice > 0 ? validPrices.indexOf(ownPrice) + 1 : 0;
 
-      if (position === 1) cheaperCount++;
-      else if (position > Math.ceil(allPrices.length / 2)) moreExpensiveCount++;
+      if (ownPrice > 0 && position === 1) cheaperCount++;
+      else if (ownPrice > 0 && position > Math.ceil(validPrices.length / 2)) moreExpensiveCount++;
 
       const bestPrice = competitors.length > 0 ? competitors[0] : null;
 
@@ -98,7 +102,7 @@ export async function GET(req: NextRequest) {
         },
         competitors,
         position,
-        totalInComparison: allPrices.length,
+        totalInComparison: validPrices.length,
         bestPrice,
       };
     }).sort((a, b) => b.position - a.position); // Most expensive first (alerts priority)
