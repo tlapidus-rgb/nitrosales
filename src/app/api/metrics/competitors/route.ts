@@ -66,7 +66,8 @@ export async function GET(req: NextRequest) {
         .filter(p => p.scrapeStatus === "OK" && Number(p.currentPrice) > 0)
         .map(p => {
           const cPrice = Number(p.currentPrice);
-          const diff = ownPrice > 0 ? Math.round(((cPrice - ownPrice) / ownPrice) * 1000) / 10 : 0;
+          // Solo calcular diff si el precio propio es válido (>= umbral mínimo)
+          const diff = ownPrice >= MIN_VALID_OWN_PRICE ? Math.round(((cPrice - ownPrice) / ownPrice) * 1000) / 10 : 0;
           // Only count valid diffs (both prices above minimum threshold) for average
           if (ownPrice >= MIN_VALID_OWN_PRICE && cPrice > 0) {
             totalDiffSum += diff;
@@ -131,7 +132,8 @@ export async function GET(req: NextRequest) {
     const alerts: { type: string; product: string; diff?: number; competitor?: string; drop?: number }[] = [];
 
     for (const item of priceComparison) {
-      if (item.bestPrice && item.bestPrice.diff < -10) {
+      // Solo alertar si el precio propio es válido (no corrupto)
+      if (item.ownProduct.price >= MIN_VALID_OWN_PRICE && item.bestPrice && item.bestPrice.diff < -10) {
         alerts.push({
           type: "OVERPRICED",
           product: item.ownProduct.name,

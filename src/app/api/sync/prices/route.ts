@@ -89,6 +89,7 @@ export async function GET(req: NextRequest) {
           Accept: "application/json",
           "User-Agent": "NitroSales/1.0",
         },
+        signal: AbortSignal.timeout(10000), // 10s timeout por request
       });
 
       // VTEX retorna 206 para paginación y a veces 400 cerca del final
@@ -163,8 +164,7 @@ export async function GET(req: NextRequest) {
     let notFound = 0;
     const updates: Array<{ name: string; oldPrice: number; newPrice: number }> = [];
 
-    if (priceMap.size > 0 && !isDryRun) {
-      // Buscar productos en DB cuyos externalId coincidan con los itemIds de VTEX
+    if (priceMap.size > 0) {
       const externalIds = Array.from(priceMap.keys());
 
       const dbProducts = await prisma.product.findMany({
@@ -175,10 +175,8 @@ export async function GET(req: NextRequest) {
         select: { id: true, externalId: true, name: true, price: true },
       });
 
-      // Crear lookup por externalId
       const dbByExtId = new Map(dbProducts.map((p) => [p.externalId, p]));
 
-      // Actualizar uno por uno (quirúrgico, solo campo price)
       for (const [itemId, vtexData] of priceMap.entries()) {
         const dbProduct = dbByExtId.get(itemId);
 
@@ -187,7 +185,7 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        const oldPrice = Number(dbProduct.price);
+        const oldPrice = dbProduct.price ? Number(dbProduct.price) : 0;
         const newPrice = vtexData.price;
 
         // Solo actualizar si el precio cambió
@@ -196,46 +194,14 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        await prisma.product.update({
-          where: { id: dbProduct.id },
-          data: { price: newPrice },
-        });
-
-        updated++;
-        // Log solo los primeros 20 para no saturar
-        if (updates.length < 20) {
-          updates.push({
-            name: dbProduct.name.substring(0, 50),
-            oldPrice,
-            newPrice,
+        // Escribir solo si NO es dry-run
+        if (!isDryRun) {
+          await prisma.product.update({
+            where: { id: dbProduct.id },
+            data: { price: newPrice },
           });
         }
-      }
-    } else if (isDryRun) {
-      // Dry run: solo mostrar qué se actualizaría
-      const externalIds = Array.from(priceMap.keys());
-      const dbProducts = await prisma.product.findMany({
-        where: {
-          organizationId: org.id,
-          externalId: { in: externalIds },
-        },
-        select: { id: true, externalId: true, name: true, price: true },
-      });
 
-      const dbByExtId = new Map(dbProducts.map((p) => [p.externalId, p]));
-
-      for (const [itemId, vtexData] of priceMap.entries()) {
-        const dbProduct = dbByExtId.get(itemId);
-        if (!dbProduct) {
-          notFound++;
-          continue;
-        }
-        const oldPrice = Number(dbProduct.price);
-        const newPrice = vtexData.price;
-        if (Math.abs(oldPrice - newPrice) < 0.01) {
-          skipped++;
-          continue;
-        }
         updated++;
         if (updates.length < 20) {
           updates.push({
