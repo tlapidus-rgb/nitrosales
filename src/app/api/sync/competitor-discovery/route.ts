@@ -17,8 +17,8 @@ export const revalidate = 0;
 export const maxDuration = 60;
 
 const CRON_KEY = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
-const SAFETY_TIMEOUT_MS = 35000;
-const BATCH_SIZE = 150; // Products per run (fits within 60s Vercel limit)
+const SAFETY_TIMEOUT_MS = 30000;
+const BATCH_SIZE = 80; // Products per run (conservative for 60s Vercel limit)
 
 export async function GET(req: NextRequest) {
   const start = Date.now();

@@ -624,7 +624,26 @@ export async function discoverCompetitorProducts(
   console.log(`[Discovery] Fetched ${rawProducts.length} products via ${platform}`);
 
   // Phase 3: Match against own catalog (EAN > SKU > fuzzy text)
+  // Build EAN lookup for O(1) matching (huge optimization when EANs are available)
+  const eanLookup = new Map<string, OwnProduct>();
+  for (const own of ownProducts) {
+    if (own.ean) eanLookup.set(own.ean, own);
+  }
+
   const discovered: DiscoveredProduct[] = rawProducts.map((rp) => {
+    // Fast path: try EAN match first (O(1) instead of O(n))
+    if (rp.competitorEan && eanLookup.has(rp.competitorEan)) {
+      const ownProduct = eanLookup.get(rp.competitorEan)!;
+      return {
+        ...rp,
+        matchedOwnProduct: ownProduct,
+        matchScore: 100,
+        matchReason: `EAN exacto: ${rp.competitorEan}`,
+        competitorEan: rp.competitorEan,
+        matchMethod: "EAN_EXACT",
+      };
+    }
+    // Slow path: fuzzy matching
     const match = findBestMatch(rp.name, ownProducts, 50, rp.competitorEan);
     return {
       ...rp,
