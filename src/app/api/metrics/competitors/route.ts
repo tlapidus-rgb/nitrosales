@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 
     // Umbral mínimo de precio propio para considerar válido en comparaciones.
     // Precios debajo de esto son datos corruptos del sync legacy (precio base, no venta).
-    const MIN_VALID_OWN_PRICE = 500;
+    const MIN_VALID_OWN_PRICE = 1000;
 
     const priceComparison = Object.entries(byOwnProduct).map(([productId, prices]) => {
       const own = ownProductMap[productId];
