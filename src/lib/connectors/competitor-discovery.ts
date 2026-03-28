@@ -48,12 +48,13 @@ async function detectPlatform(website: string): Promise<Platform> {
   const base = website.replace(/\/$/, "");
 
   // Try VTEX API first (most common in Argentina)
+  // VTEX returns HTTP 206 Partial Content for search results
   try {
     const vtexRes = await fetch(`${base}/api/catalog_system/pub/products/search/?_from=0&_to=0`, {
       headers: BROWSER_HEADERS,
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(5000),
     });
-    if (vtexRes.ok) {
+    if (vtexRes.status >= 200 && vtexRes.status < 300) {
       const text = await vtexRes.text();
       if (text.startsWith("[")) return "vtex";
     }
@@ -63,7 +64,7 @@ async function detectPlatform(website: string): Promise<Platform> {
   try {
     const shopifyRes = await fetch(`${base}/products.json?limit=1`, {
       headers: { ...BROWSER_HEADERS, Accept: "application/json" },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(5000),
     });
     if (shopifyRes.ok) {
       const text = await shopifyRes.text();
@@ -71,11 +72,11 @@ async function detectPlatform(website: string): Promise<Platform> {
     }
   } catch { /* not shopify */ }
 
-  // Check homepage HTML for platform hints
+  // Check homepage HTML for platform hints (quick check)
   try {
     const homeRes = await fetch(base, {
       headers: BROWSER_HEADERS,
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(5000),
     });
     if (homeRes.ok) {
       const html = await homeRes.text();
@@ -118,46 +119,48 @@ async function fetchVtexProducts(
         { headers: BROWSER_HEADERS, signal: AbortSignal.timeout(15000) }
       );
 
-      if (!res.ok) break;
+      // VTEX returns 206 Partial Content for paginated results
+      if (res.status < 200 || res.status >= 300) break;
       const data = await res.json();
       if (!Array.isArray(data) || data.length === 0) break;
 
       for (const item of data) {
         const name = item.productName || item.productTitle || "";
-        const link = item.link || item.linkText
-          ? `${base}/${item.linkText || ""}/p`
-          : "";
+        const link = item.link || (item.linkText
+          ? `${base}/${item.linkText}/p`
+          : "");
 
         // Get price from first seller's commercial offer
         let price = 0;
-        let currency = "ARS";
         const items = item.items || [];
         if (items.length > 0) {
           const sellers = items[0].sellers || [];
           if (sellers.length > 0) {
             const offer = sellers[0].commertialOffer || {};
             price = offer.Price || offer.ListPrice || 0;
-            currency = offer.CurrencySymbolPosition ? "ARS" : "ARS";
           }
         }
 
         // Get image
-        const imageUrl = items[0]?.images?.[0]?.imageUrl || item.items?.[0]?.images?.[0]?.imageUrl || undefined;
+        const imageUrl = items[0]?.images?.[0]?.imageUrl || undefined;
+
+        // Get brand and category for intelligence
+        const brand = item.brand || "";
+        const category = (item.categories?.[0] || "").replace(/^\//,"").replace(/\/$/,"");
 
         if (name && price > 0) {
           products.push({
             url: link,
             name,
             price,
-            currency,
+            currency: "ARS",
             imageUrl,
             method: "vtex-api",
           });
         }
       }
 
-      // Small delay between API pages
-      await new Promise((r) => setTimeout(r, 300));
+      // No delay for API calls (rate limiting not needed for public VTEX API)
     } catch {
       break;
     }

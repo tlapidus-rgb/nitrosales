@@ -55,12 +55,13 @@ export async function POST(req: NextRequest) {
     const existingUrls = new Set(existingPrices.map((p) => p.productUrl));
 
     // Run discovery pipeline (now with platform detection)
+    // Limit to 150 products to stay within Vercel's 60s timeout
     const { platform, discovered } = await discoverCompetitorProducts(
       store.website,
       ownProducts,
       {
-        maxProducts: 500,
-        maxRuntimeMs: 50000,
+        maxProducts: 150,
+        maxRuntimeMs: 45000, // 45s safety margin (Vercel limit is 60s)
       }
     );
 
@@ -68,36 +69,39 @@ export async function POST(req: NextRequest) {
     const newProducts = discovered.filter((d) => !existingUrls.has(d.url));
 
     // Auto-create CompetitorPrice entries for matched products (score >= 50)
-    const created: Array<{ id: string; url: string; name: string; price: number; matchedTo: string | null; score: number }> = [];
+    const matchedProducts = newProducts.filter((d) => d.matchScore >= 50);
+    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
 
-    for (const product of newProducts) {
-      if (product.matchScore >= 50) {
-        const entry = await prisma.competitorPrice.create({
-          data: {
-            organizationId: org.id,
-            competitorId: store.id,
-            productUrl: product.url,
-            productName: product.name,
-            currentPrice: product.price,
-            currency: product.currency || "ARS",
-            imageUrl: product.imageUrl || null,
-            lastScrapedAt: new Date(),
-            scrapeStatus: "OK",
-            ownProductId: product.matchedOwnProduct?.id || null,
-            scrapedData: [{ date: new Date().toISOString().split("T")[0], price: product.price }],
-          },
-        });
-
-        created.push({
-          id: entry.id,
-          url: product.url,
-          name: product.name,
-          price: product.price,
-          matchedTo: product.matchedOwnProduct?.name || null,
-          score: product.matchScore,
-        });
-      }
+    // Batch insert for speed (avoid individual creates which are slow)
+    if (matchedProducts.length > 0) {
+      await prisma.competitorPrice.createMany({
+        data: matchedProducts.map((product) => ({
+          organizationId: org.id,
+          competitorId: store.id,
+          productUrl: product.url,
+          productName: product.name,
+          currentPrice: product.price,
+          currency: product.currency || "ARS",
+          imageUrl: product.imageUrl || null,
+          lastScrapedAt: now,
+          scrapeStatus: "OK",
+          ownProductId: product.matchedOwnProduct?.id || null,
+          scrapedData: [{ date: today, price: product.price }],
+        })),
+        skipDuplicates: true,
+      });
     }
+
+    // Build response summary
+    const created = matchedProducts.map((product) => ({
+      id: "",
+      url: product.url,
+      name: product.name,
+      price: product.price,
+      matchedTo: product.matchedOwnProduct?.name || null,
+      score: product.matchScore,
+    }));
 
     return NextResponse.json({
       success: true,
