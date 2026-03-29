@@ -61,11 +61,6 @@ export default function CompetitorsPage() {
   const [discovering, setDiscovering] = useState<string | null>(null); // storeId being discovered
   const [discoveryResult, setDiscoveryResult] = useState<any>(null);
 
-  // MercadoLibre search state
-  const [mlSearching, setMlSearching] = useState(false);
-  const [mlProgress, setMlProgress] = useState("");
-  const [mlResult, setMlResult] = useState<any>(null);
-
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
   const loadData = async () => {
@@ -207,78 +202,6 @@ export default function CompetitorsPage() {
       .finally(() => setDiscovering(null));
   };
 
-  // MercadoLibre client-side search (runs from user's browser to avoid IP blocks)
-  const searchMercadoLibre = async () => {
-    setMlSearching(true);
-    setMlProgress("Preparando productos...");
-    setMlResult(null);
-
-    try {
-      // Get a sample of own products to search for
-      const prodsRes = await fetch("/api/products?limit=200").then(r => r.json());
-      const prods = (prodsRes.products || []).filter((p: any) => p.price > 0);
-      const maxToSearch = 30;
-      const sample = prods.slice(0, maxToSearch);
-
-      let allResults: any[] = [];
-      let searched = 0;
-
-      for (const prod of sample) {
-        searched++;
-        setMlProgress(`Buscando ${searched}/${sample.length}: ${prod.name.substring(0, 40)}...`);
-
-        // Build search query
-        const parts: string[] = [];
-        if (prod.brand) parts.push(prod.brand);
-        const words = prod.name.replace(/[^a-záéíóúñü0-9\s]/gi, " ").split(/\s+/).filter((w: string) => w.length > 2).slice(0, 5);
-        parts.push(...words);
-        const query = parts.join(" ").trim();
-        if (query.length < 3) continue;
-
-        try {
-          const res = await fetch(
-            `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(query)}&limit=5&condition=new`
-          );
-          if (res.ok) {
-            const data = await res.json();
-            if (data.results) allResults.push(...data.results);
-          }
-        } catch { /* skip failed search */ }
-
-        // Rate limit: 200ms between requests
-        await new Promise(r => setTimeout(r, 200));
-      }
-
-      // Deduplicate by ML item ID
-      const seen = new Set();
-      allResults = allResults.filter(r => {
-        if (seen.has(r.id)) return false;
-        seen.add(r.id);
-        return true;
-      });
-
-      setMlProgress(`Guardando ${allResults.length} resultados...`);
-
-      // Send to backend for matching and storage
-      const saveRes = await fetch("/api/sync/ml-save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ results: allResults }),
-      });
-      const saveData = await saveRes.json();
-
-      setMlResult(saveData);
-      if (saveData.created > 0) loadData(); // Refresh the table
-      showToast(`ML: ${saveData.created || 0} precios nuevos encontrados`);
-    } catch (e: any) {
-      showToast("Error buscando en MercadoLibre");
-      console.error("[ML Search]", e);
-    } finally {
-      setMlSearching(false);
-      setMlProgress("");
-    }
-  };
-
   // Filtered comparison
   const comparison: PriceRow[] = useMemo(() => {
     if (!data?.priceComparison) return [];
@@ -311,28 +234,14 @@ export default function CompetitorsPage() {
           <h2 className="text-2xl font-bold text-gray-800 mb-1">Competencia</h2>
           <p className="text-gray-500 text-sm">Monitoreo de precios, alertas y comparativas</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={searchMercadoLibre}
-            disabled={mlSearching}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border-2 border-[#FFE600] bg-[#FFE600] text-gray-900 hover:bg-[#FFD000] disabled:opacity-50"
-          >
-            {mlSearching ? (
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            )}
-            {mlSearching ? "Buscando..." : "Buscar en MercadoLibre"}
-          </button>
-          <button
-            onClick={() => setShowManage(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
-            style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-            Gestionar Competidores
-          </button>
-        </div>
+        <button
+          onClick={() => setShowManage(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+          style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          Gestionar Competidores
+        </button>
       </div>
 
       {/* Tabs */}
@@ -365,39 +274,6 @@ export default function CompetitorsPage() {
           <div>
             <p className="text-sm font-semibold text-emerald-800">Buscando productos del competidor...</p>
             <p className="text-xs text-emerald-600">Detectando plataforma, leyendo catalogo y matcheando con tus productos. Podes seguir navegando.</p>
-          </div>
-        </div>
-      )}
-
-      {/* MercadoLibre search progress */}
-      {mlSearching && (
-        <div className="flex items-center gap-3 mb-5 px-5 py-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-          <svg className="animate-spin h-5 w-5 text-yellow-600" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-          <div>
-            <p className="text-sm font-semibold text-yellow-800">Buscando en MercadoLibre...</p>
-            <p className="text-xs text-yellow-600">{mlProgress}</p>
-          </div>
-        </div>
-      )}
-
-      {/* MercadoLibre results banner */}
-      {!mlSearching && mlResult && (
-        <div className="mb-5 px-5 py-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-semibold text-yellow-800">
-                MercadoLibre — {mlResult.created || 0} precios nuevos guardados
-              </p>
-              <p className="text-xs text-yellow-600 mt-0.5">
-                {mlResult.received || 0} listings encontrados · {mlResult.matched || 0} matcheados con tu catalogo · {mlResult.alreadyTracked || 0} ya monitoreados
-              </p>
-              {mlResult.sellers?.length > 0 && (
-                <p className="text-xs text-yellow-600 mt-0.5">
-                  Vendedores: {mlResult.sellers.map((s: any) => `${s.seller} (${s.created})`).join(", ")}
-                </p>
-              )}
-            </div>
-            <button onClick={() => setMlResult(null)} className="text-yellow-400 hover:text-yellow-600 text-lg leading-none">&times;</button>
           </div>
         </div>
       )}
