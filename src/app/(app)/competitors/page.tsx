@@ -5,8 +5,8 @@
 // Competencia — Monitoreo de Precios de Competidores
 // ══════════════════════════════════════════════════════════════
 
-import { useEffect, useState, useMemo } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, Cell, PieChart, Pie } from "recharts";
 
 const fmt = (n: number) => n?.toLocaleString("es-AR") ?? "0";
 const fmtARS = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n || 0);
@@ -27,9 +27,14 @@ type PriceRow = {
 type Change = { competitor: string; product: string; oldPrice: number; newPrice: number; change: number; date: string };
 type Alert = { type: string; product: string; diff?: number; competitor?: string; drop?: number };
 
+type Tab = "precios" | "inteligencia";
+
 export default function CompetitorsPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("precios");
   const [data, setData] = useState<any>(null);
+  const [intelData, setIntelData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [intelLoading, setIntelLoading] = useState(false);
   const [error, setError] = useState("");
   const [storeFilter, setStoreFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -74,7 +79,22 @@ export default function CompetitorsPage() {
     }
   };
 
+  const loadIntelData = useCallback(async () => {
+    setIntelLoading(true);
+    try {
+      const res = await fetch("/api/metrics/intelligence").then(r => r.json());
+      if (res.ok) setIntelData(res);
+    } catch (e: any) {
+      console.error("Intel load error:", e);
+    } finally {
+      setIntelLoading(false);
+    }
+  }, []);
+
   useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (activeTab === "inteligencia" && !intelData && !intelLoading) loadIntelData();
+  }, [activeTab, intelData, intelLoading, loadIntelData]);
 
   // Add competitor store
   const addStore = async () => {
@@ -224,6 +244,29 @@ export default function CompetitorsPage() {
         </button>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 mb-5 bg-gray-100 rounded-xl p-1 w-fit">
+        {([
+          { key: "precios" as Tab, label: "Precios", icon: "💰" },
+          { key: "inteligencia" as Tab, label: "Inteligencia Competitiva", icon: "🧠" },
+        ]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === tab.key
+                ? "bg-white text-gray-800 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <span className="text-base">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══ TAB: PRECIOS ═══ */}
+      {activeTab === "precios" && <>
       {/* Discovery in-progress banner (shown outside modal so user can navigate) */}
       {discovering && (
         <div className="flex items-center gap-3 mb-5 px-5 py-4 bg-emerald-50 border border-emerald-200 rounded-xl animate-pulse">
@@ -612,12 +655,250 @@ export default function CompetitorsPage() {
         </div>
       )}
 
+      </>}
+
+      {/* ═══ TAB: INTELIGENCIA COMPETITIVA ═══ */}
+      {activeTab === "inteligencia" && (
+        <IntelligenceTab data={intelData} loading={intelLoading} />
+      )}
+
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg z-50">
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Intelligence Tab Component
+// ══════════════════════════════════════════════════════════════
+const INTEL_COLORS = ["#FF5E1A", "#4285f4", "#8b5cf6", "#059669", "#d97706", "#ec4899"];
+
+function IntelligenceTab({ data, loading }: { data: any; loading: boolean }) {
+  if (loading) return <p className="text-gray-400 py-8">Cargando datos de inteligencia...</p>;
+  if (!data) return <p className="text-gray-400 py-8">No hay datos disponibles.</p>;
+
+  const { kpis, matchMethods, competitorProfiles, categories, priceDistribution, opportunities } = data;
+
+  const opps = opportunities?.filter((o: any) => o.type === "oportunidad") || [];
+  const risks = opportunities?.filter((o: any) => o.type === "riesgo") || [];
+
+  return (
+    <div className="space-y-5">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KpiCard label="Tu Catálogo" value={fmt(kpis.totalOwnProducts)} sub="productos activos" />
+        <KpiCard label="Productos Competidores" value={fmt(kpis.totalCompetitorPrices)} sub={`de ${kpis.competitorCount} competidores`} />
+        <KpiCard label="Coincidencias" value={fmt(kpis.matchedPrices)} sub={`${kpis.unmatchedPrices} sin match`} color="text-emerald-600" />
+        <KpiCard label="Cobertura" value={`${kpis.coveragePercent}%`} sub={`${kpis.uniqueOwnMatched} de ${kpis.totalOwnProducts} productos`}
+          color={kpis.coveragePercent >= 50 ? "text-emerald-600" : kpis.coveragePercent >= 20 ? "text-amber-600" : "text-red-600"} />
+      </div>
+
+      {/* Match Quality + Competitor Profiles */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Match Quality */}
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h3 className="font-bold text-gray-800 mb-4">Calidad del Matching</h3>
+          <div className="space-y-3">
+            {Object.entries(matchMethods || {}).map(([method, count]: [string, any]) => {
+              const total = kpis.matchedPrices || 1;
+              const pct = Math.round((count / total) * 100);
+              const label = method === "EAN_EXACT" ? "EAN Exacto" : method === "SKU_MATCH" ? "SKU Match" : method === "FUZZY_TEXT" ? "Texto Fuzzy" : method;
+              const color = method === "EAN_EXACT" ? "#059669" : method === "SKU_MATCH" ? "#4285f4" : "#d97706";
+              return (
+                <div key={method}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="font-medium text-gray-700">{label}</span>
+                    <span className="text-gray-500">{count} ({pct}%)</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                  </div>
+                </div>
+              );
+            })}
+            {Object.keys(matchMethods || {}).length === 0 && (
+              <p className="text-sm text-gray-400">Sin datos de matching todavía</p>
+            )}
+          </div>
+          <div className="mt-4 p-3 bg-amber-50 rounded-lg">
+            <p className="text-xs text-amber-700">
+              <strong>Tip:</strong> Cargando códigos EAN en tu catálogo el matching será 100% preciso por código de barras.
+            </p>
+          </div>
+        </div>
+
+        {/* Competitor Profiles */}
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h3 className="font-bold text-gray-800 mb-4">Perfil de Competidores</h3>
+          <div className="space-y-3">
+            {(competitorProfiles || []).map((cp: any) => (
+              <div key={cp.id} className="border rounded-lg p-3">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm">{cp.name}</p>
+                    <p className="text-[11px] text-gray-400">{cp.totalProducts} productos descubiertos</p>
+                  </div>
+                  <span className={`text-sm font-bold ${cp.avgPriceDiff > 0 ? "text-green-600" : cp.avgPriceDiff < 0 ? "text-red-600" : "text-gray-500"}`}>
+                    {cp.avgPriceDiff > 0 ? "+" : ""}{cp.avgPriceDiff}%
+                  </span>
+                </div>
+                <div className="flex gap-3 text-[11px]">
+                  <span className="text-green-600">{cp.cheaper} mas baratos</span>
+                  <span className="text-gray-400">{cp.equal} iguales</span>
+                  <span className="text-red-600">{cp.pricier} mas caros</span>
+                </div>
+              </div>
+            ))}
+            {(competitorProfiles || []).length === 0 && (
+              <p className="text-sm text-gray-400">Agrega competidores para ver sus perfiles</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Price Distribution Chart */}
+      {priceDistribution && priceDistribution.some((d: any) => d.tuTienda > 0 || d.competidores > 0) && (
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h3 className="font-bold text-gray-800 mb-4">Distribución de Precios</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={priceDistribution} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="range" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip
+                formatter={(value: any, name: string) => [value, name === "tuTienda" ? "Tu Tienda" : "Competidores"]}
+                contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
+              />
+              <Legend formatter={(value: string) => value === "tuTienda" ? "Tu Tienda" : "Competidores"} />
+              <Bar dataKey="tuTienda" fill="#FF5E1A" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="competidores" fill="#4285f4" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Category Analysis */}
+      {categories && categories.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h3 className="font-bold text-gray-800 mb-4">Análisis por Categoría</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="text-left text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-4 py-2.5">Categoría</th>
+                  <th className="text-center text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-3 py-2.5">Tus Productos</th>
+                  <th className="text-center text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-3 py-2.5">Comparados</th>
+                  <th className="text-center text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-3 py-2.5">Cobertura</th>
+                  <th className="text-center text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-3 py-2.5">Dif. Precio Prom.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categories.map((cat: any) => (
+                  <tr key={cat.name} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{cat.name}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-600">{cat.ownProducts}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-600">{cat.matchedProducts}</td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                        cat.coverage >= 50 ? "bg-green-50 text-green-700"
+                        : cat.coverage >= 20 ? "bg-amber-50 text-amber-700"
+                        : "bg-red-50 text-red-700"
+                      }`}>{cat.coverage}%</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={`font-semibold ${cat.avgPriceDiff > 0 ? "text-green-600" : cat.avgPriceDiff < 0 ? "text-red-600" : "text-gray-500"}`}>
+                        {cat.avgPriceDiff > 0 ? "+" : ""}{cat.avgPriceDiff}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Opportunities & Risks */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Opportunities */}
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-lg">📈</span>
+            <h3 className="font-bold text-gray-800">Oportunidades de Precio</h3>
+            <span className="text-[10px] bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded">{opps.length}</span>
+          </div>
+          <p className="text-xs text-gray-400 mb-3">Competidores con precio mas alto que el tuyo (+10%)</p>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {opps.slice(0, 15).map((o: any, i: number) => (
+              <div key={i} className="flex items-center justify-between py-2 px-3 bg-green-50 rounded-lg text-xs">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-800 truncate">{o.ownProduct.substring(0, 40)}</p>
+                  <p className="text-gray-500">{o.competitor}</p>
+                </div>
+                <div className="text-right ml-2">
+                  <p className="font-bold text-green-700">+{o.diff}%</p>
+                  <p className="text-gray-400">{fmtARS(o.competitorPrice)}</p>
+                </div>
+              </div>
+            ))}
+            {opps.length === 0 && <p className="text-sm text-gray-400 py-2">No hay oportunidades detectadas</p>}
+          </div>
+        </div>
+
+        {/* Risks */}
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-lg">⚠️</span>
+            <h3 className="font-bold text-gray-800">Riesgos de Precio</h3>
+            <span className="text-[10px] bg-red-50 text-red-700 font-semibold px-2 py-0.5 rounded">{risks.length}</span>
+          </div>
+          <p className="text-xs text-gray-400 mb-3">Competidores con precio mas bajo que el tuyo (-10%)</p>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {risks.slice(0, 15).map((o: any, i: number) => (
+              <div key={i} className="flex items-center justify-between py-2 px-3 bg-red-50 rounded-lg text-xs">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-800 truncate">{o.ownProduct.substring(0, 40)}</p>
+                  <p className="text-gray-500">{o.competitor}</p>
+                </div>
+                <div className="text-right ml-2">
+                  <p className="font-bold text-red-700">{o.diff}%</p>
+                  <p className="text-gray-400">{fmtARS(o.competitorPrice)}</p>
+                </div>
+              </div>
+            ))}
+            {risks.length === 0 && <p className="text-sm text-gray-400 py-2">No hay riesgos detectados</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Coverage Gap Warning */}
+      {kpis.ownWithoutCompetitor > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <span className="text-xl">🔍</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">
+              {fmt(kpis.ownWithoutCompetitor)} productos sin competencia detectada
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Cargando los EAN (códigos de barra) en tu catálogo se pueden matchear automáticamente con competidores.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, color = "text-gray-800" }: { label: string; value: string; sub: string; color?: string }) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-4 border">
+      <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">{label}</p>
+      <p className={`text-2xl font-bold mt-1 ${color}`}>{value}</p>
+      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
     </div>
   );
 }
