@@ -1,11 +1,11 @@
-// Quick debug endpoint to test ML API access from Vercel
+// Quick debug endpoint to test ML API access from Vercel Edge
+// Edge runs on Cloudflare network — different IPs than Node.js serverless
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/client";
 
+export const runtime = "edge";
 export const revalidate = 0;
-export const maxDuration = 30;
 
-const CRON_KEY = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
+const CRON_KEY = "nitrosales-secret-key-2024-production";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -14,43 +14,32 @@ export async function GET(req: NextRequest) {
   }
 
   const query = searchParams.get("q") || "lego juguete";
-  const results: any = {};
+  const token = searchParams.get("token") || "";
+  const results: any = { runtime: "edge" };
 
-  // 1. Get token from DB
-  const conn = await prisma.connection.findFirst({
-    where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" },
-  });
-
-  const creds = conn?.credentials as any;
-  const token = creds?.accessToken;
-  results.hasToken = !!token;
-
-  // 2. Test search WITHOUT token
+  // Test search WITHOUT token
   try {
     const res = await fetch(
-      `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(query)}&limit=3`,
-      { signal: AbortSignal.timeout(8000) }
+      `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(query)}&limit=3`
     );
     const data = await res.json();
     results.noTokenSearch = {
       status: res.status,
       total: data?.paging?.total || 0,
       error: data?.error || null,
+      message: data?.message || null,
       firstResult: data?.results?.[0]?.title || null,
     };
   } catch (e: any) {
     results.noTokenSearch = { error: e.message };
   }
 
-  // 3. Test search WITH token
+  // Test search WITH token (if provided)
   if (token) {
     try {
       const res = await fetch(
         `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(query)}&limit=3`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(8000),
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
       results.withTokenSearch = {
@@ -64,16 +53,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 4. Test items endpoint (always public)
+  // Test basic /sites/MLA endpoint
   try {
-    const res = await fetch(
-      `https://api.mercadolibre.com/sites/MLA`,
-      { signal: AbortSignal.timeout(5000) }
-    );
+    const res = await fetch(`https://api.mercadolibre.com/sites/MLA`);
     const data = await res.json();
     results.sitesEndpoint = {
       status: res.status,
       id: data?.id || null,
+      name: data?.name || null,
       error: data?.error || null,
     };
   } catch (e: any) {
