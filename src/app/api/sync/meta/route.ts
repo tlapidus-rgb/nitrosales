@@ -2,7 +2,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { MetaAdsConnector } from "@/lib/connectors/meta-ads";
-import { classifyCreative } from "@/lib/classification/ad-classifier";
+import { classifyCreative, classifyWithVision } from "@/lib/classification/ad-classifier";
+import { analyzeCreativeImage } from "@/lib/ai/vision-analyzer";
 import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
@@ -448,6 +449,86 @@ export async function GET(req: Request) {
     create: { organizationId: org.id, platform: "META_ADS", status: "ACTIVE", lastSyncAt: new Date(), lastSyncError: null, credentials: {} },
   });
 
+  // ═══════════════════════════════════════════
+  // STEP 6: Vision Analysis (si queda tiempo)
+  // ═══════════════════════════════════════════
+  // Analiza creativos nuevos con Claude Vision mientras las URLs de fbcdn
+  // todavía están frescas (expiran después de unas horas).
+  // Máximo 5 por sync para no agotar el timeout.
+  let visionAnalyzed = 0;
+  let visionErrors = 0;
+
+  if (!shouldStop() && process.env.ANTHROPIC_API_KEY) {
+    try {
+      const unanalyzed = await prisma.adCreative.findMany({
+        where: {
+          organizationId: org.id,
+          platform: "META",
+          visionAnalyzedAt: null,
+          mediaUrls: { isEmpty: false },
+        },
+        include: { campaign: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      });
+
+      for (const creative of unanalyzed) {
+        if (shouldStop()) { stoppedEarly = true; break; }
+
+        const imageUrl = creative.mediaUrls?.[0];
+        if (!imageUrl) continue;
+
+        try {
+          const visionResult = await analyzeCreativeImage(imageUrl, {
+            adName: creative.name,
+            campaignName: (creative as any).campaign?.name,
+            platform: creative.platform,
+            headline: creative.headline,
+            ctaType: creative.ctaType,
+          });
+
+          if (visionResult.ok && visionResult.result) {
+            const regexResult = {
+              type: creative.classificationAuto || "OTHER",
+              confidence: creative.classificationScore || 0.3,
+              reason: "existing regex classification",
+            };
+            const blended = classifyWithVision(
+              regexResult,
+              visionResult.result.classification,
+              visionResult.result.confidence
+            );
+
+            await prisma.adCreative.update({
+              where: { id: creative.id },
+              data: {
+                visionAnalysis: JSON.stringify(visionResult.result),
+                visionClassification: visionResult.result.classification,
+                visionConfidence: visionResult.result.confidence,
+                visionAnalyzedAt: new Date(),
+                visionError: null,
+                classificationAuto: blended.type,
+                classificationScore: blended.confidence,
+              } as any,
+            });
+            visionAnalyzed++;
+          } else {
+            await prisma.adCreative.update({
+              where: { id: creative.id },
+              data: { visionError: visionResult.error || "Unknown error", visionAnalyzedAt: new Date() } as any,
+            });
+            visionErrors++;
+          }
+        } catch (vErr: any) {
+          console.error(`[MetaSync] Vision error for ${creative.id}:`, vErr.message);
+          visionErrors++;
+        }
+      }
+    } catch (e: any) {
+      console.error("[MetaSync] Vision step error (non-fatal):", e.message);
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     campaignsUpserted,
@@ -456,6 +537,8 @@ export async function GET(req: Request) {
     adMetricsUpserted,
     adSetsUpserted,
     adSetMetricsUpserted,
+    visionAnalyzed,
+    visionErrors,
     cleanedUpAllCampaigns: cleanedUp,
     campaigns: Object.keys(campaignMap).length,
     adSets: Object.keys(adSetMap).length,
