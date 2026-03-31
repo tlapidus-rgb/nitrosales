@@ -68,13 +68,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Read raw text first for debugging, then parse
-    const rawText = await tokenRes.text();
-    console.log(`[ML OAuth] RAW token response: ${rawText}`);
-    const tokenData = JSON.parse(rawText);
+    const tokenData = await tokenRes.json();
     const { access_token, refresh_token, expires_in, user_id } = tokenData;
 
-    console.log(`[ML OAuth] Full token response keys: ${Object.keys(tokenData).join(', ')}`);
     console.log(`[ML OAuth] Got tokens for ML user ${user_id}, expires in ${expires_in}s, refresh_token: ${refresh_token ? 'YES' : 'NO'}`);
 
     // Find existing ML connection (we created one earlier with client_credentials)
@@ -89,7 +85,6 @@ export async function GET(req: NextRequest) {
       refreshToken: refresh_token,
       tokenExpiresAt: Date.now() + (expires_in * 1000),
       mlUserId: user_id,
-      _debugTokenResponse: tokenData, // TEMP: full ML response for debugging
     };
 
     if (existing) {
