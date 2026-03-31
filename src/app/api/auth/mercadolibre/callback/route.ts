@@ -37,14 +37,22 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Read PKCE code_verifier from cookie (set by connect endpoint)
+    const codeVerifier = req.cookies.get("ml_pkce_verifier")?.value;
+
     // Exchange code for tokens (ML requires x-www-form-urlencoded per official docs)
-    const tokenBody = new URLSearchParams({
+    const tokenParams: Record<string, string> = {
       grant_type: "authorization_code",
       client_id: ML_APP_ID,
       client_secret: ML_SECRET,
       code,
       redirect_uri: ML_REDIRECT_URI,
-    });
+    };
+    // Include PKCE verifier if available
+    if (codeVerifier) {
+      tokenParams.code_verifier = codeVerifier;
+    }
+    const tokenBody = new URLSearchParams(tokenParams);
 
     const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
       method: "POST",
@@ -109,10 +117,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Redirect to competitors page with success
-    return NextResponse.redirect(
+    // Redirect to competitors page with success (and clean up PKCE cookie)
+    const successRedirect = NextResponse.redirect(
       new URL(`/competitors?ml_connected=true`, req.url)
     );
+    successRedirect.cookies.delete("ml_pkce_verifier");
+    return successRedirect;
   } catch (err: any) {
     console.error("[ML OAuth] Error:", err);
     return NextResponse.redirect(
