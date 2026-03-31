@@ -125,16 +125,43 @@ export async function fetchSellerListings(
   mlUserId: number,
   options: { limit?: number } = {}
 ): Promise<any[]> {
-  const limit = options.limit || 5000;
+  const maxItems = options.limit || 5000;
   const allItems: any[] = [];
-  let offset = 0;
-  const batchSize = 100; // ML max scroll size
+  const batchSize = 50; // ML items/search max per page
 
-  // Step 1: Get all item IDs
+  // Step 1: Get all item IDs using scroll_id for large catalogs
+  // ML API has offset+limit <= 1000 hard limit, so we use scroll for >1000 items
   const allItemIds: string[] = [];
-  while (offset < limit) {
+  let offset = 0;
+  const ML_OFFSET_LIMIT = 1000; // ML hard cap: offset + limit <= 1000
+
+  while (allItemIds.length < maxItems) {
+    if (offset + batchSize > ML_OFFSET_LIMIT) {
+      // Reached ML's pagination limit — use scroll_id approach
+      // First request with scroll_id
+      const scrollData = await mlGet(
+        `/users/${mlUserId}/items/search?search_type=scan&limit=${batchSize}`,
+        token
+      );
+      const scrollId = scrollData.scroll_id;
+      let scrollIds: string[] = scrollData.results || [];
+      allItemIds.push(...scrollIds);
+
+      // Continue scrolling
+      while (scrollIds.length > 0 && allItemIds.length < maxItems && scrollId) {
+        const nextData = await mlGet(
+          `/users/${mlUserId}/items/search?search_type=scan&scroll_id=${scrollId}&limit=${batchSize}`,
+          token
+        );
+        scrollIds = nextData.results || [];
+        if (scrollIds.length === 0) break;
+        allItemIds.push(...scrollIds);
+      }
+      break; // scroll handles all pages, exit offset loop
+    }
+
     const data = await mlGet(
-      `/users/${mlUserId}/items/search?limit=${batchSize}&offset=${offset}&orders=start_time_desc`,
+      `/users/${mlUserId}/items/search?limit=${batchSize}&offset=${offset}`,
       token
     );
     const ids: string[] = data.results || [];
