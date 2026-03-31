@@ -1,0 +1,145 @@
+// ══════════════════════════════════════════════════════════════
+// ML Dashboard API — Reads from OUR DB only (never touches ML)
+// ══════════════════════════════════════════════════════════════
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db/client";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  try {
+    const connection = await prisma.connection.findFirst({
+      where: { platform: "MERCADOLIBRE" as any },
+    });
+    if (!connection) {
+      return NextResponse.json({ error: "No ML connection" }, { status: 404 });
+    }
+    const orgId = connection.organizationId;
+
+    // Date range
+    const { searchParams } = new URL(req.url);
+    const days = parseInt(searchParams.get("days") || "30");
+    const dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // KPIs from orders (source=MELI)
+    const ordersAgg = await prisma.order.aggregate({
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom } },
+      _sum: { totalValue: true, itemCount: true },
+      _count: { id: true },
+    });
+    const cancelledCount = await prisma.order.count({
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom }, status: "CANCELLED" },
+    });
+
+    const totalOrders = ordersAgg._count.id || 0;
+    const totalRevenue = Number(ordersAgg._sum.totalValue || 0);
+    const totalItems = Number(ordersAgg._sum.itemCount || 0);
+    const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    // Listings stats
+    const listingsActive = await prisma.mlListing.count({
+      where: { organizationId: orgId, status: "active" },
+    });
+    const listingsTotal = await prisma.mlListing.count({
+      where: { organizationId: orgId },
+    });
+    const listingsPaused = await prisma.mlListing.count({
+      where: { organizationId: orgId, status: "paused" },
+    });
+
+    // Latest reputation
+    const latestRep = await prisma.mlSellerMetricDaily.findFirst({
+      where: { organizationId: orgId },
+      orderBy: { date: "desc" },
+    });
+
+    // Unanswered questions
+    const unansweredQuestions = await prisma.mlQuestion.count({
+      where: { organizationId: orgId, status: "UNANSWERED" },
+    });
+
+    // Daily sales (MELI orders grouped by day)
+    const dailySalesRaw = await prisma.order.groupBy({
+      by: ["orderDate"],
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom } },
+      _sum: { totalValue: true },
+      _count: { id: true },
+      orderBy: { orderDate: "asc" },
+    });
+
+    // Aggregate by day string
+    const dailyMap = new Map<string, { revenue: number; orders: number }>();
+    for (const row of dailySalesRaw) {
+      const day = new Date(row.orderDate).toISOString().split("T")[0];
+      const existing = dailyMap.get(day) || { revenue: 0, orders: 0 };
+      existing.revenue += Number(row._sum.totalValue || 0);
+      existing.orders += row._count.id;
+      dailyMap.set(day, existing);
+    }
+    const dailySales = Array.from(dailyMap.entries())
+      .map(([day, data]) => ({ day, ...data }))
+      .sort((a, b) => a.day.localeCompare(b.day));
+
+    // Orders by status
+    const statusBreakdown = await prisma.order.groupBy({
+      by: ["status"],
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom } },
+      _count: { id: true },
+    });
+
+    // Payment methods
+    const paymentMethods = await prisma.order.groupBy({
+      by: ["paymentMethod"],
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom }, paymentMethod: { not: null } },
+      _count: { id: true },
+      _sum: { totalValue: true },
+      orderBy: { _count: { id: "desc" } },
+    });
+
+    // Last sync info
+    const lastSync = connection.lastSyncAt;
+
+    return NextResponse.json({
+      kpis: {
+        totalOrders,
+        totalRevenue: Math.round(totalRevenue),
+        avgTicket: Math.round(avgTicket),
+        totalItems,
+        cancelledOrders: cancelledCount,
+        cancellationRate: totalOrders > 0 ? ((cancelledCount / totalOrders) * 100).toFixed(1) : "0",
+        listingsActive,
+        listingsTotal,
+        listingsPaused,
+        unansweredQuestions,
+      },
+      reputation: latestRep ? {
+        level: latestRep.reputationLevel,
+        powerSeller: latestRep.reputationPower,
+        totalSales: latestRep.totalSales,
+        completedSales: latestRep.completedSales,
+        claimsRate: latestRep.claimsRate,
+        delayedRate: latestRep.delayedHandlingRate,
+        cancellationRate: latestRep.cancellationRate,
+        positiveRatings: latestRep.positiveRatings,
+        negativeRatings: latestRep.negativeRatings,
+        neutralRatings: latestRep.neutralRatings,
+      } : null,
+      dailySales,
+      statusBreakdown: statusBreakdown.map((s) => ({
+        status: s.status,
+        count: s._count.id,
+      })),
+      paymentMethods: paymentMethods.map((pm) => ({
+        method: pm.paymentMethod || "Desconocido",
+        orders: pm._count.id,
+        revenue: Math.round(Number(pm._sum.totalValue || 0)),
+      })),
+      lastSync,
+      daysInPeriod: days,
+    });
+  } catch (err: any) {
+    console.error("[ML Dashboard API] Error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
