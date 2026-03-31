@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ãltima actualizaciÃ³n: 2026-03-20
+## Ãltima actualizacion: 2026-03-31
 
 ---
 
@@ -63,6 +63,16 @@
 | src/app/api/metrics/products/route.ts | **v1** | â ESTABLE | **NO TOCAR.** Alimenta la pÃ¡gina de productos. |
 | src/app/api/fix-brands/route.ts | **v5** | â OPERATIVO | Mejoras incrementales OK. BrandIdâBrandName 2-step, CategoryIdâCategoryName, acciones: stats/test/test-category/fix-vtex/fix-categories/deduplicate/debug. |
 | src/app/api/backfill/vtex/route.ts | **v1** | â ESTABLE | **NO TOCAR.** Backfill original con credenciales hardcodeadas. |
+
+### MERCADOLIBRE (Seller Integration)
+
+| Archivo | Version | Estado | Notas |
+|---------|---------|--------|-------|
+| src/lib/connectors/mercadolibre-seller.ts | **v2** | ACTIVO | READ-ONLY connector. Token auto-refresh. Pagination fixes applied. |
+| src/lib/connectors/ml-notification-processor.ts | **v1** | ACTIVO | Async webhook processor. 5 topic handlers. |
+| src/app/api/webhooks/mercadolibre/route.ts | **v1** | ACTIVO | Webhook endpoint. Responds <500ms. |
+| src/app/api/cron/ml-sync/route.ts | **v1** | ACTIVO | Cron backup each 4h. missed_feeds + reputation. |
+| src/app/api/sync/mercadolibre/backfill/route.ts | **v1** | ACTIVO | Chunked backfill. Weekly orders. NO TESTEADO AUN. |
 
 ### INFRAESTRUCTURA
 
@@ -150,6 +160,19 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-03-31 (MercadoLibre Seller Integration)
+- Seccion ML completa: Dashboard, Publicaciones, Reputacion, Preguntas
+- Nav submenu agregado a layout.tsx (patron Campanas)
+- 4 API routes: /api/mercadolibre/{dashboard,publicaciones,reputacion,preguntas}
+- 4 UI pages: /mercadolibre, /publicaciones, /reputacion, /preguntas
+- Webhook real-time: /api/webhooks/mercadolibre (ML Notifications API)
+- Notification processor: ml-notification-processor.ts (orders, items, questions, payments, shipments)
+- Cron backup: /api/cron/ml-sync (cada 4h, missed_feeds + reputation)
+- Vercel cron configurado en vercel.json
+- mercadolibre-seller.ts v2: paginacion corregida, status filter, scroll_id para >1000 items
+- Backfill chunkeado: /api/sync/mercadolibre/backfill (weekly orders, 60s timeout compatible)
+- ML Developer Portal configurado: 9 topics + callback URL
 
 ### 2026-03-20 (Fase 4A: Infraestructura)
 - 4A.1: Script init-prisma-migrate.sh para baseline migration
@@ -411,3 +434,144 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 - Verificar: GA4_SERVICE_ACCOUNT_KEY y GA4_PROPERTY_ID en Vercel environment variables.
 - Verificar en Google Analytics admin que la service account nitrosales-analytics@nitrosales-489804
   tiene acceso de lectura al property.
+
+---
+
+## MERCADOLIBRE SELLER INTEGRATION — Estado al 2026-03-31
+
+### Ultima actualizacion: 2026-03-31
+
+### Cuenta conectada
+- **Seller**: ELMUNDODELJUG (KAVOR S.A.)
+- **ML User ID**: 137081041
+- **ML App ID**: 5750438437863167
+- **Plataforma**: MercadoLibre Argentina
+- **Conexion**: OAuth2 con refresh_token automatico
+
+### Arquitectura de Sync (3 capas)
+
+**Capa 1: Webhook en tiempo real (PRINCIPAL)**
+- Endpoint: `/api/webhooks/mercadolibre` (POST)
+- Recibe notificaciones push de ML para: orders_v2, items, questions, payments, shipments, orders_feedback, items_prices, stock_locations, fbm_stock_operations
+- Responde 200 en <500ms (requisito ML), procesa async via fire-and-forget
+- Procesador: `src/lib/connectors/ml-notification-processor.ts`
+- Callback URL configurada en ML Developer Portal: `https://nitrosales.vercel.app/api/webhooks/mercadolibre`
+
+**Capa 2: Cron backup (RED DE SEGURIDAD)**
+- Endpoint: `/api/cron/ml-sync` (GET)
+- Corre cada 4 horas via Vercel Cron
+- Recupera notificaciones perdidas via `/missed_feeds` API
+- Sincroniza snapshot de reputacion diario
+- Configurado en `vercel.json`
+
+**Capa 3: Sync manual completo**
+- Endpoint: `/api/sync/mercadolibre` (GET) — sync de listings + reputacion + ordenes (6 meses) + preguntas
+- Endpoint: `/api/sync/mercadolibre/backfill` (GET) — backfill chunkeado por semanas para evitar timeout
+  - `?step=orders&week=1` hasta `week=26` (6 meses de historico)
+  - `?step=listings` — todas las publicaciones activas+pausadas
+  - `?step=questions` — hasta 500 preguntas
+  - `?step=reputation` — snapshot de reputacion
+
+### Archivos ML (Seller)
+
+| Archivo | Estado | Notas |
+|---------|--------|-------|
+| src/lib/connectors/mercadolibre-seller.ts | ACTIVO | Conector READ-ONLY. Token auto-refresh. Funciones: getSellerToken, fetchSellerListings, fetchSellerOrders, fetchSellerReputation, fetchSellerQuestions, fetchShipmentForOrder |
+| src/lib/connectors/ml-notification-processor.ts | ACTIVO | Procesador async de notificaciones. Handlers: processOrder, processItem, processQuestion, processPayment, processShipment |
+| src/app/api/webhooks/mercadolibre/route.ts | ACTIVO | Webhook endpoint. POST=procesar notificacion, GET=status check |
+| src/app/api/cron/ml-sync/route.ts | ACTIVO | Cron backup: missed_feeds + reputation snapshot |
+| src/app/api/sync/mercadolibre/route.ts | ACTIVO | Sync manual completo (5min timeout, solo Pro plan) |
+| src/app/api/sync/mercadolibre/backfill/route.ts | ACTIVO | Backfill chunkeado (60s timeout compatible con free plan) |
+| src/app/api/mercadolibre/dashboard/route.ts | ACTIVO | Dashboard API: KPIs, ventas diarias, status breakdown, payment methods |
+| src/app/api/mercadolibre/publicaciones/route.ts | ACTIVO | Listings API: paginada, filtrable por status y busqueda |
+| src/app/api/mercadolibre/reputacion/route.ts | ACTIVO | Reputacion API: snapshot actual + historico |
+| src/app/api/mercadolibre/preguntas/route.ts | ACTIVO | Preguntas API: paginada, filtrable, top items |
+| src/app/(app)/mercadolibre/page.tsx | ACTIVO | Dashboard ML: KPIs, ventas diarias chart, status breakdown, pagos |
+| src/app/(app)/mercadolibre/publicaciones/page.tsx | ACTIVO | Tabla publicaciones: thumbnail, precio, stock, tipo, envio |
+| src/app/(app)/mercadolibre/reputacion/page.tsx | ACTIVO | Reputacion: nivel, ratings, metricas performance, historial |
+| src/app/(app)/mercadolibre/preguntas/page.tsx | ACTIVO | Preguntas: cola, top items, KPIs respuesta |
+
+### Tablas DB usadas por ML Seller
+
+- `orders` (source="MELI") — ordenes de ML mapeadas al modelo unificado
+- `ml_listings` — publicaciones activas/pausadas con detalles
+- `ml_seller_metrics_daily` — snapshots diarios de reputacion y metricas
+- `ml_questions` — preguntas de compradores con respuestas
+- `connections` (platform="MERCADOLIBRE") — credenciales OAuth, tokens, estado sync
+
+### Datos actuales en DB (2026-03-31) — NECESITA BACKFILL
+
+| Tabla | Registros | Problema |
+|-------|-----------|----------|
+| orders (MELI) | ~203 | INCOMPLETO — solo 30 dias, cap de 200 ya removido. Necesita backfill semanal |
+| ml_listings | ~440 | INCOMPLETO — antes traia cerradas (33K+) y timeouted. Ahora filtra active+paused. Necesita re-sync |
+| ml_questions | ~100 | INCOMPLETO — limite era 100, ahora es 500. Necesita re-sync |
+| ml_seller_metrics_daily | 1 | OK — se llena diariamente via cron |
+
+### PENDIENTES ML
+
+#### PENDIENTE ML #1: Ejecutar backfill historico (PRIORITARIO)
+- Correr `/api/sync/mercadolibre/backfill?step=listings` para obtener todas las publicaciones activas+pausadas
+- Correr `/api/sync/mercadolibre/backfill?step=orders&week=1` hasta `week=26` para 6 meses de ordenes
+- Correr `/api/sync/mercadolibre/backfill?step=questions` para 500 preguntas
+- **NO TESTEADO AUN** — el endpoint fue creado pero el usuario se fue antes de probarlo
+
+#### PENDIENTE ML #2: Verificar webhook recibe notificaciones reales
+- El webhook esta configurado en ML Developer Portal pero no se verifico con eventos reales
+- Esperar una orden/pregunta real en EMDJ y verificar que llega a nuestro endpoint
+- Verificar en Vercel logs que processMLNotification se ejecuta correctamente
+
+#### PENDIENTE ML #3: Master sync timeout en free plan
+- `/api/sync/mercadolibre` tiene maxDuration=300 pero Vercel free plan solo permite 60s
+- El sync completo de EMDJ (miles de ordenes) excede 60s
+- SOLUCION ACTUAL: usar backfill chunkeado en su lugar
+- SOLUCION FUTURA: upgrade a Vercel Pro (ya configurado maxDuration=300)
+
+---
+
+## ERRORES Y LECCIONES ML — 2026-03-31
+
+### ERROR ML #1: fetchSellerOrders capped at 200 — perdia 90%+ de ordenes
+**Que paso**: El sync de ordenes traia max 200 ordenes porque el parametro `limit` se usaba como tope Y como batch size. EMDJ tiene miles de ordenes por mes.
+**Causa raiz**: Parametro `limit: 200` se pasaba a la funcion, que lo usaba como `maxOrders`.
+**Fix aplicado**: Renombrado a `maxOrders` con default 50000. Paginacion correcta con offset + total check. ML hard limit: offset+limit <= 10000.
+**REGLA PERMANENTE**:
+- **NUNCA** usar el mismo parametro para batch size Y para total cap.
+- **SIEMPRE** paginar hasta total (o hard limit de la API), no hasta un limite arbitrario bajo.
+- Para EMDJ, esperar miles de ordenes por mes. Un limit de 200 es absurdo.
+
+### ERROR ML #2: Fetching closed listings causaba timeout — 33K+ items
+**Que paso**: fetchSellerListings traia TODAS las publicaciones incluyendo cerradas (33K+). Esto excedia el timeout de 60s.
+**Causa raiz**: No se filtraba por status. ML devuelve todos los items del seller incluyendo historicos cerrados.
+**Fix aplicado**: Filtro por status (active+paused solamente). Funcion `fetchItemIdsByStatus` con scroll_id para sets >1000.
+**REGLA PERMANENTE**:
+- **SIEMPRE** filtrar listings por status. NUNCA traer closed/inactive por defecto.
+- Para listados >1000 items, usar `search_type=scan` con `scroll_id` (offset-based llega hasta 1000 max).
+- EMDJ tiene 33K+ listings cerrados. Solo ~500-1000 activos+pausados.
+
+### ERROR ML #3: Sync completo excede timeout de Vercel free plan
+**Que paso**: `/api/sync/mercadolibre` con maxDuration=300 seguia timeouting porque Vercel free plan solo da 60s.
+**Causa raiz**: maxDuration=300 solo funciona en Vercel Pro. Free plan siempre corta a 60s.
+**Fix aplicado**: Creado endpoint de backfill chunkeado con maxDuration=60. Chunks semanales para ordenes.
+**REGLA PERMANENTE**:
+- **ASUMIR siempre 60s como timeout** hasta confirmar que estamos en Vercel Pro.
+- **Disenar sync para chunks pequenos** que quepan en 60s.
+- Para EMDJ, un chunk semanal de ordenes es el tamaño correcto.
+
+### ERROR ML #4: Backfill mensual tambien excedia timeout
+**Que paso**: Incluso un mes de ordenes de EMDJ excedia 60s de procesamiento.
+**Causa raiz**: EMDJ procesa cientos/miles de ordenes por mes. Fetch + upsert individual toma ~50ms/orden.
+**Fix aplicado**: Cambio de chunks mensuales a chunks semanales (week=1..26 para 6 meses).
+**REGLA PERMANENTE**:
+- Para sellers grandes como EMDJ, **usar chunks semanales, no mensuales**.
+- Calcular: si un seller tiene 1000 ordenes/mes, y cada upsert toma 50ms, un mes = 50 segundos. Muy justo para 60s timeout.
+- Una semana = ~250 ordenes = ~12.5 segundos. Margen amplio.
+
+### PROTOCOLO PRE-CAMBIO ML (ADICIONAL AL GENERAL)
+
+Antes de modificar cualquier endpoint de sync ML:
+1. Es READ-ONLY desde ML API? (NUNCA escribir en la cuenta de EMDJ)
+2. Cabe en 60s de timeout? (asumir free plan)
+3. Tiene paginacion correcta? (offset + total check + hard limit de ML)
+4. Filtra por status cuando corresponde? (no traer closed listings)
+5. El token se auto-refresca? (getSellerToken maneja refresh automatico)
