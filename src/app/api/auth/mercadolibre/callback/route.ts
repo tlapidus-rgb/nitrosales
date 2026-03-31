@@ -60,7 +60,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const tokenData = await tokenRes.json();
+    // Read raw text first for debugging, then parse
+    const rawText = await tokenRes.text();
+    console.log(`[ML OAuth] RAW token response: ${rawText}`);
+    const tokenData = JSON.parse(rawText);
     const { access_token, refresh_token, expires_in, user_id } = tokenData;
 
     console.log(`[ML OAuth] Full token response keys: ${Object.keys(tokenData).join(', ')}`);
@@ -78,6 +81,7 @@ export async function GET(req: NextRequest) {
       refreshToken: refresh_token,
       tokenExpiresAt: Date.now() + (expires_in * 1000),
       mlUserId: user_id,
+      _debugTokenResponse: tokenData, // TEMP: full ML response for debugging
     };
 
     if (existing) {
