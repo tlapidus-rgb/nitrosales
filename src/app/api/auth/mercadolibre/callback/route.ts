@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     const tokenData = await tokenRes.json();
     const { access_token, refresh_token, expires_in, user_id } = tokenData;
 
-    console.log(`[ML OAuth] Got tokens for ML user ${user_id}, expires in ${expires_in}s`);
+    console.log(`[ML OAuth] Got tokens for ML user ${user_id}, expires in ${expires_in}s, refresh_token: ${refresh_token ? 'YES' : 'NO'}`);
 
     // Find existing ML connection (we created one earlier with client_credentials)
     const existing = await prisma.connection.findFirst({
