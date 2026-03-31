@@ -37,17 +37,19 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Exchange code for tokens
+    // Exchange code for tokens (ML requires x-www-form-urlencoded per official docs)
+    const tokenBody = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: ML_APP_ID,
+      client_secret: ML_SECRET,
+      code,
+      redirect_uri: ML_REDIRECT_URI,
+    });
+
     const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        grant_type: "authorization_code",
-        client_id: ML_APP_ID,
-        client_secret: ML_SECRET,
-        code,
-        redirect_uri: ML_REDIRECT_URI,
-      }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded", accept: "application/json" },
+      body: tokenBody.toString(),
     });
 
     if (!tokenRes.ok) {
@@ -61,6 +63,7 @@ export async function GET(req: NextRequest) {
     const tokenData = await tokenRes.json();
     const { access_token, refresh_token, expires_in, user_id } = tokenData;
 
+    console.log(`[ML OAuth] Full token response keys: ${Object.keys(tokenData).join(', ')}`);
     console.log(`[ML OAuth] Got tokens for ML user ${user_id}, expires in ${expires_in}s, refresh_token: ${refresh_token ? 'YES' : 'NO'}`);
 
     // Find existing ML connection (we created one earlier with client_credentials)
