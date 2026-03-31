@@ -50,6 +50,13 @@ model Organization {
   seoPageDaily             SeoPageDaily[]
   competitorStores         CompetitorStore[]
   competitorPrices         CompetitorPrice[]
+  // MercadoLibre
+  mlListings               MlListing[]
+  mlQuestions              MlQuestion[]
+  mlSellerMetrics          MlSellerMetricDaily[]
+  mlShipments              MlShipment[]
+  mlAdCampaigns            MlAdCampaignDaily[]
+  mlCommissions            MlCommission[]
 
   @@map("organizations")
 }
@@ -801,4 +808,173 @@ model CompetitorPrice {
   @@index([competitorId])
   @@index([ownProductId])
   @@map("competitor_prices")
+}
+
+// ══════════════════════════════════════════════════════════════
+// MERCADOLIBRE — Datos del seller (solo lectura desde la API)
+// ══════════════════════════════════════════════════════════════
+
+// Publicaciones activas del seller en ML
+model MlListing {
+  id              String   @id @default(cuid())
+  mlItemId        String                           // MLA-123456789
+  title           String
+  status          String                           // active, paused, closed, under_review
+  categoryId      String?
+  categoryName    String?
+  price           Decimal  @db.Decimal(12, 2)
+  originalPrice   Decimal? @db.Decimal(12, 2)      // Precio sin descuento
+  currencyId      String   @default("ARS")
+  availableQty    Int      @default(0)
+  soldQty         Int      @default(0)
+  listingType     String?                          // gold_special, gold_pro, gold, etc.
+  condition       String?                          // new, used
+  permalink       String?
+  thumbnailUrl    String?
+  freeShipping    Boolean  @default(false)
+  fulfillment     String?                          // fulfillment, xd_drop_off, self_service
+  healthScore     Float?                           // Health de la publicación (0-1)
+  catalogListing  Boolean  @default(false)         // Si está en catálogo ML
+  lastSyncAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, mlItemId])
+  @@index([organizationId, status])
+  @@map("ml_listings")
+}
+
+// Preguntas de compradores en publicaciones
+model MlQuestion {
+  id              String   @id @default(cuid())
+  mlQuestionId    String                           // ID de la pregunta en ML
+  mlItemId        String                           // Item al que preguntaron
+  text            String                           // Texto de la pregunta
+  status          String                           // UNANSWERED, ANSWERED, CLOSED_UNANSWERED
+  dateCreated     DateTime @db.Timestamptz
+  answerText      String?
+  answerDate      DateTime? @db.Timestamptz
+  fromBuyerId     BigInt?                          // ML buyer user ID (BigInt por IDs nuevos de ML)
+  createdAt       DateTime @default(now())
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, mlQuestionId])
+  @@index([organizationId, status])
+  @@index([organizationId, dateCreated])
+  @@map("ml_questions")
+}
+
+// Snapshot diario de métricas del seller (reputación, ratings, etc.)
+model MlSellerMetricDaily {
+  id                  String   @id @default(cuid())
+  date                DateTime @db.Date
+
+  // Reputación
+  reputationLevel     String?                      // 5_green, 4_light_green, 3_yellow, etc.
+  reputationPower     Boolean  @default(false)      // Power seller
+
+  // Métricas de ventas
+  totalSales          Int      @default(0)
+  completedSales      Int      @default(0)
+  cancelledSales      Int      @default(0)
+
+  // Tasas de reclamos
+  claimsRate          Float?                       // % de reclamos
+  delayedHandlingRate Float?                       // % de envíos tardíos
+  cancellationRate    Float?                       // % de cancelaciones por el seller
+
+  // Ratings
+  positiveRatings     Int      @default(0)
+  negativeRatings     Int      @default(0)
+  neutralRatings      Int      @default(0)
+
+  createdAt           DateTime @default(now())
+
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, date])
+  @@index([organizationId, date])
+  @@map("ml_seller_metrics_daily")
+}
+
+// Envíos de ML
+model MlShipment {
+  id              String   @id @default(cuid())
+  mlShipmentId    String
+  mlOrderId       String?                          // ML order ID
+  status          String                           // pending, ready_to_ship, shipped, delivered, not_delivered
+  shippingMode    String?                          // me2, custom, not_specified
+  logisticType    String?                          // fulfillment, xd_drop_off, self_service
+  trackingNumber  String?
+  carrier         String?                          // Nombre del carrier
+  estimatedDeliveryFrom DateTime? @db.Timestamptz
+  estimatedDeliveryTo   DateTime? @db.Timestamptz
+  actualDelivery        DateTime? @db.Timestamptz
+  receiverCity    String?
+  receiverState   String?
+  cost            Decimal? @db.Decimal(12, 2)      // Costo del envío
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, mlShipmentId])
+  @@index([organizationId, status])
+  @@map("ml_shipments")
+}
+
+// Métricas diarias de publicidad en ML (Product Ads, Brand Ads, Display)
+model MlAdCampaignDaily {
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  mlCampaignId    String
+  campaignName    String?
+  campaignType    String?                          // product_ads, brand_ads, display
+  status          String?                          // active, paused
+
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  spend           Decimal  @default(0) @db.Decimal(12, 2)
+  conversions     Int      @default(0)
+  conversionValue Decimal  @default(0) @db.Decimal(12, 2)
+
+  createdAt       DateTime @default(now())
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, mlCampaignId, date])
+  @@index([organizationId, date])
+  @@index([organizationId, campaignType, date])
+  @@map("ml_ad_campaigns_daily")
+}
+
+// Comisiones y retenciones de ML por orden
+model MlCommission {
+  id               String   @id @default(cuid())
+  mlOrderId        String
+  salePrice        Decimal  @db.Decimal(12, 2)
+  commissionAmount Decimal  @db.Decimal(12, 2)
+  commissionRate   Float                           // Porcentaje de comisión
+  shippingCost     Decimal? @db.Decimal(12, 2)
+  taxWithholdings  Decimal? @db.Decimal(12, 2)     // Retenciones IIBB/IVA/Ganancias
+  netAmount        Decimal  @db.Decimal(12, 2)     // Lo que recibe el seller
+  listingType      String?                         // gold_special, gold_pro
+  categoryId       String?
+  orderDate        DateTime @db.Timestamptz
+  createdAt        DateTime @default(now())
+
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, mlOrderId])
+  @@index([organizationId, orderDate])
+  @@map("ml_commissions")
 }
