@@ -547,7 +547,7 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 **REGLA PERMANENTE**:
 - **SIEMPRE** filtrar listings por status. NUNCA traer closed/inactive por defecto.
 - Para listados >1000 items, usar `search_type=scan` con `scroll_id` (offset-based llega hasta 1000 max).
-- EMDJ tiene 33K+ listings cerrados. Solo ~500-1000 activos+pausados.
+- EMDJ tiene 33K+ listings cerrados. Las activas+pausadas son bastante mas de 1000 (requiere scroll_id, no offset-based).
 
 ### ERROR ML #3: Sync completo excede timeout de Vercel free plan
 **Que paso**: `/api/sync/mercadolibre` con maxDuration=300 seguia timeouting porque Vercel free plan solo da 60s.
