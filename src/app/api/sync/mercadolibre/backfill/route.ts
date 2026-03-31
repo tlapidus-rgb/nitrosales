@@ -1,15 +1,15 @@
 // ══════════════════════════════════════════════════════════════
 // ML Backfill — Sync historical data one chunk at a time
 // ══════════════════════════════════════════════════════════════
-// Call with ?step=orders_month&month=1 to sync orders from 1 month ago
-// Call with ?step=orders_month&month=2 to sync orders from 2 months ago
-// etc.
+// Uses WEEKS for orders (EMDJ has too many per month):
+//   ?step=orders&week=1  → last 7 days
+//   ?step=orders&week=2  → 7-14 days ago
+//   ...up to week=26 (6 months)
 //
-// Steps:
-//   orders_month: sync one month of orders (pass &month=1..6)
-//   listings: sync active+paused listings
-//   questions: sync all questions
-//   reputation: sync reputation snapshot
+// Other steps:
+//   ?step=listings    → active+paused listings
+//   ?step=questions   → all questions
+//   ?step=reputation  → reputation snapshot
 //
 // SAFETY: READ-ONLY from ML API.
 // ══════════════════════════════════════════════════════════════
@@ -30,8 +30,8 @@ export const maxDuration = 60; // Vercel free plan limit
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
   const { searchParams } = new URL(req.url);
-  const step = searchParams.get("step") || "orders_month";
-  const month = parseInt(searchParams.get("month") || "1");
+  const step = searchParams.get("step") || "orders";
+  const week = parseInt(searchParams.get("week") || "1");
 
   try {
     const { token, mlUserId } = await getSellerToken();
@@ -46,19 +46,20 @@ export async function GET(req: NextRequest) {
     let result: any = {};
 
     switch (step) {
-      case "orders_month": {
-        // Fetch one month of orders
-        const monthEnd = new Date(Date.now() - (month - 1) * 30 * 24 * 60 * 60 * 1000);
-        const monthStart = new Date(Date.now() - month * 30 * 24 * 60 * 60 * 1000);
+      case "orders": {
+        // Fetch one week of orders
+        const DAY = 24 * 60 * 60 * 1000;
+        const weekEnd = new Date(Date.now() - (week - 1) * 7 * DAY);
+        const weekStart = new Date(Date.now() - week * 7 * DAY);
         const mlOrders = await fetchSellerOrders(token, mlUserId, {
-          dateFrom: monthStart.toISOString(),
-          maxOrders: 5000,
+          dateFrom: weekStart.toISOString(),
+          maxOrders: 2000,
         });
 
-        // Filter to only orders within this month window
+        // Filter to only orders within this week window
         const filtered = mlOrders.filter((o: any) => {
           const d = new Date(o.date_created);
-          return d >= monthStart && d <= monthEnd;
+          return d >= weekStart && d <= weekEnd;
         });
 
         let upserted = 0;
@@ -91,9 +92,9 @@ export async function GET(req: NextRequest) {
         }
 
         result = {
-          step: "orders_month",
-          month,
-          period: `${monthStart.toISOString().split("T")[0]} → ${monthEnd.toISOString().split("T")[0]}`,
+          step: "orders",
+          week,
+          period: `${weekStart.toISOString().split("T")[0]} → ${weekEnd.toISOString().split("T")[0]}`,
           fetched: mlOrders.length,
           filtered: filtered.length,
           upserted,
