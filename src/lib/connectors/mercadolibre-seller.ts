@@ -117,95 +117,127 @@ async function mlGet(path: string, token: string): Promise<any> {
 // ── Listings (Publicaciones) ─────────────────────────────────
 
 /**
- * Fetch all listing IDs for the seller, then get details in batches.
+ * Fetch listing IDs for the seller by status, then get details in batches.
  * READ-ONLY: Only calls GET endpoints.
+ *
+ * By default fetches active + paused listings (not closed, which can be 30K+).
+ * Use statuses param to control which statuses to fetch.
  */
 export async function fetchSellerListings(
   token: string,
   mlUserId: number,
-  options: { limit?: number } = {}
+  options: { limit?: number; statuses?: string[] } = {}
 ): Promise<any[]> {
-  const maxItems = options.limit || 5000;
+  const maxItems = options.limit || 10000;
+  const statuses = options.statuses || ["active", "paused"]; // Skip 'closed' by default
   const allItems: any[] = [];
-  const batchSize = 50; // ML items/search max per page
 
-  // Step 1: Get all item IDs using scroll_id for large catalogs
-  // ML API has offset+limit <= 1000 hard limit, so we use scroll for >1000 items
-  const allItemIds: string[] = [];
-  let offset = 0;
-  const ML_OFFSET_LIMIT = 1000; // ML hard cap: offset + limit <= 1000
+  for (const status of statuses) {
+    const itemIds = await fetchItemIdsByStatus(token, mlUserId, status, maxItems - allItems.length);
+    console.log(`[ML Listings] Status=${status}: ${itemIds.length} items found`);
 
-  while (allItemIds.length < maxItems) {
-    if (offset + batchSize > ML_OFFSET_LIMIT) {
-      // Reached ML's pagination limit — use scroll_id approach
-      // First request with scroll_id
-      const scrollData = await mlGet(
-        `/users/${mlUserId}/items/search?search_type=scan&limit=${batchSize}`,
+    // Get item details in batches of 20 (ML multi-get limit)
+    for (let i = 0; i < itemIds.length; i += 20) {
+      const batch = itemIds.slice(i, i + 20);
+      const ids = batch.join(",");
+      const data = await mlGet(
+        `/items?ids=${ids}&attributes=id,title,status,category_id,price,original_price,currency_id,available_quantity,sold_quantity,listing_type_id,condition,permalink,thumbnail,shipping,catalog_listing,health`,
         token
       );
-      const scrollId = scrollData.scroll_id;
-      let scrollIds: string[] = scrollData.results || [];
-      allItemIds.push(...scrollIds);
-
-      // Continue scrolling
-      while (scrollIds.length > 0 && allItemIds.length < maxItems && scrollId) {
-        const nextData = await mlGet(
-          `/users/${mlUserId}/items/search?search_type=scan&scroll_id=${scrollId}&limit=${batchSize}`,
-          token
-        );
-        scrollIds = nextData.results || [];
-        if (scrollIds.length === 0) break;
-        allItemIds.push(...scrollIds);
+      for (const item of data) {
+        if (item.code === 200 && item.body) {
+          allItems.push(item.body);
+        }
       }
-      break; // scroll handles all pages, exit offset loop
     }
 
+    if (allItems.length >= maxItems) break;
+  }
+
+  console.log(`[ML Listings] Total: ${allItems.length} items fetched`);
+  return allItems;
+}
+
+/**
+ * Fetch item IDs for a specific status using scroll_id for large sets.
+ */
+async function fetchItemIdsByStatus(
+  token: string,
+  mlUserId: number,
+  status: string,
+  maxItems: number
+): Promise<string[]> {
+  const allIds: string[] = [];
+  const batchSize = 50;
+
+  // First try offset-based (works for < 1000 items)
+  let offset = 0;
+  while (allIds.length < maxItems && offset + batchSize <= 1000) {
     const data = await mlGet(
-      `/users/${mlUserId}/items/search?limit=${batchSize}&offset=${offset}`,
+      `/users/${mlUserId}/items/search?status=${status}&limit=${batchSize}&offset=${offset}`,
       token
     );
     const ids: string[] = data.results || [];
     if (ids.length === 0) break;
-    allItemIds.push(...ids);
+    allIds.push(...ids);
     offset += batchSize;
-    if (offset >= (data.paging?.total || 0)) break;
+    const total = data.paging?.total || 0;
+    if (offset >= total) return allIds; // Got everything
   }
 
-  // Step 2: Get item details in batches of 20 (ML multi-get limit)
-  for (let i = 0; i < allItemIds.length; i += 20) {
-    const batch = allItemIds.slice(i, i + 20);
-    const ids = batch.join(",");
-    const data = await mlGet(`/items?ids=${ids}&attributes=id,title,status,category_id,price,original_price,currency_id,available_quantity,sold_quantity,listing_type_id,condition,permalink,thumbnail,shipping,catalog_listing,health`, token);
-    for (const item of data) {
-      if (item.code === 200 && item.body) {
-        allItems.push(item.body);
-      }
+  // If more than 1000 items, switch to scroll_id
+  if (allIds.length >= 950) {
+    // Reset and use scroll
+    allIds.length = 0;
+    const scrollData = await mlGet(
+      `/users/${mlUserId}/items/search?status=${status}&search_type=scan&limit=${batchSize}`,
+      token
+    );
+    const scrollId = scrollData.scroll_id;
+    allIds.push(...(scrollData.results || []));
+
+    while (allIds.length < maxItems && scrollId) {
+      const nextData = await mlGet(
+        `/users/${mlUserId}/items/search?status=${status}&search_type=scan&scroll_id=${scrollId}&limit=${batchSize}`,
+        token
+      );
+      const ids = nextData.results || [];
+      if (ids.length === 0) break;
+      allIds.push(...ids);
     }
   }
 
-  return allItems;
+  return allIds;
 }
 
 // ── Orders ───────────────────────────────────────────────────
 
 /**
- * Fetch recent orders for the seller.
+ * Fetch orders for the seller — paginates through ALL results.
  * READ-ONLY: Only calls GET endpoints.
+ * ML hard limit: offset+limit <= 10000 per search query.
+ * For more, we split by date ranges.
  */
 export async function fetchSellerOrders(
   token: string,
   mlUserId: number,
-  options: { dateFrom?: string; limit?: number } = {}
+  options: { dateFrom?: string; maxOrders?: number } = {}
 ): Promise<any[]> {
-  const limit = options.limit || 50;
+  const maxOrders = options.maxOrders || 50000; // Safety cap
   const allOrders: any[] = [];
-  let offset = 0;
+  const batchSize = 50;
 
   // Default: last 30 days
   const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  while (offset < limit) {
-    const batchSize = Math.min(50, limit - offset);
+  let offset = 0;
+  while (allOrders.length < maxOrders) {
+    // ML pagination hard limit: offset + limit <= 10000
+    if (offset + batchSize > 10000) {
+      console.log(`[ML Orders] Reached ML offset cap at ${allOrders.length} orders`);
+      break;
+    }
+
     const data = await mlGet(
       `/orders/search?seller=${mlUserId}&sort=date_desc&limit=${batchSize}&offset=${offset}&order.date_created.from=${dateFrom}`,
       token
@@ -214,9 +246,12 @@ export async function fetchSellerOrders(
     if (orders.length === 0) break;
     allOrders.push(...orders);
     offset += batchSize;
-    if (offset >= (data.paging?.total || 0)) break;
+
+    const total = data.paging?.total || 0;
+    if (offset >= total) break;
   }
 
+  console.log(`[ML Orders] Fetched ${allOrders.length} orders total`);
   return allOrders;
 }
 

@@ -17,7 +17,7 @@ import { prisma } from "@/lib/db/client";
 import { getSellerToken, fetchSellerListings, fetchSellerReputation, fetchSellerOrders, fetchSellerQuestions } from "@/lib/connectors/mercadolibre-seller";
 
 export const dynamic = "force-dynamic"; // Prevent static generation at build time
-export const maxDuration = 120; // Vercel timeout: 2 min
+export const maxDuration = 300; // Vercel timeout: 5 min (Pro plan)
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
@@ -38,7 +38,11 @@ export async function GET(req: NextRequest) {
 
     // ── Step 1: Sync Listings ────────────────────────────────
     try {
-      const items = await fetchSellerListings(token, mlUserId, { limit: 5000 });
+      // Fetch active + paused listings (skip closed to avoid 30K+ items timeout)
+      const items = await fetchSellerListings(token, mlUserId, {
+        limit: 10000,
+        statuses: ["active", "paused"],
+      });
       log.push(`Fetched ${items.length} listings from ML`);
 
       let upserted = 0;
@@ -139,8 +143,9 @@ export async function GET(req: NextRequest) {
 
     // ── Step 3: Sync Recent Orders → main Orders table ───────
     try {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const mlOrders = await fetchSellerOrders(token, mlUserId, { dateFrom: thirtyDaysAgo, limit: 200 });
+      // Fetch ALL orders from last 6 months (backfill + ongoing)
+      const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+      const mlOrders = await fetchSellerOrders(token, mlUserId, { dateFrom: sixMonthsAgo });
       log.push(`Fetched ${mlOrders.length} orders from ML`);
 
       let ordersUpserted = 0;
@@ -181,7 +186,7 @@ export async function GET(req: NextRequest) {
 
     // ── Step 4: Sync Questions ───────────────────────────────
     try {
-      const questions = await fetchSellerQuestions(token, mlUserId, { limit: 100 });
+      const questions = await fetchSellerQuestions(token, mlUserId, { limit: 500 });
       log.push(`Fetched ${questions.length} questions from ML`);
 
       let questionsUpserted = 0;
