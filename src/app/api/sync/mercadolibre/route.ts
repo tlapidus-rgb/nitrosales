@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSellerToken, fetchSellerListings, fetchSellerReputation, fetchSellerOrders, fetchSellerQuestions } from "@/lib/connectors/mercadolibre-seller";
 
+export const dynamic = "force-dynamic"; // Prevent static generation at build time
 export const maxDuration = 120; // Vercel timeout: 2 min
 
 export async function GET(req: NextRequest) {
