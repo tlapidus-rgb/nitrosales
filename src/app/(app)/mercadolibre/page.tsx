@@ -114,7 +114,13 @@ export default function MLDashboardPage() {
             <h1 className="text-2xl font-bold text-gray-900">MercadoLibre</h1>
             <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">ELMUNDODELJUG</span>
           </div>
-          <p className="text-sm text-gray-500 mt-0.5">Dashboard del seller — datos de nuestra base</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Dashboard del seller —
+            <span className="inline-flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-emerald-600 font-medium">datos en tiempo real</span>
+            </span>
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {/* Quick range */}
@@ -278,14 +284,28 @@ export default function MLDashboardPage() {
         </div>
       </div>
 
-      {/* LAST SYNC INFO */}
-      {data.lastSync && (
-        <div className="text-center">
-          <p className="text-[10px] text-gray-400">
-            Ultima sincronizacion: {new Date(data.lastSync).toLocaleString("es-AR")}
-          </p>
+      {/* SYNC STATUS */}
+      <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-medium text-emerald-600">Webhook activo</span>
+            </div>
+            <span className="text-[10px] text-gray-400">
+              Ordenes, publicaciones y preguntas se actualizan automaticamente via notificaciones ML
+            </span>
+          </div>
+          <div className="text-right">
+            {data.lastSync && (
+              <p className="text-[10px] text-gray-400">
+                Ultima actualizacion: {new Date(data.lastSync).toLocaleString("es-AR")}
+              </p>
+            )}
+            <p className="text-[10px] text-gray-400">Cron de respaldo: cada 4 horas</p>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
