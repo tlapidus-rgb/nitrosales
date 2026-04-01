@@ -25,7 +25,7 @@ import {
 } from "@/lib/connectors/mercadolibre-seller";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Vercel free plan limit
+export const maxDuration = 300; // Vercel Pro plan — 5 min
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();

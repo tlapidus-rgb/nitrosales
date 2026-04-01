@@ -20,7 +20,7 @@ import { getSellerToken, fetchSellerReputation } from "@/lib/connectors/mercadol
 import { processMLNotification } from "@/lib/connectors/ml-notification-processor";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300; // Vercel Pro plan — 5 min
 
 const ML_API = "https://api.mercadolibre.com";
 const ML_APP_ID = process.env.ML_APP_ID || "5750438437863167";
