@@ -26,6 +26,7 @@ interface PnlSummary {
   operatingProfit: number;
   operatingMargin: number;
   platformFees?: number;
+  manualCostsTotal?: number;
   netOperatingProfit?: number;
   netOperatingMargin?: number;
 }
@@ -99,6 +100,18 @@ function MarginBar({ value, color }: { value: number; color: string }) {
 
 /* ── (Date handling moved to DateRangeFilter) ── */
 
+/* ── Cost categories ───────────────────────── */
+const COST_CATEGORIES = [
+  { key: "LOGISTICA", label: "Logistica y Envios", placeholder: "Ej: Andreani, OCA, packaging" },
+  { key: "EQUIPO", label: "Equipo y RRHH", placeholder: "Ej: Sueldos, freelancers" },
+  { key: "PLATAFORMAS", label: "Plataformas y Herramientas", placeholder: "Ej: VTEX fijo, ERP, email marketing" },
+  { key: "FISCAL", label: "Fiscal e Impuestos", placeholder: "Ej: IIBB, contador, monotributo" },
+  { key: "INFRAESTRUCTURA", label: "Infraestructura", placeholder: "Ej: Alquiler, servicios, seguros" },
+  { key: "MARKETING", label: "Marketing y Contenido", placeholder: "Ej: Fotografia, produccion, ferias" },
+  { key: "MERMA", label: "Merma y Perdidas", placeholder: "Ej: Roturas, devoluciones no recuperables" },
+  { key: "OTROS", label: "Otros", placeholder: "Ej: Gastos varios" },
+];
+
 /* ── Main Component ─────────────────────────── */
 export default function FinanzasPage() {
   const [summary, setSummary] = useState<PnlSummary | null>(null);
@@ -107,9 +120,22 @@ export default function FinanzasPage() {
   const [categories, setCategories] = useState<CategoryMargin[]>([]);
   const [brands, setBrands] = useState<BrandMargin[]>([]);
   const [bySource, setBySource] = useState<SourceBreakdown[]>([]);
+  const [manualCosts, setManualCosts] = useState<{ category: string; total: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [chartMode, setChartMode] = useState<"waterfall" | "trend">("waterfall");
+
+  // Manual costs management
+  const nowMonth = new Date().toISOString().substring(0, 7);
+  const [costMonth, setCostMonth] = useState(nowMonth);
+  const [costData, setCostData] = useState<any>(null);
+  const [costLoading, setCostLoading] = useState(false);
+  const [expandedCat, setExpandedCat] = useState<string | null>(null);
+  const [newCostName, setNewCostName] = useState("");
+  const [newCostAmount, setNewCostAmount] = useState("");
+  const [newCostType, setNewCostType] = useState("FIXED");
+  const [addingTo, setAddingTo] = useState<string | null>(null);
+  const [toast, setToast] = useState("");
 
   // Date state — default 30 days
   const defaultFrom = new Date();
@@ -141,6 +167,7 @@ export default function FinanzasPage() {
           setCategories(data.categories || []);
           setBrands(data.brands || []);
           setBySource(data.bySource || []);
+          setManualCosts(data.manualCosts || []);
         } else {
           setError(data.error || "Error cargando datos");
         }
@@ -174,6 +201,83 @@ export default function FinanzasPage() {
     fetchData(f, t);
   }
 
+  // ── Manual costs functions ────────────────
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2500);
+  }
+
+  function fetchCosts(month) {
+    setCostLoading(true);
+    fetch(`/api/finance/manual-costs?month=${month || costMonth}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.categories) setCostData(data);
+      })
+      .catch(() => {})
+      .finally(() => setCostLoading(false));
+  }
+
+  useEffect(() => { fetchCosts(); }, [costMonth]);
+
+  async function addCost(category) {
+    if (!newCostName.trim() || !newCostAmount) return;
+    await fetch("/api/finance/manual-costs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category,
+        name: newCostName.trim(),
+        amount: parseFloat(newCostAmount),
+        type: newCostType,
+        month: costMonth,
+      }),
+    });
+    setNewCostName("");
+    setNewCostAmount("");
+    setNewCostType("FIXED");
+    setAddingTo(null);
+    fetchCosts();
+    fetchData();
+    showToast("Costo agregado");
+  }
+
+  async function deleteCost(id) {
+    await fetch(`/api/finance/manual-costs?id=${id}`, { method: "DELETE" });
+    fetchCosts();
+    fetchData();
+    showToast("Costo eliminado");
+  }
+
+  async function updateCostAmount(id, amount) {
+    await fetch("/api/finance/manual-costs", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, amount: parseFloat(amount) }),
+    });
+    fetchCosts();
+    fetchData();
+  }
+
+  async function copyPreviousMonth() {
+    const [y, m] = costMonth.split("-").map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+    const res = await fetch("/api/finance/manual-costs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ copyFrom: prevMonth, targetMonth: costMonth }),
+    });
+    const data = await res.json();
+    if (data.copied) {
+      fetchCosts();
+      fetchData();
+      showToast(`${data.copied} costos fijos copiados de ${prevMonth}`);
+    } else {
+      showToast(data.error || "No se pudieron copiar costos");
+    }
+  }
+
   const tooltipStyle = {
     contentStyle: {
       backgroundColor: "#fff",
@@ -193,6 +297,7 @@ export default function FinanzasPage() {
         { name: "Ad Spend", value: -summary.adSpend, fill: "#f97316" },
         { name: "Envios", value: -summary.shipping, fill: "#8b5cf6" },
         ...(summary.platformFees ? [{ name: "Comisiones", value: -(summary.platformFees), fill: "#6366f1" }] : []),
+        ...(summary.manualCostsTotal ? [{ name: "Otros Costos", value: -(summary.manualCostsTotal), fill: "#14b8a6" }] : []),
         { name: "Beneficio Neto", value: netOp, fill: netOp >= 0 ? "#22c55e" : "#ef4444" },
       ]
     : [];
@@ -442,6 +547,19 @@ export default function FinanzasPage() {
               indent: true,
               small: true,
             }))),
+            ...(summary.manualCostsTotal ? [
+              { label: "(-) Otros Costos Operativos", value: -(summary.manualCostsTotal), color: "text-teal-600", indent: true },
+              ...(manualCosts.filter(mc => mc.total > 0).map(mc => {
+                const cat = COST_CATEGORIES.find(c => c.key === mc.category);
+                return {
+                  label: `    ${cat?.label || mc.category}`,
+                  value: -mc.total,
+                  color: "text-gray-400",
+                  indent: true,
+                  small: true,
+                };
+              })),
+            ] : []),
             { label: "= Beneficio Neto Operativo", value: (summary.netOperatingProfit ?? summary.operatingProfit), bold: true, color: (summary.netOperatingProfit ?? summary.operatingProfit) >= 0 ? "text-green-700" : "text-red-700", pct: (summary.netOperatingMargin ?? summary.operatingMargin), highlight: true },
           ].map((row, i) => (
             <div
@@ -541,6 +659,166 @@ export default function FinanzasPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── Costos Operativos (manual costs) ─── */}
+      <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700">Costos Operativos</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Carga los costos que no vienen del ecommerce automaticamente</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="month"
+              value={costMonth}
+              onChange={e => setCostMonth(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600"
+            />
+            <button
+              onClick={copyPreviousMonth}
+              className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors"
+              title="Copiar costos fijos del mes anterior"
+            >
+              Copiar mes anterior
+            </button>
+          </div>
+        </div>
+
+        {/* Grand total */}
+        {costData && costData.grandTotal > 0 && (
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Total costos operativos ({costMonth})</span>
+            <span className="text-sm font-bold text-gray-800">{formatARS(costData.grandTotal)}</span>
+          </div>
+        )}
+
+        {costLoading ? (
+          <div className="px-5 py-8 text-center text-gray-400 text-sm">Cargando costos...</div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {COST_CATEGORIES.map(cat => {
+              const catData = costData?.categories?.find(c => c.category === cat.key);
+              const items = catData?.items || [];
+              const total = catData?.total || 0;
+              const isExpanded = expandedCat === cat.key;
+
+              return (
+                <div key={cat.key}>
+                  {/* Category header */}
+                  <button
+                    onClick={() => setExpandedCat(isExpanded ? null : cat.key)}
+                    className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">{isExpanded ? "▼" : "▶"}</span>
+                      <span className="text-sm font-medium text-gray-700">{cat.label}</span>
+                      {items.length > 0 && (
+                        <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{items.length}</span>
+                      )}
+                    </div>
+                    {total > 0 && (
+                      <span className="text-sm font-mono font-medium text-gray-600">{formatARS(total)}</span>
+                    )}
+                  </button>
+
+                  {/* Expanded: cost items + add form */}
+                  {isExpanded && (
+                    <div className="px-5 pb-3 bg-gray-50/50">
+                      {items.length === 0 && addingTo !== cat.key && (
+                        <p className="text-xs text-gray-400 py-2 pl-5">{cat.placeholder}</p>
+                      )}
+
+                      {/* Existing items */}
+                      {items.map(item => (
+                        <div key={item.id} className="flex items-center gap-2 py-1.5 pl-5 group">
+                          <span className="text-sm text-gray-600 flex-1 truncate">{item.name}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${item.type === "FIXED" ? "bg-blue-50 text-blue-500" : "bg-amber-50 text-amber-500"}`}>
+                            {item.type === "FIXED" ? "Fijo" : "Variable"}
+                          </span>
+                          <input
+                            type="number"
+                            defaultValue={item.amount}
+                            onBlur={e => {
+                              if (parseFloat(e.target.value) !== item.amount) {
+                                updateCostAmount(item.id, e.target.value);
+                              }
+                            }}
+                            className="w-28 text-right text-sm font-mono border border-gray-200 rounded px-2 py-1 focus:border-blue-400 focus:outline-none"
+                          />
+                          <button
+                            onClick={() => deleteCost(item.id)}
+                            className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all text-xs px-1"
+                            title="Eliminar"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Add new cost form */}
+                      {addingTo === cat.key ? (
+                        <div className="flex items-center gap-2 py-2 pl-5 border-t border-gray-100 mt-1">
+                          <input
+                            type="text"
+                            placeholder="Nombre del costo"
+                            value={newCostName}
+                            onChange={e => setNewCostName(e.target.value)}
+                            className="flex-1 text-sm border border-gray-200 rounded px-2 py-1.5 focus:border-blue-400 focus:outline-none"
+                            autoFocus
+                          />
+                          <select
+                            value={newCostType}
+                            onChange={e => setNewCostType(e.target.value)}
+                            className="text-xs border border-gray-200 rounded px-2 py-1.5 text-gray-600"
+                          >
+                            <option value="FIXED">Fijo</option>
+                            <option value="VARIABLE">Variable</option>
+                          </select>
+                          <input
+                            type="number"
+                            placeholder="Monto"
+                            value={newCostAmount}
+                            onChange={e => setNewCostAmount(e.target.value)}
+                            className="w-28 text-right text-sm font-mono border border-gray-200 rounded px-2 py-1.5 focus:border-blue-400 focus:outline-none"
+                          />
+                          <button
+                            onClick={() => addCost(cat.key)}
+                            disabled={!newCostName.trim() || !newCostAmount}
+                            className="text-xs px-3 py-1.5 rounded-lg font-medium text-white disabled:opacity-50"
+                            style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            onClick={() => { setAddingTo(null); setNewCostName(""); setNewCostAmount(""); }}
+                            className="text-xs text-gray-400 hover:text-gray-600 px-1"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setAddingTo(cat.key); setNewCostName(""); setNewCostAmount(""); setNewCostType("FIXED"); }}
+                          className="text-xs text-blue-500 hover:text-blue-700 py-2 pl-5 font-medium"
+                        >
+                          + Agregar costo
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg z-50 animate-in fade-in">
+          {toast}
         </div>
       )}
 

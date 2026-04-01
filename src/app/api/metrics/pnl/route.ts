@@ -59,6 +59,7 @@ export async function GET(req: NextRequest) {
       brandMargins,
       sourceBreakdown,
       mlCommissions,
+      manualCostsResult,
     ] = await Promise.all([
       // 1. Total Revenue
       prisma.$queryRaw<[{ revenue: string; orders: string; units: string }]>`
@@ -248,6 +249,20 @@ export async function GET(req: NextRequest) {
           AND mc."orderDate" >= ${fromDate}
           AND mc."orderDate" <= ${toDate}
       `,
+
+      // 12. Manual costs (user-entered operational costs)
+      // Months are stored as "YYYY-MM", so we convert the date range to month range
+      prisma.$queryRaw<{ category: string; total: string }[]>`
+        SELECT
+          mc.category,
+          COALESCE(SUM(mc.amount), 0)::text as total
+        FROM manual_costs mc
+        WHERE mc."organizationId" = ${ORG_ID}
+          AND mc.month >= ${dateFrom.substring(0, 7)}
+          AND mc.month <= ${dateTo.substring(0, 7)}
+        GROUP BY mc.category
+        ORDER BY mc.category ASC
+      `,
     ]);
 
     // ── Comparison period ──────────────────────────────
@@ -421,6 +436,13 @@ export async function GET(req: NextRequest) {
     // Total platform costs (for global P&L)
     const totalPlatformFees = bySource.reduce((sum, s) => sum + s.platformFee, 0);
 
+    // Manual costs (user-entered operational costs)
+    const manualCosts = manualCostsResult.map((mc) => ({
+      category: mc.category,
+      total: Math.round(parseFloat(mc.total)),
+    }));
+    const totalManualCosts = manualCosts.reduce((sum, mc) => sum + mc.total, 0);
+
     const brands = brandMargins.map((b) => {
       const rev = parseFloat(b.revenue);
       const cost = parseFloat(b.cogs);
@@ -451,12 +473,13 @@ export async function GET(req: NextRequest) {
         googleSpend: Math.round(googleSpend),
         shipping: Math.round(shipping),
         platformFees: Math.round(totalPlatformFees),
+        manualCostsTotal: Math.round(totalManualCosts),
         operatingProfit: Math.round(operatingProfit),
         operatingMargin: Math.round(operatingMargin * 10) / 10,
-        // Net operating (after platform fees)
-        netOperatingProfit: Math.round(operatingProfit - totalPlatformFees),
+        // Net operating (after platform fees + manual costs)
+        netOperatingProfit: Math.round(operatingProfit - totalPlatformFees - totalManualCosts),
         netOperatingMargin: revenue > 0
-          ? Math.round(((operatingProfit - totalPlatformFees) / revenue) * 1000) / 10
+          ? Math.round(((operatingProfit - totalPlatformFees - totalManualCosts) / revenue) * 1000) / 10
           : 0,
       },
       changes: {
@@ -470,6 +493,7 @@ export async function GET(req: NextRequest) {
       categories,
       brands,
       bySource,
+      manualCosts,
     });
   } catch (error: any) {
     console.error("P&L API error:", error);

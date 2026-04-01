@@ -57,6 +57,7 @@ model Organization {
   mlShipments              MlShipment[]
   mlAdCampaigns            MlAdCampaignDaily[]
   mlCommissions            MlCommission[]
+  manualCosts              ManualCost[]
 
   @@map("organizations")
 }
@@ -977,4 +978,29 @@ model MlCommission {
   @@unique([organizationId, mlOrderId])
   @@index([organizationId, orderDate])
   @@map("ml_commissions")
+}
+
+// ─────────────────────────────────────────────
+// COSTOS MANUALES (ingresados por el usuario)
+// ─────────────────────────────────────────────
+
+// Costos que no vienen automáticamente del ecommerce
+// Ej: mensajerías, alquiler, sueldos, herramientas, impuestos
+model ManualCost {
+  id              String   @id @default(cuid())
+  category        String                          // "LOGISTICA", "EQUIPO", "PLATAFORMAS", "FISCAL", "INFRAESTRUCTURA", "MARKETING", "MERMA", "OTROS"
+  name            String                          // Nombre descriptivo: "Andreani", "Alquiler depósito", etc.
+  amount          Decimal  @db.Decimal(12, 2)     // Monto del costo
+  type            String   @default("FIXED")      // "FIXED" (recurrente mensual) o "VARIABLE"
+  month           String                          // "2025-03" — mes al que aplica
+  notes           String?                         // Notas opcionales
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, month])
+  @@index([organizationId, category])
+  @@map("manual_costs")
 }
