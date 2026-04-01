@@ -133,7 +133,7 @@
 - **Framework**: Next.js 14 App Router
 - **ORM**: Prisma (import desde @/lib/db/client)
 - **DB**: PostgreSQL en Railway
-- **Deploy**: Vercel Pro (60s function timeout, ISR revalidate=300)
+- **Deploy**: Vercel Pro (300s function timeout, ISR revalidate=300)
 - **VTEX Account**: mundojuguete
 - **Org ID**: cmmmga1uq0000sb43w0krvvys
 - **Credenciales VTEX**: env var DJQFRI + fallback backfill ZMTYUJ
@@ -499,33 +499,32 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 - `ml_questions` — preguntas de compradores con respuestas
 - `connections` (platform="MERCADOLIBRE") — credenciales OAuth, tokens, estado sync
 
-### Datos actuales en DB (2026-03-31) — NECESITA BACKFILL
+### Datos actuales en DB (2026-04-01) — BACKFILL COMPLETADO
 
-| Tabla | Registros | Problema |
-|-------|-----------|----------|
-| orders (MELI) | ~203 | INCOMPLETO — solo 30 dias, cap de 200 ya removido. Necesita backfill semanal |
-| ml_listings | ~440 | INCOMPLETO — antes traia cerradas (33K+) y timeouted. Ahora filtra active+paused. Necesita re-sync |
-| ml_questions | ~100 | INCOMPLETO — limite era 100, ahora es 500. Necesita re-sync |
+| Tabla | Registros | Estado |
+|-------|-----------|--------|
+| orders (MELI) | 185,765 | COMPLETO — importado desde export XLSX (mar 2025 a mar 2026) |
+| ml_listings | 32,936 | COMPLETO — 6,375 activas + 26,180 pausadas via ML API directa |
+| ml_questions | 1,051 | COMPLETO — via ML API directa (2 sin responder) |
 | ml_seller_metrics_daily | 1 | OK — se llena diariamente via cron |
 
 ### PENDIENTES ML
 
-#### PENDIENTE ML #1: Ejecutar backfill historico (PRIORITARIO)
-- Correr `/api/sync/mercadolibre/backfill?step=listings` para obtener todas las publicaciones activas+pausadas
-- Correr `/api/sync/mercadolibre/backfill?step=orders&week=1` hasta `week=26` para 6 meses de ordenes
-- Correr `/api/sync/mercadolibre/backfill?step=questions` para 500 preguntas
-- **NO TESTEADO AUN** — el endpoint fue creado pero el usuario se fue antes de probarlo
+#### PENDIENTE ML #1: RESUELTO — Backfill historico completado (2026-04-01)
+- Ordenes: 185,765 importadas desde export XLSX (4 archivos, mar 2025 a mar 2026)
+- Listings: 32,936 importadas via script local contra ML API (scroll_id para >1000)
+- Preguntas: 1,051 importadas via script local contra ML API
+- Script de importacion: import_ml_sales.py (ordenes), backfill_listings.py, backfill_questions.py
 
 #### PENDIENTE ML #2: Verificar webhook recibe notificaciones reales
-- El webhook esta configurado en ML Developer Portal pero no se verifico con eventos reales
-- Esperar una orden/pregunta real en EMDJ y verificar que llega a nuestro endpoint
+- Webhook responde 200 a POST de prueba (verificado 2026-04-01)
+- Falta verificar con eventos reales de ML (ordenes/preguntas nuevas)
 - Verificar en Vercel logs que processMLNotification se ejecuta correctamente
 
-#### PENDIENTE ML #3: Master sync timeout en free plan
-- `/api/sync/mercadolibre` tiene maxDuration=300 pero Vercel free plan solo permite 60s
-- El sync completo de EMDJ (miles de ordenes) excede 60s
-- SOLUCION ACTUAL: usar backfill chunkeado en su lugar
-- SOLUCION FUTURA: upgrade a Vercel Pro (ya configurado maxDuration=300)
+#### PENDIENTE ML #3: RESUELTO — Vercel Pro confirmado
+- Vercel Pro CONFIRMADO — funciones pueden correr hasta 300s (5 min)
+- maxDuration=300 en los endpoints de sync es correcto y funcional
+- El backfill historico se hizo via script local, pero futuros syncs pueden usar la plataforma directamente
 
 ---
 
@@ -554,9 +553,9 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 **Causa raiz**: maxDuration=300 solo funciona en Vercel Pro. Free plan siempre corta a 60s.
 **Fix aplicado**: Creado endpoint de backfill chunkeado con maxDuration=60. Chunks semanales para ordenes.
 **REGLA PERMANENTE**:
-- **ASUMIR siempre 60s como timeout** hasta confirmar que estamos en Vercel Pro.
-- **Disenar sync para chunks pequenos** que quepan en 60s.
-- Para EMDJ, un chunk semanal de ordenes es el tamaño correcto.
+- **CONFIRMADO Vercel Pro** — timeout real es 300s (5 min).
+- Disenar sync para chunks que quepan en 300s.
+- Para EMDJ, el sync completo puede correr en la plataforma directamente.
 
 ### ERROR ML #4: Backfill mensual tambien excedia timeout
 **Que paso**: Incluso un mes de ordenes de EMDJ excedia 60s de procesamiento.
@@ -571,7 +570,7 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 
 Antes de modificar cualquier endpoint de sync ML:
 1. Es READ-ONLY desde ML API? (NUNCA escribir en la cuenta de EMDJ)
-2. Cabe en 60s de timeout? (asumir free plan)
+2. Cabe en 300s de timeout? (Vercel Pro confirmado)
 3. Tiene paginacion correcta? (offset + total check + hard limit de ML)
 4. Filtra por status cuando corresponde? (no traer closed listings)
 5. El token se auto-refresca? (getSellerToken maneja refresh automatico)
