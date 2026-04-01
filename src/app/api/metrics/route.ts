@@ -84,17 +84,30 @@ function calcChange(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 100);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const org = await getOrganization();
 
+    const { searchParams } = new URL(request.url);
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    // Accept from/to params; default to last 30 days
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
+
+    const to = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
+    const from = fromParam
+      ? new Date(fromParam + "T00:00:00.000-03:00")
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // Previous period = same duration before 'from'
+    const periodMs = to.getTime() - from.getTime();
+    const previousFrom = new Date(from.getTime() - periodMs);
+    const previousTo = from;
 
     const [current, previous] = await Promise.all([
-      getPeriodMetrics(org.id, thirtyDaysAgo, now),
-      getPeriodMetrics(org.id, sixtyDaysAgo, thirtyDaysAgo),
+      getPeriodMetrics(org.id, from, to),
+      getPeriodMetrics(org.id, previousFrom, previousTo),
     ]);
 
     const changes = {

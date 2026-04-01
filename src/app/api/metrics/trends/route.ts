@@ -4,11 +4,21 @@ import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const org = await getOrganization();
 
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const { searchParams } = new URL(request.url);
+    const now = new Date();
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
+
+    const to = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
+    const from = fromParam
+      ? new Date(fromParam + "T00:00:00.000-03:00")
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const thirtyDaysAgo = from;
 
     const [orders, adMetrics, webMetrics] = await Promise.all([
       prisma.order.findMany({
@@ -86,10 +96,11 @@ export async function GET() {
       sessionsByDay[key] = (sessionsByDay[key] || 0) + w.sessions;
     }
 
-    // Build unified daily array (last 30 days)
+    // Build unified daily array for the selected period
+    const totalDays = Math.ceil((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
     const days: any[] = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date();
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const d = new Date(to);
       d.setDate(d.getDate() - i);
       const key = d.toISOString().split("T")[0];
       const ad = adByDay[key] || {
