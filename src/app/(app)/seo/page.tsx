@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { DateRangeFilter } from "@/components/dashboard";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell, PieChart, Pie,
@@ -148,8 +149,32 @@ export default function SeoPage() {
   const defaults = getDefaultDates();
   const [dateFrom, setDateFrom] = useState(defaults.from);
   const [dateTo, setDateTo] = useState(defaults.to);
+  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const SEO_QUICK_RANGES = [
+    { label: "7 dias", days: 7 },
+    { label: "30 dias", days: 30 },
+    { label: "90 dias", days: 90 },
+  ];
+
+  const handleQuickRange = (days: number) => {
+    const to = new Date();
+    to.setDate(to.getDate() - 3); // SEO data has 3-day lag
+    const from = new Date(to.getTime() - (days - 1) * 86400000);
+    setDateTo(to.toISOString().split("T")[0]);
+    setDateFrom(from.toISOString().split("T")[0]);
+    setActiveQuickRange(days);
+    setKwPage(1); setPagePage(1);
+  };
+
+  const handleDateChange = (type: "from" | "to", value: string) => {
+    if (type === "from") setDateFrom(value);
+    else setDateTo(value);
+    setActiveQuickRange(null);
+    setKwPage(1); setPagePage(1);
+  };
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [kwSearch, setKwSearch] = useState("");
@@ -231,19 +256,15 @@ export default function SeoPage() {
     <div className="space-y-5">
       {/* Header + Date picker + Tabs */}
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">SEO Intelligence</h1>
-            <p className="text-gray-500 text-sm">Google Search Console -- elmundodeljuguete.com.ar</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setKwPage(1); setPagePage(1); }}
-              className="text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-700" />
-            <span className="text-gray-400 text-xs">a</span>
-            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setKwPage(1); setPagePage(1); }}
-              className="text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-700" />
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">SEO Intelligence</h1>
+          <p className="text-gray-500 text-sm">Google Search Console -- elmundodeljuguete.com.ar</p>
         </div>
+        <DateRangeFilter
+          dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
+          quickRanges={SEO_QUICK_RANGES} onQuickRange={handleQuickRange}
+          onDateChange={handleDateChange} loading={loading}
+        />
 
         {/* Tabs */}
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">

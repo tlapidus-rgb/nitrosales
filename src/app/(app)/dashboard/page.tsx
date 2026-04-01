@@ -16,41 +16,7 @@ import {
 } from "recharts";
 import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
 import NitroInsightsPanel from "@/components/NitroInsightsPanel";
-
-// ── Period helpers ──
-type PeriodPreset = "today" | "yesterday" | "7d" | "30d" | "90d" | "custom";
-
-function getPresetDates(preset: PeriodPreset): { from: string; to: string } {
-  const today = new Date();
-  const fmt = (d: Date) => d.toISOString().split("T")[0];
-  const daysAgo = (n: number) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() - n);
-    return d;
-  };
-  switch (preset) {
-    case "today": return { from: fmt(today), to: fmt(today) };
-    case "yesterday": { const y = daysAgo(1); return { from: fmt(y), to: fmt(y) }; }
-    case "7d": return { from: fmt(daysAgo(6)), to: fmt(today) };
-    case "30d": return { from: fmt(daysAgo(29)), to: fmt(today) };
-    case "90d": return { from: fmt(daysAgo(89)), to: fmt(today) };
-    default: return { from: fmt(daysAgo(29)), to: fmt(today) };
-  }
-}
-
-const PRESET_LABELS: Record<string, string> = {
-  today: "Hoy",
-  yesterday: "Ayer",
-  "7d": "7 dias",
-  "30d": "30 dias",
-  "90d": "90 dias",
-  custom: "Personalizado",
-};
-
-function formatPeriodLabel(preset: PeriodPreset, from: string, to: string): string {
-  if (preset !== "custom") return PRESET_LABELS[preset];
-  return `${from.split("-").reverse().join("/")} — ${to.split("-").reverse().join("/")}`;
-}
+import { DateRangeFilter } from "@/components/dashboard";
 
 // ── Widget catalog definition ──
 
@@ -222,34 +188,37 @@ export default function DashboardPage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // ── Period state ──
-  const [activePreset, setActivePreset] = useState<PeriodPreset>("30d");
-  const [periodDates, setPeriodDates] = useState(getPresetDates("30d"));
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const toDateStr = (d: Date) => d.toISOString().split("T")[0];
+  const defaultTo = new Date();
+  const defaultFrom = new Date(Date.now() - 29 * 86400000);
+  const [dateFrom, setDateFrom] = useState(toDateStr(defaultFrom));
+  const [dateTo, setDateTo] = useState(toDateStr(defaultTo));
+  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
 
-  const selectPreset = (p: PeriodPreset) => {
-    if (p === "custom") {
-      setShowCustomPicker(true);
-      return;
-    }
-    setShowCustomPicker(false);
-    setActivePreset(p);
-    setPeriodDates(getPresetDates(p));
+  const DASH_QUICK_RANGES = [
+    { label: "7 dias", days: 7 },
+    { label: "30 dias", days: 30 },
+    { label: "90 dias", days: 90 },
+  ];
+
+  const handleDashQuickRange = (days: number) => {
+    const to = new Date();
+    const from = new Date(Date.now() - (days - 1) * 86400000);
+    setDateTo(toDateStr(to));
+    setDateFrom(toDateStr(from));
+    setActiveQuickRange(days);
   };
 
-  const applyCustomRange = () => {
-    if (!customFrom || !customTo) return;
-    if (customFrom > customTo) return; // silently ignore invalid range
-    setActivePreset("custom");
-    setPeriodDates({ from: customFrom, to: customTo });
-    setShowCustomPicker(false);
+  const handleDashDateChange = (type: "from" | "to", value: string) => {
+    if (type === "from") setDateFrom(value);
+    else setDateTo(value);
+    setActiveQuickRange(null);
   };
 
   // Build query string for APIs
   const periodQuery = useMemo(
-    () => `from=${periodDates.from}&to=${periodDates.to}`,
-    [periodDates]
+    () => `from=${dateFrom}&to=${dateTo}`,
+    [dateFrom, dateTo]
   );
 
   // ── Load preferences on mount ──
@@ -349,7 +318,7 @@ export default function DashboardPage() {
       <div className="flex justify-between items-start mb-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">Dashboard</h2>
-          <p className="text-gray-500">{formatPeriodLabel(activePreset, periodDates.from, periodDates.to)} &middot; El Mundo del Juguete</p>
+          <p className="text-gray-500">El Mundo del Juguete</p>
         </div>
         <div className="flex items-center gap-2">
           {editMode && (
@@ -381,61 +350,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Period selector bar */}
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        {(["today", "yesterday", "7d", "30d", "90d"] as PeriodPreset[]).map(p => (
-          <button
-            key={p}
-            onClick={() => selectPreset(p)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              activePreset === p
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "bg-white text-gray-600 border border-gray-200 hover:border-indigo-300"
-            }`}
-          >
-            {PRESET_LABELS[p]}
-          </button>
-        ))}
-        <button
-          onClick={() => setShowCustomPicker(!showCustomPicker)}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-            activePreset === "custom"
-              ? "bg-indigo-600 text-white shadow-sm"
-              : "bg-white text-gray-600 border border-gray-200 hover:border-indigo-300"
-          }`}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline mr-1 -mt-0.5">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-          Personalizado
-        </button>
-
-        {showCustomPicker && (
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-            <input
-              type="date"
-              value={customFrom}
-              onChange={e => setCustomFrom(e.target.value)}
-              className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-700 focus:outline-none focus:border-indigo-400"
-            />
-            <span className="text-gray-400 text-sm">a</span>
-            <input
-              type="date"
-              value={customTo}
-              onChange={e => setCustomTo(e.target.value)}
-              className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-700 focus:outline-none focus:border-indigo-400"
-            />
-            <button
-              onClick={applyCustomRange}
-              disabled={!customFrom || !customTo}
-              className="px-3 py-1 rounded-lg text-sm font-semibold text-white transition-all disabled:opacity-40"
-              style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
-            >
-              Aplicar
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Period selector */}
+      <DateRangeFilter
+        dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
+        quickRanges={DASH_QUICK_RANGES} onQuickRange={handleDashQuickRange}
+        onDateChange={handleDashDateChange} loading={loading}
+      />
 
       {/* Edit mode banner */}
       {editMode && (

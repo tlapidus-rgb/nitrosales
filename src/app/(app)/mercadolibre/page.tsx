@@ -7,6 +7,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
+import { DateRangeFilter } from "@/components/dashboard";
 import {
   DollarSign, ShoppingCart, Package, XCircle, Star,
   MessageSquare, Tag, TrendingUp, Award, Zap, RefreshCw,
@@ -58,20 +59,45 @@ const LEVEL_INFO: Record<string, { label: string; color: string; emoji: string }
 };
 
 export default function MLDashboardPage() {
-  const [days, setDays] = useState(30);
+  const toDateStr = (d: Date) => d.toISOString().split("T")[0];
+  const defaultTo = new Date();
+  const defaultFrom = new Date(Date.now() - 29 * 86400000);
+  const [dateFrom, setDateFrom] = useState(toDateStr(defaultFrom));
+  const [dateTo, setDateTo] = useState(toDateStr(defaultTo));
+  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
+  const ML_QUICK_RANGES = [
+    { label: "7 dias", days: 7 },
+    { label: "30 dias", days: 30 },
+    { label: "90 dias", days: 90 },
+  ];
+
+  const handleMLQuickRange = (days: number) => {
+    const to = new Date();
+    const from = new Date(Date.now() - (days - 1) * 86400000);
+    setDateTo(toDateStr(to));
+    setDateFrom(toDateStr(from));
+    setActiveQuickRange(days);
+  };
+
+  const handleMLDateChange = (type: "from" | "to", value: string) => {
+    if (type === "from") setDateFrom(value);
+    else setDateTo(value);
+    setActiveQuickRange(null);
+  };
+
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/mercadolibre/dashboard?days=${days}`)
+    fetch(`/api/mercadolibre/dashboard?from=${dateFrom}&to=${dateTo}`)
       .then((r) => r.json())
       .then(setData)
       .catch((e) => console.error(e))
       .finally(() => setLoading(false));
-  }, [days]);
+  }, [dateFrom, dateTo]);
 
   const handleSync = () => {
     setSyncing(true);
@@ -81,7 +107,7 @@ export default function MLDashboardPage() {
       .then((res) => {
         setSyncMsg(res.ok ? "Sincronizado" : `Error: ${res.errors?.join(", ") || res.error}`);
         // Refresh data
-        fetch(`/api/mercadolibre/dashboard?days=${days}`)
+        fetch(`/api/mercadolibre/dashboard?from=${dateFrom}&to=${dateTo}`)
           .then((r) => r.json())
           .then(setData);
         setTimeout(() => setSyncMsg(null), 5000);
@@ -123,15 +149,6 @@ export default function MLDashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Quick range */}
-          <div className="flex gap-1.5 bg-gray-100 rounded-lg p-1">
-            {QUICK_RANGES.map((r) => (
-              <button key={r.days} onClick={() => setDays(r.days)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${days === r.days ? "bg-white text-yellow-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-                {r.label}
-              </button>
-            ))}
-          </div>
           {/* Sync button */}
           <button onClick={handleSync} disabled={syncing}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
@@ -144,6 +161,13 @@ export default function MLDashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Period selector */}
+      <DateRangeFilter
+        dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
+        quickRanges={ML_QUICK_RANGES} onQuickRange={handleMLQuickRange}
+        onDateChange={handleMLDateChange} loading={loading}
+      />
 
       {/* REPUTATION BANNER */}
       {reputation && (
@@ -195,7 +219,7 @@ export default function MLDashboardPage() {
       {/* KPI CARDS — Row 1 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
         <KpiCard icon={<DollarSign size={16} className="text-emerald-600" />} iconBg="bg-emerald-50"
-          label={`Ventas ${days}d`} value={formatCompact(kpis.totalRevenue)} />
+          label="Ventas" value={formatCompact(kpis.totalRevenue)} />
         <KpiCard icon={<ShoppingCart size={16} className="text-blue-600" />} iconBg="bg-blue-50"
           label="Ordenes" value={kpis.totalOrders.toLocaleString("es-AR")}
           subtitle={`${kpis.totalItems} items`} />

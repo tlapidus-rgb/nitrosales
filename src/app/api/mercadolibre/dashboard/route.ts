@@ -17,19 +17,26 @@ export async function GET(req: NextRequest) {
     }
     const orgId = connection.organizationId;
 
-    // Date range
+    // Date range — supports from/to params or legacy days param
     const { searchParams } = new URL(req.url);
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
     const days = parseInt(searchParams.get("days") || "30");
-    const dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const dateFrom = fromParam
+      ? new Date(fromParam + "T00:00:00.000-03:00")
+      : new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const dateTo = toParam
+      ? new Date(toParam + "T23:59:59.999-03:00")
+      : new Date();
 
     // KPIs from orders (source=MELI)
     const ordersAgg = await prisma.order.aggregate({
-      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom }, status: { notIn: ["CANCELLED", "RETURNED"] } },
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo }, status: { notIn: ["CANCELLED", "RETURNED"] } },
       _sum: { totalValue: true, itemCount: true },
       _count: { id: true },
     });
     const cancelledCount = await prisma.order.count({
-      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom }, status: "CANCELLED" },
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo }, status: "CANCELLED" },
     });
 
     const totalOrders = ordersAgg._count.id || 0;
@@ -62,7 +69,7 @@ export async function GET(req: NextRequest) {
     // Daily sales (MELI orders grouped by day)
     const dailySalesRaw = await prisma.order.groupBy({
       by: ["orderDate"],
-      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom }, status: { notIn: ["CANCELLED", "RETURNED"] } },
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo }, status: { notIn: ["CANCELLED", "RETURNED"] } },
       _sum: { totalValue: true },
       _count: { id: true },
       orderBy: { orderDate: "asc" },
@@ -84,14 +91,14 @@ export async function GET(req: NextRequest) {
     // Orders by status
     const statusBreakdown = await prisma.order.groupBy({
       by: ["status"],
-      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom } },
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo } },
       _count: { id: true },
     });
 
     // Payment methods
     const paymentMethods = await prisma.order.groupBy({
       by: ["paymentMethod"],
-      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom }, status: { notIn: ["CANCELLED", "RETURNED"] }, paymentMethod: { not: null } },
+      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo }, status: { notIn: ["CANCELLED", "RETURNED"] }, paymentMethod: { not: null } },
       _count: { id: true },
       _sum: { totalValue: true },
       orderBy: { _count: { id: "desc" } },

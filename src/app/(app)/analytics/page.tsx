@@ -6,6 +6,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   BarChart, Bar,
 } from "recharts";
+import { DateRangeFilter } from "@/components/dashboard";
 
 // ══════════════════════════════════════════════════════════════
 // Analytics Dashboard — GA4 Ecommerce Intelligence
@@ -112,39 +113,46 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [range, setRange] = useState(() => {
-    const to = new Date(); to.setHours(23, 59, 59, 999);
-    const from = new Date(to.getTime() - 6 * MS_PER_DAY); from.setHours(0, 0, 0, 0);
-    return { from, to };
-  });
+  // ── Date filter state (unified with DateRangeFilter) ──
+  const defaultTo = new Date();
+  const defaultFrom = new Date(Date.now() - 6 * MS_PER_DAY);
+  const toDateStr = (d: Date) => d.toISOString().split("T")[0];
+  const [dateFrom, setDateFrom] = useState(toDateStr(defaultFrom));
+  const [dateTo, setDateTo] = useState(toDateStr(defaultTo));
+  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(7);
 
-  const dateLabel = (d: Date) => d.toISOString().split("T")[0];
+  const QUICK_RANGES = [
+    { label: "7 dias", days: 7 },
+    { label: "14 dias", days: 14 },
+    { label: "30 dias", days: 30 },
+    { label: "90 dias", days: 90 },
+  ];
+
+  const handleQuickRange = (days: number) => {
+    const to = new Date();
+    const from = new Date(Date.now() - (days - 1) * MS_PER_DAY);
+    setDateTo(toDateStr(to));
+    setDateFrom(toDateStr(from));
+    setActiveQuickRange(days);
+  };
+
+  const handleDateChange = (type: "from" | "to", value: string) => {
+    if (type === "from") setDateFrom(value);
+    else setDateTo(value);
+    setActiveQuickRange(null);
+  };
 
   useEffect(() => {
     setLoading(true); setError(null);
-    const from = dateLabel(range.from), to = dateLabel(range.to);
     Promise.all([
-      fetch(`/api/metrics/pixel?from=${from}&to=${to}&model=NITRO`).then(r => r.json()),
-      fetch(`/api/metrics/analytics?from=${from}&to=${to}`).then(r => r.json()),
+      fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=NITRO`).then(r => r.json()),
+      fetch(`/api/metrics/analytics?from=${dateFrom}&to=${dateTo}`).then(r => r.json()),
     ]).then(([pixelData, analyticsData]) => {
       setD(pixelData);
       setGa4(analyticsData?.error ? null : analyticsData);
       setLoading(false);
     }).catch(e => { setError(e.message); setLoading(false); });
-  }, [range]);
-
-  const setPreset = (days: number) => {
-    const to = new Date(); to.setHours(23, 59, 59, 999);
-    const from = new Date(to.getTime() - (days - 1) * MS_PER_DAY); from.setHours(0, 0, 0, 0);
-    setRange({ from, to });
-  };
-
-  const setCustomDate = (field: "from" | "to", value: string) => {
-    const dt = new Date(value + "T00:00:00");
-    if (isNaN(dt.getTime())) return;
-    if (field === "from") { dt.setHours(0, 0, 0, 0); setRange(r => ({ ...r, from: dt })); }
-    else { dt.setHours(23, 59, 59, 999); setRange(r => ({ ...r, to: dt })); }
-  };
+  }, [dateFrom, dateTo]);
 
   // ── Product lightbox & pagination ──
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
@@ -208,32 +216,22 @@ export default function AnalyticsPage() {
   );
 
   const conversionRate = d.funnel?.pageView > 0 ? ((d.funnel.purchase / d.funnel.pageView) * 100).toFixed(2) : "0";
-  const diff = Math.round((range.to.getTime() - range.from.getTime()) / MS_PER_DAY);
 
   return (
     <div className="space-y-4 pb-12">
       {/* ═══ HEADER + DATE SELECTOR ═══ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sticky top-0 z-20 bg-gray-50/95 backdrop-blur-sm py-3 -mx-1 px-1">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Fuente: Google Analytics 4</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-0.5">
-            {[{ label: "7D", days: 7 }, { label: "14D", days: 14 }, { label: "30D", days: 30 }].map(p => (
-              <button key={p.days} onClick={() => setPreset(p.days)}
-                className={`px-3 py-1.5 text-xs rounded-md transition-all ${diff === p.days || diff === p.days - 1 ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}
-              >{p.label}</button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1.5 bg-white rounded-lg border border-gray-200 px-2 py-1">
-            <input type="date" value={dateLabel(range.from)} onChange={e => setCustomDate("from", e.target.value)}
-              className="text-xs text-gray-600 bg-transparent border-none outline-none w-[110px]" />
-            <span className="text-xs text-gray-400">—</span>
-            <input type="date" value={dateLabel(range.to)} onChange={e => setCustomDate("to", e.target.value)}
-              className="text-xs text-gray-600 bg-transparent border-none outline-none w-[110px]" />
+      <div className="flex flex-col gap-3 sticky top-0 z-20 bg-gray-50/95 backdrop-blur-sm py-3 -mx-1 px-1">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
+            <p className="text-xs text-gray-500 mt-0.5">Fuente: Google Analytics 4</p>
           </div>
         </div>
+        <DateRangeFilter
+          dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
+          quickRanges={QUICK_RANGES} onQuickRange={handleQuickRange}
+          onDateChange={handleDateChange} loading={loading}
+        />
       </div>
 
       {/* ═══ TRAFFIC KPIs ═══ */}

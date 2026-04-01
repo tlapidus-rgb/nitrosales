@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, Fragment } from "react";
+import { DateRangeFilter } from "@/components/dashboard";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar, ComposedChart, Line,
@@ -400,12 +401,25 @@ export default function PixelPage() {
     }
   };
 
+  const PIXEL_QUICK_RANGES = [
+    { label: "7 dias", days: 7 },
+    { label: "30 dias", days: 30 },
+    { label: "90 dias", days: 90 },
+  ];
+
   const setQuickRange = (days: number) => {
     const to = new Date();
     const from = new Date(to.getTime() - days * MS_PER_DAY);
     setDateFrom(from.toISOString().slice(0, 10));
     setDateTo(to.toISOString().slice(0, 10));
     setActiveQuickRange(days);
+    setCurrentPage(1);
+  };
+
+  const handlePixelDateChange = (type: "from" | "to", value: string) => {
+    if (type === "from") setDateFrom(value);
+    else setDateTo(value);
+    setActiveQuickRange(null);
     setCurrentPage(1);
   };
 
@@ -448,46 +462,21 @@ export default function PixelPage() {
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3">
           {/* Top bar: Title + Period selector */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-gray-900">NitroPixel</h1>
-                <p className="text-xs text-gray-500">Revenue Attribution</p>
-              </div>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             </div>
-            <div className="flex items-center gap-2">
-              {[7, 30, 90].map((days) => (
-                <button
-                  key={days}
-                  onClick={() => setQuickRange(days)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    activeQuickRange === days
-                      ? "bg-orange-500 text-white shadow-sm"
-                      : "text-gray-400 hover:bg-gray-100"
-                  }`}
-                >
-                  {`${days}d`}
-                </button>
-              ))}
-              <div className="flex items-center gap-1 ml-1">
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => { setDateFrom(e.target.value); setActiveQuickRange(null); }}
-                  className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-700"
-                />
-                <span className="text-gray-500 text-xs">→</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => { setDateTo(e.target.value); setActiveQuickRange(null); }}
-                  className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-700"
-                />
-              </div>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">NitroPixel</h1>
+              <p className="text-xs text-gray-500">Revenue Attribution</p>
             </div>
+          </div>
+          <div className="mb-3">
+            <DateRangeFilter
+              dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
+              quickRanges={PIXEL_QUICK_RANGES} onQuickRange={setQuickRange}
+              onDateChange={handlePixelDateChange} loading={loading}
+            />
           </div>
 
           {/* ═══ ATTRIBUTION MODEL SELECTOR ═══ */}
