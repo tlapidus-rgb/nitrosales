@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ãltima actualizacion: 2026-03-31
+## Ãltima actualizacion: 2026-04-01
 
 ---
 
@@ -71,8 +71,17 @@
 | src/lib/connectors/mercadolibre-seller.ts | **v2** | ACTIVO | READ-ONLY connector. Token auto-refresh. Pagination fixes applied. |
 | src/lib/connectors/ml-notification-processor.ts | **v1** | ACTIVO | Async webhook processor. 5 topic handlers. |
 | src/app/api/webhooks/mercadolibre/route.ts | **v1** | ACTIVO | Webhook endpoint. Responds <500ms. |
-| src/app/api/cron/ml-sync/route.ts | **v1** | ACTIVO | Cron backup each 4h. missed_feeds + reputation. |
-| src/app/api/sync/mercadolibre/backfill/route.ts | **v1** | ACTIVO | Chunked backfill. Weekly orders. NO TESTEADO AUN. |
+| src/app/api/cron/ml-sync/route.ts | **v1** | ACTIVO | Cron backup each 4h. missed_feeds + reputation. maxDuration=800 via vercel.json. |
+| src/app/api/sync/mercadolibre/backfill/route.ts | **v1** | ACTIVO | Chunked backfill. Weekly orders. maxDuration=800 via vercel.json. TESTEADO: 123.9s OK. |
+
+### SEO (Google Search Console)
+
+| Archivo | Version | Estado | Notas |
+|---------|---------|--------|-------|
+| src/lib/connectors/gsc.ts | **v1** | ACTIVO | JWT auth con SA de GA4. Paginacion 25K rows. |
+| src/app/api/sync/gsc/route.ts | **v1** | ACTIVO | Cron sync dia-por-dia. maxDuration=800. |
+| src/app/api/metrics/seo/route.ts | **v2** | ACTIVO | 14 queries paralelas. Opportunities, movers, cannibalization. |
+| src/app/(app)/seo/page.tsx | **v2** | ACTIVO | 5 tabs: Overview, Keywords, Pages, Oportunidades, Movimientos. |
 
 ### INFRAESTRUCTURA
 
@@ -83,6 +92,7 @@
 | src/lib/auth-guard.ts | **v1** | NEW | Org resolution from NextAuth session |
 | src/lib/db/client.ts | **v1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client |
 | prisma/schema.prisma | **v1** | â ESTABLE | **NO TOCAR** sin migraciÃ³n. brand y category son String? (no FK). |
+| vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
 ---
@@ -133,7 +143,7 @@
 - **Framework**: Next.js 14 App Router
 - **ORM**: Prisma (import desde @/lib/db/client)
 - **DB**: PostgreSQL en Railway
-- **Deploy**: Vercel Pro (300s function timeout, ISR revalidate=300)
+- **Deploy**: Vercel Pro (800s function timeout max, ISR revalidate=300). Fluid Compute habilitado. Region: iad1
 - **VTEX Account**: mundojuguete
 - **Org ID**: cmmmga1uq0000sb43w0krvvys
 - **Credenciales VTEX**: env var DJQFRI + fallback backfill ZMTYUJ
@@ -153,13 +163,32 @@
 | 2 | Integracion de protecciones en rutas | COMPLETADA | 8256d3f |
 | 3 | Tests + integridad de datos + tipado | COMPLETADA | dcdcb22..71ff8b9 |
 | 4A | Infra: Prisma Migrate, cred centralization, encryption, auth guard | EN CURSO | pendiente commit |
-| 4B | Bot de IA con datos multi-fuente | PENDIENTE (esperar mas data) | - |
+| 4B | Bot de IA con datos multi-fuente | PROXIMO — datos listos, plan definido | - |
 
 ### Pendiente: Connection Pooling (Fase 2.5)
 - Requiere DATABASE_URL_DIRECT env var en Vercel
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-01 (GSC Integration + SEO Intelligence v2)
+- GSC conectado: service account con permiso Completo en Search Console
+- GSC sync: endpoint dia-por-dia para evitar OOM (14K-33K rows/dia)
+- Backfill 90 dias: 1,982,896 query rows + 236,531 page rows via script local
+- SEO API v2: 14 queries paralelas (opportunities, movers up/down, new/lost keywords, cannibalization, country)
+- SEO Frontend v2: 5 tabs (Overview, Keywords, Pages, Oportunidades, Movimientos)
+- Commits: 70262ef (GSC sync fix), 2600e73 (SEO v2 completo)
+
+### 2026-04-01 (Vercel Pro 800s + ML Data Verification)
+- Vercel Pro CONFIRMADO visualmente en dashboard (badge Pro, Fluid Compute ON)
+- maxDuration 800s configurado en vercel.json functions config (sync/** y cron/**)
+- CRITICO: export const maxDuration en route files NO es suficiente — vercel.json functions config es OBLIGATORIO
+- Verificacion quirurgica de produccion: reputation 3.1s OK, backfill 123.9s OK, todas las paginas HTTP 200
+- ML Dashboard API verificado: 7,495 ordenes, 23M revenue, 32,936 listings, 1,051 preguntas
+- Import ML sales: 185,765 ordenes desde 4 XLSX exports (mar 2025 a mar 2026) via import_ml_sales.py
+- Backfill listings: 32,936 (6,375 active + 26,180 paused) via backfill_listings.py directo a ML API
+- Backfill questions: 1,051 via backfill_questions.py directo a ML API
+- Commits: c73edbf, c522591, 28816e5
 
 ### 2026-03-31 (MercadoLibre Seller Integration)
 - Seccion ML completa: Dashboard, Publicaciones, Reputacion, Preguntas
@@ -437,9 +466,9 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 
 ---
 
-## MERCADOLIBRE SELLER INTEGRATION — Estado al 2026-03-31
+## MERCADOLIBRE SELLER INTEGRATION — Estado al 2026-04-01
 
-### Ultima actualizacion: 2026-03-31
+### Ultima actualizacion: 2026-04-01
 
 ### Cuenta conectada
 - **Seller**: ELMUNDODELJUG (KAVOR S.A.)
@@ -521,10 +550,126 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 - Falta verificar con eventos reales de ML (ordenes/preguntas nuevas)
 - Verificar en Vercel logs que processMLNotification se ejecuta correctamente
 
-#### PENDIENTE ML #3: RESUELTO — Vercel Pro confirmado
-- Vercel Pro CONFIRMADO — funciones pueden correr hasta 300s (5 min)
-- maxDuration=300 en los endpoints de sync es correcto y funcional
-- El backfill historico se hizo via script local, pero futuros syncs pueden usar la plataforma directamente
+#### PENDIENTE ML #3: RESUELTO — Vercel Pro 800s confirmado y verificado
+- Vercel Pro CONFIRMADO visualmente en dashboard (badge Pro visible)
+- Fluid Compute habilitado en Settings > Functions
+- maxDuration=800 configurado en vercel.json (functions config, NO solo export const)
+- VERIFICADO: questions backfill corrio 123.9s sin corte (antes cortaba a 60s)
+- VERIFICADO: todas las paginas de produccion siguen respondiendo HTTP 200 en <1s
+- vercel.json functions config es OBLIGATORIO — export const maxDuration solo NO alcanza
+- Commits: c73edbf (300s), c522591 (vercel.json config), 28816e5 (bump a 800s)
+
+---
+
+
+## PLAN: BOT DE IA — Consultor de $100K/hora (Fase 4B)
+
+### Ultima actualizacion: 2026-04-01
+### Estado: PROXIMO A IMPLEMENTAR
+
+### Concepto
+Dos capas de bot integradas en NitroSales:
+
+**Capa 1: Mini-bots contextuales (por KPI/seccion)**
+- Boton de chat junto a cada KPI o grafico del dashboard
+- Se abre un chat que YA tiene el contexto del dato que esta mirando el usuario
+- Ejemplo: si esta en CTR de SEO, el bot sabe que el CTR es 1.13% y su posicion 7.6
+- Responde con analisis puntual y acciones concretas para ese KPI especifico
+- Prompt del sistema incluye: dato actual, periodo, cambio vs anterior, benchmark del sector
+
+**Capa 2: Bot general estrategico**
+- Seccion dedicada /chat o /consultor
+- Tiene acceso a TODOS los datos cruzados: MELI + SEO + VTEX + Stock + Ads
+- Actua como consultor senior de marketing y ecommerce
+- Puede cruzar datos entre secciones para dar insights que ningun dashboard individual muestra
+- Ejemplo: "Keywords de SEO que coinciden con productos sin stock en MELI"
+- Ejemplo: "Plan de accion semanal basado en todos los datos"
+
+### Arquitectura tecnica
+
+**Endpoint central**: POST /api/chat
+- Recibe: { message, context?, conversationHistory? }
+- context: opcional, para mini-bots incluye los datos del KPI
+- Para bot general: hace queries a las APIs internas para armar el contexto completo
+- Llama a Claude API con system prompt especifico
+- Devuelve: { response, suggestions? }
+
+**System prompts (2 tipos)**:
+1. Mini-bot: "Sos un analista de [seccion]. El usuario esta mirando [KPI] = [valor]. Periodo: [fechas]. Cambio: [%]. Datos adicionales: [contexto]. Da analisis accionable en 2-3 parrafos."
+2. Bot general: "Sos el consultor de ecommerce mas caro del mundo. Tenes acceso a todos los datos de NitroSales. [dump de KPIs de todas las secciones]. Da recomendaciones estrategicas cruzando datos."
+
+**Datos disponibles para el bot general**:
+- MELI: 185K ordenes, 32K listings, reputacion, preguntas, cancelaciones
+- SEO: 2M query rows, keywords, posiciones, oportunidades, canibalizacion
+- VTEX: 31K productos, categorias, marcas, stock
+- Pixel: visitantes, fuentes de trafico, atribucion
+- Todo via las APIs ya existentes (/api/metrics/*, /api/mercadolibre/*)
+
+**Frontend**:
+- Componente ChatBubble reutilizable (boton + panel de chat)
+- Se instancia en cada KpiCard con context={dato}
+- Pagina /chat para el bot general con historial de conversacion
+- Streaming de respuesta (SSE) para UX fluida
+
+### Dependencias
+- ANTHROPIC_API_KEY en Vercel env vars (necesaria)
+- Todas las APIs de datos ya existen y funcionan
+- No requiere nueva tabla en DB (opcionalmente guardar historial en tabla chat_messages)
+
+### Estimacion
+- Endpoint /api/chat: ~200 lineas
+- Componente ChatBubble: ~150 lineas
+- Pagina /chat: ~200 lineas
+- Integracion en dashboards existentes: ~50 lineas por seccion
+- System prompts: ~100 lineas
+- Total: ~800-1000 lineas de codigo nuevo
+
+---
+
+## GOOGLE SEARCH CONSOLE (SEO Intelligence) — Estado al 2026-04-01
+
+### Ultima actualizacion: 2026-04-01
+
+### Conexion
+- **Propiedad**: https://www.elmundodeljuguete.com.ar/
+- **Service Account**: nitrosales-analytics@nitrosales-489804.iam.gserviceaccount.com (misma que GA4)
+- **Verificacion DNS**: TXT record ya configurado por el usuario
+- **Permiso**: Completo (agregado manualmente en GSC > Configuracion > Usuarios)
+
+### Arquitectura de Sync
+- **Cron diario**: /api/sync/gsc (9am, ultimos 7 dias incremental)
+- **Backfill manual**: /api/sync/gsc?days=90 (dia por dia para evitar OOM)
+- **Estrategia**: Fetch dia-por-dia porque elmundodeljuguete genera ~14K-33K rows/dia en GSC
+- **Safety cutoff**: 700s para no exceder maxDuration 800s
+
+### Archivos GSC
+
+| Archivo | Estado | Notas |
+|---------|--------|-------|
+| src/lib/connectors/gsc.ts | ACTIVO | JWT auth, fetchSearchAnalytics con paginacion 25K rows |
+| src/app/api/sync/gsc/route.ts | ACTIVO | Cron sync dia-por-dia. maxDuration=800. ?days=7 default, ?days=90 backfill |
+| src/app/api/metrics/seo/route.ts | **v2** ACTIVO | 14 queries paralelas: KPIs, trend, keywords, pages, opportunities, movers, cannibalization, country |
+| src/app/(app)/seo/page.tsx | **v2** ACTIVO | 5 tabs: Overview, Keywords, Pages, Oportunidades, Movimientos |
+
+### Tablas DB
+
+| Tabla | Registros | Notas |
+|-------|-----------|-------|
+| seo_query_daily | 1,982,896 | 90 dias (29/12/2025 a 29/03/2026). ~22K rows/dia promedio |
+| seo_page_daily | 236,531 | Agregado por landing page. ~2,600/dia promedio |
+
+### Datos del dashboard SEO (marzo 2026)
+- 15,991 clics organicos / 1.41M impresiones
+- CTR promedio: 1.13% / Posicion promedio: 7.6
+- 87,356 keywords totales / 6,531 en Top 3 / 59,849 en Top 10
+- 30 oportunidades de CTR detectadas
+- 20 keywords subiendo / 20 bajando
+- 20 keywords con canibalizacion (3+ URLs)
+- Top keyword: "el mundo del juguete" (26,789 clics)
+
+### Commits GSC
+- 70262ef: fix GSC sync day-by-day (OOM fix)
+- 2600e73: feat SEO Intelligence v2 (tabs, opportunities, movers, cannibalization)
 
 ---
 
@@ -553,8 +698,8 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 **Causa raiz**: maxDuration=300 solo funciona en Vercel Pro. Free plan siempre corta a 60s.
 **Fix aplicado**: Creado endpoint de backfill chunkeado con maxDuration=60. Chunks semanales para ordenes.
 **REGLA PERMANENTE**:
-- **CONFIRMADO Vercel Pro** — timeout real es 300s (5 min).
-- Disenar sync para chunks que quepan en 300s.
+- **CONFIRMADO Vercel Pro** — timeout real es hasta 800s (13 min). Configurado en vercel.json functions config.
+- Disenar sync para chunks que quepan en 800s.
 - Para EMDJ, el sync completo puede correr en la plataforma directamente.
 
 ### ERROR ML #4: Backfill mensual tambien excedia timeout
@@ -570,7 +715,7 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 
 Antes de modificar cualquier endpoint de sync ML:
 1. Es READ-ONLY desde ML API? (NUNCA escribir en la cuenta de EMDJ)
-2. Cabe en 300s de timeout? (Vercel Pro confirmado)
+2. Cabe en 800s de timeout? (Vercel Pro max, configurado en vercel.json)
 3. Tiene paginacion correcta? (offset + total check + hard limit de ML)
 4. Filtra por status cuando corresponde? (no traer closed listings)
 5. El token se auto-refresca? (getSellerToken maneja refresh automatico)
