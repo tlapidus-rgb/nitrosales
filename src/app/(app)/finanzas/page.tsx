@@ -7,6 +7,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
+import { DateRangeFilter } from "@/components/dashboard";
 
 /* ── Types ──────────────────────────────────── */
 interface PnlSummary {
@@ -24,6 +25,9 @@ interface PnlSummary {
   shipping: number;
   operatingProfit: number;
   operatingMargin: number;
+  platformFees?: number;
+  netOperatingProfit?: number;
+  netOperatingMargin?: number;
 }
 interface Changes {
   revenue: number | null;
@@ -57,6 +61,23 @@ interface BrandMargin {
   grossMargin: number;
   units: number;
 }
+interface SourceBreakdown {
+  source: string;
+  revenue: number;
+  orders: number;
+  units: number;
+  cogs: number;
+  grossProfit: number;
+  grossMargin: number;
+  shipping: number;
+  platformFee: number;
+  platformFeeLabel: string;
+  mlCommission: number;
+  mlTaxWithholdings: number;
+  operatingProfit: number;
+  operatingMargin: number;
+  aov: number;
+}
 
 /* ── Helpers ────────────────────────────────── */
 function ChangeIndicator({ value, inverse }: { value: number | null | undefined; inverse?: boolean }) {
@@ -76,41 +97,7 @@ function MarginBar({ value, color }: { value: number; color: string }) {
   );
 }
 
-/* ── Date presets ───────────────────────────── */
-function getDatePreset(preset: string) {
-  const now = new Date();
-  const today = now.toISOString().split("T")[0];
-  switch (preset) {
-    case "7d": {
-      const from = new Date(now);
-      from.setDate(from.getDate() - 7);
-      return { from: from.toISOString().split("T")[0], to: today };
-    }
-    case "30d": {
-      const from = new Date(now);
-      from.setDate(from.getDate() - 30);
-      return { from: from.toISOString().split("T")[0], to: today };
-    }
-    case "90d": {
-      const from = new Date(now);
-      from.setDate(from.getDate() - 90);
-      return { from: from.toISOString().split("T")[0], to: today };
-    }
-    case "thisMonth": {
-      const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-      return { from, to: today };
-    }
-    case "lastMonth": {
-      const firstThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastMonth = new Date(firstThisMonth);
-      lastMonth.setDate(lastMonth.getDate() - 1);
-      const from = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}-01`;
-      return { from, to: lastMonth.toISOString().split("T")[0] };
-    }
-    default:
-      return null;
-  }
-}
+/* ── (Date handling moved to DateRangeFilter) ── */
 
 /* ── Main Component ─────────────────────────── */
 export default function FinanzasPage() {
@@ -119,18 +106,31 @@ export default function FinanzasPage() {
   const [dailyTrend, setDailyTrend] = useState<DailyTrend[]>([]);
   const [categories, setCategories] = useState<CategoryMargin[]>([]);
   const [brands, setBrands] = useState<BrandMargin[]>([]);
+  const [bySource, setBySource] = useState<SourceBreakdown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activePreset, setActivePreset] = useState("30d");
   const [chartMode, setChartMode] = useState<"waterfall" | "trend">("waterfall");
 
-  function fetchData(preset?: string) {
+  // Date state — default 30 days
+  const defaultFrom = new Date();
+  defaultFrom.setDate(defaultFrom.getDate() - 30);
+  const [dateFrom, setDateFrom] = useState(defaultFrom.toISOString().split("T")[0]);
+  const [dateTo, setDateTo] = useState(new Date().toISOString().split("T")[0]);
+  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
+
+  const FIN_QUICK_RANGES = [
+    { label: "7 dias", days: 7 },
+    { label: "30 dias", days: 30 },
+    { label: "90 dias", days: 90 },
+  ];
+
+  function fetchData(from?: string, to?: string) {
     setLoading(true);
     setError("");
-    const dates = getDatePreset(preset || activePreset);
-    if (!dates) return;
+    const f = from || dateFrom;
+    const t = to || dateTo;
 
-    const params = new URLSearchParams({ dateFrom: dates.from, dateTo: dates.to });
+    const params = new URLSearchParams({ dateFrom: f, dateTo: t });
     fetch(`/api/metrics/pnl?${params}`)
       .then((r) => r.json())
       .then((data) => {
@@ -140,6 +140,7 @@ export default function FinanzasPage() {
           setDailyTrend(data.dailyTrend || []);
           setCategories(data.categories || []);
           setBrands(data.brands || []);
+          setBySource(data.bySource || []);
         } else {
           setError(data.error || "Error cargando datos");
         }
@@ -152,9 +153,25 @@ export default function FinanzasPage() {
     fetchData();
   }, []);
 
-  function handlePreset(preset: string) {
-    setActivePreset(preset);
-    fetchData(preset);
+  function handleQuickRange(days: number) {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    const f = from.toISOString().split("T")[0];
+    const t = to.toISOString().split("T")[0];
+    setDateFrom(f);
+    setDateTo(t);
+    setActiveQuickRange(days);
+    fetchData(f, t);
+  }
+
+  function handleDateChange(type: "from" | "to", value: string) {
+    if (type === "from") setDateFrom(value);
+    else setDateTo(value);
+    const f = type === "from" ? value : dateFrom;
+    const t = type === "to" ? value : dateTo;
+    setActiveQuickRange(null);
+    fetchData(f, t);
   }
 
   const tooltipStyle = {
@@ -167,6 +184,7 @@ export default function FinanzasPage() {
   };
 
   // Build waterfall data for P&L visualization
+  const netOp = summary ? (summary.netOperatingProfit ?? summary.operatingProfit) : 0;
   const waterfallData = summary
     ? [
         { name: "Revenue", value: summary.revenue, fill: "#3b82f6" },
@@ -174,17 +192,11 @@ export default function FinanzasPage() {
         { name: "Margen Bruto", value: summary.grossProfit, fill: "#22c55e" },
         { name: "Ad Spend", value: -summary.adSpend, fill: "#f97316" },
         { name: "Envios", value: -summary.shipping, fill: "#8b5cf6" },
-        { name: "Beneficio Op.", value: summary.operatingProfit, fill: summary.operatingProfit >= 0 ? "#22c55e" : "#ef4444" },
+        ...(summary.platformFees ? [{ name: "Comisiones", value: -(summary.platformFees), fill: "#6366f1" }] : []),
+        { name: "Beneficio Neto", value: netOp, fill: netOp >= 0 ? "#22c55e" : "#ef4444" },
       ]
     : [];
 
-  const presets = [
-    { key: "7d", label: "7 dias" },
-    { key: "30d", label: "30 dias" },
-    { key: "90d", label: "90 dias" },
-    { key: "thisMonth", label: "Este mes" },
-    { key: "lastMonth", label: "Mes anterior" },
-  ];
 
   if (loading) {
     return (
@@ -217,21 +229,15 @@ export default function FinanzasPage() {
           <h2 className="text-2xl font-bold text-gray-800">Finanzas</h2>
           <p className="text-sm text-gray-500 mt-0.5">P&L — Estado de Resultados</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {presets.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => handlePreset(p.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                activePreset === p.key
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "bg-white text-gray-600 border border-gray-200 hover:border-blue-300"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          activeQuickRange={activeQuickRange}
+          quickRanges={FIN_QUICK_RANGES}
+          onQuickRange={handleQuickRange}
+          onDateChange={handleDateChange}
+          loading={loading}
+        />
       </div>
 
       {/* COGS Coverage Warning */}
@@ -251,7 +257,7 @@ export default function FinanzasPage() {
       )}
 
       {/* ── KPI Cards Row 1: P&L Summary ─── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
         {[
           {
             label: "Revenue",
@@ -288,11 +294,17 @@ export default function FinanzasPage() {
             color: "border-purple-400",
           },
           {
-            label: "Beneficio Op.",
-            value: formatARS(summary.operatingProfit),
-            sub: `${summary.operatingMargin}% margen op.`,
+            label: "Comisiones",
+            value: formatARS(summary.platformFees || 0),
+            sub: bySource.map(s => `${s.source}: ${formatARS(s.platformFee)}`).join(" | ") || "Sin datos",
+            color: "border-indigo-400",
+          },
+          {
+            label: "Beneficio Neto",
+            value: formatARS(summary.netOperatingProfit ?? summary.operatingProfit),
+            sub: `${summary.netOperatingMargin ?? summary.operatingMargin}% margen neto op.`,
             changeKey: "operatingProfit" as keyof Changes,
-            color: summary.operatingProfit >= 0 ? "border-green-600" : "border-red-600",
+            color: (summary.netOperatingProfit ?? summary.operatingProfit) >= 0 ? "border-green-600" : "border-red-600",
           },
         ].map((kpi, i) => (
           <div
@@ -422,7 +434,15 @@ export default function FinanzasPage() {
             { label: "    Meta Ads", value: -summary.metaSpend, color: "text-gray-400", indent: true, small: true },
             { label: "    Google Ads", value: -summary.googleSpend, color: "text-gray-400", indent: true, small: true },
             { label: "(-) Costos de Envio", value: -summary.shipping, color: "text-purple-500", indent: true },
-            { label: "= Beneficio Operativo", value: summary.operatingProfit, bold: true, color: summary.operatingProfit >= 0 ? "text-green-700" : "text-red-700", pct: summary.operatingMargin, highlight: true },
+            { label: "(-) Comisiones de Plataforma", value: -(summary.platformFees || 0), color: "text-indigo-500", indent: true },
+            ...(bySource.map(s => ({
+              label: `    ${s.source === "MELI" ? "MercadoLibre" : s.source}: ${s.platformFeeLabel}`,
+              value: -s.platformFee,
+              color: "text-gray-400",
+              indent: true,
+              small: true,
+            }))),
+            { label: "= Beneficio Neto Operativo", value: (summary.netOperatingProfit ?? summary.operatingProfit), bold: true, color: (summary.netOperatingProfit ?? summary.operatingProfit) >= 0 ? "text-green-700" : "text-red-700", pct: (summary.netOperatingMargin ?? summary.operatingMargin), highlight: true },
           ].map((row, i) => (
             <div
               key={i}
@@ -451,6 +471,78 @@ export default function FinanzasPage() {
           ))}
         </div>
       </div>
+
+      {/* ── P&L por Canal (MELI vs VTEX) ─── */}
+      {bySource.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-700">P&L por Canal</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500 uppercase">Concepto</th>
+                  {bySource.map(s => (
+                    <th key={s.source} className="text-right px-5 py-2.5 text-xs font-medium text-gray-500 uppercase">
+                      {s.source === "MELI" ? "MercadoLibre" : s.source}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {[
+                  { label: "Revenue", key: "revenue", bold: true, color: "text-blue-600" },
+                  { label: "Ordenes", key: "orders", format: "num" },
+                  { label: "Ticket Promedio", key: "aov" },
+                  { label: "COGS", key: "cogs", negative: true },
+                  { label: "Margen Bruto", key: "grossProfit", bold: true },
+                  { label: "Margen Bruto %", key: "grossMargin", format: "pct" },
+                  { label: "Envios", key: "shipping", negative: true },
+                  { label: "Comisiones Plataforma", key: "platformFee", negative: true, color: "text-indigo-500" },
+                  { label: "Beneficio Operativo", key: "operatingProfit", bold: true },
+                  { label: "Margen Operativo %", key: "operatingMargin", format: "pct", bold: true },
+                ].map((row) => (
+                  <tr key={row.key} className={row.bold ? "bg-gray-50/50" : ""}>
+                    <td className={`px-5 py-2 ${row.bold ? "font-semibold text-gray-800" : "text-gray-600"}`}>
+                      {row.label}
+                    </td>
+                    {bySource.map(s => {
+                      const val = (s as any)[row.key];
+                      let display = "";
+                      if (row.format === "pct") display = `${val}%`;
+                      else if (row.format === "num") display = val.toLocaleString("es-AR");
+                      else display = formatARS(Math.abs(val));
+                      const isNeg = row.negative && val > 0;
+                      return (
+                        <td key={s.source} className={`px-5 py-2 text-right font-mono ${row.bold ? "font-bold" : "font-medium"} ${
+                          row.color || (row.bold && row.key === "operatingProfit"
+                            ? (val >= 0 ? "text-green-600" : "text-red-600")
+                            : "text-gray-700")
+                        }`}>
+                          {isNeg ? "-" : ""}{display}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                {/* Platform fee detail row */}
+                {bySource.some(s => s.platformFeeLabel) && (
+                  <tr>
+                    <td className="px-5 py-1.5 text-xs text-gray-400 pl-8" colSpan={bySource.length + 1}>
+                      {bySource.map(s => (
+                        <span key={s.source} className="mr-6">
+                          {s.source === "MELI" ? "ML" : s.source}: {s.platformFeeLabel}
+                        </span>
+                      ))}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Row: Category + Brand Margins ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

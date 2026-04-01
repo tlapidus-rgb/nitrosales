@@ -57,6 +57,8 @@ export async function GET(req: NextRequest) {
       dailyAdSpend,
       categoryMargins,
       brandMargins,
+      sourceBreakdown,
+      mlCommissions,
     ] = await Promise.all([
       // 1. Total Revenue
       prisma.$queryRaw<[{ revenue: string; orders: string; units: string }]>`
@@ -193,6 +195,59 @@ export async function GET(req: NextRequest) {
         ORDER BY SUM(oi."totalPrice") DESC
         LIMIT 20
       `,
+
+      // 10. Revenue, COGS, Shipping, Orders by source (MELI vs VTEX)
+      // Uses subqueries to avoid double-counting from order_items join
+      prisma.$queryRaw<{ source: string; revenue: string; cogs: string; shipping: string; orders: string; units: string }[]>`
+        SELECT
+          rev.source,
+          rev.revenue,
+          COALESCE(cog.cogs, '0') as cogs,
+          rev.shipping,
+          rev.orders,
+          COALESCE(cog.units, '0') as units
+        FROM (
+          SELECT
+            o.source,
+            COALESCE(SUM(o."totalValue"), 0)::text as revenue,
+            COALESCE(SUM(o."shippingCost"), 0)::text as shipping,
+            COUNT(DISTINCT o.id)::text as orders
+          FROM orders o
+          WHERE o."organizationId" = ${ORG_ID}
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o."orderDate" >= ${fromDate}
+            AND o."orderDate" <= ${toDate}
+          GROUP BY o.source
+        ) rev
+        LEFT JOIN (
+          SELECT
+            o.source,
+            COALESCE(SUM(oi.quantity * COALESCE(oi."costPrice", p."costPrice", 0)), 0)::text as cogs,
+            COALESCE(SUM(oi.quantity), 0)::text as units
+          FROM order_items oi
+          INNER JOIN orders o ON oi."orderId" = o.id
+          LEFT JOIN products p ON oi."productId" = p.id
+          WHERE o."organizationId" = ${ORG_ID}
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o."orderDate" >= ${fromDate}
+            AND o."orderDate" <= ${toDate}
+          GROUP BY o.source
+        ) cog ON rev.source = cog.source
+        ORDER BY rev.revenue DESC
+      `,
+
+      // 11. ML Commissions (may be empty if sync not configured)
+      prisma.$queryRaw<[{ commission: string; tax_withholdings: string; net_amount: string; count: string }]>`
+        SELECT
+          COALESCE(SUM(mc."commissionAmount"), 0)::text as commission,
+          COALESCE(SUM(mc."taxWithholdings"), 0)::text as tax_withholdings,
+          COALESCE(SUM(mc."netAmount"), 0)::text as net_amount,
+          COUNT(mc.id)::text as count
+        FROM ml_commissions mc
+        WHERE mc."organizationId" = ${ORG_ID}
+          AND mc."orderDate" >= ${fromDate}
+          AND mc."orderDate" <= ${toDate}
+      `,
     ]);
 
     // ── Comparison period ──────────────────────────────
@@ -242,6 +297,8 @@ export async function GET(req: NextRequest) {
 
     const grossProfit = revenue - cogs;
     const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+    // Note: operatingProfit here is pre-platform-fees (global view)
+    // The bySource breakdown includes platform-specific fees
     const operatingProfit = grossProfit - adSpend - shipping;
     const operatingMargin = revenue > 0 ? (operatingProfit / revenue) * 100 : 0;
     const aov = orders > 0 ? revenue / orders : 0;
@@ -307,6 +364,63 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // Source breakdown (MELI vs VTEX) with platform costs
+    const VTEX_VARIABLE_RATE = 0.025; // 2.5% of gross revenue
+    // VTEX fixed cost TBD — placeholder for when user provides it
+    const VTEX_FIXED_COST = 0;
+
+    const bySource = sourceBreakdown.map((s) => {
+      const rev = parseFloat(s.revenue);
+      const cost = parseFloat(s.cogs);
+      const ship = parseFloat(s.shipping);
+      const ord = parseInt(s.orders);
+      const un = parseInt(s.units);
+      const gross = rev - cost;
+      const grossM = rev > 0 ? (gross / rev) * 100 : 0;
+
+      // Platform-specific costs
+      let platformFee = 0;
+      let platformFeeLabel = "";
+      let mlCommission = 0;
+      let mlTaxWithholdings = 0;
+
+      if (s.source === "MELI") {
+        mlCommission = parseFloat(mlCommissions[0].commission);
+        mlTaxWithholdings = parseFloat(mlCommissions[0].tax_withholdings);
+        platformFee = mlCommission + mlTaxWithholdings;
+        platformFeeLabel = mlCommission > 0
+          ? "Comisiones + retenciones ML"
+          : "Comisiones ML (sin datos de sync)";
+      } else if (s.source === "VTEX") {
+        platformFee = rev * VTEX_VARIABLE_RATE + VTEX_FIXED_COST;
+        platformFeeLabel = `VTEX ${VTEX_VARIABLE_RATE * 100}% variable${VTEX_FIXED_COST > 0 ? " + fijo" : ""}`;
+      }
+
+      const operatingP = gross - ship - platformFee;
+      const operatingM = rev > 0 ? (operatingP / rev) * 100 : 0;
+
+      return {
+        source: s.source,
+        revenue: Math.round(rev),
+        orders: ord,
+        units: un,
+        cogs: Math.round(cost),
+        grossProfit: Math.round(gross),
+        grossMargin: Math.round(grossM * 10) / 10,
+        shipping: Math.round(ship),
+        platformFee: Math.round(platformFee),
+        platformFeeLabel,
+        mlCommission: Math.round(mlCommission),
+        mlTaxWithholdings: Math.round(mlTaxWithholdings),
+        operatingProfit: Math.round(operatingP),
+        operatingMargin: Math.round(operatingM * 10) / 10,
+        aov: ord > 0 ? Math.round(rev / ord) : 0,
+      };
+    });
+
+    // Total platform costs (for global P&L)
+    const totalPlatformFees = bySource.reduce((sum, s) => sum + s.platformFee, 0);
+
     const brands = brandMargins.map((b) => {
       const rev = parseFloat(b.revenue);
       const cost = parseFloat(b.cogs);
@@ -336,8 +450,14 @@ export async function GET(req: NextRequest) {
         metaSpend: Math.round(metaSpend),
         googleSpend: Math.round(googleSpend),
         shipping: Math.round(shipping),
+        platformFees: Math.round(totalPlatformFees),
         operatingProfit: Math.round(operatingProfit),
         operatingMargin: Math.round(operatingMargin * 10) / 10,
+        // Net operating (after platform fees)
+        netOperatingProfit: Math.round(operatingProfit - totalPlatformFees),
+        netOperatingMargin: revenue > 0
+          ? Math.round(((operatingProfit - totalPlatformFees) / revenue) * 1000) / 10
+          : 0,
       },
       changes: {
         revenue: pctChange(revenue, prevRevenue),
@@ -349,6 +469,7 @@ export async function GET(req: NextRequest) {
       dailyTrend,
       categories,
       brands,
+      bySource,
     });
   } catch (error: any) {
     console.error("P&L API error:", error);
