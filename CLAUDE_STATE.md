@@ -163,7 +163,7 @@
 | 2 | Integracion de protecciones en rutas | COMPLETADA | 8256d3f |
 | 3 | Tests + integridad de datos + tipado | COMPLETADA | dcdcb22..71ff8b9 |
 | 4A | Infra: Prisma Migrate, cred centralization, encryption, auth guard | EN CURSO | pendiente commit |
-| 4B | Bot de IA con datos multi-fuente | PROXIMO — datos listos, plan definido | - |
+| 4B | Bot de IA con datos multi-fuente | EN DEFINICION — concepto 2 capas, detalles pendientes | - |
 
 ### Pendiente: Connection Pooling (Fase 2.5)
 - Requiere DATABASE_URL_DIRECT env var en Vercel
@@ -562,69 +562,21 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 ---
 
 
-## PLAN: BOT DE IA — Consultor de $100K/hora (Fase 4B)
+## PENDIENTE: BOT DE IA (Fase 4B)
 
-### Ultima actualizacion: 2026-04-01
-### Estado: PROXIMO A IMPLEMENTAR
+### Estado: EN DEFINICION — no implementar sin aprobacion
 
-### Concepto
-Dos capas de bot integradas en NitroSales:
+### Concepto general
+Bot de IA en 2 capas:
+- **Capa 1**: Mini-bots contextuales por KPI/seccion (analiza el dato puntual que esta mirando el usuario)
+- **Capa 2**: Bot general estrategico que cruza datos de todas las fuentes (MELI + SEO + VTEX + Stock)
 
-**Capa 1: Mini-bots contextuales (por KPI/seccion)**
-- Boton de chat junto a cada KPI o grafico del dashboard
-- Se abre un chat que YA tiene el contexto del dato que esta mirando el usuario
-- Ejemplo: si esta en CTR de SEO, el bot sabe que el CTR es 1.13% y su posicion 7.6
-- Responde con analisis puntual y acciones concretas para ese KPI especifico
-- Prompt del sistema incluye: dato actual, periodo, cambio vs anterior, benchmark del sector
+### Notas
+- Los detalles de arquitectura e implementacion NO estan definidos todavia
+- Requiere ANTHROPIC_API_KEY en Vercel
+- Todas las APIs de datos necesarias ya existen y funcionan
+- NO avanzar con implementacion hasta que el usuario defina el alcance exacto
 
-**Capa 2: Bot general estrategico**
-- Seccion dedicada /chat o /consultor
-- Tiene acceso a TODOS los datos cruzados: MELI + SEO + VTEX + Stock + Ads
-- Actua como consultor senior de marketing y ecommerce
-- Puede cruzar datos entre secciones para dar insights que ningun dashboard individual muestra
-- Ejemplo: "Keywords de SEO que coinciden con productos sin stock en MELI"
-- Ejemplo: "Plan de accion semanal basado en todos los datos"
-
-### Arquitectura tecnica
-
-**Endpoint central**: POST /api/chat
-- Recibe: { message, context?, conversationHistory? }
-- context: opcional, para mini-bots incluye los datos del KPI
-- Para bot general: hace queries a las APIs internas para armar el contexto completo
-- Llama a Claude API con system prompt especifico
-- Devuelve: { response, suggestions? }
-
-**System prompts (2 tipos)**:
-1. Mini-bot: "Sos un analista de [seccion]. El usuario esta mirando [KPI] = [valor]. Periodo: [fechas]. Cambio: [%]. Datos adicionales: [contexto]. Da analisis accionable en 2-3 parrafos."
-2. Bot general: "Sos el consultor de ecommerce mas caro del mundo. Tenes acceso a todos los datos de NitroSales. [dump de KPIs de todas las secciones]. Da recomendaciones estrategicas cruzando datos."
-
-**Datos disponibles para el bot general**:
-- MELI: 185K ordenes, 32K listings, reputacion, preguntas, cancelaciones
-- SEO: 2M query rows, keywords, posiciones, oportunidades, canibalizacion
-- VTEX: 31K productos, categorias, marcas, stock
-- Pixel: visitantes, fuentes de trafico, atribucion
-- Todo via las APIs ya existentes (/api/metrics/*, /api/mercadolibre/*)
-
-**Frontend**:
-- Componente ChatBubble reutilizable (boton + panel de chat)
-- Se instancia en cada KpiCard con context={dato}
-- Pagina /chat para el bot general con historial de conversacion
-- Streaming de respuesta (SSE) para UX fluida
-
-### Dependencias
-- ANTHROPIC_API_KEY en Vercel env vars (necesaria)
-- Todas las APIs de datos ya existen y funcionan
-- No requiere nueva tabla en DB (opcionalmente guardar historial en tabla chat_messages)
-
-### Estimacion
-- Endpoint /api/chat: ~200 lineas
-- Componente ChatBubble: ~150 lineas
-- Pagina /chat: ~200 lineas
-- Integracion en dashboards existentes: ~50 lineas por seccion
-- System prompts: ~100 lineas
-- Total: ~800-1000 lineas de codigo nuevo
-
----
 
 ## GOOGLE SEARCH CONSOLE (SEO Intelligence) — Estado al 2026-04-01
 
