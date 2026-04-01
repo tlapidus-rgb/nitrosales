@@ -25,7 +25,8 @@ const POSITION_LABELS: Record<string, string> = {
 const COUNTRY_NAMES: Record<string, string> = {
   ARG: "Argentina", BRA: "Brasil", CHL: "Chile", URY: "Uruguay", MEX: "Mexico",
   USA: "Estados Unidos", COL: "Colombia", PER: "Peru", ESP: "Espana", BOL: "Bolivia",
-  PRY: "Paraguay", ECU: "Ecuador",
+  PRY: "Paraguay", ECU: "Ecuador", DOM: "Rep. Dominicana", VEN: "Venezuela",
+  CRI: "Costa Rica", PAN: "Panama", GTM: "Guatemala",
 };
 
 const TABS = [

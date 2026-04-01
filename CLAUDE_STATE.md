@@ -171,6 +171,17 @@
 
 ## HISTORIAL DE CAMBIOS
 
+### 2026-04-02 (Auditoria completa + fixes quirurgicos pre-demo)
+- Auditoria profunda de las 10 secciones, 29 rutas de sync, 9 crons, y consistencia cross-seccion
+- Fix ML Dashboard: agregado status filter `notIn: ['CANCELLED', 'RETURNED']` a KPIs, grafico diario, y payment methods
+- Fix ML Preguntas: removido `take: 200` del calculo de promedio de tiempo de respuesta (ahora usa todas las 1,048 respondidas)
+- Fix Google Ads sync: cambiado timezone de `T00:00:00Z` a `T00:00:00.000-03:00` en 5 instancias (campaign, ad group, creative metrics)
+- Fix SEO frontend: agregadas traducciones de paises faltantes (DOM, VEN, CRI, PAN, GTM)
+- Verificado GA4 sync: FUNCIONANDO (7K-12K sessions/dia, datos hasta 31/03)
+- Verificado VIEW_PRODUCT y ADD_TO_CART: FUNCIONANDO (75K y 12K eventos respectivamente)
+- Verificado brand coverage: 66.3% (15,298 de 23,088 productos), mejorado desde 26%
+- CLAUDE_STATE actualizado con hallazgos reales vs documentados
+
 ### 2026-04-01 (GSC Integration + SEO Intelligence v2)
 - GSC conectado: service account con permiso Completo en Search Console
 - GSC sync: endpoint dia-por-dia para evitar OOM (14K-33K rows/dia)
@@ -427,16 +438,15 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 ### PENDIENTES PIXEL
 
 #### PENDIENTE #1: RESUELTO — Comparacion NitroPixel vs GA4
-- **Resultado 2026-03-25**: GA4 sync esta ROTO desde 19/03 (muestra 1-12 sesiones/dia vs 300-570 antes).
-  La service account o property ID puede haber cambiado. Datos confiables solo hasta 18/03.
+- **Resultado 2026-03-25**: GA4 sync estuvo ROTO desde 19/03 hasta ~fin de marzo (mostraba 1-12 sesiones/dia).
+  **RESUELTO**: Verificado 2026-04-01, datos normales desde al menos 02/03 (7K-12K sessions/dia). Sync OK.
 - **Baseline GA4 (pre-19/03)**: avg 8,468 users/dia, 10.5 pages/session, 106K PVs/dia.
 - **NitroPixel 24/03**: 5,087 visitors, 1.9 pages/session, 10,850 PVs.
 - **Diagnostico**: NitroPixel mostraba MENOS que GA4 porque no trackeaba SPA navigation.
   VTEX es SPA, y GA4 cuenta cada navegacion interna. FIX aplicado en commit 8e7cba6.
 - **POST-FIX esperado**: Con SPA tracking, NitroPixel deberia subir a ~8-10 pages/session,
   acercandose a GA4. Visitantes unicos deberian ser similares o ligeramente mayores.
-- **ACCION PENDIENTE**: Verificar GA4 service account — datos rotos desde 19/03. Revisar
-  GA4_SERVICE_ACCOUNT_KEY y GA4_PROPERTY_ID en Vercel env vars.
+- **RESUELTO 2026-04-01**: GA4 service account OK. Datos normales en todo marzo.
 
 #### PENDIENTE #2: totalPageViews cuenta TODOS los eventos, no solo PAGE_VIEW
 - **Que**: La query del dashboard usa COUNT(*) como "totalPageViews" pero cuenta IDENTIFY,
@@ -457,12 +467,10 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 - ADD_TO_CART ahora intercepta VTEX orderForm API (fetch + XHR).
 - SPA tracking genera PAGE_VIEW + VIEW_PRODUCT en navegaciones internas.
 
-#### PENDIENTE #5: GA4 sync roto desde 19/03
-- Los datos de GA4 en web_metrics_daily muestran 1-12 sesiones/dia desde 19/03 (vs 300-570 antes).
-- Causa probable: service account perdio acceso, o GA4 property ID cambio.
-- Verificar: GA4_SERVICE_ACCOUNT_KEY y GA4_PROPERTY_ID en Vercel environment variables.
-- Verificar en Google Analytics admin que la service account nitrosales-analytics@nitrosales-489804
-  tiene acceso de lectura al property.
+#### PENDIENTE #5: RESUELTO — GA4 sync roto desde 19/03
+- **Verificado 2026-04-01**: GA4 sync funcionando correctamente. Datos completos hasta 31/03.
+- Volumenes normales: 7,000-12,000 sessions/dia, 6,000-10,000 users/dia, 65K-107K pageviews/dia.
+- Connection status: ACTIVE, sin errores.
 
 ---
 

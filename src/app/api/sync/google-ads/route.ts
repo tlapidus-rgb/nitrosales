@@ -181,7 +181,7 @@ export async function GET(req: Request) {
         }
 
         const dateStr = row.segments.date; // "2026-03-01"
-        const metricDate = new Date(dateStr + "T00:00:00Z");
+        const metricDate = new Date(dateStr + "T00:00:00.000-03:00");
 
         const impressions = parseInt(row.metrics.impressions || "0");
         const clicks = parseInt(row.metrics.clicks || "0");
@@ -314,7 +314,7 @@ export async function GET(req: Request) {
             where: {
               adSetId_date: {
                 adSetId: dbAdGroupId,
-                date: new Date(dateStr + "T00:00:00Z"),
+                date: new Date(dateStr + "T00:00:00.000-03:00"),
               },
             },
             update: {
@@ -328,7 +328,7 @@ export async function GET(req: Request) {
             },
             create: {
               adSetId: dbAdGroupId,
-              date: new Date(dateStr + "T00:00:00Z"),
+              date: new Date(dateStr + "T00:00:00.000-03:00"),
               platform: "GOOGLE",
               impressions: parseInt(row.metrics?.impressions || "0"),
               clicks: parseInt(row.metrics?.clicks || "0"),
@@ -468,7 +468,7 @@ export async function GET(req: Request) {
             where: {
               creativeId_date: {
                 creativeId: dbCreative.id,
-                date: new Date(dateStr + "T00:00:00Z"),
+                date: new Date(dateStr + "T00:00:00.000-03:00"),
               },
             },
             update: {
@@ -482,7 +482,7 @@ export async function GET(req: Request) {
             },
             create: {
               creativeId: dbCreative.id,
-              date: new Date(dateStr + "T00:00:00Z"),
+              date: new Date(dateStr + "T00:00:00.000-03:00"),
               platform: "GOOGLE",
               impressions: parseInt(row.metrics?.impressions || "0"),
               clicks: parseInt(row.metrics?.clicks || "0"),

@@ -38,7 +38,6 @@ export async function GET(req: NextRequest) {
         answerDate: { not: null },
       },
       select: { dateCreated: true, answerDate: true },
-      take: 200,
       orderBy: { dateCreated: "desc" },
     });
 
