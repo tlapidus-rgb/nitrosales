@@ -1,4 +1,12 @@
 {
+  "functions": {
+    "app/api/sync/mercadolibre/**/*": {
+      "maxDuration": 300
+    },
+    "app/api/cron/ml-sync/*": {
+      "maxDuration": 300
+    }
+  },
   "crons": [
     {
       "path": "/api/sync?key=nitrosales-secret-key-2024-production",
