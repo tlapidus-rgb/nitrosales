@@ -16,6 +16,8 @@ function generateCuid(): string {
   return "c" + ts + rand;
 }
 
+export const maxDuration = 800;
+
 export async function GET(request: NextRequest) {
   const start = Date.now();
   try {
@@ -43,17 +45,39 @@ export async function GET(request: NextRequest) {
     // ── Get access token ──
     const accessToken = await getGSCAccessToken(serviceAccount);
 
-    // ── Date range: last 90 days (GSC has good historical data) ──
+    // ── Date range ──
     // GSC data has ~3 day delay, so endDate = today - 3
+    // Daily cron: sync last 7 days (incremental, ~14K rows/day = ~100K total)
+    // Backfill: use ?days=90 param for larger range (run manually, not via cron)
+    const daysParam = parseInt(searchParams.get("days") || "7", 10);
+    const days = Math.min(daysParam, 90); // GSC max useful range ~90 days
+
     const now = new Date();
     const endDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-    const startDate = new Date(endDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
 
     const startStr = startDate.toISOString().split("T")[0];
     const endStr = endDate.toISOString().split("T")[0];
 
-    // ── Fetch from GSC ──
-    const rows = await fetchAllSearchAnalytics(accessToken, siteUrl, startStr, endStr);
+    // ── Fetch from GSC day by day to avoid memory issues ──
+    // (~14K rows/day for elmundodeljuguete, 90 days = 1.2M rows = OOM)
+    const allRows: Awaited<ReturnType<typeof fetchAllSearchAnalytics>> = [];
+    const dayMs = 24 * 60 * 60 * 1000;
+    let currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+      const dayStr = currentDate.toISOString().split("T")[0];
+      const dayRows = await fetchAllSearchAnalytics(accessToken, siteUrl, dayStr, dayStr);
+      allRows.push(...dayRows);
+      currentDate = new Date(currentDate.getTime() + dayMs);
+
+      // Safety: if we've been running too long (700s), stop and return partial
+      if (Date.now() - start > 700_000) {
+        break;
+      }
+    }
+
+    const rows = allRows;
 
     if (rows.length === 0) {
       // Update connection status even with no data
@@ -61,32 +85,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: true, rows: 0, new: 0, ms: Date.now() - start });
     }
 
-    // ── Refresh strategy: delete last 5 days (positions fluctuate) ──
-    const refreshCutoff = new Date(endDate.getTime() - 5 * 24 * 60 * 60 * 1000);
-    const refreshStr = refreshCutoff.toISOString().split("T")[0];
-
+    // ── Refresh strategy: delete the entire fetched range (positions fluctuate daily) ──
     await prisma.$executeRawUnsafe(`
       DELETE FROM seo_query_daily
-      WHERE "organizationId" = $1 AND date >= $2::date
-    `, org.id, refreshStr);
+      WHERE "organizationId" = $1 AND date >= $2::date AND date <= $3::date
+    `, org.id, startStr, endStr);
 
     await prisma.$executeRawUnsafe(`
       DELETE FROM seo_page_daily
-      WHERE "organizationId" = $1 AND date >= $2::date
-    `, org.id, refreshStr);
+      WHERE "organizationId" = $1 AND date >= $2::date AND date <= $3::date
+    `, org.id, startStr, endStr);
 
-    // ── Get existing dates to skip older data ──
-    const existingRows: Array<{ date: Date }> = await prisma.$queryRawUnsafe(`
-      SELECT DISTINCT date FROM seo_query_daily
-      WHERE "organizationId" = $1
-    `, org.id);
-    const existingDates = new Set(existingRows.map(r => r.date.toISOString().split("T")[0]));
-
-    // ── Filter to new rows only ──
-    const newRows = rows.filter(row => {
-      const dateStr = row.keys[0]; // date is first dimension
-      return !existingDates.has(dateStr);
-    });
+    const newRows = rows;
 
     // ── Insert seo_query_daily in batches of 500 ──
     let insertedQuery = 0;
@@ -161,9 +171,8 @@ export async function GET(request: NextRequest) {
       rows: rows.length,
       newQueryRows: insertedQuery,
       newPageRows: insertedPage,
-      skipped: rows.length - newRows.length,
       dateRange: { from: startStr, to: endStr },
-      refreshCutoff: refreshStr,
+      days,
       ms: Date.now() - start,
     });
   } catch (e: any) {
