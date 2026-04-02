@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ãltima actualizacion: 2026-04-02
+## Ultima actualizacion: 2026-04-02 (Sesion 3 — LTV Prediction Engine)
 
 ---
 
@@ -110,6 +110,17 @@
 | src/app/api/finance/shipping-rates/carriers/route.ts | **v1** | ACTIVO | Lista carriers y servicios disponibles. |
 | src/app/api/sync/cost-prices/route.ts | **v2** | ACTIVO | Sync precios de costo desde VTEX. Usa Pricing API (primary) + Catalog API (fallback). Fix critico: Pricing API tiene el costPrice, Catalog NO. |
 
+### LTV & PREDICCION (Lifetime Value) — NUEVO 2026-04-02
+
+| Archivo | Version | Estado | Notas |
+|---------|---------|--------|-------|
+| src/app/(app)/customers/ltv/page.tsx | **v2** | ACTIVO | Dashboard LTV + seccion de predicciones (violeta). KPIs, chart por canal, cohort heatmap, repurchase pattern, top customers. Seccion pLTV con: KPIs prediccion, tabla por canal, top 10 predichos, distribucion segmentos. Solo VTEX (MELI excluido). |
+| src/app/api/metrics/ltv/route.ts | **v2** | ACTIVO | 7 queries paralelas: summary, prev period, by channel, cohort retention, repurchase, ad spend, top customers. MELI_EXCLUDE en todas las queries. |
+| src/app/api/ltv/predict/route.ts | **v1** | ACTIVO | GET: retorna predicciones existentes + resumen. POST: ejecuta batch prediction para todos los clientes. NO envia nada a plataformas. |
+| src/lib/ltv/prediction-engine.ts | **v1** | ACTIVO | Motor de prediccion cohort-based pLTV. Segmentos = canal x bucket de ticket. Clientes nuevos: cohort lookup. Clientes recurrentes: 70% historia personal + 30% segmento. Confianza 0-1. |
+| src/lib/ltv/send-meta.ts | **v1** | DESACTIVADO | Envia predicted_ltv a Meta CAPI. Triple candado: LTV_SEND_ENABLED env var + confidence >= 0.5 + flag sentToMeta por cliente. NO ACTIVAR sin aprobacion de Tomy. |
+| src/lib/ltv/send-google.ts | **v1** | DESACTIVADO | Envia RESTATEMENT a Google Ads ConversionAdjustmentUploadService. Triple candado identico al de Meta. Ventana de ajuste: 55 dias. NO ACTIVAR sin aprobacion de Tomy. |
+
 ### INFRAESTRUCTURA
 
 | Archivo | VersiÃ³n | Estado | Notas |
@@ -118,13 +129,37 @@
 | src/lib/crypto.ts | **v1** | NEW | AES-256-GCM credential encryption |
 | src/lib/auth-guard.ts | **v1** | NEW | Org resolution from NextAuth session |
 | src/lib/db/client.ts | **v1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client |
-| prisma/schema.prisma | **v2** | ACTIVO | +65 lineas: ManualCost, ShippingRate models. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. **Requiere prisma db push.** |
+| prisma/schema.prisma | **v3** | ACTIVO | +CustomerLtvPrediction model (2026-04-02). +ManualCost, ShippingRate. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. Prisma db push ejecutado. |
 | vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
 ---
 
 ## FUNCIONALIDADES COMPLETADAS (NO TOCAR, NO RE-IMPLEMENTAR, NO MENCIONAR COMO PENDIENTES)
+
+
+### LTV Dashboard + Prediccion de LTV -- COMPLETADO Y EN PRODUCCION
+- Dashboard: src/app/(app)/customers/ltv/page.tsx -- 5 secciones analiticas + seccion predicciones
+- Motor de prediccion: src/lib/ltv/prediction-engine.ts -- Cohort-based pLTV, TypeScript puro, sin dependencias externas
+- API: src/app/api/ltv/predict/route.ts -- GET/POST, batch prediction
+- Envio Meta CAPI: src/lib/ltv/send-meta.ts -- Campo predicted_ltv en custom_data -- **DESACTIVADO**
+- Envio Google Ads: src/lib/ltv/send-google.ts -- RESTATEMENT ConversionAdjustmentUploadService -- **DESACTIVADO**
+- Nav: Clientes > Segmentacion | Lifetime Value (children en layout.tsx)
+- MELI excluido de TODOS los queries (no tiene datos de clientes)
+- Triple candado de seguridad: env var LTV_SEND_ENABLED + confidence threshold 0.5 + flag por cliente
+- Modelo: para clientes nuevos (1 compra) usa cohort lookup (canal x bucket ticket). Para recurrentes (2+) blendea 70% historia personal + 30% segmento
+- Ticket buckets: low <= $30K, medium <= $80K, high > $80K (ARS, ajustar si inflacion)
+- Commits: d950cef (dashboard), b058253 (MELI exclusion), d4eb371 (prediction engine)
+- Prisma model: CustomerLtvPrediction con campos predictedLtv90d, predictedLtv365d, confidence, acquisitionChannel, segmentBucket, sentToMeta, sentToGoogle
+- **ESTADO: ANALYTICS TERMINADO. ENVIO A PLATAFORMAS PENDIENTE APROBACION DE TOMY.**
+- **PROHIBIDO: NO activar LTV_SEND_ENABLED ni enviar datos a Meta/Google sin aprobacion explicita del usuario.**
+
+### Decisiones del usuario sobre LTV (para contexto de proximas sesiones)
+- Tomy quiere validar las predicciones en el dashboard antes de activar envio a plataformas
+- Preocupacion principal: que predicciones malas sean arma de doble filo
+- No quiere que solo se envien los de alto valor -- entiende que Meta/Google necesitan el rango completo para optimizar
+- Pregunto sobre estacionalidad (Dia del Nino en agosto para jugueteria) -- modelo actual no la considera explicitamente pero captura patrones via datos historicos. Se podria agregar indice estacional como mejora futura.
+- Para clientes nuevos de NitroSales: el modelo empieza a dar valor con 50-100 clientes recurrentes. Primeros meses = solo dashboard, envio a plataformas cuando confianza promedio > 60-70%.
 
 ### â Tendencias de Venta â COMPLETADO Y EN PRODUCCIÃN
 - Incluido en products/page.tsx v10.1
@@ -197,6 +232,44 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-02 — Sesion 3 (LTV Dashboard + Motor de Prediccion pLTV)
+
+**Commits**: d950cef (LTV dashboard), b058253 (MELI exclusion fix), d4eb371 (prediction engine + send modules)
+**Deploy**: Vercel auto-deploy OK (d4eb371 -> main)
+
+#### Que se hizo:
+1. **LTV Analytics Dashboard** (d950cef)
+   - Nuevo endpoint GET /api/metrics/ltv con 7 queries paralelas SQL
+   - Nueva pagina /customers/ltv con: KPIs (LTV promedio, tasa recompra, dias p/ recompra, LTV:CAC), chart por canal, cohort retention heatmap, patron de recompra, top 20 clientes
+   - Nav actualizado: Clientes ahora tiene children (Segmentacion + Lifetime Value)
+
+2. **MercadoLibre Exclusion** (b058253) — fix critico identificado por Tomy
+   - MercadoLibre no comparte datos de clientes (no email, no nombre, no customerId)
+   - Agregado `AND o."source" != 'MELI'` a TODAS las queries LTV
+   - Removido ML del frontend, agregado badge "Solo Tienda Propia (VTEX)"
+
+3. **Motor de Prediccion pLTV** (d4eb371)
+   - prediction-engine.ts: modelo cohort-based inspirado en BG/NBD. Segmentos = canal x ticket bucket
+   - Clientes 1 compra: cohort lookup. Clientes 2+: blend 70% personal / 30% segmento
+   - POST /api/ltv/predict: batch prediction para todos los clientes
+   - send-meta.ts: envio de predicted_ltv a Meta CAPI (DESACTIVADO)
+   - send-google.ts: RESTATEMENT a Google Ads Conversion Adjustments (DESACTIVADO)
+   - Frontend: seccion predicciones en dashboard LTV con KPIs, tabla, distribucion
+   - Prisma: nuevo modelo CustomerLtvPrediction con triple candado seguridad
+
+#### Schema changes:
+- Nuevo model: CustomerLtvPrediction (customer_ltv_predictions table)
+- Relaciones: Customer.ltvPredictions[], Organization.ltvPredictions[]
+- Indices: orgId+segmentBucket, orgId+sentToMeta, orgId+sentToGoogle
+- **prisma db push ejecutado exitosamente**
+
+#### Decisiones tomadas con Tomy:
+- Envio a Meta/Google DESACTIVADO hasta que Tomy apruebe (ve y valida las predicciones primero)
+- Se discutio enviar solo alto valor — explicado que Meta/Google necesitan rango completo
+- Se discutio estacionalidad (Dia del Nino agosto) — modelo captura patrones via datos historicos, mejora futura posible
+- Se discutio requisito de datos historicos — no requiere 3 anios, con 50-100 clientes recurrentes ya funciona
+- Ruta cost-free: prediccion in-house + batch delivery, sin Google Vertex AI
 
 ### 2026-04-02 — Sesion 2 (P&L Dual View + InfoTips + Cost Prices Sync Fix)
 
