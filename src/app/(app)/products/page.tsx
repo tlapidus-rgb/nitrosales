@@ -204,6 +204,8 @@ export default function ProductsPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "trends" | "stock" | "margins">("overview");
   const [marginAnalysis, setMarginAnalysis] = useState<MarginAnalysis | null>(null);
   const [marginPage, setMarginPage] = useState(1);
+  const [marginSort, setMarginSort] = useState<SortState>({ column: "marginPct", direction: "desc" });
+  const [marginRangeFilter, setMarginRangeFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -539,6 +541,118 @@ export default function ProductsPage() {
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `productos_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  /* ── Margin catalog: filter, sort, paginate ───────── */
+  const MARGIN_PER_PAGE = 30;
+
+  const MARGIN_CHIPS = [
+    { key: "", label: "Todos", color: "gray" },
+    { key: "negative", label: "Negativo", color: "red" },
+    { key: "0-30", label: "0-30%", color: "amber" },
+    { key: "30-50", label: "30-50%", color: "yellow" },
+    { key: "50-70", label: "50-70%", color: "green" },
+    { key: "70+", label: "70%+", color: "emerald" },
+  ];
+
+  const marginCatalog = useMemo(() => {
+    // Only products with costPrice
+    let items = filtered.filter((p) => p.costPrice != null && p.costPrice > 0);
+    // Apply margin range filter
+    if (marginRangeFilter) {
+      items = items.filter((p) => {
+        const m = p.marginPct ?? -999;
+        switch (marginRangeFilter) {
+          case "negative": return m < 0;
+          case "0-30": return m >= 0 && m < 30;
+          case "30-50": return m >= 30 && m < 50;
+          case "50-70": return m >= 50 && m < 70;
+          case "70+": return m >= 70;
+          default: return true;
+        }
+      });
+    }
+    return items;
+  }, [filtered, marginRangeFilter]);
+
+  const marginChipCounts = useMemo(() => {
+    const items = filtered.filter((p) => p.costPrice != null && p.costPrice > 0);
+    return {
+      "": items.length,
+      negative: items.filter((p) => (p.marginPct ?? 0) < 0).length,
+      "0-30": items.filter((p) => (p.marginPct ?? 0) >= 0 && (p.marginPct ?? 0) < 30).length,
+      "30-50": items.filter((p) => (p.marginPct ?? 0) >= 30 && (p.marginPct ?? 0) < 50).length,
+      "50-70": items.filter((p) => (p.marginPct ?? 0) >= 50 && (p.marginPct ?? 0) < 70).length,
+      "70+": items.filter((p) => (p.marginPct ?? 0) >= 70).length,
+    };
+  }, [filtered]);
+
+  const marginSorted = useMemo(() => {
+    if (!marginSort.column || !marginSort.direction) return marginCatalog;
+    return [...marginCatalog].sort((a, b) => {
+      let aV: number, bV: number;
+      switch (marginSort.column) {
+        case "avgPrice": aV = a.avgPrice; bV = b.avgPrice; break;
+        case "costPrice": aV = a.costPrice ?? 0; bV = b.costPrice ?? 0; break;
+        case "marginPct": aV = a.marginPct ?? -999; bV = b.marginPct ?? -999; break;
+        case "marginAbs": aV = a.marginAbs ?? 0; bV = b.marginAbs ?? 0; break;
+        case "unitsSold": aV = a.unitsSold; bV = b.unitsSold; break;
+        case "revenue": aV = a.revenue; bV = b.revenue; break;
+        case "cogs": aV = a.cogs ?? 0; bV = b.cogs ?? 0; break;
+        case "stock": aV = a.stock ?? 0; bV = b.stock ?? 0; break;
+        case "marginPerUnit": {
+          const aCost = a.costPrice ?? 0;
+          const bCost = b.costPrice ?? 0;
+          aV = a.avgPrice - aCost;
+          bV = b.avgPrice - bCost;
+          break;
+        }
+        default: return 0;
+      }
+      return marginSort.direction === "asc" ? (aV > bV ? 1 : -1) : (aV < bV ? 1 : -1);
+    });
+  }, [marginCatalog, marginSort]);
+
+  const marginTotalPages = Math.ceil(marginSorted.length / MARGIN_PER_PAGE);
+  const marginPaginated = useMemo(() => {
+    const s = (marginPage - 1) * MARGIN_PER_PAGE;
+    return marginSorted.slice(s, s + MARGIN_PER_PAGE);
+  }, [marginSorted, marginPage]);
+
+  useEffect(() => { setMarginPage(1); }, [marginRangeFilter, marginSort, brandFilter, categoryFilter, searchTerm]);
+
+  const handleMarginSort = (col: string) => {
+    setMarginSort((prev) => {
+      if (prev.column === col) {
+        if (prev.direction === "asc") return { column: col, direction: "desc" };
+        if (prev.direction === "desc") return { column: null, direction: null };
+      }
+      return { column: col, direction: "asc" };
+    });
+  };
+  const marginSortIcon = (col: string) => {
+    if (marginSort.column !== col) return null;
+    return marginSort.direction === "asc" ? <ArrowUp className="w-3 h-3 inline ml-0.5" /> : <ArrowDown className="w-3 h-3 inline ml-0.5" />;
+  };
+
+  const exportMarginCSV = () => {
+    const headers = ["Producto", "SKU", "Marca", "Categoria", "Precio", "Costo", "Margen %", "Margen $/ud", "Unidades", "Facturacion", "COGS", "Ganancia", "Stock", "ABC"];
+    const rows = marginSorted.map((p) => {
+      const cost = p.costPrice ?? 0;
+      const marginPerUnit = p.avgPrice - cost;
+      return [
+        `"${p.name.replace(/"/g, '""')}"`, p.sku || "", p.brand || "", p.category || "",
+        p.avgPrice.toFixed(2), cost.toFixed(2),
+        (p.marginPct ?? 0).toFixed(1), marginPerUnit.toFixed(2),
+        p.unitsSold, p.revenue.toFixed(2), (p.cogs ?? 0).toFixed(2),
+        (p.marginAbs ?? 0).toFixed(2), p.stock ?? 0, p.trendData.abcClass,
+      ].join(",");
+    });
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `margenes_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
 
@@ -1412,6 +1526,146 @@ export default function ProductsPage() {
                 </table>
               </div>
             </div>
+          </div>
+
+          {/* ── Full Catalog Table ─────────────────────── */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-gray-900">Catalogo Completo - Analisis de Margenes</h3>
+                <p className="text-xs text-gray-500 mt-1">{marginCatalog.length} productos con costo cargado</p>
+              </div>
+              <button onClick={exportMarginCSV} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+                <Download className="w-4 h-4" />Exportar Margenes CSV
+              </button>
+            </div>
+
+            {/* Margin Range Chips */}
+            <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap gap-2">
+              {MARGIN_CHIPS.map((c) => {
+                const isActive = marginRangeFilter === c.key;
+                const count = marginChipCounts[c.key as keyof typeof marginChipCounts] ?? 0;
+                const colorMap: Record<string, string> = {
+                  gray: isActive ? "bg-gray-800 text-white border-gray-800" : "bg-gray-100 text-gray-700 border-gray-300",
+                  red: isActive ? "bg-red-600 text-white border-red-600" : "bg-red-50 text-red-700 border-red-300",
+                  amber: isActive ? "bg-amber-500 text-white border-amber-500" : "bg-amber-50 text-amber-700 border-amber-300",
+                  yellow: isActive ? "bg-yellow-500 text-white border-yellow-500" : "bg-yellow-50 text-yellow-700 border-yellow-300",
+                  green: isActive ? "bg-green-600 text-white border-green-600" : "bg-green-50 text-green-700 border-green-300",
+                  emerald: isActive ? "bg-emerald-600 text-white border-emerald-600" : "bg-emerald-50 text-emerald-700 border-emerald-300",
+                };
+                return (
+                  <button key={c.key} onClick={() => setMarginRangeFilter(c.key)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${colorMap[c.color]}`}>
+                    {c.label}
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-white/20" : "bg-black/5"}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto flex-1 flex flex-col">
+              <div className="overflow-y-auto max-h-[600px]">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[200px]">Producto</th>
+                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("avgPrice")}>
+                        Precio{marginSortIcon("avgPrice")}
+                      </th>
+                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("costPrice")}>
+                        Costo{marginSortIcon("costPrice")}
+                      </th>
+                      <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginPct")}>
+                        Margen %{marginSortIcon("marginPct")}
+                      </th>
+                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginPerUnit")}>
+                        Margen $/ud{marginSortIcon("marginPerUnit")}
+                      </th>
+                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("unitsSold")}>
+                        Uds{marginSortIcon("unitsSold")}
+                      </th>
+                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("revenue")}>
+                        Facturacion{marginSortIcon("revenue")}
+                      </th>
+                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginAbs")}>
+                        Ganancia{marginSortIcon("marginAbs")}
+                      </th>
+                      <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("stock")}>
+                        Stock{marginSortIcon("stock")}
+                      </th>
+                      <th className="px-3 py-3 text-center font-semibold text-gray-700">ABC</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {marginPaginated.map((p) => {
+                      const cost = p.costPrice ?? 0;
+                      const marginPerUnit = p.avgPrice - cost;
+                      const mPct = p.marginPct ?? 0;
+                      return (
+                        <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-7 h-7 rounded object-cover flex-shrink-0" />}
+                              <div className="min-w-0">
+                                <div className="font-medium text-gray-900 text-xs truncate max-w-[220px]" title={p.name}>{p.name}</div>
+                                <div className="text-[10px] text-gray-500">{p.sku || "--"} {p.brand && <span className="ml-1 text-indigo-600">{p.brand}</span>}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 text-right text-gray-900 font-medium whitespace-nowrap">{formatARS(p.avgPrice)}</td>
+                          <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">{formatARS(cost)}</td>
+                          <td className="px-3 py-3 text-center">
+                            <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                              mPct >= 50 ? "bg-green-100 text-green-700" :
+                              mPct >= 30 ? "bg-amber-100 text-amber-700" :
+                              mPct >= 0 ? "bg-red-100 text-red-700" :
+                              "bg-red-200 text-red-800"
+                            }`}>{mPct.toFixed(1)}%</span>
+                          </td>
+                          <td className="px-3 py-3 text-right whitespace-nowrap">
+                            <span className={marginPerUnit >= 0 ? "text-green-700 font-medium" : "text-red-600 font-medium"}>
+                              {formatARS(marginPerUnit)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-right text-gray-700">{p.unitsSold.toLocaleString("es-AR")}</td>
+                          <td className="px-3 py-3 text-right text-gray-900 font-medium whitespace-nowrap">{formatCompact(p.revenue)}</td>
+                          <td className="px-3 py-3 text-right whitespace-nowrap">
+                            <span className={(p.marginAbs ?? 0) >= 0 ? "text-green-700 font-medium" : "text-red-600 font-medium"}>
+                              {formatCompact(p.marginAbs ?? 0)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className={`font-medium ${(p.stock ?? 0) === 0 ? "text-red-600" : "text-gray-900"}`}>
+                              {p.stock ?? 0}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center"><ABCBadge abcClass={p.trendData.abcClass} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Pagination */}
+            {marginTotalPages > 1 && (
+              <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between text-sm">
+                <span className="text-gray-600">
+                  Mostrando {Math.min((marginPage - 1) * MARGIN_PER_PAGE + 1, marginSorted.length)}-{Math.min(marginPage * MARGIN_PER_PAGE, marginSorted.length)} de {marginSorted.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setMarginPage(Math.max(1, marginPage - 1))} disabled={marginPage === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-700">Anterior</button>
+                  <span className="px-4 py-1 text-gray-700 font-medium">Pag {marginPage} de {marginTotalPages}</span>
+                  <button onClick={() => setMarginPage(Math.min(marginTotalPages, marginPage + 1))} disabled={marginPage === marginTotalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-700">Siguiente</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
