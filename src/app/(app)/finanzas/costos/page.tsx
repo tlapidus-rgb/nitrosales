@@ -112,6 +112,9 @@ export default function CostosPage() {
   const [availableCarriers, setAvailableCarriers] = useState([]);
   const [selectedCarrier, setSelectedCarrier] = useState("");
 
+  // Auto-calculated costs (ML commissions + merma)
+  const [autoCosts, setAutoCosts] = useState(null);
+
   // Fiscal profile state
   const [fiscalProfile, setFiscalProfile] = useState(null);
   const [fiscalProvinces, setFiscalProvinces] = useState([]);
@@ -155,7 +158,15 @@ export default function CostosPage() {
     setLoading(false);
   }, [costMonth]);
 
-  useEffect(() => { fetchCosts(costMonth); }, [costMonth]);
+  const fetchAutoCosts = useCallback(async (month) => {
+    try {
+      const res = await fetch(`/api/finance/auto-costs?month=${month || costMonth}`);
+      const json = await res.json();
+      if (!json.error) setAutoCosts(json);
+    } catch {}
+  }, [costMonth]);
+
+  useEffect(() => { fetchCosts(costMonth); fetchAutoCosts(costMonth); }, [costMonth]);
 
   function resetForm() {
     setForm({
@@ -678,6 +689,51 @@ export default function CostosPage() {
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {/* Auto-calculated costs for PLATAFORMAS and MERMA */}
+                  {autoCosts && (cat.key === "PLATAFORMAS" || cat.key === "MERMA") && (
+                    (() => {
+                      const autoItems = cat.key === "PLATAFORMAS"
+                        ? autoCosts.platform?.items || []
+                        : autoCosts.merma?.items || [];
+                      if (autoItems.length === 0) return null;
+                      const autoTotal = autoItems.reduce((sum, i) => sum + i.amount, 0);
+                      return (
+                        <div className="px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-emerald-50/50 to-transparent">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-semibold text-emerald-700">
+                              Calculado automaticamente
+                            </span>
+                            <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full">
+                              {costMonth}
+                            </span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {autoItems.map((item, i) => (
+                              <div key={i} className="flex items-center justify-between text-sm py-1.5">
+                                <div>
+                                  <span className="font-medium text-gray-700">{item.name}</span>
+                                  {item.count !== undefined && (
+                                    <span className="ml-2 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                                      {item.count} ordenes
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <span className="font-mono font-bold text-gray-800">{formatARS(item.amount)}</span>
+                                  <p className="text-xs text-gray-400">{item.detail}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-emerald-200/50">
+                            <span className="text-xs text-gray-500">Total automatico</span>
+                            <span className="text-sm font-bold font-mono text-emerald-700">{formatARS(autoTotal)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()
                   )}
 
                   {/* Items table */}
