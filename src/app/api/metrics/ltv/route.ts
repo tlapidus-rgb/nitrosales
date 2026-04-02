@@ -16,13 +16,11 @@ export async function GET(request: NextRequest) {
     const dateFrom = fromParam
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 365 * MS_PER_DAY);
-    const VALID_SOURCES = ["VTEX", "MELI"];
-    const sourceParam = searchParams.get("source")?.toUpperCase();
-    const sourceFilter =
-      sourceParam && VALID_SOURCES.includes(sourceParam) ? sourceParam : null;
-    const srcWhere = sourceFilter
-      ? `AND o."source" = '${sourceFilter}'`
-      : "";
+    // LTV analysis only works with VTEX (tienda propia) because MercadoLibre
+    // does NOT share customer identity (no email, no name, no customerId).
+    // Without customer identification, LTV tracking is impossible.
+    const MELI_EXCLUDE = `AND o."source" != 'MELI'`;
+    const srcWhere = MELI_EXCLUDE;
 
     // Period for comparison
     const periodMs = dateTo.getTime() - dateFrom.getTime();
@@ -171,7 +169,6 @@ export async function GET(request: NextRequest) {
                        ELSE 'Paid Otro' END
                 WHEN o."trafficSource" ILIKE '%organic%' THEN 'Google Organic'
                 WHEN o."trafficSource" ILIKE '%direct%' THEN 'Directo'
-                WHEN o.source = 'MELI' THEN 'MercadoLibre'
                 ELSE COALESCE(o."trafficSource", 'Sin datos')
               END
             ) AS channel
@@ -394,7 +391,6 @@ export async function GET(request: NextRequest) {
                 WHEN fo."trafficSource" ILIKE '%paid%' OR fo."trafficSource" ILIKE '%cpc%' THEN 'Paid'
                 WHEN fo."trafficSource" ILIKE '%organic%' THEN 'Organic'
                 WHEN fo."trafficSource" ILIKE '%direct%' THEN 'Directo'
-                WHEN fo.source = 'MELI' THEN 'MercadoLibre'
                 ELSE COALESCE(fo."trafficSource", 'Sin datos')
               END
             ) AS channel
@@ -533,7 +529,7 @@ export async function GET(request: NextRequest) {
       meta: {
         dateFrom: dateFrom.toISOString(),
         dateTo: dateTo.toISOString(),
-        source: sourceFilter || "ALL",
+        source: "VTEX", // LTV only works with tienda propia (VTEX) — ML has no customer identity
       },
     });
   } catch (error: any) {

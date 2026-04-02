@@ -17,12 +17,13 @@ import { KpiCard, ChangeBadge } from "@/components/dashboard";
 // Constants
 // ─────────────────────────────────────────────
 
+// LTV analysis only uses VTEX (tienda propia) — MercadoLibre excluded
+// because ML does not share customer identity data
 const CHANNEL_COLORS: Record<string, string> = {
   "Google Ads": "#4285F4",
   "Meta Ads": "#1877F2",
   "Google Organic": "#34A853",
   "Directo": "#6B7280",
-  "MercadoLibre": "#FFE600",
   "TikTok": "#000000",
   "Paid Otro": "#8B5CF6",
   "Sin datos": "#D1D5DB",
@@ -77,7 +78,6 @@ export default function LtvPage() {
   const [dateFrom, setDateFrom] = useState(toDateInputValue(defaultFrom));
   const [dateTo, setDateTo] = useState(toDateInputValue(defaultTo));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(365);
-  const [source, setSource] = useState<string>("ALL");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +88,6 @@ export default function LtvPage() {
       setError(null);
       try {
         const params = new URLSearchParams({ from: dateFrom, to: dateTo });
-        if (source !== "ALL") params.set("source", source);
         const res = await fetch(`/api/metrics/ltv?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setData(await res.json());
@@ -99,7 +98,7 @@ export default function LtvPage() {
       }
     };
     fetchData();
-  }, [dateFrom, dateTo, source]);
+  }, [dateFrom, dateTo]);
 
   const handleQuickRange = (days: number) => {
     const to = new Date();
@@ -180,7 +179,7 @@ export default function LtvPage() {
             Lifetime Value
             <InfoTip text="El Lifetime Value (LTV) mide cuanto gasta un cliente en total a lo largo de su relacion con tu tienda. Es la metrica clave para saber que canales te traen clientes valiosos a largo plazo, no solo compradores de una vez." />
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Analiza el valor de tus clientes por canal de adquisicion y cohorte</p>
+          <p className="text-sm text-gray-500 mt-1">Analiza el valor de tus clientes de tienda propia por canal de adquisicion y cohorte</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {QUICK_RANGES.map((r) => (
@@ -196,15 +195,9 @@ export default function LtvPage() {
               {r.label}
             </button>
           ))}
-          <select
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-600 border-0 cursor-pointer"
-          >
-            <option value="ALL">Todas las fuentes</option>
-            <option value="VTEX">VTEX</option>
-            <option value="MELI">MercadoLibre</option>
-          </select>
+          <span className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-600">
+            Solo Tienda Propia (VTEX)
+          </span>
         </div>
       </div>
 
