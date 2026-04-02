@@ -46,6 +46,15 @@ export async function GET(req: NextRequest) {
     const compFromDate = new Date(`${compareDateFrom}T00:00:00.000-03:00`);
     const compToDate = new Date(`${compareDateTo}T23:59:59.999-03:00`);
 
+    // ── Load org settings for configurable rates ────────
+    const orgSettings = await prisma.organization.findUnique({
+      where: { id: ORG_ID },
+      select: { settings: true },
+    });
+    const settings = (orgSettings?.settings as Record<string, unknown>) || {};
+    const vtexConfig = (settings.vtexConfig as { variableRate?: number; fixedMonthlyCost?: number }) || {};
+    const paymentFeesConfig = (settings.paymentFeesConfig as Record<string, number>) || {};
+
     // ── Current period queries ──────────────────────────
     const [
       revenueResult,
@@ -59,6 +68,8 @@ export async function GET(req: NextRequest) {
       brandMargins,
       sourceBreakdown,
       mlCommissions,
+      paymentMethodBreakdown,
+      discountResult,
       manualCostsResult,
     ] = await Promise.all([
       // 1. Total Revenue
@@ -214,7 +225,7 @@ export async function GET(req: NextRequest) {
           SELECT
             o.source,
             COALESCE(SUM(o."totalValue"), 0)::text as revenue,
-            COALESCE(SUM(o."shippingCost"), 0)::text as shipping,
+            COALESCE(SUM(COALESCE(o."realShippingCost", o."shippingCost")), 0)::text as shipping,
             COUNT(DISTINCT o.id)::text as orders
           FROM orders o
           WHERE o."organizationId" = ${ORG_ID}
@@ -253,7 +264,32 @@ export async function GET(req: NextRequest) {
           AND mc."orderDate" <= ${toDate}
       `,
 
-      // 12. Manual costs (user-entered operational costs)
+      // 12. Revenue by payment method (for payment fee calculation)
+      prisma.$queryRaw<{ payment_method: string; source: string; revenue: string }[]>`
+        SELECT
+          COALESCE(o."paymentMethod", 'UNKNOWN') as payment_method,
+          o.source,
+          COALESCE(SUM(o."totalValue"), 0)::text as revenue
+        FROM orders o
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND o."orderDate" >= ${fromDate}
+          AND o."orderDate" <= ${toDate}
+        GROUP BY o."paymentMethod", o.source
+      `,
+
+      // 13. Total discount value from orders
+      prisma.$queryRaw<[{ discount: string }]>`
+        SELECT
+          COALESCE(SUM(o."discountValue"), 0)::text as discount
+        FROM orders o
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND o."orderDate" >= ${fromDate}
+          AND o."orderDate" <= ${toDate}
+      `,
+
+      // 14. Manual costs (user-entered operational costs)
       // Returns detail needed to resolve percentages and social charges in JS
       prisma.$queryRaw<{ category: string; amount: string; rate_type: string; rate_base: string | null; social_charges: string | null }[]>`
         SELECT
@@ -386,9 +422,9 @@ export async function GET(req: NextRequest) {
     });
 
     // Source breakdown (MELI vs VTEX) with platform costs
-    const VTEX_VARIABLE_RATE = 0.025; // 2.5% of gross revenue
-    // VTEX fixed cost TBD — placeholder for when user provides it
-    const VTEX_FIXED_COST = 0;
+    // VTEX rates now configurable from Organization.settings.vtexConfig
+    const VTEX_VARIABLE_RATE = (vtexConfig.variableRate ?? 2.5) / 100; // Default 2.5%
+    const VTEX_FIXED_COST = vtexConfig.fixedMonthlyCost ?? 0;
 
     const bySource = sourceBreakdown.map((s) => {
       const rev = parseFloat(s.revenue);
@@ -465,6 +501,9 @@ export async function GET(req: NextRequest) {
           case "VTEX_REVENUE": base = vtexRevenue; break;
         }
         resolvedAmount = (amt / 100) * base;
+      } else if (rateType === "PER_SHIPMENT") {
+        // Multiply per-shipment cost by total orders in the period
+        resolvedAmount = amt * orders;
       }
 
       // Apply social charges (EQUIPO category typically)
@@ -480,6 +519,48 @@ export async function GET(req: NextRequest) {
       total: Math.round(total),
     }));
     const totalManualCosts = manualCosts.reduce((sum, mc) => sum + mc.total, 0);
+
+    // ── Payment processing fees ──────────────────────────
+    // Default rates if user hasn't configured custom ones
+    const DEFAULT_PAYMENT_FEES: Record<string, number> = {
+      // MELI orders: Mercado Pago fee already included in ML commission, so 0 here
+      MELI_DEFAULT: 0,
+      // VTEX orders: payment gateway fees
+      CREDIT_CARD: 3.5,
+      DEBIT_CARD: 2.0,
+      BANK_TRANSFER: 0.5,
+      CASH: 0,
+      UNKNOWN: 2.5, // conservative default
+    };
+    const feeRates = { ...DEFAULT_PAYMENT_FEES, ...paymentFeesConfig };
+
+    let totalPaymentFees = 0;
+    const paymentFeeDetails: { method: string; source: string; revenue: number; feeRate: number; fee: number }[] = [];
+    for (const pm of paymentMethodBreakdown) {
+      const rev = parseFloat(pm.revenue);
+      // MELI orders: payment fees are part of ML commission, skip
+      if (pm.source === "MELI") continue;
+      const method = pm.payment_method || "UNKNOWN";
+      const rate = (feeRates[method] ?? feeRates["UNKNOWN"] ?? 2.5) / 100;
+      const fee = rev * rate;
+      totalPaymentFees += fee;
+      paymentFeeDetails.push({
+        method,
+        source: pm.source,
+        revenue: Math.round(rev),
+        feeRate: rate * 100,
+        fee: Math.round(fee),
+      });
+    }
+
+    // ── Discounts / Promotions ───────────────────────────
+    const totalDiscounts = parseFloat(discountResult[0].discount);
+
+    // ── IVA breakdown (for Responsable Inscripto) ────────
+    const fiscalProfile = (settings.fiscalProfile as { taxRegime?: string }) || {};
+    const isRI = fiscalProfile.taxRegime === "RESPONSABLE_INSCRIPTO";
+    const ivaDebitoFiscal = isRI ? revenue - (revenue / 1.21) : 0;
+    const revenueNetoIVA = isRI ? revenue / 1.21 : revenue;
 
     const brands = brandMargins.map((b) => {
       const rev = parseFloat(b.revenue);
@@ -514,13 +595,19 @@ export async function GET(req: NextRequest) {
         customerShipping: Math.round(customerShipping),
         hasRealShipping: realShipping > 0,
         platformFees: Math.round(totalPlatformFees),
+        paymentFees: Math.round(totalPaymentFees),
+        discounts: Math.round(totalDiscounts),
         manualCostsTotal: Math.round(totalManualCosts),
         operatingProfit: Math.round(operatingProfit),
         operatingMargin: Math.round(operatingMargin * 10) / 10,
-        // Net operating (after platform fees + manual costs)
-        netOperatingProfit: Math.round(operatingProfit - totalPlatformFees - totalManualCosts),
+        // IVA breakdown (only meaningful for Responsable Inscripto)
+        isRI,
+        ivaDebitoFiscal: Math.round(ivaDebitoFiscal),
+        revenueNetoIVA: Math.round(revenueNetoIVA),
+        // Net operating (after platform fees + payment fees + manual costs)
+        netOperatingProfit: Math.round(operatingProfit - totalPlatformFees - totalPaymentFees - totalManualCosts),
         netOperatingMargin: revenue > 0
-          ? Math.round(((operatingProfit - totalPlatformFees - totalManualCosts) / revenue) * 1000) / 10
+          ? Math.round(((operatingProfit - totalPlatformFees - totalPaymentFees - totalManualCosts) / revenue) * 1000) / 10
           : 0,
       },
       changes: {
@@ -535,6 +622,11 @@ export async function GET(req: NextRequest) {
       brands,
       bySource,
       manualCosts,
+      paymentFees: paymentFeeDetails,
+      vtexConfig: {
+        variableRate: (vtexConfig.variableRate ?? 2.5),
+        fixedMonthlyCost: VTEX_FIXED_COST,
+      },
     });
   } catch (error: any) {
     console.error("P&L API error:", error);

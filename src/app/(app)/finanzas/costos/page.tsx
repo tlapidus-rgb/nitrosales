@@ -132,6 +132,13 @@ export default function CostosPage() {
     sellsOnMarketplace: true,
   });
 
+  // Platform config state (VTEX rate, payment fees)
+  const [platformConfig, setPlatformConfig] = useState({
+    vtexConfig: { variableRate: 2.5, fixedMonthlyCost: 0 },
+    paymentFeesConfig: {},
+  });
+  const [platformConfigLoading, setPlatformConfigLoading] = useState(false);
+
   // Add form state
   const [addingTo, setAddingTo] = useState(null);
   const [form, setForm] = useState({
@@ -150,12 +157,24 @@ export default function CostosPage() {
     setTimeout(() => setToast(""), 2500);
   }
 
+  const [showCopyBanner, setShowCopyBanner] = useState(false);
+  const [autoCopying, setAutoCopying] = useState(false);
+
   const fetchCosts = useCallback(async (month) => {
     setLoading(true);
+    setShowCopyBanner(false);
     try {
       const res = await fetch(`/api/finance/manual-costs?month=${month || costMonth}`);
       const json = await res.json();
-      if (json.categories) setData(json);
+      if (json.categories) {
+        setData(json);
+        // Check if month is empty (no manual costs at all)
+        const totalItems = json.categories.reduce((sum, c) => sum + (c.items?.length || 0), 0);
+        if (totalItems === 0 && month !== nowMonth) {
+          // Empty month that isn't the current month — suggest copy
+          setShowCopyBanner(true);
+        }
+      }
     } catch {}
     setLoading(false);
   }, [costMonth]);
@@ -168,7 +187,32 @@ export default function CostosPage() {
     } catch {}
   }, [costMonth]);
 
-  useEffect(() => { fetchCosts(costMonth); fetchAutoCosts(costMonth); }, [costMonth]);
+  const fetchPlatformConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/finance/platform-config");
+      const json = await res.json();
+      if (!json.error) setPlatformConfig(json);
+    } catch {}
+  }, []);
+
+  const savePlatformConfig = async (update) => {
+    setPlatformConfigLoading(true);
+    try {
+      const merged = { ...platformConfig, ...update };
+      const res = await fetch("/api/finance/platform-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(merged),
+      });
+      if (res.ok) {
+        setPlatformConfig(merged);
+        showToast("Configuracion guardada");
+      }
+    } catch {}
+    setPlatformConfigLoading(false);
+  };
+
+  useEffect(() => { fetchCosts(costMonth); fetchAutoCosts(costMonth); fetchPlatformConfig(); }, [costMonth]);
 
   function resetForm() {
     setForm({
@@ -498,6 +542,28 @@ export default function CostosPage() {
           </button>
         </div>
       </div>
+
+      {/* Auto-copy banner for empty months */}
+      {showCopyBanner && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-amber-800">Este mes no tiene costos cargados</p>
+            <p className="text-xs text-amber-600 mt-0.5">Podes copiar los costos fijos del mes anterior como base y ajustarlos.</p>
+          </div>
+          <button
+            onClick={async () => {
+              setAutoCopying(true);
+              await copyPreviousMonth();
+              setShowCopyBanner(false);
+              setAutoCopying(false);
+            }}
+            disabled={autoCopying}
+            className="text-sm bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 whitespace-nowrap ml-4"
+          >
+            {autoCopying ? "Copiando..." : "Copiar del mes anterior"}
+          </button>
+        </div>
+      )}
 
       {/* Summary cards */}
       {data && (
@@ -1019,6 +1085,61 @@ export default function CostosPage() {
                     </div>
                   )}
 
+                  {/* VTEX Config — only for PLATAFORMAS */}
+                  {cat.key === "PLATAFORMAS" && (
+                    <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50/30 to-transparent">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-xs font-semibold text-indigo-700">Configuracion de VTEX</span>
+                        <span className="text-xs bg-indigo-100 text-indigo-500 px-2 py-0.5 rounded-full">comision y costo fijo</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500">Comision variable</label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="20"
+                              className="w-16 text-sm border border-gray-200 rounded px-2 py-1 text-right font-mono"
+                              value={platformConfig.vtexConfig?.variableRate ?? 2.5}
+                              onChange={(e) => setPlatformConfig((prev) => ({
+                                ...prev,
+                                vtexConfig: { ...prev.vtexConfig, variableRate: parseFloat(e.target.value) || 0 },
+                              }))}
+                            />
+                            <span className="text-xs text-gray-400">%</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500">Costo fijo mensual</label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-400">$</span>
+                            <input
+                              type="number"
+                              step="100"
+                              min="0"
+                              className="w-24 text-sm border border-gray-200 rounded px-2 py-1 text-right font-mono"
+                              value={platformConfig.vtexConfig?.fixedMonthlyCost ?? 0}
+                              onChange={(e) => setPlatformConfig((prev) => ({
+                                ...prev,
+                                vtexConfig: { ...prev.vtexConfig, fixedMonthlyCost: parseFloat(e.target.value) || 0 },
+                              }))}
+                            />
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => savePlatformConfig({ vtexConfig: platformConfig.vtexConfig })}
+                          disabled={platformConfigLoading}
+                          className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                        >
+                          {platformConfigLoading ? "Guardando..." : "Guardar"}
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-300 mt-2">Estas tasas se usan en el P&L para calcular el costo de la plataforma VTEX sobre cada venta.</p>
+                    </div>
+                  )}
+
                   {/* Auto-calculated costs for PLATAFORMAS and MERMA */}
                   {(cat.key === "PLATAFORMAS" || cat.key === "MERMA") && (
                     (() => {
@@ -1077,9 +1198,19 @@ export default function CostosPage() {
                                       {item.count} ordenes
                                     </span>
                                   )}
+                                  {item.impactType === "low" && (
+                                    <span className="ml-1 text-xs bg-green-50 text-green-500 px-1.5 py-0.5 rounded-full">
+                                      sin perdida
+                                    </span>
+                                  )}
+                                  {item.impactType === "high" && (
+                                    <span className="ml-1 text-xs bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full">
+                                      perdida real
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="text-right">
-                                  <span className="font-mono font-bold text-gray-800">{formatARS(item.amount)}</span>
+                                  <span className={`font-mono font-bold ${item.impactType === "low" ? "text-gray-400 line-through" : "text-gray-800"}`}>{formatARS(item.amount)}</span>
                                   <p className="text-xs text-gray-400">{item.detail}</p>
                                 </div>
                               </div>

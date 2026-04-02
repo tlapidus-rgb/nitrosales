@@ -70,15 +70,21 @@ export async function GET(req: NextRequest) {
       : "0";
 
     // ═══ MERMA: Cancelled & Returned Orders ═══
+    // Distinguish pre-dispatch (no product loss) vs post-dispatch (product/shipping loss)
+    // Heuristic: if order has shippingCarrier or realShippingCost, it was dispatched
     const mermaResult = await prisma.$queryRaw<[{
-      cancelled_count: string;
-      cancelled_value: string;
+      cancelled_pre_count: string;
+      cancelled_pre_value: string;
+      cancelled_post_count: string;
+      cancelled_post_value: string;
       returned_count: string;
       returned_value: string;
     }]>`
       SELECT
-        COALESCE(SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END), 0)::text as cancelled_count,
-        COALESCE(SUM(CASE WHEN status = 'CANCELLED' THEN "totalValue" ELSE 0 END), 0)::text as cancelled_value,
+        COALESCE(SUM(CASE WHEN status = 'CANCELLED' AND "shippingCarrier" IS NULL AND "realShippingCost" IS NULL THEN 1 ELSE 0 END), 0)::text as cancelled_pre_count,
+        COALESCE(SUM(CASE WHEN status = 'CANCELLED' AND "shippingCarrier" IS NULL AND "realShippingCost" IS NULL THEN "totalValue" ELSE 0 END), 0)::text as cancelled_pre_value,
+        COALESCE(SUM(CASE WHEN status = 'CANCELLED' AND ("shippingCarrier" IS NOT NULL OR "realShippingCost" IS NOT NULL) THEN 1 ELSE 0 END), 0)::text as cancelled_post_count,
+        COALESCE(SUM(CASE WHEN status = 'CANCELLED' AND ("shippingCarrier" IS NOT NULL OR "realShippingCost" IS NOT NULL) THEN "totalValue" ELSE 0 END), 0)::text as cancelled_post_value,
         COALESCE(SUM(CASE WHEN status = 'RETURNED' THEN 1 ELSE 0 END), 0)::text as returned_count,
         COALESCE(SUM(CASE WHEN status = 'RETURNED' THEN "totalValue" ELSE 0 END), 0)::text as returned_value
       FROM orders
@@ -89,8 +95,12 @@ export async function GET(req: NextRequest) {
     `;
 
     const merma = mermaResult[0];
-    const cancelledCount = parseInt(merma.cancelled_count);
-    const cancelledValue = parseFloat(merma.cancelled_value);
+    const cancelledPreCount = parseInt(merma.cancelled_pre_count);
+    const cancelledPreValue = parseFloat(merma.cancelled_pre_value);
+    const cancelledPostCount = parseInt(merma.cancelled_post_count);
+    const cancelledPostValue = parseFloat(merma.cancelled_post_value);
+    const cancelledCount = cancelledPreCount + cancelledPostCount;
+    const cancelledValue = cancelledPreValue + cancelledPostValue;
     const returnedCount = parseInt(merma.returned_count);
     const returnedValue = parseFloat(merma.returned_value);
 
@@ -140,19 +150,33 @@ export async function GET(req: NextRequest) {
       merma: {
         cancelledCount,
         cancelledValue,
+        cancelledPreDispatch: { count: cancelledPreCount, value: cancelledPreValue },
+        cancelledPostDispatch: { count: cancelledPostCount, value: cancelledPostValue },
         returnedCount,
         returnedValue,
-        totalLost: cancelledValue + returnedValue,
+        // Real cost impact: pre-dispatch cancellations = $0 product loss (only time/opportunity)
+        // Post-dispatch cancellations + returns = actual loss (shipping + potential product loss)
+        totalLost: cancelledPostValue + returnedValue,
+        totalLostIncludingPre: cancelledValue + returnedValue,
         totalOrders,
         totalValue,
         cancelledRate: totalOrders > 0 ? ((cancelledCount / totalOrders) * 100).toFixed(1) : "0",
         returnedRate: totalOrders > 0 ? ((returnedCount / totalOrders) * 100).toFixed(1) : "0",
         items: [
-          ...(cancelledCount > 0 ? [{
-            name: "Ordenes canceladas",
-            amount: cancelledValue,
-            count: cancelledCount,
-            detail: `${cancelledCount} ordenes (${totalOrders > 0 ? ((cancelledCount / totalOrders) * 100).toFixed(1) : 0}% del total)`,
+          ...(cancelledPreCount > 0 ? [{
+            name: "Cancelaciones pre-despacho",
+            amount: cancelledPreValue,
+            count: cancelledPreCount,
+            detail: `${cancelledPreCount} ordenes — sin perdida de producto ni envio`,
+            impactType: "low" as const,
+            source: "orders",
+          }] : []),
+          ...(cancelledPostCount > 0 ? [{
+            name: "Cancelaciones post-despacho",
+            amount: cancelledPostValue,
+            count: cancelledPostCount,
+            detail: `${cancelledPostCount} ordenes — incluye costo de envio perdido`,
+            impactType: "high" as const,
             source: "orders",
           }] : []),
           ...(returnedCount > 0 ? [{
@@ -160,6 +184,7 @@ export async function GET(req: NextRequest) {
             amount: returnedValue,
             count: returnedCount,
             detail: `${returnedCount} ordenes (${totalOrders > 0 ? ((returnedCount / totalOrders) * 100).toFixed(1) : 0}% del total)`,
+            impactType: "high" as const,
             source: "orders",
           }] : []),
         ],
