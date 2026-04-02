@@ -1085,14 +1085,15 @@ export default function CostosPage() {
                     </div>
                   )}
 
-                  {/* VTEX Config — only for PLATAFORMAS */}
+                  {/* VTEX Config + Payment Fees — only for PLATAFORMAS */}
                   {cat.key === "PLATAFORMAS" && (
                     <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50/30 to-transparent">
+                      {/* VTEX Commission */}
                       <div className="flex items-center gap-2 mb-3">
-                        <span className="text-xs font-semibold text-indigo-700">Configuracion de VTEX</span>
-                        <span className="text-xs bg-indigo-100 text-indigo-500 px-2 py-0.5 rounded-full">comision y costo fijo</span>
+                        <span className="text-xs font-semibold text-indigo-700">Comisiones de plataforma VTEX</span>
+                        <span className="text-xs bg-indigo-100 text-indigo-500 px-2 py-0.5 rounded-full">configurable</span>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 flex-wrap">
                         <div className="flex items-center gap-2">
                           <label className="text-xs text-gray-500">Comision variable</label>
                           <div className="flex items-center gap-1">
@@ -1128,15 +1129,62 @@ export default function CostosPage() {
                             />
                           </div>
                         </div>
+                      </div>
+
+                      {/* Payment Processing Fees */}
+                      <div className="mt-5 pt-4 border-t border-indigo-100/50">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold text-indigo-700">Comisiones de medios de pago</span>
+                          <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full border border-amber-200">valores estimados — ajustalos a tu acuerdo</span>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-3">
+                          Estos porcentajes son estimaciones de mercado. Si tenes un acuerdo especifico con tu procesador de pagos, modifica los valores para que el P&L refleje tu costo real.
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {[
+                            { key: "CREDIT_CARD", label: "Tarjeta credito", defaultRate: 3.5 },
+                            { key: "DEBIT_CARD", label: "Tarjeta debito", defaultRate: 2.0 },
+                            { key: "BANK_TRANSFER", label: "Transferencia", defaultRate: 0.5 },
+                            { key: "CASH", label: "Efectivo", defaultRate: 0 },
+                          ].map((pm) => (
+                            <div key={pm.key} className="flex items-center gap-1.5">
+                              <label className="text-xs text-gray-500 w-24 truncate" title={pm.label}>{pm.label}</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="20"
+                                className="w-14 text-sm border border-gray-200 rounded px-1.5 py-1 text-right font-mono"
+                                value={platformConfig.paymentFeesConfig?.[pm.key] ?? pm.defaultRate}
+                                onChange={(e) => setPlatformConfig((prev) => ({
+                                  ...prev,
+                                  paymentFeesConfig: {
+                                    ...prev.paymentFeesConfig,
+                                    [pm.key]: parseFloat(e.target.value) || 0,
+                                  },
+                                }))}
+                              />
+                              <span className="text-xs text-gray-400">%</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-300 mt-2">Las comisiones de MercadoLibre ya incluyen el costo de Mercado Pago, por lo que solo se aplican a ventas VTEX.</p>
+                      </div>
+
+                      {/* Single save button for all platform config */}
+                      <div className="mt-4 flex items-center justify-between">
+                        <p className="text-xs text-gray-300">Estos valores se usan en el P&L para calcular costos de plataforma y procesamiento de pagos.</p>
                         <button
-                          onClick={() => savePlatformConfig({ vtexConfig: platformConfig.vtexConfig })}
+                          onClick={() => savePlatformConfig({
+                            vtexConfig: platformConfig.vtexConfig,
+                            paymentFeesConfig: platformConfig.paymentFeesConfig,
+                          })}
                           disabled={platformConfigLoading}
-                          className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                          className="text-xs bg-indigo-600 text-white px-4 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
                         >
-                          {platformConfigLoading ? "Guardando..." : "Guardar"}
+                          {platformConfigLoading ? "Guardando..." : "Guardar configuracion"}
                         </button>
                       </div>
-                      <p className="text-xs text-gray-300 mt-2">Estas tasas se usan en el P&L para calcular el costo de la plataforma VTEX sobre cada venta.</p>
                     </div>
                   )}
 
