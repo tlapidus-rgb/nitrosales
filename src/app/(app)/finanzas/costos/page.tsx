@@ -112,6 +112,21 @@ export default function CostosPage() {
   const [availableCarriers, setAvailableCarriers] = useState([]);
   const [selectedCarrier, setSelectedCarrier] = useState("");
 
+  // Fiscal profile state
+  const [fiscalProfile, setFiscalProfile] = useState(null);
+  const [fiscalProvinces, setFiscalProvinces] = useState([]);
+  const [monotributoCategories, setMonotributoCategories] = useState([]);
+  const [fiscalLoading, setFiscalLoading] = useState(false);
+  const [generatedTaxes, setGeneratedTaxes] = useState([]);
+  const [fiscalForm, setFiscalForm] = useState({
+    taxRegime: "",
+    monotributoCategory: "A",
+    province: "",
+    hasConvenioMultilateral: false,
+    additionalProvinces: [],
+    sellsOnMarketplace: true,
+  });
+
   // Add form state
   const [addingTo, setAddingTo] = useState(null);
   const [form, setForm] = useState({
@@ -234,7 +249,68 @@ export default function CostosPage() {
     } catch {}
   }, []);
 
-  useEffect(() => { fetchShippingRates(); fetchAvailableCarriers(); }, []);
+  const fetchFiscalProfile = useCallback(async () => {
+    try {
+      const res = await fetch("/api/finance/fiscal-profile");
+      const json = await res.json();
+      setFiscalProfile(json.fiscalProfile || null);
+      setFiscalProvinces(json.provinces || []);
+      setMonotributoCategories(json.monotributoCategories || []);
+      if (json.fiscalProfile) {
+        setFiscalForm({
+          taxRegime: json.fiscalProfile.taxRegime || "",
+          monotributoCategory: json.fiscalProfile.monotributoCategory || "A",
+          province: json.fiscalProfile.province || "",
+          hasConvenioMultilateral: json.fiscalProfile.hasConvenioMultilateral || false,
+          additionalProvinces: json.fiscalProfile.additionalProvinces || [],
+          sellsOnMarketplace: json.fiscalProfile.sellsOnMarketplace ?? true,
+        });
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchShippingRates(); fetchAvailableCarriers(); fetchFiscalProfile(); }, []);
+
+  async function saveFiscalProfile() {
+    setFiscalLoading(true);
+    try {
+      const res = await fetch("/api/finance/fiscal-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fiscalForm),
+      });
+      const json = await res.json();
+      if (json.saved) {
+        setFiscalProfile(fiscalForm);
+        setGeneratedTaxes(json.generatedTaxes || []);
+        showToast("Perfil fiscal guardado");
+      }
+    } catch {
+      showToast("Error al guardar perfil fiscal");
+    }
+    setFiscalLoading(false);
+  }
+
+  async function applyGeneratedTaxes() {
+    if (generatedTaxes.length === 0) return;
+    setFiscalLoading(true);
+    try {
+      const res = await fetch("/api/finance/fiscal-profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taxes: generatedTaxes, month: costMonth }),
+      });
+      const json = await res.json();
+      if (json.created > 0) {
+        fetchCosts(costMonth);
+        setGeneratedTaxes([]);
+        showToast(`${json.created} impuestos aplicados a ${costMonth}`);
+      }
+    } catch {
+      showToast("Error al aplicar impuestos");
+    }
+    setFiscalLoading(false);
+  }
 
   function getSelectedCarrierParts() {
     // selectedCarrier format: "carrier|||service"
@@ -429,6 +505,181 @@ export default function CostosPage() {
               {/* Expanded content */}
               {isExpanded && (
                 <div className="border-t border-gray-100">
+                  {/* Fiscal profile wizard — only for FISCAL category */}
+                  {cat.key === "FISCAL" && (
+                    <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-transparent">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700">Perfil Fiscal</h4>
+                          <p className="text-xs text-gray-400">
+                            {fiscalProfile?.completedAt
+                              ? "Configurado — los impuestos se generan automaticamente"
+                              : "Completa tu situacion fiscal para auto-generar los impuestos"}
+                          </p>
+                        </div>
+                        {fiscalProfile && generatedTaxes.length === 0 && (
+                          <button
+                            onClick={saveFiscalProfile}
+                            disabled={fiscalLoading}
+                            className="text-xs px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                          >
+                            {fiscalLoading ? "..." : "Recalcular"}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Fiscal form */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Regimen impositivo</label>
+                          <select
+                            value={fiscalForm.taxRegime}
+                            onChange={e => setFiscalForm({ ...fiscalForm, taxRegime: e.target.value })}
+                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-full text-gray-600 focus:border-blue-400 focus:outline-none"
+                          >
+                            <option value="">Seleccionar...</option>
+                            <option value="MONOTRIBUTO">Monotributo</option>
+                            <option value="RESPONSABLE_INSCRIPTO">Responsable Inscripto</option>
+                          </select>
+                        </div>
+
+                        {fiscalForm.taxRegime === "MONOTRIBUTO" && (
+                          <div>
+                            <label className="text-xs text-gray-500 block mb-1">Categoria</label>
+                            <select
+                              value={fiscalForm.monotributoCategory}
+                              onChange={e => setFiscalForm({ ...fiscalForm, monotributoCategory: e.target.value })}
+                              className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-full text-gray-600 focus:border-blue-400 focus:outline-none"
+                            >
+                              {monotributoCategories.map(c => (
+                                <option key={c.category} value={c.category}>
+                                  Cat. {c.category} — hasta {c.maxRevenue} (${c.monthlyAmount.toLocaleString()}/mes)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Provincia (domicilio fiscal)</label>
+                          <select
+                            value={fiscalForm.province}
+                            onChange={e => setFiscalForm({ ...fiscalForm, province: e.target.value })}
+                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-full text-gray-600 focus:border-blue-400 focus:outline-none"
+                          >
+                            <option value="">Seleccionar...</option>
+                            {fiscalProvinces.map(p => (
+                              <option key={p.code} value={p.code}>
+                                {p.name} ({p.rate}%)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={fiscalForm.sellsOnMarketplace}
+                              onChange={e => setFiscalForm({ ...fiscalForm, sellsOnMarketplace: e.target.checked })}
+                              className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
+                            />
+                            <span className="text-xs text-gray-600">Vende en MercadoLibre</span>
+                          </label>
+                          {fiscalForm.taxRegime === "RESPONSABLE_INSCRIPTO" && (
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={fiscalForm.hasConvenioMultilateral}
+                                onChange={e => setFiscalForm({ ...fiscalForm, hasConvenioMultilateral: e.target.checked })}
+                                className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
+                              />
+                              <span className="text-xs text-gray-600">Convenio Multilateral</span>
+                            </label>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Convenio Multilateral provinces */}
+                      {fiscalForm.hasConvenioMultilateral && fiscalForm.taxRegime === "RESPONSABLE_INSCRIPTO" && (
+                        <div className="mt-3">
+                          <label className="text-xs text-gray-500 block mb-1.5">Provincias con nexo (ademas de {fiscalProvinces.find(p => p.code === fiscalForm.province)?.name || "la principal"})</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {fiscalProvinces.filter(p => p.code !== fiscalForm.province).map(p => (
+                              <button
+                                key={p.code}
+                                onClick={() => {
+                                  const current = fiscalForm.additionalProvinces || [];
+                                  const updated = current.includes(p.code)
+                                    ? current.filter(c => c !== p.code)
+                                    : [...current, p.code];
+                                  setFiscalForm({ ...fiscalForm, additionalProvinces: updated });
+                                }}
+                                className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                                  (fiscalForm.additionalProvinces || []).includes(p.code)
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                }`}
+                              >
+                                {p.name} ({p.rate}%)
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Save button */}
+                      {fiscalForm.taxRegime && fiscalForm.province && (
+                        <div className="mt-3 flex items-center gap-3">
+                          <button
+                            onClick={saveFiscalProfile}
+                            disabled={fiscalLoading}
+                            className="text-sm px-5 py-2 rounded-lg font-medium text-white disabled:opacity-50 transition-opacity"
+                            style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
+                          >
+                            {fiscalLoading ? "Guardando..." : fiscalProfile ? "Actualizar y recalcular" : "Generar impuestos"}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Generated taxes preview */}
+                      {generatedTaxes.length > 0 && (
+                        <div className="mt-4 bg-white rounded-lg border border-blue-200 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-blue-700">
+                              Impuestos generados ({generatedTaxes.length})
+                            </span>
+                            <button
+                              onClick={applyGeneratedTaxes}
+                              disabled={fiscalLoading}
+                              className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors font-medium"
+                            >
+                              {fiscalLoading ? "Aplicando..." : `Aplicar a ${costMonth}`}
+                            </button>
+                          </div>
+                          <div className="space-y-1.5">
+                            {generatedTaxes.map((tax, i) => (
+                              <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-gray-50 last:border-0">
+                                <div>
+                                  <span className="font-medium text-gray-700">{tax.name}</span>
+                                  <span className={`ml-2 px-1.5 py-0.5 rounded-full ${
+                                    tax.rateType === "PERCENTAGE" ? "bg-purple-50 text-purple-600" : "bg-gray-100 text-gray-600"
+                                  }`}>
+                                    {tax.rateType === "PERCENTAGE" ? `${tax.amount}%` : formatARS(tax.amount)}
+                                  </span>
+                                </div>
+                                <span className="text-gray-400 max-w-xs truncate">{tax.notes.replace(" [auto-fiscal]", "")}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-400 mt-2">
+                            Podes modificar estos valores despues desde la tabla de abajo
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Items table */}
                   {items.length > 0 && (
                     <div className="overflow-x-auto">
