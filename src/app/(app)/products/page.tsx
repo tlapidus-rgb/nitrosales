@@ -13,7 +13,7 @@ import { KpiCard, DateRangeFilter } from "@/components/dashboard";
 import {
   TrendingUp, TrendingDown, AlertTriangle, DollarSign,
   Package, Zap, ArrowUp, ArrowDown, X, Search, Download,
-  ShoppingBag, BarChart3, Layers, Clock,
+  ShoppingBag, BarChart3, Layers, Clock, Percent, PiggyBank,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────────── */
@@ -44,11 +44,26 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
 
 /* ── Types ─────────────────────────────────────────────── */
 
+interface MarginAnalysis {
+  weightedMarginPct: number;
+  totalRevenueWithCost: number;
+  totalCogs: number;
+  grossProfit: number;
+  productsWithCost: number;
+  productsWithoutCost: number;
+  distribution: Array<{ range: string; count: number; revenue: number; avgMargin: number }>;
+  byBrand: Array<{ name: string; revenue: number; cogs: number; marginPct: number; productCount: number }>;
+  byCategory: Array<{ name: string; revenue: number; cogs: number; marginPct: number; productCount: number }>;
+  topMargin: Array<ProductItem>;
+  bottomMargin: Array<ProductItem>;
+}
+
 interface ProductItem {
   id: string; name: string; sku: string | null;
   imageUrl: string | null; category: string | null; brand: string | null;
   stock: number | null; unitsSold: number; revenue: number;
   orders: number; avgPrice: number;
+  costPrice: number | null; marginPct: number | null; marginAbs: number | null; cogs: number | null;
   trendData: {
     weeklyTrend: Array<{ weekStart: string; units: number; revenue: number }>;
     wowUnitsPct: number; wowRevenuePct: number;
@@ -186,7 +201,9 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "trends" | "stock">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "trends" | "stock" | "margins">("overview");
+  const [marginAnalysis, setMarginAnalysis] = useState<MarginAnalysis | null>(null);
+  const [marginPage, setMarginPage] = useState(1);
   const [brandFilter, setBrandFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -223,6 +240,10 @@ export default function ProductsPage() {
           avgPrice: Number(p.avgPrice) || 0,
           stock: p.stock != null ? Number(p.stock) : null,
           orders: Number(p.orders) || 0,
+          costPrice: p.costPrice != null ? Number(p.costPrice) : null,
+          marginPct: p.marginPct != null ? Number(p.marginPct) : null,
+          marginAbs: p.marginAbs != null ? Number(p.marginAbs) : null,
+          cogs: p.cogs != null ? Number(p.cogs) : null,
           trendData: {
             ...p.trendData,
             wowUnitsPct: Number(p.trendData?.wowUnitsPct) || 0,
@@ -259,6 +280,7 @@ export default function ProductsPage() {
           });
         }
         if (data.bagsAnalytics) setBagsAnalytics(data.bagsAnalytics);
+        if (data.marginAnalysis) setMarginAnalysis(data.marginAnalysis);
         if (data.summary) setSummary({
           totalOrders30d: Number(data.summary.totalOrders30d) || 0,
           totalItems30d: Number(data.summary.totalItems30d) || 0,
@@ -338,6 +360,7 @@ export default function ProductsPage() {
         case "unitsSold": aV = a.unitsSold; bV = b.unitsSold; break;
         case "stock": aV = a.stock ?? 0; bV = b.stock ?? 0; break;
         case "wowRevenuePct": aV = a.trendData.wowRevenuePct; bV = b.trendData.wowRevenuePct; break;
+        case "marginPct": aV = a.marginPct ?? -999; bV = b.marginPct ?? -999; break;
         case "daysOfStock": aV = a.stockData.daysOfStock ?? 0; bV = b.stockData.daysOfStock ?? 0; break;
         case "abc":
           const o: Record<string, number> = { A: 0, B: 1, C: 2 };
@@ -642,10 +665,10 @@ export default function ProductsPage() {
 
       {/* Tab Navigation */}
       <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1 w-full">
-        {(["overview", "trends", "stock"] as const).map((tab) => (
+        {(["overview", "trends", "stock", "margins"] as const).map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${activeTab === tab ? "bg-white shadow-sm text-indigo-600" : "text-gray-600 hover:text-gray-900"}`}>
-            {tab === "overview" ? "Overview" : tab === "trends" ? "Tendencias de Venta" : "Stock Inteligente"}
+            {tab === "overview" ? "Overview" : tab === "trends" ? "Tendencias" : tab === "stock" ? "Stock" : "Margenes"}
           </button>
         ))}
       </div>
@@ -757,6 +780,9 @@ export default function ProductsPage() {
                       <th className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("revenue")}>
                         <TooltipHeader text="Facturacion" tooltip={COLUMN_TOOLTIPS.facturacion} />{sortIcon("revenue")}
                       </th>
+                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("marginPct")}>
+                        <TooltipHeader text="Margen" tooltip="Margen bruto: (Revenue - Costo) / Revenue" />{sortIcon("marginPct")}
+                      </th>
                       <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Marca" tooltip={COLUMN_TOOLTIPS.porcMarca} /></th>
                       <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Cat." tooltip={COLUMN_TOOLTIPS.porcCat} /></th>
                       <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Total" tooltip={COLUMN_TOOLTIPS.porcTotal} /></th>
@@ -802,6 +828,16 @@ export default function ProductsPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right font-medium text-gray-900">{formatARS(p.revenue)}</td>
+                          <td className="px-6 py-4 text-center">
+                            {p.marginPct != null ? (
+                              <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                                p.marginPct >= 50 ? "bg-green-100 text-green-700" :
+                                p.marginPct >= 30 ? "bg-amber-100 text-amber-700" :
+                                p.marginPct >= 0 ? "bg-red-100 text-red-700" :
+                                "bg-red-200 text-red-800"
+                              }`}>{p.marginPct.toFixed(1)}%</span>
+                            ) : <span className="text-gray-400 text-xs">--</span>}
+                          </td>
                           <td className="px-6 py-4 text-right text-gray-700">{pMarca.toFixed(1)}%</td>
                           <td className="px-6 py-4 text-right text-gray-700">{pCat.toFixed(1)}%</td>
                           <td className="px-6 py-4 text-right text-gray-700">{pTotal.toFixed(1)}%</td>
@@ -1180,6 +1216,202 @@ export default function ProductsPage() {
                 )}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ──────────────── TAB: MARGENES ──────────────── */}
+      {activeTab === "margins" && marginAnalysis && (
+        <div className="space-y-6">
+          {/* Margin KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Percent className="w-4 h-4 text-green-600" />
+                <p className="text-xs text-gray-500 font-medium">Margen Bruto Prom.</p>
+              </div>
+              <p className={`text-2xl font-bold ${marginAnalysis.weightedMarginPct >= 40 ? "text-green-700" : marginAnalysis.weightedMarginPct >= 20 ? "text-amber-700" : "text-red-700"}`}>
+                {marginAnalysis.weightedMarginPct.toFixed(1)}%
+              </p>
+              <p className="text-[10px] text-gray-400 mt-1">Ponderado por revenue</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="w-4 h-4 text-indigo-600" />
+                <p className="text-xs text-gray-500 font-medium">Revenue Analizado</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{formatARS(marginAnalysis.totalRevenueWithCost)}</p>
+              <p className="text-[10px] text-gray-400 mt-1">{marginAnalysis.productsWithCost} productos con costo</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <PiggyBank className="w-4 h-4 text-amber-600" />
+                <p className="text-xs text-gray-500 font-medium">Ganancia Bruta</p>
+              </div>
+              <p className="text-2xl font-bold text-green-700">{formatARS(marginAnalysis.grossProfit)}</p>
+              <p className="text-[10px] text-gray-400 mt-1">COGS: {formatARS(marginAnalysis.totalCogs)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-4 h-4 text-gray-400" />
+                <p className="text-xs text-gray-500 font-medium">Sin Costo</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-600">{marginAnalysis.productsWithoutCost}</p>
+              <p className="text-[10px] text-gray-400 mt-1">Productos sin costPrice</p>
+            </div>
+          </div>
+
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Margin Distribution */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-4">Distribucion por Rango de Margen</h3>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={marginAnalysis.distribution}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="range" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(v: number, name: string) => [name === "count" ? `${v} productos` : `${v.toFixed(1)}%`, name === "count" ? "Productos" : "Margen Prom."]} />
+                  <Bar dataKey="count" name="Productos" radius={[4, 4, 0, 0]}>
+                    {marginAnalysis.distribution.map((entry, i) => (
+                      <Cell key={i} fill={entry.range === "Negativo" ? "#ef4444" : entry.range === "0-30%" ? "#f59e0b" : entry.range === "30-50%" ? "#eab308" : entry.range === "50-70%" ? "#22c55e" : "#16a34a"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Margin by Brand */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-4">Margen por Marca (Top 10)</h3>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={marginAnalysis.byBrand.slice(0, 10)} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
+                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(v: number) => [`${v.toFixed(1)}%`, "Margen"]} />
+                  <Bar dataKey="marginPct" name="Margen" radius={[0, 4, 4, 0]}>
+                    {marginAnalysis.byBrand.slice(0, 10).map((entry, i) => (
+                      <Cell key={i} fill={entry.marginPct >= 50 ? "#22c55e" : entry.marginPct >= 30 ? "#eab308" : "#ef4444"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Margin by Category Table */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">Margen por Categoria</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left font-semibold text-gray-700">Categoria</th>
+                    <th className="px-6 py-3 text-right font-semibold text-gray-700">Revenue</th>
+                    <th className="px-6 py-3 text-right font-semibold text-gray-700">COGS</th>
+                    <th className="px-6 py-3 text-center font-semibold text-gray-700">Margen %</th>
+                    <th className="px-6 py-3 text-right font-semibold text-gray-700">Ganancia</th>
+                    <th className="px-6 py-3 text-right font-semibold text-gray-700">Productos</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {marginAnalysis.byCategory.map((cat) => (
+                    <tr key={cat.name} className="hover:bg-gray-50">
+                      <td className="px-6 py-3 font-medium text-gray-900">{cat.name}</td>
+                      <td className="px-6 py-3 text-right text-gray-700">{formatARS(cat.revenue)}</td>
+                      <td className="px-6 py-3 text-right text-gray-500">{formatARS(cat.cogs)}</td>
+                      <td className="px-6 py-3 text-center">
+                        <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                          cat.marginPct >= 50 ? "bg-green-100 text-green-700" :
+                          cat.marginPct >= 30 ? "bg-amber-100 text-amber-700" :
+                          "bg-red-100 text-red-700"
+                        }`}>{cat.marginPct.toFixed(1)}%</span>
+                      </td>
+                      <td className="px-6 py-3 text-right font-medium text-green-700">{formatARS(cat.revenue - cat.cogs)}</td>
+                      <td className="px-6 py-3 text-right text-gray-500">{cat.productCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Top & Bottom Products */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Top Margin */}
+            <div className="bg-white rounded-xl shadow-sm border border-green-200 overflow-hidden">
+              <div className="p-4 border-b border-green-200 bg-green-50">
+                <h3 className="font-semibold text-green-800 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" /> Top 10 Mas Rentables
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-green-50/50">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium text-green-800">Producto</th>
+                      <th className="px-4 py-2 text-right font-medium text-green-800">Revenue</th>
+                      <th className="px-4 py-2 text-center font-medium text-green-800">Margen</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-green-100">
+                    {marginAnalysis.topMargin.map((p) => (
+                      <tr key={p.id} className="hover:bg-green-50/50">
+                        <td className="px-4 py-2">
+                          <div className="font-medium text-gray-900 text-xs">{p.name.substring(0, 45)}</div>
+                          <div className="text-[10px] text-gray-500">{p.sku}</div>
+                        </td>
+                        <td className="px-4 py-2 text-right text-gray-700 text-xs">{formatCompact(p.revenue)}</td>
+                        <td className="px-4 py-2 text-center">
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded">{p.marginPct?.toFixed(1)}%</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Bottom Margin */}
+            <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
+              <div className="p-4 border-b border-red-200 bg-red-50">
+                <h3 className="font-semibold text-red-800 flex items-center gap-2">
+                  <TrendingDown className="w-4 h-4" /> Top 10 Menos Rentables
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-red-50/50">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium text-red-800">Producto</th>
+                      <th className="px-4 py-2 text-right font-medium text-red-800">Revenue</th>
+                      <th className="px-4 py-2 text-center font-medium text-red-800">Margen</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-red-100">
+                    {marginAnalysis.bottomMargin.map((p) => (
+                      <tr key={p.id} className="hover:bg-red-50/50">
+                        <td className="px-4 py-2">
+                          <div className="font-medium text-gray-900 text-xs">{p.name.substring(0, 45)}</div>
+                          <div className="text-[10px] text-gray-500">{p.sku}</div>
+                        </td>
+                        <td className="px-4 py-2 text-right text-gray-700 text-xs">{formatCompact(p.revenue)}</td>
+                        <td className="px-4 py-2 text-center">
+                          <span className={`px-2 py-0.5 text-xs font-bold rounded ${
+                            (p.marginPct ?? 0) < 0 ? "bg-red-200 text-red-800" :
+                            (p.marginPct ?? 0) < 30 ? "bg-red-100 text-red-700" :
+                            "bg-amber-100 text-amber-700"
+                          }`}>{p.marginPct?.toFixed(1)}%</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}

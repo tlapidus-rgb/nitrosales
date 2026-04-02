@@ -16,6 +16,10 @@ type ProductMetrics = {
   revenue: number;
   orders: number;
   avgPrice: number;
+  costPrice: number | null;
+  marginPct: number | null;
+  marginAbs: number | null;
+  cogs: number | null;
   trendData: {
     weeklyTrend: Array<{ weekStart: string; units: number; revenue: number }>;
     wowUnitsPct: number;
@@ -60,6 +64,23 @@ type BagsAnalytics = {
   breakdown: Array<{ name: string; unitsSold: number; revenue: number; stock: number | null }>;
 };
 
+type MarginBucket = { range: string; count: number; revenue: number; avgMargin: number };
+type MarginByGroup = { name: string; revenue: number; cogs: number; marginPct: number; productCount: number };
+
+type MarginAnalysis = {
+  weightedMarginPct: number;
+  totalRevenueWithCost: number;
+  totalCogs: number;
+  grossProfit: number;
+  productsWithCost: number;
+  productsWithoutCost: number;
+  distribution: MarginBucket[];
+  byBrand: MarginByGroup[];
+  byCategory: MarginByGroup[];
+  topMargin: Array<ProductMetrics>;
+  bottomMargin: Array<ProductMetrics>;
+};
+
 type APIResponse = {
   products: ProductMetrics[];
   brands: Array<{ name: string; count: number }>;
@@ -74,9 +95,10 @@ type APIResponse = {
   stockSummary: StockSummary;
   trendSummary: TrendSummary;
   bagsAnalytics: BagsAnalytics;
+  marginAnalysis: MarginAnalysis;
 };
 
-export async function GET(request: Request): Promise<NextResponse<APIResponse>> {
+export async function GET(request: Request) {
   try {
     const ORG_ID = await getOrganizationId();
     const now = new Date();
@@ -138,7 +160,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
           AND status NOT IN ('CANCELLED', 'RETURNED')
       `,
 
-      // Query 3: Product aggregation (30 days)
+      // Query 3: Product aggregation (30 days) — includes costPrice for margin calc
       prisma.$queryRaw<
         Array<{
           productId: string;
@@ -148,8 +170,10 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
           category: string | null;
           brand: string | null;
           stock: number | null;
+          costPrice: number | null;
           units: bigint;
           revenue: number;
+          cogs: number | null;
           orders: bigint;
         }>
       >`
@@ -161,8 +185,12 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
           p.category,
           p.brand,
           p.stock,
+          p."costPrice"::numeric AS "costPrice",
           SUM(oi.quantity)::bigint AS units,
           ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
+          CASE WHEN p."costPrice" IS NOT NULL
+            THEN ROUND(SUM(oi.quantity * p."costPrice")::numeric)
+            ELSE NULL END AS cogs,
           COUNT(DISTINCT oi."orderId")::bigint AS orders
         FROM order_items oi
         JOIN orders o ON oi."orderId" = o.id
@@ -171,7 +199,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
           AND o."orderDate" >= ${thirtyDaysAgo}
           AND o."orderDate" <= ${dateTo}
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
-        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand, p.stock
+        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand, p.stock, p."costPrice"
       `,
 
       // Query 4: Stock sync metadata
@@ -306,7 +334,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
     }
 
     // Map products with trend and stock data
-    let products: ProductMetrics[] = productAggregation.map((prod) => {
+    let products = productAggregation.map((prod): ProductMetrics => {
       const weeklyData = weeklyTrendMap.get(prod.productId) || [];
       const unitsSold = Number(prod.units);
       const dailySalesRate = unitsSold / daysDiff;
@@ -349,6 +377,12 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
         revenue: w.revenue,
       }));
 
+      // Margin calculations
+      const costPrice = prod.costPrice != null ? Number(prod.costPrice) : null;
+      const cogs = prod.cogs != null ? Number(prod.cogs) : null;
+      const marginAbs = (costPrice != null && cogs != null && prod.revenue > 0) ? prod.revenue - cogs : null;
+      const marginPct = (marginAbs != null && prod.revenue > 0) ? (marginAbs / prod.revenue) * 100 : null;
+
       return {
         id: prod.productId,
         name: prod.productName,
@@ -361,6 +395,10 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
         revenue: prod.revenue,
         orders: Number(prod.orders),
         avgPrice: unitsSold > 0 ? prod.revenue / unitsSold : 0,
+        costPrice,
+        marginPct: marginPct != null ? Math.round(marginPct * 10) / 10 : null,
+        marginAbs,
+        cogs,
         trendData: {
           weeklyTrend,
           wowUnitsPct: calculateWoWPct(weeklyData, "units"),
@@ -373,7 +411,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
           daysOfStock,
           stockoutDate,
           stockHealth,
-          isDead,
+          isDead: !!isDead,
           lastSaleDate: lastSaleDate ? lastSaleDate.toISOString() : null,
         },
       };
@@ -474,6 +512,100 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
 
+    // === MARGIN ANALYSIS (real products only) ===
+    const productsWithCost = realProducts.filter((p) => p.costPrice != null && p.marginPct != null);
+    const productsWithoutCost = realProducts.filter((p) => p.costPrice == null);
+
+    const totalRevenueWithCost = productsWithCost.reduce((s, p) => s + p.revenue, 0);
+    const totalCogs = productsWithCost.reduce((s, p) => s + (p.cogs || 0), 0);
+    const grossProfit = totalRevenueWithCost - totalCogs;
+    const weightedMarginPct = totalRevenueWithCost > 0 ? (grossProfit / totalRevenueWithCost) * 100 : 0;
+
+    // Distribution buckets
+    const bucketDefs = [
+      { range: "Negativo", min: -Infinity, max: 0 },
+      { range: "0-30%", min: 0, max: 30 },
+      { range: "30-50%", min: 30, max: 50 },
+      { range: "50-70%", min: 50, max: 70 },
+      { range: "70%+", min: 70, max: Infinity },
+    ];
+    const distribution: MarginBucket[] = bucketDefs.map((b) => {
+      const inBucket = productsWithCost.filter(
+        (p) => p.marginPct! >= b.min && p.marginPct! < b.max
+      );
+      const bucketRevenue = inBucket.reduce((s, p) => s + p.revenue, 0);
+      const bucketCogs = inBucket.reduce((s, p) => s + (p.cogs || 0), 0);
+      return {
+        range: b.range,
+        count: inBucket.length,
+        revenue: bucketRevenue,
+        avgMargin: bucketRevenue > 0 ? ((bucketRevenue - bucketCogs) / bucketRevenue) * 100 : 0,
+      };
+    });
+
+    // Margin by brand (revenue-weighted)
+    const brandMarginMap = new Map<string, { revenue: number; cogs: number; count: number }>();
+    productsWithCost.forEach((p) => {
+      if (!p.brand) return;
+      const existing = brandMarginMap.get(p.brand) || { revenue: 0, cogs: 0, count: 0 };
+      existing.revenue += p.revenue;
+      existing.cogs += p.cogs || 0;
+      existing.count += 1;
+      brandMarginMap.set(p.brand, existing);
+    });
+    const byBrand: MarginByGroup[] = Array.from(brandMarginMap.entries())
+      .map(([name, d]) => ({
+        name,
+        revenue: d.revenue,
+        cogs: d.cogs,
+        marginPct: d.revenue > 0 ? ((d.revenue - d.cogs) / d.revenue) * 100 : 0,
+        productCount: d.count,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 15);
+
+    // Margin by category (revenue-weighted)
+    const catMarginMap = new Map<string, { revenue: number; cogs: number; count: number }>();
+    productsWithCost.forEach((p) => {
+      if (!p.category) return;
+      const existing = catMarginMap.get(p.category) || { revenue: 0, cogs: 0, count: 0 };
+      existing.revenue += p.revenue;
+      existing.cogs += p.cogs || 0;
+      existing.count += 1;
+      catMarginMap.set(p.category, existing);
+    });
+    const byCategory: MarginByGroup[] = Array.from(catMarginMap.entries())
+      .map(([name, d]) => ({
+        name,
+        revenue: d.revenue,
+        cogs: d.cogs,
+        marginPct: d.revenue > 0 ? ((d.revenue - d.cogs) / d.revenue) * 100 : 0,
+        productCount: d.count,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 15);
+
+    // Top/Bottom margin (minimum revenue threshold to avoid noise)
+    const minRevenue = totalRevenueWithCost * 0.001; // 0.1% of total
+    const significantProducts = productsWithCost.filter((p) => p.revenue >= minRevenue);
+    const sortedByMargin = [...significantProducts].sort((a, b) => (b.marginPct || 0) - (a.marginPct || 0));
+    const topMargin = sortedByMargin.slice(0, 10);
+    const bottomMargin = sortedByMargin.slice(-10).reverse();
+
+    const marginAnalysis: MarginAnalysis = {
+      weightedMarginPct: Math.round(weightedMarginPct * 10) / 10,
+      totalRevenueWithCost,
+      totalCogs,
+      grossProfit,
+      productsWithCost: productsWithCost.length,
+      productsWithoutCost: productsWithoutCost.length,
+      distribution,
+      byBrand,
+      byCategory,
+      topMargin,
+      bottomMargin,
+    };
+
     const response: APIResponse = {
       products,
       brands,
@@ -484,6 +616,7 @@ export async function GET(request: Request): Promise<NextResponse<APIResponse>> 
       stockSummary,
       trendSummary,
       bagsAnalytics,
+      marginAnalysis,
     };
 
     return NextResponse.json(response);
