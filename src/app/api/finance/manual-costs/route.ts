@@ -52,9 +52,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Optional category filter
+    const categoryFilter = searchParams.get("category");
+
     const costs = await prisma.manualCost.findMany({
-      where: { organizationId: orgId, month },
-      orderBy: [{ category: "asc" }, { name: "asc" }],
+      where: {
+        organizationId: orgId,
+        month,
+        ...(categoryFilter && { category: categoryFilter }),
+      },
+      orderBy: [{ category: "asc" }, { subcategory: "asc" }, { name: "asc" }],
     });
 
     // Group by category
@@ -67,11 +74,15 @@ export async function GET(req: NextRequest) {
       grouped[cost.category].push(cost);
     }
 
-    // Calculate totals
+    // Calculate totals (for EQUIPO: amount × (1 + socialCharges/100))
     const categoryTotals = Object.entries(grouped).map(([cat, items]) => ({
       category: cat,
       label: CATEGORY_LABELS[cat] || cat,
-      total: items.reduce((sum, c) => sum + Number(c.amount), 0),
+      total: items.reduce((sum, c) => {
+        const base = Number(c.amount);
+        if (c.socialCharges) return sum + base * (1 + c.socialCharges / 100);
+        return sum + base;
+      }, 0),
       items,
     }));
 
@@ -121,8 +132,13 @@ export async function POST(req: NextRequest) {
             data: {
               organizationId: orgId,
               category: c.category,
+              subcategory: c.subcategory,
               name: c.name,
+              serviceCode: c.serviceCode,
               amount: c.amount,
+              rateType: c.rateType,
+              rateBase: c.rateBase,
+              socialCharges: c.socialCharges,
               type: c.type,
               month: body.targetMonth,
               notes: c.notes,
@@ -135,7 +151,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Create single cost
-    const { category, name, amount, type, month, notes } = body;
+    const { category, name, amount, type, month, notes,
+            subcategory, serviceCode, rateType, rateBase, socialCharges } = body;
 
     if (!category || !name || amount === undefined || !month) {
       return NextResponse.json(
@@ -155,8 +172,13 @@ export async function POST(req: NextRequest) {
       data: {
         organizationId: orgId,
         category,
+        subcategory: subcategory || null,
         name,
+        serviceCode: serviceCode || null,
         amount: parseFloat(amount),
+        rateType: rateType || "FIXED_MONTHLY",
+        rateBase: rateBase || null,
+        socialCharges: socialCharges !== undefined ? parseFloat(socialCharges) : null,
         type: type || "FIXED",
         month,
         notes: notes || null,
@@ -199,6 +221,11 @@ export async function PUT(req: NextRequest) {
         ...(updates.name !== undefined && { name: updates.name }),
         ...(updates.amount !== undefined && { amount: parseFloat(updates.amount) }),
         ...(updates.category !== undefined && { category: updates.category }),
+        ...(updates.subcategory !== undefined && { subcategory: updates.subcategory }),
+        ...(updates.serviceCode !== undefined && { serviceCode: updates.serviceCode }),
+        ...(updates.rateType !== undefined && { rateType: updates.rateType }),
+        ...(updates.rateBase !== undefined && { rateBase: updates.rateBase }),
+        ...(updates.socialCharges !== undefined && { socialCharges: updates.socialCharges !== null ? parseFloat(updates.socialCharges) : null }),
         ...(updates.type !== undefined && { type: updates.type }),
         ...(updates.notes !== undefined && { notes: updates.notes }),
       },

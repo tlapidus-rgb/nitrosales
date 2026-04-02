@@ -251,17 +251,18 @@ export async function GET(req: NextRequest) {
       `,
 
       // 12. Manual costs (user-entered operational costs)
-      // Months are stored as "YYYY-MM", so we convert the date range to month range
-      prisma.$queryRaw<{ category: string; total: string }[]>`
+      // Returns detail needed to resolve percentages and social charges in JS
+      prisma.$queryRaw<{ category: string; amount: string; rate_type: string; rate_base: string | null; social_charges: string | null }[]>`
         SELECT
           mc.category,
-          COALESCE(SUM(mc.amount), 0)::text as total
+          mc.amount::text as amount,
+          mc."rateType" as rate_type,
+          mc."rateBase" as rate_base,
+          mc."socialCharges"::text as social_charges
         FROM manual_costs mc
         WHERE mc."organizationId" = ${ORG_ID}
           AND mc.month >= ${dateFrom.substring(0, 7)}
           AND mc.month <= ${dateTo.substring(0, 7)}
-        GROUP BY mc.category
-        ORDER BY mc.category ASC
       `,
     ]);
 
@@ -437,9 +438,41 @@ export async function GET(req: NextRequest) {
     const totalPlatformFees = bySource.reduce((sum, s) => sum + s.platformFee, 0);
 
     // Manual costs (user-entered operational costs)
-    const manualCosts = manualCostsResult.map((mc) => ({
-      category: mc.category,
-      total: Math.round(parseFloat(mc.total)),
+    // Resolve each cost: fixed costs use amount directly, percentages resolve against base,
+    // EQUIPO costs apply social charges on top
+    const meliRevenue = bySource.find((s) => s.source === "MELI")?.revenue || 0;
+    const vtexRevenue = bySource.find((s) => s.source === "VTEX")?.revenue || 0;
+
+    const resolvedCostsByCategory: Record<string, number> = {};
+    for (const mc of manualCostsResult) {
+      const amt = parseFloat(mc.amount);
+      const rateType = mc.rate_type || "FIXED_MONTHLY";
+      const socialCharges = mc.social_charges ? parseFloat(mc.social_charges) : null;
+      let resolvedAmount = amt;
+
+      if (rateType === "PERCENTAGE" && mc.rate_base) {
+        // Resolve percentage against the appropriate base
+        let base = 0;
+        switch (mc.rate_base) {
+          case "GROSS_REVENUE": base = revenue; break;
+          case "COGS": base = cogs; break;
+          case "MELI_REVENUE": base = meliRevenue; break;
+          case "VTEX_REVENUE": base = vtexRevenue; break;
+        }
+        resolvedAmount = (amt / 100) * base;
+      }
+
+      // Apply social charges (EQUIPO category typically)
+      if (socialCharges && socialCharges > 0) {
+        resolvedAmount = resolvedAmount * (1 + socialCharges / 100);
+      }
+
+      resolvedCostsByCategory[mc.category] = (resolvedCostsByCategory[mc.category] || 0) + resolvedAmount;
+    }
+
+    const manualCosts = Object.entries(resolvedCostsByCategory).map(([category, total]) => ({
+      category,
+      total: Math.round(total),
     }));
     const totalManualCosts = manualCosts.reduce((sum, mc) => sum + mc.total, 0);
 

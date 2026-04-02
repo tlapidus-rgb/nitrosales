@@ -986,14 +986,24 @@ model MlCommission {
 
 // Costos que no vienen automáticamente del ecommerce
 // Ej: mensajerías, alquiler, sueldos, herramientas, impuestos
+// Soporta distintas estructuras: tarifas por envío, sueldos con cargas, porcentajes
 model ManualCost {
   id              String   @id @default(cuid())
   category        String                          // "LOGISTICA", "EQUIPO", "PLATAFORMAS", "FISCAL", "INFRAESTRUCTURA", "MARKETING", "MERMA", "OTROS"
-  name            String                          // Nombre descriptivo: "Andreani", "Alquiler depósito", etc.
-  amount          Decimal  @db.Decimal(12, 2)     // Monto del costo
-  type            String   @default("FIXED")      // "FIXED" (recurrente mensual) o "VARIABLE"
+  subcategory     String?                         // Agrupador: nombre de mensajería, rol, plataforma
+  name            String                          // Nombre del item: "Estándar AMBA", "Juan Pérez", etc.
+  serviceCode     String?                         // Código de servicio: "AND-STD-AMBA" (logística)
+  amount          Decimal  @db.Decimal(12, 2)     // Monto: tarifa, sueldo bruto, monto fijo, o porcentaje (ej: 3.5 = 3.5%)
+  rateType        String   @default("FIXED_MONTHLY")
+                           // "FIXED_MONTHLY": monto fijo por mes (default)
+                           // "PER_SHIPMENT": tarifa por envío (logística)
+                           // "PERCENTAGE": % de una base (fiscal, plataformas, merma)
+  rateBase        String?                         // Solo PERCENTAGE: "GROSS_REVENUE", "COGS", "MELI_REVENUE", "VTEX_REVENUE"
+  socialCharges   Float?                          // Solo EQUIPO: % cargas sociales sobre bruto (ej: 35 = 35%)
+  type            String   @default("FIXED")      // "FIXED" (recurrente) o "VARIABLE"
   month           String                          // "2025-03" — mes al que aplica
   notes           String?                         // Notas opcionales
+  isActive        Boolean  @default(true)         // Para desactivar sin borrar
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
