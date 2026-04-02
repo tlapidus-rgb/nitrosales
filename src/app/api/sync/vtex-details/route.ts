@@ -378,6 +378,7 @@ export async function GET(req: Request) {
                 deliveryType: isPickup ? "pickup" : "shipping",
                 pickupStoreName: isPickup ? pickupName : null,
                 shippingCost: shipTotalCents / 100,
+                postalCode: detail.shippingData?.address?.postalCode || null,
               },
             });
           } catch {}

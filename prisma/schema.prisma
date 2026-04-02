@@ -58,6 +58,7 @@ model Organization {
   mlAdCampaigns            MlAdCampaignDaily[]
   mlCommissions            MlCommission[]
   manualCosts              ManualCost[]
+  shippingRates            ShippingRate[]
 
   @@map("organizations")
 }
@@ -155,6 +156,10 @@ model Order {
   promotionNames  String?                         // Nombres de promociones aplicadas (de VTEX ratesAndBenefitsData/priceTags)
   deliveryType    String?                         // "pickup" | "shipping" — inferred from VTEX logisticsInfo
   pickupStoreName String?                         // Nombre amigable de la sucursal (si es retiro)
+  postalCode      String?                         // CP destino, de VTEX shippingData.address
+  shippingCarrier String?                         // Mensajería usada (ANDREANI, OCA, etc.)
+  shippingService String?                         // Tipo de servicio (ESTANDAR, EXPRESS)
+  realShippingCost Decimal? @db.Decimal(12, 2)   // Costo real calculado desde tabla de tarifas
   deviceType      String?                         // mobile, desktop, tablet
   orderDate       DateTime    @db.Timestamptz      // Fecha del pedido (UTC from VTEX)
   createdAt       DateTime    @default(now())
@@ -1013,4 +1018,28 @@ model ManualCost {
   @@index([organizationId, month])
   @@index([organizationId, category])
   @@map("manual_costs")
+}
+
+// ─────────────────────────────────────────────
+// SHIPPING RATES (carrier + service + postal code → cost)
+// ─────────────────────────────────────────────
+
+model ShippingRate {
+  id              String   @id @default(cuid())
+  carrier         String                          // ANDREANI, OCA, CORREO_ARGENTINO, MOTOS_CABA, etc.
+  serviceType     String                          // ESTANDAR, EXPRESS, PICKUP, SAME_DAY
+  serviceCode     String?                         // Código opcional: AND-STD, OCA-EXP
+  postalCodeFrom  String                          // "1000" (individual) o inicio de rango
+  postalCodeTo    String?                         // "1999" (fin de rango, null = CP individual)
+  cost            Decimal  @db.Decimal(12, 2)     // Costo por envío en ARS
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, carrier, serviceType])
+  @@index([organizationId, postalCodeFrom])
+  @@map("shipping_rates")
 }

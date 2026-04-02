@@ -92,9 +92,12 @@ export async function GET(req: NextRequest) {
           AND o."orderDate" <= ${toDate}
       `,
 
-      // 3. Total Shipping
-      prisma.$queryRaw<[{ shipping: string }]>`
-        SELECT COALESCE(SUM(o."shippingCost"), 0)::text as shipping
+      // 3. Total Shipping (prefer realShippingCost from rate table, fallback to customer-facing shippingCost)
+      prisma.$queryRaw<[{ shipping: string; real_shipping: string; customer_shipping: string }]>`
+        SELECT
+          COALESCE(SUM(COALESCE(o."realShippingCost", o."shippingCost")), 0)::text as shipping,
+          COALESCE(SUM(o."realShippingCost"), 0)::text as real_shipping,
+          COALESCE(SUM(o."shippingCost"), 0)::text as customer_shipping
         FROM orders o
         WHERE o."organizationId" = ${ORG_ID}
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
@@ -307,6 +310,8 @@ export async function GET(req: NextRequest) {
     const itemsWithCost = parseInt(cogsResult[0].items_with_cost);
     const itemsTotal = parseInt(cogsResult[0].items_total);
     const shipping = parseFloat(shippingResult[0].shipping);
+    const realShipping = parseFloat(shippingResult[0].real_shipping);
+    const customerShipping = parseFloat(shippingResult[0].customer_shipping);
     const adSpend = parseFloat(adSpendResult[0].spend);
     const metaSpend = parseFloat(adSpendResult[0].meta_spend);
     const googleSpend = parseFloat(adSpendResult[0].google_spend);
@@ -505,6 +510,9 @@ export async function GET(req: NextRequest) {
         metaSpend: Math.round(metaSpend),
         googleSpend: Math.round(googleSpend),
         shipping: Math.round(shipping),
+        realShipping: Math.round(realShipping),
+        customerShipping: Math.round(customerShipping),
+        hasRealShipping: realShipping > 0,
         platformFees: Math.round(totalPlatformFees),
         manualCostsTotal: Math.round(totalManualCosts),
         operatingProfit: Math.round(operatingProfit),
