@@ -96,6 +96,20 @@ interface PaymentFeeDetail {
 }
 
 /* ── Helpers ────────────────────────────────── */
+
+/** Tooltip informativo — icono "?" que al hacer hover muestra explicación */
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="relative group inline-flex ml-1 cursor-help">
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold leading-none hover:bg-gray-300 transition-colors">?</span>
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed">
+        {text}
+        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+      </span>
+    </span>
+  );
+}
+
 function ChangeIndicator({ value, inverse }: { value: number | null | undefined; inverse?: boolean }) {
   if (value === null || value === undefined) return null;
   const isPositive = inverse ? value < 0 : value > 0;
@@ -187,6 +201,7 @@ function ExecutiveView({
             </p>
             <p className="text-sm text-gray-500 mt-1">
               Beneficio neto — {netMargin}% de margen
+              <InfoTip text="El beneficio neto es lo que te queda despues de restar TODOS los costos: mercaderia, publicidad, envios, comisiones y gastos operativos. El margen indica que porcentaje de cada peso facturado es ganancia real." />
             </p>
             <p className="text-xs text-gray-400 mt-2">
               De {formatARS(summary.revenue)} facturados, te quedan {formatARS(netProfit)} despues de todos los costos
@@ -208,7 +223,7 @@ function ExecutiveView({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Facturación */}
         <div className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-blue-500">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Facturacion</span>
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Facturacion <InfoTip text="Total cobrado por tus ventas, incluyendo IVA. Es el dinero bruto que entra antes de descontar cualquier costo." /></span>
           <p className="text-2xl font-bold text-gray-900 mt-2">{formatARS(summary.revenue)}</p>
           <p className="text-sm text-gray-500 mt-1">{summary.orders.toLocaleString("es-AR")} ordenes</p>
           {changes && (
@@ -220,12 +235,12 @@ function ExecutiveView({
 
         {/* Costos totales */}
         <div className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-red-400">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Costos Totales</span>
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Costos Totales <InfoTip text="Suma de todo lo que gastas para operar: costo de productos (COGS), publicidad, envios, comisiones de plataformas, medios de pago y gastos fijos." /></span>
           <p className="text-2xl font-bold text-gray-900 mt-2">{formatARS(totalCosts)}</p>
           <p className="text-sm text-gray-500 mt-1">{costPct.toFixed(1)}% del revenue</p>
           <div className="mt-3 space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="text-gray-400">COGS</span>
+              <span className="text-gray-400">COGS <InfoTip text="Cost of Goods Sold: lo que te cuesta comprar o fabricar los productos que vendiste." /></span>
               <span className="text-gray-600 font-mono">{formatARS(summary.cogs)}</span>
             </div>
             <div className="flex justify-between text-xs">
@@ -243,11 +258,11 @@ function ExecutiveView({
 
         {/* Resultado */}
         <div className={`bg-white rounded-xl p-5 shadow-sm border-l-4 ${netProfit >= 0 ? "border-green-500" : "border-red-500"}`}>
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resultado</span>
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resultado <InfoTip text="Lo que realmente ganas (o perdes) despues de pagar todos los costos. Si es verde, tu negocio es rentable. Si es rojo, estas operando a perdida." /></span>
           <p className={`text-2xl font-bold mt-2 ${netProfit >= 0 ? "text-green-700" : "text-red-600"}`}>
             {formatARS(netProfit)}
           </p>
-          <p className="text-sm text-gray-500 mt-1">{netMargin}% margen neto</p>
+          <p className="text-sm text-gray-500 mt-1">{netMargin}% margen neto <InfoTip text="El porcentaje de cada peso de facturacion que queda como ganancia neta. Ej: 18% significa que de cada $100 facturados, te quedan $18." /></p>
           {changes && (
             <div className="mt-2">
               <ChangeIndicator value={changes.operatingProfit} />
@@ -316,7 +331,7 @@ function ExecutiveView({
                     <span className="text-sm font-bold text-gray-800">{s.orders.toLocaleString("es-AR")}</span>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-400 block">Margen Op.</span>
+                    <span className="text-xs text-gray-400 block">Margen Op. <InfoTip text="Margen operativo: porcentaje de ganancia del canal despues de descontar costos directos (COGS, envios, comisiones). Cuanto mas alto, mas rentable es ese canal." /></span>
                     <span className={`text-sm font-bold ${channelHealth.color}`}>{s.operatingMargin}%</span>
                   </div>
                 </div>
@@ -371,19 +386,19 @@ function DetailedView({
 
   // Build the P&L statement rows
   const pnlRows = [
-    { label: "Facturacion (Revenue)", value: summary.revenue, bold: true, color: "text-blue-600" },
+    { label: "Facturacion (Revenue)", value: summary.revenue, bold: true, color: "text-blue-600", tip: "Todo lo que cobraste por ventas en el periodo. Incluye IVA si sos Responsable Inscripto." },
     // IVA rows for Responsable Inscripto
     ...(summary.isRI && summary.ivaDebitoFiscal ? [
-      { label: "    IVA Debito Fiscal (21%)", value: -(summary.ivaDebitoFiscal), color: "text-gray-400", indent: true, small: true },
-      { label: "    Revenue Neto IVA", value: summary.revenueNetoIVA || 0, color: "text-blue-400", indent: true, small: true },
+      { label: "    IVA Debito Fiscal (21%)", value: -(summary.ivaDebitoFiscal), color: "text-gray-400", indent: true, small: true, tip: "El IVA que cobras en tus ventas y debes pagar a AFIP. No es ingreso tuyo, sino un impuesto que el cliente paga a traves tuyo." },
+      { label: "    Revenue Neto IVA", value: summary.revenueNetoIVA || 0, color: "text-blue-400", indent: true, small: true, tip: "Tu facturacion real sin el IVA. Este es el verdadero ingreso de tu negocio si sos Responsable Inscripto." },
     ] : []),
-    { label: "(-) Costo de Mercaderia (COGS)", value: -summary.cogs, color: "text-red-500" },
-    { label: "= Ganancia Bruta", value: summary.grossProfit, bold: true, color: summary.grossProfit >= 0 ? "text-green-600" : "text-red-600", pct: summary.grossMargin },
-    { label: "(-) Inversion Publicitaria", value: -summary.adSpend, color: "text-orange-500", indent: true },
+    { label: "(-) Costo de Mercaderia (COGS)", value: -summary.cogs, color: "text-red-500", tip: "Lo que te costo comprar todos los productos que vendiste. Es tu costo mas grande y el que mas impacta en la rentabilidad." },
+    { label: "= Ganancia Bruta", value: summary.grossProfit, bold: true, color: summary.grossProfit >= 0 ? "text-green-600" : "text-red-600", pct: summary.grossMargin, tip: "Revenue menos COGS. Muestra cuanto ganas solo por la diferencia entre precio de venta y costo del producto, sin considerar otros gastos." },
+    { label: "(-) Inversion Publicitaria", value: -summary.adSpend, color: "text-orange-500", indent: true, tip: "Lo que invertiste en publicidad paga (Meta Ads + Google Ads). Es un costo variable: mientras mas invertis, mas ventas generas (idealmente)." },
     { label: "    Meta Ads", value: -summary.metaSpend, color: "text-gray-400", indent: true, small: true },
     { label: "    Google Ads", value: -summary.googleSpend, color: "text-gray-400", indent: true, small: true },
-    { label: "(-) Costos de Envio", value: -summary.shipping, color: "text-purple-500", indent: true },
-    { label: "(-) Comisiones de Plataforma", value: -(summary.platformFees || 0), color: "text-indigo-500", indent: true },
+    { label: "(-) Costos de Envio", value: -summary.shipping, color: "text-purple-500", indent: true, tip: "Lo que pagaste en logistica para enviar los pedidos. Incluye envios gratis que absorbes vos y el costo real del flete." },
+    { label: "(-) Comisiones de Plataforma", value: -(summary.platformFees || 0), color: "text-indigo-500", indent: true, tip: "Lo que te cobran los marketplaces por vender ahi. MercadoLibre cobra un porcentaje por venta, y VTEX puede tener un fee fijo o variable." },
     ...(bySource.map(s => ({
       label: `    ${s.source === "MELI" ? "MercadoLibre" : s.source}: ${s.platformFeeLabel}`,
       value: -s.platformFee,
@@ -393,7 +408,7 @@ function DetailedView({
     }))),
     // Payment fees (NEW)
     ...(summary.paymentFees ? [
-      { label: "(-) Comisiones Medios de Pago", value: -(summary.paymentFees), color: "text-sky-500", indent: true },
+      { label: "(-) Comisiones Medios de Pago", value: -(summary.paymentFees), color: "text-sky-500", indent: true, tip: "Lo que te cobran por procesar pagos: tarjetas de credito/debito, MercadoPago, transferencias. Cada medio tiene su porcentaje." },
       ...(paymentFeeDetails.filter(pf => pf.fee > 0).map(pf => ({
         label: `    ${pf.method} (${pf.source}): ${pf.feeRate}%`,
         value: -pf.fee,
@@ -404,11 +419,11 @@ function DetailedView({
     ] : []),
     // Discounts (NEW)
     ...(summary.discounts ? [
-      { label: "(-) Descuentos y Promociones", value: -(summary.discounts), color: "text-pink-500", indent: true },
+      { label: "(-) Descuentos y Promociones", value: -(summary.discounts), color: "text-pink-500", indent: true, tip: "Cupones, descuentos y promociones que aplicaste. Es plata que dejaste de cobrar para incentivar ventas." },
     ] : []),
     // Manual costs
     ...(summary.manualCostsTotal ? [
-      { label: "(-) Otros Costos Operativos", value: -(summary.manualCostsTotal), color: "text-teal-600", indent: true },
+      { label: "(-) Otros Costos Operativos", value: -(summary.manualCostsTotal), color: "text-teal-600", indent: true, tip: "Gastos fijos y variables que cargaste manualmente: sueldos, alquileres, herramientas, impuestos, etc. Son los costos que no vienen automaticamente de las plataformas." },
       ...(manualCosts.filter(mc => mc.total > 0).map(mc => {
         const cat = COST_CATEGORIES.find(c => c.key === mc.category);
         return {
@@ -421,7 +436,7 @@ function DetailedView({
       })),
     ] : []),
     // Bottom line
-    { label: "= Beneficio Neto Operativo", value: netOp, bold: true, color: netOp >= 0 ? "text-green-700" : "text-red-700", pct: (summary.netOperatingMargin ?? summary.operatingMargin), highlight: true },
+    { label: "= Beneficio Neto Operativo", value: netOp, bold: true, color: netOp >= 0 ? "text-green-700" : "text-red-700", pct: (summary.netOperatingMargin ?? summary.operatingMargin), highlight: true, tip: "LA LINEA FINAL. Lo que realmente gana tu negocio. Si es positivo (verde), tu operacion es rentable. Si es negativo (rojo), estas perdiendo plata y hay que actuar." },
   ];
 
   return (
@@ -447,16 +462,16 @@ function DetailedView({
         {/* Revenue */}
         <div className="bg-white rounded-xl p-4 border-l-4 border-blue-500 shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Revenue</span>
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Revenue <InfoTip text="Facturacion total: todo lo que cobraste por tus ventas en el periodo seleccionado, incluyendo IVA." /></span>
             {changes && <ChangeIndicator value={changes.revenue} />}
           </div>
           <p className="text-lg font-bold text-gray-800">{formatARS(summary.revenue)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{summary.orders} ordenes | AOV {formatARS(summary.aov)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{summary.orders} ordenes | AOV {formatARS(summary.aov)} <InfoTip text="AOV (Average Order Value) es el ticket promedio: cuanto gasta en promedio cada cliente por pedido." /></p>
         </div>
         {/* COGS / Margen Bruto */}
         <div className="bg-white rounded-xl p-4 border-l-4 border-green-500 shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Margen Bruto</span>
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Margen Bruto <InfoTip text="Lo que queda despues de restar solo el costo de la mercaderia (COGS). Es tu primer indicador de rentabilidad: si es bajo, estas vendiendo con poco margen sobre el costo del producto." /></span>
             {changes && <ChangeIndicator value={changes.grossProfit} />}
           </div>
           <p className="text-lg font-bold text-gray-800">{formatARS(summary.grossProfit)}</p>
@@ -465,7 +480,7 @@ function DetailedView({
         {/* Ads */}
         <div className="bg-white rounded-xl p-4 border-l-4 border-orange-400 shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Publicidad</span>
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Publicidad <InfoTip text="Inversion total en anuncios pagos: Meta (Facebook/Instagram) y Google (Search/Shopping/Display). A diferencia de otros costos, la flecha verde aca significa que gastaste MENOS." /></span>
             {changes && <ChangeIndicator value={changes.adSpend} inverse />}
           </div>
           <p className="text-lg font-bold text-gray-800">{formatARS(summary.adSpend)}</p>
@@ -473,7 +488,7 @@ function DetailedView({
         </div>
         {/* Costos operativos (envíos + comisiones + payment + otros) */}
         <div className="bg-white rounded-xl p-4 border-l-4 border-indigo-400 shadow-sm">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Costos Operativos</span>
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Costos Operativos <InfoTip text="Todos los costos de operar ademas de productos y publicidad: envios, comisiones de MercadoLibre/VTEX, comisiones de medios de pago (tarjetas, MercadoPago), y gastos fijos que cargaste manualmente." /></span>
           <p className="text-lg font-bold text-gray-800 mt-1">
             {formatARS(summary.shipping + (summary.platformFees || 0) + (summary.paymentFees || 0) + (summary.manualCostsTotal || 0))}
           </p>
@@ -484,7 +499,7 @@ function DetailedView({
         {/* Beneficio Neto */}
         <div className={`bg-white rounded-xl p-4 border-l-4 shadow-sm ${netOp >= 0 ? "border-green-600" : "border-red-600"}`}>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Beneficio Neto</span>
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Beneficio Neto <InfoTip text="La linea final: lo que realmente te queda despues de TODOS los costos. Es el numero mas importante del P&L — indica si tu negocio es rentable o no." /></span>
             {changes && <ChangeIndicator value={changes.operatingProfit} />}
           </div>
           <p className={`text-lg font-bold ${netOp >= 0 ? "text-green-700" : "text-red-600"}`}>{formatARS(netOp)}</p>
@@ -495,7 +510,7 @@ function DetailedView({
       {/* ── Unit Economics ─── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-white rounded-xl p-4 shadow-sm">
-          <span className="text-xs font-medium text-gray-500 uppercase">Ticket Promedio</span>
+          <span className="text-xs font-medium text-gray-500 uppercase">Ticket Promedio <InfoTip text="Cuanto gasta en promedio cada cliente por pedido. Un ticket mas alto generalmente mejora tu rentabilidad porque los costos fijos se diluyen." /></span>
           <p className="text-lg font-bold text-gray-800 mt-1">{formatARS(summary.aov)}</p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm">
@@ -503,13 +518,13 @@ function DetailedView({
           <p className="text-lg font-bold text-gray-800 mt-1">{summary.units.toLocaleString("es-AR")}</p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm">
-          <span className="text-xs font-medium text-gray-500 uppercase">Costo x Unidad</span>
+          <span className="text-xs font-medium text-gray-500 uppercase">Costo x Unidad <InfoTip text="Cuanto te cuesta en promedio cada producto vendido. Se calcula dividiendo el COGS total por la cantidad de unidades." /></span>
           <p className="text-lg font-bold text-gray-800 mt-1">
             {summary.units > 0 ? formatARS(summary.cogs / summary.units) : "\u2014"}
           </p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm">
-          <span className="text-xs font-medium text-gray-500 uppercase">Margen x Unidad</span>
+          <span className="text-xs font-medium text-gray-500 uppercase">Margen x Unidad <InfoTip text="Cuanto ganas en promedio por cada unidad vendida (precio de venta menos costo del producto). Sirve para comparar rentabilidad entre productos." /></span>
           <p className="text-lg font-bold text-gray-800 mt-1">
             {summary.units > 0 ? formatARS(summary.grossProfit / summary.units) : "\u2014"}
           </p>
@@ -519,7 +534,7 @@ function DetailedView({
       {/* ── P&L Chart ─── */}
       <div className="bg-white rounded-xl p-5 shadow-sm mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-700">Estado de Resultados</h3>
+          <h3 className="text-sm font-semibold text-gray-700">Estado de Resultados <InfoTip text="Grafico visual del P&L. 'Cascada' muestra como cada costo reduce tu facturacion hasta llegar al beneficio neto. 'Tendencia' muestra la evolucion dia a dia." /></h3>
           <div className="flex gap-1">
             <button
               onClick={() => setChartMode("waterfall")}
@@ -566,7 +581,7 @@ function DetailedView({
       {/* ── P&L Table (Statement) ─── */}
       <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700">Estado de Resultados Detallado</h3>
+          <h3 className="text-sm font-semibold text-gray-700">Estado de Resultados Detallado <InfoTip text="El P&L (Profit & Loss) muestra paso a paso como se compone tu resultado: arranca con lo que facturaste y va restando cada tipo de costo hasta llegar a lo que realmente ganas. Los numeros negativos (-) son costos." /></h3>
         </div>
         <div className="divide-y divide-gray-50">
           {pnlRows.map((row, i) => (
@@ -578,6 +593,7 @@ function DetailedView({
             >
               <span className={`${row.small ? "text-xs" : "text-sm"} ${row.bold ? "font-semibold text-gray-800" : "text-gray-600"}`}>
                 {row.label}
+                {row.tip && <InfoTip text={row.tip} />}
               </span>
               <div className="flex items-center gap-3">
                 <span className={`${row.small ? "text-xs" : "text-sm"} font-mono ${row.bold ? "font-bold" : "font-medium"} ${row.color}`}>
@@ -596,7 +612,7 @@ function DetailedView({
       {bySource.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">P&L por Canal</h3>
+            <h3 className="text-sm font-semibold text-gray-700">P&L por Canal <InfoTip text="Mismos numeros del P&L pero separados por canal de venta (VTEX = tu tienda online, MercadoLibre = marketplace). Te permite ver cual canal es mas rentable." /></h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -667,7 +683,7 @@ function DetailedView({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">Margen por Categoria</h3>
+            <h3 className="text-sm font-semibold text-gray-700">Margen por Categoria <InfoTip text="Muestra que tan rentable es cada categoria de productos. Un margen alto (verde) significa buena diferencia entre precio de venta y costo. Rojo indica categorias donde casi no ganas." /></h3>
           </div>
           <div className="divide-y divide-gray-50">
             {categories.length === 0 ? (
@@ -687,7 +703,7 @@ function DetailedView({
         </div>
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">Margen por Marca</h3>
+            <h3 className="text-sm font-semibold text-gray-700">Margen por Marca <InfoTip text="Rentabilidad de cada marca que vendes. Te ayuda a identificar que marcas te dejan mas ganancia y cuales conviene renegociar o dejar de vender." /></h3>
           </div>
           <div className="divide-y divide-gray-50">
             {brands.length === 0 ? (
