@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ãltima actualizacion: 2026-04-01
+## Ãltima actualizacion: 2026-04-02
 
 ---
 
@@ -53,8 +53,16 @@
 | Archivo | VersiÃ³n | Estado | Notas |
 |---------|---------|--------|-------|
 | src/app/(app)/products/page.tsx | **v10.1** | â ESTABLE | **NO TOCAR.** KPIs, tabla, grÃ¡ficos, filtros, 3 tabs (Overview + Tendencias + Stock Inteligente), Bolsas de Compra. Encoding fixes aplicados. |
-| src/app/(app)/dashboard/page.tsx | â | Sin cambios | No modificado por Claude |
-| src/app/(app)/orders/page.tsx | â | Sin cambios | No modificado por Claude |
+| src/app/(app)/dashboard/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). Quick ranges + custom date. |
+| src/app/(app)/orders/page.tsx | - | Sin cambios | No modificado por Claude |
+| src/app/(app)/finanzas/page.tsx | **v3** | ACTIVO | P&L dual view (Ejecutivo/Detallado). InfoTips explicativos. Health semaphore. Payment fees, IVA, discounts. |
+| src/app/(app)/finanzas/costos/page.tsx | **v1** | ACTIVO | 1532 lineas. 8 categorias costos, perfil fiscal, tarifas envio, constancia AFIP import. |
+| src/app/(app)/analytics/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
+| src/app/(app)/pixel/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
+| src/app/(app)/mercadolibre/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
+| src/app/(app)/seo/page.tsx | **v3** | ACTIVO | PeriodSelector + audit fixes (country translations). |
+| src/components/PeriodSelector.tsx | **v1** | ACTIVO | Componente reutilizable. Quick ranges + Hoy/Ayer + custom date. |
+| src/components/dashboard/DateRangeFilter.tsx | **v2** | ACTIVO | Usado en finanzas. Quick ranges + date inputs. |
 
 ### BACKEND (APIs)
 
@@ -81,7 +89,26 @@
 | src/lib/connectors/gsc.ts | **v1** | ACTIVO | JWT auth con SA de GA4. Paginacion 25K rows. |
 | src/app/api/sync/gsc/route.ts | **v1** | ACTIVO | Cron sync dia-por-dia. maxDuration=800. |
 | src/app/api/metrics/seo/route.ts | **v2** | ACTIVO | 14 queries paralelas. Opportunities, movers, cannibalization. |
-| src/app/(app)/seo/page.tsx | **v2** | ACTIVO | 5 tabs: Overview, Keywords, Pages, Oportunidades, Movimientos. |
+| src/app/(app)/seo/page.tsx | **v3** | ACTIVO | 5 tabs + PeriodSelector + country translations. Commits 2600e73, b42e533. |
+
+### FINANZAS (P&L + Costos Operativos) — NUEVO 2026-04-02
+
+| Archivo | Version | Estado | Notas |
+|---------|---------|--------|-------|
+| src/app/(app)/finanzas/page.tsx | **v3** | ACTIVO | P&L dual view (Ejecutivo/Detallado). InfoTip tooltips. Health semaphore. Payment fees, IVA RI, discounts, channel breakdown. |
+| src/app/(app)/finanzas/costos/page.tsx | **v1** | ACTIVO | 1532 lineas. 8 categorias: LOGISTICA, EQUIPO, PLATAFORMAS, FISCAL, INFRAESTRUCTURA, MARKETING, MERMA, OTROS. Tarifas envio. Perfil fiscal. Constancia AFIP PDF. |
+| src/app/api/metrics/pnl/route.ts | **v3** | ACTIVO | P&L completo con: source breakdown (MELI/VTEX), payment fees por metodo, IVA debito fiscal para RI, descuentos, manual costs por categoria, platform config. 284+ lineas nuevas. |
+| src/app/api/finance/manual-costs/route.ts | **v1** | ACTIVO | CRUD costos manuales. GET (by month+category), POST (create), PUT (update), DELETE. |
+| src/app/api/finance/fiscal-profile/route.ts | **v1** | ACTIVO | GET/POST perfil fiscal (condicion IVA, IIBB, jurisdiccion, CUIT). Auto-genera impuestos argentinos. |
+| src/app/api/finance/fiscal-profile/parse-constancia/route.ts | **v1** | ACTIVO | Parsea PDF de constancia AFIP para auto-fill fiscal profile. Usa pdf-parse. |
+| src/app/api/finance/auto-costs/route.ts | **v1** | ACTIVO | Calcula costos automaticos: comisiones ML (del revenue MELI real) y merma (del revenue total). |
+| src/app/api/finance/platform-config/route.ts | **v1** | ACTIVO | GET/POST config de plataformas: comision VTEX %, fees medios de pago (tarjeta, debito, MP, transferencia). |
+| src/app/api/finance/shipping-rates/route.ts | **v1** | ACTIVO | CRUD tarifas de envio por carrier+servicio+CP. |
+| src/app/api/finance/shipping-rates/import/route.ts | **v1** | ACTIVO | Import masivo de tarifas desde Excel (.xlsx). Usa exceljs. |
+| src/app/api/finance/shipping-rates/template/route.ts | **v1** | ACTIVO | Genera template Excel para importar tarifas. |
+| src/app/api/finance/shipping-rates/calculate/route.ts | **v1** | ACTIVO | Calcula costo de envio dado carrier+service+CP. |
+| src/app/api/finance/shipping-rates/carriers/route.ts | **v1** | ACTIVO | Lista carriers y servicios disponibles. |
+| src/app/api/sync/cost-prices/route.ts | **v2** | ACTIVO | Sync precios de costo desde VTEX. Usa Pricing API (primary) + Catalog API (fallback). Fix critico: Pricing API tiene el costPrice, Catalog NO. |
 
 ### INFRAESTRUCTURA
 
@@ -91,7 +118,7 @@
 | src/lib/crypto.ts | **v1** | NEW | AES-256-GCM credential encryption |
 | src/lib/auth-guard.ts | **v1** | NEW | Org resolution from NextAuth session |
 | src/lib/db/client.ts | **v1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client |
-| prisma/schema.prisma | **v1** | â ESTABLE | **NO TOCAR** sin migraciÃ³n. brand y category son String? (no FK). |
+| prisma/schema.prisma | **v2** | ACTIVO | +65 lineas: ManualCost, ShippingRate models. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. **Requiere prisma db push.** |
 | vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
@@ -170,6 +197,122 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-02 — Sesion 2 (P&L Dual View + InfoTips + Cost Prices Sync Fix)
+
+**Commits**: 5c056f2, 36e9aec
+**Deploy**: Vercel auto-deploy OK (36e9aec -> main)
+
+#### Que se hizo:
+
+1. **Fix critico: Sync de precios de costo desde VTEX**
+   - El endpoint `/api/sync/cost-prices` usaba VTEX Catalog API (`stockkeepingunitbyid`) que NO devuelve costPrice
+   - DESCUBIERTO: El costPrice vive en VTEX Pricing API (`/api/pricing/prices/{skuId}`), NO en Catalog
+   - Se necesitaba permiso "Read prices" en VTEX License Manager (recurso "Price List")
+   - Se actualizo el endpoint con dual-source: Pricing API (primary) + Catalog (fallback)
+   - Se sincronizaron ~1,487 de 22,673 productos antes de frenar (el resto se cargara via Excel)
+   - Commit: 5c056f2
+
+2. **P&L Dual View: Vista Ejecutiva + Detallada**
+   - Vista Ejecutiva: Score card con semaforo de salud (Excelente/Saludable/Aceptable/Ajustado/Negativo), cascada de 3 cards (Facturacion/Costos/Resultado), mini sparkline, canales de un vistazo
+   - Vista Detallada: 5 KPI cards consolidadas, unit economics (AOV, costo x unidad, margen x unidad), waterfall/trend chart toggle, P&L statement completo con IVA para RI, payment fees detallados, descuentos, costos manuales, P&L por canal, margen por categoria y marca
+   - Toggle Ejecutivo/Detallado en header
+   - `getHealthStatus()` con 5 niveles y colores
+   - Commit: 5c056f2
+
+3. **InfoTip tooltips explicativos en todo el P&L**
+   - Componente `InfoTip` con icono "?" y tooltip hover
+   - +30 tooltips en ambas vistas explicando terminos financieros en espanol claro
+   - Pensado para usuarios no-financieros: Revenue, COGS, Margen Bruto, AOV, Beneficio Neto, comisiones, envios, IVA, etc.
+   - Cada fila del P&L statement tiene su propio tooltip con `row.tip`
+   - Commit: 36e9aec
+
+#### Archivos modificados:
+- `src/app/(app)/finanzas/page.tsx` — Rewrite completo (955 lineas): dual view + InfoTips
+- `src/app/api/sync/cost-prices/route.ts` — Pricing API primary + Catalog fallback
+
+### 2026-04-02 — Sesion 1 (Modulo Finanzas completo + Period Selector + Deep Audit)
+
+**Commits**: 2600e73..3dd6d00 (22 commits)
+**Deploy**: Vercel auto-deploy OK para cada commit
+
+#### Que se hizo:
+
+1. **SEO Intelligence v2** (2600e73)
+   - 5 tabs: Overview, Keywords, Pages, Oportunidades, Movimientos
+   - 14 queries paralelas en metrics/seo
+   - Cannibalization detection, movers up/down
+
+2. **Audit fixes quirurgicos** (b42e533)
+   - ML Dashboard: filtro status `notIn: ['CANCELLED', 'RETURNED']` en KPIs y graficos
+   - ML Preguntas: removido `take: 200` de promedio tiempo respuesta
+   - Google Ads sync: timezone corregido a `-03:00` en 5 instancias
+   - SEO frontend: traducciones paises faltantes (DOM, VEN, CRI, PAN, GTM)
+
+3. **PeriodSelector unificado** (d58cf24, c2e39c3)
+   - Componente reutilizable `PeriodSelector.tsx`
+   - Quick ranges (7d, 14d, 30d, 90d) + Hoy + Ayer + rango custom con boton Aplicar
+   - Integrado en: Dashboard, Analytics, Pixel, MercadoLibre, SEO (5 secciones)
+
+4. **P&L Source Breakdown** (4ee511b)
+   - P&L separado por canal: VTEX vs MELI
+   - Comisiones de plataforma por canal con labels descriptivos
+   - `platformFee`, `platformFeeLabel`, `mlCommission`, `mlTaxWithholdings` por source
+
+5. **Modulo Costos Operativos completo** (d8e336a..8fd35fd, 10 commits)
+   - Pagina `/finanzas/costos` con 1532 lineas
+   - 8 categorias: LOGISTICA, EQUIPO, PLATAFORMAS, FISCAL, INFRAESTRUCTURA, MARKETING, MERMA, OTROS
+   - Tarifas de envio: import Excel, template download, calculo por CP+carrier+servicio
+   - Perfil fiscal: Monotributo vs RI, IIBB jurisdiccion, auto-generacion impuestos argentinos
+   - Constancia AFIP: import PDF para auto-fill con pdf-parse
+   - Costos auto-calculados: comisiones ML (% real del revenue MELI), merma estimada
+   - Platform config: comision VTEX %, fees medios de pago editables
+   - 12 nuevos API endpoints en `/api/finance/*`
+   - 2 nuevos modelos Prisma: ManualCost, ShippingRate
+   - 2 nuevos packages: exceljs, pdf-parse
+
+6. **Deep Audit P&L** (323ced8, 3dd6d00)
+   - Payment fees por metodo de pago con detalle
+   - IVA debito fiscal para Responsable Inscripto
+   - Descuentos y promociones separados
+   - VTEX config editable (comision, fees medios de pago)
+   - Merma tipos: roturas, devoluciones no recuperables, diferencias inventario
+
+#### Archivos nuevos creados (12):
+- `src/app/(app)/finanzas/costos/page.tsx`
+- `src/app/api/finance/manual-costs/route.ts`
+- `src/app/api/finance/fiscal-profile/route.ts`
+- `src/app/api/finance/fiscal-profile/parse-constancia/route.ts`
+- `src/app/api/finance/auto-costs/route.ts`
+- `src/app/api/finance/platform-config/route.ts`
+- `src/app/api/finance/shipping-rates/route.ts`
+- `src/app/api/finance/shipping-rates/import/route.ts`
+- `src/app/api/finance/shipping-rates/template/route.ts`
+- `src/app/api/finance/shipping-rates/calculate/route.ts`
+- `src/app/api/finance/shipping-rates/carriers/route.ts`
+- `src/components/PeriodSelector.tsx`
+
+#### Archivos modificados (22):
+- `src/app/(app)/finanzas/page.tsx` — P&L source breakdown + manual costs
+- `src/app/(app)/seo/page.tsx` — v2 con tabs + PeriodSelector
+- `src/app/(app)/dashboard/page.tsx` — PeriodSelector
+- `src/app/(app)/analytics/page.tsx` — PeriodSelector
+- `src/app/(app)/pixel/page.tsx` — PeriodSelector
+- `src/app/(app)/mercadolibre/page.tsx` — PeriodSelector
+- `src/app/(app)/layout.tsx` — Nav submenu Finanzas (P&L + Costos)
+- `src/app/api/metrics/pnl/route.ts` — +284 lineas: source breakdown, payment fees, IVA, discounts, manual costs
+- `src/app/api/metrics/seo/route.ts` — v2 con 14 queries
+- `src/app/api/metrics/route.ts` — PeriodSelector compat
+- `src/app/api/metrics/trends/route.ts` — PeriodSelector compat
+- `src/app/api/mercadolibre/dashboard/route.ts` — Fix status filter
+- `src/app/api/mercadolibre/preguntas/route.ts` — Fix response time calc
+- `src/app/api/sync/google-ads/route.ts` — Timezone fix -03:00
+- `src/app/api/sync/vtex-details/route.ts` — +postalCode capture
+- `src/app/api/sync/cost-prices/route.ts` — Pricing API + Catalog fallback
+- `src/components/dashboard/DateRangeFilter.tsx` — Refactor para finanzas
+- `prisma/schema.prisma` — +ManualCost, +ShippingRate, +Order fields
+- `package.json` — +exceljs, +pdf-parse
+- `src/types/pdf-parse.d.ts` — Type declaration
 
 ### 2026-04-02 (Auditoria completa + fixes quirurgicos pre-demo)
 - Auditoria profunda de las 10 secciones, 29 rutas de sync, 9 crons, y consistencia cross-seccion
@@ -365,6 +508,54 @@
 
 ---
 
+### ERROR #11: VTEX PRICING API vs CATALOG API — costPrice NO esta en Catalog
+**Que paso**: El endpoint `/api/sync/cost-prices` usaba VTEX Catalog API (`/api/catalog_system/pvt/sku/stockkeepingunitbyid/{skuId}`) para obtener precios de costo. Sincronizo 22,673 productos pero TODOS quedaron con costPrice=0 (100 skipped, 0 updated).
+**Causa raiz**: La VTEX Catalog API NO devuelve el campo CostPrice. El precio de costo vive en la VTEX **Pricing API** (`/api/pricing/prices/{skuId}`), que es un modulo separado con sus propios permisos.
+**Investigacion**: Se probaron multiples endpoints de VTEX (catalog, pricing, computed prices, fixed prices, legacy pricing) hasta confirmar que `/api/pricing/prices/{skuId}` devuelve `costPrice: 6798` correctamente.
+**Fix aplicado**: Commit 5c056f2 — El endpoint ahora usa Pricing API como fuente primaria con Catalog como fallback. Incluye check de permisos al inicio.
+**REGLA PERMANENTE**:
+- **El costPrice de VTEX vive en Pricing API, NO en Catalog API.**
+- La Pricing API requiere permiso "Read prices" en License Manager (recurso "Price List").
+- VTEX tiene modulos separados con permisos independientes — SIEMPRE verificar que el API key tiene el permiso del modulo correcto.
+- Si un campo que deberia existir viene null/undefined, no asumir que no tiene dato — puede estar en OTRO modulo de VTEX.
+
+---
+
+### ERROR #12: VTEX PERMISSION 403 — Role no asociado al API key
+**Que paso**: Despues de que el usuario tildo "Read prices" en License Manager, el endpoint seguia dando 403 Forbidden en Pricing API.
+**Causa raiz (hipotesis 1)**: El usuario no habia guardado los cambios (confirmo que guardo "10 segundos despues" de la prueba).
+**Causa raiz (real)**: El permiso "Read prices" se agrego al rol correcto (el asociado al API key de NitroSales), pero tomo unos segundos en propagarse.
+**Cadena de permisos VTEX**: API Key -> Role -> Resources. Los tres eslabones deben estar conectados.
+**REGLA PERMANENTE**:
+- Verificar la cadena completa: (1) el recurso esta tildado? (2) en el rol correcto? (3) el rol esta asociado al API key correcto?
+- Despues de cambiar permisos en VTEX License Manager, esperar 10-30 segundos antes de re-probar.
+- Si sigue 403, pedir al usuario que verifique que GUARDO los cambios.
+
+---
+
+### ERROR #13: SYNC TIMEOUT POR SANDBOX — Proceso largo muere sin aviso
+**Que paso**: Al correr el sync de cost-prices para 22,673 productos, el proceso murio repetidamente despues de ~1,200-1,500 productos sin error explicito.
+**Causa raiz**: El sandbox de ejecucion tiene timeout implicito. No es un error de VTEX ni de la API.
+**Workaround**: Se implemento ThreadPoolExecutor (15 workers) con resume capability (query solo productos sin costPrice). Se lograron ~1,487 antes de que el usuario pidiera frenar.
+**Decision del usuario**: Cargar los costos restantes via Excel al dia siguiente.
+**REGLA PERMANENTE**:
+- Procesos que tocan >1000 registros con API calls externas NO se deben correr en sandbox interactivo.
+- Para bulk operations, disenar endpoints con chunks y resume capability (query `WHERE costPrice IS NULL`).
+- Siempre tener un plan B (Excel import, script local) para cuando el sync automatico sea lento.
+
+---
+
+### ERROR #14: CAMBIOS NO VISIBLES EN PRODUCCION — Falta commit + push
+**Que paso**: Despues de reescribir finanzas/page.tsx completo (P&L dual view), el usuario dijo "la sigo viendo igual que antes" y "me parece que no se aplicaron los datos".
+**Causa raiz**: Los cambios se hicieron en el repositorio local pero NO se committearon ni pushearon. Vercel necesita un push a main para triggear deploy.
+**Fix**: Se hizo `git add + commit + push` y Vercel deployo automaticamente.
+**REGLA PERMANENTE**:
+- **Despues de CADA cambio significativo, commitear y pushear.**
+- No dar por terminado un cambio hasta que este committeado, pusheado, y el usuario confirme que lo ve en produccion.
+- Si el usuario dice "no veo los cambios", lo primero es verificar: (1) se committeo? (2) se pusheo? (3) Vercel deployo? (4) cache del browser?
+
+---
+
 ### PROTOCOLO PRE-CAMBIO (OBLIGATORIO)
 
 Antes de CUALQUIER modificacion a codigo de NitroSales:
@@ -476,7 +667,7 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 
 ## MERCADOLIBRE SELLER INTEGRATION — Estado al 2026-04-01
 
-### Ultima actualizacion: 2026-04-01
+### Ultima actualizacion: 2026-04-02
 
 ### Cuenta conectada
 - **Seller**: ELMUNDODELJUG (KAVOR S.A.)
@@ -570,6 +761,76 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 ---
 
 
+## FINANZAS (P&L + Costos Operativos) — Estado al 2026-04-02
+
+### Arquitectura
+
+**Frontend**:
+- `/finanzas` — P&L con dual view (Ejecutivo/Detallado), toggle en header, date picker
+- `/finanzas/costos` — 8 categorias de costos manuales, perfil fiscal, tarifas envio, constancia AFIP
+
+**Backend APIs**:
+- `/api/metrics/pnl` — P&L completo con source breakdown, payment fees, IVA, discounts, manual costs
+- `/api/finance/manual-costs` — CRUD costos por categoria y mes
+- `/api/finance/fiscal-profile` — Perfil fiscal (condicion IVA, IIBB, jurisdiccion)
+- `/api/finance/fiscal-profile/parse-constancia` — PDF parser para constancia AFIP
+- `/api/finance/auto-costs` — Costos auto-calculados (comisiones ML, merma)
+- `/api/finance/platform-config` — Config VTEX (comision %, fees medios de pago)
+- `/api/finance/shipping-rates/*` — CRUD + import Excel + template + calculate + carriers
+- `/api/sync/cost-prices` — Sync precios de costo desde VTEX Pricing API
+
+**Modelos Prisma nuevos**:
+- `ManualCost` — costos manuales por categoria/mes/tipo
+- `ShippingRate` — tarifas de envio por carrier/servicio/CP
+
+**Packages nuevos**: exceljs (Excel import/export), pdf-parse (constancia AFIP)
+
+### Datos de costos en P&L
+
+El P&L (`/api/metrics/pnl`) ahora calcula y devuelve:
+- `revenue` — facturacion total
+- `cogs` — costo de mercaderia (de product.costPrice)
+- `cogsCoverage` — % de items con precio de costo cargado
+- `adSpend` — Meta + Google (de ad_campaign_metrics)
+- `shipping` — envios (de orders)
+- `platformFees` — comisiones de plataforma (ML real + VTEX config %)
+- `paymentFees` — fees medios de pago (por metodo: tarjeta, debito, MP, transferencia)
+- `discounts` — descuentos y promociones (de orders.promotionNames)
+- `manualCostsTotal` — costos manuales cargados por el usuario
+- `isRI` — si la org es Responsable Inscripto
+- `ivaDebitoFiscal` — IVA 21% sobre revenue (solo RI)
+- `revenueNetoIVA` — revenue sin IVA (solo RI)
+- `bySource[]` — breakdown por canal (MELI, VTEX) con P&L individual
+- `paymentFees[]` — detalle de fees por metodo y source
+
+### VTEX Cost Price Sync
+
+**Estado actual**: ~1,487 de 22,673 productos tienen costPrice sincronizado.
+**Pendiente**: El usuario va a proporcionar un Excel con todos los costos para bulk import.
+**API correcta**: VTEX Pricing API (`/api/pricing/prices/{skuId}`) — NO Catalog API.
+**Permiso necesario**: "Read prices" en License Manager, recurso "Price List".
+**VTEX account**: mundojuguete
+**API key**: vtexappkey-mundojuguete-ZMTYUJ (tiene el permiso)
+
+### PENDIENTES FINANZAS
+
+#### PENDIENTE FIN #1: Cargar costos restantes via Excel
+- ~21,186 productos sin costPrice
+- El usuario prometio proporcionar Excel con todos los costos
+- Endpoint de import ya existe pero necesita adaptarse para bulk costPrice update
+
+#### PENDIENTE FIN #2: UX de onboarding sync (para nuevos clientes)
+- El usuario quiere: progress bar visible, proceso en background, estimacion de tiempo
+- Idealmente webhook-based para no bloquear el browser
+- No implementado, solo planificado conceptualmente
+
+#### PENDIENTE FIN #3: Prisma migration pendiente
+- Se agregaron ManualCost y ShippingRate al schema + campos en Order
+- Requiere `prisma db push` o migration formal
+- Los modelos estan en schema pero la migracion puede no haberse corrido en produccion
+
+---
+
 ## PENDIENTE: BOT DE IA (Fase 4B)
 
 ### Estado: EN DEFINICION — no implementar sin aprobacion
@@ -588,7 +849,7 @@ Bot de IA en 2 capas:
 
 ## GOOGLE SEARCH CONSOLE (SEO Intelligence) — Estado al 2026-04-01
 
-### Ultima actualizacion: 2026-04-01
+### Ultima actualizacion: 2026-04-02
 
 ### Conexion
 - **Propiedad**: https://www.elmundodeljuguete.com.ar/
