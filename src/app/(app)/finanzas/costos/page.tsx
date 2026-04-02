@@ -121,6 +121,8 @@ export default function CostosPage() {
   const [monotributoCategories, setMonotributoCategories] = useState([]);
   const [fiscalLoading, setFiscalLoading] = useState(false);
   const [generatedTaxes, setGeneratedTaxes] = useState([]);
+  const [constanciaParsing, setConstanciaParsing] = useState(false);
+  const [constanciaResult, setConstanciaResult] = useState(null);
   const [fiscalForm, setFiscalForm] = useState({
     taxRegime: "",
     monotributoCategory: "A",
@@ -321,6 +323,42 @@ export default function CostosPage() {
       showToast("Error al aplicar impuestos");
     }
     setFiscalLoading(false);
+  }
+
+  async function handleConstanciaUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setConstanciaParsing(true);
+    setConstanciaResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/finance/fiscal-profile/parse-constancia", {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.parsed) {
+        setConstanciaResult(json);
+        // Auto-fill fiscal form with parsed data
+        setFiscalForm(prev => ({
+          ...prev,
+          taxRegime: json.taxRegime || prev.taxRegime,
+          monotributoCategory: json.monotributoCategory || prev.monotributoCategory,
+          province: json.provinceCode || prev.province,
+          hasConvenioMultilateral: json.hasConvenioMultilateral || prev.hasConvenioMultilateral,
+          sellsOnMarketplace: prev.sellsOnMarketplace, // keep user's existing choice
+        }));
+        showToast("Constancia procesada — verifica los datos");
+      } else {
+        setConstanciaResult({ error: json.error });
+        showToast(json.error || "No se pudo procesar la constancia");
+      }
+    } catch {
+      showToast("Error al procesar el archivo");
+    }
+    setConstanciaParsing(false);
+    e.target.value = "";
   }
 
   function getSelectedCarrierParts() {
@@ -544,19 +582,98 @@ export default function CostosPage() {
                           <p className="text-xs text-gray-400">
                             {fiscalProfile?.completedAt
                               ? "Configurado — los impuestos se generan automaticamente"
-                              : "Completa tu situacion fiscal para auto-generar los impuestos"}
+                              : "Subi tu constancia de AFIP o completa los datos manualmente"}
                           </p>
                         </div>
-                        {fiscalProfile && generatedTaxes.length === 0 && (
-                          <button
-                            onClick={saveFiscalProfile}
-                            disabled={fiscalLoading}
-                            className="text-xs px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                          >
-                            {fiscalLoading ? "..." : "Recalcular"}
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <label className={`text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer transition-colors ${
+                            constanciaParsing ? "bg-gray-100 text-gray-400" : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                          }`}>
+                            {constanciaParsing ? "Procesando..." : "Importar constancia AFIP"}
+                            <input
+                              type="file"
+                              accept=".pdf"
+                              onChange={handleConstanciaUpload}
+                              className="hidden"
+                              disabled={constanciaParsing}
+                            />
+                          </label>
+                          {fiscalProfile && generatedTaxes.length === 0 && (
+                            <button
+                              onClick={saveFiscalProfile}
+                              disabled={fiscalLoading}
+                              className="text-xs px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                            >
+                              {fiscalLoading ? "..." : "Recalcular"}
+                            </button>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Constancia parse result */}
+                      {constanciaResult && !constanciaResult.error && (
+                        <div className="mb-3 p-3 bg-white rounded-lg border border-indigo-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-indigo-700">Constancia procesada</span>
+                              <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full">
+                                {constanciaResult.confidence}% confianza
+                              </span>
+                            </div>
+                            <button onClick={() => setConstanciaResult(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                          </div>
+                          {constanciaResult.cuit && (
+                            <p className="text-xs text-gray-600 mb-1">
+                              <span className="font-medium">CUIT:</span> {constanciaResult.cuit}
+                              {constanciaResult.name && <span className="ml-2 text-gray-400">({constanciaResult.name})</span>}
+                            </p>
+                          )}
+                          {constanciaResult.taxRegime && (
+                            <p className="text-xs text-gray-600 mb-1">
+                              <span className="font-medium">Regimen:</span>{" "}
+                              {constanciaResult.taxRegime === "MONOTRIBUTO" ? "Monotributo" : "Responsable Inscripto"}
+                              {constanciaResult.monotributoCategory && ` Cat. ${constanciaResult.monotributoCategory}`}
+                            </p>
+                          )}
+                          {constanciaResult.provinceCode && (
+                            <p className="text-xs text-gray-600 mb-1">
+                              <span className="font-medium">Provincia:</span>{" "}
+                              {fiscalProvinces.find(p => p.code === constanciaResult.provinceCode)?.name || constanciaResult.province}
+                            </p>
+                          )}
+                          {constanciaResult.impuestos?.length > 0 && (
+                            <div className="mt-1.5">
+                              <span className="text-xs font-medium text-gray-500">Impuestos detectados:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {constanciaResult.impuestos.map((imp, i) => (
+                                  <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${
+                                    imp.estado === "ACTIVO" ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-500"
+                                  }`}>
+                                    {imp.description?.substring(0, 40)}{imp.description?.length > 40 ? "..." : ""}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {constanciaResult.warnings?.length > 0 && (
+                            <div className="mt-2 space-y-0.5">
+                              {constanciaResult.warnings.map((w, i) => (
+                                <p key={i} className="text-xs text-amber-600">⚠ {w}</p>
+                              ))}
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-400 mt-2">
+                            Los datos se cargaron en el formulario de abajo. Verifica y ajusta lo que sea necesario, luego guarda.
+                          </p>
+                        </div>
+                      )}
+
+                      {constanciaResult?.error && (
+                        <div className="mb-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                          <p className="text-xs text-red-600">{constanciaResult.error}</p>
+                          <button onClick={() => setConstanciaResult(null)} className="text-xs text-red-400 hover:text-red-600 mt-1">Cerrar</button>
+                        </div>
+                      )}
 
                       {/* Fiscal form */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
