@@ -59,6 +59,7 @@ model Organization {
   mlCommissions            MlCommission[]
   manualCosts              ManualCost[]
   shippingRates            ShippingRate[]
+  ltvPredictions           CustomerLtvPrediction[]
 
   @@map("organizations")
 }
@@ -256,6 +257,7 @@ model Customer {
   organization   Organization @relation(fields: [organizationId], references: [id])
   orders         Order[]
   pixelVisitors  PixelVisitor[]
+  ltvPredictions CustomerLtvPrediction[]
 
   @@unique([organizationId, externalId])
   @@index([organizationId, lastOrderAt])
@@ -1042,4 +1044,39 @@ model ShippingRate {
   @@index([organizationId, carrier, serviceType])
   @@index([organizationId, postalCodeFrom])
   @@map("shipping_rates")
+}
+
+// ─────────────────────────────────────────────
+// PREDICTED LTV (pLTV) — Motor de prediccion de valor de cliente
+// ─────────────────────────────────────────────
+// Almacena predicciones de LTV por cliente.
+// El envio a Meta CAPI y Google Ads esta DESACTIVADO por defecto
+// (requiere LTV_SEND_ENABLED=true en env para activar).
+// Solo funciona con VTEX (tienda propia) — MercadoLibre excluido.
+
+model CustomerLtvPrediction {
+  id                  String   @id @default(cuid())
+  predictedLtv90d     Decimal  @db.Decimal(12, 2)    // Valor predicho a 90 dias
+  predictedLtv365d    Decimal  @db.Decimal(12, 2)    // Valor predicho a 365 dias
+  confidence          Float    @default(0)           // 0-1, mas compras = mas confianza
+  acquisitionChannel  String                          // Canal de primera compra (Google Ads, Meta Ads, etc.)
+  segmentBucket       String                          // "high_value", "medium_value", "low_value"
+  inputFeatures       Json     @default("{}")         // Snapshot de datos usados para predecir
+  sentToMeta          Boolean  @default(false)        // Se envio a Meta CAPI?
+  sentToMetaAt        DateTime?                       // Cuando se envio
+  sentToGoogle        Boolean  @default(false)        // Se envio a Google Ads?
+  sentToGoogleAt      DateTime?                       // Cuando se envio
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  customerId          String
+  customer            Customer @relation(fields: [customerId], references: [id])
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([customerId, organizationId])
+  @@index([organizationId, segmentBucket])
+  @@index([organizationId, sentToMeta])
+  @@index([organizationId, sentToGoogle])
+  @@map("customer_ltv_predictions")
 }

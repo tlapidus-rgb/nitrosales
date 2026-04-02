@@ -10,6 +10,7 @@ import { formatARS, formatCompact } from "@/lib/utils/format";
 import {
   TrendingUp, Users, RefreshCw, DollarSign, Clock,
   Target, ArrowUpRight, ArrowDownRight, ChevronDown,
+  Brain, Lock, Send, Loader2, ShieldCheck,
 } from "lucide-react";
 import { KpiCard, ChangeBadge } from "@/components/dashboard";
 
@@ -82,6 +83,11 @@ export default function LtvPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Prediction state
+  const [predData, setPredData] = useState<any>(null);
+  const [predLoading, setPredLoading] = useState(false);
+  const [predRunning, setPredRunning] = useState(false);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -99,6 +105,39 @@ export default function LtvPage() {
     };
     fetchData();
   }, [dateFrom, dateTo]);
+
+  // Fetch existing predictions
+  useEffect(() => {
+    const fetchPredictions = async () => {
+      try {
+        const res = await fetch("/api/ltv/predict");
+        if (res.ok) {
+          const d = await res.json();
+          if (d.summary?.total > 0) setPredData(d);
+        }
+      } catch {}
+    };
+    fetchPredictions();
+  }, []);
+
+  const handleRunPrediction = async () => {
+    setPredRunning(true);
+    try {
+      const res = await fetch("/api/ltv/predict", { method: "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json();
+      // Refresh predictions data
+      const res2 = await fetch("/api/ltv/predict");
+      if (res2.ok) {
+        const d = await res2.json();
+        if (d.summary?.total > 0) setPredData(d);
+      }
+    } catch (e: any) {
+      console.error("Prediction error:", e);
+    } finally {
+      setPredRunning(false);
+    }
+  };
 
   const handleQuickRange = (days: number) => {
     const to = new Date();
@@ -250,6 +289,243 @@ export default function LtvPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── Predicciones de LTV ── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+        <div className="p-4 lg:p-5 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-violet-50">
+              <Brain size={18} className="text-violet-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">
+                Prediccion de LTV
+                <InfoTip text="Predice cuanto va a gastar cada cliente a futuro basandose en el comportamiento historico de clientes similares (mismo canal y rango de ticket). Usa un modelo de cohortes inspirado en BG/NBD." />
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Motor de prediccion basado en datos historicos de tu tienda
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
+              <Lock size={11} />
+              Envio a plataformas: DESACTIVADO
+            </span>
+            <button
+              onClick={handleRunPrediction}
+              disabled={predRunning}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {predRunning ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  Calculando...
+                </>
+              ) : (
+                <>
+                  <Brain size={12} />
+                  Recalcular predicciones
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {predData ? (
+          <>
+            {/* Prediction KPIs */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-4 lg:p-5">
+              <div className="bg-violet-50 rounded-lg p-3">
+                <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">Clientes Predichos</p>
+                <p className="text-lg font-bold text-violet-900 mt-1">{predData.summary.total.toLocaleString("es-AR")}</p>
+              </div>
+              <div className="bg-violet-50 rounded-lg p-3">
+                <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">pLTV 90d Promedio</p>
+                <p className="text-lg font-bold text-violet-900 mt-1">{formatARS(predData.summary.avgLtv90d)}</p>
+              </div>
+              <div className="bg-violet-50 rounded-lg p-3">
+                <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">pLTV 365d Promedio</p>
+                <p className="text-lg font-bold text-violet-900 mt-1">{formatARS(predData.summary.avgLtv365d)}</p>
+              </div>
+              <div className="bg-violet-50 rounded-lg p-3">
+                <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">Confianza Prom.</p>
+                <p className="text-lg font-bold text-violet-900 mt-1">{Math.round(predData.summary.avgConfidence * 100)}%</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Enviados</p>
+                <p className="text-lg font-bold text-gray-400 mt-1">0 / {predData.summary.total}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Meta: 0 · Google: 0</p>
+              </div>
+            </div>
+
+            {/* Prediction by channel */}
+            {predData.byChannel?.length > 0 && (
+              <div className="px-4 lg:px-5 pb-2">
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">pLTV por Canal de Adquisicion</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 text-gray-500 text-xs">
+                        <th className="text-left px-3 py-2 font-medium">Canal</th>
+                        <th className="text-right px-3 py-2 font-medium">Clientes</th>
+                        <th className="text-right px-3 py-2 font-medium">pLTV 90d</th>
+                        <th className="text-right px-3 py-2 font-medium">pLTV 365d</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {predData.byChannel.map((ch: any, i: number) => (
+                        <tr key={i} className="border-t border-gray-50 hover:bg-gray-50/50">
+                          <td className="px-3 py-2 font-medium text-gray-800 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHANNEL_COLORS[ch.channel] || "#6366f1" }} />
+                            {ch.channel}
+                          </td>
+                          <td className="text-right px-3 py-2 text-gray-600">{ch.customers.toLocaleString("es-AR")}</td>
+                          <td className="text-right px-3 py-2 text-gray-600">{formatARS(ch.avgLtv90d)}</td>
+                          <td className="text-right px-3 py-2 font-medium text-violet-700">{formatARS(ch.avgLtv365d)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Top predicted customers */}
+            {predData.topCustomers?.length > 0 && (
+              <div className="px-4 lg:px-5 pb-4">
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 mt-3">Top Clientes por pLTV Predicho</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 text-gray-500 text-xs">
+                        <th className="text-left px-3 py-2 font-medium">#</th>
+                        <th className="text-left px-3 py-2 font-medium">Cliente</th>
+                        <th className="text-left px-3 py-2 font-medium">Canal</th>
+                        <th className="text-left px-3 py-2 font-medium">Segmento</th>
+                        <th className="text-right px-3 py-2 font-medium">pLTV 90d</th>
+                        <th className="text-right px-3 py-2 font-medium">pLTV 365d</th>
+                        <th className="text-right px-3 py-2 font-medium">Confianza</th>
+                        <th className="text-center px-3 py-2 font-medium">Meta</th>
+                        <th className="text-center px-3 py-2 font-medium">Google</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {predData.topCustomers.slice(0, 10).map((c: any, i: number) => (
+                        <tr key={c.id} className="border-t border-gray-50 hover:bg-gray-50/50">
+                          <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
+                          <td className="px-3 py-2">
+                            <div className="font-medium text-gray-800 text-sm">{c.name}</div>
+                            {c.email && <div className="text-[10px] text-gray-400">{c.email}</div>}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className="inline-flex items-center gap-1 text-xs">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHANNEL_COLORS[c.channel] || "#6366f1" }} />
+                              {c.channel}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              c.segment === "high_value" ? "bg-emerald-100 text-emerald-700" :
+                              c.segment === "medium_value" ? "bg-amber-100 text-amber-700" :
+                              "bg-gray-100 text-gray-600"
+                            }`}>
+                              {c.segment === "high_value" ? "Alto" : c.segment === "medium_value" ? "Medio" : "Bajo"}
+                            </span>
+                          </td>
+                          <td className="text-right px-3 py-2 text-gray-600">{formatARS(c.predictedLtv90d)}</td>
+                          <td className="text-right px-3 py-2 font-medium text-violet-700">{formatARS(c.predictedLtv365d)}</td>
+                          <td className="text-right px-3 py-2">
+                            <span className={`text-xs font-medium ${c.confidence >= 0.7 ? "text-emerald-600" : c.confidence >= 0.5 ? "text-amber-600" : "text-red-500"}`}>
+                              {Math.round(c.confidence * 100)}%
+                            </span>
+                          </td>
+                          <td className="text-center px-3 py-2">
+                            {c.sentToMeta ? (
+                              <span className="text-emerald-500"><ShieldCheck size={14} /></span>
+                            ) : (
+                              <span className="text-gray-300"><Lock size={12} /></span>
+                            )}
+                          </td>
+                          <td className="text-center px-3 py-2">
+                            {c.sentToGoogle ? (
+                              <span className="text-emerald-500"><ShieldCheck size={14} /></span>
+                            ) : (
+                              <span className="text-gray-300"><Lock size={12} /></span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Distribution bars */}
+            <div className="px-4 lg:px-5 pb-4">
+              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 mt-2">Distribucion de Segmentos</h3>
+              <div className="flex gap-1 h-6 rounded-full overflow-hidden">
+                {predData.summary.distribution.highValue > 0 && (
+                  <div
+                    className="bg-emerald-500 flex items-center justify-center text-white text-[10px] font-medium"
+                    style={{ width: `${(predData.summary.distribution.highValue / predData.summary.total) * 100}%` }}
+                  >
+                    {predData.summary.distribution.highValue > 0 ? `Alto: ${predData.summary.distribution.highValue}` : ""}
+                  </div>
+                )}
+                {predData.summary.distribution.mediumValue > 0 && (
+                  <div
+                    className="bg-amber-400 flex items-center justify-center text-amber-900 text-[10px] font-medium"
+                    style={{ width: `${(predData.summary.distribution.mediumValue / predData.summary.total) * 100}%` }}
+                  >
+                    {predData.summary.distribution.mediumValue > 0 ? `Medio: ${predData.summary.distribution.mediumValue}` : ""}
+                  </div>
+                )}
+                {predData.summary.distribution.lowValue > 0 && (
+                  <div
+                    className="bg-gray-300 flex items-center justify-center text-gray-700 text-[10px] font-medium"
+                    style={{ width: `${(predData.summary.distribution.lowValue / predData.summary.total) * 100}%` }}
+                  >
+                    {predData.summary.distribution.lowValue > 0 ? `Bajo: ${predData.summary.distribution.lowValue}` : ""}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {predData.lastUpdated && (
+              <div className="px-4 lg:px-5 pb-4 text-[10px] text-gray-400">
+                Ultima actualizacion: {new Date(predData.lastUpdated).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="p-8 text-center">
+            <Brain size={32} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-500 text-sm font-medium">Sin predicciones aun</p>
+            <p className="text-gray-400 text-xs mt-1 max-w-md mx-auto">
+              Hace click en "Recalcular predicciones" para que el motor analice tus clientes y prediga su valor futuro basandose en el comportamiento historico.
+            </p>
+            <button
+              onClick={handleRunPrediction}
+              disabled={predRunning}
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+            >
+              {predRunning ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Calculando predicciones...
+                </>
+              ) : (
+                <>
+                  <Brain size={14} />
+                  Calcular predicciones
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── LTV por Canal de Adquisicion ── */}
