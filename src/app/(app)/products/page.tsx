@@ -14,6 +14,7 @@ import {
   TrendingUp, TrendingDown, AlertTriangle, DollarSign,
   Package, Zap, ArrowUp, ArrowDown, X, Search, Download,
   ShoppingBag, BarChart3, Layers, Clock, Percent, PiggyBank,
+  SlidersHorizontal, Eye, EyeOff,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────────── */
@@ -195,6 +196,42 @@ function StockChips({ active, onChange, counts }: { active: string; onChange: (k
   );
 }
 
+/* ── Column Selector ──────────────────────────────────── */
+
+type ColumnConfig = { key: string; label: string; defaultVisible: boolean };
+
+function ColumnSelector({ columns, visible, onChange }: {
+  columns: ColumnConfig[];
+  visible: Record<string, boolean>;
+  onChange: (key: string, val: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+        <SlidersHorizontal className="w-3.5 h-3.5" />Columnas
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 z-40 bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[200px]">
+            <p className="text-[10px] text-gray-400 uppercase font-semibold mb-2">Mostrar/Ocultar</p>
+            {columns.map((col) => (
+              <label key={col.key} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 rounded px-1">
+                <input type="checkbox" checked={visible[col.key] ?? col.defaultVisible}
+                  onChange={(e) => onChange(col.key, e.target.checked)}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5" />
+                <span className="text-xs text-gray-700">{col.label}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Component ────────────────────────────────────── */
 
 export default function ProductsPage() {
@@ -218,6 +255,36 @@ export default function ProductsPage() {
   const [deadStockPage, setDeadStockPage] = useState(1);
   const [bagsAnalytics, setBagsAnalytics] = useState<BagsAnalytics | null>(null);
   const [summary, setSummary] = useState<{ totalOrders30d: number; totalItems30d: number; totalRevenue30d: number } | null>(null);
+
+  // Column visibility
+  const OVERVIEW_COLUMNS: ColumnConfig[] = [
+    { key: "facturacion", label: "Facturación", defaultVisible: true },
+    { key: "margen", label: "Margen %", defaultVisible: true },
+    { key: "porcMarca", label: "% Marca", defaultVisible: true },
+    { key: "porcCat", label: "% Categoría", defaultVisible: true },
+    { key: "porcTotal", label: "% Total", defaultVisible: true },
+    { key: "unidades", label: "Unidades", defaultVisible: true },
+    { key: "wow", label: "WoW", defaultVisible: true },
+    { key: "stock", label: "Stock", defaultVisible: true },
+    { key: "diasStock", label: "Días Stock", defaultVisible: true },
+    { key: "abc", label: "ABC", defaultVisible: true },
+  ];
+  const MARGIN_COLUMNS: ColumnConfig[] = [
+    { key: "precio", label: "Precio", defaultVisible: true },
+    { key: "costo", label: "Costo", defaultVisible: true },
+    { key: "margenPct", label: "Margen %", defaultVisible: true },
+    { key: "markup", label: "Markup %", defaultVisible: true },
+    { key: "margenUd", label: "Margen $/ud", defaultVisible: true },
+    { key: "unidades", label: "Unidades", defaultVisible: true },
+    { key: "facturacion", label: "Facturación", defaultVisible: true },
+    { key: "ganancia", label: "Ganancia", defaultVisible: true },
+    { key: "stock", label: "Stock", defaultVisible: true },
+    { key: "abc", label: "ABC", defaultVisible: false },
+  ];
+  const [overviewCols, setOverviewCols] = useState<Record<string, boolean>>({});
+  const [marginCols, setMarginCols] = useState<Record<string, boolean>>({});
+  const isOvCol = (key: string) => overviewCols[key] ?? OVERVIEW_COLUMNS.find(c => c.key === key)?.defaultVisible ?? true;
+  const isMgCol = (key: string) => marginCols[key] ?? MARGIN_COLUMNS.find(c => c.key === key)?.defaultVisible ?? true;
 
   // Date range
   const [dateFrom, setDateFrom] = useState(toDateInputValue(new Date(Date.now() - 30 * 86400000)));
@@ -610,6 +677,13 @@ export default function ProductsPage() {
           bV = b.avgPriceNeto - bCost;
           break;
         }
+        case "markup": {
+          const aCst = a.costPrice ?? 0;
+          const bCst = b.costPrice ?? 0;
+          aV = aCst > 0 ? ((a.avgPriceNeto - aCst) / aCst) * 100 : -999;
+          bV = bCst > 0 ? ((b.avgPriceNeto - bCst) / bCst) * 100 : -999;
+          break;
+        }
         default: return 0;
       }
       return marginSort.direction === "asc" ? (aV > bV ? 1 : -1) : (aV < bV ? 1 : -1);
@@ -639,14 +713,15 @@ export default function ProductsPage() {
   };
 
   const exportMarginCSV = () => {
-    const headers = ["Producto", "SKU", "Marca", "Categoria", "Precio c/IVA", "Precio s/IVA", "Costo", "Margen %", "Margen $/ud", "Unidades", "Facturacion c/IVA", "Revenue Neto", "COGS", "Ganancia", "Stock", "ABC"];
+    const headers = ["Producto", "SKU", "Marca", "Categoria", "Precio c/IVA", "Precio s/IVA", "Costo", "Margen %", "Markup %", "Margen $/ud", "Unidades", "Facturacion c/IVA", "Revenue Neto", "COGS", "Ganancia", "Stock", "ABC"];
     const rows = marginSorted.map((p) => {
       const cost = p.costPrice ?? 0;
       const marginPerUnit = p.avgPriceNeto - cost;
+      const markupPct = cost > 0 ? ((p.avgPriceNeto - cost) / cost) * 100 : 0;
       return [
         `"${p.name.replace(/"/g, '""')}"`, p.sku || "", p.brand || "", p.category || "",
         p.avgPrice.toFixed(2), p.avgPriceNeto.toFixed(2), cost.toFixed(2),
-        (p.marginPct ?? 0).toFixed(1), marginPerUnit.toFixed(2),
+        (p.marginPct ?? 0).toFixed(1), markupPct.toFixed(1), marginPerUnit.toFixed(2),
         p.unitsSold, p.revenue.toFixed(2), p.revenueNeto.toFixed(2), (p.cogs ?? 0).toFixed(2),
         (p.marginAbs ?? 0).toFixed(2), p.stock ?? 0, p.trendData.abcClass,
       ].join(",");
@@ -884,8 +959,10 @@ export default function ProductsPage() {
 
           {/* Products Table */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">Productos ({filtered.length})</h3>
+              <ColumnSelector columns={OVERVIEW_COLUMNS} visible={overviewCols}
+                onChange={(k, v) => setOverviewCols(prev => ({ ...prev, [k]: v }))} />
             </div>
             <div className="overflow-x-auto flex-1 flex flex-col">
               <div className="overflow-y-auto max-h-[600px]">
@@ -893,30 +970,30 @@ export default function ProductsPage() {
                   <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                     <tr>
                       <th className="px-6 py-3 text-left font-semibold text-gray-700">Producto</th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("revenue")}>
+                      {isOvCol("facturacion") && <th className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("revenue")}>
                         <TooltipHeader text="Facturacion" tooltip={COLUMN_TOOLTIPS.facturacion} />{sortIcon("revenue")}
-                      </th>
-                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("marginPct")}>
-                        <TooltipHeader text="Margen" tooltip="Margen bruto: (Revenue - Costo) / Revenue" />{sortIcon("marginPct")}
-                      </th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Marca" tooltip={COLUMN_TOOLTIPS.porcMarca} /></th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Cat." tooltip={COLUMN_TOOLTIPS.porcCat} /></th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Total" tooltip={COLUMN_TOOLTIPS.porcTotal} /></th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("unitsSold")}>
+                      </th>}
+                      {isOvCol("margen") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("marginPct")}>
+                        <TooltipHeader text="Margen" tooltip="Margen bruto: (Precio neto - Costo) / Precio neto" />{sortIcon("marginPct")}
+                      </th>}
+                      {isOvCol("porcMarca") && <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Marca" tooltip={COLUMN_TOOLTIPS.porcMarca} /></th>}
+                      {isOvCol("porcCat") && <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Cat." tooltip={COLUMN_TOOLTIPS.porcCat} /></th>}
+                      {isOvCol("porcTotal") && <th className="px-6 py-3 text-right font-semibold text-gray-700"><TooltipHeader text="% Total" tooltip={COLUMN_TOOLTIPS.porcTotal} /></th>}
+                      {isOvCol("unidades") && <th className="px-6 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("unitsSold")}>
                         <TooltipHeader text="Unidades" tooltip={COLUMN_TOOLTIPS.unidades} />{sortIcon("unitsSold")}
-                      </th>
-                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("wowRevenuePct")}>
+                      </th>}
+                      {isOvCol("wow") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("wowRevenuePct")}>
                         <TooltipHeader text="WoW" tooltip={COLUMN_TOOLTIPS.tendencia} />{sortIcon("wowRevenuePct")}
-                      </th>
-                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("stock")}>
+                      </th>}
+                      {isOvCol("stock") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("stock")}>
                         <TooltipHeader text="Stock" tooltip={COLUMN_TOOLTIPS.stock} />{sortIcon("stock")}
-                      </th>
-                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("daysOfStock")}>
+                      </th>}
+                      {isOvCol("diasStock") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("daysOfStock")}>
                         <TooltipHeader text="Dias" tooltip={COLUMN_TOOLTIPS.diasstock} />{sortIcon("daysOfStock")}
-                      </th>
-                      <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("abc")}>
+                      </th>}
+                      {isOvCol("abc") && <th className="px-6 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("abc")}>
                         <TooltipHeader text="ABC" tooltip={COLUMN_TOOLTIPS.abc} />{sortIcon("abc")}
-                      </th>
+                      </th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -943,8 +1020,8 @@ export default function ProductsPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right font-medium text-gray-900">{formatARS(p.revenue)}</td>
-                          <td className="px-6 py-4 text-center">
+                          {isOvCol("facturacion") && <td className="px-6 py-4 text-right font-medium text-gray-900">{formatARS(p.revenue)}</td>}
+                          {isOvCol("margen") && <td className="px-6 py-4 text-center">
                             {p.marginPct != null ? (
                               <span className={`px-2 py-1 text-xs font-bold rounded-md ${
                                 p.marginPct >= 50 ? "bg-green-100 text-green-700" :
@@ -953,15 +1030,15 @@ export default function ProductsPage() {
                                 "bg-red-200 text-red-800"
                               }`}>{p.marginPct.toFixed(1)}%</span>
                             ) : <span className="text-gray-400 text-xs">--</span>}
-                          </td>
-                          <td className="px-6 py-4 text-right text-gray-700">{pMarca.toFixed(1)}%</td>
-                          <td className="px-6 py-4 text-right text-gray-700">{pCat.toFixed(1)}%</td>
-                          <td className="px-6 py-4 text-right text-gray-700">{pTotal.toFixed(1)}%</td>
-                          <td className="px-6 py-4 text-right text-gray-700">{formatCompact(p.unitsSold)}</td>
-                          <td className="px-6 py-4 text-center"><TrendIndicator value={p.trendData.wowRevenuePct} /></td>
-                          <td className="px-6 py-4 text-center"><span className={`font-medium ${(p.stock ?? 0) === 0 ? "text-red-600" : "text-gray-900"}`}>{p.stock ?? 0}</span></td>
-                          <td className="px-6 py-4 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>
-                          <td className="px-6 py-4 text-center"><ABCBadge abcClass={p.trendData.abcClass} /></td>
+                          </td>}
+                          {isOvCol("porcMarca") && <td className="px-6 py-4 text-right text-gray-700">{pMarca.toFixed(1)}%</td>}
+                          {isOvCol("porcCat") && <td className="px-6 py-4 text-right text-gray-700">{pCat.toFixed(1)}%</td>}
+                          {isOvCol("porcTotal") && <td className="px-6 py-4 text-right text-gray-700">{pTotal.toFixed(1)}%</td>}
+                          {isOvCol("unidades") && <td className="px-6 py-4 text-right text-gray-700">{formatCompact(p.unitsSold)}</td>}
+                          {isOvCol("wow") && <td className="px-6 py-4 text-center"><TrendIndicator value={p.trendData.wowRevenuePct} /></td>}
+                          {isOvCol("stock") && <td className="px-6 py-4 text-center"><span className={`font-medium ${(p.stock ?? 0) === 0 ? "text-red-600" : "text-gray-900"}`}>{p.stock ?? 0}</span></td>}
+                          {isOvCol("diasStock") && <td className="px-6 py-4 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>}
+                          {isOvCol("abc") && <td className="px-6 py-4 text-center"><ABCBadge abcClass={p.trendData.abcClass} /></td>}
                         </tr>
                       );
                     })}
@@ -1537,9 +1614,13 @@ export default function ProductsPage() {
                 <h3 className="font-semibold text-gray-900">Catalogo Completo - Analisis de Margenes</h3>
                 <p className="text-xs text-gray-500 mt-1">{marginCatalog.length} productos con costo cargado</p>
               </div>
-              <button onClick={exportMarginCSV} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
-                <Download className="w-4 h-4" />Exportar Margenes CSV
-              </button>
+              <div className="flex items-center gap-2">
+                <ColumnSelector columns={MARGIN_COLUMNS} visible={marginCols}
+                  onChange={(k, v) => setMarginCols(prev => ({ ...prev, [k]: v }))} />
+                <button onClick={exportMarginCSV} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+                  <Download className="w-4 h-4" />Exportar CSV
+                </button>
+              </div>
             </div>
 
             {/* Inline Filters for Margins */}
@@ -1598,31 +1679,34 @@ export default function ProductsPage() {
                   <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[200px]">Producto</th>
-                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("avgPrice")}>
+                      {isMgCol("precio") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("avgPrice")}>
                         <TooltipHeader text="Precio" tooltip="Precio de venta con IVA incluido" />{marginSortIcon("avgPrice")}
-                      </th>
-                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("costPrice")}>
+                      </th>}
+                      {isMgCol("costo") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("costPrice")}>
                         <TooltipHeader text="Costo" tooltip="Costo unitario sin IVA" />{marginSortIcon("costPrice")}
-                      </th>
-                      <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginPct")}>
-                        Margen %{marginSortIcon("marginPct")}
-                      </th>
-                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginPerUnit")}>
+                      </th>}
+                      {isMgCol("margenPct") && <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginPct")}>
+                        <TooltipHeader text="Margen %" tooltip="(Precio neto - Costo) / Precio neto" />{marginSortIcon("marginPct")}
+                      </th>}
+                      {isMgCol("markup") && <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("markup")}>
+                        <TooltipHeader text="Markup %" tooltip="(Precio neto - Costo) / Costo" />{marginSortIcon("markup")}
+                      </th>}
+                      {isMgCol("margenUd") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginPerUnit")}>
                         Margen $/ud{marginSortIcon("marginPerUnit")}
-                      </th>
-                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("unitsSold")}>
+                      </th>}
+                      {isMgCol("unidades") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("unitsSold")}>
                         Uds{marginSortIcon("unitsSold")}
-                      </th>
-                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("revenue")}>
+                      </th>}
+                      {isMgCol("facturacion") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("revenue")}>
                         Facturacion{marginSortIcon("revenue")}
-                      </th>
-                      <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginAbs")}>
+                      </th>}
+                      {isMgCol("ganancia") && <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginAbs")}>
                         Ganancia{marginSortIcon("marginAbs")}
-                      </th>
-                      <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("stock")}>
+                      </th>}
+                      {isMgCol("stock") && <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("stock")}>
                         Stock{marginSortIcon("stock")}
-                      </th>
-                      <th className="px-3 py-3 text-center font-semibold text-gray-700">ABC</th>
+                      </th>}
+                      {isMgCol("abc") && <th className="px-3 py-3 text-center font-semibold text-gray-700">ABC</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -1630,6 +1714,7 @@ export default function ProductsPage() {
                       const cost = p.costPrice ?? 0;
                       const marginPerUnit = p.avgPriceNeto - cost;
                       const mPct = p.marginPct ?? 0;
+                      const markupPct = cost > 0 ? ((p.avgPriceNeto - cost) / cost) * 100 : 0;
                       return (
                         <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3">
@@ -1641,34 +1726,42 @@ export default function ProductsPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-3 py-3 text-right text-gray-900 font-medium whitespace-nowrap">{formatARS(p.avgPrice)}</td>
-                          <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">{formatARS(cost)}</td>
-                          <td className="px-3 py-3 text-center">
+                          {isMgCol("precio") && <td className="px-3 py-3 text-right text-gray-900 font-medium whitespace-nowrap">{formatARS(p.avgPrice)}</td>}
+                          {isMgCol("costo") && <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">{formatARS(cost)}</td>}
+                          {isMgCol("margenPct") && <td className="px-3 py-3 text-center">
                             <span className={`px-2 py-1 text-xs font-bold rounded-md ${
                               mPct >= 50 ? "bg-green-100 text-green-700" :
                               mPct >= 30 ? "bg-amber-100 text-amber-700" :
                               mPct >= 0 ? "bg-red-100 text-red-700" :
                               "bg-red-200 text-red-800"
                             }`}>{mPct.toFixed(1)}%</span>
-                          </td>
-                          <td className="px-3 py-3 text-right whitespace-nowrap">
+                          </td>}
+                          {isMgCol("markup") && <td className="px-3 py-3 text-center">
+                            <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                              markupPct >= 100 ? "bg-green-100 text-green-700" :
+                              markupPct >= 50 ? "bg-amber-100 text-amber-700" :
+                              markupPct >= 0 ? "bg-red-100 text-red-700" :
+                              "bg-red-200 text-red-800"
+                            }`}>{markupPct.toFixed(1)}%</span>
+                          </td>}
+                          {isMgCol("margenUd") && <td className="px-3 py-3 text-right whitespace-nowrap">
                             <span className={marginPerUnit >= 0 ? "text-green-700 font-medium" : "text-red-600 font-medium"}>
                               {formatARS(marginPerUnit)}
                             </span>
-                          </td>
-                          <td className="px-3 py-3 text-right text-gray-700">{p.unitsSold.toLocaleString("es-AR")}</td>
-                          <td className="px-3 py-3 text-right text-gray-900 font-medium whitespace-nowrap">{formatCompact(p.revenue)}</td>
-                          <td className="px-3 py-3 text-right whitespace-nowrap">
+                          </td>}
+                          {isMgCol("unidades") && <td className="px-3 py-3 text-right text-gray-700">{p.unitsSold.toLocaleString("es-AR")}</td>}
+                          {isMgCol("facturacion") && <td className="px-3 py-3 text-right text-gray-900 font-medium whitespace-nowrap">{formatCompact(p.revenue)}</td>}
+                          {isMgCol("ganancia") && <td className="px-3 py-3 text-right whitespace-nowrap">
                             <span className={(p.marginAbs ?? 0) >= 0 ? "text-green-700 font-medium" : "text-red-600 font-medium"}>
                               {formatCompact(p.marginAbs ?? 0)}
                             </span>
-                          </td>
-                          <td className="px-3 py-3 text-center">
+                          </td>}
+                          {isMgCol("stock") && <td className="px-3 py-3 text-center">
                             <span className={`font-medium ${(p.stock ?? 0) === 0 ? "text-red-600" : "text-gray-900"}`}>
                               {p.stock ?? 0}
                             </span>
-                          </td>
-                          <td className="px-3 py-3 text-center"><ABCBadge abcClass={p.trendData.abcClass} /></td>
+                          </td>}
+                          {isMgCol("abc") && <td className="px-3 py-3 text-center"><ABCBadge abcClass={p.trendData.abcClass} /></td>}
                         </tr>
                       );
                     })}
