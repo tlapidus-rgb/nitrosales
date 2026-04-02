@@ -504,11 +504,25 @@ export default function CostosPage() {
                   {items.length > 0 && (
                     <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{items.length}</span>
                   )}
+                  {(cat.key === "PLATAFORMAS" || cat.key === "MERMA") && (
+                    <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Auto
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
-                  {total > 0 && (
-                    <span className="text-sm font-bold font-mono text-gray-700">{formatARS(total)}</span>
-                  )}
+                  {(() => {
+                    let autoTotal = 0;
+                    if (autoCosts && cat.key === "PLATAFORMAS") {
+                      autoTotal = (autoCosts.platform?.items || []).reduce((s, i) => s + i.amount, 0);
+                    } else if (autoCosts && cat.key === "MERMA") {
+                      autoTotal = (autoCosts.merma?.items || []).reduce((s, i) => s + i.amount, 0);
+                    }
+                    const displayTotal = total + autoTotal;
+                    return displayTotal > 0 ? (
+                      <span className="text-sm font-bold font-mono text-gray-700">{formatARS(displayTotal)}</span>
+                    ) : null;
+                  })()}
                   <span className="text-xs text-gray-400">{isExpanded ? "▲" : "▼"}</span>
                 </div>
               </button>
@@ -692,13 +706,33 @@ export default function CostosPage() {
                   )}
 
                   {/* Auto-calculated costs for PLATAFORMAS and MERMA */}
-                  {autoCosts && (cat.key === "PLATAFORMAS" || cat.key === "MERMA") && (
+                  {(cat.key === "PLATAFORMAS" || cat.key === "MERMA") && (
                     (() => {
                       const autoItems = cat.key === "PLATAFORMAS"
-                        ? autoCosts.platform?.items || []
-                        : autoCosts.merma?.items || [];
-                      if (autoItems.length === 0) return null;
+                        ? autoCosts?.platform?.items || []
+                        : autoCosts?.merma?.items || [];
                       const autoTotal = autoItems.reduce((sum, i) => sum + i.amount, 0);
+
+                      if (autoItems.length === 0) {
+                        return (
+                          <div className="px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-transparent">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-semibold text-gray-500">
+                                Calculo automatico
+                              </span>
+                              <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+                                {costMonth}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400">
+                              {cat.key === "PLATAFORMAS"
+                                ? "Las comisiones de MercadoLibre se calculan automaticamente cuando se sincronizan las ordenes de ML. Si ya sincronizaste y no ves datos, proba seleccionando un mes con ventas."
+                                : "Las cancelaciones y devoluciones se calculan automaticamente desde las ordenes. Si no ves datos, puede que no haya ordenes canceladas/devueltas en este periodo."}
+                            </p>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div className="px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-emerald-50/50 to-transparent">
                           <div className="flex items-center gap-2 mb-2">
