@@ -47,6 +47,8 @@ export async function POST() {
     }
 
     // Step 3: Update orders with exact CP match (individual CPs)
+    // Matches by carrier + serviceType + CP when order has carrier info,
+    // falls back to CP-only match when order has no carrier info.
     const exactMatched = await prisma.$executeRaw`
       UPDATE orders o
       SET "realShippingCost" = sr.cost
@@ -58,9 +60,15 @@ export async function POST() {
         AND o."postalCode" = sr."postalCodeFrom"
         AND o."postalCode" IS NOT NULL
         AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND (
+          (o."shippingCarrier" IS NOT NULL AND o."shippingCarrier" = sr.carrier AND o."shippingService" = sr."serviceType")
+          OR
+          (o."shippingCarrier" IS NULL)
+        )
     `;
 
     // Step 4: Update orders with range match (for orders not yet matched)
+    // Same carrier+serviceType logic: match by carrier when available, CP-only fallback.
     const rangeMatched = await prisma.$executeRaw`
       UPDATE orders o
       SET "realShippingCost" = sub.cost
@@ -73,6 +81,11 @@ export async function POST() {
           AND sr."postalCodeTo" IS NOT NULL
           AND o2."postalCode" >= sr."postalCodeFrom"
           AND o2."postalCode" <= sr."postalCodeTo"
+          AND (
+            (o2."shippingCarrier" IS NOT NULL AND o2."shippingCarrier" = sr.carrier AND o2."shippingService" = sr."serviceType")
+            OR
+            (o2."shippingCarrier" IS NULL)
+          )
         WHERE o2."organizationId" = ${ORG_ID}
           AND o2."postalCode" IS NOT NULL
           AND o2."realShippingCost" IS NULL
