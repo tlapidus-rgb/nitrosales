@@ -657,6 +657,51 @@ export default function ProductsPage() {
     };
   }, [filtered]);
 
+  // Computed byCategory/byBrand from filtered products (supports cross-filtering)
+  const computedByCategory = useMemo(() => {
+    const withCost = filtered.filter((p) => p.costPrice != null && p.costPrice > 0);
+    const map: Record<string, { revenue: number; cogs: number; productCount: number }> = {};
+    withCost.forEach((p) => {
+      const cat = p.category || "Sin categoria";
+      if (!map[cat]) map[cat] = { revenue: 0, cogs: 0, productCount: 0 };
+      map[cat].revenue += p.revenueNeto;
+      map[cat].cogs += (p.cogs ?? 0);
+      map[cat].productCount += 1;
+    });
+    return Object.entries(map)
+      .map(([name, d]) => ({
+        name,
+        revenue: d.revenue,
+        cogs: d.cogs,
+        marginPct: d.revenue > 0 ? ((d.revenue - d.cogs) / d.revenue) * 100 : 0,
+        markupPct: d.cogs > 0 ? ((d.revenue - d.cogs) / d.cogs) * 100 : 0,
+        productCount: d.productCount,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [filtered]);
+
+  const computedByBrand = useMemo(() => {
+    const withCost = filtered.filter((p) => p.costPrice != null && p.costPrice > 0);
+    const map: Record<string, { revenue: number; cogs: number; productCount: number }> = {};
+    withCost.forEach((p) => {
+      const br = p.brand || "Sin marca";
+      if (!map[br]) map[br] = { revenue: 0, cogs: 0, productCount: 0 };
+      map[br].revenue += p.revenueNeto;
+      map[br].cogs += (p.cogs ?? 0);
+      map[br].productCount += 1;
+    });
+    return Object.entries(map)
+      .map(([name, d]) => ({
+        name,
+        revenue: d.revenue,
+        cogs: d.cogs,
+        marginPct: d.revenue > 0 ? ((d.revenue - d.cogs) / d.revenue) * 100 : 0,
+        markupPct: d.cogs > 0 ? ((d.revenue - d.cogs) / d.cogs) * 100 : 0,
+        productCount: d.productCount,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [filtered]);
+
   const marginSorted = useMemo(() => {
     if (!marginSort.column || !marginSort.direction) return marginCatalog;
     return [...marginCatalog].sort((a, b) => {
@@ -1476,15 +1521,18 @@ export default function ProductsPage() {
 
             {/* Margin by Brand */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-4">Margen por Marca (Top 10)</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Margen por Marca (Top 10)</h3>
+                {categoryFilter && <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md">Filtro: {categoryFilter}</span>}
+              </div>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={marginAnalysis.byBrand.slice(0, 10)} layout="vertical">
+                <BarChart data={computedByBrand.slice(0, 10)} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
                   <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10 }} />
                   <Tooltip formatter={(v: number) => [`${v.toFixed(1)}%`, "Margen"]} />
                   <Bar dataKey="marginPct" name="Margen" radius={[0, 4, 4, 0]}>
-                    {marginAnalysis.byBrand.slice(0, 10).map((entry, i) => (
+                    {computedByBrand.slice(0, 10).map((entry, i) => (
                       <Cell key={i} fill={entry.marginPct >= 50 ? "#22c55e" : entry.marginPct >= 30 ? "#eab308" : "#ef4444"} />
                     ))}
                   </Bar>
@@ -1495,8 +1543,23 @@ export default function ProductsPage() {
 
           {/* Margin by Category Table */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900">Margen por Categoria</h3>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900">Margen por Categoria</h3>
+                {brandFilter && <p className="text-xs text-indigo-600 mt-1">Filtrado por marca: {brandFilter}</p>}
+              </div>
+              <div className="flex items-center gap-2">
+                <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); }}
+                  className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${brandFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+                  <option value="">Todas las marcas</option>
+                  {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); }}
+                  className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${categoryFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+                  <option value="">Todas las categorias</option>
+                  {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -1506,12 +1569,13 @@ export default function ProductsPage() {
                     <th className="px-6 py-3 text-right font-semibold text-gray-700">Revenue</th>
                     <th className="px-6 py-3 text-right font-semibold text-gray-700">COGS</th>
                     <th className="px-6 py-3 text-center font-semibold text-gray-700">Margen %</th>
+                    <th className="px-6 py-3 text-center font-semibold text-gray-700">Markup %</th>
                     <th className="px-6 py-3 text-right font-semibold text-gray-700">Ganancia</th>
                     <th className="px-6 py-3 text-right font-semibold text-gray-700">Productos</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {marginAnalysis.byCategory.map((cat) => (
+                  {computedByCategory.map((cat) => (
                     <tr key={cat.name} className="hover:bg-gray-50">
                       <td className="px-6 py-3 font-medium text-gray-900">{cat.name}</td>
                       <td className="px-6 py-3 text-right text-gray-700">{formatARS(cat.revenue)}</td>
@@ -1522,6 +1586,13 @@ export default function ProductsPage() {
                           cat.marginPct >= 30 ? "bg-amber-100 text-amber-700" :
                           "bg-red-100 text-red-700"
                         }`}>{cat.marginPct.toFixed(1)}%</span>
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                          cat.markupPct >= 100 ? "bg-green-100 text-green-700" :
+                          cat.markupPct >= 50 ? "bg-amber-100 text-amber-700" :
+                          "bg-red-100 text-red-700"
+                        }`}>{cat.markupPct.toFixed(1)}%</span>
                       </td>
                       <td className="px-6 py-3 text-right font-medium text-green-700">{formatARS(cat.revenue - cat.cogs)}</td>
                       <td className="px-6 py-3 text-right text-gray-500">{cat.productCount}</td>
