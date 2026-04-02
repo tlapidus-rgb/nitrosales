@@ -21,14 +21,26 @@ interface ValidRow {
   cost: Decimal;
 }
 
+/**
+ * POST /api/finance/shipping-rates/import
+ *
+ * Imports shipping rates from an Excel file.
+ * Carrier and service are passed as FormData fields (not from the Excel),
+ * ensuring exact match with order data.
+ *
+ * FormData:
+ * - file: the .xlsx file (columns: CP Desde, CP Hasta, Costo)
+ * - carrier: the carrier name (e.g. "Andreani")
+ * - service: the service type (e.g. "Normal")
+ */
 export async function POST(req: NextRequest) {
   try {
-    // Get organization ID
     const organizationId = await getOrganizationId();
 
-    // Parse FormData
     const formData = await req.formData();
     const file = formData.get("file") as File;
+    const carrier = (formData.get("carrier") as string) || "";
+    const service = (formData.get("service") as string) || "";
 
     if (!file) {
       return NextResponse.json(
@@ -37,10 +49,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Read file buffer
+    if (!carrier || !service) {
+      return NextResponse.json(
+        { error: "Carrier y servicio son requeridos" },
+        { status: 400 }
+      );
+    }
+
     const arrayBuffer = await file.arrayBuffer();
 
-    // Parse Excel file
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
 
@@ -55,22 +72,13 @@ export async function POST(req: NextRequest) {
     const errors: RowError[] = [];
     const validRows: ValidRow[] = [];
 
-    // Skip header row (row 1) and process data rows
-    let rowIndex = 2;
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return; // Skip header row
 
-      const carrier = row.getCell("A").value;
-      const serviceType = row.getCell("B").value;
-      const serviceCode = row.getCell("C").value;
-      const postalCodeFrom = row.getCell("D").value;
-      const postalCodeTo = row.getCell("E").value;
-      const cost = row.getCell("F").value;
+      const postalCodeFrom = row.getCell("A").value;
+      const postalCodeTo = row.getCell("B").value;
+      const cost = row.getCell("C").value;
 
-      // Normalize values - handle both string and number types
-      const carrierStr = carrier ? String(carrier).trim() : "";
-      const serviceTypeStr = serviceType ? String(serviceType).trim() : "";
-      const serviceCodeStr = serviceCode ? String(serviceCode).trim() : null;
       const postalCodeFromStr = postalCodeFrom
         ? String(postalCodeFrom).trim()
         : "";
@@ -79,32 +87,12 @@ export async function POST(req: NextRequest) {
         : null;
       const costNum = cost ? Number(cost) : NaN;
 
-      // Validate carrier
-      if (!carrierStr) {
-        errors.push({
-          row: rowNumber,
-          field: "carrier",
-          message: "La mensajería es requerida",
-        });
-        return;
-      }
-
-      // Validate serviceType
-      if (!serviceTypeStr) {
-        errors.push({
-          row: rowNumber,
-          field: "serviceType",
-          message: "El tipo de servicio es requerido",
-        });
-        return;
-      }
-
       // Validate postalCodeFrom
       if (!postalCodeFromStr) {
         errors.push({
           row: rowNumber,
-          field: "postalCodeFrom",
-          message: "El código postal de origen es requerido",
+          field: "CP Desde",
+          message: "El código postal es requerido",
         });
         return;
       }
@@ -112,8 +100,8 @@ export async function POST(req: NextRequest) {
       if (!/^\d+$/.test(postalCodeFromStr)) {
         errors.push({
           row: rowNumber,
-          field: "postalCodeFrom",
-          message: "El código postal de origen debe ser numérico",
+          field: "CP Desde",
+          message: "El código postal debe ser numérico",
         });
         return;
       }
@@ -123,19 +111,17 @@ export async function POST(req: NextRequest) {
         if (!/^\d+$/.test(postalCodeToStr)) {
           errors.push({
             row: rowNumber,
-            field: "postalCodeTo",
-            message: "El código postal de destino debe ser numérico",
+            field: "CP Hasta",
+            message: "El código postal debe ser numérico",
           });
           return;
         }
 
-        // Validate postalCodeTo >= postalCodeFrom
         if (BigInt(postalCodeToStr) < BigInt(postalCodeFromStr)) {
           errors.push({
             row: rowNumber,
-            field: "postalCodeTo",
-            message:
-              "El código postal de destino debe ser mayor o igual al de origen",
+            field: "CP Hasta",
+            message: "CP Hasta debe ser mayor o igual a CP Desde",
           });
           return;
         }
@@ -145,17 +131,16 @@ export async function POST(req: NextRequest) {
       if (isNaN(costNum) || costNum <= 0) {
         errors.push({
           row: rowNumber,
-          field: "cost",
+          field: "Costo",
           message: "El costo debe ser un número positivo",
         });
         return;
       }
 
-      // All validations passed
       validRows.push({
-        carrier: carrierStr,
-        serviceType: serviceTypeStr,
-        serviceCode: serviceCodeStr,
+        carrier,
+        serviceType: service,
+        serviceCode: null,
         postalCodeFrom: postalCodeFromStr,
         postalCodeTo: postalCodeToStr,
         cost: new Decimal(costNum.toString()),
@@ -176,13 +161,14 @@ export async function POST(req: NextRequest) {
       imported = result.count;
     }
 
-    // Calculate total rows processed
-    const totalRows = worksheet.rowCount - 1; // Exclude header
+    const totalRows = worksheet.rowCount - 1;
 
     return NextResponse.json({
       imported,
       errors,
       totalRows,
+      carrier,
+      service,
     });
   } catch (error) {
     console.error("Error importing shipping rates:", error);

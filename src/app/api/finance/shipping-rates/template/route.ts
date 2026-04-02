@@ -1,91 +1,92 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+/**
+ * GET /api/finance/shipping-rates/template?carrier=X&service=Y
+ *
+ * Generates a simplified Excel template for a specific carrier + service.
+ * The Excel only has: CP Desde, CP Hasta, Costo ($).
+ * Carrier and service are passed as query params and NOT included in the Excel,
+ * eliminating human error from manual text entry.
+ */
+export async function GET(req: NextRequest) {
   try {
-    // Create a new workbook and worksheet
+    const carrier = req.nextUrl.searchParams.get("carrier") || "";
+    const service = req.nextUrl.searchParams.get("service") || "";
+
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Tarifas de Envío");
+    const sheetName = carrier && service
+      ? `${carrier} - ${service}`.substring(0, 31)
+      : "Tarifas de Envío";
+    const worksheet = workbook.addWorksheet(sheetName);
 
-    // Define headers
-    const headers = [
-      "Mensajería",
-      "Tipo de Servicio",
-      "Código de Servicio",
-      "CP Desde",
-      "CP Hasta",
-      "Costo ($)",
-    ];
-
-    // Add headers to row 1
+    // Simplified headers — carrier+service come from query params, not the Excel
+    const headers = ["CP Desde", "CP Hasta (opcional)", "Costo ($)"];
     const headerRow = worksheet.addRow(headers);
 
-    // Style header row: bold, blue background, white text
     headerRow.eachCell((cell) => {
-      cell.font = {
-        bold: true,
-        color: { argb: "FFFFFFFF" }, // white text
-      };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
       cell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FF4472C4" }, // blue background
+        fgColor: { argb: "FF4472C4" },
       };
       cell.alignment = {
         horizontal: "center",
-        vertical: "middle",
+        vertical: "middle" as const,
         wrapText: true,
       };
     });
 
     // Add example rows
     const exampleData = [
-      ["ANDREANI", "ESTANDAR", "AND-STD", 1000, 1999, 2500],
-      ["ANDREANI", "ESTANDAR", "AND-STD", 2000, 2999, 3200],
-      ["ANDREANI", "EXPRESS", "AND-EXP", 1000, 1999, 4200],
-      ["OCA", "ESTANDAR", "OCA-STD", 1000, null, 2800],
-      ["MOTOS_CABA", "SAME_DAY", "MOTO-SD", 1000, 1499, 1500],
+      [1000, 1999, 2500],
+      [2000, 2999, 3200],
+      [3000, 3999, 3800],
+      [4000, null, 4500],
+      [1425, null, 1800],
     ];
 
     exampleData.forEach((rowData) => {
       const row = worksheet.addRow(rowData);
-
-      // Format number columns (D, E, F are columns 4, 5, 6)
-      row.getCell(4).numFmt = "0"; // CP Desde
-      row.getCell(5).numFmt = "0"; // CP Hasta
-      row.getCell(6).numFmt = '$#,##0.00'; // Costo
+      row.getCell(1).numFmt = "0";
+      row.getCell(2).numFmt = "0";
+      row.getCell(3).numFmt = "$#,##0.00";
     });
 
-    // Set column widths
     worksheet.columns = [
-      { width: 20 }, // A: Mensajería
-      { width: 20 }, // B: Tipo de Servicio
-      { width: 20 }, // C: Código de Servicio
-      { width: 12 }, // D: CP Desde
-      { width: 12 }, // E: CP Hasta
-      { width: 15 }, // F: Costo ($)
+      { width: 18 },
+      { width: 22 },
+      { width: 15 },
     ];
 
-    // Freeze the header row
-    worksheet.views = [
-      {
-        state: "frozen",
-        ySplit: 1, // Freeze the first row
-      },
-    ];
+    worksheet.views = [{ state: "frozen" as const, ySplit: 1 }];
 
-    // Write workbook to buffer
+    // Add a note about the carrier+service on a second sheet for reference
+    if (carrier && service) {
+      const infoSheet = workbook.addWorksheet("Info");
+      infoSheet.addRow(["Mensajería", carrier]);
+      infoSheet.addRow(["Servicio", service]);
+      infoSheet.addRow([]);
+      infoSheet.addRow(["Esta info se usa automaticamente al importar."]);
+      infoSheet.addRow(["No modifiques esta hoja."]);
+      infoSheet.columns = [{ width: 20 }, { width: 30 }];
+    }
+
     const buffer = await workbook.xlsx.writeBuffer();
 
-    // Return response with proper headers
+    const filename = carrier && service
+      ? `tarifas-${carrier}-${service}.xlsx`.toLowerCase().replace(/\s+/g, "-")
+      : "tarifas-envio-template.xlsx";
+
     return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": 'attachment; filename="tarifas-envio-template.xlsx"',
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
   } catch (error) {

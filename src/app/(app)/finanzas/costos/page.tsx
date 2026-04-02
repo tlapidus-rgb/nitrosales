@@ -108,6 +108,10 @@ export default function CostosPage() {
   const [importing, setImporting] = useState(false);
   const [calculating, setCalculating] = useState(false);
 
+  // Available carriers from orders (for dropdown)
+  const [availableCarriers, setAvailableCarriers] = useState([]);
+  const [selectedCarrier, setSelectedCarrier] = useState("");
+
   // Add form state
   const [addingTo, setAddingTo] = useState(null);
   const [form, setForm] = useState({
@@ -222,15 +226,36 @@ export default function CostosPage() {
     setShippingLoading(false);
   }, []);
 
-  useEffect(() => { fetchShippingRates(); }, []);
+  const fetchAvailableCarriers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/finance/shipping-rates/carriers");
+      const json = await res.json();
+      setAvailableCarriers(json.carriers || []);
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchShippingRates(); fetchAvailableCarriers(); }, []);
+
+  function getSelectedCarrierParts() {
+    // selectedCarrier format: "carrier|||service"
+    if (!selectedCarrier) return { carrier: "", service: "" };
+    const [carrier, service] = selectedCarrier.split("|||");
+    return { carrier, service };
+  }
 
   async function downloadTemplate() {
-    const res = await fetch("/api/finance/shipping-rates/template");
+    const { carrier, service } = getSelectedCarrierParts();
+    if (!carrier || !service) {
+      showToast("Selecciona un tipo de envio primero");
+      return;
+    }
+    const params = new URLSearchParams({ carrier, service });
+    const res = await fetch(`/api/finance/shipping-rates/template?${params}`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "tarifas-envio-template.xlsx";
+    a.download = `tarifas-${carrier}-${service}.xlsx`.toLowerCase().replace(/\s+/g, "-");
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -240,11 +265,19 @@ export default function CostosPage() {
   async function handleImport(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const { carrier, service } = getSelectedCarrierParts();
+    if (!carrier || !service) {
+      showToast("Selecciona un tipo de envio primero");
+      e.target.value = "";
+      return;
+    }
     setImporting(true);
     setImportResult(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("carrier", carrier);
+      formData.append("service", service);
       const res = await fetch("/api/finance/shipping-rates/import", {
         method: "POST",
         body: formData,
@@ -253,7 +286,7 @@ export default function CostosPage() {
       setImportResult(result);
       if (result.imported > 0) {
         fetchShippingRates();
-        showToast(`${result.imported} tarifas importadas`);
+        showToast(`${result.imported} tarifas importadas para ${carrier} - ${service}`);
       }
     } catch {
       showToast("Error al importar archivo");
@@ -659,22 +692,37 @@ export default function CostosPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={selectedCarrier}
+                  onChange={e => setSelectedCarrier(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none min-w-[220px]"
+                >
+                  <option value="">Seleccionar tipo de envio...</option>
+                  {availableCarriers.map(c => (
+                    <option key={`${c.carrier}|||${c.service}`} value={`${c.carrier}|||${c.service}`}>
+                      {c.carrier} — {c.service} ({c.orderCount} ordenes)
+                    </option>
+                  ))}
+                </select>
                 <button
                   onClick={downloadTemplate}
-                  className="text-sm px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors flex items-center gap-1.5"
+                  disabled={!selectedCarrier}
+                  className="text-sm px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-gray-600 transition-colors flex items-center gap-1.5"
                 >
-                  <span>⬇</span> Descargar plantilla
+                  <span>⬇</span> Plantilla
                 </button>
-                <label className="text-sm px-4 py-2 rounded-lg font-medium text-white cursor-pointer transition-opacity hover:opacity-90"
+                <label className={`text-sm px-4 py-2 rounded-lg font-medium text-white transition-opacity ${
+                  !selectedCarrier || importing ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:opacity-90"
+                }`}
                   style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
                 >
-                  <span>{importing ? "Importando..." : "⬆ Importar Excel"}</span>
+                  <span>{importing ? "Importando..." : "⬆ Importar"}</span>
                   <input
                     type="file"
                     accept=".xlsx,.xls"
                     onChange={handleImport}
                     className="hidden"
-                    disabled={importing}
+                    disabled={importing || !selectedCarrier}
                   />
                 </label>
                 <button
