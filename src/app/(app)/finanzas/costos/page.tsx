@@ -855,6 +855,170 @@ export default function CostosPage() {
                     </div>
                   )}
 
+                  {/* Shipping rates panel — inside LOGISTICA */}
+                  {cat.key === "LOGISTICA" && (
+                    <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-transparent">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700">Tarifas de Envio por Codigo Postal</h4>
+                          <p className="text-xs text-gray-400">
+                            Carga tarifas por mensajeria y CP para calcular el costo real de cada envio
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Carrier selector + actions */}
+                      <div className="flex items-center gap-2 flex-wrap mb-3">
+                        <select
+                          value={selectedCarrier}
+                          onChange={e => setSelectedCarrier(e.target.value)}
+                          className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none min-w-[220px]"
+                        >
+                          <option value="">Seleccionar tipo de envio...</option>
+                          {availableCarriers.map(c => (
+                            <option key={`${c.carrier}|||${c.service}`} value={`${c.carrier}|||${c.service}`}>
+                              {c.carrier} — {c.service} ({c.orderCount} ordenes)
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={downloadTemplate}
+                          disabled={!selectedCarrier}
+                          className="text-sm px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-gray-600 transition-colors flex items-center gap-1.5"
+                        >
+                          <span>⬇</span> Plantilla
+                        </button>
+                        <label className={`text-sm px-4 py-2 rounded-lg font-medium text-white transition-opacity ${
+                          !selectedCarrier || importing ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:opacity-90"
+                        }`}
+                          style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
+                        >
+                          <span>{importing ? "Importando..." : "⬆ Importar"}</span>
+                          <input
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={handleImport}
+                            className="hidden"
+                            disabled={importing || !selectedCarrier}
+                          />
+                        </label>
+                        <button
+                          onClick={calculateRealCosts}
+                          disabled={calculating || shippingTotal === 0}
+                          className="text-sm px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 rounded-lg text-white font-medium transition-colors"
+                        >
+                          {calculating ? "Calculando..." : "Calcular costos"}
+                        </button>
+                      </div>
+
+                      {/* Import result */}
+                      {importResult && (
+                        <div className={`p-3 rounded-lg mb-3 ${importResult.errors?.length > 0 ? "bg-amber-50 border border-amber-200" : "bg-green-50 border border-green-200"}`}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">
+                              {importResult.imported} tarifas importadas de {importResult.totalRows} filas
+                            </span>
+                            <button onClick={() => setImportResult(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                          </div>
+                          {importResult.errors?.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              {importResult.errors.slice(0, 5).map((err, i) => (
+                                <p key={i} className="text-xs text-amber-700">Fila {err.row}: {err.field} — {err.message}</p>
+                              ))}
+                              {importResult.errors.length > 5 && (
+                                <p className="text-xs text-amber-500">...y {importResult.errors.length - 5} errores mas</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Filter by carrier */}
+                      {shippingByCarrier.length > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap mb-3">
+                          <button
+                            onClick={() => setShippingFilter("")}
+                            className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
+                              !shippingFilter ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                            }`}
+                          >
+                            Todas ({shippingTotal})
+                          </button>
+                          {shippingByCarrier.map(c => (
+                            <button
+                              key={c.carrier}
+                              onClick={() => setShippingFilter(c.carrier === shippingFilter ? "" : c.carrier)}
+                              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
+                                shippingFilter === c.carrier ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                              }`}
+                            >
+                              {c.carrier} ({c.totalRates})
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Rates table */}
+                      {shippingLoading ? (
+                        <div className="py-6 text-center text-gray-400 text-sm">Cargando tarifas...</div>
+                      ) : filteredRates.length === 0 ? (
+                        <div className="py-6 text-center">
+                          <p className="text-gray-400 text-sm">No hay tarifas cargadas</p>
+                          <p className="text-xs text-gray-300 mt-1">Selecciona un tipo de envio, descarga la plantilla, completala y subila</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-gray-200">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-gray-100">
+                                <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Mensajeria</th>
+                                <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Servicio</th>
+                                <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">CP Desde</th>
+                                <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">CP Hasta</th>
+                                <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Costo</th>
+                                <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Estado</th>
+                                <th className="w-10"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {filteredRates.map(rate => (
+                                <tr key={rate.id} className="group hover:bg-gray-50/50">
+                                  <td className="px-4 py-2.5 font-medium text-gray-800">{rate.carrier}</td>
+                                  <td className="px-4 py-2.5 text-gray-600">{rate.serviceType}</td>
+                                  <td className="px-4 py-2.5 text-center font-mono text-gray-600">{rate.postalCodeFrom}</td>
+                                  <td className="px-4 py-2.5 text-center font-mono text-gray-600">
+                                    {rate.postalCodeTo || <span className="text-gray-300">—</span>}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-mono font-medium text-gray-800">
+                                    {formatARS(Number(rate.cost))}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-center">
+                                    <button
+                                      onClick={() => toggleShippingRate(rate.id, rate.isActive)}
+                                      className={`text-xs px-2 py-1 rounded-full ${
+                                        rate.isActive ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"
+                                      }`}
+                                    >
+                                      {rate.isActive ? "Activa" : "Inactiva"}
+                                    </button>
+                                  </td>
+                                  <td className="px-4 py-2.5">
+                                    <button
+                                      onClick={() => deleteShippingRate(rate.id)}
+                                      className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                    >
+                                      ✕
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Auto-calculated costs for PLATAFORMAS and MERMA */}
                   {(cat.key === "PLATAFORMAS" || cat.key === "MERMA") && (
                     (() => {
@@ -1176,181 +1340,6 @@ export default function CostosPage() {
             </div>
           );
         })}
-      </div>
-
-      {/* ── Tarifas de Envío por CP ─── */}
-      <div className="mt-8">
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {/* Header */}
-          <div className="px-5 py-4 border-b border-gray-100">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                  <span>📦</span> Tarifas de Envio por Codigo Postal
-                </h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Carga tarifas por mensajeria y CP para calcular el costo real de envio de cada orden
-                </p>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  value={selectedCarrier}
-                  onChange={e => setSelectedCarrier(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none min-w-[220px]"
-                >
-                  <option value="">Seleccionar tipo de envio...</option>
-                  {availableCarriers.map(c => (
-                    <option key={`${c.carrier}|||${c.service}`} value={`${c.carrier}|||${c.service}`}>
-                      {c.carrier} — {c.service} ({c.orderCount} ordenes)
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={downloadTemplate}
-                  disabled={!selectedCarrier}
-                  className="text-sm px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-gray-600 transition-colors flex items-center gap-1.5"
-                >
-                  <span>⬇</span> Plantilla
-                </button>
-                <label className={`text-sm px-4 py-2 rounded-lg font-medium text-white transition-opacity ${
-                  !selectedCarrier || importing ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:opacity-90"
-                }`}
-                  style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
-                >
-                  <span>{importing ? "Importando..." : "⬆ Importar"}</span>
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleImport}
-                    className="hidden"
-                    disabled={importing || !selectedCarrier}
-                  />
-                </label>
-                <button
-                  onClick={calculateRealCosts}
-                  disabled={calculating || shippingTotal === 0}
-                  className="text-sm px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 rounded-lg text-white font-medium transition-colors"
-                >
-                  {calculating ? "Calculando..." : "Calcular costos"}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Import result */}
-          {importResult && (
-            <div className={`px-5 py-3 border-b border-gray-100 ${importResult.errors?.length > 0 ? "bg-amber-50" : "bg-green-50"}`}>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">
-                  {importResult.imported} tarifas importadas de {importResult.totalRows} filas
-                </span>
-                <button onClick={() => setImportResult(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
-              </div>
-              {importResult.errors?.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {importResult.errors.slice(0, 5).map((err, i) => (
-                    <p key={i} className="text-xs text-amber-700">
-                      Fila {err.row}: {err.field} — {err.message}
-                    </p>
-                  ))}
-                  {importResult.errors.length > 5 && (
-                    <p className="text-xs text-amber-500">...y {importResult.errors.length - 5} errores mas</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Summary by carrier */}
-          {shippingByCarrier.length > 0 && (
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap">
-              <button
-                onClick={() => setShippingFilter("")}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
-                  !shippingFilter ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                }`}
-              >
-                Todas ({shippingTotal})
-              </button>
-              {shippingByCarrier.map(c => (
-                <button
-                  key={c.carrier}
-                  onClick={() => setShippingFilter(c.carrier === shippingFilter ? "" : c.carrier)}
-                  className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
-                    shippingFilter === c.carrier ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                  }`}
-                >
-                  {c.carrier} ({c.totalRates})
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Rates table */}
-          {shippingLoading ? (
-            <div className="px-5 py-8 text-center text-gray-400 text-sm">Cargando tarifas...</div>
-          ) : filteredRates.length === 0 ? (
-            <div className="px-5 py-8 text-center">
-              <p className="text-gray-400 text-sm">No hay tarifas cargadas</p>
-              <p className="text-xs text-gray-300 mt-1">Descarga la plantilla Excel, completala con tus tarifas y subila</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Mensajeria</th>
-                    <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Servicio</th>
-                    <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Codigo</th>
-                    <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">CP Desde</th>
-                    <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">CP Hasta</th>
-                    <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Costo</th>
-                    <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Estado</th>
-                    <th className="w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filteredRates.map(rate => (
-                    <tr key={rate.id} className="group hover:bg-gray-50/50">
-                      <td className="px-4 py-2.5 font-medium text-gray-800">{rate.carrier}</td>
-                      <td className="px-4 py-2.5 text-gray-600">{rate.serviceType}</td>
-                      <td className="px-4 py-2.5">
-                        {rate.serviceCode ? (
-                          <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{rate.serviceCode}</code>
-                        ) : <span className="text-gray-300">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-center font-mono text-gray-600">{rate.postalCodeFrom}</td>
-                      <td className="px-4 py-2.5 text-center font-mono text-gray-600">
-                        {rate.postalCodeTo || <span className="text-gray-300">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono font-medium text-gray-800">
-                        {formatARS(Number(rate.cost))}
-                      </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <button
-                          onClick={() => toggleShippingRate(rate.id, rate.isActive)}
-                          className={`text-xs px-2 py-1 rounded-full ${
-                            rate.isActive ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"
-                          }`}
-                        >
-                          {rate.isActive ? "Activa" : "Inactiva"}
-                        </button>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <button
-                          onClick={() => deleteShippingRate(rate.id)}
-                          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Toast */}
