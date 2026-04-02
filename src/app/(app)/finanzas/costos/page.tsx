@@ -582,14 +582,16 @@ export default function CostosPage() {
                           <p className="text-xs text-gray-400">
                             {fiscalProfile?.completedAt
                               ? "Configurado — los impuestos se generan automaticamente"
-                              : "Subi tu constancia de AFIP o completa los datos manualmente"}
+                              : "Subi tu constancia de AFIP y la IA detecta tus impuestos al instante"}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <label className={`text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer transition-colors ${
-                            constanciaParsing ? "bg-gray-100 text-gray-400" : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                          <label className={`text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer transition-all ${
+                            constanciaParsing
+                              ? "bg-gray-100 text-gray-400"
+                              : "bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-600 hover:to-violet-600 shadow-sm"
                           }`}>
-                            {constanciaParsing ? "Procesando..." : "Importar constancia AFIP"}
+                            {constanciaParsing ? "Analizando con IA..." : "Importar constancia AFIP"}
                             <input
                               type="file"
                               accept=".pdf"
@@ -610,12 +612,24 @@ export default function CostosPage() {
                         </div>
                       </div>
 
+                      {/* AI info banner — only when no profile yet and no parse result */}
+                      {!fiscalProfile?.completedAt && !constanciaResult && (
+                        <div className="mb-3 p-3 rounded-lg bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100">
+                          <p className="text-xs text-indigo-700">
+                            <span className="font-semibold">Importa tu constancia de AFIP</span> y nuestra IA extrae automaticamente tu regimen, provincia, categoria e impuestos inscriptos. Sin completar formularios.
+                          </p>
+                          <p className="text-xs text-indigo-400 mt-1">
+                            Descargala desde <span className="font-medium">afip.gob.ar → Mis Servicios → Constancia de Inscripcion</span>
+                          </p>
+                        </div>
+                      )}
+
                       {/* Constancia parse result */}
                       {constanciaResult && !constanciaResult.error && (
                         <div className="mb-3 p-3 bg-white rounded-lg border border-indigo-200">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-indigo-700">Constancia procesada</span>
+                              <span className="text-xs font-semibold text-indigo-700">IA: Constancia analizada</span>
                               <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full">
                                 {constanciaResult.confidence}% confianza
                               </span>
@@ -663,7 +677,7 @@ export default function CostosPage() {
                             </div>
                           )}
                           <p className="text-xs text-gray-400 mt-2">
-                            Los datos se cargaron en el formulario de abajo. Verifica y ajusta lo que sea necesario, luego guarda.
+                            Datos extraidos y cargados automaticamente. Verifica, ajusta si es necesario, y dale a guardar.
                           </p>
                         </div>
                       )}
