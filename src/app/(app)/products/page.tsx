@@ -61,8 +61,8 @@ interface MarginAnalysis {
 interface ProductItem {
   id: string; name: string; sku: string | null;
   imageUrl: string | null; category: string | null; brand: string | null;
-  stock: number | null; unitsSold: number; revenue: number;
-  orders: number; avgPrice: number;
+  stock: number | null; unitsSold: number; revenue: number; revenueNeto: number;
+  orders: number; avgPrice: number; avgPriceNeto: number;
   costPrice: number | null; marginPct: number | null; marginAbs: number | null; cogs: number | null;
   trendData: {
     weeklyTrend: Array<{ weekStart: string; units: number; revenue: number }>;
@@ -238,8 +238,10 @@ export default function ProductsPage() {
         const parsed = data.products.map((p: any) => ({
           ...p,
           revenue: Number(p.revenue) || 0,
+          revenueNeto: Number(p.revenueNeto) || 0,
           unitsSold: Number(p.unitsSold) || 0,
           avgPrice: Number(p.avgPrice) || 0,
+          avgPriceNeto: Number(p.avgPriceNeto) || 0,
           stock: p.stock != null ? Number(p.stock) : null,
           orders: Number(p.orders) || 0,
           costPrice: p.costPrice != null ? Number(p.costPrice) : null,
@@ -604,8 +606,8 @@ export default function ProductsPage() {
         case "marginPerUnit": {
           const aCost = a.costPrice ?? 0;
           const bCost = b.costPrice ?? 0;
-          aV = a.avgPrice - aCost;
-          bV = b.avgPrice - bCost;
+          aV = a.avgPriceNeto - aCost;
+          bV = b.avgPriceNeto - bCost;
           break;
         }
         default: return 0;
@@ -637,15 +639,15 @@ export default function ProductsPage() {
   };
 
   const exportMarginCSV = () => {
-    const headers = ["Producto", "SKU", "Marca", "Categoria", "Precio", "Costo", "Margen %", "Margen $/ud", "Unidades", "Facturacion", "COGS", "Ganancia", "Stock", "ABC"];
+    const headers = ["Producto", "SKU", "Marca", "Categoria", "Precio c/IVA", "Precio s/IVA", "Costo", "Margen %", "Margen $/ud", "Unidades", "Facturacion c/IVA", "Revenue Neto", "COGS", "Ganancia", "Stock", "ABC"];
     const rows = marginSorted.map((p) => {
       const cost = p.costPrice ?? 0;
-      const marginPerUnit = p.avgPrice - cost;
+      const marginPerUnit = p.avgPriceNeto - cost;
       return [
         `"${p.name.replace(/"/g, '""')}"`, p.sku || "", p.brand || "", p.category || "",
-        p.avgPrice.toFixed(2), cost.toFixed(2),
+        p.avgPrice.toFixed(2), p.avgPriceNeto.toFixed(2), cost.toFixed(2),
         (p.marginPct ?? 0).toFixed(1), marginPerUnit.toFixed(2),
-        p.unitsSold, p.revenue.toFixed(2), (p.cogs ?? 0).toFixed(2),
+        p.unitsSold, p.revenue.toFixed(2), p.revenueNeto.toFixed(2), (p.cogs ?? 0).toFixed(2),
         (p.marginAbs ?? 0).toFixed(2), p.stock ?? 0, p.trendData.abcClass,
       ].join(",");
     });
@@ -1347,12 +1349,12 @@ export default function ProductsPage() {
               <p className={`text-2xl font-bold ${marginAnalysis.weightedMarginPct >= 40 ? "text-green-700" : marginAnalysis.weightedMarginPct >= 20 ? "text-amber-700" : "text-red-700"}`}>
                 {marginAnalysis.weightedMarginPct.toFixed(1)}%
               </p>
-              <p className="text-[10px] text-gray-400 mt-1">Ponderado por revenue</p>
+              <p className="text-[10px] text-gray-400 mt-1">Ponderado por revenue neto (sin IVA)</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign className="w-4 h-4 text-indigo-600" />
-                <p className="text-xs text-gray-500 font-medium">Revenue Analizado</p>
+                <p className="text-xs text-gray-500 font-medium">Revenue Neto (sin IVA)</p>
               </div>
               <p className="text-2xl font-bold text-gray-900">{formatARS(marginAnalysis.totalRevenueWithCost)}</p>
               <p className="text-[10px] text-gray-400 mt-1">{marginAnalysis.productsWithCost} productos con costo</p>
@@ -1540,6 +1542,30 @@ export default function ProductsPage() {
               </button>
             </div>
 
+            {/* Inline Filters for Margins */}
+            <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+              <div className="relative min-w-[180px] max-w-[260px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setMarginPage(1); }}
+                  placeholder="SKU o producto..."
+                  className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setMarginPage(1); }}
+                className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${brandFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+                <option value="">Todas las marcas</option>
+                {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setMarginPage(1); }}
+                className={`px-2 py-1.5 border rounded-lg text-xs text-gray-900 ${categoryFilter ? "border-indigo-300 bg-indigo-50" : "border-gray-300 bg-white"}`}>
+                <option value="">Todas las categorias</option>
+                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {(searchTerm || brandFilter || categoryFilter) && (
+                <button onClick={() => { setSearchTerm(""); setBrandFilter(""); setCategoryFilter(""); setMarginPage(1); }}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 underline">Limpiar filtros</button>
+              )}
+            </div>
+
             {/* Margin Range Chips */}
             <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap gap-2">
               {MARGIN_CHIPS.map((c) => {
@@ -1573,10 +1599,10 @@ export default function ProductsPage() {
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[200px]">Producto</th>
                       <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("avgPrice")}>
-                        Precio{marginSortIcon("avgPrice")}
+                        <TooltipHeader text="Precio" tooltip="Precio de venta con IVA incluido" />{marginSortIcon("avgPrice")}
                       </th>
                       <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("costPrice")}>
-                        Costo{marginSortIcon("costPrice")}
+                        <TooltipHeader text="Costo" tooltip="Costo unitario sin IVA" />{marginSortIcon("costPrice")}
                       </th>
                       <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap" onClick={() => handleMarginSort("marginPct")}>
                         Margen %{marginSortIcon("marginPct")}
@@ -1602,7 +1628,7 @@ export default function ProductsPage() {
                   <tbody className="divide-y divide-gray-200">
                     {marginPaginated.map((p) => {
                       const cost = p.costPrice ?? 0;
-                      const marginPerUnit = p.avgPrice - cost;
+                      const marginPerUnit = p.avgPriceNeto - cost;
                       const mPct = p.marginPct ?? 0;
                       return (
                         <tr key={p.id} className="hover:bg-gray-50 transition-colors">

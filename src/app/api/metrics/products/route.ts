@@ -14,8 +14,10 @@ type ProductMetrics = {
   stock: number | null;
   unitsSold: number;
   revenue: number;
+  revenueNeto: number;
   orders: number;
   avgPrice: number;
+  avgPriceNeto: number;
   costPrice: number | null;
   marginPct: number | null;
   marginAbs: number | null;
@@ -377,11 +379,13 @@ export async function GET(request: Request) {
         revenue: w.revenue,
       }));
 
-      // Margin calculations
+      // Margin calculations — prices include 21% IVA, costs do NOT
+      const IVA_RATE = 1.21;
       const costPrice = prod.costPrice != null ? Number(prod.costPrice) : null;
       const cogs = prod.cogs != null ? Number(prod.cogs) : null;
-      const marginAbs = (costPrice != null && cogs != null && prod.revenue > 0) ? prod.revenue - cogs : null;
-      const marginPct = (marginAbs != null && prod.revenue > 0) ? (marginAbs / prod.revenue) * 100 : null;
+      const revenueNeto = prod.revenue / IVA_RATE; // Revenue sin IVA
+      const marginAbs = (costPrice != null && cogs != null && revenueNeto > 0) ? revenueNeto - cogs : null;
+      const marginPct = (marginAbs != null && revenueNeto > 0) ? (marginAbs / revenueNeto) * 100 : null;
 
       return {
         id: prod.productId,
@@ -393,8 +397,10 @@ export async function GET(request: Request) {
         stock: prod.stock,
         unitsSold,
         revenue: prod.revenue,
+        revenueNeto,
         orders: Number(prod.orders),
         avgPrice: unitsSold > 0 ? prod.revenue / unitsSold : 0,
+        avgPriceNeto: unitsSold > 0 ? revenueNeto / unitsSold : 0,
         costPrice,
         marginPct: marginPct != null ? Math.round(marginPct * 10) / 10 : null,
         marginAbs,
@@ -512,14 +518,14 @@ export async function GET(request: Request) {
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
 
-    // === MARGIN ANALYSIS (real products only) ===
+    // === MARGIN ANALYSIS (real products only) — all margin calcs use revenue neto (sin IVA) ===
     const productsWithCost = realProducts.filter((p) => p.costPrice != null && p.marginPct != null);
     const productsWithoutCost = realProducts.filter((p) => p.costPrice == null);
 
-    const totalRevenueWithCost = productsWithCost.reduce((s, p) => s + p.revenue, 0);
+    const totalRevenueNetoWithCost = productsWithCost.reduce((s, p) => s + p.revenueNeto, 0);
     const totalCogs = productsWithCost.reduce((s, p) => s + (p.cogs || 0), 0);
-    const grossProfit = totalRevenueWithCost - totalCogs;
-    const weightedMarginPct = totalRevenueWithCost > 0 ? (grossProfit / totalRevenueWithCost) * 100 : 0;
+    const grossProfit = totalRevenueNetoWithCost - totalCogs;
+    const weightedMarginPct = totalRevenueNetoWithCost > 0 ? (grossProfit / totalRevenueNetoWithCost) * 100 : 0;
 
     // Distribution buckets
     const bucketDefs = [
@@ -533,22 +539,22 @@ export async function GET(request: Request) {
       const inBucket = productsWithCost.filter(
         (p) => p.marginPct! >= b.min && p.marginPct! < b.max
       );
-      const bucketRevenue = inBucket.reduce((s, p) => s + p.revenue, 0);
+      const bucketRevenueNeto = inBucket.reduce((s, p) => s + p.revenueNeto, 0);
       const bucketCogs = inBucket.reduce((s, p) => s + (p.cogs || 0), 0);
       return {
         range: b.range,
         count: inBucket.length,
-        revenue: bucketRevenue,
-        avgMargin: bucketRevenue > 0 ? ((bucketRevenue - bucketCogs) / bucketRevenue) * 100 : 0,
+        revenue: bucketRevenueNeto,
+        avgMargin: bucketRevenueNeto > 0 ? ((bucketRevenueNeto - bucketCogs) / bucketRevenueNeto) * 100 : 0,
       };
     });
 
-    // Margin by brand (revenue-weighted)
-    const brandMarginMap = new Map<string, { revenue: number; cogs: number; count: number }>();
+    // Margin by brand (revenue-weighted, using revenueNeto)
+    const brandMarginMap = new Map<string, { revenueNeto: number; cogs: number; count: number }>();
     productsWithCost.forEach((p) => {
       if (!p.brand) return;
-      const existing = brandMarginMap.get(p.brand) || { revenue: 0, cogs: 0, count: 0 };
-      existing.revenue += p.revenue;
+      const existing = brandMarginMap.get(p.brand) || { revenueNeto: 0, cogs: 0, count: 0 };
+      existing.revenueNeto += p.revenueNeto;
       existing.cogs += p.cogs || 0;
       existing.count += 1;
       brandMarginMap.set(p.brand, existing);
@@ -556,20 +562,20 @@ export async function GET(request: Request) {
     const byBrand: MarginByGroup[] = Array.from(brandMarginMap.entries())
       .map(([name, d]) => ({
         name,
-        revenue: d.revenue,
+        revenue: d.revenueNeto,
         cogs: d.cogs,
-        marginPct: d.revenue > 0 ? ((d.revenue - d.cogs) / d.revenue) * 100 : 0,
+        marginPct: d.revenueNeto > 0 ? ((d.revenueNeto - d.cogs) / d.revenueNeto) * 100 : 0,
         productCount: d.count,
       }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 15);
 
-    // Margin by category (revenue-weighted)
-    const catMarginMap = new Map<string, { revenue: number; cogs: number; count: number }>();
+    // Margin by category (revenue-weighted, using revenueNeto)
+    const catMarginMap = new Map<string, { revenueNeto: number; cogs: number; count: number }>();
     productsWithCost.forEach((p) => {
       if (!p.category) return;
-      const existing = catMarginMap.get(p.category) || { revenue: 0, cogs: 0, count: 0 };
-      existing.revenue += p.revenue;
+      const existing = catMarginMap.get(p.category) || { revenueNeto: 0, cogs: 0, count: 0 };
+      existing.revenueNeto += p.revenueNeto;
       existing.cogs += p.cogs || 0;
       existing.count += 1;
       catMarginMap.set(p.category, existing);
@@ -577,24 +583,24 @@ export async function GET(request: Request) {
     const byCategory: MarginByGroup[] = Array.from(catMarginMap.entries())
       .map(([name, d]) => ({
         name,
-        revenue: d.revenue,
+        revenue: d.revenueNeto,
         cogs: d.cogs,
-        marginPct: d.revenue > 0 ? ((d.revenue - d.cogs) / d.revenue) * 100 : 0,
+        marginPct: d.revenueNeto > 0 ? ((d.revenueNeto - d.cogs) / d.revenueNeto) * 100 : 0,
         productCount: d.count,
       }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 15);
 
     // Top/Bottom margin (minimum revenue threshold to avoid noise)
-    const minRevenue = totalRevenueWithCost * 0.001; // 0.1% of total
-    const significantProducts = productsWithCost.filter((p) => p.revenue >= minRevenue);
+    const minRevenue = totalRevenueNetoWithCost * 0.001; // 0.1% of total
+    const significantProducts = productsWithCost.filter((p) => p.revenueNeto >= minRevenue);
     const sortedByMargin = [...significantProducts].sort((a, b) => (b.marginPct || 0) - (a.marginPct || 0));
     const topMargin = sortedByMargin.slice(0, 10);
     const bottomMargin = sortedByMargin.slice(-10).reverse();
 
     const marginAnalysis: MarginAnalysis = {
       weightedMarginPct: Math.round(weightedMarginPct * 10) / 10,
-      totalRevenueWithCost,
+      totalRevenueWithCost: totalRevenueNetoWithCost,
       totalCogs,
       grossProfit,
       productsWithCost: productsWithCost.length,
