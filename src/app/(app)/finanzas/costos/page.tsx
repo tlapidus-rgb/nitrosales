@@ -689,6 +689,20 @@ export default function CostosPage() {
                         </div>
                       )}
 
+                      {/* Divider between auto and manual */}
+                      {!constanciaResult && !fiscalProfile?.completedAt && (
+                        <div className="flex items-center gap-3 my-3">
+                          <div className="flex-1 border-t border-gray-200" />
+                          <span className="text-xs text-gray-400 whitespace-nowrap">o completa manualmente</span>
+                          <div className="flex-1 border-t border-gray-200" />
+                        </div>
+                      )}
+
+                      {/* Label when constancia was parsed */}
+                      {constanciaResult && !constanciaResult.error && (
+                        <p className="text-xs text-gray-400 mb-2">Verifica que los datos sean correctos antes de guardar:</p>
+                      )}
+
                       {/* Fiscal form */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         <div>
