@@ -504,9 +504,14 @@ export default function CostosPage() {
                   {items.length > 0 && (
                     <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{items.length}</span>
                   )}
-                  {(cat.key === "PLATAFORMAS" || cat.key === "MERMA") && (
-                    <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200">
-                      Auto
+                  {cat.key === "PLATAFORMAS" && (
+                    <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200" title="Comisiones, envios y retenciones de MercadoLibre se calculan automaticamente desde las ordenes sincronizadas">
+                      Auto: Comisiones ML
+                    </span>
+                  )}
+                  {cat.key === "MERMA" && (
+                    <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200" title="Ordenes canceladas y devueltas se detectan automaticamente desde las ordenes sincronizadas">
+                      Auto: Cancelaciones y devoluciones
                     </span>
                   )}
                 </div>
@@ -718,16 +723,21 @@ export default function CostosPage() {
                           <div className="px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-transparent">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-xs font-semibold text-gray-500">
-                                Calculo automatico
+                                {cat.key === "PLATAFORMAS" ? "Comisiones MercadoLibre" : "Cancelaciones y devoluciones"}
                               </span>
                               <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
-                                {costMonth}
+                                calculo automatico
                               </span>
                             </div>
                             <p className="text-xs text-gray-400">
                               {cat.key === "PLATAFORMAS"
-                                ? "Las comisiones de MercadoLibre se calculan automaticamente cuando se sincronizan las ordenes de ML. Si ya sincronizaste y no ves datos, proba seleccionando un mes con ventas."
-                                : "Las cancelaciones y devoluciones se calculan automaticamente desde las ordenes. Si no ves datos, puede que no haya ordenes canceladas/devueltas en este periodo."}
+                                ? "Se calculan automaticamente las comisiones, costos de envio y retenciones impositivas que MercadoLibre cobra por cada venta. Los demas costos de esta categoria (SaaS, ERP, etc.) se cargan manualmente abajo."
+                                : "Se detectan automaticamente las ordenes canceladas y devueltas, sumando el valor perdido. Las demas perdidas (roturas, extravios, etc.) se cargan manualmente abajo."}
+                            </p>
+                            <p className="text-xs text-gray-300 mt-1">
+                              {cat.key === "PLATAFORMAS"
+                                ? "Sin datos para este mes — sincroniza ordenes de ML o selecciona un mes con ventas."
+                                : "Sin datos para este mes — puede que no haya ordenes canceladas o devueltas en este periodo."}
                             </p>
                           </div>
                         );
@@ -735,14 +745,19 @@ export default function CostosPage() {
 
                       return (
                         <div className="px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-emerald-50/50 to-transparent">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs font-semibold text-emerald-700">
-                              Calculado automaticamente
+                              {cat.key === "PLATAFORMAS" ? "Comisiones MercadoLibre" : "Cancelaciones y devoluciones"}
                             </span>
                             <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full">
-                              {costMonth}
+                              calculo automatico — {costMonth}
                             </span>
                           </div>
+                          <p className="text-xs text-gray-400 mb-2">
+                            {cat.key === "PLATAFORMAS"
+                              ? "Comisiones, costos de envio y retenciones que ML cobra por venta. Los demas costos de esta categoria se cargan manualmente."
+                              : "Valor de ordenes canceladas y devueltas detectadas automaticamente. Las demas perdidas se cargan manualmente."}
+                          </p>
                           <div className="space-y-1.5">
                             {autoItems.map((item, i) => (
                               <div key={i} className="flex items-center justify-between text-sm py-1.5">
