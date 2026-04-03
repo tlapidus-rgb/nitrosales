@@ -33,17 +33,18 @@ export interface BatchPredictionResult {
 }
 
 // ─── Constants ───
-// Ticket buckets (ARS): Bajo <30K | Medio 30K-80K | Alto >80K
-const LOW_THRESHOLD = 30000;
-const MED_THRESHOLD = 80000;
 const MIN_SEGMENT_SAMPLE = 5;
+const DEFAULT_LOW_THRESHOLD = 25000;
+const DEFAULT_MED_THRESHOLD = 100000;
 
 // ══════════════════════════════════════════════════════════════
 // BATCH PREDICTION — Todo en SQL
 // ══════════════════════════════════════════════════════════════
 
 export async function runBatchPrediction(
-  orgId: string
+  orgId: string,
+  lowThreshold: number = DEFAULT_LOW_THRESHOLD,
+  medThreshold: number = DEFAULT_MED_THRESHOLD
 ): Promise<BatchPredictionResult> {
   // ─── Step 1: Compute segment stats + predictions + upsert ALL IN SQL ───
   // This single query does everything:
@@ -127,8 +128,8 @@ export async function runBatchPrediction(
         cr.*,
         fo.channel,
         CASE
-          WHEN cr.avg_ticket <= ${LOW_THRESHOLD} THEN 'low_value'
-          WHEN cr.avg_ticket <= ${MED_THRESHOLD} THEN 'medium_value'
+          WHEN cr.avg_ticket <= ${lowThreshold} THEN 'low_value'
+          WHEN cr.avg_ticket <= ${medThreshold} THEN 'medium_value'
           ELSE 'high_value'
         END AS bucket
       FROM customer_rfm cr
@@ -319,8 +320,8 @@ export async function runBatchPrediction(
         ROUND(confidence::numeric, 2) AS confidence,
         -- Segment bucket based on predicted 365d LTV
         CASE
-          WHEN GREATEST(predicted_ltv_365d_raw, total_spent) <= ${LOW_THRESHOLD} THEN 'low_value'
-          WHEN GREATEST(predicted_ltv_365d_raw, total_spent) <= ${MED_THRESHOLD} THEN 'medium_value'
+          WHEN GREATEST(predicted_ltv_365d_raw, total_spent) <= ${lowThreshold} THEN 'low_value'
+          WHEN GREATEST(predicted_ltv_365d_raw, total_spent) <= ${medThreshold} THEN 'medium_value'
           ELSE 'high_value'
         END AS segment_bucket,
         method,

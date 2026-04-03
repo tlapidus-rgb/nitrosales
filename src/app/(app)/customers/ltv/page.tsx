@@ -88,6 +88,13 @@ export default function LtvPage() {
   const [predLoading, setPredLoading] = useState(false);
   const [predRunning, setPredRunning] = useState(false);
 
+  // Threshold settings state
+  const [thresholdConfig, setThresholdConfig] = useState<any>(null);
+  const [showThresholdEdit, setShowThresholdEdit] = useState(false);
+  const [editLow, setEditLow] = useState("");
+  const [editMed, setEditMed] = useState("");
+  const [savingThresholds, setSavingThresholds] = useState(false);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -106,7 +113,7 @@ export default function LtvPage() {
     fetchData();
   }, [dateFrom, dateTo]);
 
-  // Fetch existing predictions
+  // Fetch existing predictions + threshold settings
   useEffect(() => {
     const fetchPredictions = async () => {
       try {
@@ -117,7 +124,19 @@ export default function LtvPage() {
         }
       } catch {}
     };
+    const fetchThresholds = async () => {
+      try {
+        const res = await fetch("/api/settings/ltv");
+        if (res.ok) {
+          const d = await res.json();
+          setThresholdConfig(d);
+          setEditLow(String(d.current.low));
+          setEditMed(String(d.current.medium));
+        }
+      } catch {}
+    };
     fetchPredictions();
+    fetchThresholds();
   }, []);
 
   const handleRunPrediction = async () => {
@@ -137,6 +156,38 @@ export default function LtvPage() {
     } finally {
       setPredRunning(false);
     }
+  };
+
+  const handleSaveThresholds = async () => {
+    const low = Number(editLow);
+    const med = Number(editMed);
+    if (!low || !med || low <= 0 || med <= low) return;
+    setSavingThresholds(true);
+    try {
+      const res = await fetch("/api/settings/ltv", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ low, medium: med }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setThresholdConfig((prev: any) => ({ ...prev, current: d.thresholds }));
+        setShowThresholdEdit(false);
+        // Recalculate predictions with new thresholds
+        await handleRunPrediction();
+      }
+    } catch (e) {
+      console.error("Error saving thresholds:", e);
+    } finally {
+      setSavingThresholds(false);
+    }
+  };
+
+  const handleApplySuggested = () => {
+    if (!thresholdConfig?.suggested) return;
+    setEditLow(String(thresholdConfig.suggested.low));
+    setEditMed(String(thresholdConfig.suggested.medium));
+    setShowThresholdEdit(true);
   };
 
   const handleQuickRange = (days: number) => {
@@ -493,7 +544,84 @@ export default function LtvPage() {
                   </div>
                 )}
               </div>
+              {thresholdConfig && (
+                <p className="text-[10px] text-gray-400 mt-1.5">
+                  Umbrales: Bajo &lt; {formatARS(thresholdConfig.current.low)} · Medio {formatARS(thresholdConfig.current.low)} - {formatARS(thresholdConfig.current.medium)} · Alto &gt; {formatARS(thresholdConfig.current.medium)}
+                </p>
+              )}
             </div>
+
+            {/* Threshold configuration */}
+            {thresholdConfig && (
+              <div className="px-4 lg:px-5 pb-4">
+                <div className="border border-gray-100 rounded-lg p-3 bg-gray-50/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-gray-600">Configuracion de umbrales</p>
+                      {thresholdConfig.suggested && !showThresholdEdit && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          Sugerido por tus datos: Bajo &lt; {formatARS(thresholdConfig.suggested.low)} · Alto &gt; {formatARS(thresholdConfig.suggested.medium)}
+                          <span className="text-gray-300 ml-1">(basado en percentiles p50/p90 de {thresholdConfig.suggested.data.totalCustomers.toLocaleString("es-AR")} clientes)</span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {thresholdConfig.suggested && !showThresholdEdit && (
+                        <button
+                          onClick={handleApplySuggested}
+                          className="text-[10px] px-2 py-1 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors"
+                        >
+                          Usar sugerido
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowThresholdEdit(!showThresholdEdit)}
+                        className="text-[10px] px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                      >
+                        {showThresholdEdit ? "Cancelar" : "Editar"}
+                      </button>
+                    </div>
+                  </div>
+                  {showThresholdEdit && (
+                    <div className="mt-3 flex items-end gap-3">
+                      <div>
+                        <label className="text-[10px] text-gray-500 block mb-1">Umbral Bajo (hasta)</label>
+                        <input
+                          type="number"
+                          value={editLow}
+                          onChange={(e) => setEditLow(e.target.value)}
+                          className="w-28 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-violet-300 focus:border-violet-300"
+                          placeholder="25000"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-500 block mb-1">Umbral Alto (desde)</label>
+                        <input
+                          type="number"
+                          value={editMed}
+                          onChange={(e) => setEditMed(e.target.value)}
+                          className="w-28 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-violet-300 focus:border-violet-300"
+                          placeholder="100000"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSaveThresholds}
+                        disabled={savingThresholds || !editLow || !editMed || Number(editMed) <= Number(editLow)}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                      >
+                        {savingThresholds ? "Guardando..." : "Guardar y recalcular"}
+                      </button>
+                      {thresholdConfig.suggested && (
+                        <div className="text-[10px] text-gray-400 pb-1">
+                          <div>p50: {formatARS(thresholdConfig.suggested.data.p50)} · p75: {formatARS(thresholdConfig.suggested.data.p75)}</div>
+                          <div>p90: {formatARS(thresholdConfig.suggested.data.p90)} · p95: {formatARS(thresholdConfig.suggested.data.p95)}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {predData.lastUpdated && (
               <div className="px-4 lg:px-5 pb-4 text-[10px] text-gray-400">

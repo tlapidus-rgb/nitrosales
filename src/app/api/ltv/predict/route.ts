@@ -204,10 +204,20 @@ export async function POST() {
   try {
     const ORG_ID = await getOrganizationId();
 
-    console.log(`[LTV Predict] Starting batch prediction for org ${ORG_ID}`);
+    // Read custom thresholds from organization settings
+    const org = await prisma.organization.findUnique({
+      where: { id: ORG_ID },
+      select: { settings: true },
+    });
+    const settings = (org?.settings as Record<string, any>) || {};
+    const thresholds = settings.ltvThresholds || {};
+    const lowThreshold = thresholds.low || 25000;
+    const medThreshold = thresholds.medium || 100000;
+
+    console.log(`[LTV Predict] Starting batch prediction for org ${ORG_ID} (thresholds: ${lowThreshold}/${medThreshold})`);
     const startTime = Date.now();
 
-    const result = await runBatchPrediction(ORG_ID);
+    const result = await runBatchPrediction(ORG_ID, lowThreshold, medThreshold);
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(
