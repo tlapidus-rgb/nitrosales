@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-03 (Sesion 5 — LTV Guardrails + Build Fix + Configurable Thresholds)
+## Ultima actualizacion: 2026-04-03 (Sesion 5 — LTV Guardrails + Build Fix + Configurable Thresholds + Sidebar Reorg)
 
 ---
 
@@ -135,6 +135,7 @@
 | src/lib/db/client.ts | **v1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client |
 | prisma/schema.prisma | **v3** | ACTIVO | +CustomerLtvPrediction model (2026-04-02). +ManualCost, ShippingRate. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. Prisma db push ejecutado. |
 | vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. |
+| src/app/(app)/layout.tsx | **v2** | ACTIVO | Sidebar reorganizado en 7 grupos: OPERACIONES, CATALOGO, MARKETING Y ADQUISICION, CLIENTES, CANALES, FINANZAS, sin-grupo. NavItem[] -> NavGroup[]. Labels: Overview->Centro de Control, Ordenes->Pedidos, Finanzas->P&L. Separadores visuales entre grupos. 14 items preservados. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
 ---
@@ -266,10 +267,10 @@
 
 ## HISTORIAL DE CAMBIOS
 
-### 2026-04-03 — Sesion 5 (LTV Guardrails + Build Fix + Configurable Thresholds + Deep Audit)
+### 2026-04-03 — Sesion 5 (LTV Guardrails + Build Fix + Configurable Thresholds + Deep Audit + Sidebar Reorg)
 
-**Commits**: 0aafb0d, 1b60f12, 4409537, 9eec0de, 6ff64d1, 0ca3726, 90df13e, 6da6c9d (8 commits)
-**Deploy**: Vercel auto-deploy OK (6da6c9d -> main). Build time volvio a ~50s tras fix.
+**Commits**: 0aafb0d, 1b60f12, 4409537, 9eec0de, 6ff64d1, 0ca3726, 90df13e, 6da6c9d, 83676eb, 042445b (10 commits)
+**Deploy**: Vercel auto-deploy OK (042445b -> main). Build time volvio a ~50s tras fix.
 
 #### Errores encontrados y corregidos:
 
@@ -354,15 +355,27 @@
    - Nuevo metodo `cohort_boosted` con boost 1.5x (2 ordenes) o 2x (3+)
    - Confidence reducida para clientes con historia insuficiente
 
+9. **Documentacion Session 5** (83676eb)
+   - Actualizado CLAUDE_STATE.md con todos los commits, errores, aprendizajes de la sesion
+
+10. **Reorganizacion sidebar** (042445b)
+   - Estructura cambiada de NavItem[] flat a NavGroup[] con 7 grupos
+   - Grupos: OPERACIONES (Centro de Control, Pedidos, Analytics), CATALOGO (Productos), MARKETING Y ADQUISICION (Campanas, NitroPixel, SEO), CLIENTES (Segmentacion, Lifetime Value), CANALES (MercadoLibre, Competencia), FINANZAS (P&L con children), sin-grupo (Alertas, Chat IA, Configuracion)
+   - Labels renombrados: Overview -> Centro de Control, Ordenes -> Pedidos, Finanzas -> P&L
+   - Separadores visuales sutiles entre grupos (border-t + label uppercase tracking)
+   - 14 items preservados sin cambios en rutas, iconos, children ni logica
+   - Decision: nombres mayormente en espanol con terminos estrategicos en ingles (Lifetime Value, SEO)
+
 #### Archivos nuevos creados (2):
 - `src/app/api/settings/ltv/route.ts` — GET/PUT umbrales + auto-sugerencia
 - `src/app/api/ltv/customer-detail/route.ts` — Historial de ordenes de cliente
 
-#### Archivos modificados (4):
+#### Archivos modificados (5):
 - `package.json` — Removido `prisma db push` del build command
 - `src/lib/ltv/prediction-engine.ts` — v1 -> v3: parametrizado + 3 guardrails + cohort_boosted
 - `src/app/api/ltv/predict/route.ts` — v1 -> v2: lee umbrales de settings + customer details en top 20
 - `src/app/(app)/customers/ltv/page.tsx` — v2 -> v3: threshold config UI + expandable customer detail + nota Sin datos + hero credibilidad
+- `src/app/(app)/layout.tsx` — v1 -> v2: sidebar reorganizado en 7 grupos con separadores visuales y labels renombrados
 
 #### Investigacion realizada:
 - Analisis profundo de 47,264 predicciones contra datos reales
