@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
             productName: p.productName,
             imageUrl: p.imageUrl,
             lastScrapedAt: p.lastScrapedAt,
+            matchMethod: p.matchMethod || null,
           };
         })
         .sort((a, b) => a.price - b.price);
@@ -164,6 +165,10 @@ export async function GET(req: NextRequest) {
 
     const avgPriceDiff = totalDiffCount > 0 ? Math.round((totalDiffSum / totalDiffCount) * 10) / 10 : 0;
 
+    // Match method stats
+    const eanMatchCount = competitorPrices.filter(p => p.matchMethod === "EAN_EXACT").length;
+    const fuzzyMatchCount = competitorPrices.filter(p => p.matchMethod === "FUZZY_TEXT" || p.matchMethod === "FUZZY_BRAND").length;
+
     return NextResponse.json({
       summary: {
         totalMonitored: competitorPrices.length,
@@ -172,6 +177,8 @@ export async function GET(req: NextRequest) {
         cheaperCount,
         moreExpensiveCount,
         avgPriceDiff,
+        eanMatchCount,
+        fuzzyMatchCount,
         successRate: competitorPrices.length > 0
           ? Math.round((competitorPrices.filter(p => p.scrapeStatus === "OK").length / competitorPrices.length) * 100)
           : 0,

@@ -16,6 +16,7 @@ type Store = { id: string; name: string; website: string };
 type CompItem = {
   store: string; storeId: string; price: number; diff: number;
   previousPrice: number | null; url: string; productName: string; imageUrl?: string;
+  matchMethod?: string | null;
 };
 type PriceRow = {
   ownProduct: { id: string; name: string; sku: string; price: number; imageUrl?: string; priceStatus?: "ok" | "sin_stock" | "sin_precio" };
@@ -381,9 +382,9 @@ export default function CompetitorsPage() {
               <p className="text-xs text-gray-400 mt-0.5">Productos donde sos el mas barato</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm p-4 border">
-              <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Tasa de Scraping</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{summary.successRate}%</p>
-              <p className="text-xs text-gray-400 mt-0.5">Productos con precio exitoso</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Match por EAN</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{summary.eanMatchCount || 0}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{summary.eanMatchCount > 0 ? `${Math.round((summary.eanMatchCount / summary.totalMonitored) * 100)}% verificados por codigo de barras` : "Carga EANs para match exacto"}</p>
             </div>
           </div>
 
@@ -450,14 +451,19 @@ export default function CompetitorsPage() {
                         const isLess = comp.diff < 0;
                         return (
                           <td key={s.id} className="px-3 py-3">
-                            <span className={`font-bold tabular-nums ${isMore ? "text-green-600" : isLess ? "text-red-600" : "text-gray-500"}`}>
-                              {fmtARS(comp.price)}
-                            </span>
-                            <span className={`ml-1.5 text-[11px] font-semibold px-1.5 py-0.5 rounded ${
-                              isMore ? "bg-green-50 text-green-700" : isLess ? "bg-red-50 text-red-700" : "text-gray-400"
-                            }`}>
-                              {comp.diff > 0 ? "+" : ""}{comp.diff}%
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`font-bold tabular-nums ${isMore ? "text-green-600" : isLess ? "text-red-600" : "text-gray-500"}`}>
+                                {fmtARS(comp.price)}
+                              </span>
+                              <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${
+                                isMore ? "bg-green-50 text-green-700" : isLess ? "bg-red-50 text-red-700" : "text-gray-400"
+                              }`}>
+                                {comp.diff > 0 ? "+" : ""}{comp.diff}%
+                              </span>
+                              {comp.matchMethod === "EAN_EXACT" && (
+                                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-indigo-50 text-indigo-600 tracking-wider" title="Match verificado por codigo de barras (EAN)">EAN</span>
+                              )}
+                            </div>
                           </td>
                         );
                       })}
