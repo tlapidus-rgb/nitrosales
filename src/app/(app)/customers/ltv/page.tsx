@@ -9,7 +9,7 @@ import {
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import {
   TrendingUp, Users, RefreshCw, DollarSign, Clock,
-  Target, ArrowUpRight, ArrowDownRight, ChevronDown,
+  Target, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronRight,
   Brain, Lock, Send, Loader2, ShieldCheck,
 } from "lucide-react";
 import { KpiCard, ChangeBadge } from "@/components/dashboard";
@@ -94,6 +94,11 @@ export default function LtvPage() {
   const [editLow, setEditLow] = useState("");
   const [editMed, setEditMed] = useState("");
   const [savingThresholds, setSavingThresholds] = useState(false);
+
+  // Customer detail expansion state
+  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
+  const [customerDetail, setCustomerDetail] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -180,6 +185,24 @@ export default function LtvPage() {
       console.error("Error saving thresholds:", e);
     } finally {
       setSavingThresholds(false);
+    }
+  };
+
+  const handleExpandCustomer = async (customerId: string) => {
+    if (expandedCustomer === customerId) {
+      setExpandedCustomer(null);
+      setCustomerDetail(null);
+      return;
+    }
+    setExpandedCustomer(customerId);
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/ltv/customer-detail?id=${customerId}`);
+      if (res.ok) setCustomerDetail(await res.json());
+    } catch (e) {
+      console.error("Error fetching customer detail:", e);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -465,49 +488,145 @@ export default function LtvPage() {
                     </thead>
                     <tbody>
                       {predData.topCustomers.slice(0, 10).map((c: any, i: number) => (
-                        <tr key={c.id} className="border-t border-gray-50 hover:bg-gray-50/50">
-                          <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
-                          <td className="px-3 py-2">
-                            <div className="font-medium text-gray-800 text-sm">{c.name}</div>
-                            {c.email && <div className="text-[10px] text-gray-400">{c.email}</div>}
-                          </td>
-                          <td className="px-3 py-2">
-                            <span className="inline-flex items-center gap-1 text-xs">
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHANNEL_COLORS[c.channel] || "#6366f1" }} />
-                              {c.channel}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              c.segment === "high_value" ? "bg-emerald-100 text-emerald-700" :
-                              c.segment === "medium_value" ? "bg-amber-100 text-amber-700" :
-                              "bg-gray-100 text-gray-600"
-                            }`}>
-                              {c.segment === "high_value" ? "Alto" : c.segment === "medium_value" ? "Medio" : "Bajo"}
-                            </span>
-                          </td>
-                          <td className="text-right px-3 py-2 text-gray-600">{formatARS(c.predictedLtv90d)}</td>
-                          <td className="text-right px-3 py-2 font-medium text-violet-700">{formatARS(c.predictedLtv365d)}</td>
-                          <td className="text-right px-3 py-2">
-                            <span className={`text-xs font-medium ${c.confidence >= 0.7 ? "text-emerald-600" : c.confidence >= 0.5 ? "text-amber-600" : "text-red-500"}`}>
-                              {Math.round(c.confidence * 100)}%
-                            </span>
-                          </td>
-                          <td className="text-center px-3 py-2">
-                            {c.sentToMeta ? (
-                              <span className="text-emerald-500"><ShieldCheck size={14} /></span>
-                            ) : (
-                              <span className="text-gray-300"><Lock size={12} /></span>
-                            )}
-                          </td>
-                          <td className="text-center px-3 py-2">
-                            {c.sentToGoogle ? (
-                              <span className="text-emerald-500"><ShieldCheck size={14} /></span>
-                            ) : (
-                              <span className="text-gray-300"><Lock size={12} /></span>
-                            )}
-                          </td>
-                        </tr>
+                        <React.Fragment key={c.id}>
+                          <tr
+                            className="border-t border-gray-50 hover:bg-gray-50/50 cursor-pointer"
+                            onClick={() => handleExpandCustomer(c.id)}
+                          >
+                            <td className="px-3 py-2 text-gray-400 text-xs">
+                              <span className={`inline-block transition-transform ${expandedCustomer === c.id ? "rotate-90" : ""}`}>
+                                <ChevronRight size={12} />
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="font-medium text-gray-800 text-sm">{c.name}</div>
+                              {c.email && <div className="text-[10px] text-gray-400">{c.email}</div>}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center gap-1 text-xs">
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHANNEL_COLORS[c.channel] || "#6366f1" }} />
+                                {c.channel}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                c.segment === "high_value" ? "bg-emerald-100 text-emerald-700" :
+                                c.segment === "medium_value" ? "bg-amber-100 text-amber-700" :
+                                "bg-gray-100 text-gray-600"
+                              }`}>
+                                {c.segment === "high_value" ? "Alto" : c.segment === "medium_value" ? "Medio" : "Bajo"}
+                              </span>
+                            </td>
+                            <td className="text-right px-3 py-2 text-gray-600">{formatARS(c.predictedLtv90d)}</td>
+                            <td className="text-right px-3 py-2 font-medium text-violet-700">{formatARS(c.predictedLtv365d)}</td>
+                            <td className="text-right px-3 py-2">
+                              <span className={`text-xs font-medium ${c.confidence >= 0.7 ? "text-emerald-600" : c.confidence >= 0.5 ? "text-amber-600" : "text-red-500"}`}>
+                                {Math.round(c.confidence * 100)}%
+                              </span>
+                            </td>
+                            <td className="text-center px-3 py-2">
+                              {c.sentToMeta ? (
+                                <span className="text-emerald-500"><ShieldCheck size={14} /></span>
+                              ) : (
+                                <span className="text-gray-300"><Lock size={12} /></span>
+                              )}
+                            </td>
+                            <td className="text-center px-3 py-2">
+                              {c.sentToGoogle ? (
+                                <span className="text-emerald-500"><ShieldCheck size={14} /></span>
+                              ) : (
+                                <span className="text-gray-300"><Lock size={12} /></span>
+                              )}
+                            </td>
+                          </tr>
+                          {/* Expanded detail row */}
+                          {expandedCustomer === c.id && (
+                            <tr className="bg-violet-50/30">
+                              <td colSpan={9} className="px-4 py-3">
+                                {detailLoading ? (
+                                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                                    <Loader2 size={12} className="animate-spin" /> Cargando historial...
+                                  </div>
+                                ) : customerDetail ? (
+                                  <div className="space-y-3">
+                                    {/* Prediction reasoning */}
+                                    {customerDetail.prediction?.features && (
+                                      <div className="flex flex-wrap gap-3 text-[11px]">
+                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
+                                          <span className="text-gray-400">Compras:</span>{" "}
+                                          <span className="font-medium text-gray-700">{customerDetail.prediction.features.orderCount || customerDetail.orders?.length || "?"}</span>
+                                        </div>
+                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
+                                          <span className="text-gray-400">Gasto total:</span>{" "}
+                                          <span className="font-medium text-gray-700">{formatARS(customerDetail.prediction.features.totalSpent || 0)}</span>
+                                        </div>
+                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
+                                          <span className="text-gray-400">Ticket prom:</span>{" "}
+                                          <span className="font-medium text-gray-700">{formatARS(customerDetail.prediction.features.avgTicket || 0)}</span>
+                                        </div>
+                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
+                                          <span className="text-gray-400">Dias como cliente:</span>{" "}
+                                          <span className="font-medium text-gray-700">{customerDetail.prediction.features.daysSinceFirst || 0}d</span>
+                                        </div>
+                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
+                                          <span className="text-gray-400">Ultima compra hace:</span>{" "}
+                                          <span className="font-medium text-gray-700">{customerDetail.prediction.features.daysSinceLastOrder || 0}d</span>
+                                        </div>
+                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
+                                          <span className="text-gray-400">Recompra segmento:</span>{" "}
+                                          <span className="font-medium text-gray-700">{Math.round((customerDetail.prediction.features.segmentRepeatRate || 0) * 100)}%</span>
+                                        </div>
+                                        <div className="bg-white rounded px-2 py-1 border border-gray-100">
+                                          <span className="text-gray-400">Metodo:</span>{" "}
+                                          <span className="font-medium text-gray-700">{customerDetail.prediction.features.method === "cohort_lookup" ? "Cohorte" : "Historial personal"}</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {/* Order history */}
+                                    {customerDetail.orders?.length > 0 && (
+                                      <div>
+                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Historial de compras</p>
+                                        <table className="w-full text-xs">
+                                          <thead>
+                                            <tr className="text-gray-400 text-[10px]">
+                                              <th className="text-left py-1 pr-3">#</th>
+                                              <th className="text-left py-1 pr-3">Fecha</th>
+                                              <th className="text-right py-1 pr-3">Monto</th>
+                                              <th className="text-left py-1 pr-3">Estado</th>
+                                              <th className="text-left py-1">Productos</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {customerDetail.orders.map((o: any, idx: number) => (
+                                              <tr key={o.orderId} className="border-t border-gray-100/50">
+                                                <td className="py-1.5 pr-3 text-gray-400">{idx + 1}</td>
+                                                <td className="py-1.5 pr-3 text-gray-600">
+                                                  {new Date(o.date).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
+                                                </td>
+                                                <td className="py-1.5 pr-3 text-right font-medium text-gray-700">{formatARS(o.total)}</td>
+                                                <td className="py-1.5 pr-3">
+                                                  <span className={`text-[10px] ${o.status === "INVOICED" || o.status === "COMPLETED" ? "text-emerald-600" : o.status === "CANCELLED" ? "text-red-500" : "text-gray-500"}`}>
+                                                    {o.status}
+                                                  </span>
+                                                </td>
+                                                <td className="py-1.5 text-gray-500 truncate max-w-[300px]">{o.products || "-"}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    )}
+                                    {customerDetail.orders?.length === 0 && (
+                                      <p className="text-xs text-gray-400">Sin ordenes encontradas</p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-gray-400">Error cargando datos</p>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
