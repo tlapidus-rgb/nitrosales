@@ -382,9 +382,9 @@ export default function CompetitorsPage() {
               <p className="text-xs text-gray-400 mt-0.5">Productos donde sos el mas barato</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm p-4 border">
-              <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Match por EAN</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{summary.eanMatchCount || 0}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{summary.eanMatchCount > 0 ? `${Math.round((summary.eanMatchCount / summary.totalMonitored) * 100)}% verificados por codigo de barras` : "Carga EANs para match exacto"}</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Matches Verificados</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{(summary.eanMatchCount || 0) + (summary.verifiedMatchCount || 0)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{summary.eanMatchCount > 0 ? `${summary.eanMatchCount} EAN + ${summary.verifiedMatchCount || 0} nombre` : "EAN + marca + nombre verificado"}</p>
             </div>
           </div>
 
@@ -460,8 +460,14 @@ export default function CompetitorsPage() {
                               }`}>
                                 {comp.diff > 0 ? "+" : ""}{comp.diff}%
                               </span>
-                              {comp.matchMethod === "EAN_EXACT" && (
+                              {(comp.matchMethod === "EAN_EXACT" || comp.matchMethod === "EAN_SEARCH") && (
                                 <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-indigo-50 text-indigo-600 tracking-wider" title="Match verificado por codigo de barras (EAN)">EAN</span>
+                              )}
+                              {comp.matchMethod === "NAME_VERIFIED" && (
+                                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-emerald-50 text-emerald-600 tracking-wider" title="Match verificado por marca + nombre">OK</span>
+                              )}
+                              {comp.matchMethod === "CATALOG_MATCH" && (
+                                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-violet-50 text-violet-600 tracking-wider" title="Match por catalogo del marketplace">CAT</span>
                               )}
                             </div>
                           </td>

@@ -126,12 +126,20 @@ function parseVtexItem(item: any, base: string): RawProduct | null {
   const brand = item.brand || "";
   const category = (item.categories?.[0] || "").replace(/^\//, "").replace(/\/$/, "");
 
+  // ── EAN extraction: cascade from most reliable to least ──
+  // 1. items[].ean — the REAL EAN field in VTEX (most reliable)
+  // 2. items[].referenceId[].Value — sometimes contains EAN
+  // 3. productReference — sometimes has EAN
+  // 4. URL pattern /(\d{12,14})/p$ — last resort
+  const itemEan = items[0]?.ean || "";
   const ref = item.productReference || "";
   const refIdVal = items[0]?.referenceId?.[0]?.Value || "";
   const urlEanMatch = link.match(/(\d{12,14})\/p$/);
   const urlEan = urlEanMatch ? urlEanMatch[1] : "";
-  const competitorEan = (ref.length >= 12 && /^\d+$/.test(ref)) ? ref
+  const competitorEan =
+    (itemEan.length >= 8 && /^\d+$/.test(itemEan)) ? itemEan
     : (refIdVal.length >= 12 && /^\d+$/.test(refIdVal)) ? refIdVal
+    : (ref.length >= 12 && /^\d+$/.test(ref)) ? ref
     : (urlEan.length >= 12) ? urlEan
     : undefined;
 

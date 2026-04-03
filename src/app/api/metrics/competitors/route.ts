@@ -166,7 +166,8 @@ export async function GET(req: NextRequest) {
     const avgPriceDiff = totalDiffCount > 0 ? Math.round((totalDiffSum / totalDiffCount) * 10) / 10 : 0;
 
     // Match method stats
-    const eanMatchCount = competitorPrices.filter(p => p.matchMethod === "EAN_EXACT").length;
+    const eanMatchCount = competitorPrices.filter(p => p.matchMethod === "EAN_EXACT" || p.matchMethod === "EAN_SEARCH").length;
+    const verifiedMatchCount = competitorPrices.filter(p => p.matchMethod === "NAME_VERIFIED" || p.matchMethod === "CATALOG_MATCH").length;
     const fuzzyMatchCount = competitorPrices.filter(p => p.matchMethod === "FUZZY_TEXT" || p.matchMethod === "FUZZY_BRAND").length;
 
     return NextResponse.json({
@@ -178,6 +179,7 @@ export async function GET(req: NextRequest) {
         moreExpensiveCount,
         avgPriceDiff,
         eanMatchCount,
+        verifiedMatchCount,
         fuzzyMatchCount,
         successRate: competitorPrices.length > 0
           ? Math.round((competitorPrices.filter(p => p.scrapeStatus === "OK").length / competitorPrices.length) * 100)
