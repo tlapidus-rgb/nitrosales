@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-03 (Sesion 4 — Modulo Margenes Completo)
+## Ultima actualizacion: 2026-04-03 (Sesion 5 — LTV Guardrails + Build Fix + Configurable Thresholds)
 
 ---
 
@@ -111,14 +111,16 @@
 | src/app/api/finance/shipping-rates/carriers/route.ts | **v1** | ACTIVO | Lista carriers y servicios disponibles. |
 | src/app/api/sync/cost-prices/route.ts | **v2** | ACTIVO | Sync precios de costo desde VTEX. Usa Pricing API (primary) + Catalog API (fallback). Fix critico: Pricing API tiene el costPrice, Catalog NO. |
 
-### LTV & PREDICCION (Lifetime Value) — NUEVO 2026-04-02
+### LTV & PREDICCION (Lifetime Value) — ACTUALIZADO 2026-04-03
 
 | Archivo | Version | Estado | Notas |
 |---------|---------|--------|-------|
-| src/app/(app)/customers/ltv/page.tsx | **v2** | ACTIVO | Dashboard LTV + seccion de predicciones (violeta). KPIs, chart por canal, cohort heatmap, repurchase pattern, top customers. Seccion pLTV con: KPIs prediccion, tabla por canal, top 10 predichos, distribucion segmentos. Solo VTEX (MELI excluido). |
+| src/app/(app)/customers/ltv/page.tsx | **v3** | ACTIVO | Dashboard LTV + seccion pLTV con hero credibilidad (BG/NBD, Meta/Google badges, pipeline NitroPixel). Umbrales configurables con auto-sugerencia por percentiles. Top 20 con customer detail expandible. Nota "Sin datos" para clientes pre-NitroPixel. |
 | src/app/api/metrics/ltv/route.ts | **v2** | ACTIVO | 7 queries paralelas: summary, prev period, by channel, cohort retention, repurchase, ad spend, top customers. MELI_EXCLUDE en todas las queries. |
-| src/app/api/ltv/predict/route.ts | **v1** | ACTIVO | GET: retorna predicciones existentes + resumen. POST: ejecuta batch prediction para todos los clientes. NO envia nada a plataformas. |
-| src/lib/ltv/prediction-engine.ts | **v1** | ACTIVO | Motor de prediccion cohort-based pLTV. Segmentos = canal x bucket de ticket. Clientes nuevos: cohort lookup. Clientes recurrentes: 70% historia personal + 30% segmento. Confianza 0-1. |
+| src/app/api/ltv/predict/route.ts | **v2** | ACTIVO | GET: predicciones + resumen + customer details en top 20. POST: batch prediction con umbrales de org settings. maxDuration=60. |
+| src/app/api/ltv/customer-detail/route.ts | **v1** | ACTIVO | GET: historial de ordenes de un cliente + detalles de prediccion. Product names via JOIN a products table. |
+| src/app/api/settings/ltv/route.ts | **v1** | ACTIVO | GET: umbrales actuales + auto-sugeridos (p50/p90 redondeados a 5K). PUT: valida y guarda umbrales. Min 100 clientes para sugerencias. |
+| src/lib/ltv/prediction-engine.ts | **v3** | ACTIVO | Motor con 3 guardrails: (1) min 30 dias para personal_history, (2) freq cap 1/7 dia, (3) prediction cap 3x gasto real. Metodo cohort_boosted para 2+ ordenes con <30 dias. |
 | src/lib/ltv/send-meta.ts | **v1** | DESACTIVADO | Envia predicted_ltv a Meta CAPI. Triple candado: LTV_SEND_ENABLED env var + confidence >= 0.5 + flag sentToMeta por cliente. NO ACTIVAR sin aprobacion de Tomy. |
 | src/lib/ltv/send-google.ts | **v1** | DESACTIVADO | Envia RESTATEMENT a Google Ads ConversionAdjustmentUploadService. Triple candado identico al de Meta. Ventana de ajuste: 55 dias. NO ACTIVAR sin aprobacion de Tomy. |
 
@@ -126,6 +128,7 @@
 
 | Archivo | VersiÃ³n | Estado | Notas |
 |---------|---------|--------|-------|
+| package.json | **v2** | ACTIVO | Build: `prisma generate && next build`. REMOVIDO `prisma db push` del build (causaba hang de 8+ min). |
 | src/lib/vtex-credentials.ts | **v1** | NEW | Centralized VTEX credential access (DB > env vars) |
 | src/lib/crypto.ts | **v1** | NEW | AES-256-GCM credential encryption |
 | src/lib/auth-guard.ts | **v1** | NEW | Org resolution from NextAuth session |
@@ -160,20 +163,27 @@
 - **PROHIBIDO: NO comparar precio con IVA contra costo sin IVA para calcular margenes.**
 
 ### LTV Dashboard + Prediccion de LTV -- COMPLETADO Y EN PRODUCCION
-- Dashboard: src/app/(app)/customers/ltv/page.tsx -- 5 secciones analiticas + seccion predicciones
-- Motor de prediccion: src/lib/ltv/prediction-engine.ts -- Cohort-based pLTV, TypeScript puro, sin dependencias externas
-- API: src/app/api/ltv/predict/route.ts -- GET/POST, batch prediction
+- Dashboard: src/app/(app)/customers/ltv/page.tsx v3 -- 5 secciones analiticas + seccion predicciones con hero de credibilidad
+- Motor de prediccion: src/lib/ltv/prediction-engine.ts v3 -- Cohort-based pLTV con 3 guardrails de produccion
+- API predict: src/app/api/ltv/predict/route.ts v2 -- GET/POST, batch con umbrales configurables
+- API settings: src/app/api/settings/ltv/route.ts -- GET/PUT umbrales + auto-sugerencia percentiles
+- API customer detail: src/app/api/ltv/customer-detail/route.ts -- Historial de ordenes expandible
 - Envio Meta CAPI: src/lib/ltv/send-meta.ts -- Campo predicted_ltv en custom_data -- **DESACTIVADO**
 - Envio Google Ads: src/lib/ltv/send-google.ts -- RESTATEMENT ConversionAdjustmentUploadService -- **DESACTIVADO**
 - Nav: Clientes > Segmentacion | Lifetime Value (children en layout.tsx)
 - MELI excluido de TODOS los queries (no tiene datos de clientes)
 - Triple candado de seguridad: env var LTV_SEND_ENABLED + confidence threshold 0.5 + flag por cliente
-- Modelo: para clientes nuevos (1 compra) usa cohort lookup (canal x bucket ticket). Para recurrentes (2+) blendea 70% historia personal + 30% segmento
-- Ticket buckets: low <= $30K, medium <= $80K, high > $80K (ARS, ajustar si inflacion)
-- Commits: d950cef (dashboard), b058253 (MELI exclusion), d4eb371 (prediction engine)
+- Modelo v3 con 3 guardrails:
+  - Fix 1: Clientes con <30 dias de historia usan cohort_boosted (no extrapolan frecuencia personal)
+  - Fix 2: Frecuencia personal capeada a max 1 compra cada 7 dias
+  - Fix 3: Prediccion capeada a 3x gasto real como red de seguridad
+- Metodos: cohort_lookup (1 compra), cohort_boosted (2+ compras, <30 dias), personal_history (2+ compras, 30+ dias)
+- Umbrales: configurables por usuario + auto-sugeridos (low=p50, medium=p90, redondeados a 5K). Default: low=$25K, medium=$100K
+- Commits: d950cef, b058253, d4eb371, 0aafb0d, 1b60f12, 4409537, 9eec0de, 6ff64d1, 0ca3726, 90df13e, 6da6c9d
 - Prisma model: CustomerLtvPrediction con campos predictedLtv90d, predictedLtv365d, confidence, acquisitionChannel, segmentBucket, sentToMeta, sentToGoogle
-- **ESTADO: ANALYTICS TERMINADO. ENVIO A PLATAFORMAS PENDIENTE APROBACION DE TOMY.**
+- **ESTADO: ANALYTICS TERMINADO. GUARDRAILS IMPLEMENTADOS. ENVIO A PLATAFORMAS PENDIENTE APROBACION DE TOMY.**
 - **PROHIBIDO: NO activar LTV_SEND_ENABLED ni enviar datos a Meta/Google sin aprobacion explicita del usuario.**
+- **PENDIENTE: Recalcular predicciones desde la UI para que los guardrails se apliquen a la data existente.**
 
 ### Decisiones del usuario sobre LTV (para contexto de proximas sesiones)
 - Tomy quiere validar las predicciones en el dashboard antes de activar envio a plataformas
@@ -181,6 +191,8 @@
 - No quiere que solo se envien los de alto valor -- entiende que Meta/Google necesitan el rango completo para optimizar
 - Pregunto sobre estacionalidad (Dia del Nino en agosto para jugueteria) -- modelo actual no la considera explicitamente pero captura patrones via datos historicos. Se podria agregar indice estacional como mejora futura.
 - Para clientes nuevos de NitroSales: el modelo empieza a dar valor con 50-100 clientes recurrentes. Primeros meses = solo dashboard, envio a plataformas cuando confianza promedio > 60-70%.
+- Tomy quiere que umbrales sean configurables por el usuario pero con sugerencia automatica del sistema
+- Tomy pidio customer detail expandible para verificar manualmente por que cada cliente fue clasificado como fue
 
 ### â Tendencias de Venta â COMPLETADO Y EN PRODUCCIÃN
 - Incluido en products/page.tsx v10.1
@@ -253,6 +265,121 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-03 — Sesion 5 (LTV Guardrails + Build Fix + Configurable Thresholds + Deep Audit)
+
+**Commits**: 0aafb0d, 1b60f12, 4409537, 9eec0de, 6ff64d1, 0ca3726, 90df13e, 6da6c9d (8 commits)
+**Deploy**: Vercel auto-deploy OK (6da6c9d -> main). Build time volvio a ~50s tras fix.
+
+#### Errores encontrados y corregidos:
+
+1. **Build colgado en Vercel — 8+ minutos** (ERROR CRITICO)
+   - SINTOMA: Deploys en Vercel tardaban 8-9 minutos en vez de ~50 segundos. Build se quedaba en "Building..."
+   - CAUSA RAIZ: `prisma db push` estaba en el build command de package.json (`prisma generate && prisma db push && next build`). `prisma db push` es un comando de DESARROLLO que hace schema introspection contra la DB en vivo. En cada deploy, se conectaba a la Railway DB de produccion y bloqueaba.
+   - POR QUE NO SE VIO ANTES: Cuando la DB era chica, el schema introspection era rapido. Con crecimiento de datos y indices, empezo a tardar minutos.
+   - FIX: Removido `prisma db push` del build command. Ahora: `prisma generate && next build`
+   - APRENDIZAJE: **`prisma db push` NUNCA debe estar en un build de produccion. Es solo para desarrollo local. Las migraciones de schema en produccion se hacen con `prisma migrate deploy` y de forma separada al build.**
+   - Commit: 0aafb0d
+
+2. **`column "totalOrders" does not exist`** (Error en query de top customers)
+   - SINTOMA: Al intentar mostrar detalles de clientes en la tabla top 20, query fallaba
+   - CAUSA RAIZ: Se intento acceder a `customer_ltv_predictions."totalOrders"` como columna directa, pero `totalOrders` vive dentro del campo JSON `inputFeatures`
+   - FIX: Cambiado a `p."inputFeatures"->>'totalOrders'` con cast apropiado
+   - APRENDIZAJE: **Los datos de features de prediccion estan en `inputFeatures` (JSONB), NO como columnas separadas.**
+
+3. **`column oi.productName does not exist`** (Error en customer detail)
+   - SINTOMA: Endpoint customer-detail tiraba error SQL al intentar mostrar nombres de productos
+   - CAUSA RAIZ: Tabla `order_items` NO tiene columna `productName`. Los nombres estan en tabla `products` via `productId` FK.
+   - FIX: JOIN a `products` table y usar `COALESCE(p.name, 'Producto')`
+   - APRENDIZAJE: **Schema de order_items: id, quantity, unitPrice, totalPrice, costPrice, orderId, productId. SIN productName.**
+
+4. **SQL LIMIT inside string_agg** (Error de sintaxis PostgreSQL)
+   - SINTOMA: Query con `string_agg(p.name, ', ' LIMIT 5)` fallaba
+   - CAUSA RAIZ: PostgreSQL no permite LIMIT directamente dentro de una funcion de agregacion
+   - FIX: Wrapping en subselect: `SELECT string_agg(sub.name, ', ') FROM (SELECT ... LIMIT 5) sub`
+   - APRENDIZAJE: **Para limitar items en string_agg, siempre usar subquery wrapping.**
+
+5. **Predicciones LTV infladas — $4.8M para cliente de $158K** (BUG MATEMATICO)
+   - SINTOMA: Clientes con 2 compras en 3-4 dias aparecian con predicciones de millones de pesos
+   - CAUSA RAIZ: El motor extrapolaba frecuencia personal linealmente. 2 compras en 4 dias = 0.25 compras/dia = ~91 compras en 365 dias. Multiplicado por ticket promedio, daba millones.
+   - ANALISIS: 35 clientes con ratio > 5x (muy inflados), 122 con ratio 3-5x. El 93.8% de high_value tenia ratio razonable (<2x).
+   - FIX: 3 guardrails implementados:
+     - Guardrail 1 (MIN_HISTORY_DAYS=30): Clientes con <30 dias usan cohort_boosted, no personal_history
+     - Guardrail 2 (MAX_FREQ_PER_DAY=1/7): Frecuencia personal capeada a max 1 compra/semana
+     - Guardrail 3 (PREDICTION_CAP_MULTIPLIER=3): Prediccion max = 3x gasto real
+   - BENCHMARKS: Google CrystalValue usa zero-inflated lognormal (modela prob de no-compra). Klaviyo requiere 180+ dias. Triple Whale ni siquiera predice individual.
+   - APRENDIZAJE: **Toda extrapolacion de frecuencia necesita: (a) minimo de historia, (b) cap de frecuencia, (c) cap de prediccion. Sin estos guardrails, clientes recientes con multiples compras generan predicciones absurdas.**
+   - Commit: 6da6c9d
+
+6. **`inputFeatures` null para orderCount/totalSpent** (datos legacy)
+   - SINTOMA: Campos dentro de inputFeatures mostraban null en la UI
+   - CAUSA RAIZ: Las predicciones en DB fueron escritas por la v2 del engine (test run anterior) que no incluia estos campos. La v3 SI los escribe.
+   - FIX: No se corrigio directamente — se recalculan las predicciones desde la UI con el POST /api/ltv/predict
+   - APRENDIZAJE: **Tras cambiar el schema de inputFeatures, hay que recalcular las predicciones para que los datos nuevos se graben.**
+
+#### Que se hizo:
+
+1. **Fix build colgado** (0aafb0d)
+   - Removido `prisma db push` del build command
+
+2. **Customer details en top 20 predicciones** (1b60f12)
+   - Agregado ordenes, gasto total, primera/ultima orden, dias como cliente al query GET /api/ltv/predict
+
+3. **Nota "Sin datos"** (4409537)
+   - Clientes con canal "Sin datos" son anteriores a la instalacion del NitroPixel
+   - Nota explicativa en la UI
+
+4. **Umbrales configurables con auto-sugerencia** (9eec0de)
+   - Nuevo endpoint /api/settings/ltv (GET + PUT)
+   - Auto-sugerencia basada en percentiles reales (p50=low, p90=medium, redondeados a 5K)
+   - UI colapsable en pagina LTV para configurar
+   - Motor parametrizado: recibe umbrales como argumentos
+
+5. **Customer detail expandible** (6ff64d1)
+   - Click en chevron en top 20 -> expande historial de ordenes
+   - Muestra: prediction features + lista de ordenes con fecha, monto, status, items, productos
+
+6. **Fix customer detail query** (0ca3726)
+   - Corregido JOIN a products para nombres, subselect para LIMIT en string_agg
+
+7. **Hero de credibilidad** (90df13e)
+   - Banner gradiente violeta con descripcion BG/NBD
+   - Badges: Meta CAPI, Google Ads, NitroPixel
+   - Pipeline visual: Purchase Data -> pLTV Engine -> NitroPixel -> Meta/Google
+
+8. **3 guardrails anti-inflacion** (6da6c9d)
+   - MIN_HISTORY_DAYS = 30 (usa cohort_boosted si <30 dias)
+   - MAX_FREQ_PER_DAY = 1/7 (cap de frecuencia)
+   - PREDICTION_CAP_MULTIPLIER = 3 (max prediccion = 3x gasto)
+   - Nuevo metodo `cohort_boosted` con boost 1.5x (2 ordenes) o 2x (3+)
+   - Confidence reducida para clientes con historia insuficiente
+
+#### Archivos nuevos creados (2):
+- `src/app/api/settings/ltv/route.ts` — GET/PUT umbrales + auto-sugerencia
+- `src/app/api/ltv/customer-detail/route.ts` — Historial de ordenes de cliente
+
+#### Archivos modificados (4):
+- `package.json` — Removido `prisma db push` del build command
+- `src/lib/ltv/prediction-engine.ts` — v1 -> v3: parametrizado + 3 guardrails + cohort_boosted
+- `src/app/api/ltv/predict/route.ts` — v1 -> v2: lee umbrales de settings + customer details en top 20
+- `src/app/(app)/customers/ltv/page.tsx` — v2 -> v3: threshold config UI + expandable customer detail + nota Sin datos + hero credibilidad
+
+#### Investigacion realizada:
+- Analisis profundo de 47,264 predicciones contra datos reales
+- Benchmark contra 6 sistemas de produccion: Google CrystalValue (ZILN), Klaviyo (BG/NBD), Triple Whale (cohortes), Meta pLTV (clasificacion), Lifetimely (ML), Northbeam (analitico)
+- Cross-tab gasto real vs segmento predicho: 10,988 clientes medium por gasto real clasificados como high por prediccion
+- Repeat rates reales: high bucket 6.2%, medium 16.3%, low 13.6%
+- 85.9% de clientes compraron 1 sola vez
+
+#### Decisiones tomadas con Tomy:
+- Umbrales deben ser configurables por el usuario + auto-sugeridos por el sistema
+- Tomy pidio analisis McKinsey-level de datos reales antes de definir umbrales
+- Nuevos umbrales propuestos y aceptados: low=$25K, medium=$100K (basados en percentiles reales)
+- Customer detail expandible para verificacion humana de predicciones
+- Hero de credibilidad para mostrar validacion Meta/Google y pipeline NitroPixel
+- Guardrails aprobados para implementar, pero envio a plataformas NO activar sin aprobacion explicita
+
+---
 
 ### 2026-04-03 — Sesion 4 (Modulo Margenes Completo + IVA Fix + Cross-Filtering)
 
