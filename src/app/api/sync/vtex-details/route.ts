@@ -364,9 +364,34 @@ export async function GET(req: Request) {
       }
 
       // ── Extract delivery type + pickup store name from VTEX logisticsInfo ──
-      const logInfo = detail.shippingData?.logisticsInfo?.[0];
-      const isPickup = logInfo?.pickupStoreInfo?.isPickupStore === true;
-      const pickupName = logInfo?.pickupStoreInfo?.friendlyName || null;
+      // Iterate ALL logisticsInfo items (one per package/item) to find the best carrier/SLA
+      const allLogInfo = detail.shippingData?.logisticsInfo || [];
+      let bestCarrier: string | null = null;
+      let bestSla: string | null = null;
+      let isPickup = false;
+      let pickupName: string | null = null;
+
+      for (const li of allLogInfo) {
+        // Check for pickup
+        if (li?.pickupStoreInfo?.isPickupStore === true) {
+          isPickup = true;
+          pickupName = li.pickupStoreInfo.friendlyName || null;
+        }
+        // Prefer entry with deliveryCompany (actual carrier name)
+        if (li?.deliveryCompany && !bestCarrier) {
+          bestCarrier = li.deliveryCompany;
+        }
+        // Capture selectedSla (shipping service name)
+        if (li?.selectedSla && !bestSla) {
+          bestSla = li.selectedSla;
+        }
+      }
+
+      // Fallback to first entry if no carrier/SLA found in loop
+      const logInfoFirst = allLogInfo[0];
+      if (!bestCarrier && logInfoFirst?.deliveryCompany) bestCarrier = logInfoFirst.deliveryCompany;
+      if (!bestSla && logInfoFirst?.selectedSla) bestSla = logInfoFirst.selectedSla;
+
       const shipTotalCents = ((detail.totals || []).find((t: any) => t.id === "Shipping") || {}).value || 0;
 
       try {
@@ -379,8 +404,8 @@ export async function GET(req: Request) {
                 pickupStoreName: isPickup ? pickupName : null,
                 shippingCost: shipTotalCents / 100,
                 postalCode: detail.shippingData?.address?.postalCode || null,
-                shippingCarrier: logInfo?.deliveryCompany || null,
-                shippingService: logInfo?.selectedSla || null,
+                shippingCarrier: bestCarrier,
+                shippingService: bestSla,
               },
             });
           } catch {}
