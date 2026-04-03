@@ -181,7 +181,9 @@ export async function GET(req: NextRequest) {
           const creds = connection.credentials as unknown as MLCredentials;
           mlAccessToken = await getAccessToken(creds);
         }
-      } catch { /* continue without auth */ }
+      } catch (authErr: any) {
+        console.warn(`[SearchMatch] ML auth failed: ${authErr.message}`);
+      }
     }
 
     // ── 5. Run search-first matching ───────────────────────────
@@ -290,6 +292,7 @@ export async function GET(req: NextRequest) {
       dryRun,
       store: storeName,
       platform,
+      ...(platform === "mercadolibre" ? { hasMLAuth: !!mlAccessToken } : {}),
       offset,
       batchSize: maxProducts,
       productsInBatch: ownProducts.length,

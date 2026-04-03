@@ -496,9 +496,13 @@ async function searchProductOnML(
     try {
       const url = `${ML_API_BASE}/sites/MLA/search?q=${product.ean}&limit=10&condition=new`;
       const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
-      if (res.ok) {
+      if (!res.ok) {
+        console.warn(`[SearchFirst ML] EAN search failed: ${res.status} for EAN ${product.ean}`);
+      } else {
         const data = await res.json();
-        for (const result of (data.results || []).slice(0, 5)) {
+        const results = data.results || [];
+        if (results.length > 0) console.log(`[SearchFirst ML] EAN ${product.ean} → ${results.length} results`);
+        for (const result of results.slice(0, 5)) {
           if (seenIds.has(result.id)) continue;
           seenIds.add(result.id);
 
@@ -527,7 +531,7 @@ async function searchProductOnML(
           }
         }
       }
-    } catch { /* continue */ }
+    } catch (e: any) { console.warn(`[SearchFirst ML] EAN search error: ${e.message}`); }
   }
 
   // Strategy 2: Search by brand + name
@@ -537,7 +541,9 @@ async function searchProductOnML(
       const encoded = encodeURIComponent(nameQuery);
       const url = `${ML_API_BASE}/sites/MLA/search?q=${encoded}&limit=10&condition=new`;
       const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
-      if (res.ok) {
+      if (!res.ok) {
+        console.warn(`[SearchFirst ML] Name search failed: ${res.status} for "${nameQuery.substring(0, 40)}"`);
+      } else {
         const data = await res.json();
         for (const result of (data.results || []).slice(0, 5)) {
           if (seenIds.has(result.id)) continue;
@@ -711,6 +717,10 @@ export async function searchFirstMatch(
     if (!a.ean && b.ean) return 1;
     return 0;
   });
+
+  if (platform === "mercadolibre") {
+    console.log(`[SearchFirst] ML mode: hasToken=${!!mlAccessToken}, products=${sorted.length}`);
+  }
 
   for (const product of sorted.slice(0, maxProducts)) {
     // Safety timeout
