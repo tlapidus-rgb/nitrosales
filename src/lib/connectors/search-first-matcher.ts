@@ -166,6 +166,31 @@ function verifyMatch(
   const commonTokens = ownTokens.filter((t) => compTokens.includes(t));
   const specificCommon = commonTokens.filter((t) => !GENERIC_WORDS.has(t));
 
+  // ── Anti-variant guard ──────────────────────────────────────
+  // If BOTH sides have unique specific tokens the other doesn't have,
+  // they're likely different variants of the same product line.
+  // E.g. "AGUA WOW Animales" vs "AGUA WOW Peppa Pig" → different variants
+  const ownSpecific = ownTokens.filter((t) => !GENERIC_WORDS.has(t));
+  const compSpecific = compTokens.filter((t) => !GENERIC_WORDS.has(t));
+  const ownOnlySpecific = ownSpecific.filter((t) => !compTokens.includes(t));
+  const compOnlySpecific = compSpecific.filter((t) => !ownTokens.includes(t));
+
+  if (ownOnlySpecific.length >= 1 && compOnlySpecific.length >= 1) {
+    // Both have unique differentiating tokens → probably different variants
+    // Only accept if EAN matches (already handled above) or overwhelmingly similar
+    const totalSpecific = new Set([...ownSpecific, ...compSpecific]).size;
+    const sharedRatio = specificCommon.length / totalSpecific;
+
+    if (sharedRatio < 0.6) {
+      return {
+        verified: false,
+        confidence: 0,
+        method: "NAME_VERIFIED",
+        reason: `Variantes distintas: nosotros=[${ownOnlySpecific.join(",")}] comp=[${compOnlySpecific.join(",")}] shared=${Math.round(sharedRatio * 100)}%`,
+      };
+    }
+  }
+
   // Level 2: Brand matches + at least 2 specific tokens
   if (ownProduct.brand && competitorBrand) {
     const ownBrand = normalize(ownProduct.brand);
