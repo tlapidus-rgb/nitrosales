@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-02 (Sesion 3 — LTV Prediction Engine)
+## Ultima actualizacion: 2026-04-03 (Sesion 4 — Modulo Margenes Completo)
 
 ---
 
@@ -17,10 +17,11 @@
 - **NUNCA** leer estos archivos locales para "deployar" o "pushear" a GitHub
 - **NUNCA** crear commits que reemplacen archivos de producciÃ³n con versiones locales
 
-### PROHIBIDO #2: Re-implementar Tendencias de Venta o Stock Inteligente
+### PROHIBIDO #2: Re-implementar Tendencias de Venta, Stock Inteligente o Margenes
 - Tendencias de Venta: YA ESTÃ EN PRODUCCIÃN dentro de products/page.tsx v10.1
 - Stock Inteligente: YA ESTÃ EN PRODUCCIÃN dentro de products/page.tsx v10.1
-- Los tabs Overview, Tendencias, Stock Inteligente: YA FUNCIONAN
+- Margenes (IVA fix, cross-filtering, markup, column selector, catalogo): YA ESTA EN PRODUCCION dentro de products/page.tsx v11
+- Los tabs Overview, Tendencias, Stock Inteligente, Margenes: YA FUNCIONAN
 - **NUNCA** intentar "agregar" estos features â ya existen
 
 ### PROHIBIDO #3: Reemplazar archivos enteros en producciÃ³n
@@ -52,7 +53,7 @@
 
 | Archivo | VersiÃ³n | Estado | Notas |
 |---------|---------|--------|-------|
-| src/app/(app)/products/page.tsx | **v10.1** | â ESTABLE | **NO TOCAR.** KPIs, tabla, grÃ¡ficos, filtros, 3 tabs (Overview + Tendencias + Stock Inteligente), Bolsas de Compra. Encoding fixes aplicados. |
+| src/app/(app)/products/page.tsx | **v11** | ACTIVO | 4 tabs (Overview + Tendencias + Stock Inteligente + Margenes). Tab Margenes: KPIs, distribucion, brand/category tables con cross-filtering, markup %, catalog completo con column selector, inline filters, CSV export. IVA fix aplicado. 1865 lineas. |
 | src/app/(app)/dashboard/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). Quick ranges + custom date. |
 | src/app/(app)/orders/page.tsx | - | Sin cambios | No modificado por Claude |
 | src/app/(app)/finanzas/page.tsx | **v3** | ACTIVO | P&L dual view (Ejecutivo/Detallado). InfoTips explicativos. Health semaphore. Payment fees, IVA, discounts. |
@@ -68,7 +69,7 @@
 
 | Archivo | VersiÃ³n | Estado | Notas |
 |---------|---------|--------|-------|
-| src/app/api/metrics/products/route.ts | **v1** | â ESTABLE | **NO TOCAR.** Alimenta la pÃ¡gina de productos. |
+| src/app/api/metrics/products/route.ts | **v2** | ACTIVO | IVA fix: revenueNeto = revenue / 1.21, avgPriceNeto. Margen y markup calculados sin IVA. marginAnalysis con byBrand, byCategory, distribution, top/bottom. |
 | src/app/api/fix-brands/route.ts | **v5** | â OPERATIVO | Mejoras incrementales OK. BrandIdâBrandName 2-step, CategoryIdâCategoryName, acciones: stats/test/test-category/fix-vtex/fix-categories/deduplicate/debug. |
 | src/app/api/backfill/vtex/route.ts | **v1** | â ESTABLE | **NO TOCAR.** Backfill original con credenciales hardcodeadas. |
 
@@ -137,6 +138,26 @@
 
 ## FUNCIONALIDADES COMPLETADAS (NO TOCAR, NO RE-IMPLEMENTAR, NO MENCIONAR COMO PENDIENTES)
 
+
+### Modulo Margenes Completo -- COMPLETADO Y EN PRODUCCION (2026-04-03)
+- Tab "Margenes" en products/page.tsx v11
+- IVA fix: todos los margenes calculados con precioNeto (precio / 1.21) porque precios incluyen 21% IVA y costos no
+- KPIs: Margen Bruto Prom (ponderado), Revenue Neto (sin IVA), Ganancia Bruta, Productos Sin Costo
+- Distribucion por rango de margen (5 rangos con chips de filtro y conteo)
+- Margen por Marca: chart horizontal top 10, respeta filtro de categoria activo
+- Margen por Categoria: tabla con Revenue, COGS, Margen %, Markup %, Ganancia, Productos. Respeta filtro de marca activo
+- Cross-filtering: seleccionar marca -> tabla categorias se filtra. Seleccionar categoria -> chart marcas se filtra
+- Dropdowns de marca/categoria en header de tabla categorias
+- Catalogo completo de margenes: tabla con 10 columnas (Producto, Precio, Costo, Margen %, Markup %, Margen $/ud, Unidades, Facturacion, Ganancia, Stock, ABC)
+- Column Selector: dropdown con checkboxes para elegir columnas visibles (en tabla Overview y tabla Margenes)
+- Filtros inline: busqueda por nombre/SKU, dropdown marca, dropdown categoria
+- Paginacion 50 items/pagina, sort por cualquier columna
+- CSV export con todos los campos incluyendo markup
+- Top 10 mas rentables + Top 10 menos rentables
+- computedByCategory y computedByBrand calculados client-side desde `filtered` para soportar cross-filtering
+- Commits: ebc168a, d63fd48, 2da1b43, efbeacb, 9173a9d
+- **ESTADO: TERMINADO. PROHIBIDO volver a implementar.**
+- **PROHIBIDO: NO comparar precio con IVA contra costo sin IVA para calcular margenes.**
 
 ### LTV Dashboard + Prediccion de LTV -- COMPLETADO Y EN PRODUCCION
 - Dashboard: src/app/(app)/customers/ltv/page.tsx -- 5 secciones analiticas + seccion predicciones
@@ -232,6 +253,69 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-03 — Sesion 4 (Modulo Margenes Completo + IVA Fix + Cross-Filtering)
+
+**Commits**: ebc168a, d63fd48, 2da1b43, efbeacb, 9173a9d (5 commits)
+**Deploy**: Vercel auto-deploy OK (9173a9d -> main)
+
+#### Que se hizo:
+
+1. **Tab Margenes en Productos** (ebc168a)
+   - Nuevo tab "Margenes" en products/page.tsx
+   - 4 KPI cards: Margen Bruto Prom (ponderado por revenue), Revenue Neto, Ganancia Bruta, Productos Sin Costo
+   - Chart distribucion por rango de margen (Negativo, 0-30%, 30-50%, 50-70%, 70%+)
+   - Chart horizontal margen por marca (top 10)
+   - Tabla margen por categoria: Revenue, COGS, Margen %, Ganancia, Productos
+   - Top 10 mas rentables y Top 10 menos rentables
+   - Datos: solo productos con costPrice cargado
+
+2. **Catalogo Completo de Margenes** (d63fd48)
+   - Tabla full catalog dentro del tab Margenes con 10 columnas
+   - Columnas: Producto, Precio, Costo, Margen %, Margen $/ud, Unidades, Facturacion, Ganancia, Stock, ABC
+   - Paginacion (50 items/pagina)
+   - Sort por cualquier columna
+   - Chips de filtro por rango de margen (Negativo, 0-30%, 30-50%, 50-70%, 70%+) con conteo
+   - Exportar CSV con todos los campos
+
+3. **Fix IVA + Filtros Inline** (2da1b43) — Fix critico identificado por Tomy
+   - PROBLEMA: El precio de venta incluye 21% IVA pero el costo NO incluye IVA
+   - Todos los margenes estaban inflados porque comparaban precio con IVA vs costo sin IVA
+   - FIX API: Agregado IVA_RATE = 1.21, revenueNeto = revenue / 1.21, avgPriceNeto = avgPrice / 1.21
+   - Recalculados TODOS los margenes con revenueNeto: distribucion, byBrand, byCategory, marginAnalysis
+   - Agregados campos revenueNeto y avgPriceNeto al tipo ProductMetrics y response
+   - FIX FRONTEND: Parseo de nuevos campos, tooltips actualizados a "sin IVA"
+   - Agregados filtros inline en catalogo de margenes: busqueda, dropdown marca, dropdown categoria
+
+4. **Markup % + Column Selector** (efbeacb)
+   - Columna Markup % en tabla de margenes: markup = (precioNeto - costo) / costo * 100
+   - Badges de color: verde >= 100%, amarillo >= 50%, rojo < 50%
+   - Sort por Markup
+   - Markup incluido en CSV export
+   - Componente ColumnSelector reutilizable (dropdown con checkboxes Eye/EyeOff)
+   - Aplicado a tabla Overview (10 columnas configurables) y tabla Margenes (10 columnas configurables)
+   - Tipo ColumnConfig: { key, label, defaultVisible }
+
+5. **Cross-Filter Category/Brand + Markup en Tabla Categorias** (9173a9d)
+   - PROBLEMA: Las tablas de "Margen por Categoria" y "Margen por Marca" usaban datos pre-computados del API, no respetaban los filtros de marca/categoria
+   - FIX: computedByCategory y computedByBrand calculados client-side desde `filtered` (que ya respeta brandFilter/categoryFilter)
+   - Seleccionar una marca -> tabla categorias muestra solo categorias de esa marca
+   - Seleccionar una categoria -> chart marcas muestra solo marcas de esa categoria
+   - Dropdowns de marca y categoria en el header de la tabla de categorias
+   - Indicadores de filtro activo en ambas secciones
+   - Columna Markup % en tabla de categorias con badges de color
+
+#### Archivos modificados:
+- `src/app/api/metrics/products/route.ts` — v1 -> v2: IVA fix, +revenueNeto, +avgPriceNeto, recalculo de todos los margenes
+- `src/app/(app)/products/page.tsx` — v10.1 -> v11: +tab Margenes completo, +catalog table, +column selector, +inline filters, +markup, +cross-filtering. De ~1200 a 1865 lineas
+
+#### Decisiones tomadas con Tomy:
+- El IVA fix fue identificado por Tomy: "el precio tiene IVA incluido, y el costo no tiene IVA"
+- Tomy pidio que las tablas de categoria se puedan filtrar por marca (cross-filtering)
+- Tomy pidio columna Markup % ademas de Margen %
+- Tomy pidio poder personalizar que columnas ver en las tablas
+
+---
 
 ### 2026-04-02 — Sesion 3 (LTV Dashboard + Motor de Prediccion pLTV)
 
@@ -629,6 +713,32 @@
 
 ---
 
+### ERROR #15: IVA EN CALCULO DE MARGEN — Precios con IVA vs Costos sin IVA (2026-04-03)
+**Que paso**: La pagina de Margenes mostraba margenes inflados para todos los productos. Por ejemplo, un producto con precio $12,100 y costo $6,798 aparecia con 43.8% de margen, cuando el real es 31.9%.
+**Causa raiz**: En Argentina, los precios de venta incluyen 21% IVA pero los costos de compra no lo incluyen. El calculo de margen comparaba precio CON IVA vs costo SIN IVA, inflando el numerador artificialmente.
+**Fix aplicado**: Commit 2da1b43 — Se agrego IVA_RATE = 1.21 en la API. revenueNeto = revenue / 1.21, avgPriceNeto = avgPrice / 1.21. TODOS los calculos de margen ahora usan revenueNeto: distribucion, byBrand, byCategory, marginAnalysis completo.
+**REGLA PERMANENTE**:
+- **En Argentina, precio de venta SIEMPRE incluye 21% IVA.** Para calcular margen, dividir precio por 1.21 primero.
+- **Costo de compra (costPrice) NO incluye IVA.** Es el precio neto del proveedor.
+- Formula correcta: `marginPct = (precioNeto - costo) / precioNeto * 100` donde `precioNeto = precio / 1.21`
+- Formula markup: `markupPct = (precioNeto - costo) / costo * 100`
+- NUNCA comparar precio con IVA contra costo sin IVA — el margen siempre saldra inflado.
+- Si se agrega un modulo nuevo que calcule margenes, verificar que use revenueNeto, no revenue.
+
+---
+
+### ERROR #16: DATOS PRE-COMPUTADOS NO RESPETAN FILTROS — Tablas agregadas vs filtros activos (2026-04-03)
+**Que paso**: La tabla "Margen por Categoria" mostraba TODAS las categorias sin importar si el usuario habia seleccionado una marca en los filtros. El usuario seleccionaba "Mattel" pero la tabla seguia mostrando categorias de todas las marcas.
+**Causa raiz**: Los datos byCategory y byBrand venian pre-computados desde el API (`marginAnalysis.byCategory`), calculados sobre TODOS los productos. Los filtros de marca/categoria solo afectaban la tabla del catalogo, no las tablas agregadas.
+**Fix aplicado**: Commit 9173a9d — Se movio el calculo de byCategory y byBrand al frontend como `useMemo` derivados de `filtered` (que ya respeta brandFilter/categoryFilter/searchTerm). Las tablas agregadas ahora usan `computedByCategory` y `computedByBrand` en vez de `marginAnalysis.byCategory/byBrand`.
+**REGLA PERMANENTE**:
+- **Si una seccion tiene filtros, TODAS las tablas/charts de esa seccion deben respetar los filtros**, no solo la tabla principal.
+- Datos pre-computados en la API son utiles para la carga inicial, pero si hay filtros client-side, las agregaciones deben recalcularse en el frontend.
+- Patron: usar `useMemo` derivado del array ya filtrado, no del response original de la API.
+- Antes de agregar una tabla/chart nueva, preguntar: "esta tabla respeta los filtros activos de la seccion?"
+
+---
+
 ### PROTOCOLO PRE-CAMBIO (OBLIGATORIO)
 
 Antes de CUALQUIER modificacion a codigo de NitroSales:
@@ -643,6 +753,8 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 8. ✅ Si toca paginacion: tengo page + startIndex + timeout handling?
 9. ✅ Solo uso ASCII (sin acentos, sin emojis, sin Unicode especial)?
 10. ✅ Pregunte al usuario antes de deployar?
+11. ✅ Si calculo margenes: uso precioNeto (precio/1.21), no precio con IVA?
+12. ✅ Si agrego tabla/chart: respeta los filtros activos de la seccion?
 
 **Si alguno de estos puntos no se cumple, DETENER y corregir antes de continuar.**
 
