@@ -36,14 +36,15 @@ export async function GET(request: NextRequest) {
           SELECT COUNT(*)::int FROM order_items oi WHERE oi."orderId" = o.id
         ), 0) AS items_count,
         COALESCE((
-          SELECT string_agg(
-            COALESCE(p.name, oi."productName", 'Producto'),
-            ', ' ORDER BY oi.quantity DESC
-          )
-          FROM order_items oi
-          LEFT JOIN products p ON p.id = oi."productId"
-          WHERE oi."orderId" = o.id
-          LIMIT 5
+          SELECT string_agg(sub_prod.prod_name, ', ')
+          FROM (
+            SELECT COALESCE(p.name, 'Producto') AS prod_name
+            FROM order_items oi
+            LEFT JOIN products p ON p.id = oi."productId"
+            WHERE oi."orderId" = o.id
+            ORDER BY oi.quantity DESC
+            LIMIT 5
+          ) sub_prod
         ), '') AS top_products
       FROM orders o
       WHERE o."customerId" = $1
