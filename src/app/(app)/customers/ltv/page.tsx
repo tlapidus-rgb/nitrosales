@@ -389,6 +389,7 @@ export default function LtvPage() {
                     </tbody>
                   </table>
                 </div>
+                <p className="text-[11px] text-gray-400 mt-2">Los clientes con canal &quot;Sin datos&quot; son anteriores a la instalacion del NitroPixel.</p>
               </div>
             )}
 
