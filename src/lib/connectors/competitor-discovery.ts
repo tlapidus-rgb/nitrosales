@@ -509,7 +509,7 @@ function calculateMatchScore(
     }
   }
 
-  // 2. Token overlap
+  // 2. Token overlap (bidirectional — both directions must be high)
   const scrapedTokens = tokenize(scrapedName);
   const ownTokens = tokenize(ownProduct.name);
 
@@ -518,12 +518,31 @@ function calculateMatchScore(
   }
 
   const commonTokens = ownTokens.filter((t) => scrapedTokens.includes(t));
-  const overlapRatio = commonTokens.length / Math.max(ownTokens.length, 1);
+  // Bidirectional: check overlap from both sides to avoid "Juego De Mesa X" matching all "Juego De Mesa Y"
+  const overlapOwn = commonTokens.length / Math.max(ownTokens.length, 1);
+  const overlapScraped = commonTokens.length / Math.max(scrapedTokens.length, 1);
+  const overlapRatio = Math.min(overlapOwn, overlapScraped); // Use the LOWER of both directions
   let score = Math.round(overlapRatio * 70);
-  let reason = `${commonTokens.length}/${ownTokens.length} tokens`;
+  let reason = `${commonTokens.length}/${ownTokens.length} own, ${commonTokens.length}/${scrapedTokens.length} comp`;
 
-  // 3. Brand bonus
-  if (ownProduct.brand) {
+  // Penalty: if most common tokens are generic (juego, mesa, muñeco, etc.), reduce score
+  const genericWords = new Set([
+    "juego", "mesa", "cartas", "juguete", "muñeco", "muñeca", "peluche",
+    "auto", "pista", "disfraz", "infantil", "nena", "nene", "bebe",
+    "set", "kit", "mini", "grande", "pequeño", "nuevo", "original",
+    "luz", "sonido", "musical", "interactivo", "radio", "control",
+    "figura", "accion", "super", "mega", "clasico", "premium",
+    "cartuchera", "mochila", "doble", "cierre",
+  ]);
+  const specificCommon = commonTokens.filter((t) => !genericWords.has(t));
+  if (specificCommon.length === 0 && commonTokens.length > 0) {
+    // All matching tokens are generic — this is almost certainly a false match
+    score = Math.min(score, 20);
+    reason += " (solo tokens genericos)";
+  }
+
+  // 3. Brand bonus (only if specific tokens also match)
+  if (ownProduct.brand && specificCommon.length > 0) {
     const brandNorm = normalize(ownProduct.brand);
     if (brandNorm.length >= 2 && scrapedNorm.includes(brandNorm)) {
       score += 15;
@@ -531,7 +550,7 @@ function calculateMatchScore(
     }
   }
 
-  // 4. Consecutive word match bonus
+  // 4. Consecutive word match bonus (require 3+ consecutive specific words)
   const scrapedStr = scrapedTokens.join(" ");
   for (let len = Math.min(4, ownTokens.length); len >= 3; len--) {
     let found = false;
@@ -553,7 +572,7 @@ function calculateMatchScore(
 export function findBestMatch(
   scrapedName: string,
   ownProducts: OwnProduct[],
-  minScore = 50,
+  minScore = 65,
   competitorEan?: string
 ): { product: OwnProduct; score: number; reason: string; method: string } | null {
   let bestMatch: { product: OwnProduct; score: number; reason: string; method: string } | null = null;
@@ -644,7 +663,7 @@ export async function discoverCompetitorProducts(
       };
     }
     // Slow path: fuzzy matching
-    const match = findBestMatch(rp.name, ownProducts, 50, rp.competitorEan);
+    const match = findBestMatch(rp.name, ownProducts, 65, rp.competitorEan);
     return {
       ...rp,
       matchedOwnProduct: match?.product,
