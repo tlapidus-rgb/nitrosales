@@ -1,48 +1,23 @@
 // ══════════════════════════════════════════════════════════════
-// Motor de Predicción de LTV — Cohort-Based pLTV
+// Motor de Predicción de LTV — v3 SQL-Native
 // ══════════════════════════════════════════════════════════════
-// v2 — Performance fixes:
-//   - Segment lookup via Map O(1) instead of .find() O(n)
-//   - Chunked transactions (500 upserts per chunk)
-//   - Added query timeouts
+// v3: Reescrito siguiendo patrones de producción (Triple Whale,
+// Northbeam, Expedia). TODO el cálculo se hace en SQL — no se
+// carga data a JS, no hay loops, no hay transacciones masivas.
+//
+// Arquitectura: Batch Pre-Computation
+// 1. SQL calcula RFM features + segment stats
+// 2. SQL calcula predicciones directamente
+// 3. SQL upsertea resultados con INSERT ... ON CONFLICT
+// 4. JS solo orquesta las queries y retorna el resumen
+//
+// Modelo: Cohort-based frequency prediction
+// - Para clientes nuevos (1 compra): usa repeat rate del segmento
+// - Para clientes recurrentes: usa frecuencia personal blended
+// - Segmentos: canal de adquisición × bucket de ticket
 // ══════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
-
-// ─── Types ───
-
-export interface SegmentStats {
-  channel: string;
-  bucket: string;
-  totalCustomers: number;
-  repeatCustomers: number;
-  repeatRate: number;
-  avgTicketFirst: number;
-  avgTicketRepurchase: number;
-  avgOrdersPerCustomer: number;
-  avgDaysBetweenOrders: number;
-  avgTotalSpent: number;
-}
-
-export interface CustomerPrediction {
-  customerId: string;
-  acquisitionChannel: string;
-  segmentBucket: string;
-  predictedLtv90d: number;
-  predictedLtv365d: number;
-  confidence: number;
-  inputFeatures: {
-    orderCount: number;
-    totalSpent: number;
-    avgTicket: number;
-    daysSinceFirst: number;
-    daysSinceLastOrder: number;
-    segmentRepeatRate: number;
-    segmentAvgLtv: number;
-    segmentSampleSize: number;
-    method: "cohort_lookup" | "personal_history";
-  };
-}
 
 export interface BatchPredictionResult {
   totalCustomers: number;
@@ -58,527 +33,377 @@ export interface BatchPredictionResult {
 }
 
 // ─── Constants ───
-
+// Ticket buckets (ARS): Bajo <30K | Medio 30K-80K | Alto >80K
+const LOW_THRESHOLD = 30000;
+const MED_THRESHOLD = 80000;
 const MIN_SEGMENT_SAMPLE = 5;
-const UPSERT_CHUNK_SIZE = 500;
-
-const TICKET_THRESHOLDS = {
-  low: 30000,
-  medium: 80000,
-};
-
-const MELI_EXCLUDE = `AND o."source" != 'MELI'`;
-
-// ─── Helpers ───
-
-function classifyTicket(avgTicket: number): string {
-  if (avgTicket <= TICKET_THRESHOLDS.low) return "low_value";
-  if (avgTicket <= TICKET_THRESHOLDS.medium) return "medium_value";
-  return "high_value";
-}
-
-function resolveChannel(
-  touchpoints: string | null,
-  trafficSource: string | null
-): string {
-  if (touchpoints) {
-    const t = touchpoints.toLowerCase();
-    if (t.includes("google") && (t.includes("cpc") || t.includes("paid")))
-      return "Google Ads";
-    if (
-      t.includes("facebook") ||
-      t.includes("meta") ||
-      t.includes("instagram")
-    )
-      return "Meta Ads";
-    if (t.includes("google") && t.includes("organic")) return "Google Organic";
-    if (t.includes("tiktok")) return "TikTok";
-  }
-  if (trafficSource) {
-    const s = trafficSource.toLowerCase();
-    if (s.includes("paid") || s.includes("cpc")) {
-      if (s.includes("google")) return "Google Ads";
-      if (s.includes("facebook") || s.includes("meta")) return "Meta Ads";
-      return "Paid Otro";
-    }
-    if (s.includes("organic")) return "Google Organic";
-    if (s.includes("direct")) return "Directo";
-  }
-  return "Sin datos";
-}
 
 // ══════════════════════════════════════════════════════════════
-// 1. CALCULAR ESTADÍSTICAS POR SEGMENTO (canal × bucket)
-// ══════════════════════════════════════════════════════════════
-
-export async function calculateSegmentStats(
-  orgId: string
-): Promise<SegmentStats[]> {
-  const rawData = await prisma.$queryRawUnsafe<
-    Array<{
-      customer_id: string;
-      order_count: string;
-      total_spent: string;
-      avg_ticket: string;
-      first_order_value: string;
-      first_order_date: string;
-      last_order_date: string;
-      avg_days_between: string;
-      touchpoints: string | null;
-      traffic_source: string | null;
-    }>
-  >(
-    `
-    WITH customer_orders AS (
-      SELECT
-        o."customerId" AS customer_id,
-        COUNT(*)::int AS order_count,
-        SUM(o."totalValue") AS total_spent,
-        AVG(o."totalValue") AS avg_ticket,
-        MIN(o."totalValue") AS first_order_value,
-        MIN(o."orderDate") AS first_order_date,
-        MAX(o."orderDate") AS last_order_date
-      FROM orders o
-      WHERE o."organizationId" = $1
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
-        AND o."customerId" IS NOT NULL
-        ${MELI_EXCLUDE}
-      GROUP BY o."customerId"
-    ),
-    first_order_info AS (
-      SELECT DISTINCT ON (o."customerId")
-        o."customerId" AS customer_id,
-        o."trafficSource" AS traffic_source,
-        pa.touchpoints::text AS touchpoints
-      FROM orders o
-      JOIN customer_orders co ON co.customer_id = o."customerId"
-      LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa.model = 'LAST_CLICK'
-      WHERE o."organizationId" = $1
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
-      ORDER BY o."customerId", o."orderDate" ASC
-    ),
-    with_repurchase AS (
-      SELECT
-        co.customer_id,
-        co.order_count,
-        co.total_spent,
-        co.avg_ticket,
-        co.first_order_value,
-        co.first_order_date,
-        co.last_order_date,
-        CASE WHEN co.order_count >= 2
-          THEN EXTRACT(DAY FROM co.last_order_date - co.first_order_date)::float / NULLIF(co.order_count - 1, 0)
-          ELSE NULL
-        END AS avg_days_between,
-        foi.touchpoints,
-        foi.traffic_source
-      FROM customer_orders co
-      LEFT JOIN first_order_info foi ON foi.customer_id = co.customer_id
-    )
-    SELECT
-      customer_id,
-      order_count::text,
-      total_spent::text,
-      avg_ticket::text,
-      first_order_value::text,
-      first_order_date::text,
-      last_order_date::text,
-      COALESCE(avg_days_between, 0)::text AS avg_days_between,
-      touchpoints,
-      traffic_source
-    FROM with_repurchase
-    `,
-    orgId
-  );
-
-  // Group by segment (channel × bucket)
-  const segmentMap = new Map<
-    string,
-    {
-      channel: string;
-      bucket: string;
-      customers: Array<{
-        orderCount: number;
-        totalSpent: number;
-        avgTicket: number;
-        firstOrderValue: number;
-        avgDaysBetween: number;
-      }>;
-    }
-  >();
-
-  for (const row of rawData) {
-    const channel = resolveChannel(row.touchpoints, row.traffic_source);
-    const avgTicket = Number(row.avg_ticket);
-    const bucket = classifyTicket(avgTicket);
-    const key = `${channel}::${bucket}`;
-
-    if (!segmentMap.has(key)) {
-      segmentMap.set(key, { channel, bucket, customers: [] });
-    }
-    segmentMap.get(key)!.customers.push({
-      orderCount: Number(row.order_count),
-      totalSpent: Number(row.total_spent),
-      avgTicket,
-      firstOrderValue: Number(row.first_order_value),
-      avgDaysBetween: Number(row.avg_days_between),
-    });
-  }
-
-  const segments: SegmentStats[] = [];
-  for (const [, seg] of segmentMap) {
-    const total = seg.customers.length;
-    const repeaters = seg.customers.filter((c) => c.orderCount >= 2);
-    const repeatRate = total > 0 ? repeaters.length / total : 0;
-
-    const avgTicketFirst =
-      total > 0
-        ? seg.customers.reduce((sum, c) => sum + c.firstOrderValue, 0) / total
-        : 0;
-
-    const avgTicketRepurchase =
-      repeaters.length > 0
-        ? repeaters.reduce((sum, c) => {
-            const repurchaseTotal = c.totalSpent - c.firstOrderValue;
-            const repurchaseOrders = c.orderCount - 1;
-            return sum + (repurchaseOrders > 0 ? repurchaseTotal / repurchaseOrders : 0);
-          }, 0) / repeaters.length
-        : 0;
-
-    const avgOrdersPerCustomer =
-      total > 0
-        ? seg.customers.reduce((sum, c) => sum + c.orderCount, 0) / total
-        : 0;
-
-    const avgDaysBetween =
-      repeaters.length > 0
-        ? repeaters.reduce((sum, c) => sum + c.avgDaysBetween, 0) /
-          repeaters.length
-        : 0;
-
-    const avgTotalSpent =
-      total > 0
-        ? seg.customers.reduce((sum, c) => sum + c.totalSpent, 0) / total
-        : 0;
-
-    segments.push({
-      channel: seg.channel,
-      bucket: seg.bucket,
-      totalCustomers: total,
-      repeatCustomers: repeaters.length,
-      repeatRate,
-      avgTicketFirst,
-      avgTicketRepurchase,
-      avgOrdersPerCustomer,
-      avgDaysBetweenOrders: avgDaysBetween,
-      avgTotalSpent,
-    });
-  }
-
-  return segments;
-}
-
-// ══════════════════════════════════════════════════════════════
-// 2. PREDECIR LTV PARA UN CLIENTE INDIVIDUAL
-// ══════════════════════════════════════════════════════════════
-
-export function predictCustomerLtv(
-  customer: {
-    customerId: string;
-    orderCount: number;
-    totalSpent: number;
-    avgTicket: number;
-    firstOrderValue: number;
-    daysSinceFirst: number;
-    daysSinceLastOrder: number;
-    channel: string;
-    bucket: string;
-  },
-  // v2: segmentLookup is a Map for O(1) access
-  segmentLookup: Map<string, SegmentStats>,
-  bucketFallback: Map<string, SegmentStats>
-): CustomerPrediction | null {
-  const exactKey = `${customer.channel}::${customer.bucket}`;
-  const segment = segmentLookup.get(exactKey);
-  const usedSegment = segment || bucketFallback.get(customer.bucket) || null;
-
-  if (!usedSegment || usedSegment.totalCustomers < MIN_SEGMENT_SAMPLE) {
-    return null;
-  }
-
-  let predictedLtv90d: number;
-  let predictedLtv365d: number;
-  let confidence: number;
-  let method: "cohort_lookup" | "personal_history";
-
-  if (customer.orderCount === 1) {
-    method = "cohort_lookup";
-
-    const avgFrequencyPerDay =
-      usedSegment.avgDaysBetweenOrders > 0
-        ? 1 / usedSegment.avgDaysBetweenOrders
-        : 0;
-    const expectedOrders90d = usedSegment.repeatRate * avgFrequencyPerDay * 90;
-    const expectedOrders365d = usedSegment.repeatRate * avgFrequencyPerDay * 365;
-
-    predictedLtv90d =
-      customer.firstOrderValue +
-      expectedOrders90d * usedSegment.avgTicketRepurchase;
-
-    predictedLtv365d =
-      customer.firstOrderValue +
-      expectedOrders365d * usedSegment.avgTicketRepurchase;
-
-    confidence = Math.min(
-      0.8,
-      Math.max(0.2, usedSegment.totalCustomers / 60)
-    );
-  } else {
-    method = "personal_history";
-
-    const personalFrequencyPerDay =
-      customer.daysSinceFirst > 0
-        ? (customer.orderCount - 1) / customer.daysSinceFirst
-        : 0;
-
-    const segmentFrequencyPerDay =
-      usedSegment.avgDaysBetweenOrders > 0
-        ? 1 / usedSegment.avgDaysBetweenOrders
-        : 0;
-    const blendedFrequency =
-      personalFrequencyPerDay * 0.7 + segmentFrequencyPerDay * 0.3;
-
-    const avgGap =
-      customer.daysSinceFirst > 0
-        ? customer.daysSinceFirst / (customer.orderCount - 1)
-        : 0;
-    const recencyFactor =
-      avgGap > 0 ? Math.max(0, 1 - customer.daysSinceLastOrder / (avgGap * 3)) : 0.5;
-
-    const remainingDays90 = Math.max(0, 90 - customer.daysSinceFirst);
-    const remainingDays365 = Math.max(0, 365 - customer.daysSinceFirst);
-
-    const futureOrders90d = blendedFrequency * remainingDays90 * recencyFactor;
-    const futureOrders365d = blendedFrequency * remainingDays365 * recencyFactor;
-
-    predictedLtv90d =
-      customer.totalSpent + futureOrders90d * customer.avgTicket;
-    predictedLtv365d =
-      customer.totalSpent + futureOrders365d * customer.avgTicket;
-
-    confidence = Math.min(
-      0.95,
-      Math.max(0.4, 0.3 + customer.orderCount * 0.12)
-    );
-  }
-
-  predictedLtv90d = Math.max(predictedLtv90d, customer.totalSpent);
-  predictedLtv365d = Math.max(predictedLtv365d, customer.totalSpent);
-
-  const segmentBucket = classifyTicket(predictedLtv365d);
-
-  return {
-    customerId: customer.customerId,
-    acquisitionChannel: customer.channel,
-    segmentBucket,
-    predictedLtv90d: Math.round(predictedLtv90d * 100) / 100,
-    predictedLtv365d: Math.round(predictedLtv365d * 100) / 100,
-    confidence: Math.round(confidence * 100) / 100,
-    inputFeatures: {
-      orderCount: customer.orderCount,
-      totalSpent: customer.totalSpent,
-      avgTicket: customer.avgTicket,
-      daysSinceFirst: customer.daysSinceFirst,
-      daysSinceLastOrder: customer.daysSinceLastOrder,
-      segmentRepeatRate: usedSegment.repeatRate,
-      segmentAvgLtv: usedSegment.avgTotalSpent,
-      segmentSampleSize: usedSegment.totalCustomers,
-      method,
-    },
-  };
-}
-
-// ══════════════════════════════════════════════════════════════
-// 3. BATCH PREDICTION — Recalcular para TODOS los clientes
+// BATCH PREDICTION — Todo en SQL
 // ══════════════════════════════════════════════════════════════
 
 export async function runBatchPrediction(
   orgId: string
 ): Promise<BatchPredictionResult> {
-  // Step 1: Calculate segment stats
-  const segments = await calculateSegmentStats(orgId);
+  // ─── Step 1: Compute segment stats + predictions + upsert ALL IN SQL ───
+  // This single query does everything:
+  // 1. Calculates RFM features per customer
+  // 2. Resolves acquisition channel
+  // 3. Computes segment-level stats (repeat rate, avg ticket, avg frequency)
+  // 4. Generates per-customer LTV predictions
+  // 5. Upserts into customer_ltv_predictions
+  //
+  // Total DB round-trips: 1 (one single query)
 
-  // v2: Build lookup Maps for O(1) segment access
-  const segmentLookup = new Map<string, SegmentStats>();
-  const bucketFallback = new Map<string, SegmentStats>();
-
-  for (const seg of segments) {
-    segmentLookup.set(`${seg.channel}::${seg.bucket}`, seg);
-    // For bucket fallback, keep the one with most customers
-    const existing = bucketFallback.get(seg.bucket);
-    if (!existing || seg.totalCustomers > existing.totalCustomers) {
-      bucketFallback.set(seg.bucket, seg);
-    }
-  }
-
-  // Step 2: Get all customers with their current data
-  const customers = await prisma.$queryRawUnsafe<
+  const result = await prisma.$queryRawUnsafe<
     Array<{
-      customer_id: string;
-      order_count: string;
-      total_spent: string;
-      avg_ticket: string;
-      first_order_value: string;
-      days_since_first: string;
-      days_since_last: string;
-      touchpoints: string | null;
-      traffic_source: string | null;
+      total_customers: string;
+      predicted: string;
+      skipped: string;
+      avg_ltv_90d: string;
+      avg_ltv_365d: string;
+      high_value: string;
+      medium_value: string;
+      low_value: string;
     }>
   >(
     `
-    WITH customer_stats AS (
+    WITH
+    -- Step 1: Customer RFM features (VTEX only, excludes MELI)
+    customer_rfm AS (
       SELECT
         o."customerId" AS customer_id,
         COUNT(*)::int AS order_count,
-        SUM(o."totalValue") AS total_spent,
-        AVG(o."totalValue") AS avg_ticket,
-        MIN(o."totalValue") AS first_order_value,
+        SUM(o."totalValue")::float AS total_spent,
+        AVG(o."totalValue")::float AS avg_ticket,
+        MIN(o."totalValue")::float AS first_order_value,
         EXTRACT(DAY FROM NOW() - MIN(o."orderDate"))::int AS days_since_first,
-        EXTRACT(DAY FROM NOW() - MAX(o."orderDate"))::int AS days_since_last
+        EXTRACT(DAY FROM NOW() - MAX(o."orderDate"))::int AS days_since_last,
+        CASE WHEN COUNT(*) >= 2
+          THEN EXTRACT(DAY FROM MAX(o."orderDate") - MIN(o."orderDate"))::float / NULLIF(COUNT(*) - 1, 0)
+          ELSE 0
+        END AS avg_days_between
       FROM orders o
       WHERE o."organizationId" = $1
         AND o.status NOT IN ('CANCELLED', 'RETURNED')
         AND o."customerId" IS NOT NULL
-        ${MELI_EXCLUDE}
+        AND o."source" != 'MELI'
       GROUP BY o."customerId"
     ),
-    first_order AS (
+
+    -- Step 2: Acquisition channel from first order
+    first_orders AS (
       SELECT DISTINCT ON (o."customerId")
         o."customerId" AS customer_id,
-        o."trafficSource" AS traffic_source,
-        pa.touchpoints::text AS touchpoints
+        COALESCE(
+          CASE
+            WHEN pa.touchpoints::text ILIKE '%google%' AND (pa.touchpoints::text ILIKE '%cpc%' OR pa.touchpoints::text ILIKE '%paid%') THEN 'Google Ads'
+            WHEN pa.touchpoints::text ILIKE '%facebook%' OR pa.touchpoints::text ILIKE '%meta%' OR pa.touchpoints::text ILIKE '%instagram%' THEN 'Meta Ads'
+            WHEN pa.touchpoints::text ILIKE '%google%' AND pa.touchpoints::text ILIKE '%organic%' THEN 'Google Organic'
+            WHEN pa.touchpoints::text ILIKE '%tiktok%' THEN 'TikTok'
+            ELSE NULL
+          END,
+          CASE
+            WHEN o."trafficSource" ILIKE '%paid%' OR o."trafficSource" ILIKE '%cpc%' THEN
+              CASE WHEN o."trafficSource" ILIKE '%google%' THEN 'Google Ads'
+                   WHEN o."trafficSource" ILIKE '%facebook%' OR o."trafficSource" ILIKE '%meta%' THEN 'Meta Ads'
+                   ELSE 'Paid Otro' END
+            WHEN o."trafficSource" ILIKE '%organic%' THEN 'Google Organic'
+            WHEN o."trafficSource" ILIKE '%direct%' THEN 'Directo'
+            ELSE 'Sin datos'
+          END
+        ) AS channel
       FROM orders o
       LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id AND pa.model = 'LAST_CLICK'
       WHERE o."organizationId" = $1
         AND o.status NOT IN ('CANCELLED', 'RETURNED')
         AND o."customerId" IS NOT NULL
       ORDER BY o."customerId", o."orderDate" ASC
+    ),
+
+    -- Step 3: Customer features with channel + bucket
+    customer_features AS (
+      SELECT
+        cr.*,
+        fo.channel,
+        CASE
+          WHEN cr.avg_ticket <= ${LOW_THRESHOLD} THEN 'low_value'
+          WHEN cr.avg_ticket <= ${MED_THRESHOLD} THEN 'medium_value'
+          ELSE 'high_value'
+        END AS bucket
+      FROM customer_rfm cr
+      LEFT JOIN first_orders fo ON fo.customer_id = cr.customer_id
+    ),
+
+    -- Step 4: Segment stats (channel × bucket)
+    segment_stats AS (
+      SELECT
+        channel,
+        bucket,
+        COUNT(*) AS total_customers,
+        COUNT(*) FILTER (WHERE order_count >= 2) AS repeat_customers,
+        COUNT(*) FILTER (WHERE order_count >= 2)::float / NULLIF(COUNT(*), 0) AS repeat_rate,
+        AVG(avg_ticket) FILTER (WHERE order_count >= 2) AS avg_ticket_repurchase,
+        AVG(avg_days_between) FILTER (WHERE order_count >= 2 AND avg_days_between > 0) AS avg_days_between_orders,
+        AVG(total_spent) AS avg_total_spent
+      FROM customer_features
+      GROUP BY channel, bucket
+    ),
+
+    -- Step 4b: Fallback segment stats (bucket only, for small segments)
+    bucket_fallback AS (
+      SELECT
+        bucket,
+        COUNT(*) AS total_customers,
+        COUNT(*) FILTER (WHERE order_count >= 2)::float / NULLIF(COUNT(*), 0) AS repeat_rate,
+        AVG(avg_ticket) FILTER (WHERE order_count >= 2) AS avg_ticket_repurchase,
+        AVG(avg_days_between) FILTER (WHERE order_count >= 2 AND avg_days_between > 0) AS avg_days_between_orders,
+        AVG(total_spent) AS avg_total_spent
+      FROM customer_features
+      GROUP BY bucket
+    ),
+
+    -- Step 5: Generate predictions
+    predictions AS (
+      SELECT
+        cf.customer_id,
+        cf.channel AS acquisition_channel,
+        cf.order_count,
+        cf.total_spent,
+        cf.avg_ticket,
+        cf.first_order_value,
+        cf.days_since_first,
+        cf.days_since_last,
+
+        -- Use exact segment if big enough, else fallback to bucket
+        COALESCE(ss.total_customers, 0) AS seg_size,
+        COALESCE(
+          CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.repeat_rate END,
+          bf.repeat_rate, 0
+        ) AS seg_repeat_rate,
+        COALESCE(
+          CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_ticket_repurchase END,
+          bf.avg_ticket_repurchase, 0
+        ) AS seg_avg_ticket_repurchase,
+        COALESCE(
+          CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+          bf.avg_days_between_orders, 0
+        ) AS seg_avg_days_between,
+        COALESCE(
+          CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_total_spent END,
+          bf.avg_total_spent, 0
+        ) AS seg_avg_ltv,
+        COALESCE(ss.total_customers, bf.total_customers, 0) AS effective_seg_size,
+
+        -- Predicted LTV calculation
+        CASE
+          -- New customer (1 order): cohort-based prediction
+          WHEN cf.order_count = 1 THEN
+            cf.first_order_value + (
+              COALESCE(
+                CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.repeat_rate END,
+                bf.repeat_rate, 0
+              )
+              * CASE WHEN COALESCE(
+                  CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                  bf.avg_days_between_orders, 0
+                ) > 0
+                THEN 90.0 / COALESCE(
+                  CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                  bf.avg_days_between_orders, 1
+                )
+                ELSE 0 END
+              * COALESCE(
+                  CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_ticket_repurchase END,
+                  bf.avg_ticket_repurchase, 0
+                )
+            )
+          -- Returning customer: personal history + segment blend
+          ELSE
+            cf.total_spent + (
+              -- Blended frequency (70% personal, 30% segment)
+              (
+                CASE WHEN cf.days_since_first > 0
+                  THEN (cf.order_count - 1)::float / cf.days_since_first * 0.7
+                  ELSE 0 END
+                +
+                CASE WHEN COALESCE(
+                    CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                    bf.avg_days_between_orders, 0
+                  ) > 0
+                  THEN 0.3 / COALESCE(
+                    CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                    bf.avg_days_between_orders, 1
+                  )
+                  ELSE 0 END
+              )
+              -- Recency factor
+              * CASE WHEN cf.days_since_first > 0 AND cf.order_count > 1
+                  THEN GREATEST(0, 1.0 - cf.days_since_last::float / (cf.days_since_first::float / (cf.order_count - 1) * 3))
+                  ELSE 0.5 END
+              -- Remaining days in window
+              * GREATEST(0, 90 - cf.days_since_first)
+              * cf.avg_ticket
+            )
+        END AS predicted_ltv_90d_raw,
+
+        CASE
+          WHEN cf.order_count = 1 THEN
+            cf.first_order_value + (
+              COALESCE(
+                CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.repeat_rate END,
+                bf.repeat_rate, 0
+              )
+              * CASE WHEN COALESCE(
+                  CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                  bf.avg_days_between_orders, 0
+                ) > 0
+                THEN 365.0 / COALESCE(
+                  CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                  bf.avg_days_between_orders, 1
+                )
+                ELSE 0 END
+              * COALESCE(
+                  CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_ticket_repurchase END,
+                  bf.avg_ticket_repurchase, 0
+                )
+            )
+          ELSE
+            cf.total_spent + (
+              (
+                CASE WHEN cf.days_since_first > 0
+                  THEN (cf.order_count - 1)::float / cf.days_since_first * 0.7
+                  ELSE 0 END
+                +
+                CASE WHEN COALESCE(
+                    CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                    bf.avg_days_between_orders, 0
+                  ) > 0
+                  THEN 0.3 / COALESCE(
+                    CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                    bf.avg_days_between_orders, 1
+                  )
+                  ELSE 0 END
+              )
+              * CASE WHEN cf.days_since_first > 0 AND cf.order_count > 1
+                  THEN GREATEST(0, 1.0 - cf.days_since_last::float / (cf.days_since_first::float / (cf.order_count - 1) * 3))
+                  ELSE 0.5 END
+              * GREATEST(0, 365 - cf.days_since_first)
+              * cf.avg_ticket
+            )
+        END AS predicted_ltv_365d_raw,
+
+        -- Confidence score
+        CASE
+          WHEN cf.order_count = 1 THEN LEAST(0.8, GREATEST(0.2, COALESCE(ss.total_customers, bf.total_customers, 0)::float / 60))
+          ELSE LEAST(0.95, GREATEST(0.4, 0.3 + cf.order_count * 0.12))
+        END AS confidence,
+
+        -- Method
+        CASE WHEN cf.order_count = 1 THEN 'cohort_lookup' ELSE 'personal_history' END AS method
+
+      FROM customer_features cf
+      LEFT JOIN segment_stats ss ON ss.channel = cf.channel AND ss.bucket = cf.bucket
+      LEFT JOIN bucket_fallback bf ON bf.bucket = cf.bucket
+      WHERE COALESCE(ss.total_customers, bf.total_customers, 0) >= ${MIN_SEGMENT_SAMPLE}
+    ),
+
+    -- Step 6: Apply floors and classify
+    final_predictions AS (
+      SELECT
+        customer_id,
+        acquisition_channel,
+        -- Floor at actual spend
+        GREATEST(predicted_ltv_90d_raw, total_spent)::numeric(12,2) AS predicted_ltv_90d,
+        GREATEST(predicted_ltv_365d_raw, total_spent)::numeric(12,2) AS predicted_ltv_365d,
+        ROUND(confidence::numeric, 2) AS confidence,
+        -- Segment bucket based on predicted 365d LTV
+        CASE
+          WHEN GREATEST(predicted_ltv_365d_raw, total_spent) <= ${LOW_THRESHOLD} THEN 'low_value'
+          WHEN GREATEST(predicted_ltv_365d_raw, total_spent) <= ${MED_THRESHOLD} THEN 'medium_value'
+          ELSE 'high_value'
+        END AS segment_bucket,
+        method,
+        order_count, total_spent, avg_ticket, days_since_first, days_since_last,
+        seg_repeat_rate, seg_avg_ltv, effective_seg_size
+      FROM predictions
+    ),
+
+    -- Step 7: Upsert into customer_ltv_predictions
+    upserted AS (
+      INSERT INTO customer_ltv_predictions (
+        id, "customerId", "organizationId",
+        "predictedLtv90d", "predictedLtv365d", confidence,
+        "acquisitionChannel", "segmentBucket", "inputFeatures",
+        "sentToMeta", "sentToGoogle",
+        "createdAt", "updatedAt"
+      )
+      SELECT
+        gen_random_uuid()::text,
+        customer_id,
+        $1,
+        predicted_ltv_90d,
+        predicted_ltv_365d,
+        confidence,
+        acquisition_channel,
+        segment_bucket,
+        jsonb_build_object(
+          'orderCount', order_count,
+          'totalSpent', ROUND(total_spent::numeric, 2),
+          'avgTicket', ROUND(avg_ticket::numeric, 2),
+          'daysSinceFirst', days_since_first,
+          'daysSinceLastOrder', days_since_last,
+          'segmentRepeatRate', ROUND(seg_repeat_rate::numeric, 4),
+          'segmentAvgLtv', ROUND(seg_avg_ltv::numeric, 2),
+          'segmentSampleSize', effective_seg_size,
+          'method', method
+        ),
+        false, false,
+        NOW(), NOW()
+      FROM final_predictions
+      ON CONFLICT ("customerId", "organizationId")
+      DO UPDATE SET
+        "predictedLtv90d" = EXCLUDED."predictedLtv90d",
+        "predictedLtv365d" = EXCLUDED."predictedLtv365d",
+        confidence = EXCLUDED.confidence,
+        "acquisitionChannel" = EXCLUDED."acquisitionChannel",
+        "segmentBucket" = EXCLUDED."segmentBucket",
+        "inputFeatures" = EXCLUDED."inputFeatures",
+        "sentToMeta" = false,
+        "sentToMetaAt" = NULL,
+        "sentToGoogle" = false,
+        "sentToGoogleAt" = NULL,
+        "updatedAt" = NOW()
+      RETURNING "segmentBucket", "predictedLtv90d", "predictedLtv365d"
     )
+
+    -- Step 8: Return summary
     SELECT
-      cs.customer_id,
-      cs.order_count::text,
-      cs.total_spent::text,
-      cs.avg_ticket::text,
-      cs.first_order_value::text,
-      cs.days_since_first::text,
-      cs.days_since_last::text,
-      fo.touchpoints,
-      fo.traffic_source
-    FROM customer_stats cs
-    LEFT JOIN first_order fo ON fo.customer_id = cs.customer_id
+      (SELECT COUNT(*) FROM customer_rfm)::text AS total_customers,
+      COUNT(*)::text AS predicted,
+      ((SELECT COUNT(*) FROM customer_rfm) - COUNT(*))::text AS skipped,
+      COALESCE(ROUND(AVG("predictedLtv90d")), 0)::text AS avg_ltv_90d,
+      COALESCE(ROUND(AVG("predictedLtv365d")), 0)::text AS avg_ltv_365d,
+      COUNT(*) FILTER (WHERE "segmentBucket" = 'high_value')::text AS high_value,
+      COUNT(*) FILTER (WHERE "segmentBucket" = 'medium_value')::text AS medium_value,
+      COUNT(*) FILTER (WHERE "segmentBucket" = 'low_value')::text AS low_value
+    FROM upserted
     `,
     orgId
   );
 
-  // Step 3: Run prediction for each customer
-  const predictions: CustomerPrediction[] = [];
-  let skipped = 0;
-
-  for (const c of customers) {
-    const channel = resolveChannel(c.touchpoints, c.traffic_source);
-    const avgTicket = Number(c.avg_ticket);
-    const bucket = classifyTicket(avgTicket);
-
-    const prediction = predictCustomerLtv(
-      {
-        customerId: c.customer_id,
-        orderCount: Number(c.order_count),
-        totalSpent: Number(c.total_spent),
-        avgTicket,
-        firstOrderValue: Number(c.first_order_value),
-        daysSinceFirst: Number(c.days_since_first),
-        daysSinceLastOrder: Number(c.days_since_last),
-        channel,
-        bucket,
-      },
-      segmentLookup,
-      bucketFallback
-    );
-
-    if (prediction) {
-      predictions.push(prediction);
-    } else {
-      skipped++;
-    }
-  }
-
-  // Step 4: Upsert predictions in CHUNKS (v2: prevents massive transaction timeout)
-  if (predictions.length > 0) {
-    for (let i = 0; i < predictions.length; i += UPSERT_CHUNK_SIZE) {
-      const chunk = predictions.slice(i, i + UPSERT_CHUNK_SIZE);
-      await prisma.$transaction(
-        chunk.map((p) =>
-          prisma.customerLtvPrediction.upsert({
-            where: {
-              customerId_organizationId: {
-                customerId: p.customerId,
-                organizationId: orgId,
-              },
-            },
-            update: {
-              predictedLtv90d: p.predictedLtv90d,
-              predictedLtv365d: p.predictedLtv365d,
-              confidence: p.confidence,
-              acquisitionChannel: p.acquisitionChannel,
-              segmentBucket: p.segmentBucket,
-              inputFeatures: p.inputFeatures as any,
-              sentToMeta: false,
-              sentToMetaAt: null,
-              sentToGoogle: false,
-              sentToGoogleAt: null,
-            },
-            create: {
-              customerId: p.customerId,
-              organizationId: orgId,
-              predictedLtv90d: p.predictedLtv90d,
-              predictedLtv365d: p.predictedLtv365d,
-              confidence: p.confidence,
-              acquisitionChannel: p.acquisitionChannel,
-              segmentBucket: p.segmentBucket,
-              inputFeatures: p.inputFeatures as any,
-            },
-          })
-        )
-      );
-      console.log(
-        `[LTV] Upserted chunk ${Math.floor(i / UPSERT_CHUNK_SIZE) + 1}/${Math.ceil(predictions.length / UPSERT_CHUNK_SIZE)} (${chunk.length} records)`
-      );
-    }
-  }
-
-  // Step 5: Calculate distribution summary (single pass)
-  let highValue = 0;
-  let mediumValue = 0;
-  let lowValue = 0;
-  let sumLtv90d = 0;
-  let sumLtv365d = 0;
-
-  for (const p of predictions) {
-    if (p.segmentBucket === "high_value") highValue++;
-    else if (p.segmentBucket === "medium_value") mediumValue++;
-    else lowValue++;
-    sumLtv90d += p.predictedLtv90d;
-    sumLtv365d += p.predictedLtv365d;
-  }
+  const r = result[0];
 
   return {
-    totalCustomers: customers.length,
-    predicted: predictions.length,
-    skipped,
-    avgPredictedLtv90d:
-      predictions.length > 0 ? Math.round(sumLtv90d / predictions.length) : 0,
-    avgPredictedLtv365d:
-      predictions.length > 0 ? Math.round(sumLtv365d / predictions.length) : 0,
-    distribution: { highValue, mediumValue, lowValue },
+    totalCustomers: Number(r.total_customers),
+    predicted: Number(r.predicted),
+    skipped: Number(r.skipped),
+    avgPredictedLtv90d: Number(r.avg_ltv_90d),
+    avgPredictedLtv365d: Number(r.avg_ltv_365d),
+    distribution: {
+      highValue: Number(r.high_value),
+      mediumValue: Number(r.medium_value),
+      lowValue: Number(r.low_value),
+    },
   };
 }
