@@ -36,6 +36,9 @@ export interface BatchPredictionResult {
 const MIN_SEGMENT_SAMPLE = 5;
 const DEFAULT_LOW_THRESHOLD = 25000;
 const DEFAULT_MED_THRESHOLD = 100000;
+const MIN_HISTORY_DAYS = 30;       // Minimum days before using personal_history method
+const MAX_FREQ_PER_DAY = 1.0 / 7;  // Cap: max 1 purchase every 7 days
+const PREDICTION_CAP_MULTIPLIER = 3; // Max prediction = 3x actual spend
 
 // ══════════════════════════════════════════════════════════════
 // BATCH PREDICTION — Todo en SQL
@@ -197,14 +200,20 @@ export async function runBatchPrediction(
         COALESCE(ss.total_customers, bf.total_customers, 0) AS effective_seg_size,
 
         -- Predicted LTV calculation
+        -- Fix 1: Customers with <${MIN_HISTORY_DAYS} days use cohort_lookup (even if 2+ orders)
+        -- Fix 2: Personal frequency capped at ${MAX_FREQ_PER_DAY}/day (1 purchase per 7 days)
         CASE
-          -- New customer (1 order): cohort-based prediction
-          WHEN cf.order_count = 1 THEN
-            cf.first_order_value + (
+          -- Cohort-based: 1 order OR insufficient history (<30 days with 2+ orders)
+          WHEN cf.order_count = 1 OR cf.days_since_first < ${MIN_HISTORY_DAYS} THEN
+            cf.total_spent + (
               COALESCE(
                 CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.repeat_rate END,
                 bf.repeat_rate, 0
               )
+              -- Boost for multi-purchase: 1.5x for 2 orders, 2x for 3+
+              * CASE WHEN cf.order_count >= 3 THEN 2.0
+                     WHEN cf.order_count = 2 THEN 1.5
+                     ELSE 1.0 END
               * CASE WHEN COALESCE(
                   CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
                   bf.avg_days_between_orders, 0
@@ -219,24 +228,27 @@ export async function runBatchPrediction(
                   bf.avg_ticket_repurchase, 0
                 )
             )
-          -- Returning customer: personal history + segment blend
+          -- Returning customer with sufficient history: personal + segment blend
           ELSE
             cf.total_spent + (
-              -- Blended frequency (70% personal, 30% segment)
-              (
-                CASE WHEN cf.days_since_first > 0
-                  THEN (cf.order_count - 1)::float / cf.days_since_first * 0.7
-                  ELSE 0 END
-                +
-                CASE WHEN COALESCE(
-                    CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
-                    bf.avg_days_between_orders, 0
-                  ) > 0
-                  THEN 0.3 / COALESCE(
-                    CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
-                    bf.avg_days_between_orders, 1
-                  )
-                  ELSE 0 END
+              -- Blended frequency (70% personal, 30% segment) with frequency cap
+              LEAST(
+                (
+                  CASE WHEN cf.days_since_first > 0
+                    THEN (cf.order_count - 1)::float / cf.days_since_first * 0.7
+                    ELSE 0 END
+                  +
+                  CASE WHEN COALESCE(
+                      CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                      bf.avg_days_between_orders, 0
+                    ) > 0
+                    THEN 0.3 / COALESCE(
+                      CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                      bf.avg_days_between_orders, 1
+                    )
+                    ELSE 0 END
+                ),
+                ${MAX_FREQ_PER_DAY}  -- Cap: max ~1 purchase per 7 days
               )
               -- Recency factor
               * CASE WHEN cf.days_since_first > 0 AND cf.order_count > 1
@@ -249,12 +261,15 @@ export async function runBatchPrediction(
         END AS predicted_ltv_90d_raw,
 
         CASE
-          WHEN cf.order_count = 1 THEN
-            cf.first_order_value + (
+          WHEN cf.order_count = 1 OR cf.days_since_first < ${MIN_HISTORY_DAYS} THEN
+            cf.total_spent + (
               COALESCE(
                 CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.repeat_rate END,
                 bf.repeat_rate, 0
               )
+              * CASE WHEN cf.order_count >= 3 THEN 2.0
+                     WHEN cf.order_count = 2 THEN 1.5
+                     ELSE 1.0 END
               * CASE WHEN COALESCE(
                   CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
                   bf.avg_days_between_orders, 0
@@ -271,20 +286,23 @@ export async function runBatchPrediction(
             )
           ELSE
             cf.total_spent + (
-              (
-                CASE WHEN cf.days_since_first > 0
-                  THEN (cf.order_count - 1)::float / cf.days_since_first * 0.7
-                  ELSE 0 END
-                +
-                CASE WHEN COALESCE(
-                    CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
-                    bf.avg_days_between_orders, 0
-                  ) > 0
-                  THEN 0.3 / COALESCE(
-                    CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
-                    bf.avg_days_between_orders, 1
-                  )
-                  ELSE 0 END
+              LEAST(
+                (
+                  CASE WHEN cf.days_since_first > 0
+                    THEN (cf.order_count - 1)::float / cf.days_since_first * 0.7
+                    ELSE 0 END
+                  +
+                  CASE WHEN COALESCE(
+                      CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                      bf.avg_days_between_orders, 0
+                    ) > 0
+                    THEN 0.3 / COALESCE(
+                      CASE WHEN ss.total_customers >= ${MIN_SEGMENT_SAMPLE} THEN ss.avg_days_between_orders END,
+                      bf.avg_days_between_orders, 1
+                    )
+                    ELSE 0 END
+                ),
+                ${MAX_FREQ_PER_DAY}
               )
               * CASE WHEN cf.days_since_first > 0 AND cf.order_count > 1
                   THEN GREATEST(0, 1.0 - cf.days_since_last::float / (cf.days_since_first::float / (cf.order_count - 1) * 3))
@@ -294,14 +312,19 @@ export async function runBatchPrediction(
             )
         END AS predicted_ltv_365d_raw,
 
-        -- Confidence score
+        -- Confidence score (lower for insufficient history)
         CASE
           WHEN cf.order_count = 1 THEN LEAST(0.8, GREATEST(0.2, COALESCE(ss.total_customers, bf.total_customers, 0)::float / 60))
+          WHEN cf.days_since_first < ${MIN_HISTORY_DAYS} THEN LEAST(0.5, GREATEST(0.25, 0.2 + cf.order_count * 0.1))
           ELSE LEAST(0.95, GREATEST(0.4, 0.3 + cf.order_count * 0.12))
         END AS confidence,
 
         -- Method
-        CASE WHEN cf.order_count = 1 THEN 'cohort_lookup' ELSE 'personal_history' END AS method
+        CASE
+          WHEN cf.order_count = 1 THEN 'cohort_lookup'
+          WHEN cf.days_since_first < ${MIN_HISTORY_DAYS} THEN 'cohort_boosted'
+          ELSE 'personal_history'
+        END AS method
 
       FROM customer_features cf
       LEFT JOIN segment_stats ss ON ss.channel = cf.channel AND ss.bucket = cf.bucket
@@ -309,19 +332,26 @@ export async function runBatchPrediction(
       WHERE COALESCE(ss.total_customers, bf.total_customers, 0) >= ${MIN_SEGMENT_SAMPLE}
     ),
 
-    -- Step 6: Apply floors and classify
+    -- Step 6: Apply floors, caps, and classify
+    -- Fix 3: Cap predictions at ${PREDICTION_CAP_MULTIPLIER}x actual spend
     final_predictions AS (
       SELECT
         customer_id,
         acquisition_channel,
-        -- Floor at actual spend
-        GREATEST(predicted_ltv_90d_raw, total_spent)::numeric(12,2) AS predicted_ltv_90d,
-        GREATEST(predicted_ltv_365d_raw, total_spent)::numeric(12,2) AS predicted_ltv_365d,
+        -- Floor at actual spend, cap at 3x actual spend
+        LEAST(
+          GREATEST(predicted_ltv_90d_raw, total_spent),
+          total_spent * ${PREDICTION_CAP_MULTIPLIER}
+        )::numeric(12,2) AS predicted_ltv_90d,
+        LEAST(
+          GREATEST(predicted_ltv_365d_raw, total_spent),
+          total_spent * ${PREDICTION_CAP_MULTIPLIER}
+        )::numeric(12,2) AS predicted_ltv_365d,
         ROUND(confidence::numeric, 2) AS confidence,
-        -- Segment bucket based on predicted 365d LTV
+        -- Segment bucket based on capped predicted 365d LTV
         CASE
-          WHEN GREATEST(predicted_ltv_365d_raw, total_spent) <= ${lowThreshold} THEN 'low_value'
-          WHEN GREATEST(predicted_ltv_365d_raw, total_spent) <= ${medThreshold} THEN 'medium_value'
+          WHEN LEAST(GREATEST(predicted_ltv_365d_raw, total_spent), total_spent * ${PREDICTION_CAP_MULTIPLIER}) <= ${lowThreshold} THEN 'low_value'
+          WHEN LEAST(GREATEST(predicted_ltv_365d_raw, total_spent), total_spent * ${PREDICTION_CAP_MULTIPLIER}) <= ${medThreshold} THEN 'medium_value'
           ELSE 'high_value'
         END AS segment_bucket,
         method,
