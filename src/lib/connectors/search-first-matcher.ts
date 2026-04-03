@@ -69,11 +69,11 @@ function tokenize(text: string): string[] {
   return normalize(text).split(" ").filter((w) => w.length > 1 && !stopWords.has(w));
 }
 
-/** Build a short, effective search query from product name + brand */
+/** Build search query from product name + brand (for ML/Shopify) */
 function buildSearchQuery(product: OwnProduct): string {
   const parts: string[] = [];
 
-  // Add brand if available (crucial for disambiguation)
+  // Add brand if available (crucial for disambiguation on ML)
   if (product.brand && product.brand.length >= 2) {
     parts.push(product.brand);
   }
@@ -87,6 +87,33 @@ function buildSearchQuery(product: OwnProduct): string {
   parts.push(...nameTokens);
 
   return parts.join(" ").trim();
+}
+
+/**
+ * Build search query optimized for VTEX full-text search.
+ * VTEX full-text (ft=) works best WITHOUT brand prefix.
+ * Uses raw product name words (preserving original casing/accents for better hits).
+ */
+function buildVtexSearchQuery(product: OwnProduct): string[] {
+  // Strategy: return multiple queries from broad to narrow
+  const words = product.name
+    .replace(/[^a-záéíóúñüA-ZÁÉÍÓÚÑÜ0-9\s]/gi, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2);
+
+  const queries: string[] = [];
+
+  // Query 1: First 3-4 meaningful words (broad)
+  if (words.length >= 2) {
+    queries.push(words.slice(0, Math.min(4, words.length)).join(" "));
+  }
+
+  // Query 2: Full name (narrower, but some VTEX stores need it)
+  if (words.length > 4) {
+    queries.push(words.slice(0, 6).join(" "));
+  }
+
+  return queries;
 }
 
 // ── Verification Cascade ───────────────────────────────────────
@@ -362,11 +389,19 @@ async function searchProductOnVtex(
     }
   }
 
-  // Strategy 2: Search by brand + name
-  const nameQuery = buildSearchQuery(product);
-  if (!nameQuery || nameQuery.length < 4) return null;
+  // Strategy 2: Search by name (VTEX-optimized queries without brand prefix)
+  const vtexQueries = buildVtexSearchQuery(product);
+  let nameResults: any[] = [];
+  let nameQuery = vtexQueries[0] || "";
 
-  const nameResults = await searchVtexByName(base, nameQuery);
+  for (const q of vtexQueries) {
+    if (!q || q.length < 4) continue;
+    nameResults = await searchVtexByName(base, q);
+    if (nameResults.length > 0) {
+      nameQuery = q;
+      break; // Use first query that returns results
+    }
+  }
 
   // Check each result with strict verification
   for (const item of nameResults.slice(0, 5)) { // Only check top 5
