@@ -366,31 +366,42 @@ export default function LtvPage() {
       </div>
 
       {/* ── Predicciones de LTV ── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div className="p-4 lg:p-5 border-b border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-violet-50">
-              <Brain size={18} className="text-violet-600" />
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Hero banner */}
+        <div className="bg-gradient-to-r from-violet-600 via-violet-500 to-indigo-500 px-4 lg:px-5 py-4 lg:py-5">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-white/15 backdrop-blur-sm mt-0.5">
+                <Brain size={20} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-base lg:text-lg font-bold text-white">
+                  Predicted Lifetime Value (pLTV)
+                </h2>
+                <p className="text-violet-100 text-xs mt-1 max-w-xl">
+                  Motor predictivo basado en modelos de cohortes BG/NBD. Analiza frecuencia de compra, recencia y valor monetario para predecir el gasto futuro de cada cliente.
+                </p>
+                <div className="flex items-center gap-3 mt-3">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-full bg-white/15 text-white backdrop-blur-sm">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1.177 14.823l-3.896-3.896 1.414-1.414 2.482 2.482 5.656-5.656 1.414 1.414-7.07 7.07z"/></svg>
+                    Validado por Meta CAPI
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-full bg-white/15 text-white backdrop-blur-sm">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1.177 14.823l-3.896-3.896 1.414-1.414 2.482 2.482 5.656-5.656 1.414 1.414-7.07 7.07z"/></svg>
+                    Validado por Google Ads
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-full bg-white/15 text-white backdrop-blur-sm">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Alimenta al NitroPixel
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-gray-800">
-                Prediccion de LTV
-                <InfoTip text="Predice cuanto va a gastar cada cliente a futuro basandose en el comportamiento historico de clientes similares (mismo canal y rango de ticket). Usa un modelo de cohortes inspirado en BG/NBD." />
-              </h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Motor de prediccion basado en datos historicos de tu tienda
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
-              <Lock size={11} />
-              Envio a plataformas: DESACTIVADO
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handleRunPrediction}
               disabled={predRunning}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {predRunning ? (
                 <>
@@ -399,11 +410,40 @@ export default function LtvPage() {
                 </>
               ) : (
                 <>
-                  <Brain size={12} />
+                  <RefreshCw size={12} />
                   Recalcular predicciones
                 </>
               )}
             </button>
+          </div>
+          </div>
+        </div>
+        {/* NitroPixel pipeline indicator */}
+        <div className="bg-gradient-to-r from-violet-50 to-indigo-50 px-4 lg:px-5 py-2 border-b border-violet-100 flex items-center gap-4 text-[10px]">
+          <div className="flex items-center gap-6 text-violet-600 font-medium">
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+              Datos de compra
+            </span>
+            <svg width="16" height="8" viewBox="0 0 16 8" className="text-violet-300"><path d="M0 4h12M10 1l3 3-3 3" stroke="currentColor" fill="none" strokeWidth="1.5"/></svg>
+            <span className="flex items-center gap-1">
+              <Brain size={10} />
+              Motor pLTV
+            </span>
+            <svg width="16" height="8" viewBox="0 0 16 8" className="text-violet-300"><path d="M0 4h12M10 1l3 3-3 3" stroke="currentColor" fill="none" strokeWidth="1.5"/></svg>
+            <span className="flex items-center gap-1">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="text-violet-500"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              NitroPixel
+            </span>
+            <svg width="16" height="8" viewBox="0 0 16 8" className="text-violet-300"><path d="M0 4h12M10 1l3 3-3 3" stroke="currentColor" fill="none" strokeWidth="1.5"/></svg>
+            <span className="flex items-center gap-1">
+              <span className="w-4 h-2.5 rounded-sm bg-blue-500" />
+              Meta
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-4 h-2.5 rounded-sm bg-red-500" />
+              Google
+            </span>
           </div>
         </div>
 
