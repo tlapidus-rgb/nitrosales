@@ -99,6 +99,11 @@ export async function GET() {
         sent_to_meta: boolean;
         sent_to_google: boolean;
         updated_at: Date;
+        total_orders: number;
+        total_spent: string;
+        first_order: Date | null;
+        last_order: Date | null;
+        days_as_customer: number;
       }>
     >`
       SELECT
@@ -113,7 +118,12 @@ export async function GET() {
         p.confidence::text AS confidence,
         p."sentToMeta" AS sent_to_meta,
         p."sentToGoogle" AS sent_to_google,
-        p."updatedAt" AS updated_at
+        p."updatedAt" AS updated_at,
+        c."totalOrders"::int AS total_orders,
+        c."totalSpent"::text AS total_spent,
+        (SELECT MIN(o."orderDate") FROM orders o WHERE o."customerId" = c.id AND o."organizationId" = ${ORG_ID}) AS first_order,
+        (SELECT MAX(o."orderDate") FROM orders o WHERE o."customerId" = c.id AND o."organizationId" = ${ORG_ID}) AS last_order,
+        EXTRACT(DAY FROM NOW() - (SELECT MIN(o."orderDate") FROM orders o WHERE o."customerId" = c.id AND o."organizationId" = ${ORG_ID}))::int AS days_as_customer
       FROM customer_ltv_predictions p
       JOIN customers c ON c.id = p."customerId"
       WHERE p."organizationId" = ${ORG_ID}
@@ -171,6 +181,11 @@ export async function GET() {
         sentToMeta: c.sent_to_meta,
         sentToGoogle: c.sent_to_google,
         updatedAt: c.updated_at?.toISOString() || null,
+        orders: c.total_orders || 0,
+        totalSpent: Math.round(Number(c.total_spent || 0)),
+        firstOrder: c.first_order ? new Date(c.first_order).toLocaleDateString("es-AR") : null,
+        lastOrder: c.last_order ? new Date(c.last_order).toLocaleDateString("es-AR") : null,
+        daysAsCustomer: c.days_as_customer || 0,
       })),
       lastUpdated: lastUpdatedRows[0]?.last?.toISOString() || null,
     });
