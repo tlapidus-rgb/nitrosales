@@ -177,6 +177,7 @@ model Order {
   @@index([organizationId, orderDate])
   @@index([organizationId, source, orderDate])
   @@index([organizationId, trafficSource])
+  @@index([organizationId, customerId])
   @@map("orders")
 }
 
