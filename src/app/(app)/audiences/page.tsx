@@ -342,25 +342,25 @@ export default function AudienceSyncPage() {
                 </div>
               </div>
 
-              <p className="text-gray-300 text-sm leading-relaxed mb-4">
-                Envia automaticamente listas de tus clientes a <strong style={{ color: "#1877f2" }}>Meta Ads</strong> y <strong style={{ color: "#4285f4" }}>Google Ads</strong>. Asi las plataformas pueden encontrar personas similares a tus mejores compradores (Lookalike) o impactar directamente a tus clientes existentes (Retargeting).
+              <p className="text-gray-200 text-sm leading-relaxed mb-4">
+                Envia automaticamente listas de tus clientes a <strong style={{ color: "#60a5fa" }}>Meta Ads</strong> y <strong style={{ color: "#93bbfd" }}>Google Ads</strong>. Asi las plataformas pueden encontrar personas similares a tus mejores compradores (Lookalike) o impactar directamente a tus clientes existentes (Retargeting).
               </p>
 
               {/* Visual flow diagram */}
               <div className="flex items-center gap-2 text-[11px] flex-wrap">
-                <span className="px-2.5 py-1 rounded-lg font-medium" style={{ background: "rgba(139,92,246,0.15)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.2)" }}>
+                <span className="px-2.5 py-1 rounded-lg font-semibold" style={{ background: "rgba(139,92,246,0.2)", color: "#e9d5ff", border: "1px solid rgba(139,92,246,0.3)" }}>
                   Tus clientes en NitroSales
                 </span>
-                <svg className="w-4 h-4 text-purple-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                <span className="px-2.5 py-1 rounded-lg font-medium" style={{ background: "rgba(139,92,246,0.1)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.15)" }}>
+                <svg className="w-4 h-4 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                <span className="px-2.5 py-1 rounded-lg font-semibold" style={{ background: "rgba(139,92,246,0.15)", color: "#d8b4fe", border: "1px solid rgba(139,92,246,0.25)" }}>
                   Seleccionas un segmento
                 </span>
-                <svg className="w-4 h-4 text-purple-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                <span className="px-2.5 py-1 rounded-lg font-medium" style={{ background: "rgba(24,119,242,0.12)", color: "#60a5fa", border: "1px solid rgba(24,119,242,0.2)" }}>
+                <svg className="w-4 h-4 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                <span className="px-2.5 py-1 rounded-lg font-semibold" style={{ background: "rgba(24,119,242,0.15)", color: "#93c5fd", border: "1px solid rgba(24,119,242,0.3)" }}>
                   Se sube a Meta / Google
                 </span>
-                <svg className="w-4 h-4 text-blue-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                <span className="px-2.5 py-1 rounded-lg font-medium" style={{ background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.2)" }}>
+                <svg className="w-4 h-4 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                <span className="px-2.5 py-1 rounded-lg font-semibold" style={{ background: "rgba(34,197,94,0.15)", color: "#86efac", border: "1px solid rgba(34,197,94,0.3)" }}>
                   Usas la audiencia en tus campanas
                 </span>
               </div>
@@ -415,8 +415,8 @@ export default function AudienceSyncPage() {
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-white mb-1">{step.title}</h3>
-                    <p className="text-xs text-gray-400 leading-relaxed">{step.desc}</p>
-                    <p className="text-[10px] mt-2 font-mono leading-relaxed" style={{ color: `${step.color}99` }}>{step.example}</p>
+                    <p className="text-xs text-gray-300 leading-relaxed">{step.desc}</p>
+                    <p className="text-[10px] mt-2 font-mono leading-relaxed" style={{ color: `${step.color}dd` }}>{step.example}</p>
                   </div>
                 </div>
               </div>
@@ -432,7 +432,7 @@ export default function AudienceSyncPage() {
             >
               Crear mi primera audiencia
             </button>
-            <p className="text-xs text-gray-500 mt-2">No se envia nada hasta que vos lo actives</p>
+            <p className="text-xs text-gray-400 mt-2">No se envia nada hasta que vos lo actives</p>
           </div>
         </div>
       )}
@@ -450,9 +450,9 @@ export default function AudienceSyncPage() {
           ].map((card, i) => (
             <div key={i} className="rounded-xl p-4 relative overflow-hidden group" style={glassCard()}>
               <div className="absolute top-0 left-0 w-full h-[1px]" style={{ background: `linear-gradient(90deg, ${card.color}40, transparent)` }} />
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">{card.label}</p>
+              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">{card.label}</p>
               <p className="text-2xl font-bold text-white mt-1">{card.value}</p>
-              <p className="text-[10px] mt-0.5" style={{ color: `${card.color}90` }}>{card.sub}</p>
+              <p className="text-[10px] mt-0.5" style={{ color: `${card.color}cc` }}>{card.sub}</p>
             </div>
           ))}
         </div>
@@ -482,7 +482,7 @@ export default function AudienceSyncPage() {
                 >
                   {builderStep > s.n ? "✓" : s.n}
                 </div>
-                <span className={`text-xs font-medium transition-colors ${builderStep >= s.n ? "text-white" : "text-gray-500"}`}>{s.label}</span>
+                <span className={`text-xs font-medium transition-colors ${builderStep >= s.n ? "text-white" : "text-gray-400"}`}>{s.label}</span>
                 {s.n < 3 && <div className="w-12 h-[1px] ml-2" style={{ background: builderStep > s.n ? "#8b5cf6" : "rgba(255,255,255,0.08)" }} />}
               </button>
             ))}
@@ -495,7 +495,7 @@ export default function AudienceSyncPage() {
               <div className="space-y-5">
                 <div>
                   <h3 className="text-base font-semibold text-white mb-1">Que clientes queres enviar?</h3>
-                  <p className="text-xs text-gray-400">NitroSales clasifica automaticamente a tus clientes segun como compran. Elegi que grupo queres sincronizar con tus plataformas de publicidad.</p>
+                  <p className="text-xs text-gray-300">NitroSales clasifica automaticamente a tus clientes segun como compran. Elegi que grupo queres sincronizar con tus plataformas de publicidad.</p>
                 </div>
 
                 {/* Segment type selector */}
@@ -515,8 +515,8 @@ export default function AudienceSyncPage() {
                       }}
                     >
                       <div className="text-xl mb-2">{t.icon}</div>
-                      <p className={`text-sm font-semibold ${builderSegmentType === t.id ? "text-white" : "text-gray-300"}`}>{t.label}</p>
-                      <p className="text-[10px] text-gray-500 mt-0.5">{t.desc}</p>
+                      <p className={`text-sm font-semibold ${builderSegmentType === t.id ? "text-white" : "text-gray-200"}`}>{t.label}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{t.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -525,8 +525,8 @@ export default function AudienceSyncPage() {
                 {builderSegmentType === "RFM" && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-gray-400">Selecciona los segmentos que queres incluir en esta audiencia:</p>
-                      <p className="text-[10px] text-gray-500 font-mono">{builderRfmSegments.length} seleccionados</p>
+                      <p className="text-xs text-gray-300">Selecciona los segmentos que queres incluir en esta audiencia:</p>
+                      <p className="text-[10px] text-gray-400 font-mono">{builderRfmSegments.length} seleccionados</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {RFM_SEGMENTS.map((seg) => {
@@ -556,11 +556,11 @@ export default function AudienceSyncPage() {
                                   <span className="text-base">{seg.icon}</span>
                                   <span className="text-sm font-semibold" style={{ color: sel ? seg.color : "#e5e7eb" }}>{seg.label}</span>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-0.5">{seg.desc}</p>
+                                <p className="text-xs text-gray-300 mt-0.5">{seg.desc}</p>
                                 {/* Expanded detail on hover or selection */}
                                 {(sel || hovered) && (
                                   <div className="mt-2 space-y-1.5">
-                                    <p className="text-[11px] text-gray-300 leading-relaxed">{seg.detail}</p>
+                                    <p className="text-[11px] text-gray-200 leading-relaxed">{seg.detail}</p>
                                     <div className="flex items-start gap-1.5">
                                       <span className="text-[10px] mt-[1px]">💡</span>
                                       <p className="text-[10px] leading-relaxed" style={{ color: `${seg.color}b0` }}>{seg.useCase}</p>
@@ -579,7 +579,7 @@ export default function AudienceSyncPage() {
                 {/* LTV Bucket Cards */}
                 {builderSegmentType === "LTV" && (
                   <div className="space-y-3">
-                    <p className="text-xs text-gray-400">NitroSales predice cuanto va a gastar cada cliente en el proximo ano usando inteligencia artificial. Selecciona que nivel de valor queres enviar:</p>
+                    <p className="text-xs text-gray-300">NitroSales predice cuanto va a gastar cada cliente en el proximo ano usando inteligencia artificial. Selecciona que nivel de valor queres enviar:</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {LTV_BUCKETS.map((b) => {
                         const sel = builderLtvBuckets.includes(b.id);
@@ -601,7 +601,7 @@ export default function AudienceSyncPage() {
                               <span className="text-lg">{b.icon}</span>
                               <span className="text-sm font-semibold" style={{ color: sel ? b.color : "#e5e7eb" }}>{b.label}</span>
                             </div>
-                            <p className="text-[11px] text-gray-400 leading-relaxed">{b.detail}</p>
+                            <p className="text-[11px] text-gray-300 leading-relaxed">{b.detail}</p>
                             <div className="flex items-start gap-1.5 mt-2">
                               <span className="text-[10px] mt-[1px]">💡</span>
                               <p className="text-[10px] leading-relaxed" style={{ color: `${b.color}b0` }}>{b.useCase}</p>
@@ -623,22 +623,22 @@ export default function AudienceSyncPage() {
                 {/* Optional filters */}
                 {builderSegmentType !== "ALL_CUSTOMERS" && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-3">Filtros adicionales (opcional) — para refinar mas tu audiencia:</p>
+                    <p className="text-xs text-gray-400 mb-3">Filtros adicionales (opcional) — para refinar mas tu audiencia:</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div>
-                        <label className="text-[10px] text-gray-500 block mb-1">Minimo de compras</label>
+                        <label className="text-[10px] text-gray-400 block mb-1">Minimo de compras</label>
                         <input type="number" value={builderMinOrders} onChange={(e) => setBuilderMinOrders(e.target.value)} placeholder="Ej: 2" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }} />
-                        <p className="text-[9px] text-gray-600 mt-1">Solo clientes con X o mas ordenes</p>
+                        <p className="text-[9px] text-gray-400 mt-1">Solo clientes con X o mas ordenes</p>
                       </div>
                       <div>
-                        <label className="text-[10px] text-gray-500 block mb-1">Gasto minimo (ARS)</label>
+                        <label className="text-[10px] text-gray-400 block mb-1">Gasto minimo (ARS)</label>
                         <input type="number" value={builderMinSpent} onChange={(e) => setBuilderMinSpent(e.target.value)} placeholder="Ej: 50000" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }} />
-                        <p className="text-[9px] text-gray-600 mt-1">Solo clientes que gastaron mas de $X total</p>
+                        <p className="text-[9px] text-gray-400 mt-1">Solo clientes que gastaron mas de $X total</p>
                       </div>
                       <div>
-                        <label className="text-[10px] text-gray-500 block mb-1">Ultima compra (max dias)</label>
+                        <label className="text-[10px] text-gray-400 block mb-1">Ultima compra (max dias)</label>
                         <input type="number" value={builderRecencyMax} onChange={(e) => setBuilderRecencyMax(e.target.value)} placeholder="Ej: 90" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }} />
-                        <p className="text-[9px] text-gray-600 mt-1">Solo clientes que compraron en los ultimos X dias</p>
+                        <p className="text-[9px] text-gray-400 mt-1">Solo clientes que compraron en los ultimos X dias</p>
                       </div>
                     </div>
                   </div>
@@ -652,24 +652,24 @@ export default function AudienceSyncPage() {
                         <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                         <span className="text-xs font-semibold text-white">Vista previa en tiempo real</span>
                       </div>
-                      {previewLoading && <span className="text-[10px] text-gray-500">Calculando...</span>}
+                      {previewLoading && <span className="text-[10px] text-gray-400">Calculando...</span>}
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
                         <p className="text-2xl font-bold text-white">{preview.totalCustomers.toLocaleString()}</p>
-                        <p className="text-[10px] text-gray-500">clientes en esta audiencia</p>
+                        <p className="text-[10px] text-gray-400">clientes en esta audiencia</p>
                       </div>
                       <div>
                         <p className="text-2xl font-bold text-white">{preview.withEmail.toLocaleString()}</p>
-                        <p className="text-[10px] text-gray-500">con email (enviables)</p>
+                        <p className="text-[10px] text-gray-400">con email (enviables)</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold" style={{ color: "#1877f2" }}>~{preview.estimatedMetaMatch.toLocaleString()}</p>
-                        <p className="text-[10px] text-gray-500">estimado match en Meta</p>
+                        <p className="text-2xl font-bold" style={{ color: "#60a5fa" }}>~{preview.estimatedMetaMatch.toLocaleString()}</p>
+                        <p className="text-[10px] text-gray-400">estimado match en Meta</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold" style={{ color: "#4285f4" }}>~{preview.estimatedGoogleMatch.toLocaleString()}</p>
-                        <p className="text-[10px] text-gray-500">estimado match en Google</p>
+                        <p className="text-2xl font-bold" style={{ color: "#93bbfd" }}>~{preview.estimatedGoogleMatch.toLocaleString()}</p>
+                        <p className="text-[10px] text-gray-400">estimado match en Google</p>
                       </div>
                     </div>
                     {Object.keys(preview.segmentBreakdown).length > 0 && (
@@ -684,7 +684,7 @@ export default function AudienceSyncPage() {
                         })}
                       </div>
                     )}
-                    <p className="text-[9px] text-gray-600 mt-2">Match = cuantos emails Meta/Google logra cruzar con cuentas reales. Mas datos (nombre, ciudad) = mejor match rate.</p>
+                    <p className="text-[9px] text-gray-400 mt-2">Match = cuantos emails Meta/Google logra cruzar con cuentas reales. Mas datos (nombre, ciudad) = mejor match rate.</p>
                   </div>
                 )}
 
@@ -701,7 +701,7 @@ export default function AudienceSyncPage() {
               <div className="space-y-5">
                 <div>
                   <h3 className="text-base font-semibold text-white mb-1">A donde queres enviar esta audiencia?</h3>
-                  <p className="text-xs text-gray-400">La audiencia va a aparecer como &quot;Custom Audience&quot; en Meta Ads Manager o como &quot;Customer List&quot; en Google Ads, lista para usar en tus campanas.</p>
+                  <p className="text-xs text-gray-300">La audiencia va a aparecer como &quot;Custom Audience&quot; en Meta Ads Manager o como &quot;Customer List&quot; en Google Ads, lista para usar en tus campanas.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -745,10 +745,10 @@ export default function AudienceSyncPage() {
                         <span className="text-sm font-semibold" style={{ color: builderPlatform === p.id ? p.color : "#e5e7eb" }}>{p.name}</span>
                         {p.id === "BOTH" && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase" style={{ background: `${p.color}20`, color: p.color }}>Recomendado</span>}
                       </div>
-                      <p className="text-[11px] text-gray-400 mb-3">{p.desc}</p>
+                      <p className="text-[11px] text-gray-300 mb-3">{p.desc}</p>
                       <ul className="space-y-1.5">
                         {p.features.map((f, fi) => (
-                          <li key={fi} className="flex items-start gap-1.5 text-[10px] text-gray-500">
+                          <li key={fi} className="flex items-start gap-1.5 text-[10px] text-gray-400">
                             <span style={{ color: p.color }}>✓</span> {f}
                           </li>
                         ))}
@@ -771,17 +771,17 @@ export default function AudienceSyncPage() {
               <div className="space-y-5">
                 <div>
                   <h3 className="text-base font-semibold text-white mb-1">Ponele nombre y configura la sincronizacion</h3>
-                  <p className="text-xs text-gray-400">Este nombre va a aparecer en Meta Ads Manager / Google Ads como el nombre de la audiencia.</p>
+                  <p className="text-xs text-gray-300">Este nombre va a aparecer en Meta Ads Manager / Google Ads como el nombre de la audiencia.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] text-gray-500 block mb-1">Nombre de la audiencia *</label>
+                    <label className="text-[10px] text-gray-400 block mb-1">Nombre de la audiencia *</label>
                     <input type="text" value={builderName} onChange={(e) => setBuilderName(e.target.value)} placeholder="Ej: Champions para Lookalike" className="w-full px-4 py-2.5 rounded-xl text-sm font-medium" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }} />
-                    <p className="text-[9px] text-gray-600 mt-1">Tip: usa un nombre descriptivo. Va a aparecer asi en Meta/Google.</p>
+                    <p className="text-[9px] text-gray-400 mt-1">Tip: usa un nombre descriptivo. Va a aparecer asi en Meta/Google.</p>
                   </div>
                   <div>
-                    <label className="text-[10px] text-gray-500 block mb-1">Descripcion (opcional)</label>
+                    <label className="text-[10px] text-gray-400 block mb-1">Descripcion (opcional)</label>
                     <input type="text" value={builderDesc} onChange={(e) => setBuilderDesc(e.target.value)} placeholder="Ej: Top clientes para lookalike 1%" className="w-full px-4 py-2.5 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }} />
                   </div>
                 </div>
@@ -791,7 +791,7 @@ export default function AudienceSyncPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-white">Sincronizacion automatica</p>
-                      <p className="text-[10px] text-gray-500 mt-0.5">Si lo activas, NitroSales actualiza la audiencia automaticamente segun la frecuencia que elijas. Los clientes nuevos se agregan y los que ya no cumplen los criterios se quitan.</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Si lo activas, NitroSales actualiza la audiencia automaticamente segun la frecuencia que elijas. Los clientes nuevos se agregan y los que ya no cumplen los criterios se quitan.</p>
                     </div>
                     <button onClick={() => setBuilderAutoSync(!builderAutoSync)} className="w-11 h-6 rounded-full transition-all relative flex-shrink-0" style={{ background: builderAutoSync ? "linear-gradient(135deg, #8b5cf6, #6366f1)" : "rgba(255,255,255,0.1)" }}>
                       <div className="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all shadow-sm" style={{ left: builderAutoSync ? "22px" : "2px" }} />
@@ -805,8 +805,8 @@ export default function AudienceSyncPage() {
                         { id: "MANUAL", label: "Manual", desc: "Solo cuando vos quieras" },
                       ].map((f) => (
                         <button key={f.id} onClick={() => setBuilderSyncFreq(f.id)} className="flex-1 p-2.5 rounded-lg text-center transition-all" style={{ background: builderSyncFreq === f.id ? "rgba(139,92,246,0.15)" : "rgba(255,255,255,0.02)", border: builderSyncFreq === f.id ? "1px solid rgba(139,92,246,0.3)" : "1px solid rgba(255,255,255,0.05)" }}>
-                          <p className={`text-xs font-medium ${builderSyncFreq === f.id ? "text-purple-300" : "text-gray-400"}`}>{f.label}</p>
-                          <p className="text-[9px] text-gray-600">{f.desc}</p>
+                          <p className={`text-xs font-medium ${builderSyncFreq === f.id ? "text-purple-300" : "text-gray-300"}`}>{f.label}</p>
+                          <p className="text-[9px] text-gray-400">{f.desc}</p>
                         </button>
                       ))}
                     </div>
@@ -817,10 +817,10 @@ export default function AudienceSyncPage() {
                 <div className="rounded-xl p-4" style={{ background: "rgba(34,197,94,0.04)", border: "1px solid rgba(34,197,94,0.12)" }}>
                   <p className="text-xs font-semibold text-white mb-2">Resumen de la audiencia</p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                    <div><span className="text-gray-500">Clientes:</span> <span className="text-white font-medium">{preview?.totalCustomers.toLocaleString() || "..."}</span></div>
-                    <div><span className="text-gray-500">Tipo:</span> <span className="text-white font-medium">{builderSegmentType === "RFM" ? "Comportamiento" : builderSegmentType === "LTV" ? "Valor predicho" : "Todos"}</span></div>
-                    <div><span className="text-gray-500">Destino:</span> <span className="text-white font-medium">{builderPlatform === "META" ? "Meta Ads" : builderPlatform === "GOOGLE" ? "Google Ads" : "Meta + Google"}</span></div>
-                    <div><span className="text-gray-500">Auto-sync:</span> <span className="text-white font-medium">{builderAutoSync ? builderSyncFreq.toLowerCase() : "Manual"}</span></div>
+                    <div><span className="text-gray-400">Clientes:</span> <span className="text-white font-medium">{preview?.totalCustomers.toLocaleString() || "..."}</span></div>
+                    <div><span className="text-gray-400">Tipo:</span> <span className="text-white font-medium">{builderSegmentType === "RFM" ? "Comportamiento" : builderSegmentType === "LTV" ? "Valor predicho" : "Todos"}</span></div>
+                    <div><span className="text-gray-400">Destino:</span> <span className="text-white font-medium">{builderPlatform === "META" ? "Meta Ads" : builderPlatform === "GOOGLE" ? "Google Ads" : "Meta + Google"}</span></div>
+                    <div><span className="text-gray-400">Auto-sync:</span> <span className="text-white font-medium">{builderAutoSync ? builderSyncFreq.toLowerCase() : "Manual"}</span></div>
                   </div>
                 </div>
 
@@ -861,7 +861,7 @@ export default function AudienceSyncPage() {
                       <div className="flex items-center gap-2.5 flex-wrap">
                         <h3 className="text-sm font-semibold text-white">{a.name}</h3>
                         <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider" style={{ background: `${badge.color}15`, color: badge.color, border: `1px solid ${badge.color}25` }}>{badge.label}</span>
-                        <span className="px-2 py-0.5 rounded-md text-[9px] font-medium uppercase" style={{ background: "rgba(255,255,255,0.04)", color: "#9ca3af" }}>
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-medium uppercase" style={{ background: "rgba(255,255,255,0.06)", color: "#d1d5db" }}>
                           {a.platform === "META" ? "Meta Ads" : a.platform === "GOOGLE" ? "Google Ads" : "Meta + Google"}
                         </span>
                         {a.autoSync && (
@@ -870,36 +870,36 @@ export default function AudienceSyncPage() {
                           </span>
                         )}
                       </div>
-                      {a.description && <p className="text-xs text-gray-500 mt-1">{a.description}</p>}
+                      {a.description && <p className="text-xs text-gray-400 mt-1">{a.description}</p>}
 
                       {/* Metrics */}
                       <div className="flex items-center gap-5 mt-3 flex-wrap">
                         <div className="flex items-center gap-1.5">
                           <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                          <span className="text-xs text-gray-300 font-medium">{a.customerCount.toLocaleString()}</span>
-                          <span className="text-[10px] text-gray-500">clientes</span>
+                          <span className="text-xs text-gray-200 font-medium">{a.customerCount.toLocaleString()}</span>
+                          <span className="text-[10px] text-gray-400">clientes</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                          <span className="text-xs text-gray-300 font-medium">{a.lastSyncedCount.toLocaleString()}</span>
-                          <span className="text-[10px] text-gray-500">enviados</span>
+                          <span className="text-xs text-gray-200 font-medium">{a.lastSyncedCount.toLocaleString()}</span>
+                          <span className="text-[10px] text-gray-400">enviados</span>
                         </div>
                         {a.metaMatchRate !== null && (
                           <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#1877f2" }} />
-                            <span className="text-xs font-medium" style={{ color: "#1877f2" }}>{a.metaMatchRate.toFixed(0)}%</span>
-                            <span className="text-[10px] text-gray-500">match Meta</span>
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#60a5fa" }} />
+                            <span className="text-xs font-medium" style={{ color: "#60a5fa" }}>{a.metaMatchRate.toFixed(0)}%</span>
+                            <span className="text-[10px] text-gray-400">match Meta</span>
                           </div>
                         )}
                         {a.googleMatchRate !== null && (
                           <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#4285f4" }} />
-                            <span className="text-xs font-medium" style={{ color: "#4285f4" }}>{a.googleMatchRate.toFixed(0)}%</span>
-                            <span className="text-[10px] text-gray-500">match Google</span>
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#93bbfd" }} />
+                            <span className="text-xs font-medium" style={{ color: "#93bbfd" }}>{a.googleMatchRate.toFixed(0)}%</span>
+                            <span className="text-[10px] text-gray-400">match Google</span>
                           </div>
                         )}
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-gray-600">Ultimo sync: {formatDate(a.lastSyncAt)}</span>
+                          <span className="text-[10px] text-gray-400">Ultimo sync: {formatDate(a.lastSyncAt)}</span>
                         </div>
                       </div>
                       {a.lastSyncError && (
@@ -946,7 +946,7 @@ export default function AudienceSyncPage() {
           </div>
           <div>
             <p className="text-sm text-yellow-200/90 font-medium">Modo vista previa</p>
-            <p className="text-xs text-yellow-200/50 mt-0.5 leading-relaxed">
+            <p className="text-xs text-yellow-200/80 mt-0.5 leading-relaxed">
               Podes crear audiencias y ver previews, pero la sincronizacion real con Meta y Google esta desactivada. Para activarla, necesitas configurar las credenciales de Meta Ads y Google Ads en el entorno de produccion.
             </p>
           </div>
