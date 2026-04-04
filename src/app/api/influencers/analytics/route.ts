@@ -250,9 +250,9 @@ export async function GET(req: NextRequest) {
     const influencerRevenue = Number(thisMonthAgg._sum.attributedValue || 0);
     const totalOrderRevenue = await prisma.order.aggregate({
       where: { organizationId: org.id, createdAt: { gte: monthStart } },
-      _sum: { totalAmount: true },
+      _sum: { totalValue: true },
     });
-    const totalRevenue = Number(totalOrderRevenue._sum.totalAmount || 0);
+    const totalRevenue = Number(totalOrderRevenue._sum.totalValue || 0);
 
     const programKPIs = {
       monthlyRevenue: influencerRevenue,
