@@ -76,6 +76,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/influencers/manage", label: "Gestionar" },
           { href: "/influencers/campaigns", label: "Campañas" },
           { href: "/influencers/applications", label: "Aplicaciones" },
+          { href: "/influencers/leaderboard", label: "Leaderboard" },
+          { href: "/influencers/analytics", label: "Analytics" },
         ],
       },
     ],
