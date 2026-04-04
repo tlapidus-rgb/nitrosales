@@ -269,6 +269,33 @@ export async function GET(
       }
     }
 
+    // Product breakdown: top products sold via this influencer (this month)
+    // ONLY fetched if the company has enabled product visibility for this influencer
+    // Data isolation: query is strictly filtered by influencerId AND organizationId
+    let topProducts: Array<{ name: string; imageUrl: string | null; units: number; revenue: number }> = [];
+    if (influencer.isProductBreakdownEnabled) {
+      topProducts = await prisma.$queryRaw<
+        Array<{ name: string; imageUrl: string | null; units: number; revenue: number }>
+      >(Prisma.sql`
+        SELECT
+          p.name,
+          p."imageUrl",
+          SUM(oi.quantity)::int as units,
+          SUM(oi."totalPrice")::float as revenue
+        FROM "influencer_attributions" ia
+        JOIN "orders" o ON ia."orderId" = o.id
+        JOIN "order_items" oi ON oi."orderId" = o.id
+        JOIN "products" p ON oi."productId" = p.id
+        WHERE ia."influencerId" = ${influencer.id}
+          AND ia."organizationId" = ${org.id}
+          AND p."organizationId" = ${org.id}
+          AND ia."createdAt" >= ${monthStart}
+        GROUP BY p.name, p."imageUrl"
+        ORDER BY units DESC
+        LIMIT 10
+      `);
+    }
+
     // Build tracking URL for the influencer
     const storeUrl = process.env.STORE_URL || "https://elmundodeljuguete.com.ar";
     const trackingUrl = `${storeUrl.replace(/\/$/, "")}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
@@ -335,6 +362,7 @@ export async function GET(
         commission: Number(s.commissionAmount),
       })),
       dailyChart,
+      topProducts: influencer.isProductBreakdownEnabled ? topProducts : undefined,
       updatedAt: now.toISOString(),
     };
 

@@ -91,6 +91,30 @@ export async function GET(
         AND "utmParams"->>'source' = ${"inf_" + influencer.code}
     `);
 
+    // Product breakdown: which products were sold via this influencer
+    const productBreakdown = await prisma.$queryRaw<
+      Array<{ productId: string; name: string; category: string | null; imageUrl: string | null; units: number; revenue: number }>
+    >(Prisma.sql`
+      SELECT
+        p.id as "productId",
+        p.name,
+        p.category,
+        p."imageUrl",
+        SUM(oi.quantity)::int as units,
+        SUM(oi."totalPrice")::float as revenue
+      FROM "influencer_attributions" ia
+      JOIN "orders" o ON ia."orderId" = o.id
+      JOIN "order_items" oi ON oi."orderId" = o.id
+      JOIN "products" p ON oi."productId" = p.id
+      WHERE ia."influencerId" = ${params.id}
+        AND ia."organizationId" = ${org.id}
+        AND ia."createdAt" >= ${dateFrom}
+        AND ia."createdAt" <= ${dateTo}
+      GROUP BY p.id, p.name, p.category, p."imageUrl"
+      ORDER BY revenue DESC
+      LIMIT 20
+    `);
+
     const totalRevenue = Number(agg._sum.attributedValue || 0);
     const totalConversions = agg._count.id || 0;
     const uniqueVisitors = visitorCount[0]?.count || 0;
@@ -104,6 +128,7 @@ export async function GET(
       uniqueVisitors,
       dailyMetrics,
       campaignBreakdown,
+      productBreakdown,
       period: { from: dateFrom.toISOString(), to: dateTo.toISOString() },
     });
   } catch (error: any) {

@@ -91,6 +91,9 @@ export async function PUT(
         ...(body.isPublicDashboardEnabled !== undefined && {
           isPublicDashboardEnabled: body.isPublicDashboardEnabled,
         }),
+        ...(body.isProductBreakdownEnabled !== undefined && {
+          isProductBreakdownEnabled: body.isProductBreakdownEnabled,
+        }),
         ...(body.dashboardPassword !== undefined && {
           dashboardPassword: body.dashboardPassword ? hashPassword(body.dashboardPassword) : null,
         }),

@@ -25,6 +25,7 @@ interface InfluencerDetail {
   status: string;
   publicName: string | null;
   isPublicDashboardEnabled: boolean;
+  isProductBreakdownEnabled: boolean;
   totalRevenue: number;
   totalCommission: number;
   totalConversions: number;
@@ -41,6 +42,7 @@ interface Metrics {
   uniqueVisitors: number;
   dailyMetrics: Array<{ date: string; sales: number; conversions: number; commission: number }>;
   campaignBreakdown: Array<{ campaignName: string; sales: number; conversions: number }>;
+  productBreakdown: Array<{ productId: string; name: string; category: string | null; imageUrl: string | null; units: number; revenue: number }>;
 }
 
 export default function InfluencerDetailPage() {
@@ -152,6 +154,39 @@ export default function InfluencerDetailPage() {
         </div>
       </div>
 
+      {/* Dashboard Settings */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <h3 className="text-sm font-semibold mb-3" style={{ color: "#111827" }}>Configuración del dashboard público</h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium" style={{ color: "#111827" }}>Mostrar productos vendidos</p>
+            <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+              Si está activo, el influencer puede ver qué productos vendió y cuántas unidades. Solo ve productos de SUS ventas.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              const newValue = !influencer.isProductBreakdownEnabled;
+              await fetch(`/api/influencers/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isProductBreakdownEnabled: newValue }),
+              });
+              setInfluencer({ ...influencer, isProductBreakdownEnabled: newValue });
+            }}
+            className={`relative w-11 h-6 rounded-full transition-colors ${
+              influencer.isProductBreakdownEnabled ? "bg-orange-500" : "bg-gray-300"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                influencer.isProductBreakdownEnabled ? "translate-x-5" : ""
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
@@ -213,6 +248,35 @@ export default function InfluencerDetailPage() {
               </ResponsiveContainer>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Product Breakdown */}
+      {metrics?.productBreakdown && metrics.productBreakdown.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-900">Productos vendidos</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Top productos generados por este influencer</p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {metrics.productBreakdown.map((p) => (
+              <div key={p.productId} className="px-6 py-3 flex items-center gap-4">
+                {p.imageUrl ? (
+                  <img src={p.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-100" />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 text-xs">📦</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                  {p.category && <p className="text-[10px] text-gray-400">{p.category}</p>}
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-gray-900">{p.units} un.</p>
+                  <p className="text-xs text-orange-500">{fmtARS(p.revenue)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
