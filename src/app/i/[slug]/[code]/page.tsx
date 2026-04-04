@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 
 // ══════════════════════════════════════════════════════════════
 // Public Influencer Dashboard v2 — NO LOGIN REQUIRED
@@ -556,6 +557,21 @@ export default function PublicInfluencerDashboard() {
               </div>
             </div>
           )}
+
+          {/* ── Content Portal Link ── */}
+          <Link
+            href={`/i/${slug}/${code}/content`}
+            className={`${card} rounded-2xl p-4 flex items-center justify-between hover:scale-[1.01] transition-transform`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-lg">📋</span>
+              <div>
+                <p className="text-sm font-medium">Mi Contenido</p>
+                <p className={`text-[10px] ${textMuted}`}>Briefs, envios de contenido y productos</p>
+              </div>
+            </div>
+            <svg className={`w-4 h-4 ${textMuted}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </Link>
 
           {/* ── Stats Grid ── */}
           <div className="grid grid-cols-3 gap-3">

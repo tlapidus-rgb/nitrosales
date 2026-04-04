@@ -67,6 +67,9 @@ model Organization {
   influencerAttributions   InfluencerAttribution[]
   influencerCoupons        InfluencerCoupon[]
   influencerApplications   InfluencerApplication[]
+  influencerBriefings      InfluencerBriefing[]
+  contentSubmissions       ContentSubmission[]
+  productSeedings          ProductSeeding[]
 
   @@map("organizations")
 }
@@ -241,6 +244,7 @@ model Product {
   organization   Organization @relation(fields: [organizationId], references: [id])
   orderItems     OrderItem[]
   competitorPrices CompetitorPrice[]
+  productSeedings  ProductSeeding[]
 
   @@unique([organizationId, externalId])
   @@map("products")
@@ -1153,6 +1157,9 @@ model Influencer {
   attributions            InfluencerAttribution[]
   coupons                 InfluencerCoupon[]
   commissionTiers         InfluencerCommissionTier[]
+  briefings               InfluencerBriefing[]
+  contentSubmissions      ContentSubmission[]
+  productSeedings         ProductSeeding[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -1199,6 +1206,7 @@ model InfluencerCampaign {
   influencerId    String
   influencer      Influencer @relation(fields: [influencerId], references: [id])
   attributions    InfluencerAttribution[]
+  briefings       InfluencerBriefing[]
 
   @@index([organizationId, influencerId])
   @@map("influencer_campaigns")
@@ -1264,4 +1272,97 @@ model InfluencerCommissionTier {
 
   @@index([influencerId])
   @@map("influencer_commission_tiers")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 5: CONTENIDO, UGC & PRODUCT SEEDING
+// ─────────────────────────────────────────────
+
+// Brief de contenido que la empresa envía al influencer
+model InfluencerBriefing {
+  id              String    @id @default(cuid())
+  title           String                               // "Reel para Día del Niño"
+  description     String    @db.Text                   // Instrucciones detalladas
+  type            String    @default("GENERAL")        // GENERAL, REEL, STORY, POST, UNBOXING, REVIEW
+  deadline        DateTime? @db.Date                   // Fecha límite de entrega
+  status          String    @default("ACTIVE")         // ACTIVE, COMPLETED, CANCELLED
+  requirements    String?   @db.Text                   // Requerimientos técnicos (formato, duración, etc.)
+  hashtags        String?                              // Hashtags sugeridos separados por coma
+  mentions        String?                              // Cuentas a mencionar
+  dos             String?   @db.Text                   // Lo que SÍ hacer
+  donts           String?   @db.Text                   // Lo que NO hacer
+  referenceUrls   String?   @db.Text                   // Links de referencia separados por línea
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  influencerId    String?                              // null = briefing para todos los influencers
+  influencer      Influencer? @relation(fields: [influencerId], references: [id])
+  campaignId      String?
+  campaign        InfluencerCampaign? @relation(fields: [campaignId], references: [id])
+  submissions     ContentSubmission[]
+  seedings        ProductSeeding[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, influencerId])
+  @@map("influencer_briefings")
+}
+
+// Contenido subido por el influencer (puede o no estar ligado a un briefing)
+model ContentSubmission {
+  id              String    @id @default(cuid())
+  type            String    @default("POST")           // REEL, STORY, POST, TIKTOK, YOUTUBE, OTHER
+  platform        String    @default("INSTAGRAM")      // INSTAGRAM, TIKTOK, YOUTUBE, OTHER
+  contentUrl      String                               // URL del contenido publicado
+  caption         String?   @db.Text                   // Caption/descripción que usó
+  thumbnailUrl    String?                              // Preview image URL
+  notes           String?   @db.Text                   // Notas del influencer
+  status          String    @default("PENDING")        // PENDING, APPROVED, REVISION, REJECTED
+  reviewNotes     String?   @db.Text                   // Feedback de la empresa
+  reviewedAt      DateTime?
+  publishedAt     DateTime?                            // Cuándo se publicó el contenido
+  metrics         Json?                                // { views, likes, comments, shares, saves }
+  isUGC           Boolean   @default(false)            // Marcado como apto para reutilizar como UGC
+  ugcApprovedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  influencerId    String
+  influencer      Influencer @relation(fields: [influencerId], references: [id])
+  briefingId      String?
+  briefing        InfluencerBriefing? @relation(fields: [briefingId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([organizationId, influencerId])
+  @@index([organizationId, isUGC])
+  @@map("content_submissions")
+}
+
+// Productos enviados a influencers (product seeding / gifting)
+model ProductSeeding {
+  id              String    @id @default(cuid())
+  status          String    @default("PENDING")        // PENDING, SHIPPED, DELIVERED, CONTENT_RECEIVED
+  trackingNumber  String?                              // Nro de seguimiento del envío
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  notes           String?   @db.Text                   // Notas internas
+  estimatedValue  Decimal?  @db.Decimal(12, 2)         // Valor estimado del producto enviado
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  influencerId    String
+  influencer      Influencer @relation(fields: [influencerId], references: [id])
+  productId       String?
+  product         Product? @relation(fields: [productId], references: [id])
+  briefingId      String?
+  briefing        InfluencerBriefing? @relation(fields: [briefingId], references: [id])
+
+  @@index([organizationId, influencerId])
+  @@index([organizationId, status])
+  @@map("product_seedings")
 }
