@@ -138,9 +138,12 @@ export default function LeaderboardPage() {
           <style>{`@keyframes lbPulse { 0%, 100% { height: 20%; opacity: 0.4; } 50% { height: 100%; opacity: 1; } }`}</style>
         </div>
       ) : leaderboard.length === 0 ? (
-        <div className="text-center py-16" style={{ color: "#9CA3AF" }}>
-          <p className="text-4xl mb-3">📊</p>
-          <p className="text-sm">No hay datos para este período</p>
+        <div className="text-center py-16">
+          <p className="text-4xl mb-4">🏆</p>
+          <p className="text-lg font-medium mb-2" style={{ color: "#111827" }}>Todavía no hay datos para este período</p>
+          <p className="text-sm max-w-md mx-auto" style={{ color: "#6B7280" }}>
+            El leaderboard se completa automáticamente cuando los influencers generan ventas. Compartí los links de tracking para empezar a ver el ranking.
+          </p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

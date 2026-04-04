@@ -153,6 +153,17 @@ export default function AnalyticsPage() {
         </button>
       </div>
 
+      {/* Empty state */}
+      {!kpis && cohort.length === 0 && campaigns.length === 0 && anomalies.length === 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <p className="text-4xl mb-4">📊</p>
+          <p className="text-lg font-medium mb-2" style={{ color: "#111827" }}>Todavía no hay datos de atribuciones</p>
+          <p className="text-sm max-w-md mx-auto" style={{ color: "#6B7280" }}>
+            Los analytics se van a llenar automáticamente cuando los influencers generen ventas a través de sus links de tracking o cupones. Compartí los links y empezá a ver resultados acá.
+          </p>
+        </div>
+      )}
+
       {/* Program KPIs */}
       {kpis && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
