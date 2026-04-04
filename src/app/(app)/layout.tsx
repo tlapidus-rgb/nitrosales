@@ -183,7 +183,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-nitro-bg flex">
+    <div className="h-screen bg-nitro-bg flex overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -259,6 +259,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                       </svg>
                       {item.label}
+                      {hasChildren && (
+                        <svg
+                          className="w-3.5 h-3.5 ml-auto text-nitro-muted transition-transform duration-400 ease-nitro"
+                          style={{
+                            transform: isActive ? "rotate(180deg)" : "rotate(0deg)",
+                            transition: "transform 400ms cubic-bezier(0.16, 1, 0.3, 1)",
+                          }}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      )}
                       {item.href === "/chat" && (
                         <span className="ml-auto flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-nitro-green animate-pulse-live" />
@@ -268,26 +283,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         </span>
                       )}
                     </Link>
-                    {/* Sub-items */}
-                    {hasChildren && isActive && (
-                      <div className="ml-8 mt-1 space-y-0.5">
-                        {item.children!.map((child) => {
-                          const childActive = pathname === child.href;
-                          return (
-                            <Link
-                              key={child.href}
-                              href={child.href}
-                              onClick={() => setSidebarOpen(false)}
-                              className={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                                childActive
-                                  ? "text-nitro-orange bg-white/5"
-                                  : "text-nitro-muted hover:text-nitro-text2 hover:bg-white/5"
-                              }`}
-                            >
-                              {child.label}
-                            </Link>
-                          );
-                        })}
+                    {/* Sub-items with smooth expand/collapse */}
+                    {hasChildren && (
+                      <div
+                        className="sidebar-dropdown ml-8 space-y-0.5 overflow-hidden transition-all duration-400 ease-nitro"
+                        style={{
+                          display: "grid",
+                          gridTemplateRows: isActive ? "1fr" : "0fr",
+                          opacity: isActive ? 1 : 0,
+                          marginTop: isActive ? "4px" : "0px",
+                          transition: "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
+                        }}
+                      >
+                        <div className="min-h-0 space-y-0.5">
+                          {item.children!.map((child, ci) => {
+                            const childActive = pathname === child.href;
+                            return (
+                              <Link
+                                key={child.href}
+                                href={child.href}
+                                onClick={() => setSidebarOpen(false)}
+                                className={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ease-nitro ${
+                                  childActive
+                                    ? "text-nitro-orange bg-white/5"
+                                    : "text-nitro-muted hover:text-nitro-text2 hover:bg-white/5"
+                                }`}
+                                style={{
+                                  transitionDelay: isActive ? `${ci * 50}ms` : "0ms",
+                                  transform: isActive ? "translateX(0)" : "translateX(-8px)",
+                                  opacity: isActive ? 1 : 0,
+                                  transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? ci * 50 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? ci * 50 : 0}ms, color 200ms, background-color 200ms`,
+                                }}
+                              >
+                                {child.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -320,7 +352,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Top bar */}
         <header className="glass border-b border-nitro-border px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
@@ -371,7 +403,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-4 lg:p-6 bg-[#F7F8FA]">{children}</main>
+        <main className="flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto">{children}</main>
       </div>
     </div>
   );
