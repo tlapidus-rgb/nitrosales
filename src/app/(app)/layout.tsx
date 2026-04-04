@@ -67,6 +67,11 @@ const NAV_GROUPS: NavGroup[] = [
         label: "SEO",
         icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
       },
+    ],
+  },
+  {
+    label: "NITRO CREATORS",
+    items: [
       {
         href: "/influencers",
         label: "Influencers",
@@ -80,11 +85,6 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/influencers/analytics", label: "Analytics" },
         ],
       },
-    ],
-  },
-  {
-    label: "CONTENIDO",
-    items: [
       {
         href: "/influencers/briefings",
         label: "Contenido",
@@ -260,12 +260,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {group.label && (
                 <p
                   className={`px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] select-none ${
-                    group.label === "HERRAMIENTAS"
+                    group.label === "HERRAMIENTAS" || group.label === "NITRO CREATORS"
                       ? "text-nitro-orange/70"
                       : "text-nitro-muted/60"
                   }`}
                   style={
-                    group.label === "HERRAMIENTAS"
+                    group.label === "HERRAMIENTAS" || group.label === "NITRO CREATORS"
                       ? {
                           background: "linear-gradient(90deg, var(--nitro-orange), #f59e0b)",
                           WebkitBackgroundClip: "text",
@@ -279,9 +279,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </p>
               )}
               {group.items.map((item) => {
+                // Content routes that belong to "Contenido" not "Influencers"
+                const contentRoutes = ["/influencers/briefings", "/influencers/content", "/influencers/ugc", "/influencers/seeding"];
+                const isContentRoute = contentRoutes.some(r => pathname.startsWith(r));
                 const isActive =
+                  // Check if any child matches exactly
+                  (item.children?.some(c => pathname === c.href || pathname.startsWith(c.href))) ||
+                  // Or direct match
                   pathname === item.href ||
-                  (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                  // Or prefix match, but exclude content routes from influencers parent
+                  (item.href !== "/dashboard" && item.href !== "/influencers" && pathname.startsWith(item.href)) ||
+                  // Influencers only active when NOT on a content route
+                  (item.href === "/influencers" && pathname.startsWith("/influencers") && !isContentRoute);
                 const hasChildren = item.children && item.children.length > 0;
                 return (
                   <div key={item.href}>
