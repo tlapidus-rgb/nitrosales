@@ -9,6 +9,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/client';
 import { calculateAttribution } from '@/lib/pixel/attribution';
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   // Simple auth via query param (admin use only)
   const { searchParams } = new URL(request.url);

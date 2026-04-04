@@ -11,6 +11,8 @@ import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { fetchMetaAdLibrary, ParsedCompetitorAd } from "@/lib/connectors/meta-ad-library";
 
+export const dynamic = "force-dynamic";
+
 export const revalidate = 0;
 export const maxDuration = 60;
 

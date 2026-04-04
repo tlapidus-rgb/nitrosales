@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 
+export const dynamic = "force-dynamic";
+
 const BACKFILL_KEY = "nitrosales-backfill-2024";
 const BATCH_SIZE = 50;
 const DELAY_MS = 200; // Rate limit: ~5 req/s to VTEX // v3

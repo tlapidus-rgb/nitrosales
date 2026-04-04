@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const MIN_VALID_PRICE = 1000;

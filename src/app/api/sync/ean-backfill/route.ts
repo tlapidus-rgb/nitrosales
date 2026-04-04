@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getVtexCredentials } from "@/lib/vtex-credentials";
 
+export const dynamic = "force-dynamic";
+
 export const revalidate = 0;
 export const maxDuration = 60;
 

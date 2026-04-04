@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 
+export const dynamic = "force-dynamic";
+
 const DEFAULT_LOW = 25000;
 const DEFAULT_MED = 100000;
 

@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 
+export const dynamic = "force-dynamic";
+
 const DEFAULT_WEIGHTS = { first: 30, last: 40, middle: 30 };
 const DEFAULT_WINDOW = 30;
 const VALID_GLOBAL_WINDOWS = [7, 14, 30, 60];

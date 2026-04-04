@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 
+export const dynamic = "force-dynamic";
+
 // Default widgets (same as the original dashboard layout)
 const DEFAULT_WIDGETS = [
   "revenue", "orders", "ticket", "sessions", "adspend", "roas",

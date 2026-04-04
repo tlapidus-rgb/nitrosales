@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db/client";
 import { previewAudience } from "@/lib/audiences/segment-engine";
 import type { SegmentCriteria } from "@/lib/audiences/types";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // ─── GET: Listar audiencias ───

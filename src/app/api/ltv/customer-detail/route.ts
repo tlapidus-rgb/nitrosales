@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/ltv/customer-detail?id=xxx
 // Returns order history + prediction details for a single customer
 

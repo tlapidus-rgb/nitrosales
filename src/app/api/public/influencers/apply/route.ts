@@ -10,6 +10,8 @@ import { prisma } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email/send";
 import { applicationConfirmationEmail } from "@/lib/email/templates";
 
+export const dynamic = "force-dynamic";
+
 // Rate limiter: 1 application per minute per IP
 const rateLimitMap = new Map<string, number>();
 

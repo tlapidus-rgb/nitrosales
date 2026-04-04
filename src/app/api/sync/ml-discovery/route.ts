@@ -15,6 +15,8 @@ import { prisma } from "@/lib/db/client";
 import { OwnProduct } from "@/lib/connectors/competitor-discovery";
 import { discoverMLCompetitors, getAccessToken, MLCredentials } from "@/lib/connectors/mercadolibre";
 
+export const dynamic = "force-dynamic";
+
 export const revalidate = 0;
 export const maxDuration = 60;
 

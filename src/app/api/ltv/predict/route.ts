@@ -15,6 +15,8 @@ import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { runBatchPrediction } from "@/lib/ltv/prediction-engine";
 
+export const dynamic = "force-dynamic";
+
 export const revalidate = 0;
 export const maxDuration = 60; // Vercel Pro: allow up to 60s
 

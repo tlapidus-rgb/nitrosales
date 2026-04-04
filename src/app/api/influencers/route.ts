@@ -14,6 +14,7 @@ function hashPassword(password: string): string {
   return createHash("sha256").update(password).digest("hex");
 }
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // Generate a unique alphanumeric code for the influencer

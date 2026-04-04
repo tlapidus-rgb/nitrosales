@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { createHash } from "crypto";
 
+export const dynamic = "force-dynamic";
+
 function hashPassword(password: string): string {
   return createHash("sha256").update(password).digest("hex");
 }

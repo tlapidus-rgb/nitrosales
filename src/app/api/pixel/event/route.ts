@@ -12,6 +12,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/client';
 import { findOrCreateVisitor, identifyVisitor, hashIP } from '@/lib/pixel/identity';
 
+export const dynamic = "force-dynamic";
+
 // ─── Types ───
 
 interface PixelEventPayload {

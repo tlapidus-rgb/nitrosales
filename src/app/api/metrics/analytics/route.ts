@@ -3,6 +3,8 @@ import * as crypto from "crypto";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Analytics API — GA4 Data for Ecommerce Dashboard
 // Fetches geographic, product, search, traffic, landing page,
