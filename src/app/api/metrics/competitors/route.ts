@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.product.findMany({
         where: { organizationId: orgId, isActive: true },
-        select: { id: true, name: true, sku: true, price: true, imageUrl: true, stock: true },
+        select: { id: true, name: true, sku: true, price: true, imageUrl: true, stock: true, category: true, brand: true },
       }),
     ]);
 
@@ -112,6 +112,8 @@ export async function GET(req: NextRequest) {
           sku: own.sku,
           price: ownPrice,
           imageUrl: own.imageUrl,
+          category: own.category || null,
+          brand: own.brand || null,
           priceStatus,
         },
         competitors,

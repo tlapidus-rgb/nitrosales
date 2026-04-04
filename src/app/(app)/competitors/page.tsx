@@ -19,7 +19,7 @@ type CompItem = {
   matchMethod?: string | null;
 };
 type PriceRow = {
-  ownProduct: { id: string; name: string; sku: string; price: number; imageUrl?: string; priceStatus?: "ok" | "sin_stock" | "sin_precio" };
+  ownProduct: { id: string; name: string; sku: string; price: number; imageUrl?: string; priceStatus?: "ok" | "sin_stock" | "sin_precio"; category?: string | null; brand?: string | null };
   competitors: CompItem[];
   position: number;
   totalInComparison: number;
@@ -61,6 +61,15 @@ export default function CompetitorsPage() {
   // Auto-discovery state
   const [discovering, setDiscovering] = useState<string | null>(null); // storeId being discovered
   const [discoveryResult, setDiscoveryResult] = useState<any>(null);
+
+  // Manage modal: collapsible stores + filter
+  const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
+  const [storeProductFilter, setStoreProductFilter] = useState<Record<string, "all" | "connected" | "unmapped">>({});
+  const [storeShowMore, setStoreShowMore] = useState<Record<string, boolean>>({});
+
+  // Table filters: category + brand
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [brandFilter, setBrandFilter] = useState("all");
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
@@ -210,12 +219,33 @@ export default function CompetitorsPage() {
     if (storeFilter !== "all") {
       rows = rows.filter((r: PriceRow) => r.competitors.some((c: CompItem) => c.storeId === storeFilter));
     }
+    if (categoryFilter !== "all") {
+      rows = rows.filter((r: PriceRow) => r.ownProduct.category === categoryFilter);
+    }
+    if (brandFilter !== "all") {
+      rows = rows.filter((r: PriceRow) => r.ownProduct.brand === brandFilter);
+    }
     if (search) {
       const q = search.toLowerCase();
       rows = rows.filter((r: PriceRow) => r.ownProduct.name.toLowerCase().includes(q) || r.ownProduct.sku?.toLowerCase().includes(q));
     }
     return rows;
-  }, [data, storeFilter, search]);
+  }, [data, storeFilter, categoryFilter, brandFilter, search]);
+
+  // Extract unique categories and brands for filter dropdowns
+  const { categories, brands } = useMemo(() => {
+    if (!data?.priceComparison) return { categories: [], brands: [] };
+    const catSet = new Set<string>();
+    const brandSet = new Set<string>();
+    for (const row of data.priceComparison) {
+      if (row.ownProduct.category) catSet.add(row.ownProduct.category);
+      if (row.ownProduct.brand) brandSet.add(row.ownProduct.brand);
+    }
+    return {
+      categories: [...catSet].sort((a, b) => a.localeCompare(b, "es")),
+      brands: [...brandSet].sort((a, b) => a.localeCompare(b, "es")),
+    };
+  }, [data]);
 
   const stores: Store[] = data?.stores || [];
   const summary = data?.summary || {};
@@ -395,11 +425,27 @@ export default function CompetitorsPage() {
                 <h3 className="font-bold text-gray-800">Comparativa de Precios</h3>
                 <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded" style={{ background: "#fff7ed", color: "#c2410c" }}>PRECIOS</span>
               </div>
-              <input
-                type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar producto..."
-                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs w-48 outline-none focus:border-indigo-400"
-              />
+              <div className="flex items-center gap-2">
+                {categories.length > 0 && (
+                  <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+                    className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-indigo-400 bg-white max-w-[160px]">
+                    <option value="all">Categoría</option>
+                    {categories.map(c => <option key={c} value={c}>{c.length > 22 ? c.substring(0, 22) + "…" : c}</option>)}
+                  </select>
+                )}
+                {brands.length > 0 && (
+                  <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)}
+                    className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-indigo-400 bg-white max-w-[140px]">
+                    <option value="all">Marca</option>
+                    {brands.map(b => <option key={b} value={b}>{b.length > 18 ? b.substring(0, 18) + "…" : b}</option>)}
+                  </select>
+                )}
+                <input
+                  type="text" value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Buscar producto..."
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs w-48 outline-none focus:border-indigo-400"
+                />
+              </div>
             </div>
             <div className="overflow-x-auto" style={{ maxHeight: 480 }}>
               <table className="w-full text-sm">
@@ -424,10 +470,11 @@ export default function CompetitorsPage() {
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
                           {row.ownProduct.imageUrl ? (
-                            <img src={row.ownProduct.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover bg-gray-100" />
-                          ) : (
-                            <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-lg">📦</div>
-                          )}
+                            <img src={row.ownProduct.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover bg-gray-100"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }}
+                            />
+                          ) : null}
+                          <div className={`w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-lg ${row.ownProduct.imageUrl ? "hidden" : ""}`}>📦</div>
                           <div>
                             <p className="font-semibold text-gray-800 text-[13px]">{row.ownProduct.name.substring(0, 50)}</p>
                             <p className="text-[11px] text-gray-400">{row.ownProduct.sku || "Sin SKU"}</p>
@@ -548,30 +595,59 @@ export default function CompetitorsPage() {
               </div>
             </div>
 
-            {/* Existing stores + their products */}
+            {/* Existing stores + their products (collapsible) */}
             {stores.map((s: Store) => {
               const storeProducts = data?.unmappedProducts?.filter((p: any) => p.competitor === s.name) || [];
               const mappedProducts = data?.priceComparison?.flatMap((r: PriceRow) =>
                 r.competitors.filter((c: CompItem) => c.storeId === s.id).map((c: CompItem) => ({ ...c, ownName: r.ownProduct.name }))
               ) || [];
+              const isExpanded = expandedStores.has(s.id);
+              const filter = storeProductFilter[s.id] || "all";
+              const showAll = storeShowMore[s.id] || false;
+
+              // Filtered list
+              const filteredMapped = filter === "unmapped" ? [] : mappedProducts;
+              const filteredUnmapped = filter === "connected" ? [] : storeProducts;
+              const allFiltered = [
+                ...filteredMapped.map((p: any, i: number) => ({ ...p, _type: "mapped" as const, _key: `m${i}` })),
+                ...filteredUnmapped.map((p: any) => ({ ...p, _type: "unmapped" as const, _key: p.id })),
+              ];
+              const VISIBLE_LIMIT = 20;
+              const visibleProducts = showAll ? allFiltered : allFiltered.slice(0, VISIBLE_LIMIT);
+              const hiddenCount = allFiltered.length - VISIBLE_LIMIT;
 
               return (
-                <div key={s.id} className="border rounded-xl p-4 mb-3">
-                  <div className="flex justify-between items-center mb-3">
-                    <div>
-                      <p className="font-semibold text-gray-800">{s.name}</p>
-                      <p className="text-xs text-gray-400">{s.website}</p>
+                <div key={s.id} className="border rounded-xl mb-3 overflow-hidden">
+                  {/* Collapsible header */}
+                  <div
+                    className="flex justify-between items-center p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => setExpandedStores(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n; })}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`text-gray-400 text-xs transition-transform ${isExpanded ? "rotate-90" : ""}`}>&#9654;</span>
+                      <div>
+                        <p className="font-semibold text-gray-800">{s.name}</p>
+                        <p className="text-xs text-gray-400">
+                          {s.website}
+                          {(mappedProducts.length > 0 || storeProducts.length > 0) && (
+                            <span className="ml-2">
+                              — <span className="text-emerald-600 font-medium">{mappedProducts.length} conectados</span>
+                              {storeProducts.length > 0 && <span className="text-amber-600 font-medium"> · {storeProducts.length} sin mapear</span>}
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                       <button onClick={() => discoverProducts(s.id)} disabled={discovering === s.id}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5">
                         {discovering === s.id ? (
                           <><svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Buscando...</>
                         ) : (
-                          <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Descubrir Productos</>
+                          <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Descubrir</>
                         )}
                       </button>
-                      <button onClick={() => { setShowAddProduct(s.id); setNewProductUrl(""); }}
+                      <button onClick={() => { setShowAddProduct(s.id); setNewProductUrl(""); setExpandedStores(prev => new Set(prev).add(s.id)); }}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 border border-indigo-200 hover:bg-indigo-50">
                         + Manual
                       </button>
@@ -582,41 +658,73 @@ export default function CompetitorsPage() {
                     </div>
                   </div>
 
-                  {/* Add product URL inline */}
-                  {showAddProduct === s.id && (
-                    <div className="flex gap-2 mb-3 bg-indigo-50 p-3 rounded-lg">
-                      <input value={newProductUrl} onChange={e => setNewProductUrl(e.target.value)}
-                        placeholder="URL del producto (ej: https://www.cody.com.ar/lego-city-60320)"
-                        className="flex-1 px-3 py-2 border rounded-lg text-xs outline-none" />
-                      <button onClick={() => addProduct(s.id)} disabled={addingProduct || !newProductUrl}
-                        className="px-3 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 disabled:opacity-50">
-                        {addingProduct ? "Agregando..." : "Agregar y Scrapear"}
-                      </button>
-                    </div>
-                  )}
+                  {/* Expanded content */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 border-t border-gray-100">
+                      {/* Add product URL inline */}
+                      {showAddProduct === s.id && (
+                        <div className="flex gap-2 mt-3 mb-3 bg-indigo-50 p-3 rounded-lg">
+                          <input value={newProductUrl} onChange={e => setNewProductUrl(e.target.value)}
+                            placeholder="URL del producto (ej: https://www.cody.com.ar/lego-city-60320)"
+                            className="flex-1 px-3 py-2 border rounded-lg text-xs outline-none" />
+                          <button onClick={() => addProduct(s.id)} disabled={addingProduct || !newProductUrl}
+                            className="px-3 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 disabled:opacity-50">
+                            {addingProduct ? "Agregando..." : "Agregar y Scrapear"}
+                          </button>
+                        </div>
+                      )}
 
-                  {/* Products list */}
-                  {(storeProducts.length > 0 || mappedProducts.length > 0) ? (
-                    <div className="space-y-1.5">
-                      {mappedProducts.map((p: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between text-xs py-1.5 px-2 bg-gray-50 rounded-lg">
-                          <span className="text-gray-600 truncate flex-1">{p.productName?.substring(0, 40) || p.url}</span>
-                          <span className="font-bold text-gray-800 ml-2">{fmtARS(p.price)}</span>
-                          <span className="text-green-600 ml-2 text-[10px]">✓ {p.ownName?.substring(0, 20)}</span>
+                      {/* Filter chips */}
+                      {(mappedProducts.length > 0 || storeProducts.length > 0) && (
+                        <div className="flex gap-1.5 mt-3 mb-2">
+                          {(["all", "connected", "unmapped"] as const).map(f => (
+                            <button key={f}
+                              onClick={() => setStoreProductFilter(prev => ({ ...prev, [s.id]: f }))}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                                filter === f
+                                  ? "bg-indigo-100 text-indigo-700"
+                                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                              }`}>
+                              {f === "all" ? `Todos (${mappedProducts.length + storeProducts.length})`
+                                : f === "connected" ? `Conectados (${mappedProducts.length})`
+                                : `Sin mapear (${storeProducts.length})`}
+                            </button>
+                          ))}
                         </div>
-                      ))}
-                      {storeProducts.map((p: any) => (
-                        <div key={p.id} className="flex items-center justify-between text-xs py-1.5 px-2 bg-amber-50 rounded-lg">
-                          <span className="text-gray-600 truncate flex-1">{p.productName?.substring(0, 40) || "Sin nombre"}</span>
-                          <span className="font-bold text-gray-800 ml-2">{p.price > 0 ? fmtARS(p.price) : "—"}</span>
-                          <button onClick={() => scrapeOne(p.id)} className="ml-2 text-indigo-600 hover:underline">Scrapear</button>
+                      )}
+
+                      {/* Products list */}
+                      {allFiltered.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {visibleProducts.map((p: any) => (
+                            p._type === "mapped" ? (
+                              <div key={p._key} className="flex items-center justify-between text-xs py-1.5 px-2 bg-gray-50 rounded-lg">
+                                <span className="text-gray-600 truncate flex-1">{p.productName?.substring(0, 40) || p.url}</span>
+                                <span className="font-bold text-gray-800 ml-2">{fmtARS(p.price)}</span>
+                                <span className="text-green-600 ml-2 text-[10px]">✓ {p.ownName?.substring(0, 20)}</span>
+                              </div>
+                            ) : (
+                              <div key={p._key} className="flex items-center justify-between text-xs py-1.5 px-2 bg-amber-50 rounded-lg">
+                                <span className="text-gray-600 truncate flex-1">{p.productName?.substring(0, 40) || "Sin nombre"}</span>
+                                <span className="font-bold text-gray-800 ml-2">{p.price > 0 ? fmtARS(p.price) : "—"}</span>
+                                <button onClick={() => scrapeOne(p.id)} className="ml-2 text-indigo-600 hover:underline">Scrapear</button>
+                              </div>
+                            )
+                          ))}
+                          {!showAll && hiddenCount > 0 && (
+                            <button
+                              onClick={() => setStoreShowMore(prev => ({ ...prev, [s.id]: true }))}
+                              className="w-full text-center py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                              Ver más (+{hiddenCount})
+                            </button>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 py-2 px-3 bg-emerald-50 rounded-lg">
-                      <span className="text-emerald-500 text-lg">🔍</span>
-                      <p className="text-xs text-emerald-700">Usa <strong>"Descubrir Productos"</strong> para buscar automaticamente productos en comun con tu catalogo.</p>
+                      ) : (
+                        <div className="flex items-center gap-3 py-2 px-3 mt-2 bg-emerald-50 rounded-lg">
+                          <span className="text-emerald-500 text-lg">🔍</span>
+                          <p className="text-xs text-emerald-700">Usa <strong>"Descubrir Productos"</strong> para buscar automaticamente productos en comun con tu catalogo.</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
