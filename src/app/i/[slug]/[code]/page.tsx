@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 
 // ══════════════════════════════════════════════════════════════
-// Public Influencer Dashboard — NO LOGIN REQUIRED
+// Public Influencer Dashboard v2 — NO LOGIN REQUIRED
 // ══════════════════════════════════════════════════════════════
-// Mobile-first, beautiful, auto-refreshes every 30 seconds.
+// Mobile-first, dark/light toggle, auto-refreshes every 30s.
 // Shows only aggregated data — NO customer PII.
 // URL: /i/[org_slug]/[influencer_code]
 // ══════════════════════════════════════════════════════════════
@@ -30,16 +30,74 @@ function timeAgo(ts: string): string {
   return `Hace ${days}d`;
 }
 
+function formatDate(d: string): string {
+  return new Date(d).toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+}
+
+interface Campaign {
+  name: string;
+  revenue: number;
+  bonusTarget: number | null;
+  bonusAmount: number | null;
+  progress: number | null;
+}
+
+interface Coupon {
+  code: string;
+  discountPercent: number | null;
+  discountFixed: number | null;
+}
+
+interface Tier {
+  label: string | null;
+  commissionPercent: number;
+  minRevenue: number;
+  maxRevenue: number | null;
+}
+
 interface DashboardData {
   influencer: { name: string; profileImage: string | null; commissionPercent: number };
   organization: { name: string };
   today: { sales: number; conversions: number; commission: number };
   thisMonth: { sales: number; conversions: number; commission: number };
   allTime: { sales: number; conversions: number; commission: number };
+  comparison: { salesChange: number; commissionChange: number };
   stats: { conversionRate: number; avgOrderValue: number; uniqueVisitors: number };
+  tier: Tier | null;
+  campaigns: Campaign[];
+  coupons: Coupon[];
+  bestDays: Array<{ date: string; sales: number }>;
   recentSales: Array<{ timestamp: string; amount: number; commission: number }>;
   dailyChart: Array<{ date: string; sales: number; conversions: number }>;
   updatedAt: string;
+}
+
+// ── Toast notification component ──
+function SaleToast({ amount, onDone }: { amount: number; onDone: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDone, 4000);
+    return () => clearTimeout(timer);
+  }, [onDone]);
+
+  return (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-[slideDown_0.3s_ease-out]">
+      <div className="bg-green-500 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-sm font-medium">
+        <span className="text-lg">🎉</span>
+        Nueva venta: {fmtARS(amount)}
+      </div>
+    </div>
+  );
+}
+
+// ── Change indicator ──
+function ChangeArrow({ value, dark }: { value: number; dark: boolean }) {
+  if (value === 0) return null;
+  const isUp = value > 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${isUp ? "text-green-400" : "text-red-400"}`}>
+      {isUp ? "↑" : "↓"} {Math.abs(value).toFixed(0)}%
+    </span>
+  );
 }
 
 export default function PublicInfluencerDashboard() {
@@ -51,6 +109,7 @@ export default function PublicInfluencerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [darkMode, setDarkMode] = useState(true);
 
   // Password protection state
   const [requiresPassword, setRequiresPassword] = useState(false);
@@ -58,6 +117,13 @@ export default function PublicInfluencerDashboard() {
   const [passwordError, setPasswordError] = useState(false);
   const [authenticatedPassword, setAuthenticatedPassword] = useState<string | null>(null);
   const [lockedInfo, setLockedInfo] = useState<{ name: string; profileImage: string | null; orgName: string } | null>(null);
+
+  // Toast state
+  const [toast, setToast] = useState<number | null>(null);
+  const prevSalesCount = useRef<number | null>(null);
+
+  // Tooltip state for chart
+  const [tooltip, setTooltip] = useState<{ x: number; date: string; sales: number } | null>(null);
 
   const fetchData = useCallback(() => {
     const url = authenticatedPassword
@@ -79,6 +145,13 @@ export default function PublicInfluencerDashboard() {
           setLoading(false);
           return;
         }
+        // Check for new sales (toast notification)
+        const newCount = d.recentSales?.length || 0;
+        if (prevSalesCount.current !== null && newCount > prevSalesCount.current && d.recentSales[0]) {
+          setToast(d.recentSales[0].amount);
+        }
+        prevSalesCount.current = newCount;
+
         setData(d);
         setRequiresPassword(false);
         setLastUpdate(new Date());
@@ -100,7 +173,6 @@ export default function PublicInfluencerDashboard() {
     e.preventDefault();
     if (!password) return;
     setPasswordError(false);
-    // Verify password
     try {
       const res = await fetch(`/api/public/influencers/${slug}/${code}/verify`, {
         method: "POST",
@@ -119,21 +191,38 @@ export default function PublicInfluencerDashboard() {
     }
   };
 
+  // ── Theme classes ──
+  const bg = darkMode
+    ? "bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950"
+    : "bg-gradient-to-br from-gray-50 via-white to-gray-100";
+  const textPrimary = darkMode ? "text-white" : "text-gray-900";
+  const textSecondary = darkMode ? "text-gray-400" : "text-gray-500";
+  const textMuted = darkMode ? "text-gray-500" : "text-gray-400";
+  const textFooter = darkMode ? "text-gray-600" : "text-gray-400";
+  const textFooterBrand = darkMode ? "text-gray-700" : "text-gray-500";
+  const card = darkMode
+    ? "bg-white/5 backdrop-blur-sm border border-white/10"
+    : "bg-white border border-gray-200 shadow-sm";
+  const inputBg = darkMode
+    ? "bg-white/5 border-white/10 text-white placeholder-gray-500"
+    : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400";
+
+  // ── Loading state ──
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center">
+      <div className={`min-h-screen ${bg} flex items-center justify-center`}>
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-full border-2 border-orange-500 border-t-transparent animate-spin" />
-          <p className="text-gray-400 text-sm font-mono">Cargando dashboard...</p>
+          <p className={`${textSecondary} text-sm font-mono`}>Cargando dashboard...</p>
         </div>
       </div>
     );
   }
 
-  // Password gate
+  // ── Password gate ──
   if (requiresPassword) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center px-4">
+      <div className={`min-h-screen ${bg} flex items-center justify-center px-4`}>
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             {lockedInfo?.profileImage ? (
@@ -147,12 +236,12 @@ export default function PublicInfluencerDashboard() {
                 {lockedInfo?.name?.[0]?.toUpperCase() || "?"}
               </div>
             )}
-            <h1 className="text-xl font-bold text-white">{lockedInfo?.name}</h1>
-            <p className="text-sm text-gray-500 mt-1">{lockedInfo?.orgName}</p>
+            <h1 className={`text-xl font-bold ${textPrimary}`}>{lockedInfo?.name}</h1>
+            <p className={`text-sm ${textMuted} mt-1`}>{lockedInfo?.orgName}</p>
           </div>
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-              <p className="text-sm text-gray-400 mb-4 text-center">
+            <div className={`${card} rounded-2xl p-6`}>
+              <p className={`text-sm ${textSecondary} mb-4 text-center`}>
                 Este dashboard esta protegido con contraseña
               </p>
               <input
@@ -160,7 +249,7 @@ export default function PublicInfluencerDashboard() {
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setPasswordError(false); }}
                 placeholder="Ingresa la contraseña"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500/50"
+                className={`w-full px-4 py-3 ${inputBg} border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500/50`}
                 autoFocus
               />
               {passwordError && (
@@ -174,7 +263,7 @@ export default function PublicInfluencerDashboard() {
               Ingresar
             </button>
           </form>
-          <p className="text-[10px] text-gray-700 text-center mt-6">
+          <p className={`text-[10px] ${textFooterBrand} text-center mt-6`}>
             Powered by <span className="text-orange-500 font-medium">NitroSales</span>
           </p>
         </div>
@@ -182,12 +271,13 @@ export default function PublicInfluencerDashboard() {
     );
   }
 
+  // ── Error state ──
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center">
+      <div className={`min-h-screen ${bg} flex items-center justify-center`}>
         <div className="text-center">
           <p className="text-6xl mb-4">🔒</p>
-          <p className="text-gray-400 text-lg">Dashboard no disponible</p>
+          <p className={`${textSecondary} text-lg`}>Dashboard no disponible</p>
         </div>
       </div>
     );
@@ -196,7 +286,10 @@ export default function PublicInfluencerDashboard() {
   const maxSale = Math.max(...data.dailyChart.map((d) => d.sales), 1);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white">
+    <div className={`min-h-screen ${bg} ${textPrimary} transition-colors duration-300`}>
+      {/* Sale toast notification */}
+      {toast !== null && <SaleToast amount={toast} onDone={() => setToast(null)} />}
+
       {/* Header */}
       <header className="px-4 pt-6 pb-4 sm:px-6">
         <div className="max-w-lg mx-auto">
@@ -215,12 +308,31 @@ export default function PublicInfluencerDashboard() {
               )}
               <div>
                 <h1 className="text-lg font-bold">{data.influencer.name}</h1>
-                <p className="text-xs text-gray-500">{data.organization.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className={`text-xs ${textMuted}`}>{data.organization.name}</p>
+                  {data.tier && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-medium">
+                      {data.tier.label || `Tier ${data.tier.commissionPercent}%`} — {data.tier.commissionPercent}%
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">Live</span>
+            <div className="flex items-center gap-3">
+              {/* Dark/Light toggle */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all ${
+                  darkMode ? "bg-white/10 hover:bg-white/20" : "bg-gray-100 hover:bg-gray-200"
+                }`}
+                title={darkMode ? "Modo claro" : "Modo oscuro"}
+              >
+                {darkMode ? "☀️" : "🌙"}
+              </button>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span className={`text-[10px] ${textMuted} font-mono uppercase tracking-wider`}>Live</span>
+              </div>
             </div>
           </div>
         </div>
@@ -229,75 +341,165 @@ export default function PublicInfluencerDashboard() {
       {/* Main Content */}
       <main className="px-4 pb-8 sm:px-6">
         <div className="max-w-lg mx-auto space-y-4">
-          {/* Today Card */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
-            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Ventas de hoy</p>
-            <p className="text-3xl font-bold text-white">{fmtARS(data.today.sales)}</p>
-            <p className="text-sm text-gray-400 mt-1">{fmt(data.today.conversions)} compras</p>
+
+          {/* ── KPI Grid: Today + Month ── */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Today Sales */}
+            <div className={`${card} rounded-2xl p-4`}>
+              <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium mb-1`}>Ventas hoy</p>
+              <p className="text-2xl font-bold">{fmtARS(data.today.sales)}</p>
+              <p className={`text-xs ${textSecondary} mt-0.5`}>{fmt(data.today.conversions)} ventas</p>
+            </div>
+            {/* Today Commission */}
+            <div className={`${card} rounded-2xl p-4`}>
+              <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium mb-1`}>Comision hoy</p>
+              <p className="text-2xl font-bold text-orange-400">{fmtARS(data.today.commission)}</p>
+              <p className={`text-xs ${textSecondary} mt-0.5`}>{data.influencer.commissionPercent}%</p>
+            </div>
           </div>
 
-          {/* Month Card */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
-            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Este mes</p>
-            <p className="text-3xl font-bold text-white">{fmtARS(data.thisMonth.sales)}</p>
-            <p className="text-sm text-gray-400 mt-1">{fmt(data.thisMonth.conversions)} compras</p>
+          {/* Month KPIs with comparison */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Month Sales */}
+            <div className={`${card} rounded-2xl p-4`}>
+              <div className="flex items-center justify-between mb-1">
+                <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium`}>Mes actual</p>
+                <ChangeArrow value={data.comparison.salesChange} dark={darkMode} />
+              </div>
+              <p className="text-2xl font-bold">{fmtARS(data.thisMonth.sales)}</p>
+              <p className={`text-xs ${textSecondary} mt-0.5`}>{fmt(data.thisMonth.conversions)} ventas</p>
+            </div>
+            {/* Month Commission */}
+            <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 backdrop-blur-sm rounded-2xl p-4 border border-orange-500/20">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] text-orange-300/70 uppercase tracking-wider font-medium">Mi comision</p>
+                <ChangeArrow value={data.comparison.commissionChange} dark={darkMode} />
+              </div>
+              <p className="text-2xl font-bold text-orange-400">{fmtARS(data.thisMonth.commission)}</p>
+              <p className="text-xs text-orange-300/50 mt-0.5">
+                {data.influencer.commissionPercent}% de {fmtARS(data.thisMonth.sales)}
+              </p>
+            </div>
           </div>
 
-          {/* Commission Card — Highlighted */}
-          <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 backdrop-blur-sm rounded-2xl p-5 border border-orange-500/20">
-            <p className="text-xs text-orange-300/70 uppercase tracking-wider font-medium mb-1">Mi comision</p>
-            <p className="text-3xl font-bold text-orange-400">{fmtARS(data.thisMonth.commission)}</p>
-            <p className="text-sm text-orange-300/50 mt-1">
-              {data.influencer.commissionPercent}% de {fmtARS(data.thisMonth.sales)}
-            </p>
-          </div>
-
-          {/* Mini Chart — Last 30 days */}
+          {/* ── Chart — Last 30 days ── */}
           {data.dailyChart.length > 0 && (
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
-              <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-4">Ultimos 30 dias</p>
-              <div className="flex items-end gap-[2px] h-24">
+            <div className={`${card} rounded-2xl p-5`}>
+              <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-4`}>Ultimos 30 dias</p>
+              <div
+                className="relative flex items-end gap-[2px] h-28"
+                onMouseLeave={() => setTooltip(null)}
+              >
                 {data.dailyChart.map((d, i) => {
                   const height = (d.sales / maxSale) * 100;
                   return (
                     <div
                       key={i}
-                      className="flex-1 bg-orange-500/60 rounded-t-sm transition-all duration-300 hover:bg-orange-400"
+                      className="flex-1 bg-orange-500/60 rounded-t-sm transition-all duration-200 hover:bg-orange-400 cursor-pointer"
                       style={{ height: `${Math.max(height, 2)}%` }}
-                      title={`${new Date(d.date).toLocaleDateString("es-AR")}: ${fmtARS(d.sales)}`}
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const parent = e.currentTarget.parentElement?.getBoundingClientRect();
+                        setTooltip({
+                          x: rect.left - (parent?.left || 0) + rect.width / 2,
+                          date: formatDate(d.date),
+                          sales: d.sales,
+                        });
+                      }}
                     />
                   );
                 })}
+                {/* Tooltip */}
+                {tooltip && (
+                  <div
+                    className="absolute -top-10 pointer-events-none z-10 transform -translate-x-1/2"
+                    style={{ left: tooltip.x }}
+                  >
+                    <div className={`${darkMode ? "bg-gray-800" : "bg-gray-900"} text-white text-[10px] px-2 py-1 rounded-lg shadow-lg whitespace-nowrap`}>
+                      {tooltip.date}: {fmtARS(tooltip.sales)}
+                    </div>
+                  </div>
+                )}
               </div>
+              {/* X-axis labels */}
               <div className="flex justify-between mt-2">
-                <span className="text-[10px] text-gray-600">30 dias atras</span>
-                <span className="text-[10px] text-gray-600">Hoy</span>
+                {data.dailyChart.length > 0 && (
+                  <>
+                    <span className={`text-[10px] ${textFooter}`}>{formatDate(data.dailyChart[0].date)}</span>
+                    {data.dailyChart.length > 14 && (
+                      <span className={`text-[10px] ${textFooter}`}>
+                        {formatDate(data.dailyChart[Math.floor(data.dailyChart.length / 2)].date)}
+                      </span>
+                    )}
+                    <span className={`text-[10px] ${textFooter}`}>
+                      {formatDate(data.dailyChart[data.dailyChart.length - 1].date)}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           )}
 
-          {/* Recent Sales Feed */}
-          {data.recentSales.length > 0 && (
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
-              <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-3">Actividad reciente</p>
+          {/* ── Active Campaigns ── */}
+          {data.campaigns.length > 0 && (
+            <div className={`${card} rounded-2xl p-5`}>
+              <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Campañas activas</p>
               <div className="space-y-3">
-                {data.recentSales.slice(0, 10).map((sale, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-green-400" />
-                      <span className="text-xs text-gray-500">{timeAgo(sale.timestamp)}</span>
+                {data.campaigns.map((c, i) => (
+                  <div key={i}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">{c.name}</span>
+                      <span className="text-sm font-bold text-orange-400">{fmtARS(c.revenue)}</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm font-medium text-white">{fmtARS(sale.amount)}</span>
-                      <span className="text-xs text-orange-400 ml-2">+{fmtARS(sale.commission)}</span>
-                    </div>
+                    {c.bonusTarget && c.bonusAmount && c.progress !== null && (
+                      <div>
+                        <div className={`h-2 rounded-full ${darkMode ? "bg-white/10" : "bg-gray-100"} overflow-hidden`}>
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              c.progress >= 100
+                                ? "bg-green-400"
+                                : "bg-gradient-to-r from-orange-500 to-orange-400"
+                            }`}
+                            style={{ width: `${c.progress}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span className={`text-[10px] ${textMuted}`}>
+                            {c.progress >= 100 ? "🎉 Bono alcanzado!" : `${c.progress.toFixed(0)}% del objetivo`}
+                          </span>
+                          <span className={`text-[10px] ${textMuted}`}>
+                            Bono: {fmtARS(c.bonusAmount)} al llegar a {fmtARS(c.bonusTarget)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Stats Footer */}
+          {/* ── Active Coupons ── */}
+          {data.coupons.length > 0 && (
+            <div className={`${card} rounded-2xl p-5`}>
+              <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Mis cupones</p>
+              <div className="flex flex-wrap gap-2">
+                {data.coupons.map((c, i) => (
+                  <div
+                    key={i}
+                    className={`${darkMode ? "bg-white/10" : "bg-orange-50 border-orange-200"} border ${darkMode ? "border-white/10" : ""} rounded-xl px-3 py-2 flex items-center gap-2`}
+                  >
+                    <span className="text-sm font-bold font-mono text-orange-400">{c.code}</span>
+                    <span className={`text-[10px] ${textMuted}`}>
+                      {c.discountPercent ? `${c.discountPercent}% off` : c.discountFixed ? `${fmtARS(c.discountFixed)} off` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Stats Grid ── */}
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: "Conversion", value: `${data.stats.conversionRate.toFixed(1)}%` },
@@ -306,44 +508,97 @@ export default function PublicInfluencerDashboard() {
             ].map((stat) => (
               <div
                 key={stat.label}
-                className="bg-white/5 backdrop-blur-sm rounded-xl p-3 border border-white/5 text-center"
+                className={`${card} rounded-xl p-3 text-center`}
               >
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider">{stat.label}</p>
-                <p className="text-sm font-bold text-white mt-1">{stat.value}</p>
+                <p className={`text-[10px] ${textMuted} uppercase tracking-wider`}>{stat.label}</p>
+                <p className="text-sm font-bold mt-1">{stat.value}</p>
               </div>
             ))}
           </div>
 
-          {/* All-time totals */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
-            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-3">Total historico</p>
+          {/* ── Best Days ── */}
+          {data.bestDays && data.bestDays.length > 0 && (
+            <div className={`${card} rounded-2xl p-5`}>
+              <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Mejores dias (30d)</p>
+              <div className="space-y-2">
+                {data.bestDays.map((d, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}</span>
+                      <span className={`text-sm ${textSecondary}`}>{formatDate(d.date)}</span>
+                    </div>
+                    <span className="text-sm font-bold">{fmtARS(d.sales)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Recent Sales Feed ── */}
+          {data.recentSales.length > 0 && (
+            <div className={`${card} rounded-2xl p-5`}>
+              <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Actividad reciente</p>
+              <div className="space-y-3">
+                {data.recentSales.slice(0, 10).map((sale, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-green-400" />
+                      <span className={`text-xs ${textMuted}`}>{timeAgo(sale.timestamp)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-medium">{fmtARS(sale.amount)}</span>
+                      <span className="text-xs text-orange-400 ml-2">+{fmtARS(sale.commission)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── All-time totals ── */}
+          <div className={`${card} rounded-2xl p-5`}>
+            <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Total historico</p>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <p className="text-lg font-bold text-white">{fmtARS(data.allTime.sales)}</p>
-                <p className="text-[10px] text-gray-500">Revenue</p>
+                <p className="text-lg font-bold">{fmtARS(data.allTime.sales)}</p>
+                <p className={`text-[10px] ${textMuted}`}>Revenue</p>
               </div>
               <div>
                 <p className="text-lg font-bold text-orange-400">{fmtARS(data.allTime.commission)}</p>
-                <p className="text-[10px] text-gray-500">Comision</p>
+                <p className={`text-[10px] ${textMuted}`}>Comision</p>
               </div>
               <div>
-                <p className="text-lg font-bold text-white">{fmt(data.allTime.conversions)}</p>
-                <p className="text-[10px] text-gray-500">Ventas</p>
+                <p className="text-lg font-bold">{fmt(data.allTime.conversions)}</p>
+                <p className={`text-[10px] ${textMuted}`}>Ventas</p>
               </div>
             </div>
           </div>
 
-          {/* Footer */}
+          {/* ── Footer ── */}
           <div className="text-center pt-4">
-            <p className="text-[10px] text-gray-600">
+            <p className={`text-[10px] ${textFooter}`}>
               Actualizado {lastUpdate.toLocaleTimeString("es-AR")} · Se refresca cada 30s
             </p>
-            <p className="text-[10px] text-gray-700 mt-1">
+            <p className={`text-[10px] ${textFooterBrand} mt-1`}>
               Powered by <span className="text-orange-500 font-medium">NitroSales</span>
             </p>
           </div>
         </div>
       </main>
+
+      {/* Toast animation keyframes */}
+      <style jsx global>{`
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

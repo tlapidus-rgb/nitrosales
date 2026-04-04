@@ -87,6 +87,7 @@ export async function GET(
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Today's metrics
@@ -106,6 +107,17 @@ export async function GET(
         influencerId: influencer.id,
         organizationId: org.id,
         createdAt: { gte: monthStart },
+      },
+      _sum: { attributedValue: true, commissionAmount: true },
+      _count: { id: true },
+    });
+
+    // Previous month's metrics (for comparison)
+    const prevMonthAgg = await prisma.influencerAttribution.aggregate({
+      where: {
+        influencerId: influencer.id,
+        organizationId: org.id,
+        createdAt: { gte: prevMonthStart, lt: monthStart },
       },
       _sum: { attributedValue: true, commissionAmount: true },
       _count: { id: true },
@@ -158,15 +170,110 @@ export async function GET(
         AND "utmParams"->>'source' = ${"inf_" + influencer.code}
     `);
 
+    // Commission tiers
+    const tiers = await prisma.influencerCommissionTier.findMany({
+      where: { influencerId: influencer.id },
+      orderBy: { minRevenue: "asc" },
+      select: { label: true, commissionPercent: true, minRevenue: true, maxRevenue: true },
+    });
+
+    // Active campaigns with revenue
+    const activeCampaigns = await prisma.influencerCampaign.findMany({
+      where: {
+        influencerId: influencer.id,
+        organizationId: org.id,
+        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+        name: true,
+        bonusTarget: true,
+        bonusAmount: true,
+      },
+    });
+
+    // Get revenue per campaign
+    const campaignRevenues = activeCampaigns.length > 0
+      ? await prisma.influencerAttribution.groupBy({
+          by: ["campaignId"],
+          where: {
+            influencerId: influencer.id,
+            organizationId: org.id,
+            campaignId: { in: activeCampaigns.map((c) => c.id) },
+          },
+          _sum: { attributedValue: true },
+        })
+      : [];
+
+    const campaignRevenueMap = new Map(
+      campaignRevenues.map((cr) => [cr.campaignId, Number(cr._sum.attributedValue || 0)])
+    );
+
+    // Active coupons
+    const coupons = await prisma.influencerCoupon.findMany({
+      where: {
+        influencerId: influencer.id,
+        organizationId: org.id,
+        isActive: true,
+      },
+      select: { code: true, discountPercent: true, discountFixed: true },
+    });
+
+    // Best 3 days (last 30 days)
+    const bestDays = await prisma.$queryRaw<
+      Array<{ date: string; sales: number }>
+    >(Prisma.sql`
+      SELECT
+        DATE("createdAt") as date,
+        COALESCE(SUM("attributedValue"), 0)::float as sales
+      FROM "influencer_attributions"
+      WHERE "influencerId" = ${influencer.id}
+        AND "organizationId" = ${org.id}
+        AND "createdAt" >= ${thirtyDaysAgo}
+      GROUP BY DATE("createdAt")
+      ORDER BY sales DESC
+      LIMIT 3
+    `);
+
     const monthRevenue = Number(monthAgg._sum.attributedValue || 0);
+    const monthCommission = Number(monthAgg._sum.commissionAmount || 0);
     const monthConversions = monthAgg._count.id || 0;
+    const prevMonthRevenue = Number(prevMonthAgg._sum.attributedValue || 0);
+    const prevMonthCommission = Number(prevMonthAgg._sum.commissionAmount || 0);
     const uniqueVisitors = visitorCount[0]?.count || 0;
+
+    // Determine active tier
+    let activeTier: { label: string | null; commissionPercent: number; minRevenue: number; maxRevenue: number | null } | null = null;
+    if (tiers.length > 0) {
+      for (const t of tiers) {
+        const min = Number(t.minRevenue);
+        const max = t.maxRevenue ? Number(t.maxRevenue) : Infinity;
+        if (monthRevenue >= min && monthRevenue < max) {
+          activeTier = {
+            label: t.label,
+            commissionPercent: Number(t.commissionPercent),
+            minRevenue: min,
+            maxRevenue: t.maxRevenue ? Number(t.maxRevenue) : null,
+          };
+        }
+      }
+      // If no tier matched (revenue below all), use first tier
+      if (!activeTier) {
+        const first = tiers[0];
+        activeTier = {
+          label: first.label,
+          commissionPercent: Number(first.commissionPercent),
+          minRevenue: Number(first.minRevenue),
+          maxRevenue: first.maxRevenue ? Number(first.maxRevenue) : null,
+        };
+      }
+    }
 
     const response = {
       influencer: {
         name: influencer.publicName || influencer.name,
         profileImage: influencer.profileImage,
-        commissionPercent: Number(influencer.commissionPercent),
+        commissionPercent: activeTier ? activeTier.commissionPercent : Number(influencer.commissionPercent),
       },
       organization: {
         name: org.name,
@@ -179,18 +286,44 @@ export async function GET(
       thisMonth: {
         sales: monthRevenue,
         conversions: monthConversions,
-        commission: Number(monthAgg._sum.commissionAmount || 0),
+        commission: monthCommission,
       },
       allTime: {
         sales: Number(allTimeAgg._sum.attributedValue || 0),
         conversions: allTimeAgg._count.id || 0,
         commission: Number(allTimeAgg._sum.commissionAmount || 0),
       },
+      comparison: {
+        salesChange: prevMonthRevenue > 0 ? ((monthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100 : monthRevenue > 0 ? 100 : 0,
+        commissionChange: prevMonthCommission > 0 ? ((monthCommission - prevMonthCommission) / prevMonthCommission) * 100 : monthCommission > 0 ? 100 : 0,
+      },
       stats: {
         conversionRate: uniqueVisitors > 0 ? ((monthConversions / uniqueVisitors) * 100) : 0,
         avgOrderValue: monthConversions > 0 ? monthRevenue / monthConversions : 0,
         uniqueVisitors,
       },
+      tier: activeTier,
+      campaigns: activeCampaigns.map((c) => {
+        const rev = campaignRevenueMap.get(c.id) || 0;
+        const target = c.bonusTarget ? Number(c.bonusTarget) : null;
+        const bonus = c.bonusAmount ? Number(c.bonusAmount) : null;
+        return {
+          name: c.name,
+          revenue: rev,
+          bonusTarget: target,
+          bonusAmount: bonus,
+          progress: target && target > 0 ? Math.min((rev / target) * 100, 100) : null,
+        };
+      }),
+      coupons: coupons.map((c) => ({
+        code: c.code,
+        discountPercent: c.discountPercent ? Number(c.discountPercent) : null,
+        discountFixed: c.discountFixed ? Number(c.discountFixed) : null,
+      })),
+      bestDays: bestDays.map((d) => ({
+        date: d.date,
+        sales: d.sales,
+      })),
       recentSales: recentSales.map((s) => ({
         timestamp: s.createdAt.toISOString(),
         amount: Number(s.attributedValue),
