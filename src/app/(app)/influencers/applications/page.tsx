@@ -269,7 +269,8 @@ export default function ApplicationsPage() {
                               max="50"
                               value={commissionInput[app.id] || "10"}
                               onChange={(e) => setCommissionInput({ ...commissionInput, [app.id]: e.target.value })}
-                              className="w-20 mt-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white"
+                              className="w-20 mt-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+                              style={{ color: "#111827", backgroundColor: "#ffffff" }}
                             />
                           </div>
                           <div className="flex-1">
@@ -279,7 +280,8 @@ export default function ApplicationsPage() {
                               value={notesInput[app.id] || ""}
                               onChange={(e) => setNotesInput({ ...notesInput, [app.id]: e.target.value })}
                               placeholder="Notas opcionales..."
-                              className="w-full mt-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white"
+                              className="w-full mt-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+                              style={{ color: "#111827", backgroundColor: "#ffffff" }}
                             />
                           </div>
                         </div>

@@ -75,11 +75,6 @@ export async function PUT(req: NextRequest) {
     }
 
     // ── APPROVE: Create influencer + send welcome email ──
-    // Fetch full org data (including website) for tracking link
-    const fullOrg = await prisma.organization.findUnique({
-      where: { id: org.id },
-      select: { website: true },
-    });
     const commission = commissionPercent || 10; // Default 10%
     // Generate code from name (lowercase, no spaces, first word + random)
     const nameSlug = application.name
@@ -121,7 +116,7 @@ export async function PUT(req: NextRequest) {
     });
 
     // Build tracking link and dashboard link
-    const storeUrl = fullOrg?.website || process.env.STORE_URL || process.env.NEXT_PUBLIC_STORE_URL || "";
+    const storeUrl = process.env.STORE_URL || "https://elmundodeljuguete.com.ar";
     const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
     const trackingLink = storeUrl ? `${storeUrl.replace(/\/$/, "")}/?utm_source=inf_${finalCode}&utm_medium=influencer` : `${appUrl}/?utm_source=inf_${finalCode}&utm_medium=influencer`;
     const dashboardLink = `${appUrl}/i/${org.slug}/${finalCode}`;
@@ -152,7 +147,7 @@ export async function PUT(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error("[Applications API] PUT error:", error);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    console.error("[Applications API] PUT error:", error?.message, error?.stack);
+    return NextResponse.json({ error: error?.message || "Internal error" }, { status: 500 });
   }
 }
