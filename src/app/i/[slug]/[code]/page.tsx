@@ -183,6 +183,7 @@ export default function PublicInfluencerDashboard() {
       });
       const result = await res.json();
       if (result.valid) {
+        setLoading(true);
         setAuthenticatedPassword(password);
         setRequiresPassword(false);
       } else {
@@ -213,9 +214,30 @@ export default function PublicInfluencerDashboard() {
   if (loading) {
     return (
       <div className={`min-h-screen ${bg} flex items-center justify-center`}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border-2 border-orange-500 border-t-transparent animate-spin" />
-          <p className={`${textSecondary} text-sm font-mono`}>Cargando dashboard...</p>
+        <div className="flex flex-col items-center gap-6">
+          {/* Animated bars */}
+          <div className="flex items-end gap-1.5 h-10">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="w-1.5 bg-orange-500 rounded-full"
+                style={{
+                  animation: `pulse 1.2s ease-in-out ${i * 0.15}s infinite`,
+                  height: "40%",
+                }}
+              />
+            ))}
+          </div>
+          <div className="text-center">
+            <p className={`${textSecondary} text-sm font-medium`}>Preparando tu dashboard</p>
+            <p className={`${textMuted} text-xs mt-1 font-mono`}>Conectando datos en tiempo real...</p>
+          </div>
+          <style>{`
+            @keyframes pulse {
+              0%, 100% { height: 20%; opacity: 0.4; }
+              50% { height: 100%; opacity: 1; }
+            }
+          `}</style>
         </div>
       </div>
     );
@@ -278,8 +300,15 @@ export default function PublicInfluencerDashboard() {
     return (
       <div className={`min-h-screen ${bg} flex items-center justify-center`}>
         <div className="text-center">
-          <p className="text-6xl mb-4">🔒</p>
-          <p className={`${textSecondary} text-lg`}>Dashboard no disponible</p>
+          <p className="text-4xl mb-4">⚠️</p>
+          <p className={`${textPrimary} text-lg font-medium`}>No pudimos cargar el dashboard</p>
+          <p className={`${textSecondary} text-sm mt-2`}>Verificá el link o intentá de nuevo en unos segundos</p>
+          <button
+            onClick={() => { setError(false); setLoading(true); fetchData(); }}
+            className="mt-4 px-6 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-all"
+          >
+            Reintentar
+          </button>
         </div>
       </div>
     );

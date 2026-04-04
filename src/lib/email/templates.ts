@@ -246,7 +246,7 @@ export function applicationConfirmationEmail(
         Recibimos tu aplicacion para ser parte del programa de embajadores de <strong style="color:${BRAND_ORANGE};">${orgName}</strong>.
       </p>
       <p style="color:${TEXT_SECONDARY};font-size:13px;line-height:1.6;margin:0;">
-        Nuestro equipo va a revisar tu perfil y te vamos a contactar pronto. Si sos seleccionado/a, vas a recibir un email con tus links de tracking y toda la info para empezar.
+        El equipo de <strong style="color:${TEXT_PRIMARY};">${orgName}</strong> va a revisar tu perfil y te van a contactar pronto. Si sos seleccionado/a, vas a recibir un email con tus links de tracking, tu contraseña de acceso al dashboard y toda la info para empezar.
       </p>
     </div>
     <p style="color:${TEXT_SECONDARY};font-size:12px;margin:0;text-align:center;">Gracias por tu interes! 🚀</p>
