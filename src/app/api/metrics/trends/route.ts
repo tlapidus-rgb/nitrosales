@@ -68,7 +68,7 @@ export async function GET(request: Request) {
           COALESCE(SUM(clicks), 0)::text AS clicks,
           COALESCE(SUM(conversions), 0)::text AS conversions,
           COALESCE(SUM("conversionValue"), 0)::text AS conversion_value
-        FROM ad_metric_daily
+        FROM ad_metrics_daily
         WHERE "organizationId" = $1
           AND date >= $2 AND date < $3
         GROUP BY day ORDER BY day`,
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
         `SELECT
           TO_CHAR(date, 'YYYY-MM-DD') AS day,
           COALESCE(SUM(sessions), 0)::text AS sessions
-        FROM web_metric_daily
+        FROM web_metrics_daily
         WHERE "organizationId" = $1
           AND date >= $2 AND date < $3
         GROUP BY day ORDER BY day`,

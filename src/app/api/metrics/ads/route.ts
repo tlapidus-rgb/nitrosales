@@ -231,7 +231,7 @@ export async function GET(request: Request) {
         COALESCE(SUM(clicks), 0)::text AS clicks,
         COALESCE(SUM(conversions), 0)::text AS conversions,
         COALESCE(SUM("conversionValue"), 0)::text AS conversion_value
-      FROM ad_creative_metric_daily
+      FROM ad_creative_metrics_daily
       WHERE "organizationId" = $1 AND date >= $2 AND date <= $3 ${platWhere}`,
       ORG_ID, prevFrom, prevTo
     );

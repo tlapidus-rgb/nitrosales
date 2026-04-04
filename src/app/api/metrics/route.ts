@@ -44,7 +44,7 @@ async function getPeriodMetrics(orgId: string, from: Date, to: Date) {
       // 3) Web metrics aggregation
       prisma.$queryRawUnsafe<[{ sessions: string }]>(
         `SELECT COALESCE(SUM(sessions), 0)::text AS sessions
-        FROM web_metric_daily
+        FROM web_metrics_daily
         WHERE "organizationId" = $1
           AND date >= $2 AND date < $3`,
         orgId,
@@ -61,7 +61,7 @@ async function getPeriodMetrics(orgId: string, from: Date, to: Date) {
           COALESCE(SUM("conversionValue"), 0)::text AS conversion_value,
           COALESCE(SUM(impressions), 0)::text AS impressions,
           COALESCE(SUM(clicks), 0)::text AS clicks
-        FROM ad_metric_daily
+        FROM ad_metrics_daily
         WHERE "organizationId" = $1
           AND date >= $2 AND date < $3`,
         orgId,
@@ -72,7 +72,7 @@ async function getPeriodMetrics(orgId: string, from: Date, to: Date) {
       // 5) Ad spend by platform
       prisma.$queryRawUnsafe<Array<{ platform: string; spend: string }>>(
         `SELECT platform, COALESCE(SUM(spend), 0)::text AS spend
-        FROM ad_metric_daily
+        FROM ad_metrics_daily
         WHERE "organizationId" = $1
           AND date >= $2 AND date < $3
         GROUP BY platform`,

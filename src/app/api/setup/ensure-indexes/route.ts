@@ -26,11 +26,11 @@ export async function POST(req: NextRequest) {
     },
     {
       name: "idx_adm_org_plat_date",
-      sql: `CREATE INDEX IF NOT EXISTS idx_adm_org_plat_date ON ad_metric_daily ("organizationId", platform, date)`,
+      sql: `CREATE INDEX IF NOT EXISTS idx_adm_org_plat_date ON ad_metrics_daily ("organizationId", platform, date)`,
     },
     {
       name: "idx_acmd_org_date",
-      sql: `CREATE INDEX IF NOT EXISTS idx_acmd_org_date ON ad_creative_metric_daily ("organizationId", date)`,
+      sql: `CREATE INDEX IF NOT EXISTS idx_acmd_org_date ON ad_creative_metrics_daily ("organizationId", date)`,
     },
     {
       name: "idx_pattr_org_model_created",

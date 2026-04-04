@@ -59,7 +59,7 @@ export async function GET(request: Request) {
         COALESCE(SUM(conversions), 0)::text AS conversions,
         COALESCE(SUM("conversionValue"), 0)::text AS conversion_value,
         COALESCE(SUM(COALESCE(reach, 0)), 0)::text AS reach
-      FROM ad_metric_daily
+      FROM ad_metrics_daily
       WHERE "organizationId" = $1 AND date >= $2 AND date <= $3 ${platformWhere}`,
       ORG_ID, prevFrom, prevTo
     );
