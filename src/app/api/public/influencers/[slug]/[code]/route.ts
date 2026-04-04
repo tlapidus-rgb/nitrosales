@@ -54,7 +54,7 @@ export async function GET(
     // Find organization by slug
     const org = await prisma.organization.findUnique({
       where: { slug },
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, website: true },
     });
     if (!org) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -269,6 +269,12 @@ export async function GET(
       }
     }
 
+    // Build tracking URL for the influencer
+    const storeUrl = org.website || process.env.STORE_URL || process.env.NEXT_PUBLIC_STORE_URL || "";
+    const trackingUrl = storeUrl
+      ? `${storeUrl.replace(/\/$/, "")}/?utm_source=inf_${influencer.code}&utm_medium=influencer`
+      : "";
+
     const response = {
       influencer: {
         name: influencer.publicName || influencer.name,
@@ -278,6 +284,7 @@ export async function GET(
       organization: {
         name: org.name,
       },
+      trackingUrl,
       today: {
         sales: Number(todayAgg._sum.attributedValue || 0),
         conversions: todayAgg._count.id || 0,

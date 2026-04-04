@@ -258,7 +258,8 @@ export function applicationConfirmationEmail(
 
 export function welcomeInfluencerEmail(
   influencerName: string, orgName: string, trackingLink: string,
-  dashboardLink: string, commissionPercent: number, coupons: string[]
+  dashboardLink: string, commissionPercent: number, coupons: string[],
+  dashboardPassword?: string
 ): { subject: string; html: string } {
   const subject = `Bienvenido/a al programa de ${orgName}! 🎉`;
   const couponSection = coupons.length > 0 ? `
@@ -287,6 +288,10 @@ export function welcomeInfluencerEmail(
     <div style="background:${CARD_BG};border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid #1F1F2E;">
       <h3 style="color:${TEXT_PRIMARY};font-size:14px;font-weight:600;margin:0 0 8px;">Tu dashboard</h3>
       <p style="color:${TEXT_SECONDARY};font-size:13px;margin:0 0 12px;">Desde aca vas a poder ver tus ventas, comisiones y metricas en tiempo real.</p>
+      ${dashboardPassword ? `<div style="background:#0A0A0F;border-radius:8px;padding:10px 14px;margin-bottom:12px;border:1px solid ${BRAND_ORANGE}30;">
+        <p style="color:${TEXT_SECONDARY};font-size:11px;margin:0 0 4px;">Tu contraseña de acceso:</p>
+        <p style="color:${BRAND_ORANGE};font-size:18px;font-weight:700;font-family:monospace;letter-spacing:2px;margin:0;">${dashboardPassword}</p>
+      </div>` : ""}
       <a href="${dashboardLink}" style="display:inline-block;padding:10px 24px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:13px;font-weight:600;">Ver mi Dashboard</a>
     </div>
   `;

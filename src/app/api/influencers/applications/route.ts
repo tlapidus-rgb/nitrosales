@@ -10,6 +10,16 @@ import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
 import { sendEmail } from "@/lib/email/send";
 import { welcomeInfluencerEmail } from "@/lib/email/templates";
+import { createHash, randomBytes } from "crypto";
+
+function generatePassword(): string {
+  // 6 char alphanumeric, easy to type
+  return randomBytes(4).toString("base64url").substring(0, 6).toLowerCase();
+}
+
+function hashPassword(password: string): string {
+  return createHash("sha256").update(password).digest("hex");
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -65,6 +75,11 @@ export async function PUT(req: NextRequest) {
     }
 
     // ── APPROVE: Create influencer + send welcome email ──
+    // Fetch full org data (including website) for tracking link
+    const fullOrg = await prisma.organization.findUnique({
+      where: { id: org.id },
+      select: { website: true },
+    });
     const commission = commissionPercent || 10; // Default 10%
     // Generate code from name (lowercase, no spaces, first word + random)
     const nameSlug = application.name
@@ -81,6 +96,10 @@ export async function PUT(req: NextRequest) {
     });
     const finalCode = existingCode ? `${code}${Math.floor(Math.random() * 90) + 10}` : code;
 
+    // Generate dashboard password
+    const plainPassword = generatePassword();
+    const hashedPassword = hashPassword(plainPassword);
+
     // Create influencer
     const influencer = await prisma.influencer.create({
       data: {
@@ -90,6 +109,7 @@ export async function PUT(req: NextRequest) {
         commissionPercent: commission,
         status: "ACTIVE",
         isPublicDashboardEnabled: true,
+        dashboardPassword: hashedPassword,
         organizationId: org.id,
       },
     });
@@ -101,9 +121,9 @@ export async function PUT(req: NextRequest) {
     });
 
     // Build tracking link and dashboard link
-    const storeUrl = process.env.STORE_URL || process.env.NEXT_PUBLIC_STORE_URL || "";
+    const storeUrl = fullOrg?.website || process.env.STORE_URL || process.env.NEXT_PUBLIC_STORE_URL || "";
     const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
-    const trackingLink = storeUrl ? `${storeUrl}/?utm_source=inf_${finalCode}&utm_medium=influencer` : "";
+    const trackingLink = storeUrl ? `${storeUrl.replace(/\/$/, "")}/?utm_source=inf_${finalCode}&utm_medium=influencer` : `${appUrl}/?utm_source=inf_${finalCode}&utm_medium=influencer`;
     const dashboardLink = `${appUrl}/i/${org.slug}/${finalCode}`;
 
     // Send welcome email (async)
@@ -114,7 +134,8 @@ export async function PUT(req: NextRequest) {
         trackingLink,
         dashboardLink,
         commission,
-        [] // No coupons yet
+        [], // No coupons yet
+        plainPassword
       );
       sendEmail({ to: application.email, subject, html }).catch((err) =>
         console.error("[Applications] Welcome email error:", err)

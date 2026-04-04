@@ -58,6 +58,7 @@ interface Tier {
 interface DashboardData {
   influencer: { name: string; profileImage: string | null; commissionPercent: number };
   organization: { name: string };
+  trackingUrl: string;
   today: { sales: number; conversions: number; commission: number };
   thisMonth: { sales: number; conversions: number; commission: number };
   allTime: { sales: number; conversions: number; commission: number };
@@ -115,6 +116,7 @@ export default function PublicInfluencerDashboard() {
   const [requiresPassword, setRequiresPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [authenticatedPassword, setAuthenticatedPassword] = useState<string | null>(null);
   const [lockedInfo, setLockedInfo] = useState<{ name: string; profileImage: string | null; orgName: string } | null>(null);
 
@@ -495,6 +497,32 @@ export default function PublicInfluencerDashboard() {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Tracking Link ── */}
+          {data.trackingUrl && (
+            <div className={`${card} rounded-2xl p-5`}>
+              <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-2`}>Mi link de tracking</p>
+              <div className="flex items-center gap-2">
+                <div className={`flex-1 min-w-0 ${darkMode ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"} border rounded-xl px-3 py-2`}>
+                  <p className={`text-xs font-mono truncate ${darkMode ? "text-orange-400" : "text-orange-600"}`}>{data.trackingUrl}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(data.trackingUrl);
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2000);
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                    linkCopied
+                      ? "bg-green-500 text-white"
+                      : "bg-orange-500 text-white hover:bg-orange-600"
+                  }`}
+                >
+                  {linkCopied ? "Copiado!" : "Copiar"}
+                </button>
               </div>
             </div>
           )}
