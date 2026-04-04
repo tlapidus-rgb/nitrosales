@@ -73,8 +73,9 @@ export default function CompetitorsPage() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (background = false) => {
+    // Only show full-page loading on initial load (when we have no data yet)
+    if (!background && !data) setLoading(true);
     try {
       const [metricsRes, prodsRes] = await Promise.all([
         fetch("/api/metrics/competitors").then(r => r.json()),
@@ -83,7 +84,7 @@ export default function CompetitorsPage() {
       setData(metricsRes);
       setOwnProducts(prodsRes.products || []);
     } catch (e: any) {
-      setError(e.message);
+      if (!data) setError(e.message); // Only show error on initial load
     } finally {
       setLoading(false);
     }
@@ -111,14 +112,23 @@ export default function CompetitorsPage() {
     if (!newStoreName || !newStoreUrl) return;
     setAddingStore(true);
     try {
-      await fetch("/api/competitors", {
+      const res = await fetch("/api/competitors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "store", name: newStoreName, website: newStoreUrl }),
       });
+      const result = await res.json();
+      // Optimistic update: add new store to local data immediately
+      if (result.store && data) {
+        setData((prev: any) => ({
+          ...prev,
+          stores: [...(prev?.stores || []), { id: result.store.id, name: result.store.name, website: result.store.website }],
+        }));
+      }
       setNewStoreName(""); setNewStoreUrl("");
-      showToast("Competidor agregado");
-      loadData();
+      showToast("Competidor agregado ✓");
+      // Refresh data in background (no full-page loading)
+      loadData(true);
     } catch { showToast("Error al agregar"); }
     finally { setAddingStore(false); }
   };
@@ -145,7 +155,7 @@ export default function CompetitorsPage() {
       }
       setNewProductUrl(""); setShowAddProduct(null);
       showToast("Producto agregado y scrapeado");
-      loadData();
+      loadData(true);
     } catch { showToast("Error al agregar producto"); }
     finally { setAddingProduct(false); }
   };
@@ -159,7 +169,7 @@ export default function CompetitorsPage() {
         body: JSON.stringify({ type: "product", id: competitorPriceId, ownProductId }),
       });
       showToast("Producto mapeado");
-      loadData();
+      loadData(true);
     } catch { showToast("Error al mapear"); }
   };
 
@@ -168,7 +178,7 @@ export default function CompetitorsPage() {
     try {
       await fetch(`/api/competitors?type=${type}&id=${id}`, { method: "DELETE" });
       showToast(type === "store" ? "Competidor eliminado" : "Producto eliminado");
-      loadData();
+      loadData(true);
     } catch { showToast("Error al eliminar"); }
   };
 
@@ -183,7 +193,7 @@ export default function CompetitorsPage() {
       });
       const result = await res.json();
       showToast(result.success ? `${fmtARS(result.price)} (${result.method})` : "Error al scrapear");
-      loadData();
+      loadData(true);
     } catch { showToast("Error"); }
   };
 
@@ -205,7 +215,7 @@ export default function CompetitorsPage() {
           showToast(`Error: ${result.error}`);
         } else {
           setDiscoveryResult(result);
-          loadData();
+          loadData(true);
         }
       })
       .catch(() => showToast("Error en la busqueda automatica"))
