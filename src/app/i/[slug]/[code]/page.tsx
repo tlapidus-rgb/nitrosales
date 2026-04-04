@@ -575,27 +575,35 @@ export default function PublicInfluencerDashboard() {
           </div>
 
           {/* ── Top Products (only if enabled by the company) ── */}
-          {data.topProducts && data.topProducts.length > 0 && (
+          {data.topProducts !== undefined && (
             <div className={`${card} rounded-2xl p-5`}>
               <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Productos vendidos (este mes)</p>
-              <div className="space-y-3">
-                {data.topProducts.map((p, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    {p.imageUrl ? (
-                      <img src={p.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-white/10" />
-                    ) : (
-                      <div className={`w-9 h-9 rounded-lg ${darkMode ? "bg-white/10" : "bg-gray-100"} flex items-center justify-center text-xs`}>
-                        📦
+              {data.topProducts.length > 0 ? (
+                <div className="space-y-3">
+                  {data.topProducts.map((p, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      {p.imageUrl ? (
+                        <img src={p.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-white/10" />
+                      ) : (
+                        <div className={`w-9 h-9 rounded-lg ${darkMode ? "bg-white/10" : "bg-gray-100"} flex items-center justify-center text-xs`}>
+                          📦
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{p.name}</p>
+                        <p className={`text-[10px] ${textMuted}`}>{p.units} {p.units === 1 ? "unidad" : "unidades"}</p>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{p.name}</p>
-                      <p className={`text-[10px] ${textMuted}`}>{p.units} {p.units === 1 ? "unidad" : "unidades"}</p>
+                      <p className="text-sm font-bold text-orange-400">{fmtARS(p.revenue)}</p>
                     </div>
-                    <p className="text-sm font-bold text-orange-400">{fmtARS(p.revenue)}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className={`text-2xl mb-2`}>📦</p>
+                  <p className={`text-sm ${textSecondary}`}>Todavia no hay ventas este mes</p>
+                  <p className={`text-xs ${textMuted} mt-1`}>Cuando generes ventas con tu link, vas a ver aca que productos se vendieron y cuantas unidades</p>
+                </div>
+              )}
             </div>
           )}
 
