@@ -46,14 +46,15 @@ export interface ParsedCompetitorAd {
 
 /**
  * Fetch active ads for a Facebook Page from the Meta Ad Library API.
- * @param pageId Facebook Page ID
+ * Supports search by Page ID or by search term (competitor name).
  * @param accessToken Meta access token with ads_read permission
- * @param options Optional: country, limit, activeOnly
+ * @param options search_page_ids OR search_terms, country, limit, activeOnly
  */
 export async function fetchMetaAdLibrary(
-  pageId: string,
   accessToken: string,
-  options?: {
+  options: {
+    pageId?: string;
+    searchTerms?: string;
     country?: string;
     limit?: number;
     activeOnly?: boolean;
@@ -63,31 +64,41 @@ export async function fetchMetaAdLibrary(
   const limit = options?.limit || 100;
   const activeOnly = options?.activeOnly ?? true;
 
+  const fields = [
+    "id",
+    "ad_creation_time",
+    "ad_delivery_start_time",
+    "ad_delivery_stop_time",
+    "ad_creative_bodies",
+    "ad_creative_link_captions",
+    "ad_creative_link_descriptions",
+    "ad_creative_link_titles",
+    "ad_snapshot_url",
+    "bylines",
+    "impressions",
+    "spend",
+    "page_id",
+    "page_name",
+    "publisher_platforms",
+    "languages",
+  ].join(",");
+
   const params = new URLSearchParams({
-    search_page_ids: pageId,
     ad_reached_countries: `["${country}"]`,
     ad_active_status: activeOnly ? "ACTIVE" : "ALL",
-    fields: [
-      "id",
-      "ad_creation_time",
-      "ad_delivery_start_time",
-      "ad_delivery_stop_time",
-      "ad_creative_bodies",
-      "ad_creative_link_captions",
-      "ad_creative_link_descriptions",
-      "ad_creative_link_titles",
-      "ad_snapshot_url",
-      "bylines",
-      "impressions",
-      "spend",
-      "page_id",
-      "page_name",
-      "publisher_platforms",
-      "languages",
-    ].join(","),
+    fields,
     limit: String(limit),
     access_token: accessToken,
   });
+
+  // Use page ID if available (most precise), otherwise search by name
+  if (options.pageId) {
+    params.set("search_page_ids", options.pageId);
+  } else if (options.searchTerms) {
+    params.set("search_terms", options.searchTerms);
+  } else {
+    return []; // Nothing to search
+  }
 
   const url = `${META_BASE_URL}/ads_archive?${params}`;
 

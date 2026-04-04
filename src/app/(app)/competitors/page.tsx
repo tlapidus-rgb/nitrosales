@@ -685,46 +685,10 @@ export default function CompetitorsPage() {
                   {/* Expanded content */}
                   {isExpanded && (
                     <div className="px-4 pb-4 border-t border-gray-100">
-                      {/* Ad tracking config */}
+                      {/* Ad tracking info — auto-detected */}
                       <div className="mt-3 mb-3 bg-indigo-50/50 border border-indigo-100 rounded-lg p-3">
-                        <p className="text-[11px] font-semibold text-indigo-700 mb-2">Configuracion de Publicidad</p>
-                        <div className="flex gap-2">
-                          <div className="flex-1">
-                            <label className="text-[10px] text-gray-500 mb-0.5 block">Facebook Page ID</label>
-                            <input
-                              defaultValue={s.metaPageId || ""}
-                              placeholder="Ej: 123456789012345"
-                              className="w-full px-2.5 py-1.5 border rounded-lg text-xs outline-none focus:border-indigo-400"
-                              onBlur={async (e) => {
-                                const val = e.target.value.trim();
-                                await fetch("/api/competitors", {
-                                  method: "PUT",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ type: "store", id: s.id, metaPageId: val }),
-                                });
-                                showToast("Page ID guardado ✓");
-                              }}
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <label className="text-[10px] text-gray-500 mb-0.5 block">Dominio Google Ads</label>
-                            <input
-                              defaultValue={s.googleAdsDomain || ""}
-                              placeholder="Ej: www.cebra.com.ar"
-                              className="w-full px-2.5 py-1.5 border rounded-lg text-xs outline-none focus:border-indigo-400"
-                              onBlur={async (e) => {
-                                const val = e.target.value.trim();
-                                await fetch("/api/competitors", {
-                                  method: "PUT",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ type: "store", id: s.id, googleAdsDomain: val }),
-                                });
-                                showToast("Dominio Google guardado ✓");
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <p className="text-[9px] text-gray-400 mt-1.5">El Page ID se encuentra en la URL de la pagina de Facebook del competidor. El dominio es el sitio web sin https://</p>
+                        <p className="text-[11px] font-semibold text-indigo-700 mb-1">Monitoreo de Publicidad</p>
+                        <p className="text-[10px] text-gray-500">Los anuncios de <strong>{s.name}</strong> se buscan automaticamente por nombre en Meta Ad Library y por dominio en Google Ads Transparency.</p>
                       </div>
 
                       {/* Add product URL inline */}
@@ -901,7 +865,7 @@ function AdsTab({ data, loading, syncing, onSync, onRefresh, showToast }: {
     return 0;
   });
 
-  const hasConfiguredStores = stores.some((s: any) => s.metaPageId || s.googleAdsDomain);
+  const hasStores = stores.length > 0;
 
   return (
     <div className="space-y-5">
@@ -976,28 +940,29 @@ function AdsTab({ data, loading, syncing, onSync, onRefresh, showToast }: {
         </div>
       </div>
 
-      {/* No stores configured warning */}
-      {!hasConfiguredStores && (
+      {/* No stores warning */}
+      {!hasStores && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-start gap-3">
           <span className="text-2xl">⚙️</span>
           <div>
-            <p className="text-sm font-semibold text-amber-800">Configura los IDs de publicidad de tus competidores</p>
+            <p className="text-sm font-semibold text-amber-800">Agrega competidores para empezar</p>
             <p className="text-xs text-amber-600 mt-1">
-              Para ver los anuncios de tus competidores, necesitas configurar el <strong>Facebook Page ID</strong> y/o
-              el <strong>dominio de Google Ads</strong> en cada competidor. Abre "Gestionar Competidores" y expande cada tienda para configurar.
+              Usa "Gestionar Competidores" para agregar tiendas. Los anuncios se buscan automaticamente por nombre.
             </p>
           </div>
         </div>
       )}
 
-      {/* Competitor sidebar cards */}
+      {/* Competitor sidebar cards — auto-generated links */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {stores.map((store: any) => {
-          const metaUrl = store.metaPageId
-            ? `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=AR&view_all_page_id=${store.metaPageId}`
-            : null;
-          const googleUrl = store.googleAdsDomain
-            ? `https://adstransparency.google.com/advertiser/AR?domain=${store.googleAdsDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "")}`
+          // Auto-generate Meta Ad Library search URL from store name
+          const metaSearchUrl = `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=AR&q=${encodeURIComponent(store.name)}&sort_data[direction]=desc&sort_data[mode]=relevancy_monthly_grouped`;
+
+          // Auto-generate Google Ads Transparency URL from website domain
+          const domain = store.website ? store.website.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "") : null;
+          const googleUrl = domain
+            ? `https://adstransparency.google.com/advertiser/AR?domain=${domain}`
             : null;
 
           return (
@@ -1008,21 +973,15 @@ function AdsTab({ data, loading, syncing, onSync, onRefresh, showToast }: {
               </div>
               <p className="text-[11px] text-gray-400 mb-3 truncate">{store.website}</p>
               <div className="flex flex-wrap gap-1.5">
-                {store.metaPageId ? (
-                  <a href={metaUrl!} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-[10px] font-semibold hover:bg-blue-100 transition-colors">
-                    <span>📘</span> Meta Ad Library
-                  </a>
-                ) : (
-                  <span className="px-2 py-1 bg-gray-50 text-gray-400 rounded-md text-[10px]">Meta: sin configurar</span>
-                )}
-                {store.googleAdsDomain ? (
-                  <a href={googleUrl!} target="_blank" rel="noopener noreferrer"
+                <a href={metaSearchUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-[10px] font-semibold hover:bg-blue-100 transition-colors">
+                  <span>📘</span> Meta Ad Library
+                </a>
+                {googleUrl && (
+                  <a href={googleUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-md text-[10px] font-semibold hover:bg-green-100 transition-colors">
                     <span>🔍</span> Google Transparency
                   </a>
-                ) : (
-                  <span className="px-2 py-1 bg-gray-50 text-gray-400 rounded-md text-[10px]">Google: sin configurar</span>
                 )}
               </div>
             </div>
@@ -1103,9 +1062,9 @@ function AdsTab({ data, loading, syncing, onSync, onRefresh, showToast }: {
         <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
           <span className="text-4xl block mb-3">📢</span>
           <p className="text-gray-500 text-sm">
-            {hasConfiguredStores
-              ? 'No hay anuncios encontrados. Pulsá "Sincronizar Anuncios" para buscar.'
-              : "Configura los IDs de publicidad en tus competidores para empezar."}
+            {hasStores
+              ? 'No hay anuncios encontrados. Pulsa "Sincronizar Anuncios" para buscar automaticamente.'
+              : "Agrega competidores desde \"Gestionar Competidores\" para empezar."}
           </p>
         </div>
       )}
