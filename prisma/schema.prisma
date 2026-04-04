@@ -70,6 +70,8 @@ model Organization {
   influencerBriefings      InfluencerBriefing[]
   contentSubmissions       ContentSubmission[]
   productSeedings          ProductSeeding[]
+  // Audience Sync
+  audiences                Audience[]
 
   @@map("organizations")
 }
@@ -1365,4 +1367,66 @@ model ProductSeeding {
   @@index([organizationId, influencerId])
   @@index([organizationId, status])
   @@map("product_seedings")
+}
+
+// ─────────────────────────────────────────────
+// AUDIENCE SYNC (Meta Custom Audiences + Google Customer Match)
+// ─────────────────────────────────────────────
+
+// Cada audiencia configurada para sincronizar
+model Audience {
+  id              String    @id @default(cuid())
+  name            String                          // "Champions - Meta Lookalike"
+  description     String?   @db.Text              // Descripción libre
+  platform        String                          // "META" | "GOOGLE" | "BOTH"
+  status          String    @default("DRAFT")     // DRAFT, ACTIVE, SYNCING, PAUSED, ERROR
+  // Criterios de segmentación (JSON flexible)
+  segmentType     String                          // "RFM" | "LTV" | "CUSTOM" | "ALL_CUSTOMERS"
+  segmentCriteria Json      @default("{}")        // { rfmSegments: ["Champions","Leales"], ltvBuckets: ["high_value"], minOrders: 2, minSpent: 50000, recencyDays: 90, city: "Buenos Aires", ... }
+  // Resultados de matching
+  customerCount   Int       @default(0)           // Total de clientes que matchean los criterios
+  lastSyncedCount Int       @default(0)           // Cuántos se enviaron en último sync
+  // IDs externos de la audiencia en plataformas
+  metaAudienceId  String?                         // ID de Custom Audience en Meta
+  googleListId    String?                         // ID de User List en Google Ads
+  // Health metrics
+  metaMatchRate   Float?                          // % de match en Meta (0-100)
+  googleMatchRate Float?                          // % de match en Google (0-100)
+  // Sync config
+  autoSync        Boolean   @default(false)       // Sincronizar automáticamente
+  syncFrequency   String    @default("DAILY")     // "HOURLY" | "DAILY" | "WEEKLY" | "MANUAL"
+  lastSyncAt      DateTime?
+  lastSyncError   String?   @db.Text
+  nextSyncAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  syncLogs        AudienceSyncLog[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, platform])
+  @@map("audiences")
+}
+
+// Log de cada sincronización ejecutada
+model AudienceSyncLog {
+  id              String    @id @default(cuid())
+  action          String                          // "FULL_SYNC" | "INCREMENTAL" | "REMOVE"
+  platform        String                          // "META" | "GOOGLE"
+  status          String                          // "SUCCESS" | "PARTIAL" | "ERROR"
+  customersTotal  Int       @default(0)           // Total que matcheó los criterios
+  customersSent   Int       @default(0)           // Cuántos se enviaron
+  matchRate       Float?                          // Match rate reportado por la plataforma
+  errorMessage    String?   @db.Text
+  durationMs      Int?                            // Cuánto tardó el sync
+  metadata        Json      @default("{}")        // Detalles extra: { batchCount, sessionId, etc }
+  createdAt       DateTime  @default(now())
+
+  audienceId      String
+  audience        Audience  @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+
+  @@index([audienceId, createdAt])
+  @@map("audience_sync_logs")
 }

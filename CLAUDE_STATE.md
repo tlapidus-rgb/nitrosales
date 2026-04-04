@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-04 (Sesion 6-7 — Influencer Module Fases 1-5 + Nitro Creators + Premium Nav)
+## Ultima actualizacion: 2026-04-04 (Sesion 8 — Audience Sync + Meta Custom Audiences + Google Customer Match)
 
 ---
 
@@ -135,7 +135,7 @@
 | src/lib/db/client.ts | **v1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client |
 | prisma/schema.prisma | **v4** | ACTIVO | +Influencer, InfluencerCampaign, InfluencerAttribution, InfluencerApplication, InfluencerBriefing, ContentSubmission, ProductSeeding (7 modelos nuevos). +isProductBreakdownEnabled en Influencer. +CustomerLtvPrediction. +ManualCost, ShippingRate. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. |
 | vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. |
-| src/app/(app)/layout.tsx | **v4** | ACTIVO | Sidebar con 9 grupos: OPERACIONES, CATALOGO, MARKETING Y ADQUISICION, NITRO CREATORS (gradient label, Influencers + Contenido expandibles), CLIENTES, CANALES, HERRAMIENTAS (NitroPixel + LTV con premium cards), FINANZAS, sin-grupo. Premium cards con glow, badges LIVE/AI, description text. Smart isActive logic para Influencers vs Contenido routes. |
+| src/app/(app)/layout.tsx | **v5** | ACTIVO | Sidebar con 9 grupos: OPERACIONES, CATALOGO, MARKETING Y ADQUISICION, NITRO CREATORS (gradient label, Influencers + Contenido expandibles), CLIENTES, CANALES, HERRAMIENTAS (NitroPixel + LTV + Audience Sync con premium cards), FINANZAS, sin-grupo. Premium cards con glow, badges LIVE/AI/SYNC, description text. Smart isActive logic para Influencers vs Contenido routes. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
 ---
@@ -1540,3 +1540,110 @@ Antes de modificar cualquier endpoint de sync ML:
 3. Tiene paginacion correcta? (offset + total check + hard limit de ML)
 4. Filtra por status cuando corresponde? (no traer closed listings)
 5. El token se auto-refresca? (getSellerToken maneja refresh automatico)
+
+---
+
+## AUDIENCE SYNC — Estado al 2026-04-04
+
+**Sesion 8: Feature nueva completa. Backend + Frontend + Integraciones.**
+
+### Que es
+Sincroniza segmentos de clientes de NitroSales con Meta Custom Audiences y Google Customer Match. Permite crear audiencias basadas en segmentos RFM, LTV buckets, o criterios personalizados, y exportarlas a las plataformas de ads para lookalike audiences, retargeting, y exclusion lists.
+
+### Arquitectura
+
+**Modelos Prisma (2 nuevos):**
+- `Audience` — Configuracion de audiencia (nombre, criterios, plataforma, status, IDs externos, match rates, auto-sync config)
+- `AudienceSyncLog` — Log de cada sincronizacion (plataforma, resultado, clientes enviados, duracion, errores)
+- SQL migration: `prisma/migrations/audience_sync_tables.sql` (ejecutar manualmente en Railway)
+
+**Archivos creados:**
+
+| Archivo | Descripcion |
+|---|---|
+| `src/lib/audiences/types.ts` | Tipos e interfaces: SegmentCriteria, MetaUserData, GoogleUserIdentifier, SyncResult, AudiencePreview |
+| `src/lib/audiences/segment-engine.ts` | Motor de segmentacion: getMatchingCustomers() con filtros RFM/LTV/custom, previewAudience() para stats |
+| `src/lib/audiences/send-meta.ts` | Integracion Meta Custom Audiences API v21.0: crear audience, hashear PII (SHA256), upload en batches de 10K, session-based, retry con backoff |
+| `src/lib/audiences/send-google.ts` | Integracion Google Ads Customer Match API v17: crear user list, OfflineUserDataJob, operaciones en batches de 100K, Gmail normalization |
+| `src/lib/audiences/index.ts` | Re-exports publicos |
+| `src/app/api/audiences/route.ts` | CRUD API: GET (listar), POST (crear/preview), PUT (actualizar), DELETE |
+| `src/app/api/audiences/sync/route.ts` | Sync API: POST con audienceId, ejecuta sync a Meta y/o Google, logs automáticos |
+| `src/app/(app)/audiences/page.tsx` | UI admin: lista de audiencias, audience builder con segment picker, preview en tiempo real, sync manual, status badges |
+| `prisma/migrations/audience_sync_tables.sql` | SQL migration para produccion (no usar prisma db push) |
+
+**Archivos modificados:**
+
+| Archivo | Cambio |
+|---|---|
+| `prisma/schema.prisma` | +2 modelos (Audience, AudienceSyncLog), +1 relacion en Organization |
+| `src/app/(app)/layout.tsx` | v4 -> v5: Audience Sync premium card en HERRAMIENTAS (badge SYNC, color purple, glow) |
+
+### Seguridad (Triple Candado)
+
+1. **AUDIENCE_SYNC_ENABLED** — Variable de entorno. Si no es "true", toda la API de sync retorna skipped. Por defecto NO esta activado.
+2. **Credenciales** — Requiere Connection de META_ADS y/o GOOGLE_ADS con status ACTIVE. Si no hay credenciales, retorna skipped.
+3. **Minimo de audiencia** — Meta requiere minimo 20 clientes, Google similar. Si la audiencia es muy chica, retorna skipped.
+
+### Flujo Meta Custom Audiences
+
+1. Crear Custom Audience vacia (POST `/act_{AD_ACCOUNT_ID}/customaudiences`)
+2. Generar session_id unico (random 64-bit int)
+3. Hashear PII con SHA256: email, firstName, lastName, city, country, + EXTERN_ID (sin hash)
+4. Subir en batches de 10,000 (maximo de Meta API)
+5. Retry automatico con exponential backoff si rate limited (error 80003)
+6. Marcar last_batch_flag=true en el ultimo batch
+
+### Flujo Google Customer Match
+
+1. Crear CrmBasedUserList (POST `/customers/{id}/userLists:mutate`)
+2. Crear OfflineUserDataJob (tipo CUSTOMER_MATCH_USER_LIST, consent GRANTED)
+3. Normalizar Gmail (remover dots y + aliases antes de hash)
+4. Agregar operaciones en batches de 100K (AddOfflineUserDataJobOperations)
+5. Ejecutar job (RunOfflineUserDataJob)
+6. NOTA: Google depreca esta API desde Apr 1, 2026. Tokens activos siguen funcionando.
+
+### Criterios de segmentacion soportados
+
+- **RFM Segments**: Champions, Leales, Potenciales, Nuevos, Ocasionales, En riesgo, Perdidos
+- **LTV Buckets**: high_value, medium_value, low_value
+- **Custom filters**: minOrders, maxOrders, minSpent, maxSpent, recencyDaysMax, recencyDaysMin, cities, states, countries
+- **ALL_CUSTOMERS**: todos los clientes con al menos 1 orden y email
+
+### Preview (sin enviar nada)
+
+La UI calcula en tiempo real:
+- Total clientes que matchean
+- Data completeness: con email, con nombre, con ciudad
+- Estimated match rates: Meta (~65% base + multi-key bonus), Google (~45% base)
+- Segment breakdown visual
+- Top cities, AOV, avg lifetime orders
+
+### Para activar en produccion
+
+1. Ejecutar SQL migration en Railway: `prisma/migrations/audience_sync_tables.sql`
+2. Configurar en Vercel env vars:
+   - `AUDIENCE_SYNC_ENABLED=true`
+   - Meta: `META_AD_ACCOUNT_ID`, `META_ADS_ACCESS_TOKEN` (o en Connection credentials)
+   - Google: `GOOGLE_ADS_ACCESS_TOKEN`, `GOOGLE_ADS_CUSTOMER_ID`, `GOOGLE_ADS_DEVELOPER_TOKEN` (o en Connection credentials)
+3. Las credenciales tambien se pueden guardar en la tabla `connections` (platform META_ADS / GOOGLE_ADS)
+
+### Investigacion realizada (world-class patterns)
+
+Se investigaron a fondo antes de implementar:
+- **Meta Custom Audiences API v21.0**: endpoints, hashing SHA256, multi-key matching (6 fields), session-based uploads, batch de 10K, rate limits, policy updates 2025
+- **Google Ads Customer Match API v17**: OfflineUserDataJob, CrmBasedUserList, Gmail normalization, consent metadata, deprecation notice Apr 2026
+- **Triple Whale**: audience sync a Meta/Google/TikTok/Pinterest, segment builder, multi-destination
+- **Klaviyo**: email-first audience sync, hourly frequency, 100 profile minimum, engagement-based segmentation
+- **Segment (Twilio) Engage**: real-time segment evaluation, Generative Audiences (AI), trait activation, health monitoring
+- **Hightouch**: warehouse-native reverse ETL, visual audience builder, composable architecture, 250+ destinations
+
+### Pendientes Audience Sync
+
+- [ ] Ejecutar SQL migration en Railway
+- [ ] Configurar AUDIENCE_SYNC_ENABLED=true cuando Tomy tenga credenciales
+- [ ] Cron de auto-sync (POST /api/cron/audience-sync) para audiencias con autoSync=true
+- [ ] UI: editar audiencia existente (form pre-populated)
+- [ ] UI: ver historial de syncs (AudienceSyncLog)
+- [ ] Incremental sync (solo enviar nuevos/cambiados, no full list cada vez)
+- [ ] TikTok Ads audience sync (futuro)
+- [ ] Match rate tracking post-sync (Meta devuelve esto en el audience status)
