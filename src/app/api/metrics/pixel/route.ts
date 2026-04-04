@@ -233,6 +233,8 @@ export async function GET(request: NextRequest) {
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
         GROUP BY 1
         ORDER BY revenue DESC
       ` as Promise<Array<{
@@ -266,6 +268,8 @@ export async function GET(request: NextRequest) {
               AND pa.model::text = 'NITRO'
               AND o.status NOT IN ('CANCELLED', 'PENDING')
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+              AND o.source IS DISTINCT FROM 'MELI'
+              AND o.channel IS DISTINCT FROM 'marketplace'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -285,6 +289,8 @@ export async function GET(request: NextRequest) {
               AND pa.model::text = ${selectedModel}
               AND o.status NOT IN ('CANCELLED', 'PENDING')
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+              AND o.source IS DISTINCT FROM 'MELI'
+              AND o.channel IS DISTINCT FROM 'marketplace'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -304,6 +310,8 @@ export async function GET(request: NextRequest) {
               AND pa.model::text = ${selectedModel}
               AND o.status NOT IN ('CANCELLED', 'PENDING')
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+              AND o.source IS DISTINCT FROM 'MELI'
+              AND o.channel IS DISTINCT FROM 'marketplace'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -322,6 +330,8 @@ export async function GET(request: NextRequest) {
               AND pa.model::text = ${selectedModel}
               AND o.status NOT IN ('CANCELLED', 'PENDING')
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+              AND o.source IS DISTINCT FROM 'MELI'
+              AND o.channel IS DISTINCT FROM 'marketplace'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -351,6 +361,8 @@ export async function GET(request: NextRequest) {
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
         GROUP BY 1
         ORDER BY MIN(COALESCE(GREATEST(pa."conversionLag", 0), 999))
       ` as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
@@ -391,13 +403,15 @@ export async function GET(request: NextRequest) {
       // 13. Total orders in period (for attribution rate)
       // Exclude cancelled/pending/zero-value AND marketplace orders (MercadoLibre)
       // Marketplace orders cannot be tracked by the pixel (checkout happens on ML)
+      // NOTE: Marketplace detection uses trafficSource='Marketplace' OR source='MELI' OR channel='marketplace'
+      //        because MELI-synced orders don't always have trafficSource set
       prisma.$queryRaw`
         SELECT
           COUNT(*)::int as total,
-          COUNT(*) FILTER (WHERE "trafficSource" = 'Marketplace')::int as "marketplaceOrders",
-          SUM("totalValue") FILTER (WHERE "trafficSource" = 'Marketplace')::float as "marketplaceRevenue",
-          COUNT(*) FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace')::int as "webOrders",
-          SUM("totalValue") FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace')::float as "webRevenue"
+          COUNT(*) FILTER (WHERE "trafficSource" = 'Marketplace' OR source = 'MELI' OR channel = 'marketplace')::int as "marketplaceOrders",
+          SUM("totalValue") FILTER (WHERE "trafficSource" = 'Marketplace' OR source = 'MELI' OR channel = 'marketplace')::float as "marketplaceRevenue",
+          COUNT(*) FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace' AND source IS DISTINCT FROM 'MELI' AND channel IS DISTINCT FROM 'marketplace')::int as "webOrders",
+          SUM("totalValue") FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace' AND source IS DISTINCT FROM 'MELI' AND channel IS DISTINCT FROM 'marketplace')::float as "webRevenue"
         FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${dateFrom}
@@ -440,6 +454,8 @@ export async function GET(request: NextRequest) {
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
         ORDER BY o."orderDate" DESC
         LIMIT 15
       ` as Promise<Array<{
@@ -475,6 +491,8 @@ export async function GET(request: NextRequest) {
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
         GROUP BY 1
         ORDER BY 1
       ` as Promise<Array<{ day: string; revenue: number; orders: number }>>,
@@ -492,6 +510,8 @@ export async function GET(request: NextRequest) {
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
       ` as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
 
       // 19. Per-day coverage: total orders vs attributed orders per day
@@ -515,6 +535,8 @@ export async function GET(request: NextRequest) {
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
         GROUP BY 1
         ORDER BY 1
       ` as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
@@ -544,6 +566,8 @@ export async function GET(request: NextRequest) {
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
         GROUP BY 1, 2
         ORDER BY 1 DESC, revenue DESC
       ` as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>,
