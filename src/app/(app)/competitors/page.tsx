@@ -485,7 +485,7 @@ export default function CompetitorsPage() {
                         {row.ownProduct.priceStatus === "sin_stock" ? (
                           <span className="text-[11px] font-semibold px-2 py-1 rounded bg-gray-100 text-gray-500">Sin stock</span>
                         ) : row.ownProduct.priceStatus === "sin_precio" ? (
-                          <span className="text-[11px] font-semibold px-2 py-1 rounded bg-amber-50 text-amber-600">Sin precio publicado</span>
+                          <span className="text-[11px] font-semibold px-2 py-1 rounded bg-amber-50 text-amber-600">Sin stock</span>
                         ) : (
                           <span className="text-gray-800">{fmtARS(row.ownProduct.price)}</span>
                         )}
