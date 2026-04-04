@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(applications);
+    const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const applyUrl = `${appUrl}/i/${org.slug}/apply`;
+
+    return NextResponse.json({ applications, applyUrl });
   } catch (error: any) {
     console.error("[Applications API] GET error:", error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

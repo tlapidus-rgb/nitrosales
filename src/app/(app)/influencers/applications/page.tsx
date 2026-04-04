@@ -41,6 +41,8 @@ export default function ApplicationsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [commissionInput, setCommissionInput] = useState<Record<string, string>>({});
   const [notesInput, setNotesInput] = useState<Record<string, string>>({});
+  const [applyUrl, setApplyUrl] = useState<string>("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     loadApplications();
@@ -52,7 +54,8 @@ export default function ApplicationsPage() {
       const res = await fetch(`/api/influencers/applications?status=${filter}`);
       if (res.ok) {
         const data = await res.json();
-        setApplications(data);
+        setApplications(data.applications || data);
+        if (data.applyUrl) setApplyUrl(data.applyUrl);
       }
     } catch (err) {
       console.error("Error loading applications:", err);
@@ -103,6 +106,30 @@ export default function ApplicationsPage() {
           <p className="text-sm text-gray-500 mt-1">Revisá y aprobá aplicaciones del formulario público</p>
         </div>
       </div>
+
+      {/* Public form link */}
+      {applyUrl && (
+        <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-orange-800 mb-1">Link del formulario público</p>
+            <p className="text-xs text-orange-600 truncate">{applyUrl}</p>
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(applyUrl);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className={`px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              copied
+                ? "bg-green-500 text-white"
+                : "bg-orange-500 text-white hover:bg-orange-600"
+            }`}
+          >
+            {copied ? "Copiado!" : "Copiar link"}
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex gap-2 mb-4">
