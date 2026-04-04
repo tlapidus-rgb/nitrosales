@@ -50,6 +50,7 @@ model Organization {
   seoPageDaily             SeoPageDaily[]
   competitorStores         CompetitorStore[]
   competitorPrices         CompetitorPrice[]
+  competitorAds            CompetitorAd[]
   // MercadoLibre
   mlListings               MlListing[]
   mlQuestions              MlQuestion[]
@@ -774,16 +775,19 @@ model SeoPageDaily {
 // ══════════════════════════════════════════════════════════════
 
 model CompetitorStore {
-  id             String   @id @default(cuid())
-  name           String                          // "Jugueterias Cody"
-  website        String                          // "https://www.cody.com.ar"
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String                          // "Jugueterias Cody"
+  website          String                          // "https://www.cody.com.ar"
+  isActive         Boolean  @default(true)
+  metaPageId       String?                         // Facebook Page ID (para Meta Ad Library)
+  googleAdsDomain  String?                         // Dominio para Google Ads Transparency
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   prices         CompetitorPrice[]
+  ads            CompetitorAd[]
 
   @@index([organizationId])
   @@map("competitor_stores")
@@ -817,6 +821,39 @@ model CompetitorPrice {
   @@index([competitorId])
   @@index([ownProductId])
   @@map("competitor_prices")
+}
+
+// Anuncios de competidores (Meta Ad Library + Google Ads Transparency)
+model CompetitorAd {
+  id               String    @id @default(cuid())
+  platform         String                          // "meta" | "google"
+  adId             String                          // ID externo del anuncio
+  adBody           String?   @db.Text              // Texto del anuncio
+  adTitle          String?                         // Título/headline
+  adImageUrl       String?                         // URL de la imagen/video
+  adSnapshotUrl    String?                         // Link al anuncio en Ad Library
+  adUrl            String?                         // URL de destino del anuncio
+  startDate        DateTime?                       // Cuándo empezó a correr
+  endDate          DateTime?                       // Cuándo dejó (null = activo)
+  isActive         Boolean   @default(true)
+  adType           String?                         // "image" | "video" | "carousel"
+  impressionsRange String?                         // Rango estimado de impresiones
+  rawData          Json      @default("{}")        // JSON completo de la respuesta
+  firstSeenAt      DateTime  @default(now())
+  lastSeenAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  competitorId     String
+  competitor       CompetitorStore @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@unique([competitorId, platform, adId])
+  @@index([organizationId])
+  @@index([competitorId])
+  @@index([isActive])
+  @@map("competitor_ads")
 }
 
 // ══════════════════════════════════════════════════════════════

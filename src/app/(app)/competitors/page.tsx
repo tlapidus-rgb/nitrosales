@@ -12,7 +12,7 @@ const fmt = (n: number) => n?.toLocaleString("es-AR") ?? "0";
 const fmtARS = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n || 0);
 const COLORS = ["#FF5E1A", "#4285f4", "#8b5cf6", "#059669", "#d97706", "#ec4899", "#06b6d4"];
 
-type Store = { id: string; name: string; website: string };
+type Store = { id: string; name: string; website: string; metaPageId?: string | null; googleAdsDomain?: string | null };
 type CompItem = {
   store: string; storeId: string; price: number; diff: number;
   previousPrice: number | null; url: string; productName: string; imageUrl?: string;
@@ -28,14 +28,15 @@ type PriceRow = {
 type Change = { competitor: string; product: string; oldPrice: number; newPrice: number; change: number; date: string };
 type Alert = { type: string; product: string; diff?: number; competitor?: string; drop?: number };
 
-type Tab = "precios" | "inteligencia";
+type Tab = "precios" | "publicidad";
 
 export default function CompetitorsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("precios");
   const [data, setData] = useState<any>(null);
-  const [intelData, setIntelData] = useState<any>(null);
+  const [adsData, setAdsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [intelLoading, setIntelLoading] = useState(false);
+  const [adsLoading, setAdsLoading] = useState(false);
+  const [adsSyncing, setAdsSyncing] = useState(false);
   const [error, setError] = useState("");
   const [storeFilter, setStoreFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -90,22 +91,35 @@ export default function CompetitorsPage() {
     }
   };
 
-  const loadIntelData = useCallback(async () => {
-    setIntelLoading(true);
+  const loadAdsData = useCallback(async () => {
+    setAdsLoading(true);
     try {
-      const res = await fetch("/api/metrics/intelligence").then(r => r.json());
-      if (res.ok) setIntelData(res);
+      const res = await fetch("/api/competitors/ads").then(r => r.json());
+      setAdsData(res);
     } catch (e: any) {
-      console.error("Intel load error:", e);
+      console.error("Ads load error:", e);
     } finally {
-      setIntelLoading(false);
+      setAdsLoading(false);
     }
   }, []);
 
+  const syncAds = useCallback(async () => {
+    setAdsSyncing(true);
+    try {
+      await fetch("/api/competitors/ads/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      await loadAdsData();
+      showToast("Anuncios sincronizados ✓");
+    } catch (e: any) {
+      showToast("Error al sincronizar anuncios");
+    } finally {
+      setAdsSyncing(false);
+    }
+  }, [loadAdsData]);
+
   useEffect(() => { loadData(); }, []);
   useEffect(() => {
-    if (activeTab === "inteligencia" && !intelData && !intelLoading) loadIntelData();
-  }, [activeTab, intelData, intelLoading, loadIntelData]);
+    if (activeTab === "publicidad" && !adsData && !adsLoading) loadAdsData();
+  }, [activeTab, adsData, adsLoading, loadAdsData]);
 
   // Add competitor store
   const addStore = async () => {
@@ -289,7 +303,7 @@ export default function CompetitorsPage() {
       <div className="flex gap-1 mb-5 bg-gray-100 rounded-xl p-1 w-fit">
         {([
           { key: "precios" as Tab, label: "Precios", icon: "💰" },
-          { key: "inteligencia" as Tab, label: "Inteligencia Competitiva", icon: "🧠" },
+          { key: "publicidad" as Tab, label: "Publicidad Competitiva", icon: "📢" },
         ]).map(tab => (
           <button
             key={tab.key}
@@ -671,6 +685,48 @@ export default function CompetitorsPage() {
                   {/* Expanded content */}
                   {isExpanded && (
                     <div className="px-4 pb-4 border-t border-gray-100">
+                      {/* Ad tracking config */}
+                      <div className="mt-3 mb-3 bg-indigo-50/50 border border-indigo-100 rounded-lg p-3">
+                        <p className="text-[11px] font-semibold text-indigo-700 mb-2">Configuracion de Publicidad</p>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="text-[10px] text-gray-500 mb-0.5 block">Facebook Page ID</label>
+                            <input
+                              defaultValue={s.metaPageId || ""}
+                              placeholder="Ej: 123456789012345"
+                              className="w-full px-2.5 py-1.5 border rounded-lg text-xs outline-none focus:border-indigo-400"
+                              onBlur={async (e) => {
+                                const val = e.target.value.trim();
+                                await fetch("/api/competitors", {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ type: "store", id: s.id, metaPageId: val }),
+                                });
+                                showToast("Page ID guardado ✓");
+                              }}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-[10px] text-gray-500 mb-0.5 block">Dominio Google Ads</label>
+                            <input
+                              defaultValue={s.googleAdsDomain || ""}
+                              placeholder="Ej: www.cebra.com.ar"
+                              className="w-full px-2.5 py-1.5 border rounded-lg text-xs outline-none focus:border-indigo-400"
+                              onBlur={async (e) => {
+                                const val = e.target.value.trim();
+                                await fetch("/api/competitors", {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ type: "store", id: s.id, googleAdsDomain: val }),
+                                });
+                                showToast("Dominio Google guardado ✓");
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[9px] text-gray-400 mt-1.5">El Page ID se encuentra en la URL de la pagina de Facebook del competidor. El dominio es el sitio web sin https://</p>
+                      </div>
+
                       {/* Add product URL inline */}
                       {showAddProduct === s.id && (
                         <div className="flex gap-2 mt-3 mb-3 bg-indigo-50 p-3 rounded-lg">
@@ -787,9 +843,9 @@ export default function CompetitorsPage() {
 
       </>}
 
-      {/* ═══ TAB: INTELIGENCIA COMPETITIVA ═══ */}
-      {activeTab === "inteligencia" && (
-        <IntelligenceTab data={intelData} loading={intelLoading} />
+      {/* ═══ TAB: PUBLICIDAD COMPETITIVA ═══ */}
+      {activeTab === "publicidad" && (
+        <AdsTab data={adsData} loading={adsLoading} syncing={adsSyncing} onSync={syncAds} onRefresh={loadAdsData} showToast={showToast} />
       )}
 
       {/* Toast */}
@@ -803,220 +859,254 @@ export default function CompetitorsPage() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// Intelligence Tab Component
+// Ads Tab Component — Publicidad Competitiva
 // ══════════════════════════════════════════════════════════════
-const INTEL_COLORS = ["#FF5E1A", "#4285f4", "#8b5cf6", "#059669", "#d97706", "#ec4899"];
 
-function IntelligenceTab({ data, loading }: { data: any; loading: boolean }) {
-  if (loading) return <p className="text-gray-400 py-8">Cargando datos de inteligencia...</p>;
-  if (!data) return <p className="text-gray-400 py-8">No hay datos disponibles.</p>;
+function AdsTab({ data, loading, syncing, onSync, onRefresh, showToast }: {
+  data: any; loading: boolean; syncing: boolean;
+  onSync: () => void; onRefresh: () => void; showToast: (msg: string) => void;
+}) {
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [competitorFilter, setCompetitorFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
+  const [searchAds, setSearchAds] = useState("");
+  const [sortBy, setSortBy] = useState("recent");
 
-  const { kpis, matchMethods, competitorProfiles, categories, priceDistribution, opportunities } = data;
+  if (loading && !data) return <p className="text-gray-400 py-8">Cargando datos de publicidad...</p>;
 
-  const opps = opportunities?.filter((o: any) => o.type === "oportunidad") || [];
-  const risks = opportunities?.filter((o: any) => o.type === "riesgo") || [];
+  const kpis = data?.kpis || { totalActive: 0, metaActive: 0, googleActive: 0, topCompetitor: null, longestRunningDays: 0 };
+  const ads = data?.ads || [];
+  const stores = data?.stores || [];
+
+  // Client-side filters (API already handles some, but we also filter locally for UX speed)
+  const filtered = ads.filter((ad: any) => {
+    if (platformFilter !== "all" && ad.platform !== platformFilter) return false;
+    if (competitorFilter !== "all" && ad.competitor?.id !== competitorFilter) return false;
+    if (statusFilter === "active" && !ad.isActive) return false;
+    if (statusFilter === "inactive" && ad.isActive) return false;
+    if (searchAds) {
+      const q = searchAds.toLowerCase();
+      const matchBody = ad.adBody?.toLowerCase().includes(q);
+      const matchTitle = ad.adTitle?.toLowerCase().includes(q);
+      if (!matchBody && !matchTitle) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  const sorted = [...filtered].sort((a: any, b: any) => {
+    if (sortBy === "recent") return new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime();
+    if (sortBy === "oldest") return new Date(a.firstSeenAt).getTime() - new Date(b.firstSeenAt).getTime();
+    if (sortBy === "longest") return (b.daysRunning || 0) - (a.daysRunning || 0);
+    return 0;
+  });
+
+  const hasConfiguredStores = stores.some((s: any) => s.metaPageId || s.googleAdsDomain);
 
   return (
     <div className="space-y-5">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard label="Tu Catálogo" value={fmt(kpis.totalOwnProducts)} sub="productos activos" />
-        <KpiCard label="Productos Competidores" value={fmt(kpis.totalCompetitorPrices)} sub={`de ${kpis.competitorCount} competidores`} />
-        <KpiCard label="Coincidencias" value={fmt(kpis.matchedPrices)} sub={`${kpis.unmatchedPrices} sin match`} color="text-emerald-600" />
-        <KpiCard label="Cobertura" value={`${kpis.coveragePercent}%`} sub={`${kpis.uniqueOwnMatched} de ${kpis.totalOwnProducts} productos`}
-          color={kpis.coveragePercent >= 50 ? "text-emerald-600" : kpis.coveragePercent >= 20 ? "text-amber-600" : "text-red-600"} />
+        <KpiCard label="Anuncios Activos" value={fmt(kpis.totalActive)} sub="en total" color="text-indigo-600" />
+        <KpiCard label="Meta Ads" value={fmt(kpis.metaActive)} sub="Facebook / Instagram" color="text-blue-600" />
+        <KpiCard label="Google Ads" value={fmt(kpis.googleActive)} sub="Search / Display" color="text-emerald-600" />
+        <KpiCard label="Mas Longevo" value={kpis.longestRunningDays > 0 ? `${kpis.longestRunningDays}d` : "—"}
+          sub={kpis.topCompetitor ? `${kpis.topCompetitor.name} lidera con ${kpis.topCompetitor.count}` : "sin datos"}
+          color="text-amber-600" />
       </div>
 
-      {/* Match Quality + Competitor Profiles */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Match Quality */}
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <h3 className="font-bold text-gray-800 mb-4">Calidad del Matching</h3>
-          <div className="space-y-3">
-            {Object.entries(matchMethods || {}).map(([method, count]: [string, any]) => {
-              const total = kpis.matchedPrices || 1;
-              const pct = Math.round((count / total) * 100);
-              const label = method === "EAN_EXACT" ? "EAN Exacto" : method === "SKU_MATCH" ? "SKU Match" : method === "FUZZY_TEXT" ? "Texto Fuzzy" : method;
-              const color = method === "EAN_EXACT" ? "#059669" : method === "SKU_MATCH" ? "#4285f4" : "#d97706";
-              return (
-                <div key={method}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-medium text-gray-700">{label}</span>
-                    <span className="text-gray-500">{count} ({pct}%)</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
-                  </div>
-                </div>
-              );
-            })}
-            {Object.keys(matchMethods || {}).length === 0 && (
-              <p className="text-sm text-gray-400">Sin datos de matching todavía</p>
+      {/* Sync button + filters */}
+      <div className="bg-white rounded-xl shadow-sm border p-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <button onClick={onSync} disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+            {syncing ? (
+              <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Sincronizando...</>
+            ) : (
+              <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Sincronizar Anuncios</>
             )}
-          </div>
-          <div className="mt-4 p-3 bg-amber-50 rounded-lg">
-            <p className="text-xs text-amber-700">
-              <strong>Tip:</strong> Cargando códigos EAN en tu catálogo el matching será 100% preciso por código de barras.
-            </p>
-          </div>
+          </button>
+
+          <div className="flex-1" />
+
+          {/* Search */}
+          <input value={searchAds} onChange={e => setSearchAds(e.target.value)}
+            placeholder="Buscar en anuncios..."
+            className="px-3 py-2 border rounded-lg text-sm outline-none focus:border-indigo-400 w-48" />
         </div>
 
-        {/* Competitor Profiles */}
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <h3 className="font-bold text-gray-800 mb-4">Perfil de Competidores</h3>
-          <div className="space-y-3">
-            {(competitorProfiles || []).map((cp: any) => (
-              <div key={cp.id} className="border rounded-lg p-3">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="font-semibold text-gray-800 text-sm">{cp.name}</p>
-                    <p className="text-[11px] text-gray-400">{cp.totalProducts} productos descubiertos</p>
-                  </div>
-                  <span className={`text-sm font-bold ${cp.avgPriceDiff > 0 ? "text-green-600" : cp.avgPriceDiff < 0 ? "text-red-600" : "text-gray-500"}`}>
-                    {cp.avgPriceDiff > 0 ? "+" : ""}{cp.avgPriceDiff}%
-                  </span>
-                </div>
-                <div className="flex gap-3 text-[11px]">
-                  <span className="text-green-600">{cp.cheaper} mas baratos</span>
-                  <span className="text-gray-400">{cp.equal} iguales</span>
-                  <span className="text-red-600">{cp.pricier} mas caros</span>
-                </div>
-              </div>
+        {/* Filter chips */}
+        <div className="flex flex-wrap gap-2">
+          {/* Platform */}
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+            {[{ k: "all", l: "Todas" }, { k: "meta", l: "Meta" }, { k: "google", l: "Google" }].map(f => (
+              <button key={f.k} onClick={() => setPlatformFilter(f.k)}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  platformFilter === f.k ? "bg-white text-gray-800 shadow-sm" : "text-gray-500"
+                }`}>{f.l}</button>
             ))}
-            {(competitorProfiles || []).length === 0 && (
-              <p className="text-sm text-gray-400">Agrega competidores para ver sus perfiles</p>
-            )}
           </div>
+
+          {/* Status */}
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+            {[{ k: "active", l: "Activos" }, { k: "inactive", l: "Inactivos" }, { k: "all", l: "Todos" }].map(f => (
+              <button key={f.k} onClick={() => setStatusFilter(f.k)}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  statusFilter === f.k ? "bg-white text-gray-800 shadow-sm" : "text-gray-500"
+                }`}>{f.l}</button>
+            ))}
+          </div>
+
+          {/* Competitor select */}
+          <select value={competitorFilter} onChange={e => setCompetitorFilter(e.target.value)}
+            className="px-3 py-1 border rounded-lg text-xs outline-none focus:border-indigo-400">
+            <option value="all">Todos los competidores</option>
+            {stores.map((s: any) => (
+              <option key={s.id} value={s.id}>{s.name} ({s.adCount})</option>
+            ))}
+          </select>
+
+          {/* Sort */}
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+            className="px-3 py-1 border rounded-lg text-xs outline-none focus:border-indigo-400">
+            <option value="recent">Mas reciente</option>
+            <option value="oldest">Mas antiguo</option>
+            <option value="longest">Mas longevo</option>
+          </select>
         </div>
       </div>
 
-      {/* Price Distribution Chart */}
-      {priceDistribution && priceDistribution.some((d: any) => d.tuTienda > 0 || d.competidores > 0) && (
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <h3 className="font-bold text-gray-800 mb-4">Distribución de Precios</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={priceDistribution} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="range" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip
-                formatter={(value: any, name: string) => [value, name === "tuTienda" ? "Tu Tienda" : "Competidores"]}
-                contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-              />
-              <Legend formatter={(value: string) => value === "tuTienda" ? "Tu Tienda" : "Competidores"} />
-              <Bar dataKey="tuTienda" fill="#FF5E1A" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="competidores" fill="#4285f4" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Category Analysis */}
-      {categories && categories.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <h3 className="font-bold text-gray-800 mb-4">Análisis por Categoría</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="text-left text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-4 py-2.5">Categoría</th>
-                  <th className="text-center text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-3 py-2.5">Tus Productos</th>
-                  <th className="text-center text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-3 py-2.5">Comparados</th>
-                  <th className="text-center text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-3 py-2.5">Cobertura</th>
-                  <th className="text-center text-[11px] text-gray-400 uppercase tracking-wider font-semibold px-3 py-2.5">Dif. Precio Prom.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((cat: any) => (
-                  <tr key={cat.name} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="px-4 py-2.5 font-medium text-gray-800">{cat.name}</td>
-                    <td className="px-3 py-2.5 text-center text-gray-600">{cat.ownProducts}</td>
-                    <td className="px-3 py-2.5 text-center text-gray-600">{cat.matchedProducts}</td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                        cat.coverage >= 50 ? "bg-green-50 text-green-700"
-                        : cat.coverage >= 20 ? "bg-amber-50 text-amber-700"
-                        : "bg-red-50 text-red-700"
-                      }`}>{cat.coverage}%</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className={`font-semibold ${cat.avgPriceDiff > 0 ? "text-green-600" : cat.avgPriceDiff < 0 ? "text-red-600" : "text-gray-500"}`}>
-                        {cat.avgPriceDiff > 0 ? "+" : ""}{cat.avgPriceDiff}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Opportunities & Risks */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Opportunities */}
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-lg">📈</span>
-            <h3 className="font-bold text-gray-800">Oportunidades de Precio</h3>
-            <span className="text-[10px] bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded">{opps.length}</span>
-          </div>
-          <p className="text-xs text-gray-400 mb-3">Competidores con precio mas alto que el tuyo (+10%)</p>
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {opps.slice(0, 15).map((o: any, i: number) => (
-              <div key={i} className="flex items-center justify-between py-2 px-3 bg-green-50 rounded-lg text-xs">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800 truncate">{o.ownProduct.substring(0, 40)}</p>
-                  <p className="text-gray-500">{o.competitor}</p>
-                </div>
-                <div className="text-right ml-2">
-                  <p className="font-bold text-green-700">+{o.diff}%</p>
-                  <p className="text-gray-400">{fmtARS(o.competitorPrice)}</p>
-                </div>
-              </div>
-            ))}
-            {opps.length === 0 && <p className="text-sm text-gray-400 py-2">No hay oportunidades detectadas</p>}
-          </div>
-        </div>
-
-        {/* Risks */}
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-lg">⚠️</span>
-            <h3 className="font-bold text-gray-800">Riesgos de Precio</h3>
-            <span className="text-[10px] bg-red-50 text-red-700 font-semibold px-2 py-0.5 rounded">{risks.length}</span>
-          </div>
-          <p className="text-xs text-gray-400 mb-3">Competidores con precio mas bajo que el tuyo (-10%)</p>
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {risks.slice(0, 15).map((o: any, i: number) => (
-              <div key={i} className="flex items-center justify-between py-2 px-3 bg-red-50 rounded-lg text-xs">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800 truncate">{o.ownProduct.substring(0, 40)}</p>
-                  <p className="text-gray-500">{o.competitor}</p>
-                </div>
-                <div className="text-right ml-2">
-                  <p className="font-bold text-red-700">{o.diff}%</p>
-                  <p className="text-gray-400">{fmtARS(o.competitorPrice)}</p>
-                </div>
-              </div>
-            ))}
-            {risks.length === 0 && <p className="text-sm text-gray-400 py-2">No hay riesgos detectados</p>}
-          </div>
-        </div>
-      </div>
-
-      {/* Coverage Gap Warning */}
-      {kpis.ownWithoutCompetitor > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <span className="text-xl">🔍</span>
+      {/* No stores configured warning */}
+      {!hasConfiguredStores && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-start gap-3">
+          <span className="text-2xl">⚙️</span>
           <div>
-            <p className="text-sm font-semibold text-amber-800">
-              {fmt(kpis.ownWithoutCompetitor)} productos sin competencia detectada
-            </p>
-            <p className="text-xs text-amber-600 mt-0.5">
-              Cargando los EAN (códigos de barra) en tu catálogo se pueden matchear automáticamente con competidores.
+            <p className="text-sm font-semibold text-amber-800">Configura los IDs de publicidad de tus competidores</p>
+            <p className="text-xs text-amber-600 mt-1">
+              Para ver los anuncios de tus competidores, necesitas configurar el <strong>Facebook Page ID</strong> y/o
+              el <strong>dominio de Google Ads</strong> en cada competidor. Abre "Gestionar Competidores" y expande cada tienda para configurar.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Competitor sidebar cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {stores.map((store: any) => {
+          const metaUrl = store.metaPageId
+            ? `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=AR&view_all_page_id=${store.metaPageId}`
+            : null;
+          const googleUrl = store.googleAdsDomain
+            ? `https://adstransparency.google.com/advertiser/AR?domain=${store.googleAdsDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "")}`
+            : null;
+
+          return (
+            <div key={store.id} className="bg-white rounded-xl shadow-sm border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-semibold text-gray-800 text-sm">{store.name}</p>
+                <span className="text-xs font-bold text-indigo-600">{store.adCount} ads</span>
+              </div>
+              <p className="text-[11px] text-gray-400 mb-3 truncate">{store.website}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {store.metaPageId ? (
+                  <a href={metaUrl!} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-[10px] font-semibold hover:bg-blue-100 transition-colors">
+                    <span>📘</span> Meta Ad Library
+                  </a>
+                ) : (
+                  <span className="px-2 py-1 bg-gray-50 text-gray-400 rounded-md text-[10px]">Meta: sin configurar</span>
+                )}
+                {store.googleAdsDomain ? (
+                  <a href={googleUrl!} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-md text-[10px] font-semibold hover:bg-green-100 transition-colors">
+                    <span>🔍</span> Google Transparency
+                  </a>
+                ) : (
+                  <span className="px-2 py-1 bg-gray-50 text-gray-400 rounded-md text-[10px]">Google: sin configurar</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Ads gallery */}
+      {sorted.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sorted.map((ad: any) => (
+            <div key={ad.id} className="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-shadow">
+              {/* Ad snapshot/image */}
+              <div className="h-48 bg-gray-100 flex items-center justify-center relative">
+                {ad.adSnapshotUrl ? (
+                  <a href={ad.adSnapshotUrl} target="_blank" rel="noopener noreferrer"
+                    className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 hover:from-indigo-50 hover:to-indigo-100 transition-colors">
+                    <div className="text-center">
+                      <span className="text-3xl">📋</span>
+                      <p className="text-xs text-gray-500 mt-1">Ver en Ad Library</p>
+                    </div>
+                  </a>
+                ) : ad.adImageUrl ? (
+                  <img src={ad.adImageUrl} alt={ad.adTitle || "Ad"} className="w-full h-full object-cover"
+                    onError={(e: any) => { e.target.style.display = "none"; e.target.parentElement.innerHTML = '<div class="flex items-center justify-center w-full h-full"><span class="text-3xl">📢</span></div>'; }} />
+                ) : (
+                  <span className="text-3xl">📢</span>
+                )}
+                {/* Platform badge */}
+                <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${
+                  ad.platform === "meta" ? "bg-blue-500" : "bg-green-600"
+                }`}>
+                  {ad.platform === "meta" ? "META" : "GOOGLE"}
+                </span>
+                {/* Active badge */}
+                <span className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  ad.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-500"
+                }`}>
+                  {ad.isActive ? "Activo" : "Inactivo"}
+                </span>
+              </div>
+
+              {/* Ad content */}
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold text-gray-500">{ad.competitor?.name}</span>
+                  {ad.daysRunning !== null && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded font-semibold">
+                      {ad.daysRunning}d activo
+                    </span>
+                  )}
+                </div>
+                {ad.adTitle && (
+                  <p className="font-semibold text-gray-800 text-sm mb-1 line-clamp-2">{ad.adTitle}</p>
+                )}
+                {ad.adBody && (
+                  <p className="text-xs text-gray-600 line-clamp-3">{ad.adBody}</p>
+                )}
+                {ad.impressionsRange && (
+                  <p className="text-[10px] text-gray-400 mt-2">Impresiones: {ad.impressionsRange}</p>
+                )}
+                <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
+                  <span className="text-[10px] text-gray-400">
+                    {ad.startDate ? new Date(ad.startDate).toLocaleDateString("es-AR") : ""}
+                  </span>
+                  {ad.adSnapshotUrl && (
+                    <a href={ad.adSnapshotUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] font-semibold text-indigo-600 hover:underline">
+                      Ver anuncio →
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+          <span className="text-4xl block mb-3">📢</span>
+          <p className="text-gray-500 text-sm">
+            {hasConfiguredStores
+              ? 'No hay anuncios encontrados. Pulsá "Sincronizar Anuncios" para buscar.'
+              : "Configura los IDs de publicidad en tus competidores para empezar."}
+          </p>
         </div>
       )}
     </div>

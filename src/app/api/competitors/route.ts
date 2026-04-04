@@ -96,6 +96,8 @@ export async function PUT(req: NextRequest) {
           ...(body.name && { name: body.name }),
           ...(body.website && { website: body.website }),
           ...(body.isActive !== undefined && { isActive: body.isActive }),
+          ...(body.metaPageId !== undefined && { metaPageId: body.metaPageId || null }),
+          ...(body.googleAdsDomain !== undefined && { googleAdsDomain: body.googleAdsDomain || null }),
         },
       });
       return NextResponse.json({ store });

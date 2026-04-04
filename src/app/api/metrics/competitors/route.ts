@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const [stores, competitorPrices, ownProducts] = await Promise.all([
       prisma.competitorStore.findMany({
         where: { organizationId: orgId, isActive: true },
-        select: { id: true, name: true, website: true },
+        select: { id: true, name: true, website: true, metaPageId: true, googleAdsDomain: true },
       }),
       prisma.competitorPrice.findMany({
         where: { organizationId: orgId, competitor: { isActive: true } },
