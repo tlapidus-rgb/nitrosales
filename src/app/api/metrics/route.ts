@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
+import { getCached, setCache } from "@/lib/api-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -144,6 +145,11 @@ export async function GET(request: Request) {
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+    // ── Cache: return cached response if fresh (60s TTL) ──
+    const cacheKey = [org.id, fromParam || "default", toParam || "default"];
+    const cached = getCached("metrics", ...cacheKey);
+    if (cached) return NextResponse.json(cached);
+
     const periodMs = to.getTime() - from.getTime();
     const previousFrom = new Date(from.getTime() - periodMs);
     const previousTo = from;
@@ -168,11 +174,9 @@ export async function GET(request: Request) {
       cpc: calcChange(current.cpc, previous.cpc),
     };
 
-    return NextResponse.json({
-      summary: current,
-      previousPeriod: previous,
-      changes,
-    });
+    const response = { summary: current, previousPeriod: previous, changes };
+    setCache("metrics", response, ...cacheKey);
+    return NextResponse.json(response);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

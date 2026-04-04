@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { getCached, setCache } from "@/lib/api-cache";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -40,7 +41,8 @@ async function maybeRefreshMaterializedView() {
 
 export async function GET(request: NextRequest) {
   try {
-    const ORG_ID = await getOrganizationId();
+    const orgId = await getOrganizationId();
+    const ORG_ID = orgId;
     const { searchParams } = new URL(request.url);
 
     // Refresh materialized view if stale (non-blocking, fire-and-forget)
@@ -50,6 +52,11 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const toParam = searchParams.get("to");
     const fromParam = searchParams.get("from");
+
+    // Cache check
+    const cacheKey = [orgId, fromParam || "default", toParam || "default"];
+    const cached = getCached("pixel", ...cacheKey);
+    if (cached) return NextResponse.json(cached);
 
     const dateTo = toParam
       ? new Date(toParam + "T23:59:59.999-03:00")
@@ -817,7 +824,7 @@ export async function GET(request: NextRequest) {
       touchpoints: Array.isArray(j.touchpoints) ? j.touchpoints : (typeof j.touchpoints === "string" ? JSON.parse(j.touchpoints) : j.touchpoints || []),
     }));
 
-    return NextResponse.json({
+    const response = {
       liveStatus: {
         status,
         lastEventAt: lastEventAt ? new Date(lastEventAt).toISOString() : null,
@@ -906,7 +913,10 @@ export async function GET(request: NextRequest) {
         attributionWindowDays,
         nitroWeights,
       },
-    });
+    };
+
+    setCache("pixel", response, ...cacheKey);
+    return NextResponse.json(response);
   } catch (error) {
     console.error("[Pixel Metrics API] Error:", error);
     return NextResponse.json(

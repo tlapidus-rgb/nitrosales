@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { getCached, setCache } from "@/lib/api-cache";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -110,7 +111,12 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
-    
+
+    // Cache check
+    const cacheKey = [ORG_ID, fromParam || "default", toParam || "default"];
+    const cached = getCached("products", ...cacheKey);
+    if (cached) return NextResponse.json(cached);
+
     const dateTo = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
     const dateFrom = fromParam ? new Date(fromParam + "T00:00:00.000-03:00") : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const daysDiff = Math.max(1, Math.round((dateTo.getTime() - dateFrom.getTime()) / (24 * 60 * 60 * 1000)));
@@ -626,6 +632,7 @@ export async function GET(request: Request) {
       marginAnalysis,
     };
 
+    setCache("products", response, ...cacheKey);
     return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching product metrics:", error);

@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { getCached, setCache } from "@/lib/api-cache";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -68,6 +69,11 @@ export async function GET(request: NextRequest) {
     // ── Pagination ──
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
+
+    // Cache check
+    const cacheKey = [ORG_ID, fromParam || "default", toParam || "default", sourceParam || "default", page];
+    const cached = getCached("orders", ...cacheKey);
+    if (cached) return NextResponse.json(cached);
 
     // ── Previous period for comparison ──
     const periodMs = dateTo.getTime() - dateFrom.getTime();
@@ -455,7 +461,7 @@ export async function GET(request: NextRequest) {
     const pctChange = (c: number, p: number) =>
       p > 0 ? ((c - p) / p) * 100 : c > 0 ? 100 : 0;
 
-    return NextResponse.json({
+    const response = {
       kpis: {
         totalOrders,
         totalRevenue,
@@ -564,7 +570,10 @@ export async function GET(request: NextRequest) {
         daysInPeriod,
         totalOrdersInDB: totalOrders + cancelledOrders,
       },
-    });
+    };
+
+    setCache("orders", response, ...cacheKey);
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error("Orders API error:", error);
     return NextResponse.json(

@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
+import { getCached, setCache } from "@/lib/api-cache";
 
 export const dynamic = "force-dynamic";
+
+// ── Optimized: all aggregation done in SQL, no full-table loads ──
 
 export async function GET(request: Request) {
   try {
@@ -13,123 +16,128 @@ export async function GET(request: Request) {
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
 
+    // Cache check
+    const cacheKey = [org.id, fromParam || "default", toParam || "default"];
+    const cached = getCached("trends", ...cacheKey);
+    if (cached) return NextResponse.json(cached);
+
     const to = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
     const from = fromParam
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const thirtyDaysAgo = from;
+    // 3 lightweight SQL aggregation queries instead of 3 full-table findMany
+    const [ordersByDay, adByDay, sessionsByDay] = await Promise.all([
+      // Orders: group by day, already filtered by billable status
+      prisma.$queryRawUnsafe<
+        Array<{ day: string; revenue: string; orders: string }>
+      >(
+        `SELECT
+          TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue,
+          COUNT(*)::text AS orders
+        FROM orders
+        WHERE "organizationId" = $1
+          AND "orderDate" >= $2 AND "orderDate" < $3
+          AND status IN ('INVOICED', 'SHIPPED', 'DELIVERED')
+        GROUP BY day ORDER BY day`,
+        org.id,
+        from,
+        to
+      ),
 
-    const [orders, adMetrics, webMetrics] = await Promise.all([
-      prisma.order.findMany({
-        where: {
-          organizationId: org.id,
-          orderDate: { gte: thirtyDaysAgo },
-          status: { in: ["INVOICED", "SHIPPED", "DELIVERED"] },
-        },
-        select: { orderDate: true, totalValue: true },
-      }),
-      prisma.adMetricDaily.findMany({
-        where: {
-          organizationId: org.id,
-          date: { gte: thirtyDaysAgo },
-        },
-        select: {
-          date: true,
-          platform: true,
-          spend: true,
-          impressions: true,
-          clicks: true,
-          conversions: true,
-          conversionValue: true,
-        },
-      }),
-      prisma.webMetricDaily.findMany({
-        where: {
-          organizationId: org.id,
-          date: { gte: thirtyDaysAgo },
-        },
-        select: { date: true, sessions: true, pageViews: true },
-        orderBy: { date: "asc" },
-      }),
+      // Ad metrics: group by day with platform breakdown
+      prisma.$queryRawUnsafe<
+        Array<{
+          day: string;
+          total_spend: string;
+          google_spend: string;
+          meta_spend: string;
+          impressions: string;
+          clicks: string;
+          conversions: string;
+          conversion_value: string;
+        }>
+      >(
+        `SELECT
+          TO_CHAR(date, 'YYYY-MM-DD') AS day,
+          COALESCE(SUM(spend), 0)::text AS total_spend,
+          COALESCE(SUM(CASE WHEN platform = 'GOOGLE' THEN spend ELSE 0 END), 0)::text AS google_spend,
+          COALESCE(SUM(CASE WHEN platform = 'META' THEN spend ELSE 0 END), 0)::text AS meta_spend,
+          COALESCE(SUM(impressions), 0)::text AS impressions,
+          COALESCE(SUM(clicks), 0)::text AS clicks,
+          COALESCE(SUM(conversions), 0)::text AS conversions,
+          COALESCE(SUM("conversionValue"), 0)::text AS conversion_value
+        FROM ad_metric_daily
+        WHERE "organizationId" = $1
+          AND date >= $2 AND date < $3
+        GROUP BY day ORDER BY day`,
+        org.id,
+        from,
+        to
+      ),
+
+      // Sessions: group by day
+      prisma.$queryRawUnsafe<
+        Array<{ day: string; sessions: string }>
+      >(
+        `SELECT
+          TO_CHAR(date, 'YYYY-MM-DD') AS day,
+          COALESCE(SUM(sessions), 0)::text AS sessions
+        FROM web_metric_daily
+        WHERE "organizationId" = $1
+          AND date >= $2 AND date < $3
+        GROUP BY day ORDER BY day`,
+        org.id,
+        from,
+        to
+      ),
     ]);
 
-    // Group revenue by day
-    const revenueByDay: Record<string, number> = {};
-    const ordersByDay: Record<string, number> = {};
-    for (const o of orders) {
-      const key = o.orderDate.toISOString().split("T")[0];
-      revenueByDay[key] = (revenueByDay[key] || 0) + o.totalValue;
-      ordersByDay[key] = (ordersByDay[key] || 0) + 1;
-    }
+    // Build lookup maps from aggregated results (O(n) each, n = days not rows)
+    const revenueMap = new Map(ordersByDay.map((r) => [r.day, r]));
+    const adMap = new Map(adByDay.map((r) => [r.day, r]));
+    const sessMap = new Map(sessionsByDay.map((r) => [r.day, r]));
 
-    // Group ad spend by day and platform
-    const adByDay: Record<
-      string,
-      { google: number; meta: number; totalSpend: number; impressions: number; clicks: number; conversions: number; conversionValue: number }
-    > = {};
-    for (const a of adMetrics) {
-      const key = a.date.toISOString().split("T")[0];
-      if (!adByDay[key])
-        adByDay[key] = {
-          google: 0,
-          meta: 0,
-          totalSpend: 0,
-          impressions: 0,
-          clicks: 0,
-          conversions: 0,
-          conversionValue: 0,
-        };
-      adByDay[key].totalSpend += a.spend;
-      adByDay[key].impressions += a.impressions;
-      adByDay[key].clicks += a.clicks;
-      adByDay[key].conversions += a.conversions;
-      adByDay[key].conversionValue += a.conversionValue;
-      if (a.platform === "GOOGLE") adByDay[key].google += a.spend;
-      else if (a.platform === "META") adByDay[key].meta += a.spend;
-    }
-
-    // Group sessions by day
-    const sessionsByDay: Record<string, number> = {};
-    for (const w of webMetrics) {
-      const key = w.date.toISOString().split("T")[0];
-      sessionsByDay[key] = (sessionsByDay[key] || 0) + w.sessions;
-    }
-
-    // Build unified daily array for the selected period
-    const totalDays = Math.ceil((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
-    const days: any[] = [];
+    // Build unified daily array
+    const totalDays = Math.ceil(
+      (to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)
+    );
+    const days: unknown[] = [];
     for (let i = totalDays - 1; i >= 0; i--) {
       const d = new Date(to);
       d.setDate(d.getDate() - i);
       const key = d.toISOString().split("T")[0];
-      const ad = adByDay[key] || {
-        google: 0,
-        meta: 0,
-        totalSpend: 0,
-        impressions: 0,
-        clicks: 0,
-        conversions: 0,
-        conversionValue: 0,
-      };
-      const revenue = revenueByDay[key] || 0;
-      const spend = ad.totalSpend;
+
+      const ord = revenueMap.get(key);
+      const ad = adMap.get(key);
+      const sess = sessMap.get(key);
+
+      const revenue = ord ? Number(ord.revenue) : 0;
+      const spend = ad ? Number(ad.total_spend) : 0;
+      const convValue = ad ? Number(ad.conversion_value) : 0;
+
       days.push({
         date: key,
         revenue,
-        orders: ordersByDay[key] || 0,
-        sessions: sessionsByDay[key] || 0,
+        orders: ord ? Number(ord.orders) : 0,
+        sessions: sess ? Number(sess.sessions) : 0,
         adSpend: spend,
-        googleSpend: ad.google,
-        metaSpend: ad.meta,
-        impressions: ad.impressions,
-        clicks: ad.clicks,
-        conversions: ad.conversions,
-        roas: spend > 0 ? Math.round((ad.conversionValue / spend) * 100) / 100 : 0,
+        googleSpend: ad ? Number(ad.google_spend) : 0,
+        metaSpend: ad ? Number(ad.meta_spend) : 0,
+        impressions: ad ? Number(ad.impressions) : 0,
+        clicks: ad ? Number(ad.clicks) : 0,
+        conversions: ad ? Number(ad.conversions) : 0,
+        roas:
+          spend > 0
+            ? Math.round((convValue / spend) * 100) / 100
+            : 0,
       });
     }
 
-    return NextResponse.json({ days });
+    const response = { days };
+    setCache("trends", response, ...cacheKey);
+    return NextResponse.json(response);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
