@@ -231,3 +231,107 @@ export function weeklyDigestEmail(orgName: string, metrics: DigestMetrics, narra
 
   return { subject, html: baseLayout(subject, content) };
 }
+
+// ── Influencer Application Confirmation ──────
+
+export function applicationConfirmationEmail(
+  applicantName: string,
+  orgName: string
+): { subject: string; html: string } {
+  const subject = `Recibimos tu aplicacion — ${orgName}`;
+  const content = `
+    <h2 style="color:${TEXT_PRIMARY};font-size:18px;font-weight:600;margin:0 0 16px;">Hola ${applicantName}! 👋</h2>
+    <div style="background:${CARD_BG};border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid #1F1F2E;">
+      <p style="color:${TEXT_PRIMARY};font-size:14px;line-height:1.6;margin:0 0 12px;">
+        Recibimos tu aplicacion para ser parte del programa de embajadores de <strong style="color:${BRAND_ORANGE};">${orgName}</strong>.
+      </p>
+      <p style="color:${TEXT_SECONDARY};font-size:13px;line-height:1.6;margin:0;">
+        Nuestro equipo va a revisar tu perfil y te vamos a contactar pronto. Si sos seleccionado/a, vas a recibir un email con tus links de tracking y toda la info para empezar.
+      </p>
+    </div>
+    <p style="color:${TEXT_SECONDARY};font-size:12px;margin:0;text-align:center;">Gracias por tu interes! 🚀</p>
+  `;
+  return { subject, html: baseLayout(subject, content) };
+}
+
+// ── Welcome Influencer Email ─────────────────
+
+export function welcomeInfluencerEmail(
+  influencerName: string, orgName: string, trackingLink: string,
+  dashboardLink: string, commissionPercent: number, coupons: string[]
+): { subject: string; html: string } {
+  const subject = `Bienvenido/a al programa de ${orgName}! 🎉`;
+  const couponSection = coupons.length > 0 ? `
+    <div style="background:${CARD_BG};border-radius:12px;padding:16px;margin-bottom:16px;border:1px solid #1F1F2E;">
+      <h3 style="color:${TEXT_PRIMARY};font-size:14px;font-weight:600;margin:0 0 12px;">Tus cupones de descuento</h3>
+      ${coupons.map(c => `<div style="display:inline-block;background:#0A0A0F;border:1px solid ${BRAND_ORANGE}30;border-radius:8px;padding:6px 14px;margin:4px;"><span style="color:${BRAND_ORANGE};font-size:14px;font-weight:700;font-family:monospace;">${c}</span></div>`).join("")}
+    </div>` : "";
+  const content = `
+    <h2 style="color:${TEXT_PRIMARY};font-size:18px;font-weight:600;margin:0 0 16px;">Bienvenido/a, ${influencerName}! 🎉</h2>
+    <p style="color:${TEXT_SECONDARY};font-size:14px;line-height:1.6;margin:0 0 20px;">
+      Tu aplicacion fue aprobada. Ya sos parte del programa de embajadores de <strong style="color:${BRAND_ORANGE};">${orgName}</strong>.
+    </p>
+    <div style="background:linear-gradient(135deg, ${BRAND_ORANGE}20, ${BRAND_ORANGE}05);border-radius:12px;padding:16px;margin-bottom:16px;border:1px solid ${BRAND_ORANGE}30;">
+      <p style="color:${TEXT_SECONDARY};font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Tu comision</p>
+      <p style="color:${BRAND_ORANGE};font-size:28px;font-weight:700;margin:0;">${commissionPercent}%</p>
+      <p style="color:${TEXT_SECONDARY};font-size:12px;margin:4px 0 0;">de cada venta que generes</p>
+    </div>
+    <div style="background:${CARD_BG};border-radius:12px;padding:16px;margin-bottom:16px;border:1px solid #1F1F2E;">
+      <h3 style="color:${TEXT_PRIMARY};font-size:14px;font-weight:600;margin:0 0 8px;">Tu link de tracking</h3>
+      <div style="background:#0A0A0F;border-radius:8px;padding:10px 14px;word-break:break-all;">
+        <a href="${trackingLink}" style="color:${BRAND_ORANGE};font-size:13px;text-decoration:none;">${trackingLink}</a>
+      </div>
+      <p style="color:${TEXT_SECONDARY};font-size:11px;margin:8px 0 0;">Compartilo en tus redes para que tus seguidores compren con tu link.</p>
+    </div>
+    ${couponSection}
+    <div style="background:${CARD_BG};border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid #1F1F2E;">
+      <h3 style="color:${TEXT_PRIMARY};font-size:14px;font-weight:600;margin:0 0 8px;">Tu dashboard</h3>
+      <p style="color:${TEXT_SECONDARY};font-size:13px;margin:0 0 12px;">Desde aca vas a poder ver tus ventas, comisiones y metricas en tiempo real.</p>
+      <a href="${dashboardLink}" style="display:inline-block;padding:10px 24px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:13px;font-weight:600;">Ver mi Dashboard</a>
+    </div>
+  `;
+  return { subject, html: baseLayout(subject, content) };
+}
+
+// ── Monthly Commission Summary Email ─────────
+
+export interface MonthlyInfluencerSummary {
+  influencerName: string; orgName: string; month: string;
+  totalSales: number; totalCommission: number; totalConversions: number;
+  commissionPercent: number; tierLabel: string | null; dashboardLink: string;
+  topDay: { date: string; sales: number } | null;
+  comparison: { salesChange: number; commissionChange: number } | null;
+}
+
+export function monthlyCommissionSummaryEmail(data: MonthlyInfluencerSummary): { subject: string; html: string } {
+  const subject = `Tu resumen de ${data.month} — ${data.orgName}`;
+  function formatARS(n: number): string { return "$ " + Math.round(n).toLocaleString("es-AR"); }
+  const comparisonRow = data.comparison ? `
+    <div style="margin-top:12px;"><span style="color:${data.comparison.salesChange >= 0 ? GREEN : RED};font-size:12px;font-weight:600;">
+      Ventas: ${data.comparison.salesChange >= 0 ? "↑" : "↓"} ${Math.abs(data.comparison.salesChange).toFixed(0)}% vs mes anterior
+    </span></div>` : "";
+  const tierBadge = data.tierLabel
+    ? `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;color:${BRAND_ORANGE};background:${BRAND_ORANGE}15;border:1px solid ${BRAND_ORANGE}30;margin-left:8px;">${data.tierLabel} — ${data.commissionPercent}%</span>`
+    : "";
+  const content = `
+    <h2 style="color:${TEXT_PRIMARY};font-size:18px;font-weight:600;margin:0 0 4px;">Resumen de ${data.month} ${tierBadge}</h2>
+    <p style="color:${TEXT_SECONDARY};font-size:13px;margin:0 0 20px;">Hola ${data.influencerName}, aca va tu resumen mensual en ${data.orgName}.</p>
+    <div style="background:linear-gradient(135deg, ${BRAND_ORANGE}20, ${BRAND_ORANGE}05);border-radius:12px;padding:20px;margin-bottom:16px;border:1px solid ${BRAND_ORANGE}30;text-align:center;">
+      <p style="color:${TEXT_SECONDARY};font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Tu comision de ${data.month}</p>
+      <p style="color:${BRAND_ORANGE};font-size:32px;font-weight:700;margin:0;">${formatARS(data.totalCommission)}</p>
+    </div>
+    <div style="background:${CARD_BG};border-radius:12px;padding:16px;margin-bottom:16px;border:1px solid #1F1F2E;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="padding:8px 0;color:${TEXT_SECONDARY};font-size:13px;">Ventas generadas</td><td style="padding:8px 0;color:${TEXT_PRIMARY};font-size:14px;font-weight:600;text-align:right;">${formatARS(data.totalSales)}</td></tr>
+        <tr><td style="padding:8px 0;color:${TEXT_SECONDARY};font-size:13px;">Conversiones</td><td style="padding:8px 0;color:${TEXT_PRIMARY};font-size:14px;font-weight:600;text-align:right;">${data.totalConversions}</td></tr>
+        <tr><td style="padding:8px 0;color:${TEXT_SECONDARY};font-size:13px;">Comision</td><td style="padding:8px 0;color:${TEXT_PRIMARY};font-size:14px;font-weight:600;text-align:right;">${data.commissionPercent}%</td></tr>
+        ${data.topDay ? `<tr><td style="padding:8px 0;color:${TEXT_SECONDARY};font-size:13px;">Mejor dia</td><td style="padding:8px 0;color:${TEXT_PRIMARY};font-size:14px;font-weight:600;text-align:right;">${data.topDay.date} — ${formatARS(data.topDay.sales)}</td></tr>` : ""}
+      </table>
+      ${comparisonRow}
+    </div>
+    <div style="text-align:center;margin-top:24px;">
+      <a href="${data.dashboardLink}" style="display:inline-block;padding:12px 32px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">Ver mi Dashboard</a>
+    </div>
+  `;
+  return { subject, html: baseLayout(subject, content) };
+}

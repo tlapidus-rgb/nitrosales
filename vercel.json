@@ -43,6 +43,10 @@
     {
       "path": "/api/cron/ml-sync",
       "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/influencer-summary?key=nitrosales-secret-key-2024-production",
+      "schedule": "0 10 1 * *"
     }
   ]
 }

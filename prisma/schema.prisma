@@ -66,6 +66,7 @@ model Organization {
   influencerCampaigns      InfluencerCampaign[]
   influencerAttributions   InfluencerAttribution[]
   influencerCoupons        InfluencerCoupon[]
+  influencerApplications   InfluencerApplication[]
 
   @@map("organizations")
 }
@@ -1155,6 +1156,28 @@ model Influencer {
   @@unique([organizationId, code])
   @@index([organizationId])
   @@map("influencers")
+}
+
+// Aplicaciones públicas de influencers que quieren unirse al programa
+model InfluencerApplication {
+  id              String    @id @default(cuid())
+  name            String
+  email           String
+  instagram       String?
+  tiktok          String?
+  youtube         String?
+  followers       String?                          // Rango: "1K-10K", "10K-50K", etc.
+  message         String?                          // Por qué quiere ser embajador
+  status          String    @default("PENDING")    // PENDING, APPROVED, REJECTED
+  reviewedAt      DateTime?
+  notes           String?                          // Notas internas del admin
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, status])
+  @@map("influencer_applications")
 }
 
 // Campañas específicas de un influencer
