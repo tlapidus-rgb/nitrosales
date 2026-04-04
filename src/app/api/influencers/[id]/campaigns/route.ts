@@ -79,6 +79,8 @@ export async function POST(
         startDate: new Date(body.startDate),
         endDate: body.endDate ? new Date(body.endDate) : null,
         description: body.description || null,
+        bonusTarget: body.bonusTarget ?? null,
+        bonusAmount: body.bonusAmount ?? null,
       },
     });
 

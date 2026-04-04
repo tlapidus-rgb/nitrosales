@@ -29,6 +29,8 @@ interface Campaign {
   influencerId: string;
   totalRevenue: number;
   totalCommission: number;
+  bonusTarget: number | null;
+  bonusAmount: number | null;
   _count: { attributions: number };
 }
 
@@ -46,6 +48,8 @@ export default function InfluencerCampaignsPage() {
   const [formStart, setFormStart] = useState(new Date().toISOString().slice(0, 10));
   const [formEnd, setFormEnd] = useState("");
   const [formDesc, setFormDesc] = useState("");
+  const [formBonusAmount, setFormBonusAmount] = useState("");
+  const [formBonusTarget, setFormBonusTarget] = useState("");
 
   useEffect(() => {
     fetch("/api/influencers")
@@ -80,6 +84,8 @@ export default function InfluencerCampaignsPage() {
           startDate: formStart,
           endDate: formEnd || null,
           description: formDesc || null,
+          ...(formBonusTarget ? { bonusTarget: parseFloat(formBonusTarget) } : {}),
+          ...(formBonusAmount ? { bonusAmount: parseFloat(formBonusAmount) } : {}),
         }),
       });
       const data = await res.json();
@@ -96,6 +102,8 @@ export default function InfluencerCampaignsPage() {
       setShowCreate(false);
       setFormName("");
       setFormDesc("");
+      setFormBonusAmount("");
+      setFormBonusTarget("");
     } catch (e) {
       console.error(e);
     }
@@ -180,6 +188,27 @@ export default function InfluencerCampaignsPage() {
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
               />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Bono: target de revenue ($)</label>
+              <input
+                type="number"
+                value={formBonusTarget}
+                onChange={(e) => setFormBonusTarget(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                placeholder="Ej: 500000"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Bono: premio al alcanzar ($)</label>
+              <input
+                type="number"
+                value={formBonusAmount}
+                onChange={(e) => setFormBonusAmount(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                placeholder="Ej: 50000"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">Si se define, el influencer gana este bono al alcanzar el target</p>
+            </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-500 mb-1">Descripcion</label>
               <input
@@ -220,6 +249,7 @@ export default function InfluencerCampaignsPage() {
                 <th className="px-6 py-3 font-medium text-gray-500">Periodo</th>
                 <th className="px-6 py-3 font-medium text-gray-500 text-right">Revenue</th>
                 <th className="px-6 py-3 font-medium text-gray-500 text-right">Ventas</th>
+                <th className="px-6 py-3 font-medium text-gray-500 text-right">Bono</th>
                 <th className="px-6 py-3 font-medium text-gray-500 text-center">Estado</th>
               </tr>
             </thead>
@@ -250,6 +280,19 @@ export default function InfluencerCampaignsPage() {
                     {fmtARS(Number(c.totalRevenue || 0))}
                   </td>
                   <td className="px-6 py-4 text-right">{c._count?.attributions || 0}</td>
+                  <td className="px-6 py-4 text-right">
+                    {c.bonusTarget && c.bonusAmount ? (
+                      <div className="text-xs">
+                        <div className="font-medium text-orange-600">{fmtARS(Number(c.bonusAmount))}</div>
+                        <div className="text-gray-400">
+                          {Math.min(100, Math.round((Number(c.totalRevenue || 0) / Number(c.bonusTarget)) * 100))}%
+                          de {fmtARS(Number(c.bonusTarget))}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-center">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

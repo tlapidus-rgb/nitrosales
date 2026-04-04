@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 
 // ══════════════════════════════════════════════════════════════
@@ -9,6 +9,22 @@ import Link from "next/link";
 
 const fmtARS = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
+
+interface Coupon {
+  id: string;
+  code: string;
+  discountPercent: number | null;
+  discountFixed: number | null;
+  isActive: boolean;
+}
+
+interface Tier {
+  id: string;
+  minRevenue: number;
+  maxRevenue: number | null;
+  commissionPercent: number;
+  label: string | null;
+}
 
 interface Influencer {
   id: string;
@@ -32,6 +48,21 @@ export default function InfluencerManagePage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [coupons, setCoupons] = useState<Record<string, Coupon[]>>({});
+  const [tiers, setTiers] = useState<Record<string, Tier[]>>({});
+  const [tierMonth, setTierMonth] = useState<Record<string, number>>({});
+
+  // Coupon form
+  const [couponCode, setCouponCode] = useState("");
+  const [couponDiscount, setCouponDiscount] = useState("");
+  const [couponSaving, setCouponSaving] = useState(false);
+
+  // Tier form
+  const [tierMin, setTierMin] = useState("");
+  const [tierMax, setTierMax] = useState("");
+  const [tierPercent, setTierPercent] = useState("");
+  const [tierLabel, setTierLabel] = useState("");
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -139,6 +170,112 @@ export default function InfluencerManagePage() {
     setFormPublicName(inf.publicName || inf.name);
     setFormPassword("");
     setShowCreate(false);
+  };
+
+  // ── Coupon & Tier functions ──
+  const loadCoupons = async (infId: string) => {
+    const res = await fetch(`/api/influencers/${infId}/coupons`);
+    const data = await res.json();
+    setCoupons((prev) => ({ ...prev, [infId]: data.coupons || [] }));
+  };
+
+  const loadTiers = async (infId: string) => {
+    const res = await fetch(`/api/influencers/${infId}/tiers`);
+    const data = await res.json();
+    setTiers((prev) => ({ ...prev, [infId]: data.tiers || [] }));
+    setTierMonth((prev) => ({ ...prev, [infId]: data.monthRevenue || 0 }));
+  };
+
+  const toggleExpand = (infId: string) => {
+    if (expandedId === infId) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(infId);
+      loadCoupons(infId);
+      loadTiers(infId);
+    }
+  };
+
+  const handleCreateCoupon = async (infId: string) => {
+    if (!couponCode) return;
+    setCouponSaving(true);
+    try {
+      const res = await fetch(`/api/influencers/${infId}/coupons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: couponCode,
+          ...(couponDiscount ? { discountPercent: parseFloat(couponDiscount) } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+      } else {
+        setCouponCode("");
+        setCouponDiscount("");
+        loadCoupons(infId);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setCouponSaving(false);
+  };
+
+  const handleToggleCoupon = async (infId: string, coupon: Coupon) => {
+    await fetch(`/api/influencers/${infId}/coupons?couponId=${coupon.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !coupon.isActive }),
+    });
+    loadCoupons(infId);
+  };
+
+  const handleAddTier = async (infId: string) => {
+    if (!tierMin || !tierPercent) return;
+    const currentTiers = tiers[infId] || [];
+    const newTiers = [
+      ...currentTiers.map((t) => ({
+        minRevenue: Number(t.minRevenue),
+        maxRevenue: t.maxRevenue ? Number(t.maxRevenue) : null,
+        commissionPercent: Number(t.commissionPercent),
+        label: t.label,
+      })),
+      {
+        minRevenue: parseFloat(tierMin),
+        maxRevenue: tierMax ? parseFloat(tierMax) : null,
+        commissionPercent: parseFloat(tierPercent),
+        label: tierLabel || null,
+      },
+    ].sort((a, b) => a.minRevenue - b.minRevenue);
+
+    await fetch(`/api/influencers/${infId}/tiers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tiers: newTiers }),
+    });
+    setTierMin("");
+    setTierMax("");
+    setTierPercent("");
+    setTierLabel("");
+    loadTiers(infId);
+  };
+
+  const handleDeleteTier = async (infId: string, tierId: string) => {
+    const currentTiers = (tiers[infId] || []).filter((t) => t.id !== tierId);
+    await fetch(`/api/influencers/${infId}/tiers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tiers: currentTiers.map((t) => ({
+          minRevenue: Number(t.minRevenue),
+          maxRevenue: t.maxRevenue ? Number(t.maxRevenue) : null,
+          commissionPercent: Number(t.commissionPercent),
+          label: t.label,
+        })),
+      }),
+    });
+    loadTiers(infId);
   };
 
   if (loading) {
@@ -270,7 +407,8 @@ export default function InfluencerManagePage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {influencers.map((inf) => (
-                <tr key={inf.id} className="hover:bg-gray-50/50 transition-colors">
+                <React.Fragment key={inf.id}>
+                <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <Link href={`/influencers/${inf.id}`} className="group">
                       <p className="font-medium text-gray-900 group-hover:text-orange-600 transition-colors">
@@ -329,9 +467,153 @@ export default function InfluencerManagePage() {
                       >
                         Eliminar
                       </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => toggleExpand(inf.id)}
+                        className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                      >
+                        {expandedId === inf.id ? "Cerrar" : "Cupones/Tiers"}
+                      </button>
                     </div>
                   </td>
                 </tr>
+                {/* Expanded panel: Coupons + Tiers */}
+                {expandedId === inf.id && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-4 bg-gray-50/50">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Coupons section */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-3">Cupones de descuento</h4>
+                          {(coupons[inf.id] || []).length > 0 && (
+                            <div className="space-y-2 mb-3">
+                              {(coupons[inf.id] || []).map((c) => (
+                                <div key={c.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                  <div className="flex items-center gap-2">
+                                    <code className="text-xs font-mono bg-orange-50 text-orange-700 px-2 py-0.5 rounded">{c.code}</code>
+                                    {c.discountPercent && <span className="text-xs text-gray-500">{Number(c.discountPercent)}% off</span>}
+                                    {c.discountFixed && <span className="text-xs text-gray-500">${Number(c.discountFixed)} off</span>}
+                                  </div>
+                                  <button
+                                    onClick={() => handleToggleCoupon(inf.id, c)}
+                                    className={`text-xs px-2 py-0.5 rounded-full ${c.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}
+                                  >
+                                    {c.isActive ? "Activo" : "Inactivo"}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={couponCode}
+                              onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                              className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              placeholder="CODIGO (ej: SOFIA10)"
+                            />
+                            <input
+                              type="number"
+                              value={couponDiscount}
+                              onChange={(e) => setCouponDiscount(e.target.value)}
+                              className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              placeholder="% off"
+                              min="0"
+                              max="100"
+                            />
+                            <button
+                              onClick={() => handleCreateCoupon(inf.id)}
+                              disabled={couponSaving || !couponCode}
+                              className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50"
+                            >
+                              {couponSaving ? "..." : "+ Agregar"}
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            Si un cliente usa este cupón al comprar, la venta se atribuye a este influencer
+                          </p>
+                        </div>
+
+                        {/* Tiers section */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                            Tiers de comisión
+                            <span className="font-normal text-gray-400 ml-2 text-xs">
+                              Revenue este mes: {fmtARS(tierMonth[inf.id] || 0)}
+                            </span>
+                          </h4>
+                          {(tiers[inf.id] || []).length > 0 && (
+                            <div className="space-y-2 mb-3">
+                              {(tiers[inf.id] || []).map((t) => (
+                                <div key={t.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                  <div className="text-xs">
+                                    {t.label && <span className="font-medium text-gray-700 mr-2">{t.label}</span>}
+                                    <span className="text-gray-500">
+                                      {fmtARS(Number(t.minRevenue))} — {t.maxRevenue ? fmtARS(Number(t.maxRevenue)) : "∞"}
+                                    </span>
+                                    <span className="ml-2 font-semibold text-orange-600">{Number(t.commissionPercent)}%</span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleDeleteTier(inf.id, t.id)}
+                                    className="text-xs text-red-400 hover:text-red-600"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {(tiers[inf.id] || []).length === 0 && (
+                            <p className="text-xs text-gray-400 mb-3">Sin tiers → usa comisión base ({Number(inf.commissionPercent)}%)</p>
+                          )}
+                          <div className="flex gap-2 flex-wrap">
+                            <input
+                              type="text"
+                              value={tierLabel}
+                              onChange={(e) => setTierLabel(e.target.value)}
+                              className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              placeholder="Nombre"
+                            />
+                            <input
+                              type="number"
+                              value={tierMin}
+                              onChange={(e) => setTierMin(e.target.value)}
+                              className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              placeholder="Desde $"
+                            />
+                            <input
+                              type="number"
+                              value={tierMax}
+                              onChange={(e) => setTierMax(e.target.value)}
+                              className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              placeholder="Hasta $ (∞)"
+                            />
+                            <input
+                              type="number"
+                              value={tierPercent}
+                              onChange={(e) => setTierPercent(e.target.value)}
+                              className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white"
+                              placeholder="%"
+                              min="0"
+                              max="100"
+                            />
+                            <button
+                              onClick={() => handleAddTier(inf.id)}
+                              disabled={!tierMin || !tierPercent}
+                              className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600 disabled:opacity-50"
+                            >
+                              + Tier
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            Si hay tiers, la comisión se ajusta según el revenue mensual del influencer
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

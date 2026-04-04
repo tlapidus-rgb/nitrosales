@@ -165,6 +165,9 @@ export async function POST(req: NextRequest) {
       .filter(Boolean)
       .join(', ') || null;
 
+    // Extract coupon code from VTEX marketingData
+    const couponCode = vtexOrder.marketingData?.coupon || null;
+
     // ── Check if this order already exists (for dedup logic) ──
     const existingOrder = await prisma.order.findUnique({
       where: {
@@ -197,6 +200,7 @@ export async function POST(req: NextRequest) {
         discountValue: discountValue / 100,
         orderDate: new Date(vtexOrder.creationDate),
         ...(promoNames ? { promotionNames: promoNames } : {}),
+        ...(couponCode ? { couponCode } : {}),
       },
       update: {
         status: nsStatus as any,
@@ -206,6 +210,7 @@ export async function POST(req: NextRequest) {
         shippingCost: shippingCost / 100,
         discountValue: discountValue / 100,
         ...(promoNames ? { promotionNames: promoNames } : {}),
+        ...(couponCode ? { couponCode } : {}),
       },
     });
 
