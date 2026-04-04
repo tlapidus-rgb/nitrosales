@@ -229,7 +229,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {/* Group separator + label */}
               {gi > 0 && <div className="my-3 mx-3 border-t border-nitro-border/40" />}
               {group.label && (
-                <p className="px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-nitro-muted/60 select-none">
+                <p
+                  className={`px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] select-none ${
+                    group.label === "HERRAMIENTAS"
+                      ? "text-nitro-orange/70"
+                      : "text-nitro-muted/60"
+                  }`}
+                  style={
+                    group.label === "HERRAMIENTAS"
+                      ? {
+                          background: "linear-gradient(90deg, var(--nitro-orange), #f59e0b)",
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          letterSpacing: "0.2em",
+                        }
+                      : undefined
+                  }
+                >
                   {group.label}
                 </p>
               )}
@@ -268,6 +284,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                       </svg>
                       {item.label}
+                      {item.href === "/pixel" && (
+                        <span className="ml-auto flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-nitro-green animate-pulse-live" />
+                          <span className="font-mono text-[9px] text-nitro-green/80 uppercase tracking-widest">
+                            Live
+                          </span>
+                        </span>
+                      )}
+                      {item.href === "/customers/ltv" && (
+                        <span
+                          className="ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wider"
+                          style={{
+                            background: "linear-gradient(135deg, rgba(255,94,26,0.15), rgba(245,158,11,0.15))",
+                            color: "var(--nitro-orange)",
+                            border: "1px solid rgba(255,94,26,0.2)",
+                          }}
+                        >
+                          AI
+                        </span>
+                      )}
                       {hasChildren && (
                         <svg
                           className="w-3.5 h-3.5 ml-auto text-nitro-muted transition-transform duration-400 ease-nitro"
