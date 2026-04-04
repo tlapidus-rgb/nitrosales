@@ -61,6 +61,9 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string;
   direct: { icon: "D", color: "#22C55E", label: "Directo", svg: "direct" },
   organic: { icon: "O", color: "#8B5CF6", label: "Organico", svg: "organic" },
   email: { icon: "E", color: "#F59E0B", label: "Email", svg: "email" },
+  "email-marketing": { icon: "E", color: "#F59E0B", label: "Email Marketing", svg: "email" },
+  "vtex-abandoned-cart": { icon: "C", color: "#E85D04", label: "Carrito Abandonado", svg: "email" },
+  "email-remarketing": { icon: "R", color: "#FB923C", label: "Email Remarketing", svg: "email" },
   referral: { icon: "R", color: "#EC4899", label: "Referido", svg: "referral" },
   whatsapp: { icon: "W", color: "#25D366", label: "WhatsApp", svg: "whatsapp" },
 };

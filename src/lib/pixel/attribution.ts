@@ -30,6 +30,14 @@ interface Touchpoint {
 // Only used when there are NO click IDs or UTM params (i.e. unpaid traffic).
 
 const REFERRER_RULES: Array<{ pattern: RegExp; source: string; medium: string }> = [
+  // ── Email apps & providers (MUST be before search engines!) ──
+  // Mobile email apps send referrers like android-app://com.google.android.gm/
+  // which new URL().hostname parses as "com.google.android.gm". Without this rule,
+  // it would match the google\.\w+ pattern below and be misclassified as "google organic".
+  { pattern: /com\.google\.android\.gm/, source: 'email', medium: 'email' },            // Gmail app (Android)
+  { pattern: /mail\.google\.com|gmail\.com/, source: 'email', medium: 'email' },         // Gmail web
+  { pattern: /outlook\.com|outlook\.live\.com|hotmail\.com/, source: 'email', medium: 'email' }, // Outlook web/app
+  { pattern: /yahoo\.com\/mail|mail\.yahoo\.com/, source: 'email', medium: 'email' },    // Yahoo Mail
   // Search engines → organic
   { pattern: /google\.\w+/, source: 'google', medium: 'organic' },
   { pattern: /bing\.com/, source: 'bing', medium: 'organic' },
@@ -51,9 +59,6 @@ const REFERRER_RULES: Array<{ pattern: RegExp; source: string; medium: string }>
   { pattern: /t\.me|telegram\.org/, source: 'telegram', medium: 'referral' },
   // Marketplaces (Argentina) → referral
   { pattern: /mercadolibre\.com/, source: 'mercadolibre', medium: 'referral' },
-  // Email providers → email
-  { pattern: /mail\.google\.com|gmail\.com/, source: 'gmail', medium: 'email' },
-  { pattern: /outlook\.com|hotmail\.com/, source: 'outlook', medium: 'email' },
 ];
 
 /**
@@ -451,7 +456,8 @@ export async function calculateAttribution(
           // This prevents internal redirects or unknown referrers from overriding paid attribution.
           const isKnownExternalSource = ['google', 'bing', 'yahoo', 'duckduckgo', 'baidu',
             'meta', 'facebook', 'instagram', 'threads', 'tiktok', 'twitter', 'linkedin', 'youtube', 'pinterest',
-            'whatsapp', 'telegram', 'mercadolibre', 'gmail', 'outlook'].includes(sessionReferrerSource.source);
+            'whatsapp', 'telegram', 'mercadolibre', 'email',
+            'email-marketing', 'vtex-abandoned-cart', 'email-remarketing'].includes(sessionReferrerSource.source);
 
           if (hasClicks && !isKnownExternalSource) {
             // Stale click IDs + unknown referrer → prefer click IDs (likely internal redirect)
@@ -483,11 +489,47 @@ export async function calculateAttribution(
       // Normalize common source aliases for consistency
       const normalizedSource = (source || 'direct').replace(/^ig$/, 'instagram');
 
+      // ── VTEX internal email detection ──
+      // VTEX appends __utmi=carrito_abandonado to abandoned cart email links.
+      // These emails often lack UTM params, so the source would default to
+      // referrer-based detection (often misclassified as "google" from Gmail app).
+      // Override to correctly attribute as abandoned cart email.
+      let finalSource = normalizedSource;
+      let finalMedium = medium;
+      let finalCampaign = campaign;
+
+      const landingUrl = landingEvent.pageUrl || '';
+      if (landingUrl.includes('__utmi=carrito_abandonado')) {
+        finalSource = 'vtex-abandoned-cart';
+        finalMedium = 'email';
+        finalCampaign = finalCampaign || 'carrito-abandonado';
+        clickId = undefined;
+        clickType = undefined;
+      }
+
+      // Normalize Icommarketing source to consistent email-marketing label
+      if (finalSource.toLowerCase() === 'icommarketing') {
+        finalSource = 'email-marketing';
+        finalMedium = 'email';
+      }
+
+      // Normalize VTEXCEM (VTEX Campaign Email Manager) to consistent label
+      if (finalSource.toUpperCase() === 'VTEXCEM') {
+        finalSource = 'vtex-abandoned-cart';
+        finalMedium = 'email';
+      }
+
+      // Normalize remarketing emails
+      if (finalSource.toLowerCase() === 'remarketing' && finalMedium === 'email') {
+        finalSource = 'email-remarketing';
+        finalMedium = 'email';
+      }
+
       sessionSources.push({
         timestamp: landingEvent.timestamp,
-        source: normalizedSource,
-        medium,
-        campaign,
+        source: finalSource,
+        medium: finalMedium,
+        campaign: finalCampaign,
         clickId: confidence === 'referrer' ? undefined : clickId, // Don't carry stale clickIds into referrer touchpoints
         clickType: confidence === 'referrer' ? undefined : clickType,
         page: landingEvent.pageUrl || undefined,
