@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-03 (Sesion 5 — LTV Guardrails + Build Fix + Configurable Thresholds + Sidebar Reorg)
+## Ultima actualizacion: 2026-04-04 (Sesion 6-7 — Influencer Module Fases 1-5 + Nitro Creators + Premium Nav)
 
 ---
 
@@ -133,15 +133,73 @@
 | src/lib/crypto.ts | **v1** | NEW | AES-256-GCM credential encryption |
 | src/lib/auth-guard.ts | **v1** | NEW | Org resolution from NextAuth session |
 | src/lib/db/client.ts | **v1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client |
-| prisma/schema.prisma | **v3** | ACTIVO | +CustomerLtvPrediction model (2026-04-02). +ManualCost, ShippingRate. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. Prisma db push ejecutado. |
+| prisma/schema.prisma | **v4** | ACTIVO | +Influencer, InfluencerCampaign, InfluencerAttribution, InfluencerApplication, InfluencerBriefing, ContentSubmission, ProductSeeding (7 modelos nuevos). +isProductBreakdownEnabled en Influencer. +CustomerLtvPrediction. +ManualCost, ShippingRate. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. |
 | vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. |
-| src/app/(app)/layout.tsx | **v2** | ACTIVO | Sidebar reorganizado en 7 grupos: OPERACIONES, CATALOGO, MARKETING Y ADQUISICION, CLIENTES, CANALES, FINANZAS, sin-grupo. NavItem[] -> NavGroup[]. Labels: Overview->Centro de Control, Ordenes->Pedidos, Finanzas->P&L. Separadores visuales entre grupos. 14 items preservados. |
+| src/app/(app)/layout.tsx | **v4** | ACTIVO | Sidebar con 9 grupos: OPERACIONES, CATALOGO, MARKETING Y ADQUISICION, NITRO CREATORS (gradient label, Influencers + Contenido expandibles), CLIENTES, CANALES, HERRAMIENTAS (NitroPixel + LTV con premium cards), FINANZAS, sin-grupo. Premium cards con glow, badges LIVE/AI, description text. Smart isActive logic para Influencers vs Contenido routes. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
 ---
 
 ## FUNCIONALIDADES COMPLETADAS (NO TOCAR, NO RE-IMPLEMENTAR, NO MENCIONAR COMO PENDIENTES)
 
+### Modulo Influencer Marketing (Nitro Creators) -- COMPLETADO Y EN PRODUCCION (2026-04-04)
+
+**5 fases implementadas en sesiones 6-7. 18 commits. Modulo completo de influencer marketing.**
+
+#### Fase 1: Base del modulo (commits 8735ddd, 1b427d5, b7cb5d9)
+- Modelos Prisma: Influencer, InfluencerCampaign, InfluencerAttribution
+- CRUD influencers con slug/code unicos
+- Dashboard publico en /i/[slug]/[code] con password SHA-256
+- Tracking link con UTM: ?utm_source=influencer&utm_medium=referral&utm_campaign=[slug]
+- Atribucion via ordenes con UTM matching
+- Comisiones por tier (porcentaje del revenue)
+- Campanas con bonus % y fechas
+
+#### Fase 2: Dashboard publico world-class (commit cdf0ea7)
+- KPIs: revenue generado, comisiones, ordenes, tasa conversion
+- Chart de ventas temporal
+- Tabla de campanas activas con bonus
+- Cupones asociados
+- Estadisticas detalladas (ticket promedio, mejores dias, ventas recientes)
+
+#### Fase 3: Self-service applications + emails (commits 0c07fc9, 1e4abc6, e740770, 7c81b4b, 599c593)
+- Formulario publico de aplicacion en /i/[slug]/apply
+- Admin: lista de aplicaciones con aprobar/rechazar
+- Al aprobar: auto-crea Influencer + envia email via Resend con credenciales
+- Tracking link visible en dashboard publico
+- Fixes: input visibility (CSS specificity), Internal Error on approve, post-password loading
+
+#### Fase 4: Analytics avanzados + Leaderboard + CSV (commits fa94143, 6216b80)
+- Leaderboard: ranking de influencers por revenue/ordenes/comisiones
+- Analytics: graficos temporales, top campaigns, channel breakdown
+- CSV export de datos de influencers
+- Empty states para paginas sin datos
+
+#### Fase 5: Content management (commit 1abc297)
+- Modelos: InfluencerBriefing, ContentSubmission, ProductSeeding
+- Admin Briefings: CRUD, tipos (GENERAL/REEL/STORY/POST/UNBOXING/REVIEW), status management
+- Admin Aprobaciones: grid de submissions, review workflow (approve/reject/revision), feedback
+- Admin UGC Library: galeria de contenido aprobado como UGC, filtro por plataforma
+- Admin Product Seeding: envio de productos, tracking PENDING->SHIPPED->DELIVERED->CONTENT_RECEIVED
+- Public content API: influencers ven briefings y envian contenido desde su dashboard
+
+#### Post-Fase 5: UX improvements (commits 75b7b0d, 15cce14, e3890cd, 4849eee, ba52674)
+- Product breakdown: toggle isProductBreakdownEnabled para controlar visibilidad de productos vendidos en dashboard del influencer
+- Tab unification: dashboard publico unificado en 1 URL con 2 tabs ("Mis Ganancias" / "Mi Contenido")
+- Content data lazy-loaded solo al activar tab Contenido
+- Nitro Creators: seccion propia en nav admin con gradient premium
+- Premium cards: NitroPixel y LTV con cards especiales (glow, badges LIVE/AI, descripcion)
+
+#### Patrones tecnicos criticos del modulo Influencer:
+- **CSS Specificity**: globals.css tiene `body { color: var(--nitro-text) }` donde `--nitro-text: #FFFFFF`. MUST usar `style={{ color: "#111827", backgroundColor: "#ffffff" }}` en inputs de paginas admin
+- **Store URL**: Organization NO tiene campo `website`. Usar `process.env.STORE_URL || "https://elmundodeljuguete.com.ar"`
+- **Data isolation**: queries SIEMPRE filtran por `influencerId` AND `organizationId`, con defense-in-depth en JOINs a products
+- **Password**: SHA-256 hash, verificado via /api/public/influencers/[slug]/[code]/verify
+- **UGC es interno**: el influencer solo envia contenido, la empresa decide que es UGC (toggle en admin)
+- **Email**: Resend REST API (no SDK) para emails de onboarding
+
+- **ESTADO: MODULO COMPLETO EN PRODUCCION. 5 FASES IMPLEMENTADAS.**
+- **PROHIBIDO: NO re-implementar ninguna fase. NO separar el portal en 2 URLs (ya unificado en tabs).**
 
 ### Modulo Margenes Completo -- COMPLETADO Y EN PRODUCCION (2026-04-03)
 - Tab "Margenes" en products/page.tsx v11
@@ -266,6 +324,104 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-04 — Sesiones 6-7 (Influencer Module Completo Fases 1-5 + Nitro Creators + Premium Nav)
+
+**Commits**: 8735ddd, 1b427d5, b7cb5d9, d7b29fd, cdf0ea7, 0c07fc9, 1e4abc6, e740770, 7c81b4b, 599c593, fa94143, 6216b80, 75b7b0d, 15cce14, 1abc297, e3890cd, 4849eee, ba52674 (18 commits)
+**Deploy**: Vercel auto-deploy OK para cada commit (ba52674 ultimo -> main)
+
+#### Errores encontrados y corregidos:
+
+1. **Inputs invisibles en admin pages — texto blanco sobre fondo blanco** (ERROR UX)
+   - SINTOMA: Al crear influencer, los inputs del formulario no mostraban texto. Parecia un form roto.
+   - CAUSA RAIZ: `globals.css` tiene `body { color: var(--nitro-text) }` donde `--nitro-text: #FFFFFF`. Los inputs heredaban color blanco sobre fondo blanco.
+   - FIX: Inline styles `style={{ color: "#111827", backgroundColor: "#ffffff" }}` en TODOS los inputs de paginas admin.
+   - APRENDIZAJE: **En TODAS las paginas admin de NitroSales, los inputs DEBEN tener inline style con color="#111827" y backgroundColor="#ffffff". Tailwind classes como `text-gray-900` NO funcionan porque globals.css tiene mayor especificidad.**
+   - Commit: 7c81b4b
+
+2. **Internal Error al aprobar aplicacion — campo website en Organization** (ERROR DB)
+   - SINTOMA: Al hacer click en "Aprobar" una aplicacion de influencer, error 500 Internal Server Error.
+   - CAUSA RAIZ: El endpoint de aprobacion usaba `org.website` para construir el email de bienvenida, pero Organization NO tiene campo `website`. Ese campo esta en CompetitorStore.
+   - FIX: Reemplazado `org.website` por `process.env.STORE_URL || "https://elmundodeljuguete.com.ar"`
+   - APRENDIZAJE: **El modelo Organization NO tiene campo `website`. La URL de la tienda se obtiene de `process.env.STORE_URL` o se hardcodea. NUNCA asumir que Organization tiene campos que no estan en schema.prisma.**
+   - Commit: 7c81b4b
+
+3. **Dashboard publico "no disponible" tras crear influencer** (ERROR FLUJO)
+   - SINTOMA: Tras aprobar aplicacion, el influencer recibia email con link al dashboard, pero al entrar decia "Dashboard no disponible".
+   - CAUSA RAIZ: La pagina de verificacion de password no manejaba correctamente el loading state post-autenticacion. El fetch del dashboard fallaba silenciosamente.
+   - FIX: Corregido flow de loading, agregado manejo de errores, validacion de slug/code.
+   - Commit: 599c593
+
+4. **Tracking link no visible en dashboard publico** (ERROR UX)
+   - SINTOMA: El influencer entraba a su dashboard pero no veia donde estaba su link de tracking.
+   - CAUSA RAIZ: El tracking link se generaba pero no se mostraba en la UI del dashboard publico.
+   - FIX: Agregada card con el tracking link copiable en el dashboard publico.
+   - Commit: e740770
+
+5. **Toggle de productos habilitado pero seccion no visible** (ERROR LOGICA)
+   - SINTOMA: Admin habilitaba isProductBreakdownEnabled para un influencer, pero en el dashboard no aparecia la seccion de productos.
+   - CAUSA RAIZ: La condicion era `data.topProducts && data.topProducts.length > 0`, que ocultaba la seccion cuando habia 0 productos (caso de influencer nuevo sin ventas aun).
+   - FIX: Cambiado a `data.topProducts !== undefined` con mensaje de empty state "Cuando tus ventas se registren, vas a ver aca que productos vendiste".
+   - APRENDIZAJE: **Para secciones con toggle, mostrar empty state cuando esta habilitado pero sin datos, NO ocultar la seccion. El usuario necesita feedback de que el toggle funciona.**
+   - Commit: 15cce14
+
+6. **Portal del influencer con 2 URLs confusas** (ERROR ARQUITECTURA)
+   - SINTOMA: El influencer tenia una URL para ganancias (/i/[slug]/[code]) y otra para contenido (/i/[slug]/[code]/content). El usuario (Tomy) se confundio sobre quien usaba cual.
+   - CAUSA RAIZ: Se implementaron como paginas separadas durante Fase 5, cuando deberian haber sido una sola experiencia.
+   - FIX: Unificado en 1 URL con 2 tabs ("Mis Ganancias" / "Mi Contenido"). La URL /content ahora redirige automaticamente.
+   - APRENDIZAJE: **Para portales de usuario externo (influencers), UNA sola URL con navegacion interna (tabs). Los influencers necesitan la experiencia mas simple posible. Si hay duda, unificar.**
+   - Commit: e3890cd
+
+7. **Nav admin sobrecargado — 10 items bajo Influencers** (ERROR UX)
+   - SINTOMA: Tomy reporto que el sidebar se sentia "muy cargado" con Briefings, Contenido, UGC Library y Product Seeding dentro de Influencers.
+   - CAUSA RAIZ: Se agregaron los items de Fase 5 al dropdown existente sin reorganizar.
+   - FIX: Creada seccion "NITRO CREATORS" con 2 sub-arboles: Influencers (6 items) y Contenido (4 items). Despues se promovieron NitroPixel y LTV a premium cards.
+   - APRENDIZAJE: **Cuando un dropdown supera 6-7 items, reorganizar en secciones separadas. El usuario nota la sobrecarga antes que el developer.**
+   - Commit: 4849eee, ba52674
+
+#### Que se hizo (resumen por commit):
+
+1. **Fase 1 base** (8735ddd) — Modelos Prisma, CRUD, dashboard publico, tracking, atribucion
+2. **Password protection** (1b427d5) — SHA-256 auth para dashboards publicos, fix tipografia inputs
+3. **Coupon attribution + commission tiers** (b7cb5d9) — Cupones, tiers de comision, bonus de campana
+4. **DB schema sync** (d7b29fd) — Trigger redeploy post-push schema
+5. **Dashboard publico v2** (cdf0ea7) — KPIs, chart, campanas, cupones, stats completos
+6. **Fase 3 self-service** (0c07fc9) — Aplicaciones, form publico, email automatico via Resend
+7. **Link form publico en admin** (1e4abc6) — Card con URL copiable del formulario
+8. **Fixes Phase 3** (e740770) — Tracking link visible, bugs menores
+9. **Fix Internal Error + inputs** (7c81b4b) — org.website fix, CSS specificity fix
+10. **Fix email + loading** (599c593) — Nombre org en email, loading post-password
+11. **Fase 4 analytics** (fa94143) — Leaderboard, analytics, CSV export
+12. **Empty states** (6216b80) — Analytics y leaderboard con empty states
+13. **Product breakdown** (75b7b0d) — Toggle isProductBreakdownEnabled, productos en dashboard
+14. **Empty state productos** (15cce14) — Mostrar seccion vacia cuando toggle on pero sin ventas
+15. **Fase 5 contenido** (1abc297) — Briefings, submissions, UGC library, product seeding
+16. **Tab unification** (e3890cd) — 2 tabs en dashboard, redirect /content, nav reorganizado
+17. **Nitro Creators** (4849eee) — Seccion propia con gradient premium, smart isActive
+18. **Premium cards** (ba52674) — NitroPixel y LTV con cards glowing, badges, descripciones
+
+#### Archivos nuevos creados (30+):
+- 11 paginas admin bajo `/influencers/*`
+- 3 paginas publicas bajo `/i/[slug]/*`
+- 15 API routes bajo `/api/influencers/*` y `/api/public/influencers/*`
+- 7 modelos Prisma nuevos
+
+#### Archivos modificados:
+- `prisma/schema.prisma` — v3 -> v4: +7 modelos influencer, +isProductBreakdownEnabled
+- `src/app/(app)/layout.tsx` — v2 -> v4: NITRO CREATORS seccion + premium cards + smart routing
+- `src/app/i/[slug]/[code]/page.tsx` — Reescrito 3 veces (v1 base -> v2 world-class -> v3 tabs)
+- `src/app/i/[slug]/[code]/content/page.tsx` — Full page -> redirect only
+
+#### Decisiones tomadas con Tomy:
+- Content/UGC es concepto 100% interno de la empresa, NO se expone al influencer
+- Influencer solo "envia contenido", la empresa decide que es UGC
+- Portal del influencer DEBE ser lo mas simple posible — 1 URL, 2 tabs
+- Admin nav reorganizado: Influencers (performance) separado de Contenido (creative)
+- NitroPixel y LTV promovidos a premium cards para darles mas peso visual
+- Nombre del producto: "Nitro Creators" (elegido sobre AFI, INFLUX, AMPLI)
+- Ubicacion: seccion propia con gradient, al mismo nivel que HERRAMIENTAS
+
+---
 
 ### 2026-04-03 — Sesion 5 (LTV Guardrails + Build Fix + Configurable Thresholds + Deep Audit + Sidebar Reorg)
 
@@ -879,22 +1035,83 @@
 
 ---
 
+### ERROR #17: INPUTS INVISIBLES POR CSS SPECIFICITY — globals.css override (2026-04-04)
+**Que paso**: Los inputs en paginas admin del modulo Influencer no mostraban texto (blanco sobre blanco).
+**Causa raiz**: `globals.css` tiene `body { color: var(--nitro-text) }` con `--nitro-text: #FFFFFF`. Los inputs heredan este color. Tailwind classes como `text-gray-900` pierden contra la especificidad de globals.css.
+**Fix aplicado**: Inline styles `style={{ color: "#111827", backgroundColor: "#ffffff" }}` en todos los inputs.
+**REGLA PERMANENTE**:
+- **Inputs en paginas admin SIEMPRE necesitan inline style `color: "#111827"` y `backgroundColor: "#ffffff"`.**
+- Tailwind text-color classes NO funcionan para inputs en NitroSales por la especificidad de globals.css.
+- Este problema afecta a CUALQUIER pagina nueva que tenga formularios.
+
+---
+
+### ERROR #18: ASUMIR CAMPOS EN MODELOS SIN VERIFICAR SCHEMA — org.website (2026-04-04)
+**Que paso**: El endpoint de aprobacion de influencers usaba `org.website` que no existe en el modelo Organization.
+**Causa raiz**: Se asumio que Organization tenia campo `website` sin verificar schema.prisma. El campo `website` existe en CompetitorStore, no en Organization.
+**Fix aplicado**: Reemplazado por `process.env.STORE_URL || "https://elmundodeljuguete.com.ar"`
+**REGLA PERMANENTE**:
+- **ANTES de acceder a un campo de cualquier modelo, verificar que EXISTE en prisma/schema.prisma.**
+- En particular: Organization tiene name, slug, createdAt, settings (JSON). NO tiene website, url, domain, ni nada similar.
+- Si necesitas la URL de la tienda: `process.env.STORE_URL` o hardcoded.
+
+---
+
+### ERROR #19: TOGGLE HABILITADO PERO SECCION OCULTA — Condicion con length > 0 (2026-04-04)
+**Que paso**: Admin activo el toggle de productos para un influencer, pero la seccion no aparecia en el dashboard.
+**Causa raiz**: La condicion `data.topProducts && data.topProducts.length > 0` ocultaba la seccion cuando el array estaba vacio (influencer nuevo sin ventas).
+**Fix aplicado**: Cambiado a `data.topProducts !== undefined` con mensaje de empty state.
+**REGLA PERMANENTE**:
+- **Para features con toggle: mostrar empty state cuando habilitado pero sin datos, NO ocultar la seccion.**
+- El usuario necesita feedback visual de que el toggle funciono.
+- Patron: `{feature !== undefined ? (items.length > 0 ? <Content/> : <EmptyState/>) : null}`
+
+---
+
+### ERROR #20: PORTAL EXTERNO CON MULTIPLES URLs — Confusion del usuario (2026-04-04)
+**Que paso**: El influencer tenia /i/[slug]/[code] para ganancias y /i/[slug]/[code]/content para contenido. Tomy se confundio.
+**Causa raiz**: Se implementaron como paginas separadas durante Fase 5 por comodidad de desarrollo.
+**Fix aplicado**: Unificado en 1 URL con 2 tabs. La URL /content redirige al dashboard principal.
+**REGLA PERMANENTE**:
+- **Portales para usuarios externos (influencers, proveedores, etc.) = UNA sola URL con navegacion interna.**
+- Estos usuarios no son tech-savvy. Multiples URLs los confunden.
+- Si necesitas secciones diferentes, usar tabs/accordions dentro de la misma pagina.
+- Lazy-load el contenido de tabs no activos para performance.
+
+---
+
+### ERROR #21: NAV SIDEBAR SOBRECARGADO — Mas de 7 items en dropdown (2026-04-04)
+**Que paso**: Tras Fase 5, el dropdown de Influencers tenia 10 items. Tomy dijo que estaba "muy cargado".
+**Causa raiz**: Se agregaron items incrementalmente sin pensar en la experiencia del nav completo.
+**Fix aplicado**: Separado en 2 secciones (Influencers + Contenido) bajo NITRO CREATORS.
+**REGLA PERMANENTE**:
+- **Un dropdown/submenu NO debe tener mas de 6-7 items.** Si excede, reorganizar en secciones.
+- Antes de agregar items a un submenu existente, contar cuantos tiene. Si ya tiene 6+, crear nueva seccion.
+- El usuario percibe la sobrecarga antes que el developer.
+
+---
+
 ### PROTOCOLO PRE-CAMBIO (OBLIGATORIO)
 
 Antes de CUALQUIER modificacion a codigo de NitroSales:
 
-1. ✅ Lei CLAUDE_STATE.md completo?
-2. ✅ Hice fetch del archivo ACTUAL de GitHub (no uso version local)?
-3. ✅ Mi cambio es quirurgico (string.replace), no full-file rewrite?
-4. ✅ Si toca fechas: uso -03:00 y AT TIME ZONE?
-5. ✅ Si toca status filter: incluye CANCELLED y RETURNED?
-6. ✅ Si toca SQL: todas las columnas existen en schema.prisma?
-7. ✅ Si toca KPIs: uso summary de orders table, no calculo desde order_items?
-8. ✅ Si toca paginacion: tengo page + startIndex + timeout handling?
-9. ✅ Solo uso ASCII (sin acentos, sin emojis, sin Unicode especial)?
-10. ✅ Pregunte al usuario antes de deployar?
-11. ✅ Si calculo margenes: uso precioNeto (precio/1.21), no precio con IVA?
-12. ✅ Si agrego tabla/chart: respeta los filtros activos de la seccion?
+1. Lei CLAUDE_STATE.md completo?
+2. Hice fetch del archivo ACTUAL de GitHub (no uso version local)?
+3. Mi cambio es quirurgico (string.replace), no full-file rewrite?
+4. Si toca fechas: uso -03:00 y AT TIME ZONE?
+5. Si toca status filter: incluye CANCELLED y RETURNED?
+6. Si toca SQL: todas las columnas existen en schema.prisma?
+7. Si toca KPIs: uso summary de orders table, no calculo desde order_items?
+8. Si toca paginacion: tengo page + startIndex + timeout handling?
+9. Solo uso ASCII (sin acentos, sin emojis, sin Unicode especial)?
+10. Pregunte al usuario antes de deployar?
+11. Si calculo margenes: uso precioNeto (precio/1.21), no precio con IVA?
+12. Si agrego tabla/chart: respeta los filtros activos de la seccion?
+13. Si creo inputs en admin: tienen inline style color="#111827" backgroundColor="#ffffff"?
+14. Si accedo a campos de un modelo: verifique que existen en schema.prisma?
+15. Si agrego feature con toggle: muestro empty state cuando habilitado pero sin datos?
+16. Si creo portal para usuario externo: es UNA sola URL con navegacion interna?
+17. Si agrego items a un submenu: tiene menos de 7 items despues de agregar?
 
 **Si alguno de estos puntos no se cumple, DETENER y corregir antes de continuar.**
 
@@ -1216,6 +1433,64 @@ Bot de IA en 2 capas:
 ### Commits GSC
 - 70262ef: fix GSC sync day-by-day (OOM fix)
 - 2600e73: feat SEO Intelligence v2 (tabs, opportunities, movers, cannibalization)
+
+---
+
+## NITRO CREATORS (INFLUENCER MODULE) — Estado al 2026-04-04
+
+### Ultima actualizacion: 2026-04-04
+
+### Arquitectura
+
+**Portal Publico del Influencer** (1 URL, 2 tabs):
+- URL: `/i/[slug]/[code]` — password-protected (SHA-256)
+- Tab 1 "Mis Ganancias": KPIs, chart ventas, campanas, cupones, tracking link, stats, productos (si toggle on), mejores dias, ventas recientes
+- Tab 2 "Mi Contenido": briefings asignados, seedings de productos, form para enviar contenido, historial de submissions
+- Content data: lazy-loaded solo cuando el tab se activa
+- Formulario de aplicacion: `/i/[slug]/apply` (publico, sin password)
+
+**Admin (NITRO CREATORS seccion en sidebar)**:
+- Influencers: Overview, Gestionar, Campanas, Aplicaciones, Leaderboard, Analytics
+- Contenido: Briefings, Aprobaciones, UGC Library, Product Seeding
+
+**Modelos Prisma** (7 nuevos):
+- `Influencer` — slug, code, hashedPassword, commissionRate, isProductBreakdownEnabled, status
+- `InfluencerCampaign` — name, bonus %, start/end dates, description
+- `InfluencerAttribution` — orderId, influencerId, revenue, commission, attributedAt
+- `InfluencerApplication` — name, email, instagram, tiktok, youtube, bio, status (PENDING/APPROVED/REJECTED)
+- `InfluencerBriefing` — title, type (GENERAL/REEL/STORY/POST/UNBOXING/REVIEW), requirements, deadline, status
+- `ContentSubmission` — type, platform, contentUrl, status (PENDING/APPROVED/REVISION/REJECTED), isUGC
+- `ProductSeeding` — status (PENDING/SHIPPED/DELIVERED/CONTENT_RECEIVED), trackingNumber, productId
+
+**Flujo de atribucion**:
+1. Influencer comparte tracking link con UTM: `?utm_source=influencer&utm_medium=referral&utm_campaign=[slug]`
+2. NitroPixel captura la visita con UTMs
+3. Cuando se genera una orden, se busca el influencer por slug en utm_campaign
+4. Se crea InfluencerAttribution con revenue y comision calculada
+5. Influencer ve sus metricas en el dashboard publico
+
+**Flujo de aplicaciones**:
+1. Persona llena form en /i/[slug]/apply
+2. Admin ve aplicacion en "Aplicaciones"
+3. Al aprobar: auto-crea Influencer + envia email via Resend con slug, code y password temporal
+4. Influencer accede a /i/[slug]/[code] con su password
+
+**Data isolation**: todas las queries filtran por influencerId AND organizationId. Defense-in-depth en JOINs a products.
+
+### PENDIENTES INFLUENCER
+
+#### PENDIENTE INF #1: Recalcular atribuciones historicas
+- Las ordenes existentes con UTM de influencers no tienen InfluencerAttribution creada
+- Se podria hacer un backfill buscando ordenes con utm_campaign matching slug de influencers
+- No implementado aun, depende de que haya influencers activos con ventas
+
+#### PENDIENTE INF #2: Email templates mejorados
+- Actualmente el email de onboarding es texto plano via Resend
+- Se podria hacer un template HTML mas profesional con branding NitroSales
+
+#### PENDIENTE INF #3: Notificaciones al influencer
+- El influencer no recibe notificacion cuando un briefing nuevo se publica o cuando su contenido es aprobado/rechazado
+- Se podria agregar email automatico en estos eventos
 
 ---
 
