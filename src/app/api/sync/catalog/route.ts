@@ -97,12 +97,12 @@ async function syncCatalog(startPage: number, maxPages: number, ORG_ID: string) 
       vtexIds.push(externalId);
 
       const costPrice = extractCostPrice(p.items);
-      const data = {
+      const extractedPrice = extractPrice(p.items);
+      const baseData = {
         name: p.productName || "Sin nombre",
         brand: p.brand || null,
         category: extractCategory(p.categories),
         imageUrl: extractImage(p.items),
-        price: extractPrice(p.items),
         stock: calcStock(p.items),
         stockUpdatedAt: syncedAt,
         isActive: true,
@@ -117,8 +117,13 @@ async function syncCatalog(startPage: number, maxPages: number, ORG_ID: string) 
             externalId,
           },
         },
-        update: data,
-        create: { organizationId: ORG_ID, externalId, ...data },
+        // UPDATE: solo pisar price si VTEX devuelve un precio válido (>0)
+        update: {
+          ...baseData,
+          ...(extractedPrice > 0 ? { price: extractedPrice } : {}),
+        },
+        // CREATE: siempre setear price (incluso 0 para productos nuevos)
+        create: { organizationId: ORG_ID, externalId, ...baseData, price: extractedPrice },
       });
     });
 
