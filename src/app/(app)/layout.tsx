@@ -10,6 +10,7 @@ type NavItem = {
   label: string;
   icon: string;
   children?: { href: string; label: string }[];
+  premium?: { badge: string; badgeColor: string; glowColor: string; description: string };
 };
 
 type NavGroup = {
@@ -139,11 +140,13 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/pixel",
         label: "NitroPixel",
         icon: "M13 10V3L4 14h7v7l9-11h-7z",
+        premium: { badge: "LIVE", badgeColor: "#22c55e", glowColor: "rgba(34,197,94,0.15)", description: "Tracking en tiempo real" },
       },
       {
         href: "/customers/ltv",
         label: "Lifetime Value",
         icon: "M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
+        premium: { badge: "AI", badgeColor: "var(--nitro-orange)", glowColor: "rgba(255,94,26,0.12)", description: "Prediccion inteligente" },
       },
     ],
   },
@@ -292,6 +295,83 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   // Influencers only active when NOT on a content route
                   (item.href === "/influencers" && pathname.startsWith("/influencers") && !isContentRoute);
                 const hasChildren = item.children && item.children.length > 0;
+
+                // ═══ Premium tool cards (NitroPixel, LTV) ═══
+                if (item.premium) {
+                  return (
+                    <div key={item.href} className="mb-1.5">
+                      <Link
+                        href={item.href}
+                        onClick={() => setSidebarOpen(false)}
+                        className="group block relative rounded-xl overflow-hidden transition-all duration-300"
+                        style={{
+                          background: isActive
+                            ? `linear-gradient(135deg, ${item.premium.glowColor}, rgba(255,255,255,0.03))`
+                            : "rgba(255,255,255,0.02)",
+                          border: isActive
+                            ? `1px solid ${item.premium.badgeColor}33`
+                            : "1px solid rgba(255,255,255,0.06)",
+                        }}
+                      >
+                        {/* Top glow line */}
+                        <div
+                          className="absolute top-0 left-2 right-2 h-[1px] opacity-60 group-hover:opacity-100 transition-opacity duration-500"
+                          style={{ background: `linear-gradient(90deg, transparent, ${item.premium.badgeColor}, transparent)` }}
+                        />
+                        <div className="px-3 py-2.5 flex items-center gap-3">
+                          {/* Icon with glow background */}
+                          <div
+                            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-105"
+                            style={{
+                              background: `linear-gradient(135deg, ${item.premium.glowColor}, ${item.premium.badgeColor}15)`,
+                              boxShadow: isActive ? `0 0 12px ${item.premium.glowColor}` : "none",
+                            }}
+                          >
+                            <svg
+                              className="w-4 h-4 transition-colors duration-300"
+                              style={{ color: item.premium.badgeColor }}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={1.8}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-semibold transition-colors duration-300 ${isActive ? "text-white" : "text-nitro-text2 group-hover:text-white"}`}>
+                                {item.label}
+                              </span>
+                              <span
+                                className="px-1.5 py-0.5 rounded-md text-[8px] font-bold font-mono uppercase tracking-widest flex items-center gap-1"
+                                style={{
+                                  background: `${item.premium.badgeColor}20`,
+                                  color: item.premium.badgeColor,
+                                  border: `1px solid ${item.premium.badgeColor}30`,
+                                  textShadow: `0 0 8px ${item.premium.badgeColor}40`,
+                                }}
+                              >
+                                {item.premium.badge === "LIVE" && (
+                                  <span
+                                    className="w-1 h-1 rounded-full animate-pulse"
+                                    style={{ backgroundColor: item.premium.badgeColor }}
+                                  />
+                                )}
+                                {item.premium.badge}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-nitro-muted mt-0.5 font-mono tracking-wide">
+                              {item.premium.description}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
+                  );
+                }
+
+                // ═══ Regular nav items ═══
                 return (
                   <div key={item.href}>
                     <Link
@@ -322,26 +402,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                       </svg>
                       {item.label}
-                      {item.href === "/pixel" && (
-                        <span className="ml-auto flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-nitro-green animate-pulse-live" />
-                          <span className="font-mono text-[9px] text-nitro-green/80 uppercase tracking-widest">
-                            Live
-                          </span>
-                        </span>
-                      )}
-                      {item.href === "/customers/ltv" && (
-                        <span
-                          className="ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wider"
-                          style={{
-                            background: "linear-gradient(135deg, rgba(255,94,26,0.15), rgba(245,158,11,0.15))",
-                            color: "var(--nitro-orange)",
-                            border: "1px solid rgba(255,94,26,0.2)",
-                          }}
-                        >
-                          AI
-                        </span>
-                      )}
                       {hasChildren && (
                         <svg
                           className="w-3.5 h-3.5 ml-auto text-nitro-muted transition-transform duration-400 ease-nitro"
