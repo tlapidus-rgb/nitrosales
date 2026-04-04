@@ -1140,6 +1140,7 @@ model Influencer {
   publicName              String?                          // Nombre visible en dashboard público
   profileImage            String?                          // URL de avatar
   isPublicDashboardEnabled Boolean  @default(true)         // Si el dashboard público está activo
+  dashboardPassword       String?                          // Contraseña para acceder al dashboard público (hashed)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 

@@ -52,26 +52,72 @@ export default function PublicInfluencerDashboard() {
   const [error, setError] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
+  // Password protection state
+  const [requiresPassword, setRequiresPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState(false);
+  const [authenticatedPassword, setAuthenticatedPassword] = useState<string | null>(null);
+  const [lockedInfo, setLockedInfo] = useState<{ name: string; profileImage: string | null; orgName: string } | null>(null);
+
   const fetchData = useCallback(() => {
-    fetch(`/api/public/influencers/${slug}/${code}`)
+    const url = authenticatedPassword
+      ? `/api/public/influencers/${slug}/${code}?password=${encodeURIComponent(authenticatedPassword)}`
+      : `/api/public/influencers/${slug}/${code}`;
+    fetch(url)
       .then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.json();
       })
       .then((d) => {
+        if (d.requiresPassword) {
+          setRequiresPassword(true);
+          setLockedInfo({
+            name: d.influencer?.name || "",
+            profileImage: d.influencer?.profileImage || null,
+            orgName: d.organization?.name || "",
+          });
+          setLoading(false);
+          return;
+        }
         setData(d);
+        setRequiresPassword(false);
         setLastUpdate(new Date());
         setError(false);
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [slug, code]);
+  }, [slug, code, authenticatedPassword]);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000); // Refresh every 30s
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    if (!requiresPassword) {
+      const interval = setInterval(fetchData, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchData, requiresPassword]);
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password) return;
+    setPasswordError(false);
+    // Verify password
+    try {
+      const res = await fetch(`/api/public/influencers/${slug}/${code}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const result = await res.json();
+      if (result.valid) {
+        setAuthenticatedPassword(password);
+        setRequiresPassword(false);
+      } else {
+        setPasswordError(true);
+      }
+    } catch {
+      setPasswordError(true);
+    }
+  };
 
   if (loading) {
     return (
@@ -79,6 +125,58 @@ export default function PublicInfluencerDashboard() {
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-full border-2 border-orange-500 border-t-transparent animate-spin" />
           <p className="text-gray-400 text-sm font-mono">Cargando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Password gate
+  if (requiresPassword) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            {lockedInfo?.profileImage ? (
+              <img
+                src={lockedInfo.profileImage}
+                alt=""
+                className="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-orange-500/30"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">
+                {lockedInfo?.name?.[0]?.toUpperCase() || "?"}
+              </div>
+            )}
+            <h1 className="text-xl font-bold text-white">{lockedInfo?.name}</h1>
+            <p className="text-sm text-gray-500 mt-1">{lockedInfo?.orgName}</p>
+          </div>
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+              <p className="text-sm text-gray-400 mb-4 text-center">
+                Este dashboard esta protegido con contraseña
+              </p>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setPasswordError(false); }}
+                placeholder="Ingresa la contraseña"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500/50"
+                autoFocus
+              />
+              {passwordError && (
+                <p className="text-red-400 text-xs mt-2 text-center">Contraseña incorrecta</p>
+              )}
+            </div>
+            <button
+              type="submit"
+              className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl text-sm font-medium hover:from-orange-600 hover:to-orange-700 transition-all"
+            >
+              Ingresar
+            </button>
+          </form>
+          <p className="text-[10px] text-gray-700 text-center mt-6">
+            Powered by <span className="text-orange-500 font-medium">NitroSales</span>
+          </p>
         </div>
       </div>
     );

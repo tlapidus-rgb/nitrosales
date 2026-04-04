@@ -8,6 +8,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
+import { createHash } from "crypto";
+
+function hashPassword(password: string): string {
+  return createHash("sha256").update(password).digest("hex");
+}
 
 export const revalidate = 0;
 
@@ -97,6 +102,7 @@ export async function POST(req: NextRequest) {
         publicName: body.publicName || body.name,
         profileImage: body.profileImage || null,
         isPublicDashboardEnabled: body.isPublicDashboardEnabled ?? true,
+        dashboardPassword: body.dashboardPassword ? hashPassword(body.dashboardPassword) : null,
       },
     });
 

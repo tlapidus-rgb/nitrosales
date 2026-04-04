@@ -38,6 +38,7 @@ export default function InfluencerManagePage() {
   const [formEmail, setFormEmail] = useState("");
   const [formCommission, setFormCommission] = useState("10");
   const [formPublicName, setFormPublicName] = useState("");
+  const [formPassword, setFormPassword] = useState("");
 
   const loadInfluencers = () => {
     fetch("/api/influencers")
@@ -56,6 +57,7 @@ export default function InfluencerManagePage() {
     setFormEmail("");
     setFormCommission("10");
     setFormPublicName("");
+    setFormPassword("");
     setShowCreate(false);
     setEditId(null);
   };
@@ -72,6 +74,7 @@ export default function InfluencerManagePage() {
           email: formEmail || null,
           commissionPercent: parseFloat(formCommission),
           publicName: formPublicName || formName,
+          ...(formPassword ? { dashboardPassword: formPassword } : {}),
         }),
       });
       resetForm();
@@ -93,6 +96,7 @@ export default function InfluencerManagePage() {
           email: formEmail || null,
           commissionPercent: parseFloat(formCommission),
           publicName: formPublicName || formName,
+          ...(formPassword ? { dashboardPassword: formPassword } : {}),
         }),
       });
       resetForm();
@@ -133,6 +137,7 @@ export default function InfluencerManagePage() {
     setFormEmail(inf.email || "");
     setFormCommission(String(inf.commissionPercent));
     setFormPublicName(inf.publicName || inf.name);
+    setFormPassword("");
     setShowCreate(false);
   };
 
@@ -178,7 +183,7 @@ export default function InfluencerManagePage() {
                 type="text"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 placeholder="Nombre del influencer"
               />
             </div>
@@ -188,7 +193,7 @@ export default function InfluencerManagePage() {
                 type="email"
                 value={formEmail}
                 onChange={(e) => setFormEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 placeholder="email@ejemplo.com"
               />
             </div>
@@ -198,7 +203,7 @@ export default function InfluencerManagePage() {
                 type="number"
                 value={formCommission}
                 onChange={(e) => setFormCommission(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 placeholder="10"
                 min="0"
                 max="100"
@@ -211,9 +216,22 @@ export default function InfluencerManagePage() {
                 type="text"
                 value={formPublicName}
                 onChange={(e) => setFormPublicName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 placeholder="@nombreinstagram"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Contraseña dashboard {editId ? "(dejar vacio para no cambiar)" : "(opcional)"}
+              </label>
+              <input
+                type="text"
+                value={formPassword}
+                onChange={(e) => setFormPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                placeholder="Contraseña para proteger el dashboard publico"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">Si se define, el influencer necesita esta contraseña para ver su dashboard</p>
             </div>
           </div>
           <div className="flex gap-3 mt-4">

@@ -11,6 +11,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { Prisma } from "@prisma/client";
+import { createHash } from "crypto";
+
+function hashPassword(password: string): string {
+  return createHash("sha256").update(password).digest("hex");
+}
 
 // Simple in-memory rate limiter
 const rateLimitMap = new Map<string, number>();
@@ -61,6 +66,22 @@ export async function GET(
     });
     if (!influencer || influencer.status === "INACTIVE" || !influencer.isPublicDashboardEnabled) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Password protection check
+    if (influencer.dashboardPassword) {
+      const url = new URL(req.url);
+      const password = url.searchParams.get("password");
+      if (!password || hashPassword(password) !== influencer.dashboardPassword) {
+        return NextResponse.json({
+          requiresPassword: true,
+          influencer: {
+            name: influencer.publicName || influencer.name,
+            profileImage: influencer.profileImage,
+          },
+          organization: { name: org.name },
+        });
+      }
     }
 
     const now = new Date();
