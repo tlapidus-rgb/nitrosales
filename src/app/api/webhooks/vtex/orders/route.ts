@@ -534,6 +534,16 @@ export async function POST(req: NextRequest) {
         // Calculate attribution
         await calculateAttribution(order.id, matchedVisitorId, org.id);
 
+        // ── Influencer attribution (non-blocking, fire-and-forget) ──
+        try {
+          const { attributeOrderToInfluencer } = await import('@/lib/pixel/influencer-attribution');
+          attributeOrderToInfluencer(order.id, org.id).catch((e: unknown) =>
+            console.error('[Webhook] Influencer attribution error:', e)
+          );
+        } catch {
+          // Module not found or import error — non-fatal
+        }
+
         // Create server-side PURCHASE event if client-side didn't already
         if (matchStrategy !== 'client-side-purchase') {
           // Store BOTH the full orderId AND the base for dedup matching

@@ -61,6 +61,11 @@ model Organization {
   manualCosts              ManualCost[]
   shippingRates            ShippingRate[]
   ltvPredictions           CustomerLtvPrediction[]
+  // Influencer Marketing
+  influencers              Influencer[]
+  influencerCampaigns      InfluencerCampaign[]
+  influencerAttributions   InfluencerAttribution[]
+  influencerCoupons        InfluencerCoupon[]
 
   @@map("organizations")
 }
@@ -173,6 +178,7 @@ model Order {
   customer        Customer?    @relation(fields: [customerId], references: [id])
   items           OrderItem[]
   pixelAttributions PixelAttribution[]
+  influencerAttributions InfluencerAttribution[]
 
   @@unique([organizationId, externalId])
   @@index([organizationId, orderDate])
@@ -1117,4 +1123,100 @@ model CustomerLtvPrediction {
   @@index([organizationId, sentToMeta])
   @@index([organizationId, sentToGoogle])
   @@map("customer_ltv_predictions")
+}
+
+// ─────────────────────────────────────────────
+// INFLUENCER MARKETING
+// ─────────────────────────────────────────────
+
+// Cada influencer vinculado a una organización
+model Influencer {
+  id                      String    @id @default(cuid())
+  code                    String                           // Código único de tracking (ej: "sofia123")
+  name                    String                           // Nombre del influencer
+  email                   String?                          // Email de contacto
+  commissionPercent       Decimal   @db.Decimal(5, 2)     // 0.00 a 100.00
+  status                  String    @default("ACTIVE")     // ACTIVE, PAUSED, INACTIVE
+  publicName              String?                          // Nombre visible en dashboard público
+  profileImage            String?                          // URL de avatar
+  isPublicDashboardEnabled Boolean  @default(true)         // Si el dashboard público está activo
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  organizationId          String
+  organization            Organization @relation(fields: [organizationId], references: [id])
+  campaigns               InfluencerCampaign[]
+  attributions            InfluencerAttribution[]
+  coupons                 InfluencerCoupon[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("influencers")
+}
+
+// Campañas específicas de un influencer
+model InfluencerCampaign {
+  id              String    @id @default(cuid())
+  name            String
+  status          String    @default("ACTIVE")     // ACTIVE, PAUSED, COMPLETED
+  startDate       DateTime  @db.Date
+  endDate         DateTime? @db.Date
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  influencerId    String
+  influencer      Influencer @relation(fields: [influencerId], references: [id])
+  attributions    InfluencerAttribution[]
+
+  @@index([organizationId, influencerId])
+  @@map("influencer_campaigns")
+}
+
+// Atribución de una orden a un influencer
+model InfluencerAttribution {
+  id                  String   @id @default(cuid())
+  attributedValue     Decimal  @db.Decimal(12, 2)      // Revenue atribuido
+  commissionAmount    Decimal  @db.Decimal(12, 2)      // Comisión calculada
+  attributionModel    String   @default("LAST_CLICK")  // Modelo usado
+  attributionSource   String   @default("UTM")         // UTM o COUPON
+  touchpoints         Json?                             // Copia de touchpoints del pixel
+  pixelAttributionId  String?                           // Link a PixelAttribution para auditoría
+  createdAt           DateTime @default(now())
+
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  orderId             String
+  order               Order @relation(fields: [orderId], references: [id])
+  influencerId        String
+  influencer          Influencer @relation(fields: [influencerId], references: [id])
+  campaignId          String?
+  campaign            InfluencerCampaign? @relation(fields: [campaignId], references: [id])
+
+  @@unique([orderId, influencerId])
+  @@index([organizationId, influencerId, createdAt])
+  @@index([organizationId, campaignId])
+  @@map("influencer_attributions")
+}
+
+// Códigos de cupón vinculados a influencers
+model InfluencerCoupon {
+  id              String   @id @default(cuid())
+  code            String                               // Código de descuento (ej: "SOFIA10")
+  discountPercent Decimal? @db.Decimal(5, 2)           // % descuento
+  discountFixed   Decimal? @db.Decimal(12, 2)          // Monto fijo descuento
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  influencerId    String
+  influencer      Influencer @relation(fields: [influencerId], references: [id])
+
+  @@unique([organizationId, code])
+  @@index([organizationId, influencerId])
+  @@map("influencer_coupons")
 }

@@ -311,6 +311,16 @@ export async function POST(request: NextRequest) {
               const { calculateAttribution } = await import('@/lib/pixel/attribution');
               await calculateAttribution(order.id, visitor.id, orgId);
               console.log(`[NitroPixel] Client-side attribution for order ${rawOrderId} visitor ${visitor.visitorId}`);
+
+              // ── Influencer attribution (non-blocking, fire-and-forget) ──
+              try {
+                const { attributeOrderToInfluencer } = await import('@/lib/pixel/influencer-attribution');
+                attributeOrderToInfluencer(order.id, orgId).catch((e: unknown) =>
+                  console.error('[NitroPixel] Influencer attribution error:', e)
+                );
+              } catch {
+                // Module not found or import error — non-fatal
+              }
             }
           } catch (attrError) {
             console.error('[NitroPixel] Attribution error (non-fatal):', attrError);

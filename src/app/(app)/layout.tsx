@@ -67,6 +67,16 @@ const NAV_GROUPS: NavGroup[] = [
         label: "SEO",
         icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
       },
+      {
+        href: "/influencers",
+        label: "Influencers",
+        icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+        children: [
+          { href: "/influencers", label: "Overview" },
+          { href: "/influencers/manage", label: "Gestionar" },
+          { href: "/influencers/campaigns", label: "Campañas" },
+        ],
+      },
     ],
   },
   {
