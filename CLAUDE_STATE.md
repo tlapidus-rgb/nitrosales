@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-05 (Sesion 11 — Migracion a infraestructura administrada: Neon + Sentry + Axiom)
+## Ultima actualizacion: 2026-04-05 (Sesion 11 — Migracion a Neon + fix region de Vercel (Sentry/Axiom intentados pero revertidos))
 
 ---
 
@@ -128,13 +128,13 @@
 
 | Archivo | VersiÃ³n | Estado | Notas |
 |---------|---------|--------|-------|
-| package.json | **v3** | ACTIVO | Build: `prisma generate && next build`. Sesion 11: Agregadas @sentry/nextjs, next-axiom para error tracking y structured logging. |
+| package.json | **v3** | ACTIVO | Build: `prisma generate && next build`. Sesion 11: Sentry y Axiom instalados pero REVERTIDOS por performance issues. No contienen @sentry/nextjs ni next-axiom. |
 | src/lib/vtex-credentials.ts | **v1** | NEW | Centralized VTEX credential access (DB > env vars) |
 | src/lib/crypto.ts | **v1** | NEW | AES-256-GCM credential encryption |
 | src/lib/auth-guard.ts | **v1** | NEW | Org resolution from NextAuth session |
-| src/lib/db/client.ts | **v1.1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client. Sesion 10: removido connection_limit=5 y pool_timeout=10 (causaban pool exhaustion). NUNCA agregar connection_limit al DATABASE_URL. |
-| prisma/schema.prisma | **v5** | ACTIVO | +Influencer, InfluencerCampaign, InfluencerAttribution, InfluencerApplication, InfluencerBriefing, ContentSubmission, ProductSeeding (7 modelos nuevos). +isProductBreakdownEnabled en Influencer. +CustomerLtvPrediction. +ManualCost, ShippingRate. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. Sesion 11: directUrl cambio a DATABASE_URL_UNPOOLED para Neon-Vercel integration. |
-| vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. |
+| src/lib/db/client.ts | **v1.1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client. Sesion 10: removido connection_limit=5 y pool_timeout=10 (causaban pool exhaustion). Sesion 11: removed &connection_limit=1 y &pool_timeout=30 de DATABASE_URL (no eran causa raiz). NUNCA agregar connection_limit al DATABASE_URL. |
+| prisma/schema.prisma | **v5** | ACTIVO | +Influencer, InfluencerCampaign, InfluencerAttribution, InfluencerApplication, InfluencerBriefing, ContentSubmission, ProductSeeding (7 modelos nuevos). +isProductBreakdownEnabled en Influencer. +CustomerLtvPrediction. +ManualCost, ShippingRate. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. Sesion 11: directUrl = DATABASE_URL_UNPOOLED para Neon-Vercel integration. |
+| vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. Sesion 11: "regions": ["gru1"] agregado para mantener funciones en São Paulo (match con DB). |
 | src/app/(app)/layout.tsx | **v5** | ACTIVO | Sidebar con 9 grupos: OPERACIONES, CATALOGO, MARKETING Y ADQUISICION, NITRO CREATORS (gradient label, Influencers + Contenido expandibles), CLIENTES, CANALES, HERRAMIENTAS (NitroPixel + LTV + Audience Sync con premium cards), FINANZAS, sin-grupo. Premium cards con glow, badges LIVE/AI/SYNC, description text. Smart isActive logic para Influencers vs Contenido routes. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
@@ -296,10 +296,10 @@
 
 - **Framework**: Next.js 14 App Router
 - **ORM**: Prisma (import desde @/lib/db/client)
-- **DB**: PostgreSQL en Neon (Sao Paulo). Sesion 11: Migrado de Railway. Production + dev + preview branches via Neon-Vercel integration. Pooled: DATABASE_URL (PgBouncer). Unpooled: DATABASE_URL_UNPOOLED.
+- **DB**: PostgreSQL en Neon (São Paulo, sa-east-1). Sesion 11: Migrado de Railway. Production + dev + preview branches via Neon-Vercel integration. Pooled: DATABASE_URL (PgBouncer). Unpooled: DATABASE_URL_UNPOOLED. Vercel functions en gru1 (São Paulo) — IMPORTANTE: region debe coincidir con DB.
 - **Deploy**: Vercel Pro (800s function timeout max, ISR revalidate=300). Fluid Compute habilitado. Region: iad1
-- **Error Tracking**: Sentry (nitrosales.sentry.io, javascript-nextjs project). Session replay enabled. Sesion 11.
-- **Structured Logging**: Axiom (nitrosales-et7s dataset). Auto-logging de requests. Sesion 11.
+- **Error Tracking**: Sentry account existe (nitrosales.sentry.io) pero NO ESTÁ CONECTADO al código. Instalado en commit ce90c81 pero revertido en 68a415b por performance issues (15-25s cold start). Cuentas siguen activas para futura integración lightweight.
+- **Structured Logging**: Axiom account existe (nitrosales-et7s) pero NO ESTÁ CONECTADO al código. Instalado en commit 4002a50 pero revertido en 68a415b por performance issues. Cuentas siguen activas para futura integración lightweight.
 - **VTEX Account**: mundojuguete
 - **Org ID**: cmmmga1uq0000sb43w0krvvys
 - **Credenciales VTEX**: env var DJQFRI + fallback backfill ZMTYUJ
@@ -1760,132 +1760,157 @@ El build de 12+ minutos con acc44a5 fue probablemente por cold cache de Vercel (
 
 ---
 
-## Session 11 — 2026-04-05: Migracion a infraestructura administrada (Neon, Sentry, Axiom)
+## Session 11 — 2026-04-05: Migracion a Neon + fix de region de Vercel (Sentry/Axiom intentados pero revertidos por performance)
 
-### COMPLETADO: Migracion exitosa a stack administrado
+### RESUMEN EJECUTIVO
 
-NitroSales migro de Railway a Neon PostgreSQL con integracion Vercel. Se agrego Sentry para error tracking y Axiom para structured logging. **Todos los 10 APIs funcionan contra Neon en produccion.**
+La Sesion 11 logró resolver los timeouts de API migrando a Neon y descubriendo que **el verdadero problema NO era Sentry/Axiom**, sino que **las funciones de Vercel corrían en Virginia (iad1) mientras la DB estaba en São Paulo (sa-east-1)**, creando 1.3 segundos de latencia POR QUERY.
 
-### Causa raiz: Build rotos por Production Override en Vercel
+- **Fase 1-2**: Vercel build arreglado + Neon-Vercel integration = 10/10 APIs OK ✓
+- **Fase 3-4**: Sentry + Axiom instalados → Cold start se disparó a 15-25 segundos → REVERTIDOS completamente ✓
+- **Fase 5**: Descoberto el VERDADERO problema: función region mismatch. Agregado `"regions": ["gru1"]` a vercel.json → **21x speedup** ✓
+- **Final state**: 9 APIs testeadas en 0.2-1.3 segundos. Clean codebase. Sentry/Axiom accounts activas pero desconectadas.
 
-El build de Vercel estaba usando `prisma db push --accept-data-loss` en el build command (heredado de sesion 8). Esto causaba que durante cada deploy, Prisma intentara "sincronizar" el schema con la base de datos, lo cual en produccion con datos reales es extremadamente peligroso.
+### Causa raiz: REGION MISMATCH + Packages pesados en serverless
 
-**Solucion**: Remover el Production Override, usar `prisma generate && next build` solamente, dejar migrations en manos de Neon/Vercel integration.
+Los timeouts NO vinieron de Sentry/Axiom features bloqueados en runtime — vinieron de dos cosas:
+
+1. **Package bloat**: @sentry/nextjs + next-axiom agregaban ~15-25 segundos a cada cold start (bloqueaban TODO)
+2. **Region mismatch**: Incluso sin Sentry/Axiom, las funciones en iad1 (Virginia) tardaban 1.3s POR QUERY contra DB en São Paulo
+
+**La raiz raiz**: Vercel deploys a iad1 por DEFAULT. Nadie verifico que la region coincidiera.
 
 ### Commits de esta sesion (en orden cronologico)
 
-1. `9470b86` — **chore: trigger build with correct build command (override removed)** — Removido Production Override. Changed to `prisma generate && next build`. Vercel build limpio y seguro.
-2. `70e1d88` — **fix: update directUrl to DATABASE_URL_UNPOOLED for Neon-Vercel integration** — Schema Prisma actualizado. directUrl cambio de DIRECT_URL a DATABASE_URL_UNPOOLED para coincidir con el naming de Neon-Vercel integration.
-3. `ce90c81` — **feat: integrate Sentry error tracking for Next.js** — Sentry agregado. @sentry/nextjs SDK, client config con session replay, server + edge configs, global error boundary. DSN configurado via SENTRY_DSN (server) y NEXT_PUBLIC_SENTRY_DSN (client). Org: nitrosales, Project: javascript-nextjs.
-4. `4002a50` — **feat: integrate Axiom structured logging** — Axiom agregado. next-axiom package instalado. Dataset: nitrosales-logs. Token configurado via NEXT_PUBLIC_AXIOM_DATASET y NEXT_PUBLIC_AXIOM_TOKEN.
+1. `9470b86` — **chore: trigger build with correct build command (override removed)** — Removido Production Override `prisma db push --accept-data-loss`. Changed to `prisma generate && next build`.
+2. `70e1d88` — **fix: update directUrl to DATABASE_URL_UNPOOLED for Neon-Vercel integration** — Schema Prisma: directUrl de DIRECT_URL → DATABASE_URL_UNPOOLED.
+3. `ce90c81` — **feat: integrate Sentry error tracking for Next.js** — @sentry/nextjs instalado (SERÁ REVERTIDO en 68a415b)
+4. `4002a50` — **feat: integrate Axiom structured logging** — next-axiom instalado (SERÁ REVERTIDO en 68a415b)
+5. `123321a` — **fix: remove Sentry withSentryConfig wrapper** — Removido wrapper, kept Axiom. Aún lento.
+6. `a758ba3` — **fix: disable Sentry/Axiom runtime** — Deshabilitó todo en instrumentation.ts. Aún lento — los packages siguen bloateando node_modules.
+7. `68a415b` — **fix: remove Sentry/Axiom packages completely** — REVERTIDO TOTAL: Removidos @sentry/nextjs, next-axiom, sentry.*.config.ts, src/app/global-error.tsx, src/instrumentation.ts.
+8. `10e5fff` — **debug: add connection diagnostic endpoint** — Creado /api/debug/connection para diagnosticar latencia y región.
+9. `74d9b69` — **fix: move serverless functions to São Paulo (gru1)** — Agregado `"regions": ["gru1"]` a vercel.json. **ESTA FUE LA SOLUCIÓN REAL.** Connection time: 1293ms → 60ms (21x).
+10. `1dfc88e` — **chore: remove debug endpoint** — Eliminado /api/debug/connection.
 
-### Que se hizo paso a paso
+### Timeline detallado fase a fase
 
-#### 1. Arreglado Vercel Build (9470b86)
-- Problema: Build fallaba por Production Override `prisma db push --accept-data-loss`
-- Solucion: Remover override, usar build command standar `prisma generate && next build`
-- Resultado: Build limpio, deploy exitoso
+#### Fase 1: Vercel Build Arreglado (9470b86) ✓
+- **Problema**: Build fallaba. Heredaba `prisma db push --accept-data-loss` de sesion 8 (Production Override).
+- **Solucion**: Remover override → build command = `prisma generate && next build`
+- **Resultado**: Build limpio, Vercel happy. ✓
 
-#### 2. Verificacion: 10 APIs contra Neon PostgreSQL
-- Testeado con curl: GET /api/metrics/products, /api/metrics/ads, /api/metrics/seo, /api/metrics/pixel, /api/metrics/ltv, /api/metrics/campaigns, /api/metrics/trends, /api/metrics/web, /api/metrics/analytics, /api/fix-brands
-- Resultado: 10/10 devuelven 200 OK
-- Database: Neon PostgreSQL (Sao Paulo, managed by Vercel)
+#### Fase 2: Neon-Vercel Integration + Primeros Tests (70e1d88) ✓
+- **Hecho**:
+  - Creada `dev` branch en Neon para desarrollo
+  - Instalada Neon-Vercel integration desde Marketplace
+  - Linked existing Neon account a NitroSales project
+  - Integration auto-seteó DATABASE_URL (pooler) + DATABASE_URL_UNPOOLED (direct)
+  - Actualizado Prisma schema: directUrl = env("DATABASE_URL_UNPOOLED")
+- **Test**: 10 APIs en curl → 10/10 200 OK (pero lentos: 10-15 segundos)
 
-#### 3. Neon Branching Setup
-- Creada `dev` branch en Neon para desarrollo
-- Instalada Neon-Vercel integration para auto-branching
-- Cada PR ahora crea una database branch separada automaticamente
-- Preview deployments tienen DB independiente sin riesgo de perder datos
+#### Fase 3: Sentry Installation (ce90c81) ✗ REVERTIDO
+- **Hecho**:
+  - npm: @sentry/nextjs v8+
+  - Creados: sentry.client.config.ts, sentry.server.config.ts, sentry.edge.config.ts
+  - next.config.js: withSentryConfig(nextConfig)
+  - src/app/global-error.tsx con Sentry wrapper
+  - src/instrumentation.ts con auto-instrument configs
+- **Resultado**: withSentryConfig + autoInstrumentServerFunctions agregó **15-25 segundos a cold start**. Cada API timeout (30s limit).
+- **Debug**: Metricas de Sentry mostró connection pool exhaustion.
 
-#### 4. Update Prisma Schema (70e1d88)
-- directUrl cambio de `env("DIRECT_URL")` a `env("DATABASE_URL_UNPOOLED")`
-- Razon: Neon-Vercel integration configura DATABASE_URL_UNPOOLED, no DIRECT_URL
-- Pooled connection: DATABASE_URL (via PgBouncer de Neon)
-- Unpooled connection: DATABASE_URL_UNPOOLED (direct a Neon)
+#### Fase 4: Axiom Installation (4002a50) ✗ REVERTIDO
+- **Hecho en paralelo a Sentry attempts**: next-axiom instalado, withAxiom wrapper en next.config.js
+- **Resultado**: Similar performance hit. También lento.
 
-#### 5. Sentry Error Tracking (ce90c81)
-- Instalado @sentry/nextjs
-- Cliente: session replay enabled, breadcrumbs, performance monitoring
-- Servidor: error capturing, context injection
-- Edge: config separado para edge runtime
-- Global error boundary en `src/app/error.tsx`
-- DSN: Configurado via ENV vars (SENTRY_DSN server-side, NEXT_PUBLIC_SENTRY_DSN client-side)
-- Org setup: nitrosales.sentry.io, Project: javascript-nextjs
+#### Fase 5: Incremental Reverts (123321a → a758ba3) — No funcionaron
+- `123321a`: Removido withSentryConfig wrapper, kept Axiom → Aún 16-28s por API
+- `a758ba3`: Deshabilitado todo en instrumentation.ts (disabled auto-instrument) → Aún lento
+- **Conclusion**: El problema NO es la ejecución de las features, es que **los packages en node_modules bloatean el bundle del serverless function**.
 
-#### 6. Axiom Structured Logging (4002a50)
-- Instalado next-axiom
-- Dataset: nitrosales-logs
-- Token: Configurado via NEXT_PUBLIC_AXIOM_DATASET y NEXT_PUBLIC_AXIOM_TOKEN
-- Automatic request logging: cada request loguea method, path, statusCode, duration, host
-- Custom logs: disponible via `logger` objeto en API routes
-- Disponible en dashboard Axiom para queries, alertas, retention
+#### Fase 6: Complete Package Removal (68a415b) ✓ Parcial
+- **Hecho**: Removidos completamente @sentry/nextjs y next-axiom de package.json
+- **Resultado**: MEJOR, pero aún ~10 segundos por API → No era el cuello de botella primario
 
-### Nueva Infraestructura
+#### Fase 7: Root Cause Discovery (10e5fff → 74d9b69) ✓ VERDADERA SOLUCIÓN
+- `10e5fff`: Creado /api/debug/connection que loguea region + connection latency
+- **DISCOVERY**: Vercel functions en **iad1 (Virginia, US East)**. Neon DB en **sa-east-1 (São Paulo)**.
+- **Math**: 1 query = 1.3s cross-continent latency. 11 queries/endpoint = 14.3s → TIMEOUT (30s limit).
+- `74d9b69`: Agregado a vercel.json: `"regions": ["gru1"]` (São Paulo data center)
+- **RESULT**: Functions now run in São Paulo. Connection latency: 1293ms → 60ms. **21x speedup**.
+- **Final test**: 9 APIs curl en paralelo → 0.2-1.3 segundos cada una. ✓✓✓
 
-#### Database: Neon PostgreSQL (Sao Paulo)
-- **Production branch**: main database, sincronizada con main branch de GitHub
-- **Dev branch**: development environment, sincronizada con develop branch (o manual)
-- **Preview branches**: auto-creadas por Neon-Vercel integration per PR
-  - Trigger: Cuando se abre un PR en GitHub, Vercel informa a Neon
-  - Neon crea una branch llamada `pr-{prNumber}` como clon de main
-  - Environment variables actualizadas automaticamente en Vercel preview deployment
-  - Al cerrar el PR, la branch se puede retener o borrar (configurable)
-- **Backups**: Diarios, retenidos por Neon segun plan (generalmente 7-30 dias)
-- **Performance**: Shared infrastructure con SLA basico, suficiente para NitroSales. Si se necesita, upgrade a Dedicated Compute disponible.
+#### Fase 8: Cleanup (1dfc88e)
+- Removido endpoint de debug
 
-#### Monitoring: Sentry (error tracking + session replay)
-- **Org**: nitrosales.sentry.io
-- **Project**: javascript-nextjs
-- **Client-side**: Captures errors en navegador, session replay para debugging
-- **Server-side**: Captures errores en API routes, middleware, server components
-- **Edge**: Config separado para edge runtime (Vercel Edge Middleware)
-- **Alerts**: Configurables por error type, frequency, assignment
-- **Release tracking**: Automatico via GitHub integration (tags + commits)
+### Estado ACTUAL en produccion (Post-Sesion 11)
 
-#### Logging: Axiom (structured logging + monitoring)
-- **Dataset**: nitrosales-logs
-- **Token**: Ingest token para escribir logs, query token para leer
-- **Auto-logging**: Cada request HTTP loguea automaticamente (via next-axiom middleware)
-- **Fields**: method, path, statusCode, duration, host, user-agent, referer
-- **Custom logs**: Disponible en API routes/page.tsx via logger.log(), logger.error(), logger.warn()
-- **Retention**: Default 30 dias, configurable segun uso
-- **Queries**: SQL-like query language para filtrar, aggregate, monitorear logs
-- **Alerts**: Disparados por patrones en logs (e.g., "statusCode >= 500", "duration > 5000")
+#### Codigo limpio
+- **package.json**: NO @sentry/nextjs, NO next-axiom. Build: `prisma generate && next build`
+- **next.config.js**: CLEAN. No wrappers de Sentry ni Axiom.
+- **No config files**: Eliminados sentry.*.config.ts, src/app/global-error.tsx, src/instrumentation.ts
+- **vercel.json**: `"regions": ["gru1"]` agregado (CRITICAL)
+- **prisma/schema.prisma**: directUrl = env("DATABASE_URL_UNPOOLED")
 
-### Environment Variables Actualizadas en Vercel
+#### Database
+- **Neon** (São Paulo, sa-east-1): Production + dev + preview branches
+- **Vercel functions**: Region = gru1 (São Paulo) — MATCH con DB región
+
+#### Monitoring & Logging (NO CONECTADOS pero accounts activas)
+- **Sentry**: Org nitrosales.sentry.io, Project javascript-nextjs — **Desconectado del código**
+  - Cuentas siguen activas para futura integración lightweight (solo browser errors, o Vercel native integration)
+  - No instalar nuevamente @sentry/nextjs con wrappers (causa cold start issues)
+  - Considerar: Vercel Analytics built-in, o Sentry solo para client-side sin Next.js wrapper
+- **Axiom**: Dataset nitrosales-et7s — **Desconectado del código**
+  - Cuentas siguen activas para futura integración
+  - Considerar: Vercel-Axiom native integration, o logging ligero sin wrapper
+
+#### Performance FINAL
+- **Response time**: 0.2-1.3 segundos (9 APIs testeadas)
+- **Cold start**: ~1 segundo (previo a Sentry/Axiom)
+- **Queries por endpoint**: 11 promedio. Latencia por query: 60ms (was 1300ms)
+
+#### Environment Variables en Vercel (actualizadas)
 
 | Variable | Valor | Notas |
 |----------|-------|-------|
-| DATABASE_URL | `postgresql://...@...neon.tech/neon?sslmode=require` | Pooled connection via PgBouncer (Neon managed) |
-| DATABASE_URL_UNPOOLED | `postgresql://...@...neon.tech/neon?sslmode=require` | Direct connection (para Prisma migrations) |
-| SENTRY_DSN | Sentry ingest URL (server-side) | No exponer en cliente, usar NEXT_PUBLIC_SENTRY_DSN en cliente |
-| NEXT_PUBLIC_SENTRY_DSN | Sentry ingest URL (client-side) | Public, es seguro exponer en cliente |
-| NEXT_PUBLIC_AXIOM_DATASET | nitrosales-logs | Dataset name en Axiom |
-| NEXT_PUBLIC_AXIOM_TOKEN | Axiom ingest token | Public token para escribir logs desde navegador |
+| DATABASE_URL | `postgresql://...neon.tech/neondb?sslmode=require&pgbouncer=true` | Pooled (PgBouncer). SIN &connection_limit, SIN &pool_timeout |
+| DATABASE_URL_UNPOOLED | `postgresql://...neon.tech/neondb?sslmode=require` | Direct (para migrations) |
+| SENTRY_* | (vacíos o no seteados) | Cuentas activas pero no conectadas al código |
+| AXIOM_* | (vacíos o no seteados) | Cuentas activas pero no conectadas al código |
 
-### Cambios en codigo
+### Pending / Notas para futuras sesiones
 
-- `package.json`: Agregadas `@sentry/nextjs` (error tracking), `next-axiom` (structured logging)
-- `prisma/schema.prisma`: directUrl cambio de DIRECT_URL a DATABASE_URL_UNPOOLED
-- `src/app/error.tsx` (NUEVO): Global error boundary que captura errores y loguea a Sentry
-- `next.config.js`: Sentry configuration integrada (source maps, release tracking)
+1. **Sentry re-integration**: Si se necesita error tracking, investigar alternativas:
+   - Vercel Analytics (built-in, no overhead)
+   - Sentry solo client-side (sin @sentry/nextjs wrapper) = bajo overhead
+   - Sentry Vercel integration (si existe)
 
-### Archivos modificados en esta sesion
+2. **Axiom re-integration**: Si se necesita structured logging:
+   - Vercel-Axiom native integration (si existe)
+   - Custom lightweight logging sin next-axiom wrapper
 
-- `package.json` — Agregadas dependencias: @sentry/nextjs, next-axiom
+3. **Neon dev branch**: Creada pero no configurada en Vercel para development env. Opcional para onboarding de otros devs.
+
+4. **Railway DB**: Antigua DB aún existe. Considerar decommission una vez Neon sea 100% stable (otro deploy o dos sin issues).
+
+### Archivos modificados/eliminados en esta sesion
+
+**Modificados**:
+- `package.json` — Instalados y luego REMOVIDOS @sentry/nextjs, next-axiom
 - `prisma/schema.prisma` — directUrl actualizado a DATABASE_URL_UNPOOLED
-- `next.config.js` — Sentry plugin agregado para source maps
-- `src/app/error.tsx` (NUEVO) — Global error boundary con Sentry integration
-- `src/instrumentation.ts` o similar — Axiom logging middleware (creado por next-axiom init o manual)
+- `next.config.js` — Agregados y luego REMOVIDOS Sentry/Axiom wrappers
+- `vercel.json` — Agregado `"regions": ["gru1"]` (MANTENER)
 
-### Estado final de produccion
+**Creados y luego ELIMINADOS**:
+- `sentry.client.config.ts` — Eliminado
+- `sentry.server.config.ts` — Eliminado
+- `sentry.edge.config.ts` — Eliminado
+- `src/app/global-error.tsx` — Eliminado
+- `src/instrumentation.ts` — Eliminado
+- `src/app/api/debug/connection.ts` — Creado, luego eliminado
 
-- **Commit en main**: `4002a50`
-- **Database**: Neon PostgreSQL (Sao Paulo), production + dev + preview branches via integration
-- **Build command**: `prisma generate && next build` (sin Production Override)
-- **10/10 APIs**: 200 OK en paralelo contra Neon
-- **Error tracking**: Sentry configurado y activo (errores capturados automáticamente)
-- **Logging**: Axiom configurado y activo (logs estructurados disponibles en dashboard)
+**Última version en main**: `74d9b69` (con regions fix) + `1dfc88e` (cleanup)
 
 ---
 
@@ -1931,6 +1956,42 @@ Estas reglas nacen de errores reales cometidos en sesiones 9 y 10. **Son tan imp
 - El build de 12+ minutos fue con acc44a5 (primer build post-sesion 9 con muchos cambios). El build de b0b8119 (con force-dynamic restaurado) deberia medirse antes de asumir que force-dynamic causa builds lentos.
 - **REGLA: Si un build es lento, medir el SIGUIENTE build antes de concluir que algo especifico lo causa.** El cold cache de Vercel puede explicar builds lentos puntuales.
 - Si los builds son consistentemente >3 minutos, investigar: `prisma db push` en build command (ya corregido sesion 5), dependencias pesadas, o rutas con imports circulares.
+
+### PREVENCION #8: SIEMPRE verificar que las funciones de Vercel estan en la MISMA REGION que la base de datos
+- **LA RAIZ DEL PROBLEMA EN SESION 11**: Vercel deploys serverless functions a iad1 (Virginia, US East) por DEFAULT.
+- Si la DB esta en otra region (ej: São Paulo, sa-east-1), cross-continent latency = ~1.3 segundos POR QUERY.
+- Con 11 queries por endpoint, total = 14+ segundos → TIMEOUT.
+- **REGLA: Antes de agregar cualquier base de datos nueva:**
+  1. Identificar la región de la DB
+  2. Agregar `"regions": ["<region>"]` a vercel.json para match
+  3. Regions mapping: São Paulo (sa-east-1) = "gru1", N. Virginia (us-east-1) = "iad1", EU West (eu-west-1) = "lhr1"
+  4. Después del deploy, verificar con curl que la latencia por query es ~60ms, NO ~1300ms
+- **Commit de Sesion 11**: 74d9b69 (agregó regions)
+
+### PREVENCION #9: NUNCA instalar paquetes pesados en serverless sin medir el impacto en cold start
+- **Sesion 11 descubrió**: @sentry/nextjs + next-axiom agregaron **15-25 segundos a cold start** incluso con todas las features deshabilitadas.
+- El problema NO es la ejecución de las features — es que **el package en node_modules bloatea el bundle del serverless function**.
+- Cada lambda cold start = unpacking code + instalación = massive overhead si el bundle es grande.
+- **REGLA: Antes de agregar ANY npm package a un proyecto serverless:**
+  1. Check bundle size: `npm install [package] && npm ls -a [package] | wc -l` para count archivos
+  2. Si el package suma >5MB, considerar alternativas:
+     - Vercel built-in features (Analytics, Web Vitals)
+     - Lightweight alternatives (tiny-driver en lugar de full driver)
+     - Client-only solutions (no server overhead)
+  3. Si NECESITAS el package, medir el cold start ANTES y DESPUÉS del deploy
+  4. Si cold start >5s (was ~1s), REVERTIR y considerar alternativas
+- **Alternativas para Sesion 11**: Sentry client-side only (sin wrapper), Vercel-native integrations, custom lightweight logging
+
+### PREVENCION #10: Al migrar una base de datos, SIEMPRE verificar la latencia desde la funcion
+- **No verificar desde local machine** — localhost distorsiona la medición.
+- **No asumir que la DB está optimizada** — latencia alta puede ser región, networking, o pool exhaustion.
+- **REGLA: Crear un debug endpoint** que reporte:
+  - Region de la función (via Vercel headers o environment)
+  - Connection time (time to first query)
+  - DATABASE_URL (redacted, sin credentials)
+  - Sample query results
+- **Ejemplo commit**: 10e5fff creó /api/debug/connection
+- **Después de verificar**: Eliminar el endpoint (no dejar in production)
 
 ### Notas tecnicas para futuras sesiones
 
