@@ -219,21 +219,29 @@ export async function GET(request: Request) {
       },
     });
 
-    // Previous period metrics
-    const prevMetrics = await prisma.adCreativeMetricDaily.findMany({
-      where: {
-        organizationId: ORG_ID,
-        date: { gte: prevFrom, lte: prevTo },
-        ...platformFilter,
-      },
-    });
+    // Previous period metrics — aggregated in DB instead of loading all rows
+    const platWhere = platformParam ? `AND platform = '${platformParam}'` : "";
+    const prevAgg = await prisma.$queryRawUnsafe<[{
+      spend: string; impressions: string; clicks: string;
+      conversions: string; conversion_value: string;
+    }]>(
+      `SELECT
+        COALESCE(SUM(spend), 0)::text AS spend,
+        COALESCE(SUM(impressions), 0)::text AS impressions,
+        COALESCE(SUM(clicks), 0)::text AS clicks,
+        COALESCE(SUM(conversions), 0)::text AS conversions,
+        COALESCE(SUM("conversionValue"), 0)::text AS conversion_value
+      FROM ad_creative_metric_daily
+      WHERE "organizationId" = $1 AND date >= $2 AND date <= $3 ${platWhere}`,
+      ORG_ID, prevFrom, prevTo
+    );
 
     const prevTotals = {
-      spend: prevMetrics.reduce((s, m) => s + Number(m.spend), 0),
-      impressions: prevMetrics.reduce((s, m) => s + m.impressions, 0),
-      clicks: prevMetrics.reduce((s, m) => s + m.clicks, 0),
-      conversions: prevMetrics.reduce((s, m) => s + m.conversions, 0),
-      conversionValue: prevMetrics.reduce((s, m) => s + Number(m.conversionValue), 0),
+      spend: Number(prevAgg[0].spend),
+      impressions: Number(prevAgg[0].impressions),
+      clicks: Number(prevAgg[0].clicks),
+      conversions: Number(prevAgg[0].conversions),
+      conversionValue: Number(prevAgg[0].conversion_value),
     };
 
     // ── Build campaigns list for filter dropdown ──

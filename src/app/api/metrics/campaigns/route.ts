@@ -46,22 +46,31 @@ export async function GET(request: Request) {
       },
     });
 
-    // ── Previous period metrics for comparison ──
-    const prevMetrics = await prisma.adMetricDaily.findMany({
-      where: {
-        organizationId: ORG_ID,
-        date: { gte: prevFrom, lte: prevTo },
-        ...platformFilter,
-      },
-    });
+    // ── Previous period metrics — aggregated in DB instead of loading all rows ──
+    const platformWhere = platformParam ? `AND platform = '${platformParam}'` : "";
+    const prevAgg = await prisma.$queryRawUnsafe<[{
+      spend: string; impressions: string; clicks: string;
+      conversions: string; conversion_value: string; reach: string;
+    }]>(
+      `SELECT
+        COALESCE(SUM(spend), 0)::text AS spend,
+        COALESCE(SUM(impressions), 0)::text AS impressions,
+        COALESCE(SUM(clicks), 0)::text AS clicks,
+        COALESCE(SUM(conversions), 0)::text AS conversions,
+        COALESCE(SUM("conversionValue"), 0)::text AS conversion_value,
+        COALESCE(SUM(COALESCE(reach, 0)), 0)::text AS reach
+      FROM ad_metric_daily
+      WHERE "organizationId" = $1 AND date >= $2 AND date <= $3 ${platformWhere}`,
+      ORG_ID, prevFrom, prevTo
+    );
 
     const prevTotals = {
-      spend: prevMetrics.reduce((s, m) => s + Number(m.spend), 0),
-      impressions: prevMetrics.reduce((s, m) => s + m.impressions, 0),
-      clicks: prevMetrics.reduce((s, m) => s + m.clicks, 0),
-      conversions: prevMetrics.reduce((s, m) => s + m.conversions, 0),
-      conversionValue: prevMetrics.reduce((s, m) => s + Number(m.conversionValue), 0),
-      reach: prevMetrics.reduce((s, m) => s + (m.reach || 0), 0),
+      spend: Number(prevAgg[0].spend),
+      impressions: Number(prevAgg[0].impressions),
+      clicks: Number(prevAgg[0].clicks),
+      conversions: Number(prevAgg[0].conversions),
+      conversionValue: Number(prevAgg[0].conversion_value),
+      reach: Number(prevAgg[0].reach),
     };
 
     // ── Build campaign results with platform-specific metrics ──

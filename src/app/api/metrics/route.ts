@@ -3,80 +3,124 @@ import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 300; // CDN cache 5 min
+
+// ── Optimized: all aggregation done in PostgreSQL, no full-table loads ──
 
 async function getPeriodMetrics(orgId: string, from: Date, to: Date) {
-  const [orders, webMetrics, adMetrics] = await Promise.all([
-    prisma.order.findMany({
-      where: {
-        organizationId: orgId,
-        orderDate: { gte: from, lt: to },
-      },
-    }),
-    prisma.webMetricDaily.findMany({
-      where: {
-        organizationId: orgId,
-        date: { gte: from, lt: to },
-      },
-    }),
-    prisma.adMetricDaily.findMany({
-      where: {
-        organizationId: orgId,
-        date: { gte: from, lt: to },
-      },
-    }),
-  ]);
+  const [orderStats, cancelledStats, webStats, adStats, adByPlatform] =
+    await Promise.all([
+      // 1) Billable orders aggregation (single query, no row fetching)
+      prisma.$queryRawUnsafe<
+        [{ cnt: string; revenue: string; avg_ticket: string }]
+      >(
+        `SELECT
+          COUNT(*)::text AS cnt,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue,
+          COALESCE(AVG("totalValue"), 0)::text AS avg_ticket
+        FROM orders
+        WHERE "organizationId" = $1
+          AND "orderDate" >= $2 AND "orderDate" < $3
+          AND status IN ('INVOICED', 'SHIPPED', 'DELIVERED')`,
+        orgId,
+        from,
+        to
+      ),
 
-  const billableStatuses = ["INVOICED", "SHIPPED", "DELIVERED"];
-  const billableOrders = orders.filter((o) =>
-    billableStatuses.includes(o.status)
+      // 2) Cancelled orders aggregation
+      prisma.$queryRawUnsafe<[{ cnt: string; revenue: string }]>(
+        `SELECT
+          COUNT(*)::text AS cnt,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = $1
+          AND "orderDate" >= $2 AND "orderDate" < $3
+          AND status = 'CANCELLED'`,
+        orgId,
+        from,
+        to
+      ),
+
+      // 3) Web metrics aggregation
+      prisma.$queryRawUnsafe<[{ sessions: string }]>(
+        `SELECT COALESCE(SUM(sessions), 0)::text AS sessions
+        FROM web_metric_daily
+        WHERE "organizationId" = $1
+          AND date >= $2 AND date < $3`,
+        orgId,
+        from,
+        to
+      ),
+
+      // 4) Ad metrics aggregation (totals)
+      prisma.$queryRawUnsafe<
+        [{ spend: string; conversion_value: string; impressions: string; clicks: string }]
+      >(
+        `SELECT
+          COALESCE(SUM(spend), 0)::text AS spend,
+          COALESCE(SUM("conversionValue"), 0)::text AS conversion_value,
+          COALESCE(SUM(impressions), 0)::text AS impressions,
+          COALESCE(SUM(clicks), 0)::text AS clicks
+        FROM ad_metric_daily
+        WHERE "organizationId" = $1
+          AND date >= $2 AND date < $3`,
+        orgId,
+        from,
+        to
+      ),
+
+      // 5) Ad spend by platform
+      prisma.$queryRawUnsafe<Array<{ platform: string; spend: string }>>(
+        `SELECT platform, COALESCE(SUM(spend), 0)::text AS spend
+        FROM ad_metric_daily
+        WHERE "organizationId" = $1
+          AND date >= $2 AND date < $3
+        GROUP BY platform`,
+        orgId,
+        from,
+        to
+      ),
+    ]);
+
+  const orders = Number(orderStats[0].cnt);
+  const revenue = Number(orderStats[0].revenue);
+  const totalSessions = Number(webStats[0].sessions);
+  const adSpend = Number(adStats[0].spend);
+  const adConversionValue = Number(adStats[0].conversion_value);
+  const totalImpressions = Number(adStats[0].impressions);
+  const totalClicks = Number(adStats[0].clicks);
+
+  const platformMap = Object.fromEntries(
+    adByPlatform.map((p) => [p.platform, Number(p.spend)])
   );
-  const cancelledOrders = orders.filter((o) => o.status === "CANCELLED");
-
-  const revenue = billableOrders.reduce((s, o) => s + o.totalValue, 0);
-  const totalSessions = webMetrics.reduce((s, w) => s + w.sessions, 0);
-  const adSpend = adMetrics.reduce((s, a) => s + a.spend, 0);
-  const adConversionValue = adMetrics.reduce(
-    (s, a) => s + a.conversionValue,
-    0
-  );
-  const totalImpressions = adMetrics.reduce((s, a) => s + a.impressions, 0);
-  const totalClicks = adMetrics.reduce((s, a) => s + a.clicks, 0);
-
-  // Platform breakdown
-  const googleMetrics = adMetrics.filter((a) => a.platform === "GOOGLE");
-  const metaMetrics = adMetrics.filter((a) => a.platform === "META");
-  const googleSpend = googleMetrics.reduce((s, a) => s + a.spend, 0);
-  const metaSpend = metaMetrics.reduce((s, a) => s + a.spend, 0);
 
   return {
     revenue,
-    orders: billableOrders.length,
-    cancelledOrders: cancelledOrders.length,
-    cancelledRevenue: cancelledOrders.reduce((s, o) => s + o.totalValue, 0),
+    orders,
+    cancelledOrders: Number(cancelledStats[0].cnt),
+    cancelledRevenue: Number(cancelledStats[0].revenue),
     sessions: totalSessions,
     adSpend,
-    googleSpend,
-    metaSpend,
+    googleSpend: platformMap["GOOGLE"] || 0,
+    metaSpend: platformMap["META"] || 0,
     roas:
       adSpend > 0
         ? Math.round((adConversionValue / adSpend) * 100) / 100
         : 0,
     conversionRate:
       totalSessions > 0
-        ? Math.round((billableOrders.length / totalSessions) * 10000) / 100
+        ? Math.round((orders / totalSessions) * 10000) / 100
         : 0,
-    avgTicket:
-      billableOrders.length > 0
-        ? Math.round(revenue / billableOrders.length)
-        : 0,
+    avgTicket: orders > 0 ? Math.round(revenue / orders) : 0,
     impressions: totalImpressions,
     clicks: totalClicks,
     ctr:
       totalImpressions > 0
         ? Math.round((totalClicks / totalImpressions) * 10000) / 100
         : 0,
-    cpc: totalClicks > 0 ? Math.round((adSpend / totalClicks) * 100) / 100 : 0,
+    cpc:
+      totalClicks > 0
+        ? Math.round((adSpend / totalClicks) * 100) / 100
+        : 0,
   };
 }
 
@@ -92,7 +136,6 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const now = new Date();
 
-    // Accept from/to params; default to last 30 days
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
 
@@ -101,7 +144,6 @@ export async function GET(request: Request) {
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Previous period = same duration before 'from'
     const periodMs = to.getTime() - from.getTime();
     const previousFrom = new Date(from.getTime() - periodMs);
     const previousTo = from;
