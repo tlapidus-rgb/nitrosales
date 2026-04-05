@@ -1698,3 +1698,31 @@ Se hicieron multiples intentos para resolver el problema de paginas no cargando.
 - Verificar en la consola del navegador (click derecho → Inspeccionar → Console) que errores exactos devuelven las APIs
 - Los nombres de tabla correctos segun el schema Prisma son: `orders`, `order_items`, `products`, `customers`, `ad_metrics_daily`, `ad_creative_metrics_daily`, `web_metrics_daily`, `ad_campaigns`, `ad_sets`, `ad_set_metrics_daily`, `ad_creatives`, `pixel_visitors`, `pixel_attributions`, `funnel_daily`
 - CSS: globals.css tiene `body { color: var(--nitro-text) }` donde `--nitro-text: #FFFFFF`. Usar inline `style={{ color: "#hex" }}` para texto en fondos claros
+
+
+---
+
+## Sesion 10 — 2026-04-05: Fix critico — Connection Pool Exhaustion
+
+### PROBLEMA RESUELTO
+
+**Causa raiz**: Session 9 agrego connection_limit=5 y pool_timeout=10 a src/lib/db/client.ts. Con solo 5 conexiones de pool y las APIs de metrics ejecutando 5-10 queries en paralelo via Promise.all, el pool se agotaba cuando el dashboard cargaba multiples APIs simultaneamente.
+
+### Evidencia empirica
+- 1 API sola: 200 OK en 3.7s
+- 2 APIs en paralelo: 200 OK ambas
+- 5 APIs en paralelo: 500 pool timeout en 2, timeout total en 3
+- Error exacto: "Timed out fetching a new connection from the connection pool (timeout: 10, limit: 5)"
+
+### Fix aplicado
+- Commit 703dc6a: Eliminado connection_limit=5 y pool_timeout=10 de db/client.ts
+- Prisma vuelve a usar DATABASE_URL directamente con defaults serverless
+- Cambio quirurgico: 1 archivo, 16 lineas eliminadas, 0 agregadas
+
+### Archivos modificados
+- src/lib/db/client.ts — Removido URL manipulation que inyectaba connection_limit y pool_timeout
+
+### Por que Nitro Creators no se vio afectado
+- Influencer API usa Prisma ORM simple (findMany, aggregate) — 1-2 queries secuenciales
+- APIs de metrics usan raw SQL ($queryRawUnsafe) con 5-10 queries en Promise.all
+- Con pool=5, las queries de metrics se pisaban entre si; influencers no porque son livianas
