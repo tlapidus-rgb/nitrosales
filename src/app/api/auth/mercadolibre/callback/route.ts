@@ -15,8 +15,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
-export const dynamic = "force-dynamic";
-
 const ML_APP_ID = process.env.ML_APP_ID || "5750438437863167";
 const ML_SECRET = process.env.ML_SECRET_KEY || "4WBCq5f9ejpT4U62KGjG0q08koi0bPxt";
 const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI || "https://nitrosales.vercel.app/api/auth/mercadolibre/callback";

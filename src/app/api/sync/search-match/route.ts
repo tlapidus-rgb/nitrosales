@@ -23,8 +23,6 @@ import {
 } from "@/lib/connectors/search-first-matcher";
 import { getAccessToken, MLCredentials } from "@/lib/connectors/mercadolibre";
 
-export const dynamic = "force-dynamic";
-
 export const revalidate = 0;
 export const maxDuration = 60;
 

@@ -3,8 +3,6 @@ import { prisma } from "@/lib/db/client";
 import * as crypto from "crypto";
 import { getOrganization } from "@/lib/auth-guard";
 
-export const dynamic = "force-dynamic";
-
 // Generate JWT for Google service account auth
 function createJWT(serviceAccount: any) {
   const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");

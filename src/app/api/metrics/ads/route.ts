@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db/client";
 import { classifyCreative, CLASSIFICATION_TYPES } from "@/lib/classification/ad-classifier";
 import { getOrganizationId } from "@/lib/auth-guard";
 
-export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /* ── Funnel Stage Classification ─────────────────────────

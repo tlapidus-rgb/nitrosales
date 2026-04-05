@@ -12,8 +12,6 @@ import { sendEmail } from "@/lib/email/send";
 import { welcomeInfluencerEmail } from "@/lib/email/templates";
 import { createHash, randomBytes } from "crypto";
 
-export const dynamic = "force-dynamic";
-
 function generatePassword(): string {
   // 6 char alphanumeric, easy to type
   return randomBytes(4).toString("base64url").substring(0, 6).toLowerCase();

@@ -12,7 +12,6 @@ import { syncToMeta } from "@/lib/audiences/send-meta";
 import { syncToGoogle } from "@/lib/audiences/send-google";
 import type { SegmentCriteria, SyncResult } from "@/lib/audiences/types";
 
-export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const maxDuration = 60; // Vercel Pro: hasta 60s para syncs grandes
 

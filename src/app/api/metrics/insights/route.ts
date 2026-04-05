@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db/client";
 import * as crypto from "crypto";
 import { getOrganizationId } from "@/lib/auth-guard";
 
-export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
 interface Insight {

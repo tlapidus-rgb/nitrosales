@@ -17,7 +17,6 @@ import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getCached, setCache } from "@/lib/api-cache";
 
-export const dynamic = "force-dynamic";
 export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

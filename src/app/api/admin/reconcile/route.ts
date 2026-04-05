@@ -19,8 +19,6 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/client';
 import { calculateAttribution } from '@/lib/pixel/attribution';
 
-export const dynamic = "force-dynamic";
-
 export const maxDuration = 60; // Allow up to 60s for batch processing
 
 export async function POST(request: Request) {

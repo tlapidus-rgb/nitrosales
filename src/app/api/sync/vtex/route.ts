@@ -4,8 +4,6 @@ import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 import { getOrganization } from "@/lib/auth-guard";
 
-export const dynamic = "force-dynamic";
-
 
 // Ã¢ÂÂÃ¢ÂÂ GET: cleanup-cancelled phase Ã¢ÂÂÃ¢ÂÂ
 // Fetches all CANCELLED orders from DB, checks each against VTEX, updates if needed

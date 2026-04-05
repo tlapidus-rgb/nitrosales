@@ -11,8 +11,6 @@ import { Prisma } from "@prisma/client";
 import { sendEmail } from "@/lib/email/send";
 import { monthlyCommissionSummaryEmail } from "@/lib/email/templates";
 
-export const dynamic = "force-dynamic";
-
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {

@@ -10,8 +10,6 @@ import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
 import { getGSCAccessToken, fetchAllSearchAnalytics } from "@/lib/connectors/gsc";
 
-export const dynamic = "force-dynamic";
-
 function generateCuid(): string {
   const ts = Date.now().toString(36);
   const rand = Math.random().toString(36).substring(2, 10);

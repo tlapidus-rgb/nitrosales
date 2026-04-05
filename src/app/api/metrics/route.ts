@@ -3,8 +3,6 @@ import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
 import { getCached, setCache } from "@/lib/api-cache";
 
-export const dynamic = "force-dynamic";
-
 // ── Optimized: all aggregation done in PostgreSQL, no full-table loads ──
 
 async function getPeriodMetrics(orgId: string, from: Date, to: Date) {

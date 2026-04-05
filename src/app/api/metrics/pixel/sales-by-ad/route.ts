@@ -13,7 +13,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 
-export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // Normalize related sources into canonical channels

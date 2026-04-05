@@ -9,8 +9,6 @@ import { prisma } from "@/lib/db/client";
 import { getOrganization } from "@/lib/auth-guard";
 import { Prisma } from "@prisma/client";
 
-export const dynamic = "force-dynamic";
-
 export async function GET(req: NextRequest) {
   try {
     const org = await getOrganization(req);
