@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-04 (Sesion 8 — Audience Sync + Meta Custom Audiences + Google Customer Match)
+## Ultima actualizacion: 2026-04-05 (Sesion 10 — Fix critico: connection pool + build time restaurado)
 
 ---
 
@@ -132,7 +132,7 @@
 | src/lib/vtex-credentials.ts | **v1** | NEW | Centralized VTEX credential access (DB > env vars) |
 | src/lib/crypto.ts | **v1** | NEW | AES-256-GCM credential encryption |
 | src/lib/auth-guard.ts | **v1** | NEW | Org resolution from NextAuth session |
-| src/lib/db/client.ts | **v1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client |
+| src/lib/db/client.ts | **v1.1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client. Sesion 10: removido connection_limit=5 y pool_timeout=10 (causaban pool exhaustion). NUNCA agregar connection_limit al DATABASE_URL. |
 | prisma/schema.prisma | **v4** | ACTIVO | +Influencer, InfluencerCampaign, InfluencerAttribution, InfluencerApplication, InfluencerBriefing, ContentSubmission, ProductSeeding (7 modelos nuevos). +isProductBreakdownEnabled en Influencer. +CustomerLtvPrediction. +ManualCost, ShippingRate. Order: +postalCode, shippingCarrier, shippingService, realShippingCost. |
 | vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. |
 | src/app/(app)/layout.tsx | **v5** | ACTIVO | Sidebar con 9 grupos: OPERACIONES, CATALOGO, MARKETING Y ADQUISICION, NITRO CREATORS (gradient label, Influencers + Contenido expandibles), CLIENTES, CANALES, HERRAMIENTAS (NitroPixel + LTV + Audience Sync con premium cards), FINANZAS, sin-grupo. Premium cards con glow, badges LIVE/AI/SYNC, description text. Smart isActive logic para Influencers vs Contenido routes. |
@@ -324,6 +324,26 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-05 — Sesiones 9-10 (Fix critico: connection pool exhaustion + force-dynamic)
+
+**Commits sesion 9**: 06dd847, 841d6b1, 5104869, 0e5146a, efc7c0ad, 12e22bcc (6 commits — varios causaron problemas)
+**Commits sesion 10**: 703dc6a, acc44a5, e4b7516, d0d4bcf, b0b8119 (5 commits — b0b8119 es el fix definitivo)
+**Deploy**: b0b8119 -> main. Vercel Ready. 10/10 APIs 200 OK.
+
+#### Que paso:
+1. Sesion 9 intento arreglar APIs que no respondian. Agrego connection_limit=5 al pool de Prisma (commit 5104869), lo cual CAUSO el problema en vez de arreglarlo. Tambien reescribio APIs a raw SQL y agrego cache.
+2. Sesion 10 identifico la causa raiz con tests empiricos (1 API OK, 5 APIs timeout). Removio connection_limit (703dc6a) y todo funciono.
+3. Se intento remover force-dynamic de 72 rutas para optimizar builds (e4b7516) pero rompio las APIs — Next.js las pre-renderizaba estaticamente.
+4. Se restauro force-dynamic (b0b8119) y todo volvio a funcionar definitivamente.
+
+#### Errores criticos documentados (ver seccion REGLAS DE PREVENCION):
+- NUNCA agregar connection_limit al pool de Prisma
+- NUNCA remover force-dynamic de rutas API
+- NUNCA hacer multiples cambios sin testear cada uno por separado
+- NUNCA reescribir Prisma ORM a raw SQL sin demostrar con datos que el ORM es el problema
+
+---
 
 ### 2026-04-04 — Sesiones 6-7 (Influencer Module Completo Fases 1-5 + Nitro Creators + Premium Nav)
 
@@ -1650,21 +1670,17 @@ Se investigaron a fondo antes de implementar:
 
 ---
 
-## Sesion 9 — 2026-04-05: Problema critico de paginas no funcionando
+## Sesion 9 — 2026-04-05: Problema critico de paginas no funcionando (RESUELTO EN SESION 10)
 
-### PROBLEMA ACTIVO (NO RESUELTO)
+### PROBLEMA: RESUELTO en sesion 10
 
-**Las paginas principales de NitroSales no cargan**: overview/dashboard, pedidos, productos, analytics devuelven errores 500 o tardan indefinidamente. Esto fue reportado por Tomy durante esta sesion. El sospecha que el problema empezo con la feature de influencers, ya que antes de eso todo funcionaba.
-
-### Estado actual en produccion
-
-El deploy actual en Vercel (commit `12e22bcc`) esta en estado "Ready" pero las paginas siguen sin funcionar.
+**Las paginas principales de NitroSales no cargaban**: overview/dashboard, pedidos, productos, analytics devolvian errores 500 o tardaban indefinidamente. Reportado por Tomy. El problema empezo despues de implementar el modulo de influencers (sesiones 6-7), pero la causa raiz fue lo que hizo esta sesion 9 intentando arreglar.
 
 ### Commits realizados en esta sesion (en orden cronologico)
 
-1. `06dd847` — fix: correct Order field name totalAmount → totalValue in influencers analytics
-2. `841d6b1` — fix: add export const dynamic=force-dynamic to all API routes (72 archivos)
-3. `5104869` — fix: add connection pool limits to prevent DB connection exhaustion (connection_limit=5, pool_timeout=10 en src/lib/db/client.ts)
+1. `06dd847` — fix: correct Order field name totalAmount -> totalValue in influencers analytics
+2. `841d6b1` — fix: add export const dynamic=force-dynamic to all API routes (72 archivos) — **NECESARIO, NO REMOVER**
+3. `5104869` — fix: add connection pool limits to prevent DB connection exhaustion (connection_limit=5, pool_timeout=10 en src/lib/db/client.ts) — **ESTO FUE LA CAUSA RAIZ DEL PROBLEMA — REVERTIDO EN SESION 10**
 4. `0e5146a` — perf: replace full-table loads with SQL aggregations in 3 critical APIs (metrics, campaigns, ads routes reescritos con $queryRawUnsafe)
 5. `efc7c0ad` — perf: add response cache, SQL-optimize trends, create DB index endpoint (nuevo archivo src/lib/api-cache.ts, rewrite de trends/route.ts, nuevo endpoint ensure-indexes, cache en 5 rutas)
 6. `12e22bcc` — fix: correct SQL table names (ad_metrics_daily, web_metrics_daily, ad_creative_metrics_daily) — corrige nombres de tablas SQL que estaban mal en commits 4 y 5
@@ -1672,11 +1688,11 @@ El deploy actual en Vercel (commit `12e22bcc`) esta en estado "Ready" pero las p
 ### Archivos nuevos creados en esta sesion
 
 - `src/lib/api-cache.ts` — cache en memoria para respuestas de API (60s TTL)
-- `src/app/api/setup/ensure-indexes/route.ts` — endpoint POST para crear 6 indices faltantes en la DB. Se ejecuta con: `POST /api/setup/ensure-indexes?key=nitrosales-secret-key-2024-production`
+- `src/app/api/setup/ensure-indexes/route.ts` — endpoint POST para crear 6 indices faltantes en la DB
 
 ### Archivos modificados en esta sesion
 
-- `src/lib/db/client.ts` — agregado connection_limit=5 y pool_timeout=10
+- `src/lib/db/client.ts` — agregado connection_limit=5 y pool_timeout=10 (**CAUSA RAIZ — revertido en sesion 10**)
 - `src/app/api/metrics/route.ts` — reescrito de findMany a SQL aggregations
 - `src/app/api/metrics/trends/route.ts` — reescrito de findMany a SQL GROUP BY
 - `src/app/api/metrics/campaigns/route.ts` — prevMetrics reescrito a SQL aggregate
@@ -1684,45 +1700,110 @@ El deploy actual en Vercel (commit `12e22bcc`) esta en estado "Ready" pero las p
 - `src/app/api/metrics/orders/route.ts` — agregado cache
 - `src/app/api/metrics/products/route.ts` — agregado cache
 - `src/app/api/metrics/pixel/route.ts` — agregado cache
-- 72 archivos de API routes — agregado `export const dynamic = "force-dynamic"`
+- 72 archivos de API routes — agregado `export const dynamic = "force-dynamic"` (**NECESARIO**)
 
-### Lo que se intento y no funciono
+### Errores cometidos en esta sesion (documentados para prevencion)
 
-Se hicieron multiples intentos para resolver el problema de paginas no cargando. Se identificaron varias causas posibles (dynamic exports faltantes, pool de conexiones agotado, queries pesadas, nombres de tablas SQL incorrectos) y se aplicaron fixes para cada una, pero al cierre de esta sesion las paginas siguen sin funcionar correctamente.
+1. **ERROR CRITICO: Agregar connection_limit=5 al pool de Prisma** — Esto limito a 5 conexiones simultaneas. Cuando el dashboard carga 10+ APIs en paralelo y cada API usa 1-2 conexiones (auth + query), se agota el pool instantaneamente. El error era: `Timed out fetching a new connection from the connection pool (connection_limit: 5, pool_timeout: 10)`. **NUNCA limitar el connection pool de Prisma en produccion.**
 
-### Nota para la proxima sesion
+2. **ERROR: Reescribir APIs de Prisma ORM a raw SQL sin necesidad** — Se reescribieron metrics, campaigns, ads y trends de `findMany` a `$queryRawUnsafe` con `Promise.all` de 5-10 queries paralelas. Esto multiplico x3 la demanda de conexiones por request. Combinado con connection_limit=5, fue devastador.
 
-- Los indices de la DB se crearon parcialmente (ejecutar de nuevo el endpoint ensure-indexes despues de verificar que ande)
-- El problema podria tener causas adicionales no identificadas en esta sesion
-- Revisar con ojos frescos los API routes en `src/app/api/metrics/` y verificar que las queries SQL funcionen contra la DB real
-- Verificar en la consola del navegador (click derecho → Inspeccionar → Console) que errores exactos devuelven las APIs
-- Los nombres de tabla correctos segun el schema Prisma son: `orders`, `order_items`, `products`, `customers`, `ad_metrics_daily`, `ad_creative_metrics_daily`, `web_metrics_daily`, `ad_campaigns`, `ad_sets`, `ad_set_metrics_daily`, `ad_creatives`, `pixel_visitors`, `pixel_attributions`, `funnel_daily`
-- CSS: globals.css tiene `body { color: var(--nitro-text) }` donde `--nitro-text: #FFFFFF`. Usar inline `style={{ color: "#hex" }}` para texto en fondos claros
-
+3. **ERROR: Aplicar multiples cambios simultaneos** — Se hicieron 6 commits tocando cosas distintas (force-dynamic, pool limits, SQL rewrites, cache, table names) sin testear cada uno por separado. Esto hizo imposible identificar cual fue el cambio que rompio todo.
 
 ---
 
-## Sesion 10 — 2026-04-05: Fix critico — Connection Pool Exhaustion
+## Sesion 10 — 2026-04-05: Fix critico — connection pool + force-dynamic restaurado
 
-### PROBLEMA RESUELTO
+### PROBLEMA: RESUELTO
 
-**Causa raiz**: Session 9 agrego connection_limit=5 y pool_timeout=10 a src/lib/db/client.ts. Con solo 5 conexiones de pool y las APIs de metrics ejecutando 5-10 queries en paralelo via Promise.all, el pool se agotaba cuando el dashboard cargaba multiples APIs simultaneamente.
+**Todas las paginas de NitroSales volvieron a funcionar.** 10/10 APIs responden 200 OK en paralelo.
 
-### Evidencia empirica
-- 1 API sola: 200 OK en 3.7s
+### Causa raiz identificada
+
+La sesion 9 agrego `connection_limit=5` y `pool_timeout=10` al DATABASE_URL en `src/lib/db/client.ts`. Esto limitaba a 5 conexiones simultaneas a la base de datos. Cuando el dashboard de NitroSales carga, dispara 10+ APIs en paralelo. Cada API necesita al menos 1 conexion (auth-guard) + 1-N conexiones (queries). Con limit=5, las APIs competian por conexiones y las que no conseguian en 10 segundos tiraban error 500.
+
+**Prueba empirica realizada:**
+- 1 API sola: 200 OK (3.7s)
 - 2 APIs en paralelo: 200 OK ambas
-- 5 APIs en paralelo: 500 pool timeout en 2, timeout total en 3
-- Error exacto: "Timed out fetching a new connection from the connection pool (timeout: 10, limit: 5)"
+- 5 APIs en paralelo: 2 devolvieron 500 pool timeout, 3 timeout total
+- 10 APIs en paralelo post-fix: 10/10 devuelven 200 OK
 
-### Fix aplicado
-- Commit 703dc6a: Eliminado connection_limit=5 y pool_timeout=10 de db/client.ts
-- Prisma vuelve a usar DATABASE_URL directamente con defaults serverless
-- Cambio quirurgico: 1 archivo, 16 lineas eliminadas, 0 agregadas
+### Segundo problema: force-dynamic es OBLIGATORIO
 
-### Archivos modificados
-- src/lib/db/client.ts — Removido URL manipulation que inyectaba connection_limit y pool_timeout
+Se intento remover `export const dynamic = "force-dynamic"` de las 72 rutas API para reducir el build time (que era 12+ min). El build bajo a 50 segundos, PERO las APIs dejaron de funcionar — Next.js intento optimizar estaticamente las rutas y sirvio respuestas rotas/cacheadas del build anterior.
 
-### Por que Nitro Creators no se vio afectado
-- Influencer API usa Prisma ORM simple (findMany, aggregate) — 1-2 queries secuenciales
-- APIs de metrics usan raw SQL ($queryRawUnsafe) con 5-10 queries en Promise.all
-- Con pool=5, las queries de metrics se pisaban entre si; influencers no porque son livianas
+**Conclusion: `force-dynamic` es OBLIGATORIO en todas las rutas API de NitroSales.** Sin el, Next.js puede pre-renderizar rutas que necesitan contexto de request (auth, DB queries) y servir respuestas estaticas corruptas.
+
+El build de 12+ minutos con acc44a5 fue probablemente por cold cache de Vercel (primer build despues de muchos cambios de sesion 9). El build de b0b8119 con force-dynamic restaurado deberia ser mas rapido ahora que el cache esta warm.
+
+### Commits de esta sesion (en orden cronologico)
+
+1. `703dc6a` — **fix: remove connection pool limits causing API timeouts** — Removido connection_limit=5 y pool_timeout=10 de db/client.ts. **ESTE FUE EL FIX PRINCIPAL.**
+2. `acc44a5` — docs: session 10 — fix connection pool exhaustion (update CLAUDE_STATE parcial)
+3. `e4b7516` — perf: remove redundant force-dynamic from API routes — **ESTE COMMIT ROMPIO LAS APIs. Remover force-dynamic no es seguro.**
+4. `d0d4bcf` — chore: trigger redeploy (commit vacio para forzar nuevo deploy en Vercel)
+5. `b0b8119` — **fix: restore force-dynamic on all API routes** — Restauro force-dynamic en las 72 rutas. **ESTE COMMIT ARREGLO TODO DEFINITIVAMENTE.**
+
+### Archivos modificados en esta sesion
+
+- `src/lib/db/client.ts` — **REMOVIDO** el bloque que inyectaba connection_limit=5 y pool_timeout=10 al DATABASE_URL. El archivo ahora crea PrismaClient sin manipular la URL. v1 -> v1.1.
+- 72 archivos de API routes — force-dynamic removido en e4b7516 y RESTAURADO en b0b8119. Estado final: **todas las rutas API tienen `export const dynamic = "force-dynamic"`**.
+
+### Estado final de produccion
+
+- **Commit en main**: `b0b8119`
+- **db/client.ts**: Sin connection_limit, sin pool_timeout. Prisma usa defaults (pool_size segun CPU cores).
+- **72 API routes**: Todas con `export const dynamic = "force-dynamic"`.
+- **10/10 APIs**: 200 OK en paralelo (testeado con curl).
+
+---
+
+## REGLAS DE PREVENCION — ERRORES APRENDIDOS (LEER OBLIGATORIO)
+
+Estas reglas nacen de errores reales cometidos en sesiones 9 y 10. **Son tan importantes como las ACCIONES PROHIBIDAS.**
+
+### PREVENCION #1: NUNCA modificar el connection pool de Prisma en produccion
+- **NUNCA** agregar `connection_limit`, `pool_timeout`, `pool_size` al DATABASE_URL ni al constructor de PrismaClient.
+- Prisma calcula automaticamente el pool optimo basado en CPU cores del serverless function.
+- En Vercel serverless, cada funcion tiene su propio pool. Limitar a 5 significa que UNA funcion que recibe multiples requests se ahoga.
+- Si hay problemas de conexion, la solucion es connection pooling externo (PgBouncer, Prisma Accelerate), NO limitar el pool de Prisma.
+- **El archivo `src/lib/db/client.ts` NO DEBE TOCARSE.** Esta marcado como ESTABLE.
+
+### PREVENCION #2: NUNCA remover force-dynamic de rutas API
+- **Todas las rutas bajo `src/app/api/`** DEBEN tener `export const dynamic = "force-dynamic"` al inicio.
+- Sin force-dynamic, Next.js puede intentar pre-renderizar las rutas en build time, lo cual falla porque no hay contexto de auth ni DB disponible durante el build.
+- Esto causa que se sirvan respuestas estaticas corruptas o errores cacheados.
+- Si el build time es lento, la solucion es otra (ver Prevencion #4), NO remover force-dynamic.
+
+### PREVENCION #3: NUNCA hacer multiples cambios sin testear cada uno por separado
+- La sesion 9 hizo 6 commits tocando cosas distintas (force-dynamic, pool limits, SQL rewrites, cache layer, table names) sin verificar cual cambio arreglaba o rompia que.
+- **REGLA: Un cambio = un commit = un test.** Si el test falla, revertir ESE commit antes de intentar otra cosa.
+- Nunca "apilar" fixes sin confirmar que cada uno funciona individualmente.
+
+### PREVENCION #4: NUNCA reescribir APIs de Prisma ORM a raw SQL sin razon comprobada
+- La sesion 9 reescribio metrics, campaigns, ads y trends de `findMany` a `$queryRawUnsafe` asumiendo que el ORM era lento.
+- En realidad, el ORM no era el problema — el connection pool era el cuello de botella.
+- Raw SQL con `Promise.all` de 10 queries paralelas MULTIPLICA la demanda de conexiones.
+- **REGLA: Antes de reescribir una query, demostrar con datos que ESA query es el cuello de botella.** Usar `EXPLAIN ANALYZE` en PostgreSQL, no asumir.
+
+### PREVENCION #5: Si un deploy rompe algo, REDEPLOY del ultimo deploy que funcionaba
+- Vercel permite hacer "Redeploy" de cualquier deployment anterior con un click.
+- Si un deploy rompe produccion, el camino mas rapido es redeploy del anterior, NO hacer commits nuevos a ciegas.
+- **REGLA: Siempre tener identificado cual fue el ultimo deploy funcional antes de hacer cambios.**
+
+### PREVENCION #6: Verificar en produccion con curl ANTES de confirmar que algo funciona
+- La sesion 9 marco el problema como "no resuelto" sin testear empiricamente cada API.
+- La sesion 10 uso curl para testear 1, 2, 5 y 10 APIs en paralelo y asi demostro la causa exacta.
+- **REGLA: Siempre testear con `curl` paralelo contra la URL de produccion (`nitrosales.vercel.app`) despues de cada deploy.**
+
+### PREVENCION #7: Builds lentos — diagnosticar antes de "optimizar"
+- El build de 12+ minutos fue con acc44a5 (primer build post-sesion 9 con muchos cambios). El build de b0b8119 (con force-dynamic restaurado) deberia medirse antes de asumir que force-dynamic causa builds lentos.
+- **REGLA: Si un build es lento, medir el SIGUIENTE build antes de concluir que algo especifico lo causa.** El cold cache de Vercel puede explicar builds lentos puntuales.
+- Si los builds son consistentemente >3 minutos, investigar: `prisma db push` en build command (ya corregido sesion 5), dependencias pesadas, o rutas con imports circulares.
+
+### Notas tecnicas para futuras sesiones
+
+- Los nombres de tabla correctos segun schema Prisma son: `orders`, `order_items`, `products`, `customers`, `ad_metrics_daily`, `ad_creative_metrics_daily`, `web_metrics_daily`, `ad_campaigns`, `ad_sets`, `ad_set_metrics_daily`, `ad_creatives`, `pixel_visitors`, `pixel_attributions`, `funnel_daily`
+- CSS: globals.css tiene `body { color: var(--nitro-text) }` donde `--nitro-text: #FFFFFF`. Usar inline `style={{ color: "#hex" }}` para texto en fondos claros
+- Los indices de la DB se crearon parcialmente en sesion 9 (endpoint ensure-indexes). Ejecutar de nuevo si hay queries lentas.
+- El git local puede tener pack files corruptos. Si hay errores de git, usar GitHub API directamente (Contents API para archivos individuales, Git Data API para commits multi-archivo).
