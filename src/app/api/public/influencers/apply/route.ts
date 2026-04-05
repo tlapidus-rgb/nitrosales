@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Public Influencer Application API (NO AUTH)
 // ══════════════════════════════════════════════════════════════

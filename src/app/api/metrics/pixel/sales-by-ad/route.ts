@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
 // Pixel Metrics — Sales by Ad (Ventas por Anuncio)

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Cron: Monthly Influencer Commission Summary
 // ══════════════════════════════════════════════════════════════

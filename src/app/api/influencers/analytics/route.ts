@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Influencer Analytics API — Cohorts, ROI, Anomalies
 // ══════════════════════════════════════════════════════════════

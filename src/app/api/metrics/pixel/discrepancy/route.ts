@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Pixel Revenue Discrepancy Report — NitroPixel Exclusive
 // ══════════════════════════════════════════════════════════════

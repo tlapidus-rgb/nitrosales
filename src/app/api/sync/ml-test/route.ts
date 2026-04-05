@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // Quick ML API diagnostic endpoint — forces token refresh
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";

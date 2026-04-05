@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // EAN Backfill — Sync EAN barcodes from VTEX public API
 // ══════════════════════════════════════════════════════════════

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Competitive Intelligence API — Aggregated Analysis Data
 // ══════════════════════════════════════════════════════════════

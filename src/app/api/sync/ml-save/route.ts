@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // MercadoLibre Save — Receives search results from client-side
 // ══════════════════════════════════════════════════════════════

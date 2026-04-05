@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // SEO Metrics API v2 — Google Search Console Intelligence
 // ══════════════════════════════════════════════════════════════

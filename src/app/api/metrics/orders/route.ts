@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Orders API v3 — Dashboard de Órdenes (optimized for 60K+ orders)
 // ══════════════════════════════════════════════════════════════

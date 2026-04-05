@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Public Dashboard Password Verification
 // ══════════════════════════════════════════════════════════════

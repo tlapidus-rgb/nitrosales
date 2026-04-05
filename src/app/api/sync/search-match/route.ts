@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Search-First Price Matching — Cron & Manual Endpoint
 // ══════════════════════════════════════════════════════════════

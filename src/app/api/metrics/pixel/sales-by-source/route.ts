@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Pixel Metrics — Sales by Source (Ventas por Anuncio)
 // ══════════════════════════════════════════════════════════════

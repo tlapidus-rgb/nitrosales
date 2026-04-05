@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // Competitor Re-Match — Match unmatched CompetitorPrice by EAN
 // ══════════════════════════════════════════════════════════════
