@@ -1647,3 +1647,54 @@ Se investigaron a fondo antes de implementar:
 - [ ] Incremental sync (solo enviar nuevos/cambiados, no full list cada vez)
 - [ ] TikTok Ads audience sync (futuro)
 - [ ] Match rate tracking post-sync (Meta devuelve esto en el audience status)
+
+---
+
+## Sesion 9 — 2026-04-05: Problema critico de paginas no funcionando
+
+### PROBLEMA ACTIVO (NO RESUELTO)
+
+**Las paginas principales de NitroSales no cargan**: overview/dashboard, pedidos, productos, analytics devuelven errores 500 o tardan indefinidamente. Esto fue reportado por Tomy durante esta sesion. El sospecha que el problema empezo con la feature de influencers, ya que antes de eso todo funcionaba.
+
+### Estado actual en produccion
+
+El deploy actual en Vercel (commit `12e22bcc`) esta en estado "Ready" pero las paginas siguen sin funcionar.
+
+### Commits realizados en esta sesion (en orden cronologico)
+
+1. `06dd847` — fix: correct Order field name totalAmount → totalValue in influencers analytics
+2. `841d6b1` — fix: add export const dynamic=force-dynamic to all API routes (72 archivos)
+3. `5104869` — fix: add connection pool limits to prevent DB connection exhaustion (connection_limit=5, pool_timeout=10 en src/lib/db/client.ts)
+4. `0e5146a` — perf: replace full-table loads with SQL aggregations in 3 critical APIs (metrics, campaigns, ads routes reescritos con $queryRawUnsafe)
+5. `efc7c0ad` — perf: add response cache, SQL-optimize trends, create DB index endpoint (nuevo archivo src/lib/api-cache.ts, rewrite de trends/route.ts, nuevo endpoint ensure-indexes, cache en 5 rutas)
+6. `12e22bcc` — fix: correct SQL table names (ad_metrics_daily, web_metrics_daily, ad_creative_metrics_daily) — corrige nombres de tablas SQL que estaban mal en commits 4 y 5
+
+### Archivos nuevos creados en esta sesion
+
+- `src/lib/api-cache.ts` — cache en memoria para respuestas de API (60s TTL)
+- `src/app/api/setup/ensure-indexes/route.ts` — endpoint POST para crear 6 indices faltantes en la DB. Se ejecuta con: `POST /api/setup/ensure-indexes?key=nitrosales-secret-key-2024-production`
+
+### Archivos modificados en esta sesion
+
+- `src/lib/db/client.ts` — agregado connection_limit=5 y pool_timeout=10
+- `src/app/api/metrics/route.ts` — reescrito de findMany a SQL aggregations
+- `src/app/api/metrics/trends/route.ts` — reescrito de findMany a SQL GROUP BY
+- `src/app/api/metrics/campaigns/route.ts` — prevMetrics reescrito a SQL aggregate
+- `src/app/api/metrics/ads/route.ts` — prevMetrics reescrito a SQL aggregate
+- `src/app/api/metrics/orders/route.ts` — agregado cache
+- `src/app/api/metrics/products/route.ts` — agregado cache
+- `src/app/api/metrics/pixel/route.ts` — agregado cache
+- 72 archivos de API routes — agregado `export const dynamic = "force-dynamic"`
+
+### Lo que se intento y no funciono
+
+Se hicieron multiples intentos para resolver el problema de paginas no cargando. Se identificaron varias causas posibles (dynamic exports faltantes, pool de conexiones agotado, queries pesadas, nombres de tablas SQL incorrectos) y se aplicaron fixes para cada una, pero al cierre de esta sesion las paginas siguen sin funcionar correctamente.
+
+### Nota para la proxima sesion
+
+- Los indices de la DB se crearon parcialmente (ejecutar de nuevo el endpoint ensure-indexes despues de verificar que ande)
+- El problema podria tener causas adicionales no identificadas en esta sesion
+- Revisar con ojos frescos los API routes en `src/app/api/metrics/` y verificar que las queries SQL funcionen contra la DB real
+- Verificar en la consola del navegador (click derecho → Inspeccionar → Console) que errores exactos devuelven las APIs
+- Los nombres de tabla correctos segun el schema Prisma son: `orders`, `order_items`, `products`, `customers`, `ad_metrics_daily`, `ad_creative_metrics_daily`, `web_metrics_daily`, `ad_campaigns`, `ad_sets`, `ad_set_metrics_daily`, `ad_creatives`, `pixel_visitors`, `pixel_attributions`, `funnel_daily`
+- CSS: globals.css tiene `body { color: var(--nitro-text) }` donde `--nitro-text: #FFFFFF`. Usar inline `style={{ color: "#hex" }}` para texto en fondos claros
