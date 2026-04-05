@@ -1,15 +1,7 @@
+// Sentry and Axiom instrumentation temporarily disabled
+// to diagnose cold start performance issues.
+// Will re-enable with lighter configuration once baseline is confirmed.
+
 export async function register() {
-  if (process.env.NEXT_RUNTIME === "nodejs") {
-    await import("../sentry.server.config");
-  }
-
-  if (process.env.NEXT_RUNTIME === "edge") {
-    await import("../sentry.edge.config");
-  }
+  // no-op
 }
-
-export const onRequestError = async (...args: unknown[]) => {
-  const { captureRequestError } = await import("@sentry/nextjs");
-  // @ts-ignore - Sentry types
-  return captureRequestError(...args);
-};
