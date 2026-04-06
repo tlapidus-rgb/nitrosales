@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import Anthropic from "@anthropic-ai/sdk";
 import { getOrganization } from "@/lib/auth-guard";
+import { prisma } from "@/lib/db/client";
 import { INTELLIGENCE_TOOLS } from "@/lib/intelligence/tools";
 import { executeToolCall } from "@/lib/intelligence/handlers";
 
@@ -96,12 +97,37 @@ Cuando preguntan por un producto puntual:
 5. VEREDICTO: Comprar más / Mantener / Liquidar / Discontinuar
 6. ACCIÓN CONCRETA: Qué hacer y cuándo
 
+=== REGLAS DE COMPARACIÓN TEMPORAL ===
+REGLA CRITICA: Para productos y períodos ESTACIONALES (Pascua, Día del Niño, Navidad, Hot Sale, CyberMonday, Black Friday), SIEMPRE compará INTERANUALMENTE (vs el mismo período del año anterior). NUNCA compares dos semanas distintas del mismo mes entre sí — es comparar peras con manzanas.
+- Abril = Pascua/Semana Santa → comparar vs abril año anterior
+- Mayo = Hot Sale → comparar vs Hot Sale del año anterior
+- Agosto = Día del Niño → comparar vs agosto año anterior
+- Noviembre = CyberMonday + Black Friday → comparar vs noviembre año anterior
+- Diciembre-Enero = Navidad/Reyes → comparar vs dic-ene año anterior
+Para métricas NO estacionales (tráfico orgánico, conversión), sí podés comparar WoW (semana vs semana anterior) como complemento.
+SIEMPRE aclará qué base de comparación estás usando y por qué.
+
+=== CALENDARIO COMERCIAL ARGENTINA ===
+- Enero: Reyes Magos (6/1), liquidación verano
+- Febrero: Vuelta al cole, San Valentín (14/2)
+- Marzo: Inicio clases, Día de la Mujer (8/3)
+- Abril: Pascua/Semana Santa (variable)
+- Mayo: Hot Sale (mediados), Día de la Madre (3er domingo)
+- Junio: Día del Padre (3er domingo)
+- Julio: Vacaciones invierno, mid-season sale
+- Agosto: Día del Niño (2do/3er domingo) — PICO JUGUETES
+- Septiembre: Primavera, pre-temporada
+- Octubre: Día de la Madre (algunos países), Halloween
+- Noviembre: CyberMonday + Black Friday
+- Diciembre: Navidad (25/12) — PICO JUGUETES
+El Mundo del Juguete es un ecommerce de juguetes en Argentina. Los picos de venta más fuertes son Día del Niño (agosto) y Navidad (diciembre).
+
 === REGLAS INQUEBRANTABLES ===
 1. NUNCA inventes números. Solo usá datos de tus herramientas. Si no hay dato, decilo.
 2. Hablá en español rioplatense (vos, tenés, podés). Directo, sin rodeos.
 3. NUNCA des respuestas genéricas de manual. Si suena a artículo de blog, reescribilo.
 4. Cada insight: causa > efecto > acción > resultado esperado.
-5. Siempre compará vs período anterior Y vs benchmarks.
+5. Siempre compará vs período anterior Y vs benchmarks. Para estacional: interanual obligatorio.
 6. Si detectás algo urgente, arrancá con ⚠️ ALERTA.
 7. Respondé en el idioma en que te pregunten.
 8. Cuando falten datos: hipótesis + pregunta inteligente.
@@ -120,6 +146,57 @@ Cuando preguntan por un producto puntual:
 // ══════════════════════════════════════════════════════════════
 const MAX_TOOL_ROUNDS = 5;
 
+// ══════════════════════════════════════════════════════════════
+// MEMORY SYSTEM — Persistent business knowledge
+// ══════════════════════════════════════════════════════════════
+async function buildMemoryContext(orgId: string): Promise<string> {
+  const memories = await prisma.botMemory.findMany({
+    where: { organizationId: orgId, isActive: true },
+    orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+    take: 50,
+  });
+
+  if (memories.length === 0) return "";
+
+  // Update usage stats (fire and forget)
+  const memoryIds = memories.map((m) => m.id);
+  prisma.botMemory
+    .updateMany({
+      where: { id: { in: memoryIds } },
+      data: { usageCount: { increment: 1 }, lastUsedAt: new Date() },
+    })
+    .catch(() => {}); // Non-blocking
+
+  // Group by category
+  const grouped: Record<string, typeof memories> = {};
+  for (const m of memories) {
+    const cat = m.category;
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(m);
+  }
+
+  let ctx = "\n\n=== BASE DE CONOCIMIENTO DEL NEGOCIO (Memoria Persistente) ===\n";
+  ctx += "IMPORTANTE: Estas son reglas y conocimiento específico de ESTE negocio. Respetálas siempre.\n";
+
+  const sections: Record<string, { emoji: string; title: string }> = {
+    BUSINESS_RULE: { emoji: "📋", title: "REGLAS DE NEGOCIO" },
+    CORRECTION: { emoji: "🔄", title: "CORRECCIONES Y HECHOS" },
+    CONTEXT: { emoji: "📅", title: "CONTEXTO DEL NEGOCIO" },
+    PREFERENCE: { emoji: "⚙️", title: "PREFERENCIAS DEL USUARIO" },
+  };
+
+  for (const [cat, info] of Object.entries(sections)) {
+    if (grouped[cat]?.length) {
+      ctx += `\n${info.emoji} ${info.title}:\n`;
+      for (const m of grouped[cat]) {
+        ctx += `- ${m.title}: ${m.content}\n`;
+      }
+    }
+  }
+
+  return ctx;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession();
@@ -129,6 +206,17 @@ export async function POST(req: Request) {
 
     const { message, history } = await req.json();
     const org = await getOrganization();
+
+    // Build memory context from persistent knowledge base
+    let memoryContext = "";
+    try {
+      memoryContext = await buildMemoryContext(org.id);
+    } catch (e: any) {
+      console.error("[NitroBot] Error loading memories:", e.message);
+    }
+
+    // Build full system prompt with memory injected
+    const fullSystemPrompt = SYSTEM_PROMPT + memoryContext;
 
     // Build conversation messages from history
     const messages: Anthropic.MessageParam[] = [];
@@ -149,7 +237,7 @@ export async function POST(req: Request) {
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 4000,
-        system: SYSTEM_PROMPT,
+        system: fullSystemPrompt,
         tools: INTELLIGENCE_TOOLS,
         messages: currentMessages,
       });
