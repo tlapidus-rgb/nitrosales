@@ -383,7 +383,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <Link
                       href={item.href}
                       onClick={() => setSidebarOpen(false)}
-                      className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ease-nitro ${
+                      className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ease-nitro ${
                         isActive
                           ? "bg-white/5 text-white"
                           : "text-nitro-text2 hover:bg-white/5 hover:text-white"
