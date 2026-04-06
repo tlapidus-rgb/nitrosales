@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       completedAt: new Date().toISOString(),
     };
 
-    // Save to Organization.settings
+    // Save to Organization.settings (CRITICAL — this must succeed)
     const currentSettings = (org as any).settings || {};
     await prisma.organization.update({
       where: { id: org.id },
@@ -109,79 +109,88 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Delete old SYSTEM seed memories
-    await prisma.botMemory.deleteMany({
-      where: { organizationId: org.id, source: "SYSTEM" },
-    });
-
-    // Auto-generate memories based on answers
-    const industryKey = industry.toLowerCase();
-    const countryKey = country.toLowerCase();
-    const rules = INDUSTRY_RULES[industryKey] || INDUSTRY_RULES["otro"];
-    const calendar = COUNTRY_CALENDARS[countryKey] || COUNTRY_CALENDARS["otro"];
-
-    const memories = [
-      {
-        category: "CONTEXT" as const,
-        title: "Perfil del negocio",
-        content: `${org.name} es un ${businessType} de ${industry} en ${country}. Etapa: ${businessStage}. Canales de venta: ${(salesChannels || []).join(", ") || "no especificados"}. Canales de publicidad: ${(adChannels || []).join(", ") || "no especificados"}.`,
-        priority: 10,
-      },
-      {
-        category: "BUSINESS_RULE" as const,
-        title: `Estacionalidad del rubro ${industry}`,
-        content: rules.seasonality,
-        priority: 9,
-      },
-      {
-        category: "BUSINESS_RULE" as const,
-        title: `Calendario comercial ${country}`,
-        content: calendar,
-        priority: 9,
-      },
-      {
-        category: "BUSINESS_RULE" as const,
-        title: "Comparaciones estacionales siempre interanuales",
-        content:
-          "Para analizar ventas de períodos estacionales, SIEMPRE comparar vs el mismo período del año anterior. Nunca comparar dos semanas distintas del mismo mes entre sí — es comparar peras con manzanas.",
-        priority: 10,
-      },
-      {
-        category: "CONTEXT" as const,
-        title: `Tips del rubro ${industry}`,
-        content: rules.tips,
-        priority: 7,
-      },
-    ];
-
-    // Add channel-specific memory if they use ads
-    if (adChannels && adChannels.length > 0) {
-      memories.push({
-        category: "BUSINESS_RULE" as const,
-        title: "Pixel NitroSales es fuente de verdad",
-        content:
-          "Los datos del pixel propio de NitroSales son más confiables que GA4 o las plataformas de ads para atribución de ventas. Siempre priorizar datos del pixel cuando haya discrepancias.",
-        priority: 9,
+    // Auto-generate memories (non-blocking — if this fails, onboarding still succeeds)
+    let memoriesCreated = 0;
+    try {
+      // Delete old SYSTEM seed memories
+      await prisma.botMemory.deleteMany({
+        where: { organizationId: org.id, source: "SYSTEM" },
       });
-    }
 
-    const created = await prisma.botMemory.createMany({
-      data: memories.map((m) => ({
-        ...m,
-        organizationId: org.id,
-        source: "SYSTEM",
-        createdBy: "ONBOARDING",
-        updatedAt: new Date(),
-      })),
-    });
+      // Auto-generate memories based on answers
+      const industryKey = industry.toLowerCase();
+      const countryKey = country.toLowerCase();
+      const rules = INDUSTRY_RULES[industryKey] || INDUSTRY_RULES["otro"];
+      const calendar = COUNTRY_CALENDARS[countryKey] || COUNTRY_CALENDARS["otro"];
+
+      const memories = [
+        {
+          category: "CONTEXT" as const,
+          title: "Perfil del negocio",
+          content: `${org.name} es un ${businessType} de ${industry} en ${country}. Etapa: ${businessStage}. Canales de venta: ${(salesChannels || []).join(", ") || "no especificados"}. Canales de publicidad: ${(adChannels || []).join(", ") || "no especificados"}.`,
+          priority: 10,
+        },
+        {
+          category: "BUSINESS_RULE" as const,
+          title: `Estacionalidad del rubro ${industry}`,
+          content: rules.seasonality,
+          priority: 9,
+        },
+        {
+          category: "BUSINESS_RULE" as const,
+          title: `Calendario comercial ${country}`,
+          content: calendar,
+          priority: 9,
+        },
+        {
+          category: "BUSINESS_RULE" as const,
+          title: "Comparaciones estacionales siempre interanuales",
+          content:
+            "Para analizar ventas de períodos estacionales, SIEMPRE comparar vs el mismo período del año anterior. Nunca comparar dos semanas distintas del mismo mes entre sí — es comparar peras con manzanas.",
+          priority: 10,
+        },
+        {
+          category: "CONTEXT" as const,
+          title: `Tips del rubro ${industry}`,
+          content: rules.tips,
+          priority: 7,
+        },
+      ];
+
+      // Add channel-specific memory if they use ads
+      if (adChannels && adChannels.length > 0) {
+        memories.push({
+          category: "BUSINESS_RULE" as const,
+          title: "Pixel NitroSales es fuente de verdad",
+          content:
+            "Los datos del pixel propio de NitroSales son más confiables que GA4 o las plataformas de ads para atribución de ventas. Siempre priorizar datos del pixel cuando haya discrepancias.",
+          priority: 9,
+        });
+      }
+
+      const created = await prisma.botMemory.createMany({
+        data: memories.map((m) => ({
+          ...m,
+          organizationId: org.id,
+          source: "SYSTEM",
+          createdBy: "ONBOARDING",
+          updatedAt: new Date(),
+        })),
+      });
+      memoriesCreated = created.count;
+    } catch (memErr: any) {
+      console.error("[onboarding/POST] Memory generation failed (non-fatal):", memErr.message);
+      // Continue — businessContext was saved successfully
+    }
 
     return NextResponse.json({
       success: true,
       businessContext,
-      memoriesCreated: created.count,
+      memoriesCreated,
     });
   } catch (e: any) {
     console.error("[onboarding/POST]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+
