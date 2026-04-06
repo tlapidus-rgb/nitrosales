@@ -94,7 +94,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col bg-[#F7F8FA]" style={{ minHeight: "calc(100vh - 120px)" }}>
+    <div className="light-canvas min-h-screen flex flex-col" style={{ height: "calc(100vh - 64px)" }}>
       <div className="mb-4">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-indigo-600">NitroBot</h2>
@@ -105,13 +105,13 @@ export default function ChatPage() {
         <p className="text-gray-500 text-sm">Tu equipo de growth con IA</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4 bg-[#F7F8FA]">
+      <div className="flex-1 overflow-y-auto space-y-4 mb-4">
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
               className={`max-w-[90%] rounded-xl px-5 py-4 ${
                 msg.role === "user"
-                  ? "bg-indigo-600 text-white"
+                  ? "bg-indigo-600 text-gray-900"
                   : "bg-white border border-gray-200 text-gray-800 shadow-sm"
               }`}
             >
@@ -169,7 +169,7 @@ export default function ChatPage() {
           <button
             onClick={() => sendMessage()}
             disabled={loading || !input.trim()}
-            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+            className="px-6 py-3 bg-indigo-600 text-gray-900 font-semibold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
           >
             Enviar
           </button>
