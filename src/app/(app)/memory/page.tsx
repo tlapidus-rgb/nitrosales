@@ -64,6 +64,7 @@ export default function MemoryPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("ALL");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const [formData, setFormData] = useState({
     category: "BUSINESS_RULE" as Memory["category"],
@@ -101,24 +102,27 @@ export default function MemoryPage() {
     if (!formData.title.trim() || !formData.content.trim()) return;
 
     setSaving(true);
+    setSaveError("");
     try {
-      if (editingId) {
-        await fetch(`/api/memory/${editingId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-      } else {
-        await fetch("/api/memory", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
+      const url = editingId ? `/api/memory/${editingId}` : "/api/memory";
+      const method = editingId ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `Error ${res.status}` }));
+        setSaveError(errData.error || `Error del servidor (${res.status})`);
+        setSaving(false);
+        return;
       }
       resetForm();
+      setSaveError("");
       loadMemories();
     } catch (err) {
       console.error("Error saving:", err);
+      setSaveError("Error de conexión. Intentá de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -283,6 +287,13 @@ export default function MemoryPage() {
                 className="w-full accent-indigo-600"
               />
             </div>
+
+            {/* Error message */}
+            {saveError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {saveError}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3 pt-2">
@@ -452,3 +463,4 @@ export default function MemoryPage() {
     </div>
   );
 }
+
