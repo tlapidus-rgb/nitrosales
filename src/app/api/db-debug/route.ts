@@ -1,55 +1,84 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  return NextResponse.json({ status: "use POST to run setup" });
+}
+
+export async function POST(req: NextRequest) {
   const results: Record<string, unknown> = {};
-  
+
   try {
-    // Check DB connection
-    const dbUrl = process.env.DATABASE_URL || "NOT SET";
-    results.dbUrlPrefix = dbUrl.substring(0, 40) + "...";
-    results.dbUrlUnpooled = process.env.DATABASE_URL_UNPOOLED ? "SET" : "NOT SET";
-    
-    // Check if table exists via raw query
-    const tables = await prisma.$queryRaw<Array<{table_name: string}>>`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN ('bot_memories', 'organizations')
-      ORDER BY table_name
-    `;
-    results.tables = tables.map((t: any) => t.table_name);
-    
-    // Try to count bot_memories
-    try {
-      const count = await prisma.$queryRaw<Array<{count: bigint}>>`SELECT count(*) as count FROM bot_memories`;
-      results.botMemoriesCount = Number(count[0].count);
-    } catch (e: any) {
-      results.botMemoriesError = e.message;
+    const { action } = await req.json();
+
+    if (action === "setup-memory-table") {
+      // Create enum if not exists
+      try {
+        await prisma.$executeRawUnsafe(`
+          DO $$ BEGIN
+            CREATE TYPE "MemoryCategory" AS ENUM ('BUSINESS_RULE', 'CORRECTION', 'PREFERENCE', 'CONTEXT');
+          EXCEPTION
+            WHEN duplicate_object THEN null;
+          END $$;
+        `);
+        results.enum = "created or already exists";
+      } catch (e: any) {
+        results.enumError = e.message;
+      }
+
+      // Create table if not exists
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "bot_memories" (
+            "id" TEXT NOT NULL,
+            "category" "MemoryCategory" NOT NULL,
+            "title" TEXT NOT NULL,
+            "content" TEXT NOT NULL,
+            "priority" INTEGER NOT NULL DEFAULT 5,
+            "isActive" BOOLEAN NOT NULL DEFAULT true,
+            "usageCount" INTEGER NOT NULL DEFAULT 0,
+            "lastUsedAt" TIMESTAMP(3),
+            "source" TEXT NOT NULL DEFAULT 'MANUAL',
+            "createdBy" TEXT,
+            "sourceData" JSONB,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "organizationId" TEXT NOT NULL,
+            CONSTRAINT "bot_memories_pkey" PRIMARY KEY ("id"),
+            CONSTRAINT "bot_memories_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+          );
+        `);
+        results.table = "created or already exists";
+      } catch (e: any) {
+        results.tableError = e.message;
+      }
+
+      // Create index if not exists
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS "bot_memories_organizationId_isActive_priority_idx" 
+          ON "bot_memories"("organizationId", "isActive", "priority");
+        `);
+        results.index = "created or already exists";
+      } catch (e: any) {
+        results.indexError = e.message;
+      }
+
+      // Verify
+      try {
+        const count = await (prisma as any).botMemory.count();
+        results.verify = `OK - ${count} memories`;
+      } catch (e: any) {
+        results.verifyError = e.message;
+      }
+
+      return NextResponse.json({ success: true, ...results });
     }
 
-    // Try prisma model access
-    try {
-      const mems = await (prisma as any).botMemory.findMany({ take: 1 });
-      results.prismaModelAccess = "OK";
-      results.prismaModelCount = mems.length;
-    } catch (e: any) {
-      results.prismaModelError = e.message;
-    }
-
-    // Check org
-    try {
-      const org = await prisma.organization.findFirst({ select: { id: true, name: true } });
-      results.org = org;
-    } catch (e: any) {
-      results.orgError = e.message;
-    }
-
+    return NextResponse.json({ error: "Unknown action. Use: setup-memory-table" });
   } catch (e: any) {
-    results.error = e.message;
+    return NextResponse.json({ error: e.message, ...results }, { status: 500 });
   }
-
-  return NextResponse.json(results);
 }
