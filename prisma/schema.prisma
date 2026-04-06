@@ -43,6 +43,7 @@ model Organization {
   webMetrics               WebMetricDaily[]
   funnelData  FunnelDaily[]
   botChats    BotChat[]
+  botMemories BotMemory[]
   insights    Insight[]
   pixelVisitors            PixelVisitor[]
   pixelEvents              PixelEvent[]
@@ -578,6 +579,36 @@ model BotMessage {
 enum MessageRole {
   USER
   ASSISTANT
+}
+
+// Memoria persistente del bot — aprendizajes y reglas de negocio
+model BotMemory {
+  id             String         @id @default(cuid())
+  category       MemoryCategory
+  title          String
+  content        String
+  priority       Int            @default(5)         // 0-10, mayor = más importante
+  isActive       Boolean        @default(true)
+  usageCount     Int            @default(0)
+  lastUsedAt     DateTime?
+  source         String         @default("MANUAL")  // MANUAL | AUTO_EXTRACTED | SYSTEM
+  createdBy      String?                             // Email o "SYSTEM"
+  sourceData     Json?                               // Datos extra (ej: chatId de origen)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, isActive, priority])
+  @@map("bot_memories")
+}
+
+enum MemoryCategory {
+  BUSINESS_RULE
+  CORRECTION
+  PREFERENCE
+  CONTEXT
 }
 
 // Insights automáticos generados por el bot
