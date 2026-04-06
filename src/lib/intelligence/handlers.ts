@@ -751,6 +751,335 @@ ${topInf.slice(0, 10).map(([id, d], i) => `${i + 1}. ${d.name}: $${fmt(d.rev)} (
 }
 
 // ══════════════════════════════════════════════════════════════
+// 11. PIXEL & ATTRIBUTION
+// ══════════════════════════════════════════════════════════════
+export async function handlePixelAttribution(orgId: string, input: any): Promise<string> {
+  const days = input.days || 30;
+  const focus = input.focus || "overview";
+  const { now, start } = dateRange(days);
+
+  const [attributions, events, visitors] = await Promise.all([
+    prisma.pixelAttribution.findMany({
+      where: { organizationId: orgId, createdAt: { gte: start, lt: now } },
+      include: {
+        order: { select: { totalValue: true, orderDate: true } },
+      },
+      take: 5000,
+    }),
+    prisma.pixelEvent.findMany({
+      where: { organizationId: orgId, timestamp: { gte: start, lt: now } },
+      select: {
+        type: true, sessionId: true, deviceType: true, utmParams: true,
+        clickIds: true, timestamp: true, pageUrl: true, referrer: true,
+      },
+      take: 20000,
+    }),
+    prisma.pixelVisitor.findMany({
+      where: { organizationId: orgId, lastSeenAt: { gte: start } },
+      select: {
+        id: true, visitorId: true, totalSessions: true, totalPageViews: true,
+        deviceTypes: true, clickIds: true, firstSeenAt: true, lastSeenAt: true,
+        customerId: true,
+      },
+      take: 5000,
+    }),
+  ]);
+
+  // ── Event breakdown ──
+  const eventCounts: Record<string, number> = {};
+  for (const e of events) {
+    eventCounts[e.type] = (eventCounts[e.type] || 0) + 1;
+  }
+  const uniqueSessions = new Set(events.map((e) => e.sessionId)).size;
+
+  // ── Device from events ──
+  const deviceCounts: Record<string, number> = {};
+  for (const e of events) {
+    const d = e.deviceType || "unknown";
+    deviceCounts[d] = (deviceCounts[d] || 0) + 1;
+  }
+
+  // ── Hour of day analysis ──
+  const hourCounts: Record<number, number> = {};
+  for (const e of events) {
+    const h = new Date(e.timestamp).getHours();
+    hourCounts[h] = (hourCounts[h] || 0) + 1;
+  }
+  const peakHour = Object.entries(hourCounts).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
+
+  let result = `PIXEL NITROSALES (${days}d):
+- Eventos capturados: ${events.length.toLocaleString()}
+- Sesiones únicas: ${uniqueSessions.toLocaleString()}
+- Visitantes activos: ${visitors.length.toLocaleString()}
+- Visitantes identificados (con customer): ${visitors.filter((v) => v.customerId).length}
+
+EVENTOS POR TIPO:
+${Object.entries(eventCounts).sort((a, b) => b[1] - a[1]).map(([type, count]) => `- ${type}: ${count.toLocaleString()}`).join("\n")}
+
+DISPOSITIVOS (por eventos):
+${Object.entries(deviceCounts).sort((a, b) => b[1] - a[1]).map(([d, c]) => `- ${d}: ${c.toLocaleString()} (${events.length > 0 ? Math.round((c / events.length) * 100) : 0}%)`).join("\n")}
+
+HORA PICO DE ACTIVIDAD: ${peakHour ? `${peakHour[0]}hs (${peakHour[1]} eventos)` : "N/A"}
+`;
+
+  // ── Attribution analysis ──
+  if (focus === "overview" || focus === "attribution") {
+    const totalAttrRev = attributions.reduce((s, a) => s + Number(a.attributedValue || 0), 0);
+    const avgTouchpoints = attributions.length > 0
+      ? (attributions.reduce((s, a) => s + a.touchpointCount, 0) / attributions.length).toFixed(1)
+      : "0";
+    const avgConvLag = attributions.filter((a) => a.conversionLag !== null).length > 0
+      ? (attributions.filter((a) => a.conversionLag !== null).reduce((s, a) => s + (a.conversionLag || 0), 0) / attributions.filter((a) => a.conversionLag !== null).length).toFixed(1)
+      : "N/A";
+
+    // By attribution model
+    const byModel: Record<string, { count: number; rev: number }> = {};
+    for (const a of attributions) {
+      if (!byModel[a.model]) byModel[a.model] = { count: 0, rev: 0 };
+      byModel[a.model].count++;
+      byModel[a.model].rev += Number(a.attributedValue || 0);
+    }
+
+    // Assisted vs last-click
+    const assisted = attributions.filter((a) => a.isAssisted);
+    const assistedRev = assisted.reduce((s, a) => s + Number(a.assistedValue || 0), 0);
+
+    result += `\nATRIBUCION:
+- Ordenes con atribución pixel: ${attributions.length}
+- Revenue atribuido total: $${fmt(totalAttrRev)}
+- Touchpoints promedio por orden: ${avgTouchpoints}
+- Conversion lag promedio: ${avgConvLag} días (primer contacto → compra)
+
+POR MODELO DE ATRIBUCION:
+${Object.entries(byModel).map(([model, d]) => `- ${model}: ${d.count} ordenes, $${fmt(d.rev)} revenue`).join("\n")}
+
+ASISTENCIA:
+- Conversiones asistidas: ${assisted.length} (touchpoints que ayudaron pero NO fueron ultimo click)
+- Revenue asistido: $${fmt(assistedRev)}
+`;
+  }
+
+  // ── Channel journeys ──
+  if (focus === "overview" || focus === "journeys" || focus === "channels") {
+    // Extract first touch and last touch from touchpoints
+    const firstTouchChannels: Record<string, { count: number; rev: number }> = {};
+    const lastTouchChannels: Record<string, { count: number; rev: number }> = {};
+
+    for (const a of attributions) {
+      const touchpoints = a.touchpoints as any[];
+      if (!Array.isArray(touchpoints) || touchpoints.length === 0) continue;
+
+      const first = touchpoints[0];
+      const last = touchpoints[touchpoints.length - 1];
+      const rev = Number(a.attributedValue || 0);
+
+      const firstCh = `${first.source || "direct"}/${first.medium || "none"}`;
+      const lastCh = `${last.source || "direct"}/${last.medium || "none"}`;
+
+      if (!firstTouchChannels[firstCh]) firstTouchChannels[firstCh] = { count: 0, rev: 0 };
+      firstTouchChannels[firstCh].count++;
+      firstTouchChannels[firstCh].rev += rev;
+
+      if (!lastTouchChannels[lastCh]) lastTouchChannels[lastCh] = { count: 0, rev: 0 };
+      lastTouchChannels[lastCh].count++;
+      lastTouchChannels[lastCh].rev += rev;
+    }
+
+    result += `\nCANALES DE DESCUBRIMIENTO (primer contacto — cómo te conocen):
+${Object.entries(firstTouchChannels).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
+  .map(([ch, d]) => `- ${ch}: ${d.count} conversiones, $${fmt(d.rev)} revenue`).join("\n") || "Sin datos"}
+
+CANALES DE CONVERSION (último click — con qué compran):
+${Object.entries(lastTouchChannels).sort((a, b) => b[1].count - a[1].count).slice(0, 10)
+  .map(([ch, d]) => `- ${ch}: ${d.count} conversiones, $${fmt(d.rev)} revenue`).join("\n") || "Sin datos"}
+`;
+
+    // Journey patterns (first → last)
+    const journeyPatterns: Record<string, number> = {};
+    for (const a of attributions) {
+      const touchpoints = a.touchpoints as any[];
+      if (!Array.isArray(touchpoints) || touchpoints.length < 2) continue;
+      const first = touchpoints[0];
+      const last = touchpoints[touchpoints.length - 1];
+      const pattern = `${first.source || "direct"}/${first.medium || "none"} → ${last.source || "direct"}/${last.medium || "none"}`;
+      journeyPatterns[pattern] = (journeyPatterns[pattern] || 0) + 1;
+    }
+
+    result += `\nRECORRIDOS MAS COMUNES (descubrimiento → compra):
+${Object.entries(journeyPatterns).sort((a, b) => b[1] - a[1]).slice(0, 10)
+  .map(([pattern, count]) => `- ${pattern}: ${count} conversiones`).join("\n") || "Sin datos suficientes (se necesitan ordenes con 2+ touchpoints)"}
+`;
+  }
+
+  // ── UTM source analysis from events ──
+  if (focus === "overview" || focus === "channels") {
+    const utmSources: Record<string, number> = {};
+    for (const e of events) {
+      const utm = e.utmParams as any;
+      if (utm && utm.source) {
+        const key = `${utm.source}/${utm.medium || "none"}`;
+        utmSources[key] = (utmSources[key] || 0) + 1;
+      }
+    }
+
+    result += `\nFUENTES DE TRAFICO (pixel, por eventos):
+${Object.entries(utmSources).sort((a, b) => b[1] - a[1]).slice(0, 15)
+  .map(([src, count]) => `- ${src}: ${count.toLocaleString()} eventos`).join("\n") || "Sin UTMs capturados"}
+`;
+  }
+
+  // ── Conversion lag distribution ──
+  if (focus === "overview" || focus === "attribution") {
+    const lagBuckets = { "Mismo día": 0, "1 día": 0, "2-3 días": 0, "4-7 días": 0, "8-14 días": 0, "15-30 días": 0, "30+ días": 0 };
+    for (const a of attributions) {
+      const lag = a.conversionLag;
+      if (lag === null || lag === undefined) continue;
+      if (lag === 0) lagBuckets["Mismo día"]++;
+      else if (lag === 1) lagBuckets["1 día"]++;
+      else if (lag <= 3) lagBuckets["2-3 días"]++;
+      else if (lag <= 7) lagBuckets["4-7 días"]++;
+      else if (lag <= 14) lagBuckets["8-14 días"]++;
+      else if (lag <= 30) lagBuckets["15-30 días"]++;
+      else lagBuckets["30+ días"]++;
+    }
+
+    result += `\nDISTRIBUCION DE CONVERSION LAG (días entre primer contacto y compra):
+${Object.entries(lagBuckets).filter(([, c]) => c > 0).map(([bucket, count]) => `- ${bucket}: ${count} ordenes`).join("\n") || "Sin datos de conversion lag"}
+`;
+  }
+
+  return result;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 12. AD CREATIVES
+// ══════════════════════════════════════════════════════════════
+export async function handleAdCreatives(orgId: string, input: any): Promise<string> {
+  const days = input.days || 30;
+  const platform = input.platform || "ALL";
+  const { now, start, prevStart } = dateRange(days);
+
+  const whereClause: any = { organizationId: orgId, date: { gte: start, lt: now } };
+  const whereClausePrev: any = { organizationId: orgId, date: { gte: prevStart, lt: start } };
+
+  const [creatives, metrics, metricsPrev, classifications] = await Promise.all([
+    prisma.adCreative.findMany({
+      where: {
+        organizationId: orgId,
+        ...(platform !== "ALL" ? { platform } : {}),
+      },
+      take: 500,
+    }),
+    prisma.adCreativeMetricDaily.findMany({
+      where: whereClause,
+      take: 10000,
+    }),
+    prisma.adCreativeMetricDaily.findMany({
+      where: whereClausePrev,
+      take: 10000,
+    }),
+    prisma.adCreativeClassification.findMany({
+      where: { organizationId: orgId },
+      take: 500,
+    }),
+  ]);
+
+  if (creatives.length === 0) return "No hay datos de creatives publicitarios. Verifica que la sincronización de ads esté activa.";
+
+  // Aggregate metrics by creative
+  const creativeMap = new Map<string, { name: string; platform: string; spend: number; rev: number; clicks: number; impr: number; conv: number }>();
+  const creativePrevMap = new Map<string, { spend: number; rev: number; clicks: number; impr: number }>();
+
+  for (const c of creatives) {
+    creativeMap.set(c.id, {
+      name: (c as any).name || (c as any).title || c.id.substring(0, 12),
+      platform: (c as any).platform || "UNKNOWN",
+      spend: 0, rev: 0, clicks: 0, impr: 0, conv: 0,
+    });
+  }
+
+  for (const m of metrics) {
+    const ex = creativeMap.get(m.creativeId);
+    if (ex) {
+      ex.spend += m.spend || 0;
+      ex.rev += m.conversionValue || 0;
+      ex.clicks += m.clicks || 0;
+      ex.impr += m.impressions || 0;
+      ex.conv += m.conversions || 0;
+    }
+  }
+
+  for (const m of metricsPrev) {
+    const ex = creativePrevMap.get(m.creativeId) || { spend: 0, rev: 0, clicks: 0, impr: 0 };
+    ex.spend += m.spend || 0;
+    ex.rev += m.conversionValue || 0;
+    ex.clicks += m.clicks || 0;
+    ex.impr += m.impressions || 0;
+    creativePrevMap.set(m.creativeId, ex);
+  }
+
+  // Sort by spend
+  const sorted = [...creativeMap.entries()]
+    .map(([id, d]) => ({
+      id, ...d,
+      roas: d.spend > 0 ? d.rev / d.spend : 0,
+      ctr: d.impr > 0 ? (d.clicks / d.impr) * 100 : 0,
+      cpa: d.conv > 0 ? d.spend / d.conv : 0,
+    }))
+    .filter((c) => c.spend > 0)
+    .sort((a, b) => b.spend - a.spend);
+
+  // Classification breakdown
+  const classMap = new Map<string, string>();
+  for (const cl of classifications) {
+    classMap.set(cl.creativeId, (cl as any).type || (cl as any).classification || "UNCLASSIFIED");
+  }
+
+  const byType: Record<string, { count: number; spend: number; rev: number }> = {};
+  for (const c of sorted) {
+    const type = classMap.get(c.id) || "UNCLASSIFIED";
+    if (!byType[type]) byType[type] = { count: 0, spend: 0, rev: 0 };
+    byType[type].count++;
+    byType[type].spend += c.spend;
+    byType[type].rev += c.rev;
+  }
+
+  // Fatigue detection: creatives where CTR dropped vs previous period
+  const fatigued = sorted.slice(0, 50).filter((c) => {
+    const prev = creativePrevMap.get(c.id);
+    if (!prev || prev.impr < 100) return false;
+    const prevCtr = prev.impr > 0 ? (prev.clicks / prev.impr) * 100 : 0;
+    return c.ctr < prevCtr * 0.7 && c.spend > 1000; // CTR dropped 30%+ with significant spend
+  });
+
+  // Top performers
+  const topROAS = [...sorted].filter((c) => c.conv > 0).sort((a, b) => b.roas - a.roas).slice(0, 10);
+  const worstROAS = [...sorted].filter((c) => c.spend > 1000).sort((a, b) => a.roas - b.roas).slice(0, 10);
+
+  return `AD CREATIVES (${days}d${platform !== "ALL" ? ` — ${platform}` : ""}):
+- Total creatives con gasto: ${sorted.length}
+- Gasto total: $${fmt(sorted.reduce((s, c) => s + c.spend, 0))}
+- Revenue total: $${fmt(sorted.reduce((s, c) => s + c.rev, 0))}
+
+POR TIPO DE CREATIVE:
+${Object.entries(byType).sort((a, b) => b[1].spend - a[1].spend)
+  .map(([type, d]) => `- ${type}: ${d.count} creatives | Gasto $${fmt(d.spend)} | Rev $${fmt(d.rev)} | ROAS ${d.spend > 0 ? (d.rev / d.spend).toFixed(2) : "0"}x`)
+  .join("\n") || "Sin clasificación"}
+
+TOP 10 CREATIVES (mejor ROAS):
+${topROAS.map((c, i) => `${i + 1}. ${c.name} (${c.platform}): ROAS ${c.roas.toFixed(2)}x | Gasto $${fmt(c.spend)} | Rev $${fmt(c.rev)} | CTR ${c.ctr.toFixed(2)}% | ${c.conv} conv`).join("\n")}
+
+PEORES 10 CREATIVES (menor ROAS con gasto >$1000):
+${worstROAS.map((c, i) => `${i + 1}. ${c.name} (${c.platform}): ROAS ${c.roas.toFixed(2)}x | Gasto $${fmt(c.spend)} | Rev $${fmt(c.rev)} | CTR ${c.ctr.toFixed(2)}%`).join("\n")}
+
+${fatigued.length > 0 ? `\n⚠️ FATIGA CREATIVA DETECTADA (CTR cayó >30% vs periodo anterior):\n${fatigued.map((c) => {
+  const prev = creativePrevMap.get(c.id)!;
+  const prevCtr = prev.impr > 0 ? (prev.clicks / prev.impr) * 100 : 0;
+  return `- ${c.name} (${c.platform}): CTR ${prevCtr.toFixed(2)}% → ${c.ctr.toFixed(2)}% (gasto $${fmt(c.spend)})`;
+}).join("\n")}` : "Sin fatiga creativa detectada (buena señal)"}`;
+}
+
+// ══════════════════════════════════════════════════════════════
 // DISPATCHER — Routes tool calls to handlers
 // ══════════════════════════════════════════════════════════════
 export async function executeToolCall(
@@ -780,6 +1109,10 @@ export async function executeToolCall(
         return await handleMercadolibreHealth(orgId);
       case "get_influencers_performance":
         return await handleInfluencersPerformance(orgId);
+      case "get_pixel_attribution":
+        return await handlePixelAttribution(orgId, toolInput);
+      case "get_ad_creatives":
+        return await handleAdCreatives(orgId, toolInput);
       default:
         return `Tool "${toolName}" no reconocido.`;
     }

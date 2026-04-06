@@ -147,4 +147,44 @@ export const INTELLIGENCE_TOOLS: ToolDefinition[] = [
       required: [],
     },
   },
+  {
+    name: "get_pixel_attribution",
+    description:
+      "Obtiene datos del pixel propio de NitroSales: journey del consumidor, atribución multi-touch, canales de descubrimiento vs canales de compra, conversion lag (días entre primer contacto y compra), touchpoints por orden, dispositivos, horarios de visita, eventos de comportamiento (page views, add to cart, checkout). Es el dato MÁS preciso porque viene directo del pixel propio, no de GA4 ni de Meta. Usar cuando pregunten: pixel, atribución, journey, touchpoints, cómo me conocen, cómo compran, canales, recorrido del cliente, conversión real, primer contacto, último click, asistencia de canales, dispositivos de compra, horarios.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        focus: {
+          type: "string",
+          enum: ["overview", "attribution", "journeys", "channels", "events"],
+          description: "Foco del análisis: overview (resumen general), attribution (modelos de atribución y revenue por canal), journeys (recorrido del consumidor, primer touch vs último), channels (canales de descubrimiento vs compra), events (eventos de comportamiento, page views, add to cart, etc.)",
+        },
+        days: {
+          type: "number",
+          description: "Período en días (default 30)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_ad_creatives",
+    description:
+      "Obtiene performance a nivel de creative/anuncio individual: qué imágenes/videos/textos performan mejor, fatiga creativa, CTR y ROAS por creative, clasificación de tipo de creative. Usar cuando pregunten: creativos, anuncios, qué creative funciona, imágenes de ads, videos de ads, fatiga creativa, qué anuncio rinde más.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        days: {
+          type: "number",
+          description: "Período en días (default 30)",
+        },
+        platform: {
+          type: "string",
+          enum: ["META", "GOOGLE", "ALL"],
+          description: "Filtrar por plataforma (default ALL)",
+        },
+      },
+      required: [],
+    },
+  },
 ];
