@@ -64,6 +64,7 @@ export default function ChatPage() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [savingOnboarding, setSavingOnboarding] = useState(false);
+  const [onboardingError, setOnboardingError] = useState("");
   const [onboardingData, setOnboardingData] = useState({
     industry: "",
     customIndustry: "",
@@ -111,6 +112,7 @@ export default function ChatPage() {
 
   const submitOnboarding = async () => {
     setSavingOnboarding(true);
+    setOnboardingError("");
     try {
       const industry = onboardingData.industry === "otro" && onboardingData.customIndustry
         ? onboardingData.customIndustry
@@ -128,12 +130,21 @@ export default function ChatPage() {
           businessStage: onboardingData.businessStage,
         }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `Error ${res.status}` }));
+        setOnboardingError(errData.error || `Error del servidor (${res.status})`);
+        setSavingOnboarding(false);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setNeedsOnboarding(false);
+      } else {
+        setOnboardingError(data.error || "Error al guardar la configuración");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Onboarding error:", err);
+      setOnboardingError("Error de conexión. Intentá de nuevo.");
     }
     setSavingOnboarding(false);
   };
@@ -428,6 +439,12 @@ export default function ChatPage() {
             )}
           </div>
 
+          {onboardingError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {onboardingError}
+            </div>
+          )}
+
           <p className="text-center text-xs text-gray-400 mt-4">
             Paso {onboardingStep + 1} de {steps.length} · Podés cambiar esto después desde Memoria del Bot
           </p>
@@ -522,3 +539,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
