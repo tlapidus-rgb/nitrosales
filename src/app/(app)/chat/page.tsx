@@ -94,7 +94,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="light-canvas min-h-screen flex flex-col" style={{ height: "calc(100vh - 64px)" }}>
+    <div className="light-canvas flex flex-col h-full">
       <div className="mb-4">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-indigo-600">NitroBot</h2>
@@ -111,7 +111,7 @@ export default function ChatPage() {
             <div
               className={`max-w-[90%] rounded-xl px-5 py-4 ${
                 msg.role === "user"
-                  ? "bg-indigo-600 text-gray-900"
+                  ? "bg-indigo-600 text-white"
                   : "bg-white border border-gray-200 text-gray-800 shadow-sm"
               }`}
             >
@@ -169,7 +169,7 @@ export default function ChatPage() {
           <button
             onClick={() => sendMessage()}
             disabled={loading || !input.trim()}
-            className="px-6 py-3 bg-indigo-600 text-gray-900 font-semibold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
           >
             Enviar
           </button>
