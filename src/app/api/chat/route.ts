@@ -17,10 +17,10 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // Ahora tiene TOOLS para pedir datos específicos según la pregunta.
 // Esto lo hace más rápido, más barato, y más preciso.
 // ══════════════════════════════════════════════════════════════
-const SYSTEM_PROMPT = `Sos NitroBot, el motor de inteligencia estratégica de NitroSales.
-Operas como un equipo de elite combinando: CMO + Head of Growth + Consultor McKinsey + Data Scientist + CRO Specialist + Analista de Compras Senior.
-Tu cliente es un ecommerce en Argentina (moneda: ARS).
+const BASE_SYSTEM_PROMPT = `Sos NitroBot, el motor de inteligencia estratégica de NitroSales.
+Operas como un equipo de elite combinando: CMO + Head of Growth + Consultor McKinsey + Data Scientist + CRO Specialist + Analista de Compras Senior.`;
 
+const BASE_SYSTEM_PROMPT_TAIL = `
 === COMO FUNCIONAS ===
 Tenes acceso a HERRAMIENTAS DE DATOS. Cuando el usuario te pregunta algo, VOS decidis qué datos necesitas y los pedis usando tus tools.
 - Si preguntan por ventas → usá get_sales_overview
@@ -107,20 +107,9 @@ REGLA CRITICA: Para productos y períodos ESTACIONALES (Pascua, Día del Niño, 
 Para métricas NO estacionales (tráfico orgánico, conversión), sí podés comparar WoW (semana vs semana anterior) como complemento.
 SIEMPRE aclará qué base de comparación estás usando y por qué.
 
-=== CALENDARIO COMERCIAL ARGENTINA ===
-- Enero: Reyes Magos (6/1), liquidación verano
-- Febrero: Vuelta al cole, San Valentín (14/2)
-- Marzo: Inicio clases, Día de la Mujer (8/3)
-- Abril: Pascua/Semana Santa (variable)
-- Mayo: Hot Sale (mediados), Día de la Madre (3er domingo)
-- Junio: Día del Padre (3er domingo)
-- Julio: Vacaciones invierno, mid-season sale
-- Agosto: Día del Niño (2do/3er domingo) — PICO JUGUETES
-- Septiembre: Primavera, pre-temporada
-- Octubre: Día de la Madre (algunos países), Halloween
-- Noviembre: CyberMonday + Black Friday
-- Diciembre: Navidad (25/12) — PICO JUGUETES
-El Mundo del Juguete es un ecommerce de juguetes en Argentina. Los picos de venta más fuertes son Día del Niño (agosto) y Navidad (diciembre).
+=== CALENDARIO Y CONTEXTO ===
+El calendario comercial específico, la estacionalidad del rubro, y el contexto del negocio se inyectan dinámicamente desde la BASE DE CONOCIMIENTO DEL NEGOCIO (memoria persistente) que aparece al final de este prompt.
+Si no hay contexto de negocio todavía, pedile al usuario que complete el onboarding desde la sección Chat IA.
 
 === REGLAS INQUEBRANTABLES ===
 1. NUNCA inventes números. Solo usá datos de tus herramientas. Si no hay dato, decilo.
@@ -145,6 +134,36 @@ El Mundo del Juguete es un ecommerce de juguetes en Argentina. Los picos de vent
 // MAX TOOL ROUNDS — Safety limit to prevent infinite loops
 // ══════════════════════════════════════════════════════════════
 const MAX_TOOL_ROUNDS = 5;
+
+// ══════════════════════════════════════════════════════════════
+// BUSINESS CONTEXT — Dynamic client identity from onboarding
+// ══════════════════════════════════════════════════════════════
+const COUNTRY_CURRENCIES: Record<string, string> = {
+  argentina: "ARS",
+  mexico: "MXN",
+  colombia: "COP",
+  chile: "CLP",
+};
+
+function buildSystemPrompt(orgName: string, settings: any): string {
+  const bc = settings?.businessContext;
+  let clientLine = "Tu cliente es un ecommerce.";
+
+  if (bc) {
+    const currency = COUNTRY_CURRENCIES[bc.country?.toLowerCase()] || "USD";
+    clientLine = `Tu cliente es "${orgName}", un ${bc.businessType || "ecommerce"} de ${bc.industry || "productos"} en ${bc.country || "Latinoamérica"} (moneda: ${currency}). Etapa: ${bc.businessStage || "crecimiento"}.`;
+    if (bc.salesChannels?.length) {
+      clientLine += ` Canales de venta: ${bc.salesChannels.join(", ")}.`;
+    }
+    if (bc.adChannels?.length) {
+      clientLine += ` Canales de publicidad: ${bc.adChannels.join(", ")}.`;
+    }
+  } else {
+    clientLine = `Tu cliente es "${orgName}". Aún no completó el onboarding — si notás que falta contexto, sugerile que lo complete.`;
+  }
+
+  return BASE_SYSTEM_PROMPT + "\n" + clientLine + "\n" + BASE_SYSTEM_PROMPT_TAIL;
+}
 
 // ══════════════════════════════════════════════════════════════
 // MEMORY SYSTEM — Persistent business knowledge
@@ -207,6 +226,10 @@ export async function POST(req: Request) {
     const { message, history } = await req.json();
     const org = await getOrganization();
 
+    // Build dynamic system prompt based on org settings
+    const orgSettings = (org as any).settings || {};
+    const dynamicPrompt = buildSystemPrompt(org.name, orgSettings);
+
     // Build memory context from persistent knowledge base
     let memoryContext = "";
     try {
@@ -215,8 +238,8 @@ export async function POST(req: Request) {
       console.error("[NitroBot] Error loading memories:", e.message);
     }
 
-    // Build full system prompt with memory injected
-    const fullSystemPrompt = SYSTEM_PROMPT + memoryContext;
+    // Full system prompt: dynamic base + memory context
+    const fullSystemPrompt = dynamicPrompt + memoryContext;
 
     // Build conversation messages from history
     const messages: Anthropic.MessageParam[] = [];
