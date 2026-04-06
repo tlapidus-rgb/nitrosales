@@ -94,7 +94,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="light-canvas flex flex-col h-full">
+    <div className="flex flex-col bg-[#F7F8FA]" style={{ minHeight: "calc(100vh - 120px)" }}>
       <div className="mb-4">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-indigo-600">NitroBot</h2>
@@ -105,7 +105,7 @@ export default function ChatPage() {
         <p className="text-gray-500 text-sm">Tu equipo de growth con IA</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+      <div className="flex-1 overflow-y-auto space-y-4 mb-4 bg-[#F7F8FA]">
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
