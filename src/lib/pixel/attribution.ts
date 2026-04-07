@@ -288,7 +288,11 @@ export async function calculateAttribution(
     //    This mirrors GA4's 30-minute session timeout and prevents long idle periods
     //    from being counted as a single continuous session.
     const sessionMap = new Map<string, typeof events>();
-    const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+    // Idle timeout configurable via Organization.settings.idleTimeoutMinutes
+    // (defaults to 30 minutes — matches GA4). Bounds: 5–240 min.
+    const cfgIdle = Number(orgSettings.idleTimeoutMinutes);
+    const idleMinutes = Number.isFinite(cfgIdle) && cfgIdle >= 5 && cfgIdle <= 240 ? cfgIdle : 30;
+    const IDLE_TIMEOUT_MS = idleMinutes * 60 * 1000;
 
     // Helper: extract the "click signature" from an event
     const clickSig = (ev: typeof events[0]): string => {

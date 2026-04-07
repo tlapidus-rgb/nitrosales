@@ -23,6 +23,8 @@ interface PixelEventPayload {
   session_id: string;
   click_ids?: Record<string, string>;
   utm_params?: Record<string, string>;
+  meta_fbc?: string | null; // Real _fbc cookie value (Meta EMQ best practice — never fabricate)
+  meta_fbp?: string | null; // Real _fbp cookie value
   signals_fresh?: boolean; // TRUE = click IDs/UTMs from current URL, FALSE = from cookie
   is_landing?: boolean;    // TRUE = first event of a new session (session entry point)
   timestamp: number;  // Unix ms del cliente
@@ -181,6 +183,8 @@ export async function POST(request: NextRequest) {
           clickIds: event.click_ids,
           utmParams: event.utm_params,
           pageUrl: event.page_url,
+          metaFbc: event.meta_fbc || null,
+          metaFbp: event.meta_fbp || null,
         });
 
         if (!visitor) continue;
@@ -201,13 +205,14 @@ export async function POST(request: NextRequest) {
         }
 
         // Handle IDENTIFY events: identify visitor AND persist event for funnel tracking
-        if (event.type === 'IDENTIFY' && event.props?.email) {
+        if (event.type === 'IDENTIFY' && (event.props?.email || event.props?.phone)) {
           await identifyVisitor(orgId, event.visitor_id, {
-            email: event.props.email as string
+            email: event.props.email as string | undefined,
+            phone: event.props.phone as string | undefined,
           });
           // NOTE: Do NOT continue — let the event be saved as PixelEvent below
           // so the dashboard can count identified visitors via event type queries.
-          // The email is stripped from props to avoid storing PII in pixel_events.
+          // PII is stripped from props before persistence.
           event.props = { identified: true };
         }
 
@@ -359,6 +364,8 @@ export async function POST(request: NextRequest) {
             props: Object.keys(enrichedProps).length > 0 ? enrichedProps : undefined,
             clickIds: event.click_ids || undefined,
             utmParams: event.utm_params || undefined,
+            metaFbc: event.meta_fbc || undefined,
+            metaFbp: event.meta_fbp || undefined,
             deviceType,
             country,
             region,
@@ -387,6 +394,9 @@ export async function POST(request: NextRequest) {
               userAgent,
               ipAddress: ip,
               fbclid: event.click_ids?.fbclid,
+              fbc: event.meta_fbc || undefined,
+              fbp: event.meta_fbp || undefined,
+              externalId: visitor.id,
             }, createdEvent.id).catch(err => {
               console.error('[NitroPixel CAPI] Non-fatal error:', err);
             });
@@ -416,6 +426,9 @@ export async function POST(request: NextRequest) {
               ipAddress: ip,
               email: visitor?.email || (event.props?.email as string | undefined),
               fbclid: event.click_ids?.fbclid,
+              fbc: event.meta_fbc || undefined,
+              fbp: event.meta_fbp || undefined,
+              externalId: visitor?.id,
               productId: event.props?.product_id as string | undefined,
               productName: event.props?.product_name as string | undefined,
               productPrice: event.props?.price ? Number(event.props.price) : undefined,

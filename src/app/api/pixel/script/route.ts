@@ -142,6 +142,13 @@ function generatePixelScript(orgId: string): string {
     var hasUrlUtms = Object.keys(utmParams).length > 0;
     _signalsFresh = hasUrlClickIds || hasUrlUtms;
 
+    // ─── Meta Pixel cookies (_fbc / _fbp) — REAL values, never fabricated ───
+    // EMQ best practice: read the actual cookies set by Meta Pixel.
+    // Meta explicitly says: do NOT fabricate fbc — that degrades match quality.
+    // If _fbc / _fbp are missing, we just don't send them (server will fall back).
+    var _metaFbc = getCookie('_fbc') || null;
+    var _metaFbp = getCookie('_fbp') || null;
+
     // ─── Session ID — with forced reset on new ad clicks ───
     // CRITICAL for cross-platform attribution: when a user clicks a NEW ad
     // (different click ID than what's in the cookie), we MUST start a new session.
@@ -394,6 +401,8 @@ function generatePixelScript(orgId: string): string {
         session_id: sid,
         click_ids: _hasClickIds ? clickIds : null,
         utm_params: _hasUtmParams ? utmParams : null,
+        meta_fbc: _metaFbc,
+        meta_fbp: _metaFbp,
         signals_fresh: _signalsFresh, // TRUE = click IDs/UTMs from current URL, not cookie
         is_landing: _isLanding && isFirstEvent, // TRUE = first event of a new session
         timestamp: Date.now(),
@@ -413,14 +422,19 @@ function generatePixelScript(orgId: string): string {
 
     // ─── Identify ───
     function identify(props) {
-      if (!props || !props.email) return;
+      if (!props || (!props.email && !props.phone)) return;
+      var idProps = {};
+      if (props.email) idProps.email = props.email;
+      if (props.phone) idProps.phone = props.phone;
       enqueue({
         type: 'IDENTIFY',
-        props: { email: props.email },
+        props: idProps,
         visitor_id: vid,
         session_id: sid,
         click_ids: clickIds,
         utm_params: utmParams,
+        meta_fbc: _metaFbc,
+        meta_fbp: _metaFbp,
         timestamp: Date.now(),
         page_url: window.location.href,
         referrer: '',
@@ -973,7 +987,7 @@ function generatePixelScript(orgId: string): string {
           var cpd = window.vtexjs.checkout.orderForm.clientProfileData;
           if (cpd && cpd.email && cpd.email !== _identifiedEmail) {
             _identifiedEmail = cpd.email;
-            identify({ email: cpd.email });
+            identify({ email: cpd.email, phone: cpd.phone || null });
             return;
           }
         }
@@ -987,7 +1001,7 @@ function generatePixelScript(orgId: string): string {
           if (of && of.clientProfileData && of.clientProfileData.email) {
             if (of.clientProfileData.email !== _identifiedEmail) {
               _identifiedEmail = of.clientProfileData.email;
-              identify({ email: of.clientProfileData.email });
+              identify({ email: of.clientProfileData.email, phone: of.clientProfileData.phone || null });
             }
           }
         }).catch(function() {});
@@ -1017,7 +1031,7 @@ function generatePixelScript(orgId: string): string {
             if (of && of.clientProfileData && of.clientProfileData.email) {
               if (of.clientProfileData.email !== _identifiedEmail) {
                 _identifiedEmail = of.clientProfileData.email;
-                identify({ email: of.clientProfileData.email });
+                identify({ email: of.clientProfileData.email, phone: of.clientProfileData.phone || null });
               }
             }
           });
