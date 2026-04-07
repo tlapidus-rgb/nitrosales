@@ -581,8 +581,14 @@ export default function PixelPage() {
       {/* STICKY HEADER — Digital Asset Vivo                       */}
       {/* ══════════════════════════════════════════════════════════ */}
       <div
-        className={`sticky top-0 z-40 backdrop-blur-xl border-b border-gray-200/60 relative overflow-hidden ${headerCompact ? "pixel-header-compact" : ""}`}
-        style={{ background: "rgba(255,255,255,0.88)" }}
+        className={`sticky top-0 z-40 relative overflow-hidden ${headerCompact ? "pixel-header-compact" : ""}`}
+        style={{
+          background: "linear-gradient(180deg, #ffffff 0%, #fbfbfd 55%, #f4f5f8 100%)",
+          backdropFilter: "saturate(140%) blur(20px)",
+          WebkitBackdropFilter: "saturate(140%) blur(20px)",
+          boxShadow:
+            "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.18), 0 22px 40px -28px rgba(15,23,42,0.16)",
+        }}
       >
         {/* Animated grid background */}
         <div
@@ -591,6 +597,30 @@ export default function PixelPage() {
         />
         {/* Asset glow */}
         <div className="absolute inset-0 pixel-asset-glow pointer-events-none" />
+        {/* Aurora prism — modern accent (top-left orange + top-right indigo) */}
+        <div
+          className="absolute -top-32 -left-24 w-[420px] h-[420px] pointer-events-none rounded-full"
+          style={{
+            background: "radial-gradient(circle at center, rgba(249,115,22,0.16) 0%, rgba(249,115,22,0.04) 40%, transparent 70%)",
+            filter: "blur(40px)",
+          }}
+        />
+        <div
+          className="absolute -top-40 -right-20 w-[460px] h-[460px] pointer-events-none rounded-full"
+          style={{
+            background: "radial-gradient(circle at center, rgba(99,102,241,0.12) 0%, rgba(99,102,241,0.03) 40%, transparent 70%)",
+            filter: "blur(50px)",
+          }}
+        />
+        {/* Bottom prism delimiter — gradient line that locks the boundary */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-[2px] pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent 0%, rgba(249,115,22,0.55) 18%, rgba(236,72,153,0.55) 35%, rgba(168,85,247,0.55) 50%, rgba(99,102,241,0.55) 65%, rgba(16,185,129,0.55) 82%, transparent 100%)",
+            opacity: 0.85,
+          }}
+        />
 
         <div className="max-w-7xl mx-auto px-5 py-3 relative">
           {/* Top bar: Brand + Asset value + Live indicator */}
