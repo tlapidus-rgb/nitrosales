@@ -507,6 +507,16 @@ export default function PixelPage() {
               <h1 className="text-lg font-bold text-gray-900">NitroPixel</h1>
               <p className="text-xs text-gray-500">Revenue Attribution</p>
             </div>
+            <a
+              href="/pixel/journeys"
+              className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wide bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500 text-white shadow-sm hover:shadow-md hover:scale-[1.02] transition-all"
+              title="Ver el recorrido visual de cada cliente antes de comprar"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="6" cy="12" r="2" /><circle cx="18" cy="12" r="2" /><path d="M8 12h8" />
+              </svg>
+              Customer Journeys
+            </a>
           </div>
           <div className="mb-3">
             <DateRangeFilter

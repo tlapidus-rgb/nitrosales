@@ -247,10 +247,18 @@ export default function NitroPixelPage() {
           {/* Stage label */}
           <div className="text-center mt-2">
             <div
-              className="text-[11px] font-mono uppercase tracking-[0.4em]"
+              className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.4em]"
               style={{ color: stageColor, textShadow: `0 0 12px ${stageColor}80` }}
             >
-              FASE {stage ? stage.index + 1 : 1} / {stage?.total ?? 5}
+              <span
+                className="w-1 h-1 rounded-full"
+                style={{ background: stageColor, boxShadow: `0 0 6px ${stageColor}`, animation: "pixelHeartbeat 1.4s ease-in-out infinite" }}
+              />
+              <span>STAGE</span>
+              <span className="opacity-30">·</span>
+              <span>{stage?.key ?? "GENESIS"}</span>
+              <span className="opacity-30">·</span>
+              <span style={{ animation: "pixelBreath 2.8s ease-in-out infinite" }}>EVOLVING</span>
             </div>
             <div
               className="text-3xl lg:text-5xl font-bold mt-2 tracking-tight"
@@ -264,6 +272,14 @@ export default function NitroPixelPage() {
             </div>
             <div className="text-sm text-cyan-100/50 font-mono mt-1">
               {stage?.tagline ?? "El núcleo despierta"}
+            </div>
+            <div className="flex items-center justify-center gap-2 mt-3">
+              <span className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300/40">
+                Próxima evolución
+              </span>
+              <span className="text-[9px] font-mono text-cyan-300/60">
+                {stage?.key === "SINGULARITY" ? "∞ infinita" : "en proceso →"}
+              </span>
             </div>
           </div>
         </div>
@@ -310,30 +326,49 @@ export default function NitroPixelPage() {
               border: "1px solid rgba(139,92,246,0.30)",
             }}
           >
-            <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-violet-300/70 mb-2">
-              NIVEL DEL ACTIVO
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-violet-300/70">
+                NIVEL DEL ACTIVO
+              </div>
+              <div
+                className="flex items-center gap-1.5 text-[8px] font-mono uppercase tracking-[0.25em] text-violet-300/60"
+              >
+                <span
+                  className="w-1 h-1 rounded-full bg-violet-300"
+                  style={{ boxShadow: "0 0 6px rgba(167,139,250,0.9)", animation: "pixelHeartbeat 1.4s ease-in-out infinite" }}
+                />
+                <span style={{ animation: "pixelBreath 2.6s ease-in-out infinite" }}>EVOLVING</span>
+                <span className="text-base leading-none -mt-0.5">∞</span>
+              </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span
-                className="text-4xl lg:text-5xl font-bold text-white tabular-nums"
-              >
+              <span className="text-4xl lg:text-5xl font-bold text-white tabular-nums">
                 {animLevel}
               </span>
-              <span className="text-2xl font-mono text-violet-300/50">/ 100</span>
+              <span className="text-xs font-mono text-violet-300/50 mb-1">XP</span>
             </div>
-            {/* Level bar */}
-            <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-white/5">
+            {/* Level bar — siempre activa con shimmer continuo, nunca "tope" visual */}
+            <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-white/5 relative">
               <div
-                className="h-full rounded-full transition-all duration-1000 ease-out"
+                className="h-full rounded-full transition-all duration-1000 ease-out relative"
                 style={{
-                  width: `${level}%`,
+                  width: `${Math.max(8, level)}%`,
                   background: `linear-gradient(90deg, #06b6d4, #8b5cf6, #a855f7)`,
                   boxShadow: "0 0 12px rgba(139,92,246,0.6)",
                 }}
-              />
+              >
+                {/* shimmer perpetuo: hace ver que sigue creciendo aunque visualmente este al tope */}
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 50%, transparent 100%)",
+                    animation: "pixelShimmer 2.4s linear infinite",
+                  }}
+                />
+              </div>
             </div>
             <div className="text-xs text-violet-100/40 font-mono mt-2">
-              Sube al alimentar al pixel con eventos, identificaciones y conversiones
+              Cada evento, cada identificación, cada conversión lo hace más inteligente.
             </div>
           </div>
         </div>

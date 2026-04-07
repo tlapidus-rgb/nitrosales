@@ -336,6 +336,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           80% { opacity: 1; }
           100% { stroke-dashoffset: 0; opacity: 0; }
         }
+        @keyframes pixelShimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        @keyframes pixelJourneyDot {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139,92,246,0.5); }
+          50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(139,92,246,0); }
+        }
       `}</style>
       {/* Mobile overlay */}
       {sidebarOpen && (
