@@ -463,10 +463,47 @@ export default function PixelPage() {
   // ── Loading state ──
   if (loading && !data) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-        <div className="flex items-center gap-3 text-gray-400">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-          <span>Cargando datos del pixel...</span>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#fafafa" }}>
+        <PixelStyles />
+        <div className="flex flex-col items-center gap-5">
+          <div className="relative">
+            {/* Outer ring */}
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center relative overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%)",
+                boxShadow: "0 8px 24px rgba(249,115,22,0.30), inset 0 1px 0 rgba(255,255,255,0.30)",
+                animation: "pixelLogoPulse 2.4s ease-in-out infinite",
+              }}
+            >
+              <svg className="w-7 h-7 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {/* Shine sweep */}
+              <div
+                className="absolute inset-0 opacity-50"
+                style={{
+                  background: "linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.4) 50%, transparent 65%)",
+                  animation: "pixelShine 2.8s ease-in-out infinite",
+                }}
+              />
+            </div>
+            {/* Orbit dot */}
+            <div
+              className="absolute -inset-3 rounded-full"
+              style={{
+                border: "1.5px dashed rgba(249,115,22,0.30)",
+                animation: "pixelSpin 8s linear infinite",
+              }}
+            />
+          </div>
+          <div className="text-center">
+            <p className="text-[13px] font-semibold text-gray-900 tracking-[-0.01em]">NitroPixel</p>
+            <p className="text-[11px] font-medium text-gray-500 mt-0.5 tabular-nums">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-500 mr-1.5 align-middle" style={{ animation: "pixelDotFade 1.4s ease-in-out infinite" }} />
+              Sincronizando atribuciones
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -491,55 +528,171 @@ export default function PixelPage() {
   const hasAttribution = d.attribution?.byModel?.length > 0;
   const bk = d.businessKpis || { pixelRevenue: 0, pixelRoas: 0, ordersAttributed: 0, attributionRate: 0, aov: 0, totalAdSpend: 0, totalOrders: 0, webOrders: 0, webRevenue: 0, marketplaceOrders: 0, marketplaceRevenue: 0, changes: { pixelRevenue: 0, ordersAttributed: 0, pixelRoas: 0 } };
 
+  // Compute header sparkline data + asset stats
+  const sortedDays = (d.dailyChannelBreakdown || []).slice().sort((a: any, b: any) => a.day.localeCompare(b.day));
+  const headerSparkData = sortedDays.map((day: any) => ({ day: day.day, value: day.totalRevenue || 0 }));
+  const totalEventsTracked = d.liveStatus.totalEvents || 0;
+  const periodRevenue = bk.pixelRevenue || 0;
+  const periodGrowth = bk.changes?.pixelRevenue || 0;
+  const pixelAgeDays = d.pixelHealth?.pixelAgeDays;
+
   return (
-    <div className="min-h-screen" style={{ background: "#fafafa" }}>
+    <div className="min-h-screen relative" style={{ background: "#fafafa" }}>
+      <PixelStyles />
       {/* ══════════════════════════════════════════════════════════ */}
-      {/* STICKY HEADER                                            */}
+      {/* STICKY HEADER — Digital Asset Vivo                       */}
       {/* ══════════════════════════════════════════════════════════ */}
       <div
-        className="sticky top-0 z-40 backdrop-blur-xl border-b border-gray-200/60"
-        style={{ background: "rgba(255,255,255,0.85)" }}
+        className="sticky top-0 z-40 backdrop-blur-xl border-b border-gray-200/60 relative overflow-hidden"
+        style={{ background: "rgba(255,255,255,0.88)" }}
       >
-        <div className="max-w-7xl mx-auto px-5 py-3">
-          {/* Top bar: Title + Live indicator */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center relative overflow-hidden"
-                style={{
-                  background: "linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%)",
-                  boxShadow: "0 4px 12px rgba(249,115,22,0.25), inset 0 1px 0 rgba(255,255,255,0.25)",
-                }}
-              >
-                <svg className="w-5 h-5 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-              </div>
-              <div>
-                <h1
-                  className="text-[18px] font-bold text-gray-900 leading-tight"
-                  style={{ letterSpacing: "-0.02em" }}
+        {/* Animated grid background */}
+        <div
+          className="absolute inset-0 pixel-grid-bg pointer-events-none opacity-60"
+          style={{ animation: "pixelGridShift 60s linear infinite" }}
+        />
+        {/* Asset glow */}
+        <div className="absolute inset-0 pixel-asset-glow pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-5 py-3 relative">
+          {/* Top bar: Brand + Asset value + Live indicator */}
+          <div className="flex items-center justify-between mb-3 gap-4">
+            <div className="flex items-center gap-3.5 min-w-0">
+              {/* Logo with pulse + orbit */}
+              <div className="relative shrink-0">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden"
+                  style={{
+                    background: "linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%)",
+                    boxShadow: "0 6px 18px rgba(249,115,22,0.30), inset 0 1px 0 rgba(255,255,255,0.30)",
+                    animation: d.liveStatus.status === "LIVE" ? "pixelLogoPulse 3.2s ease-in-out infinite" : undefined,
+                  }}
                 >
-                  NitroPixel Analytics
-                </h1>
-                <p className="text-[11px] text-gray-500 font-medium">Revenue attribution · datos en vivo</p>
+                  <svg className="w-5 h-5 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  <div
+                    className="absolute inset-0 opacity-40 pointer-events-none"
+                    style={{
+                      background: "linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.35) 50%, transparent 65%)",
+                      animation: "pixelShine 4s ease-in-out infinite",
+                    }}
+                  />
+                </div>
+              </div>
+              {/* Title + meta */}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1
+                    className="text-[18px] font-bold text-gray-900 leading-tight"
+                    style={{ letterSpacing: "-0.025em" }}
+                  >
+                    NitroPixel
+                  </h1>
+                  <span
+                    className="text-[9px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded uppercase tracking-[0.1em]"
+                    style={{ letterSpacing: "0.08em" }}
+                  >
+                    Analytics
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-[10px] text-gray-500 font-medium tabular-nums flex items-center gap-1">
+                    <svg className="w-2.5 h-2.5 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>
+                    {fmt(totalEventsTracked)} eventos
+                  </p>
+                  {pixelAgeDays !== undefined && (
+                    <>
+                      <span className="text-gray-300 text-[10px]">·</span>
+                      <p className="text-[10px] text-gray-500 font-medium tabular-nums">
+                        {pixelAgeDays}d activo
+                      </p>
+                    </>
+                  )}
+                  <span className="text-gray-300 text-[10px]">·</span>
+                  <p className="text-[10px] text-gray-500 font-medium">Revenue attribution</p>
+                </div>
               </div>
             </div>
-            <div
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-[0.15em]"
-              style={{
-                background: d.liveStatus.status === "LIVE" ? "rgba(16,185,129,0.08)" : "rgba(100,116,139,0.08)",
-                color: d.liveStatus.status === "LIVE" ? "#059669" : "#64748b",
-                border: `1px solid ${d.liveStatus.status === "LIVE" ? "rgba(16,185,129,0.20)" : "rgba(100,116,139,0.18)"}`,
-              }}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full"
+
+            {/* Asset value + Sparkline + Live */}
+            <div className="hidden md:flex items-center gap-5">
+              {/* Asset value with growth */}
+              <div className="text-right">
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em]">
+                  Revenue Trackeado
+                </p>
+                <div className="flex items-baseline gap-2 justify-end">
+                  <span
+                    className="text-[20px] leading-none font-bold text-gray-900 tabular-nums"
+                    style={{ letterSpacing: "-0.025em" }}
+                  >
+                    {fmtCompact(periodRevenue)}
+                  </span>
+                  {periodGrowth !== 0 && (
+                    <span className={`text-[10px] font-bold tabular-nums flex items-center gap-0.5 ${pctColor(periodGrowth)}`}>
+                      {periodGrowth > 0 && <span>↑</span>}
+                      {periodGrowth < 0 && <span>↓</span>}
+                      {pctBadge(periodGrowth)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Sparkline */}
+              {headerSparkData.length > 1 && (
+                <div className="w-28 h-10 -mb-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={headerSparkData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="headerSpark" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f97316" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#f97316"
+                        strokeWidth={1.75}
+                        fill="url(#headerSpark)"
+                        dot={false}
+                        isAnimationActive
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Live indicator with EKG bars */}
+              <div
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.12em]"
                 style={{
-                  background: d.liveStatus.status === "LIVE" ? "#10b981" : "#94a3b8",
-                  boxShadow: d.liveStatus.status === "LIVE" ? "0 0 8px rgba(16,185,129,0.7)" : undefined,
-                  animation: d.liveStatus.status === "LIVE" ? "pixelHeartbeat 1.6s ease-in-out infinite" : undefined,
+                  background: d.liveStatus.status === "LIVE"
+                    ? "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(16,185,129,0.04))"
+                    : d.liveStatus.status === "ACTIVE"
+                    ? "linear-gradient(135deg, rgba(245,158,11,0.10), rgba(245,158,11,0.04))"
+                    : "linear-gradient(135deg, rgba(100,116,139,0.10), rgba(100,116,139,0.04))",
+                  color: d.liveStatus.status === "LIVE" ? "#059669" : d.liveStatus.status === "ACTIVE" ? "#b45309" : "#64748b",
+                  border: `1px solid ${d.liveStatus.status === "LIVE" ? "rgba(16,185,129,0.25)" : d.liveStatus.status === "ACTIVE" ? "rgba(245,158,11,0.25)" : "rgba(100,116,139,0.20)"}`,
+                  boxShadow: d.liveStatus.status === "LIVE" ? "0 0 0 4px rgba(16,185,129,0.05)" : undefined,
                 }}
-              />
-              {d.liveStatus.status === "LIVE" ? "EN VIVO" : d.liveStatus.status === "ACTIVE" ? "ACTIVO" : "INACTIVO"}
+              >
+                {/* Signal bars */}
+                <span className="flex items-end gap-[2px] h-3">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="w-[2px] rounded-full"
+                      style={{
+                        height: "100%",
+                        background: d.liveStatus.status === "LIVE" ? "#10b981" : d.liveStatus.status === "ACTIVE" ? "#f59e0b" : "#94a3b8",
+                        animation: d.liveStatus.status === "LIVE" ? `pixelSignal 1.2s ease-in-out infinite ${i * 0.18}s` : undefined,
+                        transformOrigin: "bottom",
+                      }}
+                    />
+                  ))}
+                </span>
+                {d.liveStatus.status === "LIVE" ? "En Vivo" : d.liveStatus.status === "ACTIVE" ? "Activo" : "Inactivo"}
+              </div>
             </div>
           </div>
           <div className="mb-3">
@@ -836,62 +989,152 @@ export default function PixelPage() {
       {/* ══════════════════════════════════════════════════════════ */}
       {/* PAGE CONTENT                                              */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 pixel-stagger">
 
-        {/* ═══ PIXEL HEALTH BAR ═══ */}
+        {/* ═══ PIXEL HEALTH BAR — System Vitals Cockpit ═══ */}
         {(() => {
           const isLive = d.liveStatus.status === "LIVE";
           const isActive = d.liveStatus.status === "ACTIVE";
-          const accent = isLive
-            ? { bar: "linear-gradient(90deg, #10b981, #34d399)", dot: "#10b981", text: "text-emerald-700", chip: "bg-emerald-50 border-emerald-200" }
-            : isActive
-            ? { bar: "linear-gradient(90deg, #f59e0b, #fbbf24)", dot: "#f59e0b", text: "text-amber-700", chip: "bg-amber-50 border-amber-200" }
-            : { bar: "linear-gradient(90deg, #ef4444, #f87171)", dot: "#ef4444", text: "text-red-600", chip: "bg-red-50 border-red-200" };
+          const statusColor = isLive ? "#10b981" : isActive ? "#f59e0b" : "#ef4444";
+          const statusLabel = isLive ? "EN VIVO" : isActive ? "ACTIVO" : "INACTIVO";
+          const attrRate = d.pixelHealth?.attributionRate || 0;
+          const clickRate = d.pixelHealth?.clickCoverage?.clickIdRate || 0;
+          const lastHourEv = d.liveStatus.lastHourEvents || 0;
+
           return (
             <div
-              className="relative rounded-2xl bg-white border border-gray-200/80 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 overflow-hidden"
+              className="relative rounded-2xl bg-white border border-gray-200/80 overflow-hidden"
               style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
             >
-              <div className="absolute top-0 left-5 right-5 h-[2px] rounded-full opacity-90" style={{ background: accent.bar }} />
-              <div className="flex items-center gap-3">
-                <span className="relative flex h-2.5 w-2.5">
-                  {isLive && <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: accent.dot }} />}
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ background: accent.dot, boxShadow: `0 0 8px ${accent.dot}55` }} />
-                </span>
-                <div>
-                  <span className={`text-[11px] font-bold uppercase tracking-[0.15em] ${accent.text}`}>
-                    {isLive ? "EN VIVO" : isActive ? "ACTIVO" : "INACTIVO"}
-                  </span>
+              {/* Top accent bar */}
+              <div
+                className="absolute top-0 left-0 right-0 h-[2px]"
+                style={{ background: `linear-gradient(90deg, ${statusColor}, ${statusColor}80, transparent 80%)` }}
+              />
+              {/* Subtle grid bg */}
+              <div className="absolute inset-0 pixel-grid-bg pointer-events-none opacity-50" />
+
+              <div className="relative grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 divide-x divide-gray-100">
+                {/* CELL 1: Status */}
+                <div className="px-5 py-4 col-span-2 sm:col-span-1">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="relative flex h-2 w-2">
+                      {isLive && <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-70" style={{ background: statusColor }} />}
+                      <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: statusColor, boxShadow: `0 0 8px ${statusColor}80` }} />
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">System</span>
+                  </div>
+                  <p className="text-[14px] font-bold tabular-nums leading-none" style={{ color: statusColor, letterSpacing: "-0.01em" }}>
+                    {statusLabel}
+                  </p>
                   {d.liveStatus.lastEventAt && (
-                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                      Último evento {new Date(d.liveStatus.lastEventAt).toLocaleString("es-AR", {
+                    <p className="text-[10px] text-gray-500 font-medium mt-1.5 tabular-nums">
+                      {new Date(d.liveStatus.lastEventAt).toLocaleString("es-AR", {
                         timeZone: "America/Argentina/Buenos_Aires",
                         day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
                       })}
                     </p>
                   )}
                 </div>
-              </div>
-              <div className="flex items-center gap-5 text-xs">
-                <div className="text-center">
-                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-[0.1em]">Atribución</p>
-                  <p className={`text-base font-bold tabular-nums mt-0.5 ${(d.pixelHealth?.attributionRate || 0) >= 50 ? "text-emerald-600" : (d.pixelHealth?.attributionRate || 0) >= 25 ? "text-amber-600" : "text-red-500"}`}>
-                    {d.pixelHealth?.attributionRate || 0}%
+
+                {/* CELL 2: Attribution Rate with progress bar */}
+                <div className="px-5 py-4">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center">
+                    Atribución<InfoTip text="Porcentaje de ordenes que NitroPixel pudo atribuir a un canal." />
+                  </p>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={`text-[18px] font-bold tabular-nums leading-none ${attrRate >= 50 ? "text-emerald-600" : attrRate >= 25 ? "text-amber-600" : "text-red-500"}`} style={{ letterSpacing: "-0.02em" }}>
+                      {attrRate}
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-400">%</span>
+                  </div>
+                  <div className="mt-2 h-1 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min(100, attrRate)}%`,
+                        background: attrRate >= 50
+                          ? "linear-gradient(90deg, #10b981, #34d399)"
+                          : attrRate >= 25
+                          ? "linear-gradient(90deg, #f59e0b, #fbbf24)"
+                          : "linear-gradient(90deg, #ef4444, #f87171)",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* CELL 3: Click IDs */}
+                <div className="px-5 py-4">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center">
+                    Click IDs<InfoTip text="Porcentaje de visitantes con click ID (fbclid, gclid). Mas alto = mejor atribucion." />
+                  </p>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-[18px] font-bold tabular-nums text-gray-900 leading-none" style={{ letterSpacing: "-0.02em" }}>
+                      {clickRate}
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-400">%</span>
+                  </div>
+                  <div className="mt-2 h-1 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min(100, clickRate)}%`,
+                        background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* CELL 4: Eventos / hora con signal bars */}
+                <div className="px-5 py-4">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center">
+                    Eventos/h<InfoTip text="Eventos que el pixel recibe por hora ahora mismo." />
+                  </p>
+                  <div className="flex items-end gap-2">
+                    <span className="text-[18px] font-bold tabular-nums text-gray-900 leading-none" style={{ letterSpacing: "-0.02em" }}>
+                      {fmt(lastHourEv)}
+                    </span>
+                    <span className="flex items-end gap-[2px] h-4 mb-0.5">
+                      {[0, 1, 2, 3].map((i) => (
+                        <span
+                          key={i}
+                          className="w-[2px] rounded-full bg-cyan-500"
+                          style={{
+                            height: `${30 + i * 18}%`,
+                            opacity: lastHourEv > 0 ? 1 : 0.3,
+                            animation: lastHourEv > 0 ? `pixelBarPulse 1.6s ease-in-out infinite ${i * 0.15}s` : undefined,
+                          }}
+                        />
+                      ))}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 font-medium mt-1.5 tabular-nums">
+                    Total: {fmt(d.liveStatus.totalEvents)}
                   </p>
                 </div>
-                <div className="w-px h-9 bg-gray-200" />
-                <div className="text-center">
-                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-[0.1em] flex items-center justify-center">
-                    Click IDs<InfoTip text="Porcentaje de visitantes que llegaron con un click ID (fbclid, gclid). Mas alto = mejor atribucion." />
+
+                {/* CELL 5: Mini sparkline (revenue trend) */}
+                <div className="px-5 py-4 hidden lg:block col-span-1">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5">
+                    Tendencia
                   </p>
-                  <p className="text-base font-bold text-gray-900 tabular-nums mt-0.5">{d.pixelHealth?.clickCoverage?.clickIdRate || 0}%</p>
-                </div>
-                <div className="w-px h-9 bg-gray-200" />
-                <div className="text-center">
-                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-[0.1em] flex items-center justify-center">
-                    Eventos<InfoTip text="Total de eventos que el pixel registro en este periodo." />
-                  </p>
-                  <p className="text-base font-bold text-gray-900 tabular-nums mt-0.5">{fmt(d.liveStatus.totalEvents)}</p>
+                  {headerSparkData.length > 1 ? (
+                    <div className="h-9 -mb-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={headerSparkData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="vitalsSpark" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#10b981" stopOpacity={0.30} />
+                              <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={1.5} fill="url(#vitalsSpark)" dot={false} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-gray-400 italic">Sin datos suficientes</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1745,6 +1988,80 @@ function EmptySection({ text }: { text: string }) {
     <div className="py-8 text-center">
       <p className="text-sm text-gray-500">{text}</p>
     </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// PIXEL STYLES — keyframes premium tech-grade
+// ══════════════════════════════════════════════════════════════
+function PixelStyles() {
+  return (
+    <style>{`
+      @keyframes pixelHeartbeat {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.18); opacity: 0.85; }
+      }
+      @keyframes pixelLogoPulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 8px 24px rgba(249,115,22,0.30), inset 0 1px 0 rgba(255,255,255,0.30); }
+        50% { transform: scale(1.04); box-shadow: 0 12px 32px rgba(249,115,22,0.45), inset 0 1px 0 rgba(255,255,255,0.30); }
+      }
+      @keyframes pixelShine {
+        0% { transform: translateX(-100%); }
+        50%, 100% { transform: translateX(100%); }
+      }
+      @keyframes pixelSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes pixelDotFade {
+        0%, 100% { opacity: 0.4; transform: scale(0.9); }
+        50% { opacity: 1; transform: scale(1.2); }
+      }
+      @keyframes pixelFadeUp {
+        from { opacity: 0; transform: translateY(8px) scale(0.985); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      @keyframes pixelGridShift {
+        0% { background-position: 0 0; }
+        100% { background-position: 32px 32px; }
+      }
+      @keyframes pixelBarPulse {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 1; }
+      }
+      @keyframes pixelSignal {
+        0%, 100% { transform: scaleY(0.4); }
+        50% { transform: scaleY(1); }
+      }
+      .pixel-fade-up {
+        animation: pixelFadeUp 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .pixel-stagger > * {
+        animation: pixelFadeUp 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .pixel-stagger > *:nth-child(1) { animation-delay: 0ms; }
+      .pixel-stagger > *:nth-child(2) { animation-delay: 60ms; }
+      .pixel-stagger > *:nth-child(3) { animation-delay: 120ms; }
+      .pixel-stagger > *:nth-child(4) { animation-delay: 180ms; }
+      .pixel-stagger > *:nth-child(5) { animation-delay: 240ms; }
+      .pixel-stagger > *:nth-child(6) { animation-delay: 300ms; }
+      .pixel-stagger > *:nth-child(7) { animation-delay: 360ms; }
+      .pixel-stagger > *:nth-child(8) { animation-delay: 420ms; }
+      .pixel-stagger > *:nth-child(9) { animation-delay: 480ms; }
+      .pixel-stagger > *:nth-child(10) { animation-delay: 540ms; }
+      .pixel-stagger > *:nth-child(n+11) { animation-delay: 600ms; }
+      .pixel-grid-bg {
+        background-image:
+          linear-gradient(rgba(15,23,42,0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(15,23,42,0.04) 1px, transparent 1px);
+        background-size: 32px 32px;
+      }
+      .pixel-asset-glow {
+        background:
+          radial-gradient(ellipse 600px 200px at 20% 0%, rgba(249,115,22,0.06), transparent 60%),
+          radial-gradient(ellipse 500px 180px at 80% 100%, rgba(99,102,241,0.05), transparent 60%);
+      }
+    `}</style>
   );
 }
 
