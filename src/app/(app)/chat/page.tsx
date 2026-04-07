@@ -627,7 +627,7 @@ export default function ChatPage() {
           )}
 
           <p className="text-center text-xs mt-4" style={{ color: "#6b7280" }}>
-            Paso {onboardingStep + 1} de {steps.length} · Podés editarlo desde Memoria de Aurum
+            Paso {onboardingStep + 1} de {steps.length} · Podés editarlo desde Sinapsis
           </p>
         </div>
       </div>

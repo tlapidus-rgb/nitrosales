@@ -695,7 +695,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <span className="text-sm font-medium text-nitro-text2">El Mundo del Juguete</span>
+            <span className="text-sm font-medium text-nitro-text2">{(session.user as any).organizationName || "Tu negocio"}</span>
             <span className="flex items-center gap-1.5 ml-2">
               <span className="w-1.5 h-1.5 rounded-full bg-nitro-green animate-pulse-live" />
               <span className="font-mono text-[10px] text-nitro-muted uppercase tracking-widest">

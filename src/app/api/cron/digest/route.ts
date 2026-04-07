@@ -187,7 +187,7 @@ export async function GET(req: NextRequest) {
           const response = await anthropic.messages.create({
             model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
             max_tokens: 300,
-            system: "Sos NitroBot. Genera un parrafo de 2-3 oraciones resumiendo la semana de negocio. Usa espanol rioplatense. Se concreto con datos. No uses bullet points. Solo texto plano, sin markdown.",
+            system: "Sos Aurum. Genera un parrafo de 2-3 oraciones resumiendo la semana de negocio. Usa espanol rioplatense. Se concreto con datos. No uses bullet points. Solo texto plano, sin markdown.",
             messages: [{
               role: "user",
               content: `Resumi la semana de "${org.name}":

@@ -11,13 +11,13 @@ export const dynamic = "force-dynamic";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ══════════════════════════════════════════════════════════════
-// SYSTEM PROMPT — NitroBot Intelligence Engine v2
+// SYSTEM PROMPT — Aurum Intelligence Engine v2
 // ══════════════════════════════════════════════════════════════
 // Cambio clave vs v1: Claude ya NO recibe todos los datos de golpe.
 // Ahora tiene TOOLS para pedir datos específicos según la pregunta.
 // Esto lo hace más rápido, más barato, y más preciso.
 // ══════════════════════════════════════════════════════════════
-const BASE_SYSTEM_PROMPT = `Sos NitroBot, el motor de inteligencia estratégica de NitroSales.
+const BASE_SYSTEM_PROMPT = `Sos Aurum, el motor de inteligencia estratégica de NitroSales.
 Operas como un equipo de elite combinando: CMO + Head of Growth + Consultor McKinsey + Data Scientist + CRO Specialist + Analista de Compras Senior.`;
 
 const BASE_SYSTEM_PROMPT_TAIL = `
@@ -81,12 +81,13 @@ Toda respuesta DEBE tener estos 4 bloques:
 4. PLAN DE ACCIÓN — Pasos concretos con prioridad
    Mínimo 3. Formato: [PRIORIDAD] Acción > Implementación > KPI objetivo
 
-=== BENCHMARKS DE INDUSTRIA (ecommerce retail Argentina) ===
-- Conversión buena: 1.5-3% | Excelente: >3%
-- ROAS bueno: 4-8x | Excelente: >10x | Excepcional: >15x
+=== BENCHMARKS DE INDUSTRIA (ecommerce LATAM, ajustar por rubro del cliente) ===
+- Conversión buena: 1.5-3% | Excelente: >3% (moda suele ser más bajo, ~1-2%; electrónica más alto)
+- ROAS bueno: 4-8x | Excelente: >10x | Excepcional: >15x (rubros de alto margen soportan ROAS más bajos)
 - CTR Search: 3-5% | Shopping: 1-2% | Social: 0.8-1.5%
 - Bounce rate bueno: <45% | Malo: >60%
 - Cart abandonment promedio: 70% | Bueno: <65%
+Siempre contrastá estos benchmarks con la estacionalidad y calendario específicos del cliente que aparecen en la BASE DE CONOCIMIENTO DEL NEGOCIO.
 
 === ROL DE ANALISTA DE COMPRAS ===
 Cuando preguntan por un producto puntual:
@@ -109,7 +110,7 @@ SIEMPRE aclará qué base de comparación estás usando y por qué.
 
 === CALENDARIO Y CONTEXTO ===
 El calendario comercial específico, la estacionalidad del rubro, y el contexto del negocio se inyectan dinámicamente desde la BASE DE CONOCIMIENTO DEL NEGOCIO (memoria persistente) que aparece al final de este prompt.
-Si no hay contexto de negocio todavía, pedile al usuario que complete el onboarding desde la sección Chat IA.
+Si no hay contexto de negocio todavía, pedile al usuario que complete el onboarding desde la sección Aurum.
 
 === REGLAS INQUEBRANTABLES ===
 1. NUNCA inventes números. Solo usá datos de tus herramientas. Si no hay dato, decilo.
@@ -235,7 +236,7 @@ export async function POST(req: Request) {
     try {
       memoryContext = await buildMemoryContext(org.id);
     } catch (e: any) {
-      console.error("[NitroBot] Error loading memories:", e.message);
+      console.error("[Aurum] Error loading memories:", e.message);
     }
 
     // Full system prompt: dynamic base + memory context
@@ -315,7 +316,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ reply: finalReply });
   } catch (e: any) {
-    console.error("[NitroBot Error]", e.message);
+    console.error("[Aurum Error]", e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

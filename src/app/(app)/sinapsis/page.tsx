@@ -55,10 +55,21 @@ const CATEGORY_INFO: Record<
 
 const CATEGORIES = Object.keys(CATEGORY_INFO) as Memory["category"][];
 
+type BusinessContext = {
+  industry?: string;
+  businessType?: string;
+  country?: string;
+  salesChannels?: string[];
+  adChannels?: string[];
+  businessStage?: string;
+};
+
 export default function SinapsisPage() {
   const { status } = useSession();
   const router = useRouter();
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [businessContext, setBusinessContext] = useState<BusinessContext | null>(null);
+  const [orgName, setOrgName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -78,9 +89,17 @@ export default function SinapsisPage() {
   const loadMemories = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/memory?includeInactive=true");
-      const data = await res.json();
-      if (data.memories) setMemories(data.memories);
+      const [memRes, onbRes] = await Promise.all([
+        fetch("/api/memory?includeInactive=true"),
+        fetch("/api/onboarding"),
+      ]);
+      const memData = await memRes.json();
+      if (memData.memories) setMemories(memData.memories);
+      if (onbRes.ok) {
+        const onbData = await onbRes.json();
+        setBusinessContext(onbData.businessContext || null);
+        setOrgName(onbData.orgName || "");
+      }
     } catch (err) {
       console.error("Error loading memories:", err);
     } finally {
@@ -412,6 +431,66 @@ export default function SinapsisPage() {
           />
         </div>
       </header>
+
+      {/* Perfil del negocio */}
+      {businessContext && (
+        <div className="relative z-10 max-w-[1400px] mx-auto mb-8">
+          <div
+            className="rounded-2xl p-5"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(251,191,36,0.04), rgba(15,15,20,0.5))",
+              border: "1px solid rgba(251,191,36,0.18)",
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#fbbf24]/70 mb-1">
+                  Perfil del negocio
+                </div>
+                <h3 className="text-[#fde68a] text-lg font-semibold">
+                  {orgName || "Tu negocio"}
+                </h3>
+                <p className="text-[#fde68a]/50 text-xs mt-1">
+                  Este es el contexto que Aurum usa para pensar como vos.
+                </p>
+              </div>
+              <button
+                onClick={() => router.push("/chat")}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all hover:scale-[1.02]"
+                style={{
+                  background: "rgba(251,191,36,0.08)",
+                  border: "1px solid rgba(251,191,36,0.25)",
+                  color: "#fde68a",
+                }}
+              >
+                Rehacer onboarding
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <ProfileChip label="Rubro" value={businessContext.industry} />
+              <ProfileChip label="Tipo" value={businessContext.businessType} />
+              <ProfileChip label="País" value={businessContext.country} />
+              <ProfileChip label="Etapa" value={businessContext.businessStage} />
+              {businessContext.salesChannels && businessContext.salesChannels.length > 0 && (
+                <ProfileChip
+                  label="Venta"
+                  value={businessContext.salesChannels.join(", ")}
+                  wide
+                />
+              )}
+              {businessContext.adChannels && businessContext.adChannels.length > 0 && (
+                <ProfileChip
+                  label="Publicidad"
+                  value={businessContext.adChannels.join(", ")}
+                  wide
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Form panel */}
       {showForm && (
@@ -926,6 +1005,34 @@ function MetricCard({
           />
         </div>
       )}
+    </div>
+  );
+}
+
+function ProfileChip({
+  label,
+  value,
+  wide,
+}: {
+  label: string;
+  value?: string;
+  wide?: boolean;
+}) {
+  if (!value) return null;
+  return (
+    <div
+      className={`rounded-xl px-3 py-2 ${wide ? "col-span-2 lg:col-span-4" : ""}`}
+      style={{
+        background: "rgba(251,191,36,0.04)",
+        border: "1px solid rgba(251,191,36,0.12)",
+      }}
+    >
+      <div className="text-[9px] font-mono uppercase tracking-[0.25em] text-[#fbbf24]/60 mb-1">
+        {label}
+      </div>
+      <div className="text-[#fde68a] text-sm font-medium capitalize truncate">
+        {value}
+      </div>
     </div>
   );
 }
