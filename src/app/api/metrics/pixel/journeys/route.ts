@@ -135,7 +135,17 @@ export async function GET(request: NextRequest) {
     // ── Capa 1: traer las ultimas ordenes con su attribution NITRO (si existe) ──
     // LEFT JOIN logic: traemos las ordenes mas recientes y por separado las attributions.
     const recentOrders = await prisma.order.findMany({
-      where: { organizationId: orgId },
+      where: {
+        organizationId: orgId,
+        // Excluir marketplace (ML/MELI no tiene pixel data por diseño)
+        trafficSource: { not: "Marketplace" },
+        source: { not: "MELI" },
+        channel: { not: "marketplace" },
+        // Excluir ordenes canceladas/pendientes
+        status: { notIn: ["CANCELLED", "PENDING"] },
+        // Excluir ordenes de valor 0
+        totalValue: { gt: 0 },
+      },
       orderBy: { orderDate: "desc" },
       take: limit,
       select: {
