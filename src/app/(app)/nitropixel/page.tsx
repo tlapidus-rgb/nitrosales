@@ -225,12 +225,12 @@ export default function NitroPixelPage() {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href="/nitropixel/quality"
+              href="/pixel/journeys"
               className="text-[10px] font-mono uppercase tracking-[0.2em] text-violet-300/70 hover:text-violet-200 transition flex items-center gap-2 px-3 py-1.5 rounded-lg border border-violet-500/30 hover:border-violet-400/60"
               style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.10), rgba(6,182,212,0.04))" }}
             >
-              <span>🦄</span>
-              Calidad de Atribución
+              <span>◇</span>
+              Customer Journeys
               <span>→</span>
             </Link>
             <Link

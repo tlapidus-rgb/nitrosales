@@ -492,20 +492,54 @@ export default function PixelPage() {
   const bk = d.businessKpis || { pixelRevenue: 0, pixelRoas: 0, ordersAttributed: 0, attributionRate: 0, aov: 0, totalAdSpend: 0, totalOrders: 0, webOrders: 0, webRevenue: 0, marketplaceOrders: 0, marketplaceRevenue: 0, changes: { pixelRevenue: 0, ordersAttributed: 0, pixelRoas: 0 } };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: "#fafafa" }}>
       {/* ══════════════════════════════════════════════════════════ */}
       {/* STICKY HEADER                                            */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          {/* Top bar: Title + Period selector */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      <div
+        className="sticky top-0 z-40 backdrop-blur-xl border-b border-gray-200/60"
+        style={{ background: "rgba(255,255,255,0.85)" }}
+      >
+        <div className="max-w-7xl mx-auto px-5 py-3">
+          {/* Top bar: Title + Live indicator */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center relative overflow-hidden"
+                style={{
+                  background: "linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%)",
+                  boxShadow: "0 4px 12px rgba(249,115,22,0.25), inset 0 1px 0 rgba(255,255,255,0.25)",
+                }}
+              >
+                <svg className="w-5 h-5 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <div>
+                <h1
+                  className="text-[18px] font-bold text-gray-900 leading-tight"
+                  style={{ letterSpacing: "-0.02em" }}
+                >
+                  NitroPixel Analytics
+                </h1>
+                <p className="text-[11px] text-gray-500 font-medium">Revenue attribution · datos en vivo</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">NitroPixel</h1>
-              <p className="text-xs text-gray-500">Revenue Attribution</p>
+            <div
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-[0.15em]"
+              style={{
+                background: d.liveStatus.status === "LIVE" ? "rgba(16,185,129,0.08)" : "rgba(100,116,139,0.08)",
+                color: d.liveStatus.status === "LIVE" ? "#059669" : "#64748b",
+                border: `1px solid ${d.liveStatus.status === "LIVE" ? "rgba(16,185,129,0.20)" : "rgba(100,116,139,0.18)"}`,
+              }}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{
+                  background: d.liveStatus.status === "LIVE" ? "#10b981" : "#94a3b8",
+                  boxShadow: d.liveStatus.status === "LIVE" ? "0 0 8px rgba(16,185,129,0.7)" : undefined,
+                  animation: d.liveStatus.status === "LIVE" ? "pixelHeartbeat 1.6s ease-in-out infinite" : undefined,
+                }}
+              />
+              {d.liveStatus.status === "LIVE" ? "EN VIVO" : d.liveStatus.status === "ACTIVE" ? "ACTIVO" : "INACTIVO"}
             </div>
           </div>
           <div className="mb-3">
@@ -1541,28 +1575,58 @@ function KpiCard({
   info?: string;
   sub?: string;
 }) {
-  const colorMap: Record<string, string> = {
-    indigo: "bg-white border-indigo-200",
-    cyan: "bg-white border-cyan-200",
-    purple: "bg-white border-purple-200",
-    orange: "bg-white border-orange-200",
-    green: "bg-white border-emerald-200",
-    pink: "bg-white border-pink-200",
-    gray: "bg-white border-gray-200",
+  // Premium accent color per kpi (top hairline + label color)
+  const accentMap: Record<string, { bar: string; label: string; ring: string }> = {
+    indigo: { bar: "linear-gradient(90deg, #6366f1, #8b5cf6)", label: "text-indigo-500", ring: "rgba(99,102,241,0.10)" },
+    cyan:   { bar: "linear-gradient(90deg, #06b6d4, #0ea5e9)", label: "text-cyan-600",   ring: "rgba(6,182,212,0.10)" },
+    purple: { bar: "linear-gradient(90deg, #a855f7, #d946ef)", label: "text-purple-500", ring: "rgba(168,85,247,0.10)" },
+    orange: { bar: "linear-gradient(90deg, #f97316, #fb923c)", label: "text-orange-500", ring: "rgba(249,115,22,0.10)" },
+    green:  { bar: "linear-gradient(90deg, #10b981, #34d399)", label: "text-emerald-600",ring: "rgba(16,185,129,0.10)" },
+    pink:   { bar: "linear-gradient(90deg, #ec4899, #f472b6)", label: "text-pink-500",   ring: "rgba(236,72,153,0.10)" },
+    gray:   { bar: "linear-gradient(90deg, #64748b, #94a3b8)", label: "text-gray-500",   ring: "rgba(100,116,139,0.10)" },
   };
+  const a = accentMap[color] || accentMap.gray;
 
   return (
-    <div className={`rounded-xl ${colorMap[color] || colorMap.gray} border p-4 shadow-sm hover:shadow-md transition-shadow`}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+    <div
+      className="group relative rounded-xl bg-white border border-gray-200/80 p-4 transition-all duration-200 hover:-translate-y-0.5 overflow-hidden"
+      style={{
+        boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)",
+      }}
+    >
+      {/* Top hairline accent */}
+      <div
+        className="absolute top-0 left-3 right-3 h-[2px] rounded-full opacity-90"
+        style={{ background: a.bar }}
+      />
+      {/* Hover glow ring */}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        style={{ boxShadow: `0 0 0 4px ${a.ring}` }}
+      />
+      <div className="flex items-center justify-between mb-1.5">
+        <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${a.label}`}>
           {label}{info && <InfoTip text={info} />}
         </span>
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-gray-900">{value}</span>
-        {change !== undefined && <span className={`text-xs font-medium ${pctColor(change)}`}>{pctBadge(change)}</span>}
+        <span
+          className="text-[26px] leading-none font-bold text-gray-900 tabular-nums"
+          style={{ letterSpacing: "-0.02em" }}
+        >
+          {value}
+        </span>
+        {change !== undefined && (
+          <span
+            className={`text-[11px] font-semibold tabular-nums ${pctColor(change)} flex items-center gap-0.5`}
+          >
+            {change > 0 && <span>↑</span>}
+            {change < 0 && <span>↓</span>}
+            {pctBadge(change)}
+          </span>
+        )}
       </div>
-      {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
+      {sub && <p className="text-[11px] text-gray-500 mt-1.5 font-medium">{sub}</p>}
     </div>
   );
 }
