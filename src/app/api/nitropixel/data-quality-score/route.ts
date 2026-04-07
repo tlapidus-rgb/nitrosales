@@ -26,6 +26,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -376,12 +377,25 @@ function computeWeightedScore(
 
 export async function GET(req: NextRequest) {
   try {
-    const orgId = await getOrganizationId();
+    const url = new URL(req.url);
+    const adminOrgIdParam = url.searchParams.get("orgId");
+
+    // Admin override: allow internal users to query any org by ?orgId=
+    let orgId: string;
+    if (adminOrgIdParam) {
+      const isAdmin = await isInternalUser();
+      if (!isAdmin) {
+        return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+      }
+      orgId = adminOrgIdParam;
+    } else {
+      orgId = await getOrganizationId();
+    }
+
     if (!orgId) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const url = new URL(req.url);
     const win = parseWindow(url.searchParams.get("window"));
 
     const cacheKey = `${orgId}:${win.key}`;
