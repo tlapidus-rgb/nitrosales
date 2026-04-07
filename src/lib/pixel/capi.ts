@@ -27,8 +27,10 @@ interface CAPIEventData {
   userAgent?: string;
   ipAddress?: string;
   fbclid?: string;
-  fbc?: string; // _fbc cookie value
-  fbp?: string; // _fbp cookie value
+  fbc?: string; // _fbc cookie value (REAL — never fabricated)
+  fbp?: string; // _fbp cookie value (REAL)
+  externalId?: string; // Stable first-party id (visitorId or customerId) — boosts EMQ
+  countryCode?: string; // ISO-2, e.g. 'ar', 'br'. Defaults to 'ar' (org-aware later).
 }
 
 // ─── Hash helpers (Meta requires SHA256, lowercase, trimmed) ───
@@ -81,15 +83,18 @@ export async function sendCapiPurchase(
     const timestamp = Math.floor(Date.now() / 1000);
 
     // User data — hash PII fields per Meta requirements
+    // EMQ best practice: include as many identifiers as possible.
+    // CRITICAL: never fabricate fbc — only send real _fbc cookie value.
     const userData: Record<string, any> = {};
     if (data.email) userData.em = [sha256(data.email)];
     if (data.phone) userData.ph = [sha256(data.phone.replace(/[^0-9]/g, ''))];
     if (data.ipAddress) userData.client_ip_address = data.ipAddress;
     if (data.userAgent) userData.client_user_agent = data.userAgent;
-    if (data.fbclid) userData.fbc = data.fbc || `fb.1.${timestamp}.${data.fbclid}`;
+    if (data.fbc) userData.fbc = data.fbc; // REAL value only — never fabricate
     if (data.fbp) userData.fbp = data.fbp;
-    // Country hint for Argentina
-    userData.country = [sha256('ar')];
+    if (data.externalId) userData.external_id = [sha256(data.externalId)]; // Stable first-party id boosts EMQ
+    // Country hint — defaults to 'ar' until org-level country lookup is wired
+    userData.country = [sha256((data.countryCode || 'ar').toLowerCase())];
 
     // Custom data — purchase details
     const customData: Record<string, any> = {
@@ -171,6 +176,8 @@ interface CAPIGenericData {
   fbclid?: string;
   fbc?: string;
   fbp?: string;
+  externalId?: string; // Stable first-party id (visitorId or customerId) — boosts EMQ
+  countryCode?: string; // ISO-2, defaults to 'ar'
   // Product data (ViewContent, AddToCart)
   productId?: string;
   productName?: string;
@@ -214,15 +221,17 @@ async function resolveMetaCredentials(organizationId: string): Promise<{ pixelId
 }
 
 function buildUserData(data: CAPIGenericData): Record<string, any> {
-  const timestamp = Math.floor(Date.now() / 1000);
+  // EMQ best practice (Meta): include as many real identifiers as possible.
+  // CRITICAL: never fabricate fbc — only send the real _fbc cookie value.
   const userData: Record<string, any> = {};
   if (data.email) userData.em = [sha256(data.email)];
   if (data.phone) userData.ph = [sha256(data.phone.replace(/[^0-9]/g, ''))];
   if (data.ipAddress) userData.client_ip_address = data.ipAddress;
   if (data.userAgent) userData.client_user_agent = data.userAgent;
-  if (data.fbclid) userData.fbc = data.fbc || `fb.1.${timestamp}.${data.fbclid}`;
+  if (data.fbc) userData.fbc = data.fbc; // REAL value only
   if (data.fbp) userData.fbp = data.fbp;
-  userData.country = [sha256('ar')];
+  if (data.externalId) userData.external_id = [sha256(data.externalId)];
+  userData.country = [sha256((data.countryCode || 'ar').toLowerCase())];
   return userData;
 }
 

@@ -690,12 +690,15 @@ model PixelVisitor {
   id              String    @id @default(cuid())
   visitorId       String                          // UUID del cookie _np_vid
   email           String?                         // Cuando se identifica (checkout, login)
+  phone           String?                         // E.164 normalized — used as 2nd identity key for LATAM (WhatsApp orders)
   firstSeenAt     DateTime  @default(now()) @db.Timestamptz
   lastSeenAt      DateTime  @default(now()) @db.Timestamptz
   totalSessions   Int       @default(1)
   totalPageViews  Int       @default(0)
   deviceTypes     String[]  @default([])          // ["mobile", "desktop"]
   clickIds        Json?                           // { fbclid, gclid, ttclid, last_utm_source, last_utm_medium, last_utm_campaign }
+  metaFbc         String?                         // Latest real _fbc cookie value (Meta EMQ — never fabricated)
+  metaFbp         String?                         // Latest real _fbp cookie value
   country         String?
   region          String?
   fingerprintHash String?                         // Browser fingerprint hash (data-only, NOT used for merge)
@@ -711,6 +714,7 @@ model PixelVisitor {
 
   @@unique([organizationId, visitorId])
   @@index([organizationId, email])
+  @@index([organizationId, phone])
   @@index([organizationId, lastSeenAt])
   @@index([organizationId, fingerprintHash])
   @@map("pixel_visitors")
@@ -739,6 +743,8 @@ model PixelEvent {
   props           Json?                           // Datos del evento (item_id, value, order_id, etc.)
   clickIds        Json?                           // { fbclid, gclid } activos al momento del evento
   utmParams       Json?                           // { source, medium, campaign, content, term }
+  metaFbc         String?                         // Real _fbc cookie value (snapshot per event)
+  metaFbp         String?                         // Real _fbp cookie value (snapshot per event)
   deviceType      String?                         // mobile, desktop, tablet
   country         String?
   region          String?

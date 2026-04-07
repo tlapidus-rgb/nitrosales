@@ -20,6 +20,8 @@ import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 import { calculateAttribution } from "@/lib/pixel/attribution";
 import { sendCapiPurchase } from "@/lib/pixel/capi";
+import { normalizePhone } from "@/lib/pixel/identity";
+import { verifyWebhookSignature } from "@/lib/webhooks/signature";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -57,8 +59,10 @@ export async function POST(req: NextRequest) {
     // When VTEX configures a hook, it sends a validation POST.
     // We must return 200 immediately to pass the check.
     let body: any;
+    let rawBodyText = ""; // Captured for downstream HMAC verification
     try {
       const text = await req.text();
+      rawBodyText = text;
       if (!text || text.trim() === "" || text.trim() === "{}") {
         // Empty body = validation ping from VTEX
         return NextResponse.json({
@@ -112,6 +116,24 @@ export async function POST(req: NextRequest) {
     }
 
     const org = connection.organization;
+
+    // ── HMAC / shared-secret webhook signature verification ──
+    // Soft-allow if no secret configured (gradual rollout). Set WEBHOOK_ENFORCE=1 to hard-deny.
+    const verifyResult = await verifyWebhookSignature({
+      rawBody: rawBodyText,
+      headers: req.headers,
+      organizationId: org.id,
+      providerEnvVar: "VTEX_WEBHOOK_SECRET",
+    });
+    if (!verifyResult.ok) {
+      console.warn(
+        `[Webhook:Orders] Signature verification FAILED (org=${org.id}, reason=${verifyResult.reason}). Rejecting.`,
+      );
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    if (verifyResult.mode && verifyResult.mode !== "no-secret-allow") {
+      console.log(`[Webhook:Orders] Signature verified (mode=${verifyResult.mode})`);
+    }
 
     // ── Build VTEX headers (centralized credential access) ──
     const vtexConfig = await getVtexConfig(org.id);
@@ -437,6 +459,24 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // ── Strategy 3.1: Match by NORMALIZED PHONE ──
+      // Critical for LATAM: many WhatsApp / mobile orders arrive without a usable
+      // email but with a real phone number. Phone match closes ~5-10% of the
+      // attribution gap that the email-only flow misses.
+      const normalizedOrderPhone = normalizePhone(profile?.phone || null);
+      if (!matchedVisitorId && normalizedOrderPhone) {
+        const pixelVisitorByPhone = await prisma.pixelVisitor.findFirst({
+          where: { organizationId: org.id, phone: normalizedOrderPhone }
+        });
+        if (pixelVisitorByPhone) {
+          matchedVisitorId = pixelVisitorByPhone.id;
+          matchStrategy = 'phone-match';
+          console.log(`[NitroPixel] Strategy 3.1 HIT: Phone match (${normalizedOrderPhone}), visitor=${matchedVisitorId}`);
+        } else {
+          console.log(`[NitroPixel] Strategy 3.1 MISS: No visitor with phone ${normalizedOrderPhone}`);
+        }
+      }
+
       // ── Strategy 3.5: IP+UserAgent fingerprint matching ──
       // Like Triple Whale's Identity Graph: match the order to a visitor
       // that browsed from the same device (IP + UserAgent).
@@ -535,6 +575,13 @@ export async function POST(req: NextRequest) {
             data: { email: realEmail }
           }).catch(() => {}); // Don't fail if update errors
         }
+        // Same defensive rule for phone — only fill, never overwrite a different value.
+        if (normalizedOrderPhone) {
+          await prisma.pixelVisitor.updateMany({
+            where: { id: matchedVisitorId, OR: [{ phone: null }, { phone: '' }, { phone: normalizedOrderPhone }] },
+            data: { phone: normalizedOrderPhone }
+          }).catch(() => {});
+        }
 
         // Calculate attribution
         await calculateAttribution(order.id, matchedVisitorId, org.id);
@@ -586,7 +633,7 @@ export async function POST(req: NextRequest) {
         // Uses the matched visitor's fbclid for better Event Match Quality.
         const matchedVisitorData = await prisma.pixelVisitor.findUnique({
           where: { id: matchedVisitorId! },
-          select: { clickIds: true, email: true }
+          select: { clickIds: true, email: true, phone: true, metaFbc: true, metaFbp: true }
         }).catch(() => null);
         const visitorClickIds = (matchedVisitorData?.clickIds as Record<string, string>) || {};
 
@@ -595,9 +642,14 @@ export async function POST(req: NextRequest) {
           total: totalValue,
           currency: 'ARS',
           email: realEmail || matchedVisitorData?.email || undefined,
-          phone: profile?.phone ? profile.phone.replace(/[^0-9+]/g, '') : undefined,
+          phone: (profile?.phone || matchedVisitorData?.phone || undefined)
+            ? String(profile?.phone || matchedVisitorData?.phone).replace(/[^0-9+]/g, '')
+            : undefined,
           eventId: `np_wh_${orderId}_${Date.now()}`,
           fbclid: visitorClickIds.fbclid || undefined,
+          fbc: matchedVisitorData?.metaFbc || undefined,
+          fbp: matchedVisitorData?.metaFbp || undefined,
+          externalId: matchedVisitorId!,
           ipAddress: undefined, // Not available from webhook
           userAgent: undefined,
         }).catch(err => console.error('[NitroPixel CAPI webhook] Non-fatal:', err));
