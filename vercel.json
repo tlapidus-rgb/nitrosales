@@ -48,6 +48,10 @@
     {
       "path": "/api/cron/influencer-summary?key=nitrosales-secret-key-2024-production",
       "schedule": "0 10 1 * *"
+    },
+    {
+      "path": "/api/cron/ads-utm-audit?key=nitrosales-secret-key-2024-production",
+      "schedule": "0 12 * * *"
     }
   ]
 }
