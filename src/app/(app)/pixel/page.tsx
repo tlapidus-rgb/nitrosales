@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { DateRangeFilter } from "@/components/dashboard";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -307,6 +307,11 @@ export default function PixelPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Sticky header collapse on scroll
+  const [headerCompact, setHeaderCompact] = useState(false);
+  // Cmd+K command palette
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   // Ventas por Canal section
   const [salesBySource, setSalesBySource] = useState<Array<{
     source: string;
@@ -334,6 +339,39 @@ export default function PixelPage() {
   }, [dateFrom, dateTo, currentPage, selectedModel]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Scroll listener — collapse header after a soft threshold
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        const compact = window.scrollY > 96;
+        setHeaderCompact((prev) => (prev === compact ? prev : compact));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // Cmd+K listener
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((p) => !p);
+      } else if (e.key === "Escape") {
+        setPaletteOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Fetch sales by source data
   useEffect(() => {
@@ -543,7 +581,7 @@ export default function PixelPage() {
       {/* STICKY HEADER — Digital Asset Vivo                       */}
       {/* ══════════════════════════════════════════════════════════ */}
       <div
-        className="sticky top-0 z-40 backdrop-blur-xl border-b border-gray-200/60 relative overflow-hidden"
+        className={`sticky top-0 z-40 backdrop-blur-xl border-b border-gray-200/60 relative overflow-hidden ${headerCompact ? "pixel-header-compact" : ""}`}
         style={{ background: "rgba(255,255,255,0.88)" }}
       >
         {/* Animated grid background */}
@@ -695,7 +733,7 @@ export default function PixelPage() {
               </div>
             </div>
           </div>
-          <div className="mb-3">
+          <div className="pixel-header-collapse mb-3">
             <DateRangeFilter
               dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
               quickRanges={PIXEL_QUICK_RANGES} onQuickRange={setQuickRange}
@@ -708,31 +746,66 @@ export default function PixelPage() {
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mr-1">Modelo</span>
             <InfoTip text="El modelo de atribucion define como se reparte el credito de una venta entre los distintos canales que toco el cliente antes de comprar. Cambia de modelo y vas a ver como cambian todos los numeros." />
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 ml-2">
-              {MODEL_ORDER.map((model) => (
-                <button
-                  key={model}
-                  onClick={() => setSelectedModel(model)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    selectedModel === model
-                      ? model === "NITRO"
-                        ? "bg-orange-500 text-white shadow-sm"
-                        : "bg-white text-gray-700 shadow-sm border border-gray-200"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {model === "NITRO" && (
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
-                    </svg>
-                  )}
-                  {MODEL_LABELS[model]}
-                </button>
-              ))}
+              {MODEL_ORDER.map((model) => {
+                const tooltip = MODEL_DESCRIPTIONS[model];
+                const Icon = () => {
+                  if (model === "NITRO") {
+                    return (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                      </svg>
+                    );
+                  }
+                  if (model === "LAST_CLICK") {
+                    return (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <circle cx="12" cy="12" r="9" />
+                        <circle cx="12" cy="12" r="4" />
+                        <circle cx="12" cy="12" r="0.8" fill="currentColor" />
+                      </svg>
+                    );
+                  }
+                  if (model === "FIRST_CLICK") {
+                    return (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path d="M5 21V4" />
+                        <path d="M5 4h11l-2 4 2 4H5" />
+                      </svg>
+                    );
+                  }
+                  if (model === "LINEAR") {
+                    return (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <rect x="3" y="6" width="18" height="3" rx="1.5" />
+                        <rect x="3" y="15" width="18" height="3" rx="1.5" />
+                      </svg>
+                    );
+                  }
+                  return null;
+                };
+                return (
+                  <button
+                    key={model}
+                    onClick={() => setSelectedModel(model)}
+                    title={tooltip}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      selectedModel === model
+                        ? model === "NITRO"
+                          ? "bg-orange-500 text-white shadow-sm"
+                          : "bg-white text-gray-700 shadow-sm border border-gray-200"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    <Icon />
+                    {MODEL_LABELS[model]}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* ═══ MODEL DESCRIPTION BAR ═══ */}
-          <div className={`rounded-lg px-4 py-2.5 mb-2 flex items-start gap-3 ${
+          <div className={`pixel-header-collapse rounded-lg px-4 py-2.5 mb-2 flex items-start gap-3 ${
             selectedModel === "NITRO" ? "bg-orange-500/5 border border-orange-500/20" : "bg-white border border-gray-200"
           }`}>
             <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 ${
@@ -860,7 +933,7 @@ export default function PixelPage() {
           </div>
 
           {/* ═══ ATTRIBUTION WINDOW CONFIG ═══ */}
-          <div className="mt-3">
+          <div className="pixel-header-collapse mt-3">
             <button
               onClick={() => { setWindowOpen(!windowOpen); setEditingGlobalWindow(globalWindow); setEditingChannelWindows({...channelWindows}); setWindowError(null); }}
               className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-400 transition-colors"
@@ -989,7 +1062,7 @@ export default function PixelPage() {
       {/* ══════════════════════════════════════════════════════════ */}
       {/* PAGE CONTENT                                              */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 pixel-stagger">
+      <div className={`max-w-7xl mx-auto px-4 py-6 space-y-6 pixel-stagger ${loading && data ? "pixel-refetching" : ""}`}>
 
         {/* ═══ PIXEL HEALTH BAR — System Vitals Cockpit ═══ */}
         {(() => {
@@ -1265,10 +1338,11 @@ export default function PixelPage() {
                           )}
                         </div>
 
-                        {/* Expanded Journey */}
-                        {isExpanded && (
-                          <div className="px-5 pb-5 ml-10">
-                            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                        {/* Expanded Journey — smooth grid expand */}
+                        <div className={`pixel-expand ${isExpanded ? "open" : ""}`}>
+                          <div className="pixel-expand-inner">
+                            <div className="px-5 pb-5 ml-10 pt-1">
+                              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
                               {/* Unattributed order message */}
                               {journey.isAttributed === false && (
                                 <div className="mb-4 bg-amber-50 rounded-lg p-3 border border-amber-200">
@@ -1356,9 +1430,10 @@ export default function PixelPage() {
                                 <span>Fuente principal: <strong className="text-gray-700">{creditSummary[0]?.label} ({creditSummary[0]?.pct}%)</strong></span>
                                 <span>Touchpoints: <strong className="text-gray-700">{journey.touchpointCount}</strong></span>
                               </div>
+                              </div>
                             </div>
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1902,8 +1977,92 @@ export default function PixelPage() {
             <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
             Hover para ver explicacion
           </span>
+          <span className="ml-4 flex items-center gap-1 text-gray-400">
+            <kbd className="text-[10px] font-mono bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-500">⌘K</kbd>
+            Comandos rápidos
+          </span>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* CMD+K COMMAND PALETTE                                    */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {paletteOpen && (
+        <div
+          className="pixel-palette-backdrop fixed inset-0 z-[100] flex items-start justify-center pt-[18vh] px-4"
+          style={{ background: "rgba(15,23,42,0.32)" }}
+          onClick={() => setPaletteOpen(false)}
+        >
+          <div
+            className="pixel-palette w-full max-w-lg rounded-2xl bg-white border border-gray-200 overflow-hidden"
+            style={{ boxShadow: "0 20px 60px rgba(15,23,42,0.18), 0 4px 16px rgba(15,23,42,0.08)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
+              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <span className="text-sm text-gray-400 flex-1">Comandos rápidos…</span>
+              <kbd className="text-[10px] font-mono bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 text-gray-500">ESC</kbd>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto py-2">
+              <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">Vistas</div>
+              {([
+                { id: "resumen", label: "Resumen" },
+                { id: "ordenes", label: "Órdenes" },
+                { id: "canales", label: "Canales" },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id); setPaletteOpen(false); }}
+                  className="w-full text-left px-3 py-2 mx-1 rounded-lg flex items-center gap-3 hover:bg-orange-50 transition-colors group"
+                >
+                  <span className="w-7 h-7 rounded-md bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+                    <svg className="w-3.5 h-3.5 text-gray-500 group-hover:text-orange-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                  </span>
+                  <span className="text-sm text-gray-700 flex-1">Ir a {tab.label}</span>
+                  {activeTab === tab.id && <span className="text-[10px] text-orange-600 font-bold">ACTIVO</span>}
+                </button>
+              ))}
+              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">Modelo de Atribución</div>
+              {MODEL_ORDER.map((model) => (
+                <button
+                  key={model}
+                  onClick={() => { setSelectedModel(model); setPaletteOpen(false); }}
+                  className="w-full text-left px-3 py-2 mx-1 rounded-lg flex items-center gap-3 hover:bg-orange-50 transition-colors group"
+                >
+                  <span className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                    model === "NITRO" ? "bg-orange-100" : "bg-gray-100 group-hover:bg-orange-100"
+                  }`}>
+                    {model === "NITRO" ? (
+                      <svg className="w-3.5 h-3.5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+                      </svg>
+                    ) : (
+                      <span className="text-[10px] font-bold text-gray-500">{model[0]}</span>
+                    )}
+                  </span>
+                  <span className="text-sm text-gray-700 flex-1">{MODEL_LABELS[model]}</span>
+                  {selectedModel === model && <span className="text-[10px] text-orange-600 font-bold">ACTIVO</span>}
+                </button>
+              ))}
+              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">Acciones</div>
+              <button
+                onClick={() => { fetchData(); setPaletteOpen(false); }}
+                className="w-full text-left px-3 py-2 mx-1 rounded-lg flex items-center gap-3 hover:bg-orange-50 transition-colors group"
+              >
+                <span className="w-7 h-7 rounded-md bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+                  <svg className="w-3.5 h-3.5 text-gray-500 group-hover:text-orange-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M4 4v6h6M20 20v-6h-6M4 10a8 8 0 0114-4M20 14a8 8 0 01-14 4"/>
+                  </svg>
+                </span>
+                <span className="text-sm text-gray-700 flex-1">Refrescar datos</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1938,6 +2097,7 @@ function KpiCard({
     gray:   { bar: "linear-gradient(90deg, #64748b, #94a3b8)", label: "text-gray-500",   ring: "rgba(100,116,139,0.10)" },
   };
   const a = accentMap[color] || accentMap.gray;
+  const displayValue = useAnimatedValue(value);
 
   return (
     <div
@@ -1966,7 +2126,7 @@ function KpiCard({
           className="text-[26px] leading-none font-bold text-gray-900 tabular-nums"
           style={{ letterSpacing: "-0.02em" }}
         >
-          {value}
+          {displayValue}
         </span>
         {change !== undefined && (
           <span
@@ -2061,8 +2221,162 @@ function PixelStyles() {
           radial-gradient(ellipse 600px 200px at 20% 0%, rgba(249,115,22,0.06), transparent 60%),
           radial-gradient(ellipse 500px 180px at 80% 100%, rgba(99,102,241,0.05), transparent 60%);
       }
+      /* Smooth expand using grid-template-rows trick (Linear/Stripe-grade) */
+      .pixel-expand {
+        display: grid;
+        grid-template-rows: 0fr;
+        opacity: 0;
+        transition:
+          grid-template-rows 520ms cubic-bezier(0.16, 1, 0.3, 1),
+          opacity 360ms cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: grid-template-rows, opacity;
+      }
+      .pixel-expand.open {
+        grid-template-rows: 1fr;
+        opacity: 1;
+      }
+      .pixel-expand-inner {
+        overflow: hidden;
+        min-height: 0;
+      }
+      .pixel-expand.open .pixel-expand-inner > * {
+        animation: pixelFadeUp 540ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-delay: 80ms;
+      }
+      /* Skeleton shimmer */
+      @keyframes pixelShimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      .pixel-skeleton {
+        background: linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.08) 50%, rgba(15,23,42,0.04) 100%);
+        background-size: 200% 100%;
+        animation: pixelShimmer 1.6s ease-in-out infinite;
+        border-radius: 8px;
+      }
+      /* Refetch overlay */
+      .pixel-refetching {
+        position: relative;
+        opacity: 0.7;
+        transition: opacity 280ms ease-out;
+      }
+      .pixel-refetching::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+        background-size: 200% 100%;
+        animation: pixelShimmer 1.4s ease-in-out infinite;
+        pointer-events: none;
+        border-radius: inherit;
+      }
+      /* Compact sticky header on scroll */
+      .pixel-header-collapse {
+        max-height: 800px;
+        opacity: 1;
+        overflow: hidden;
+        transition:
+          max-height 420ms cubic-bezier(0.16, 1, 0.3, 1),
+          opacity 280ms cubic-bezier(0.16, 1, 0.3, 1),
+          margin 420ms cubic-bezier(0.16, 1, 0.3, 1),
+          padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .pixel-header-compact .pixel-header-collapse {
+        max-height: 0 !important;
+        opacity: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        pointer-events: none;
+      }
+      /* Cmd+K palette */
+      @keyframes pixelPaletteIn {
+        from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      @keyframes pixelBackdropIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .pixel-palette-backdrop {
+        animation: pixelBackdropIn 200ms ease-out both;
+        backdrop-filter: blur(6px);
+      }
+      .pixel-palette {
+        animation: pixelPaletteIn 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      /* Reduce motion */
+      @media (prefers-reduced-motion: reduce) {
+        .pixel-fade-up, .pixel-stagger > *, .pixel-expand, .pixel-expand.open .pixel-expand-inner > *, .pixel-palette, .pixel-skeleton {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
     `}</style>
   );
+}
+
+// ══════════════════════════════════════════════════════════════
+// HOOKS — count-up animation premium
+// ══════════════════════════════════════════════════════════════
+function useCountUp(target: number, duration = 900): number {
+  const [value, setValue] = useState(target);
+  const prevTargetRef = useRef(target);
+  const rafRef = useRef<number | null>(null);
+  useEffect(() => {
+    const from = prevTargetRef.current;
+    const to = target;
+    if (from === to || !Number.isFinite(to)) {
+      setValue(to);
+      return;
+    }
+    const start = performance.now();
+    const ease = (t: number) => 1 - Math.pow(1 - t, 4);
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = ease(progress);
+      setValue(from + (to - from) * eased);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        prevTargetRef.current = to;
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [target, duration]);
+  return value;
+}
+
+// Animate any string that contains a numeric portion (e.g. "$12,345", "12.5%", "$1.2M")
+// Falls back gracefully when no number is detected.
+function useAnimatedValue(value: string, duration = 900): string {
+  // Match the FIRST numeric run (handles 1,234.56)
+  const match = value?.match?.(/-?\d+(?:[.,]\d+)*(?:\.\d+)?/);
+  const raw = match?.[0] ?? "";
+  const cleaned = raw.replace(/,/g, "");
+  const numeric = parseFloat(cleaned);
+  const animated = useCountUp(Number.isFinite(numeric) ? numeric : 0, duration);
+  if (!match || !Number.isFinite(numeric)) return value;
+
+  // Preserve original formatting style (commas + decimals)
+  const hasComma = raw.includes(",");
+  const decimals = (() => {
+    const dot = raw.lastIndexOf(".");
+    if (dot === -1) return 0;
+    const tail = raw.slice(dot + 1);
+    return /^\d+$/.test(tail) ? tail.length : 0;
+  })();
+  const formatted = animated.toLocaleString("es-AR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: hasComma || Math.abs(numeric) >= 1000,
+  });
+  return value.replace(raw, formatted);
 }
 
 function cleanUrl(url: string): string {
