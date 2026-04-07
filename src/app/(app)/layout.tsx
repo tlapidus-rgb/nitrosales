@@ -727,8 +727,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto">{children}</main>
+        {/* Page content — Aurum routes get full-bleed dark canvas, others get padded light bg */}
+        {(() => {
+          const aurumRoutes = ["/chat", "/sinapsis", "/boveda", "/memory"];
+          const isAurum = aurumRoutes.some((r) => pathname.startsWith(r));
+          return (
+            <main
+              className={
+                isAurum
+                  ? "flex-1 p-0 overflow-hidden bg-[#0a0a0f]"
+                  : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
+              }
+            >
+              {children}
+            </main>
+          );
+        })()}
       </div>
     </div>
   );

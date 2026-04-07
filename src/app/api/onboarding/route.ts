@@ -68,7 +68,14 @@ export async function GET(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const org = await getOrganization();
-    const settings = (org as any).settings || {};
+    // CRITICAL: getOrganization() no selecciona `settings`. Hacemos una segunda
+    // query directa para leer el campo real desde la DB. Sin esto, el wizard
+    // re-aparece en cada refresh porque businessContext siempre era null.
+    const orgWithSettings = await prisma.organization.findUnique({
+      where: { id: org.id },
+      select: { settings: true },
+    });
+    const settings = (orgWithSettings?.settings as any) || {};
     const businessContext = settings.businessContext || null;
 
     return NextResponse.json({ businessContext, orgName: org.name });
@@ -101,7 +108,13 @@ export async function POST(req: NextRequest) {
     };
 
     // Save to Organization.settings (CRITICAL — this must succeed)
-    const currentSettings = (org as any).settings || {};
+    // Leemos los settings actuales con una query directa porque getOrganization()
+    // no los devuelve. Sin esto, cada POST piso TODO el campo settings.
+    const orgWithSettings = await prisma.organization.findUnique({
+      where: { id: org.id },
+      select: { settings: true },
+    });
+    const currentSettings = (orgWithSettings?.settings as any) || {};
     await prisma.organization.update({
       where: { id: org.id },
       data: {

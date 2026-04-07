@@ -138,6 +138,38 @@ function AurumOrb({ size = 40, thinking = false }: { size?: number; thinking?: b
   );
 }
 
+// ══════ Cycling Headline (welcome) ══════
+const WELCOME_PHRASES = [
+  "Razonando con tus números",
+  "Cruzando ventas, ads y pixel",
+  "Encontrando lo que no estás viendo",
+];
+function CyclingHeadline() {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % WELCOME_PHRASES.length), 2800);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="h-5 mt-1 relative w-full max-w-md mx-auto">
+      {WELCOME_PHRASES.map((phrase, i) => (
+        <div
+          key={i}
+          className="absolute inset-0 text-[11px] font-mono uppercase tracking-[0.2em] text-center transition-all duration-700"
+          style={{
+            color: "#fbbf24",
+            opacity: i === idx ? 0.85 : 0,
+            transform: i === idx ? "translateY(0)" : "translateY(6px)",
+            textShadow: "0 0 14px rgba(251,191,36,0.35)",
+          }}
+        >
+          {phrase}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ══════ Thinking Indicator ══════
 function AurumThinking() {
   const [idx, setIdx] = useState(0);
@@ -373,10 +405,10 @@ export default function ChatPage() {
   const aurumCanvas: React.CSSProperties = {
     background:
       "radial-gradient(ellipse at top, rgba(251,191,36,0.06) 0%, transparent 55%), radial-gradient(ellipse at bottom, rgba(217,119,6,0.04) 0%, transparent 60%), linear-gradient(180deg, #0a0a0f 0%, #0f0d14 50%, #0a0a0f 100%)",
-    minHeight: "calc(100vh - 64px)",
-    height: "calc(100vh - 64px)",
-    margin: "-1rem",
+    height: "100%",
+    width: "100%",
     padding: "1.5rem 2rem",
+    overflow: "hidden",
   };
 
   if (checkingOnboarding) {
@@ -769,14 +801,55 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto min-h-0 pr-2">
         {isEmpty && !loading && (
           <div
-            className="flex flex-col items-center text-center mt-8 mb-8"
+            className="flex flex-col items-center text-center mt-6 mb-8 relative"
             style={{ animation: "aurumFadeUp 600ms cubic-bezier(0.16,1,0.3,1)" }}
           >
-            <div style={{ animation: "aurumFloat 4s ease-in-out infinite" }}>
-              <AurumOrb size={88} />
+            {/* Outer halo */}
+            <div
+              className="absolute top-0 left-1/2 -translate-x-1/2 w-[280px] h-[280px] pointer-events-none"
+              style={{
+                background:
+                  "radial-gradient(circle, rgba(251,191,36,0.10) 0%, rgba(251,191,36,0.04) 30%, transparent 65%)",
+                animation: "aurumPulseRing 5s ease-in-out infinite",
+              }}
+            />
+            {/* Pre-headline badge */}
+            <div
+              className="relative inline-flex items-center gap-2 px-3 py-1 rounded-full mb-5"
+              style={{
+                background: "linear-gradient(135deg, rgba(251,191,36,0.12), rgba(251,191,36,0.02))",
+                border: "1px solid rgba(251,191,36,0.28)",
+                boxShadow: "0 0 18px rgba(251,191,36,0.10)",
+              }}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: "#fbbf24", boxShadow: "0 0 8px rgba(251,191,36,0.9)", animation: "aurumBreath 2.4s ease-in-out infinite" }}
+              />
+              <span className="text-[9px] font-mono uppercase tracking-[0.22em]" style={{ color: "#fde68a" }}>
+                Intelligence Engine · v1
+              </span>
             </div>
-            <h3 className="text-2xl font-bold text-white mt-5">Qué querés entender hoy?</h3>
-            <p className="text-sm mt-2 max-w-md" style={{ color: "#9ca3af" }}>
+
+            <div className="relative" style={{ animation: "aurumFloat 4s ease-in-out infinite" }}>
+              <AurumOrb size={92} />
+            </div>
+
+            <h3
+              className="text-3xl font-bold mt-5 tracking-tight"
+              style={{
+                background: "linear-gradient(135deg, #ffffff 0%, #fef3c7 50%, #fbbf24 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Qué querés entender hoy?
+            </h3>
+
+            <CyclingHeadline />
+
+            <p className="text-[13px] mt-4 max-w-md leading-relaxed" style={{ color: "#9ca3af" }}>
               Accedo en tiempo real a ventas, ads, tráfico, clientes y productos. Cada respuesta
               trae diagnóstico, insights, oportunidades y plan de acción.
             </p>
@@ -861,25 +934,47 @@ export default function ChatPage() {
               <button
                 key={i}
                 onClick={() => sendMessage(s.prompt)}
-                className="group text-left rounded-xl px-4 py-3 transition-all duration-500"
+                className="group relative text-left rounded-xl px-4 py-3 transition-all duration-500 overflow-hidden"
                 style={{
-                  background: "rgba(255,255,255,0.02)",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008))",
                   border: "1px solid rgba(255,255,255,0.06)",
                   animation: `aurumFadeUp 500ms cubic-bezier(0.16,1,0.3,1) ${i * 60}ms both`,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "linear-gradient(135deg, rgba(251,191,36,0.08), rgba(245,158,11,0.02))";
-                  e.currentTarget.style.borderColor = "rgba(251,191,36,0.35)";
-                  e.currentTarget.style.boxShadow = "0 0 20px rgba(251,191,36,0.1)";
+                  e.currentTarget.style.background = "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(245,158,11,0.02))";
+                  e.currentTarget.style.borderColor = "rgba(251,191,36,0.45)";
+                  e.currentTarget.style.boxShadow = "0 0 28px rgba(251,191,36,0.14), inset 0 1px 0 rgba(253,224,71,0.10)";
+                  e.currentTarget.style.transform = "translateY(-1px)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+                  e.currentTarget.style.background = "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008))";
                   e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
                   e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
-                <div className="text-sm font-semibold text-white">{s.title}</div>
-                <div className="text-[11px] mt-0.5" style={{ color: "#9ca3af" }}>{s.subtitle}</div>
+                {/* Top gold accent line — appears on hover */}
+                <div
+                  className="absolute top-0 left-3 right-3 h-[1px] opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                  style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.7), transparent)" }}
+                />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-white">{s.title}</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: "#9ca3af" }}>{s.subtitle}</div>
+                  </div>
+                  {/* Arrow appears on hover */}
+                  <svg
+                    className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300 -translate-x-1 group-hover:translate-x-0"
+                    style={{ color: "#fbbf24" }}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </div>
               </button>
             ))}
           </div>
