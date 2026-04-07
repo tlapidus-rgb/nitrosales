@@ -134,20 +134,25 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "HERRAMIENTAS",
+    label: "ACTIVOS DIGITALES",
     items: [
+      {
+        href: "/nitropixel",
+        label: "NitroPixel",
+        icon: "M13 10V3L4 14h7v7l9-11h-7z",
+        premium: { badge: "ASSET", badgeColor: "#06b6d4", glowColor: "rgba(6,182,212,0.22)", description: "Tu activo digital vivo" },
+      },
       {
         href: "/chat",
         label: "Aurum",
         icon: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 4v12M8 10l4-4 4 4M8 14l4 4 4-4",
         premium: { badge: "INTELLIGENCE", badgeColor: "#fbbf24", glowColor: "rgba(251,191,36,0.22)", description: "Inteligencia dorada del negocio" },
       },
-      {
-        href: "/pixel",
-        label: "NitroPixel",
-        icon: "M13 10V3L4 14h7v7l9-11h-7z",
-        premium: { badge: "LIVE", badgeColor: "#22c55e", glowColor: "rgba(34,197,94,0.15)", description: "Tracking en tiempo real" },
-      },
+    ],
+  },
+  {
+    label: "HERRAMIENTAS",
+    items: [
       {
         href: "/customers/ltv",
         label: "Lifetime Value",
@@ -267,6 +272,70 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           25%, 45% { opacity: 1; transform: translateY(0); }
           50%, 100% { opacity: 0; transform: translateY(-6px); }
         }
+        /* ─── NitroPixel sidebar animations ─── */
+        @keyframes pixelScan {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        .pixel-scan {
+          animation: pixelScan 5s ease-in-out infinite;
+        }
+        @keyframes pixelHeartbeat {
+          0%, 100% { transform: scale(1); opacity: 0.85; }
+          14% { transform: scale(1.5); opacity: 1; }
+          28% { transform: scale(1); opacity: 0.85; }
+          42% { transform: scale(1.35); opacity: 1; }
+          70% { transform: scale(1); opacity: 0.85; }
+        }
+        .pixel-heartbeat {
+          animation: pixelHeartbeat 1.6s ease-in-out infinite;
+        }
+        /* ─── NitroPixel page-level animations ─── */
+        @keyframes pixelOrbit {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pixelOrbitReverse {
+          from { transform: rotate(360deg); }
+          to { transform: rotate(0deg); }
+        }
+        @keyframes pixelDataFlow {
+          0% { transform: translateY(100%); opacity: 0; }
+          15% { opacity: 1; }
+          85% { opacity: 1; }
+          100% { transform: translateY(-100%); opacity: 0; }
+        }
+        @keyframes pixelBreath {
+          0%, 100% { transform: scale(1); opacity: 0.9; filter: brightness(1); }
+          50% { transform: scale(1.05); opacity: 1; filter: brightness(1.15); }
+        }
+        @keyframes pixelGlow {
+          0%, 100% { box-shadow: 0 0 30px rgba(6,182,212,0.4), 0 0 60px rgba(6,182,212,0.2), inset 0 0 20px rgba(6,182,212,0.1); }
+          50% { box-shadow: 0 0 50px rgba(6,182,212,0.6), 0 0 100px rgba(139,92,246,0.3), inset 0 0 30px rgba(6,182,212,0.2); }
+        }
+        @keyframes pixelFadeUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pixelCounter {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.04); color: #a5f3fc; }
+          100% { transform: scale(1); }
+        }
+        @keyframes pixelGridShift {
+          0% { background-position: 0 0; }
+          100% { background-position: 40px 40px; }
+        }
+        @keyframes pixelNeuronPulse {
+          0%, 100% { opacity: 0.35; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.6); }
+        }
+        @keyframes pixelSynapseFlow {
+          0% { stroke-dashoffset: 100; opacity: 0; }
+          20% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { stroke-dashoffset: 0; opacity: 0; }
+        }
       `}</style>
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -308,6 +377,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   className={`px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] select-none ${
                     group.label === "HERRAMIENTAS" || group.label === "NITRO CREATORS"
                       ? "text-nitro-orange/70"
+                      : group.label === "ACTIVOS DIGITALES"
+                      ? "text-cyan-400/80"
                       : "text-nitro-muted/60"
                   }`}
                   style={
@@ -317,6 +388,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           WebkitBackgroundClip: "text",
                           WebkitTextFillColor: "transparent",
                           letterSpacing: "0.2em",
+                        }
+                      : group.label === "ACTIVOS DIGITALES"
+                      ? {
+                          background: "linear-gradient(90deg, #06b6d4, #8b5cf6)",
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          letterSpacing: "0.22em",
                         }
                       : undefined
                   }
@@ -331,15 +409,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 // Aurum-specific routes: /chat, /sinapsis, /boveda, /memory all activate Aurum
                 const aurumRoutes = ["/chat", "/sinapsis", "/boveda", "/memory"];
                 const isAurumRoute = item.label === "Aurum" && aurumRoutes.some(r => pathname.startsWith(r));
+                // NitroPixel umbrella: /nitropixel (asset hero) AND /pixel (analytics)
+                const nitropixelRoutes = ["/nitropixel", "/pixel"];
+                const isNitropixelRoute = item.label === "NitroPixel" && nitropixelRoutes.some(r => pathname.startsWith(r));
                 const isActive =
                   // Aurum umbrella activation
                   isAurumRoute ||
+                  // NitroPixel umbrella activation
+                  isNitropixelRoute ||
                   // Check if any child matches exactly
                   (item.children?.some(c => pathname === c.href || pathname.startsWith(c.href))) ||
                   // Or direct match
                   pathname === item.href ||
-                  // Or prefix match, but exclude content routes from influencers parent, and exclude Aurum (handled above)
-                  (item.href !== "/dashboard" && item.href !== "/influencers" && item.label !== "Aurum" && pathname.startsWith(item.href)) ||
+                  // Or prefix match, but exclude content routes from influencers parent, and exclude Aurum/NitroPixel (handled above)
+                  (item.href !== "/dashboard" && item.href !== "/influencers" && item.label !== "Aurum" && item.label !== "NitroPixel" && pathname.startsWith(item.href)) ||
                   // Influencers only active when NOT on a content route
                   (item.href === "/influencers" && pathname.startsWith("/influencers") && !isContentRoute);
                 const hasChildren = item.children && item.children.length > 0;
@@ -347,6 +430,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 // ═══ Premium tool cards (Aurum, NitroPixel, LTV) ═══
                 if (item.premium) {
                   const isAurum = item.label === "Aurum";
+                  const isPixel = item.label === "NitroPixel";
                   const aurumSubItems = isAurum
                     ? [
                         {
@@ -365,8 +449,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         },
                       ]
                     : [];
+                  const pixelSubItems = isPixel
+                    ? [
+                        {
+                          href: "/pixel",
+                          label: "Analytics",
+                          sublabel: "Atribución detallada",
+                          iconPath:
+                            "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+                        },
+                      ]
+                    : [];
                   return (
-                    <div key={item.href} className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""}`}>
+                    <div key={item.href} className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""} ${isPixel ? "pixel-card-wrapper" : ""}`}>
                       <Link
                         href={item.href}
                         onClick={() => setSidebarOpen(false)}
@@ -376,16 +471,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             ? (isActive
                                 ? "linear-gradient(135deg, rgba(251,191,36,0.18), rgba(245,158,11,0.08) 50%, rgba(251,191,36,0.03))"
                                 : "linear-gradient(135deg, rgba(251,191,36,0.08), rgba(245,158,11,0.03) 50%, rgba(255,255,255,0.02))")
+                            : isPixel
+                            ? (isActive
+                                ? "linear-gradient(135deg, rgba(6,182,212,0.20), rgba(139,92,246,0.10) 50%, rgba(6,182,212,0.04))"
+                                : "linear-gradient(135deg, rgba(6,182,212,0.10), rgba(139,92,246,0.04) 50%, rgba(255,255,255,0.02))")
                             : (isActive
                                 ? `linear-gradient(135deg, ${item.premium.glowColor}, rgba(255,255,255,0.03))`
                                 : "rgba(255,255,255,0.02)"),
                           border: isAurum
                             ? (isActive ? "1px solid rgba(251,191,36,0.45)" : "1px solid rgba(251,191,36,0.22)")
+                            : isPixel
+                            ? (isActive ? "1px solid rgba(6,182,212,0.50)" : "1px solid rgba(6,182,212,0.25)")
                             : (isActive ? `1px solid ${item.premium.badgeColor}33` : "1px solid rgba(255,255,255,0.06)"),
                           boxShadow: isAurum
                             ? (isActive
                                 ? "0 0 30px rgba(251,191,36,0.20), inset 0 1px 0 rgba(253,224,71,0.15)"
                                 : "0 0 18px rgba(251,191,36,0.08), inset 0 1px 0 rgba(253,224,71,0.08)")
+                            : isPixel
+                            ? (isActive
+                                ? "0 0 32px rgba(6,182,212,0.25), inset 0 1px 0 rgba(165,243,252,0.15)"
+                                : "0 0 18px rgba(6,182,212,0.10), inset 0 1px 0 rgba(165,243,252,0.08)")
                             : undefined,
                         }}
                       >
@@ -396,6 +501,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             style={{
                               background: "linear-gradient(110deg, transparent 30%, rgba(253,224,71,0.10) 50%, transparent 70%)",
                               backgroundSize: "200% 100%",
+                            }}
+                          />
+                        )}
+                        {/* Pixel data-flow scan */}
+                        {isPixel && (
+                          <div
+                            className="absolute inset-0 pointer-events-none pixel-scan"
+                            style={{
+                              background: "linear-gradient(110deg, transparent 30%, rgba(165,243,252,0.12) 50%, transparent 70%)",
+                              backgroundSize: "200% 100%",
+                            }}
+                          />
+                        )}
+                        {/* Pixel heartbeat dot (top-right corner) */}
+                        {isPixel && (
+                          <div
+                            className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full pixel-heartbeat"
+                            style={{
+                              background: "#06b6d4",
+                              boxShadow: "0 0 8px rgba(6,182,212,0.8)",
                             }}
                           />
                         )}
@@ -539,6 +664,97 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                         {sub.label}
                                       </div>
                                       <div className="text-[9px] font-mono tracking-wider text-[#fde68a]/40 uppercase">
+                                        {sub.sublabel}
+                                      </div>
+                                    </div>
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* NitroPixel sub-items (Analytics) */}
+                      {isPixel && (
+                        <div
+                          className="overflow-hidden"
+                          style={{
+                            display: "grid",
+                            gridTemplateRows: isActive ? "1fr" : "0fr",
+                            opacity: isActive ? 1 : 0,
+                            marginTop: isActive ? "4px" : "0px",
+                            transition:
+                              "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
+                          }}
+                        >
+                          <div className="min-h-0">
+                            <div className="relative ml-5 pl-4 py-1 space-y-0.5">
+                              {/* Cyan connector line */}
+                              <div
+                                className="absolute left-0 top-2 bottom-2 w-[1px]"
+                                style={{
+                                  background:
+                                    "linear-gradient(180deg, rgba(6,182,212,0.55), rgba(139,92,246,0.15))",
+                                }}
+                              />
+                              {pixelSubItems.map((sub, si) => {
+                                const subActive = pathname === sub.href || (sub.href === "/pixel" && pathname.startsWith("/pixel"));
+                                return (
+                                  <Link
+                                    key={sub.href}
+                                    href={sub.href}
+                                    onClick={() => setSidebarOpen(false)}
+                                    className="group/sub relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-300"
+                                    style={{
+                                      background: subActive
+                                        ? "linear-gradient(90deg, rgba(6,182,212,0.14), rgba(139,92,246,0.04))"
+                                        : "transparent",
+                                      border: subActive
+                                        ? "1px solid rgba(6,182,212,0.30)"
+                                        : "1px solid transparent",
+                                      transitionDelay: isActive ? `${si * 60}ms` : "0ms",
+                                      transform: isActive ? "translateX(0)" : "translateX(-8px)",
+                                      opacity: isActive ? 1 : 0,
+                                      transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, background 200ms, border-color 200ms`,
+                                    }}
+                                  >
+                                    <span
+                                      className="absolute -left-4 top-1/2 w-2 h-[1px]"
+                                      style={{
+                                        background: subActive ? "#06b6d4" : "rgba(6,182,212,0.40)",
+                                        transform: "translateY(-0.5px)",
+                                      }}
+                                    />
+                                    <svg
+                                      className="w-3 h-3 flex-shrink-0"
+                                      style={{
+                                        color: subActive ? "#06b6d4" : "rgba(6,182,212,0.60)",
+                                        filter: subActive
+                                          ? "drop-shadow(0 0 4px rgba(6,182,212,0.7))"
+                                          : "none",
+                                      }}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                      strokeWidth={1.8}
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d={sub.iconPath}
+                                      />
+                                    </svg>
+                                    <div className="flex-1 min-w-0">
+                                      <div
+                                        className="text-[11px] font-semibold transition-colors"
+                                        style={{
+                                          color: subActive ? "#a5f3fc" : "rgba(165,243,252,0.7)",
+                                        }}
+                                      >
+                                        {sub.label}
+                                      </div>
+                                      <div className="text-[9px] font-mono tracking-wider text-[#a5f3fc]/40 uppercase">
                                         {sub.sublabel}
                                       </div>
                                     </div>
@@ -727,15 +943,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </header>
 
-        {/* Page content — Aurum routes get full-bleed dark canvas, others get padded light bg */}
+        {/* Page content — Aurum + NitroPixel routes get full-bleed dark canvas, others get padded light bg */}
         {(() => {
           const aurumRoutes = ["/chat", "/sinapsis", "/boveda", "/memory"];
           const isAurum = aurumRoutes.some((r) => pathname.startsWith(r));
+          const isNitropixel = pathname.startsWith("/nitropixel");
           return (
             <main
               className={
                 isAurum
                   ? "flex-1 p-0 overflow-hidden bg-[#0a0a0f]"
+                  : isNitropixel
+                  ? "flex-1 p-0 overflow-hidden bg-[#05060a]"
                   : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
               }
             >
