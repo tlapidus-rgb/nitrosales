@@ -137,31 +137,44 @@ export async function GET(request: NextRequest) {
     if (cached) return NextResponse.json(cached);
 
     // ── Traer las ultimas N ordenes que tengan ALGUNA PixelAttribution ──
-    // Da igual el modelo: los touchpoints son hechos del visitante.
-    const recentOrders = await prisma.order.findMany({
-      where: {
-        organizationId: orgId,
-        trafficSource: { not: "Marketplace" },
-        source: { not: "MELI" },
-        channel: { not: "marketplace" },
-        status: { notIn: ["CANCELLED", "PENDING"] },
-        totalValue: { gt: 0 },
-        pixelAttributions: { some: {} },
-      },
-      orderBy: { orderDate: "desc" },
-      take: limit,
-      select: {
-        id: true,
-        externalId: true,
-        orderDate: true,
-        totalValue: true,
-        currency: true,
-        itemCount: true,
-        status: true,
-        customerId: true,
-        customer: { select: { email: true } },
-      },
-    });
+    // RAW SQL para usar IS DISTINCT FROM (null-safe), igual que el query #15
+    // de /api/metrics/pixel ("Ordenes en Vivo"). Prisma `{ not: "X" }` se
+    // traduce a `<>` que en Postgres NO matchea NULL, asi que filtraba
+    // todas las ordenes con trafficSource/source/channel = NULL.
+    const recentOrders = await prisma.$queryRaw<Array<{
+      id: string;
+      externalId: string;
+      orderDate: Date;
+      totalValue: number;
+      currency: string;
+      itemCount: number;
+      status: string;
+      customerEmail: string | null;
+    }>>`
+      SELECT
+        o.id,
+        o."externalId",
+        o."orderDate",
+        o."totalValue"::float as "totalValue",
+        o.currency,
+        o."itemCount",
+        o.status::text as status,
+        c.email as "customerEmail"
+      FROM orders o
+      LEFT JOIN customers c ON c.id = o."customerId"
+      WHERE o."organizationId" = ${orgId}
+        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o."totalValue" > 0
+        AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+        AND o.source IS DISTINCT FROM 'MELI'
+        AND o.channel IS DISTINCT FROM 'marketplace'
+        AND EXISTS (
+          SELECT 1 FROM pixel_attributions pa
+          WHERE pa."orderId" = o.id
+        )
+      ORDER BY o."orderDate" DESC
+      LIMIT ${limit}
+    `;
 
     if (recentOrders.length === 0) {
       const empty = { orders: [] as JourneyOrder[] };
@@ -196,7 +209,7 @@ export async function GET(request: NextRequest) {
     const orders: JourneyOrder[] = [];
     for (const o of recentOrders) {
       const attr = attrByOrder.get(o.id);
-      if (!attr) continue; // safety: should not happen given the WHERE filter
+      if (!attr) continue; // safety: should not happen given EXISTS filter
 
       const raw = (attr.touchpoints as unknown as RawTouchpoint[]) || [];
       const tps = dedupeTouchpoints(raw.map(tpFromRaw));
@@ -205,12 +218,12 @@ export async function GET(request: NextRequest) {
       orders.push({
         orderId: o.id,
         externalId: o.externalId,
-        orderDate: o.orderDate.toISOString(),
+        orderDate: new Date(o.orderDate).toISOString(),
         totalValue: Number(o.totalValue),
         currency: o.currency,
         itemCount: o.itemCount,
         status: o.status,
-        customerEmail: o.customer?.email ?? null,
+        customerEmail: o.customerEmail ?? null,
         visitorId: attr.visitor?.visitorId ?? null,
         source: "attribution",
         touchpointCount: tps.length,
