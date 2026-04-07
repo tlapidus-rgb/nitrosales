@@ -4,6 +4,19 @@ import { useSession } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
 
 type Message = { role: "user" | "assistant"; content: string };
+type ReasoningMode = "FLASH" | "CORE" | "DEEP";
+type Confidence = "high" | "medium" | "low" | "none";
+
+const MODES: Array<{
+  key: ReasoningMode;
+  label: string;
+  desc: string;
+  color: string;
+}> = [
+  { key: "FLASH", label: "Flash", desc: "Rápido · Haiku", color: "#60a5fa" },
+  { key: "CORE", label: "Core", desc: "Default · Sonnet", color: "#fbbf24" },
+  { key: "DEEP", label: "Deep", desc: "Profundo · Opus", color: "#a78bfa" },
+];
 
 const SUGGESTIONS = [
   { title: "Auditoría completa", subtitle: "Radiografía total del negocio", prompt: "Haceme una auditoría completa del negocio" },
@@ -186,6 +199,9 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<ReasoningMode>("CORE");
+  const [autoDetected, setAutoDetected] = useState<Record<string, Confidence>>({});
+  const [autoDetecting, setAutoDetecting] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -193,7 +209,44 @@ export default function ChatPage() {
       try {
         const res = await fetch("/api/onboarding");
         const data = await res.json();
-        setNeedsOnboarding(!data.businessContext);
+        const needs = !data.businessContext;
+        setNeedsOnboarding(needs);
+
+        // ── Onboarding Inteligente: si necesita onboarding, intentar
+        // auto-detectar campos desde la DB antes de mostrar el wizard
+        if (needs) {
+          setAutoDetecting(true);
+          try {
+            const adRes = await fetch("/api/aurum/context-autodetect");
+            if (adRes.ok) {
+              const ad = await adRes.json();
+              const det = ad.detected || {};
+              const updates: Partial<typeof onboardingData> = {};
+              const detectedMap: Record<string, Confidence> = {};
+
+              if (det.industry?.value && det.industry.confidence !== "none") {
+                updates.industry = det.industry.value;
+                detectedMap.industry = det.industry.confidence;
+              }
+              if (det.salesChannels?.value && det.salesChannels.confidence !== "none") {
+                updates.salesChannels = det.salesChannels.value;
+                detectedMap.salesChannels = det.salesChannels.confidence;
+              }
+              if (det.adChannels?.value && det.adChannels.confidence !== "none") {
+                updates.adChannels = det.adChannels.value;
+                detectedMap.adChannels = det.adChannels.confidence;
+              }
+
+              if (Object.keys(updates).length > 0) {
+                setOnboardingData((prev) => ({ ...prev, ...updates }));
+                setAutoDetected(detectedMap);
+              }
+            }
+          } catch (err) {
+            console.warn("[autodetect] failed:", err);
+          }
+          setAutoDetecting(false);
+        }
       } catch {
         setNeedsOnboarding(false);
       }
@@ -260,7 +313,7 @@ export default function ChatPage() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, history: updated.slice(0, -1) }),
+        body: JSON.stringify({ message: userMsg, history: updated.slice(0, -1), mode }),
       });
       const data = await res.json();
       setMessages((prev) => [
@@ -349,11 +402,33 @@ export default function ChatPage() {
       boxShadow: sel ? "0 0 20px rgba(251,191,36,0.15)" : "none",
     });
 
+    const AutoBadge = ({ field }: { field: string }) => {
+      const conf = autoDetected[field];
+      if (!conf || conf === "none") return null;
+      return (
+        <span
+          className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider align-middle"
+          style={{
+            background: "rgba(34,197,94,0.1)",
+            border: "1px solid rgba(34,197,94,0.35)",
+            color: "#86efac",
+          }}
+          title={`Auto-detectado con confianza ${conf}`}
+        >
+          ✓ Auto
+        </span>
+      );
+    };
+
     const steps = [
       <div key="industry">
-        <h3 className="text-xl font-bold text-white mb-2">En qué rubro está tu negocio?</h3>
+        <h3 className="text-xl font-bold text-white mb-2">
+          En qué rubro está tu negocio?<AutoBadge field="industry" />
+        </h3>
         <p className="text-sm mb-5" style={{ color: "#9ca3af" }}>
-          Aurum adapta sus insights a tu estacionalidad y benchmarks
+          {autoDetected.industry
+            ? "Detectamos esto desde tu catálogo. Podés cambiarlo si está mal."
+            : "Aurum adapta sus insights a tu estacionalidad y benchmarks"}
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {INDUSTRIES.map((ind) => {
@@ -430,8 +505,14 @@ export default function ChatPage() {
         </div>
       </div>,
       <div key="sales">
-        <h3 className="text-xl font-bold text-white mb-2">Dónde vendés?</h3>
-        <p className="text-sm mb-5" style={{ color: "#9ca3af" }}>Podés elegir varios</p>
+        <h3 className="text-xl font-bold text-white mb-2">
+          Dónde vendés?<AutoBadge field="salesChannels" />
+        </h3>
+        <p className="text-sm mb-5" style={{ color: "#9ca3af" }}>
+          {autoDetected.salesChannels
+            ? "Detectamos estos canales en tus integraciones activas."
+            : "Podés elegir varios"}
+        </p>
         <div className="flex flex-wrap gap-2">
           {SALES_CHANNELS.map((ch) => {
             const sel = onboardingData.salesChannels.includes(ch);
@@ -455,8 +536,14 @@ export default function ChatPage() {
         </div>
       </div>,
       <div key="ads">
-        <h3 className="text-xl font-bold text-white mb-2">Dónde hacés publicidad?</h3>
-        <p className="text-sm mb-5" style={{ color: "#9ca3af" }}>Podés elegir varios</p>
+        <h3 className="text-xl font-bold text-white mb-2">
+          Dónde hacés publicidad?<AutoBadge field="adChannels" />
+        </h3>
+        <p className="text-sm mb-5" style={{ color: "#9ca3af" }}>
+          {autoDetected.adChannels
+            ? "Detectamos estas plataformas en tus integraciones activas."
+            : "Podés elegir varios"}
+        </p>
         <div className="flex flex-wrap gap-2">
           {AD_CHANNELS.map((ch) => {
             const sel = onboardingData.adChannels.includes(ch);
@@ -798,6 +885,33 @@ export default function ChatPage() {
           </div>
         </div>
       )}
+
+      {/* Mode selector */}
+      <div className="flex-shrink-0 mb-2 flex items-center justify-center gap-2">
+        {MODES.map((m) => {
+          const sel = mode === m.key;
+          return (
+            <button
+              key={m.key}
+              onClick={() => setMode(m.key)}
+              className="px-3 py-1.5 rounded-full text-[11px] font-mono uppercase tracking-wider transition-all duration-300"
+              style={{
+                background: sel
+                  ? `linear-gradient(135deg, ${m.color}22, ${m.color}08)`
+                  : "rgba(255,255,255,0.02)",
+                border: sel
+                  ? `1px solid ${m.color}99`
+                  : "1px solid rgba(255,255,255,0.08)",
+                color: sel ? m.color : "#9ca3af",
+                boxShadow: sel ? `0 0 18px ${m.color}33` : "none",
+              }}
+              title={m.desc}
+            >
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Input */}
       <div className="flex-shrink-0">

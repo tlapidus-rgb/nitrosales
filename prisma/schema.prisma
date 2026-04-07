@@ -648,6 +648,32 @@ enum InsightPriority {
 }
 
 // ─────────────────────────────────────────────
+// AURUM USAGE LOG — Telemetria del motor de razonamiento
+// ─────────────────────────────────────────────
+model AurumUsageLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  mode           String   // "FLASH" | "CORE" | "DEEP"
+  model          String   // exact model id used
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  totalTokens    Int      @default(0)
+  latencyMs      Int
+  toolRounds     Int      @default(0)
+  toolsUsed      String[] @default([])
+  stopReason     String?
+  success        Boolean  @default(true)
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([mode, createdAt])
+  @@index([createdAt])
+  @@map("aurum_usage_logs")
+}
+
+// ─────────────────────────────────────────────
 // NITROPIXEL — Tracking first-party
 // ─────────────────────────────────────────────
 

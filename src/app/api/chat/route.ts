@@ -132,9 +132,43 @@ Si no hay contexto de negocio todavía, pedile al usuario que complete el onboar
 - Creativo en soluciones, riguroso en análisis`;
 
 // ══════════════════════════════════════════════════════════════
-// MAX TOOL ROUNDS — Safety limit to prevent infinite loops
+// REASONING MODES — Flash / Core / Deep
 // ══════════════════════════════════════════════════════════════
-const MAX_TOOL_ROUNDS = 5;
+type ReasoningMode = "FLASH" | "CORE" | "DEEP";
+
+const MODE_CONFIG: Record<ReasoningMode, {
+  model: string;
+  maxTokens: number;
+  maxToolRounds: number;
+  promptSuffix: string;
+}> = {
+  FLASH: {
+    model: "claude-haiku-4-5-20251001",
+    maxTokens: 2000,
+    maxToolRounds: 2,
+    promptSuffix: `\n\n=== MODO FLASH ===\nEste request es en MODO FLASH: respuesta corta, directa, sin estructura de 4 bloques. Maximo 1 tool call. Ideal para preguntas puntuales tipo "cuanto vendi ayer" o "cual es mi top producto". No te extiendas mas de 5-8 lineas.`,
+  },
+  CORE: {
+    model: "claude-sonnet-4-5",
+    maxTokens: 4000,
+    maxToolRounds: 5,
+    promptSuffix: `\n\n=== MODO CORE ===\nEste request es en MODO CORE (default): aplicas los 4 bloques completos (Diagnostico / Insights / Oportunidades / Plan de Accion). Cruzas multiples fuentes de datos.`,
+  },
+  DEEP: {
+    model: "claude-opus-4-5",
+    maxTokens: 8000,
+    maxToolRounds: 8,
+    promptSuffix: `\n\n=== MODO DEEP ===\nEste request es en MODO DEEP: investigacion profunda, multiples rondas de tools, analisis exhaustivo. Cruza absolutamente todo lo disponible. Tu respuesta debe justificar el costo extra de Opus: insights que NADIE mas puede ver, conexiones no obvias, hipotesis multiples con datos para descartarlas.`,
+  },
+};
+
+function normalizeMode(input: any): ReasoningMode {
+  const v = String(input || "").toUpperCase();
+  if (v === "FLASH" || v === "CORE" || v === "DEEP") return v;
+  return "CORE";
+}
+
+const MAX_TOOL_ROUNDS = 5; // legacy default, overridden per mode
 
 // ══════════════════════════════════════════════════════════════
 // BUSINESS CONTEXT — Dynamic client identity from onboarding
@@ -218,14 +252,35 @@ async function buildMemoryContext(orgId: string): Promise<string> {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+  let orgIdForLog: string | null = null;
+  let userIdForLog: string | null = null;
+  let modeForLog: ReasoningMode = "CORE";
+  let modelForLog: string = MODE_CONFIG.CORE.model;
+  let inputTokensTotal = 0;
+  let outputTokensTotal = 0;
+  let toolRoundsRun = 0;
+  const toolsUsedSet = new Set<string>();
+  let stopReasonFinal: string | null = null;
+  let success = true;
+  let errorMessage: string | null = null;
+
   try {
     const session = await getServerSession();
     if (!session) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const { message, history } = await req.json();
+    const body = await req.json();
+    const { message, history, mode: rawMode } = body;
+    const mode = normalizeMode(rawMode);
+    modeForLog = mode;
+    const cfg = MODE_CONFIG[mode];
+    modelForLog = cfg.model;
+
     const org = await getOrganization();
+    orgIdForLog = org.id;
+    userIdForLog = (session.user as any)?.id || null;
 
     // Build dynamic system prompt based on org settings
     const orgSettings = (org as any).settings || {};
@@ -239,8 +294,8 @@ export async function POST(req: Request) {
       console.error("[Aurum] Error loading memories:", e.message);
     }
 
-    // Full system prompt: dynamic base + memory context
-    const fullSystemPrompt = dynamicPrompt + memoryContext;
+    // Full system prompt: dynamic base + memory context + mode suffix
+    const fullSystemPrompt = dynamicPrompt + memoryContext + cfg.promptSuffix;
 
     // Build conversation messages from history
     const messages: Anthropic.MessageParam[] = [];
@@ -251,20 +306,23 @@ export async function POST(req: Request) {
     }
     messages.push({ role: "user", content: message });
 
-    // ── Agentic Tool-Use Loop ──
-    // Claude may request multiple rounds of tools before giving final answer.
-    // Each round: send message → Claude requests tools → execute → feed results back.
+    // ── Agentic Tool-Use Loop (per-mode round limit) ──
     let currentMessages = [...messages];
     let finalReply = "";
 
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    for (let round = 0; round < cfg.maxToolRounds; round++) {
+      toolRoundsRun = round + 1;
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
+        model: cfg.model,
+        max_tokens: cfg.maxTokens,
         system: fullSystemPrompt,
         tools: INTELLIGENCE_TOOLS,
         messages: currentMessages,
       });
+
+      inputTokensTotal += response.usage?.input_tokens || 0;
+      outputTokensTotal += response.usage?.output_tokens || 0;
+      stopReasonFinal = response.stop_reason || stopReasonFinal;
 
       // Check if Claude wants to use tools
       const toolUseBlocks = response.content.filter(
@@ -273,13 +331,15 @@ export async function POST(req: Request) {
       );
 
       if (toolUseBlocks.length === 0) {
-        // No tools requested → extract final text response
         const textBlock = response.content.find((b) => b.type === "text");
         finalReply = textBlock && textBlock.type === "text" ? textBlock.text : "No pude generar una respuesta.";
         break;
       }
 
-      // Claude requested tools — execute them all in parallel
+      // Track tool names for telemetry
+      for (const tb of toolUseBlocks) toolsUsedSet.add(tb.name);
+
+      // Execute all in parallel
       const toolResults = await Promise.all(
         toolUseBlocks.map(async (toolBlock) => {
           const result = await executeToolCall(
@@ -295,11 +355,9 @@ export async function POST(req: Request) {
         })
       );
 
-      // Add assistant response + tool results to conversation
       currentMessages.push({ role: "assistant", content: response.content });
       currentMessages.push({ role: "user", content: toolResults });
 
-      // If stop_reason is "end_turn" even with tools, extract any text
       if (response.stop_reason === "end_turn") {
         const textBlock = response.content.find((b) => b.type === "text");
         if (textBlock && textBlock.type === "text" && textBlock.text.trim()) {
@@ -309,14 +367,41 @@ export async function POST(req: Request) {
       }
     }
 
-    // Fallback if we exhausted rounds without a text response
     if (!finalReply) {
       finalReply = "Analicé muchos datos pero me quedé sin espacio para responder. ¿Podés hacer la pregunta un poco más específica?";
     }
 
-    return NextResponse.json({ reply: finalReply });
+    return NextResponse.json({ reply: finalReply, mode, model: cfg.model });
   } catch (e: any) {
-    console.error("[Aurum Error]", e.message);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    success = false;
+    errorMessage = e?.message || String(e);
+    console.error("[Aurum Error]", errorMessage);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  } finally {
+    // ── Fire-and-forget telemetry log ──
+    if (orgIdForLog) {
+      const latencyMs = Date.now() - startedAt;
+      prisma.aurumUsageLog
+        .create({
+          data: {
+            organizationId: orgIdForLog,
+            userId: userIdForLog,
+            mode: modeForLog,
+            model: modelForLog,
+            inputTokens: inputTokensTotal,
+            outputTokens: outputTokensTotal,
+            totalTokens: inputTokensTotal + outputTokensTotal,
+            latencyMs,
+            toolRounds: toolRoundsRun,
+            toolsUsed: Array.from(toolsUsedSet),
+            stopReason: stopReasonFinal,
+            success,
+            errorMessage,
+          },
+        })
+        .catch((err) => {
+          console.error("[Aurum telemetry] Failed to log usage:", err?.message);
+        });
+    }
   }
 }
