@@ -4,13 +4,17 @@ export const maxDuration = 30;
 // ══════════════════════════════════════════════════════════════
 // Customer Journeys API — NitroPixel
 // ══════════════════════════════════════════════════════════════
-// Devuelve las ultimas N ordenes con su recorrido completo de
-// touchpoints. Estrategia robusta en 3 capas:
-//   1) PixelAttribution (modelo NITRO) — fuente principal
-//   2) PixelEvents del visitor asociado al customer/email
-//   3) Order.trafficSource como fallback
-// Asi siempre devolvemos algo aunque el motor de atribucion
-// todavia no haya corrido.
+// Devuelve las ultimas N ordenes con su recorrido de touchpoints.
+// Estrategia: ALINEADA CON "ORDENES EN VIVO".
+//   - Solo ordenes con CUALQUIER PixelAttribution (cualquier modelo).
+//     Los touchpoints son hechos del visitante; el modelo solo
+//     decide como repartir el credito. Por eso da igual el modelo
+//     a la hora de mostrar el journey.
+//   - Para cada orden se prefiere la attribution con mas touchpoints.
+//   - Sin waterfall a trafficSource (evita "Fulfillment", "Directo"
+//     y otros strings de canal que no son touchpoints reales).
+//   - Mismos filtros de calidad: excluye marketplace/MELI,
+//     CANCELLED/PENDING y totalValue <= 0.
 // ══════════════════════════════════════════════════════════════
 // GET /api/metrics/pixel/journeys?limit=20
 // ══════════════════════════════════════════════════════════════
@@ -132,25 +136,45 @@ export async function GET(request: NextRequest) {
     const cached = getCached<{ orders: JourneyOrder[] }>("journeys", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
-    // ── Capa 1: traer las ultimas ordenes con su attribution NITRO (si existe) ──
-    // LEFT JOIN logic: traemos las ordenes mas recientes y por separado las attributions.
-    const recentOrders = await prisma.order.findMany({
-      where: { organizationId: orgId },
-      orderBy: { orderDate: "desc" },
-      take: limit,
-      select: {
-        id: true,
-        externalId: true,
-        orderDate: true,
-        totalValue: true,
-        currency: true,
-        itemCount: true,
-        status: true,
-        trafficSource: true,
-        customerId: true,
-        customer: { select: { email: true } },
-      },
-    });
+    // ── Traer las ultimas N ordenes que tengan ALGUNA PixelAttribution ──
+    // RAW SQL para usar IS DISTINCT FROM (null-safe), igual que el query #15
+    // de /api/metrics/pixel ("Ordenes en Vivo"). Prisma `{ not: "X" }` se
+    // traduce a `<>` que en Postgres NO matchea NULL, asi que filtraba
+    // todas las ordenes con trafficSource/source/channel = NULL.
+    const recentOrders = await prisma.$queryRaw<Array<{
+      id: string;
+      externalId: string;
+      orderDate: Date;
+      totalValue: number;
+      currency: string;
+      itemCount: number;
+      status: string;
+      customerEmail: string | null;
+    }>>`
+      SELECT
+        o.id,
+        o."externalId",
+        o."orderDate",
+        o."totalValue"::float as "totalValue",
+        o.currency,
+        o."itemCount",
+        o.status::text as status,
+        c.email as "customerEmail"
+      FROM orders o
+      LEFT JOIN customers c ON c.id = o."customerId"
+      WHERE o."organizationId" = ${orgId}
+        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o."totalValue" > 0
+        AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+        AND o.source IS DISTINCT FROM 'MELI'
+        AND o.channel IS DISTINCT FROM 'marketplace'
+        AND EXISTS (
+          SELECT 1 FROM pixel_attributions pa
+          WHERE pa."orderId" = o.id
+        )
+      ORDER BY o."orderDate" DESC
+      LIMIT ${limit}
+    `;
 
     if (recentOrders.length === 0) {
       const empty = { orders: [] as JourneyOrder[] };
@@ -160,184 +184,54 @@ export async function GET(request: NextRequest) {
 
     const orderIds = recentOrders.map((o) => o.id);
 
-    // Buscamos cualquier atribucion para esas ordenes (cualquier modelo, priorizando NITRO)
+    // Traer TODAS las attributions de esas ordenes (cualquier modelo)
     const attributions = await prisma.pixelAttribution.findMany({
       where: { organizationId: orgId, orderId: { in: orderIds } },
       include: { visitor: { select: { id: true, visitorId: true, email: true } } },
     });
 
-    // Indexar por orderId, priorizando NITRO
+    // Para cada orden, quedarse con la attribution que tenga MAS touchpoints reales
+    // (los touchpoints son hechos; en general son iguales entre modelos, pero por
+    // las dudas elegimos la mas rica).
     const attrByOrder = new Map<string, (typeof attributions)[number]>();
     for (const a of attributions) {
+      const aTpCount = Array.isArray(a.touchpoints) ? a.touchpoints.length : 0;
       const existing = attrByOrder.get(a.orderId);
-      if (!existing || a.model === "NITRO") attrByOrder.set(a.orderId, a);
-    }
-
-    // Para ordenes sin atribucion, intentamos buscar pixel events del visitor por email
-    const ordersWithoutAttr = recentOrders.filter((o) => !attrByOrder.has(o.id) && o.customer?.email);
-    const emails = Array.from(new Set(ordersWithoutAttr.map((o) => o.customer!.email!).filter(Boolean)));
-
-    const visitorsByEmail = new Map<string, { id: string; visitorId: string }>();
-    if (emails.length > 0) {
-      const visitors = await prisma.pixelVisitor.findMany({
-        where: { organizationId: orgId, email: { in: emails } },
-        select: { id: true, visitorId: true, email: true },
-      });
-      for (const v of visitors) {
-        if (v.email) visitorsByEmail.set(v.email, { id: v.id, visitorId: v.visitorId });
+      if (!existing) {
+        attrByOrder.set(a.orderId, a);
+        continue;
       }
+      const eTpCount = Array.isArray(existing.touchpoints) ? existing.touchpoints.length : 0;
+      if (aTpCount > eTpCount) attrByOrder.set(a.orderId, a);
     }
 
-    // Para cada orden sin attribution pero con visitor encontrado, traer sus eventos previos a la compra
-    const eventsByOrder = new Map<string, JourneyTouchpoint[]>();
-    const visitorIdsToFetch: string[] = [];
-    for (const o of ordersWithoutAttr) {
-      const v = o.customer?.email ? visitorsByEmail.get(o.customer.email) : null;
-      if (v) visitorIdsToFetch.push(v.id);
-    }
-
-    if (visitorIdsToFetch.length > 0) {
-      const events = await prisma.pixelEvent.findMany({
-        where: {
-          organizationId: orgId,
-          visitorId: { in: visitorIdsToFetch },
-          type: { in: ["PAGE_VIEW", "VIEW_PRODUCT", "ADD_TO_CART"] },
-        },
-        select: {
-          visitorId: true,
-          timestamp: true,
-          utmParams: true,
-          referrer: true,
-          pageUrl: true,
-        },
-        orderBy: { timestamp: "asc" },
-        take: 500,
-      });
-
-      // Agrupar por visitor
-      const byVisitor = new Map<string, typeof events>();
-      for (const e of events) {
-        if (!byVisitor.has(e.visitorId)) byVisitor.set(e.visitorId, []);
-        byVisitor.get(e.visitorId)!.push(e);
-      }
-
-      // Mapear ordenes -> visitor.id -> events filtrados (eventos antes de orderDate)
-      for (const o of ordersWithoutAttr) {
-        const email = o.customer?.email;
-        if (!email) continue;
-        const v = visitorsByEmail.get(email);
-        if (!v) continue;
-        const evts = (byVisitor.get(v.id) || []).filter((e) => e.timestamp <= o.orderDate);
-        if (evts.length === 0) continue;
-        // Tomamos hasta 6 eventos representativos: primero, ultimo, y los 4 mas espaciados en el medio
-        const pick = pickRepresentativeEvents(evts, 6);
-        const tps = dedupeTouchpoints(
-          pick.map((e) => {
-            const utm = (e.utmParams as any) || {};
-            const ref = e.referrer || "";
-            const refSource = ref ? extractRefSource(ref) : "";
-            return tpFromRaw({
-              timestamp: e.timestamp.toISOString(),
-              source: utm.source || refSource,
-              medium: utm.medium,
-              campaign: utm.campaign,
-              page: e.pageUrl || undefined,
-            });
-          })
-        );
-        eventsByOrder.set(o.id, tps);
-      }
-    }
-
-    // ── Construir respuesta final ──
-    const orders: JourneyOrder[] = recentOrders.map((o) => {
+    // ── Construir respuesta final (solo data real de pixel) ──
+    const orders: JourneyOrder[] = [];
+    for (const o of recentOrders) {
       const attr = attrByOrder.get(o.id);
+      if (!attr) continue; // safety: should not happen given EXISTS filter
 
-      // Capa 1: attribution con touchpoints en JSON
-      if (attr) {
-        const raw = (attr.touchpoints as unknown as RawTouchpoint[]) || [];
-        const tps = dedupeTouchpoints(raw.map(tpFromRaw));
-        if (tps.length > 0) {
-          return {
-            orderId: o.id,
-            externalId: o.externalId,
-            orderDate: o.orderDate.toISOString(),
-            totalValue: Number(o.totalValue),
-            currency: o.currency,
-            itemCount: o.itemCount,
-            status: o.status,
-            customerEmail: o.customer?.email ?? null,
-            visitorId: attr.visitor?.visitorId ?? null,
-            source: "attribution",
-            touchpointCount: tps.length,
-            conversionLag: attr.conversionLag,
-            attributedValue: Number(attr.attributedValue),
-            touchpoints: tps,
-          };
-        }
-      }
+      const raw = (attr.touchpoints as unknown as RawTouchpoint[]) || [];
+      const tps = dedupeTouchpoints(raw.map(tpFromRaw));
+      if (tps.length === 0) continue; // sin touchpoints reales no mostramos la card
 
-      // Capa 2: pixel events del visitor
-      const eventTps = eventsByOrder.get(o.id);
-      if (eventTps && eventTps.length > 0) {
-        return {
-          orderId: o.id,
-          externalId: o.externalId,
-          orderDate: o.orderDate.toISOString(),
-          totalValue: Number(o.totalValue),
-          currency: o.currency,
-          itemCount: o.itemCount,
-          status: o.status,
-          customerEmail: o.customer?.email ?? null,
-          visitorId: null,
-          source: "events",
-          touchpointCount: eventTps.length,
-          conversionLag: null,
-          attributedValue: 0,
-          touchpoints: eventTps,
-        };
-      }
-
-      // Capa 3: trafficSource de la orden
-      const ts = o.trafficSource;
-      if (ts && ts.toLowerCase() !== "unknown") {
-        const ch = normalizeSource(ts);
-        return {
-          orderId: o.id,
-          externalId: o.externalId,
-          orderDate: o.orderDate.toISOString(),
-          totalValue: Number(o.totalValue),
-          currency: o.currency,
-          itemCount: o.itemCount,
-          status: o.status,
-          customerEmail: o.customer?.email ?? null,
-          visitorId: null,
-          source: "traffic_source",
-          touchpointCount: 1,
-          conversionLag: null,
-          attributedValue: 0,
-          touchpoints: [{ ts: o.orderDate.toISOString(), source: ch, medium: null, campaign: null, page: null, label: buildLabel(ch) }],
-        };
-      }
-
-      // Ultimo recurso: directo
-      return {
+      orders.push({
         orderId: o.id,
         externalId: o.externalId,
-        orderDate: o.orderDate.toISOString(),
+        orderDate: new Date(o.orderDate).toISOString(),
         totalValue: Number(o.totalValue),
         currency: o.currency,
         itemCount: o.itemCount,
         status: o.status,
-        customerEmail: o.customer?.email ?? null,
-        visitorId: null,
-        source: "direct",
-        touchpointCount: 1,
-        conversionLag: null,
-        attributedValue: 0,
-        touchpoints: [{ ts: o.orderDate.toISOString(), source: "direct", medium: null, campaign: null, page: null, label: "Directo" }],
-      };
-    });
+        customerEmail: o.customerEmail ?? null,
+        visitorId: attr.visitor?.visitorId ?? null,
+        source: "attribution",
+        touchpointCount: tps.length,
+        conversionLag: attr.conversionLag,
+        attributedValue: Number(attr.attributedValue),
+        touchpoints: tps,
+      });
+    }
 
     const payload = { orders };
     setCache("journeys", payload, 60_000, ...cacheKey);
@@ -348,37 +242,3 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────
-function pickRepresentativeEvents<T>(arr: T[], max: number): T[] {
-  if (arr.length <= max) return arr;
-  // Tomamos primero, ultimo, y N-2 espaciados en el medio
-  const result: T[] = [arr[0]];
-  const middle = arr.slice(1, -1);
-  const stepCount = max - 2;
-  if (stepCount > 0 && middle.length > 0) {
-    const step = middle.length / stepCount;
-    for (let i = 0; i < stepCount; i++) {
-      const idx = Math.min(Math.floor(i * step), middle.length - 1);
-      result.push(middle[idx]);
-    }
-  }
-  result.push(arr[arr.length - 1]);
-  return result;
-}
-
-function extractRefSource(referrer: string): string {
-  try {
-    const u = new URL(referrer);
-    const host = u.hostname.toLowerCase().replace(/^www\./, "");
-    if (host.includes("facebook") || host.includes("instagram") || host.includes("fb.")) return "meta";
-    if (host.includes("google")) return "google";
-    if (host.includes("tiktok")) return "tiktok";
-    if (host.includes("youtube") || host.includes("yt.")) return "youtube";
-    if (host.includes("mercadolibre") || host.includes("meli")) return "mercadolibre";
-    if (host.includes("whatsapp") || host.includes("wa.me")) return "whatsapp";
-    if (host.includes("bing")) return "google";
-    return host;
-  } catch {
-    return "";
-  }
-}

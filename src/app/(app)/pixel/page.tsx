@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { DateRangeFilter } from "@/components/dashboard";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -307,6 +307,11 @@ export default function PixelPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Sticky header collapse on scroll
+  const [headerCompact, setHeaderCompact] = useState(false);
+  // Cmd+K command palette
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   // Ventas por Canal section
   const [salesBySource, setSalesBySource] = useState<Array<{
     source: string;
@@ -334,6 +339,39 @@ export default function PixelPage() {
   }, [dateFrom, dateTo, currentPage, selectedModel]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Scroll listener — collapse header after a soft threshold
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        const compact = window.scrollY > 96;
+        setHeaderCompact((prev) => (prev === compact ? prev : compact));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // Cmd+K listener
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((p) => !p);
+      } else if (e.key === "Escape") {
+        setPaletteOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Fetch sales by source data
   useEffect(() => {
@@ -463,10 +501,47 @@ export default function PixelPage() {
   // ── Loading state ──
   if (loading && !data) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-        <div className="flex items-center gap-3 text-gray-400">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-          <span>Cargando datos del pixel...</span>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#fafafa" }}>
+        <PixelStyles />
+        <div className="flex flex-col items-center gap-5">
+          <div className="relative">
+            {/* Outer ring */}
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center relative overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%)",
+                boxShadow: "0 8px 24px rgba(249,115,22,0.30), inset 0 1px 0 rgba(255,255,255,0.30)",
+                animation: "pixelLogoPulse 2.4s ease-in-out infinite",
+              }}
+            >
+              <svg className="w-7 h-7 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {/* Shine sweep */}
+              <div
+                className="absolute inset-0 opacity-50"
+                style={{
+                  background: "linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.4) 50%, transparent 65%)",
+                  animation: "pixelShine 2.8s ease-in-out infinite",
+                }}
+              />
+            </div>
+            {/* Orbit dot */}
+            <div
+              className="absolute -inset-3 rounded-full"
+              style={{
+                border: "1.5px dashed rgba(249,115,22,0.30)",
+                animation: "pixelSpin 8s linear infinite",
+              }}
+            />
+          </div>
+          <div className="text-center">
+            <p className="text-[13px] font-semibold text-gray-900 tracking-[-0.01em]">NitroPixel</p>
+            <p className="text-[11px] font-medium text-gray-500 mt-0.5 tabular-nums">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-500 mr-1.5 align-middle" style={{ animation: "pixelDotFade 1.4s ease-in-out infinite" }} />
+              Sincronizando atribuciones
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -491,24 +566,204 @@ export default function PixelPage() {
   const hasAttribution = d.attribution?.byModel?.length > 0;
   const bk = d.businessKpis || { pixelRevenue: 0, pixelRoas: 0, ordersAttributed: 0, attributionRate: 0, aov: 0, totalAdSpend: 0, totalOrders: 0, webOrders: 0, webRevenue: 0, marketplaceOrders: 0, marketplaceRevenue: 0, changes: { pixelRevenue: 0, ordersAttributed: 0, pixelRoas: 0 } };
 
+  // Compute header sparkline data + asset stats
+  const sortedDays = (d.dailyChannelBreakdown || []).slice().sort((a: any, b: any) => a.day.localeCompare(b.day));
+  const headerSparkData = sortedDays.map((day: any) => ({ day: day.day, value: day.totalRevenue || 0 }));
+  const totalEventsTracked = d.liveStatus.totalEvents || 0;
+  const periodRevenue = bk.pixelRevenue || 0;
+  const periodGrowth = bk.changes?.pixelRevenue || 0;
+  const pixelAgeDays = d.pixelHealth?.pixelAgeDays;
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen relative" style={{ background: "#fafafa" }}>
+      <PixelStyles />
       {/* ══════════════════════════════════════════════════════════ */}
-      {/* STICKY HEADER                                            */}
+      {/* STICKY HEADER — Digital Asset Vivo                       */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          {/* Top bar: Title + Period selector */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      <div
+        className={`sticky top-0 z-40 relative overflow-hidden ${headerCompact ? "pixel-header-compact" : ""}`}
+        style={{
+          background: "linear-gradient(180deg, #ffffff 0%, #fbfbfd 55%, #f4f5f8 100%)",
+          backdropFilter: "saturate(140%) blur(20px)",
+          WebkitBackdropFilter: "saturate(140%) blur(20px)",
+          boxShadow:
+            "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.18), 0 22px 40px -28px rgba(15,23,42,0.16)",
+        }}
+      >
+        {/* Animated grid background */}
+        <div
+          className="absolute inset-0 pixel-grid-bg pointer-events-none opacity-60"
+          style={{ animation: "pixelGridShift 60s linear infinite" }}
+        />
+        {/* Asset glow */}
+        <div className="absolute inset-0 pixel-asset-glow pointer-events-none" />
+        {/* Aurora prism — modern accent (top-left orange + top-right indigo) */}
+        <div
+          className="absolute -top-32 -left-24 w-[420px] h-[420px] pointer-events-none rounded-full"
+          style={{
+            background: "radial-gradient(circle at center, rgba(249,115,22,0.16) 0%, rgba(249,115,22,0.04) 40%, transparent 70%)",
+            filter: "blur(40px)",
+          }}
+        />
+        <div
+          className="absolute -top-40 -right-20 w-[460px] h-[460px] pointer-events-none rounded-full"
+          style={{
+            background: "radial-gradient(circle at center, rgba(99,102,241,0.12) 0%, rgba(99,102,241,0.03) 40%, transparent 70%)",
+            filter: "blur(50px)",
+          }}
+        />
+        {/* Bottom prism delimiter — gradient line that locks the boundary */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-[2px] pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent 0%, rgba(249,115,22,0.55) 18%, rgba(236,72,153,0.55) 35%, rgba(168,85,247,0.55) 50%, rgba(99,102,241,0.55) 65%, rgba(16,185,129,0.55) 82%, transparent 100%)",
+            opacity: 0.85,
+          }}
+        />
+
+        <div className="max-w-7xl mx-auto px-5 py-3 relative">
+          {/* Top bar: Brand + Asset value + Live indicator */}
+          <div className="flex items-center justify-between mb-3 gap-4">
+            <div className="flex items-center gap-3.5 min-w-0">
+              {/* Logo with pulse + orbit */}
+              <div className="relative shrink-0">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden"
+                  style={{
+                    background: "linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%)",
+                    boxShadow: "0 6px 18px rgba(249,115,22,0.30), inset 0 1px 0 rgba(255,255,255,0.30)",
+                    animation: d.liveStatus.status === "LIVE" ? "pixelLogoPulse 3.2s ease-in-out infinite" : undefined,
+                  }}
+                >
+                  <svg className="w-5 h-5 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  <div
+                    className="absolute inset-0 opacity-40 pointer-events-none"
+                    style={{
+                      background: "linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.35) 50%, transparent 65%)",
+                      animation: "pixelShine 4s ease-in-out infinite",
+                    }}
+                  />
+                </div>
+              </div>
+              {/* Title + meta */}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1
+                    className="text-[18px] font-bold text-gray-900 leading-tight"
+                    style={{ letterSpacing: "-0.025em" }}
+                  >
+                    NitroPixel
+                  </h1>
+                  <span
+                    className="text-[9px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded uppercase tracking-[0.1em]"
+                    style={{ letterSpacing: "0.08em" }}
+                  >
+                    Analytics
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-[10px] text-gray-500 font-medium tabular-nums flex items-center gap-1">
+                    <svg className="w-2.5 h-2.5 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>
+                    {fmt(totalEventsTracked)} eventos
+                  </p>
+                  {pixelAgeDays !== undefined && (
+                    <>
+                      <span className="text-gray-300 text-[10px]">·</span>
+                      <p className="text-[10px] text-gray-500 font-medium tabular-nums">
+                        {pixelAgeDays}d activo
+                      </p>
+                    </>
+                  )}
+                  <span className="text-gray-300 text-[10px]">·</span>
+                  <p className="text-[10px] text-gray-500 font-medium">Revenue attribution</p>
+                </div>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">NitroPixel</h1>
-              <p className="text-xs text-gray-500">Revenue Attribution</p>
+
+            {/* Asset value + Sparkline + Live */}
+            <div className="hidden md:flex items-center gap-5">
+              {/* Asset value with growth */}
+              <div className="text-right">
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em]">
+                  Revenue Trackeado
+                </p>
+                <div className="flex items-baseline gap-2 justify-end">
+                  <span
+                    className="text-[20px] leading-none font-bold text-gray-900 tabular-nums"
+                    style={{ letterSpacing: "-0.025em" }}
+                  >
+                    {fmtCompact(periodRevenue)}
+                  </span>
+                  {periodGrowth !== 0 && (
+                    <span className={`text-[10px] font-bold tabular-nums flex items-center gap-0.5 ${pctColor(periodGrowth)}`}>
+                      {periodGrowth > 0 && <span>↑</span>}
+                      {periodGrowth < 0 && <span>↓</span>}
+                      {pctBadge(periodGrowth)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Sparkline */}
+              {headerSparkData.length > 1 && (
+                <div className="w-28 h-10 -mb-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={headerSparkData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="headerSpark" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f97316" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#f97316"
+                        strokeWidth={1.75}
+                        fill="url(#headerSpark)"
+                        dot={false}
+                        isAnimationActive
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Live indicator with EKG bars */}
+              <div
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.12em]"
+                style={{
+                  background: d.liveStatus.status === "LIVE"
+                    ? "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(16,185,129,0.04))"
+                    : d.liveStatus.status === "ACTIVE"
+                    ? "linear-gradient(135deg, rgba(245,158,11,0.10), rgba(245,158,11,0.04))"
+                    : "linear-gradient(135deg, rgba(100,116,139,0.10), rgba(100,116,139,0.04))",
+                  color: d.liveStatus.status === "LIVE" ? "#059669" : d.liveStatus.status === "ACTIVE" ? "#b45309" : "#64748b",
+                  border: `1px solid ${d.liveStatus.status === "LIVE" ? "rgba(16,185,129,0.25)" : d.liveStatus.status === "ACTIVE" ? "rgba(245,158,11,0.25)" : "rgba(100,116,139,0.20)"}`,
+                  boxShadow: d.liveStatus.status === "LIVE" ? "0 0 0 4px rgba(16,185,129,0.05)" : undefined,
+                }}
+              >
+                {/* Signal bars */}
+                <span className="flex items-end gap-[2px] h-3">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="w-[2px] rounded-full"
+                      style={{
+                        height: "100%",
+                        background: d.liveStatus.status === "LIVE" ? "#10b981" : d.liveStatus.status === "ACTIVE" ? "#f59e0b" : "#94a3b8",
+                        animation: d.liveStatus.status === "LIVE" ? `pixelSignal 1.2s ease-in-out infinite ${i * 0.18}s` : undefined,
+                        transformOrigin: "bottom",
+                      }}
+                    />
+                  ))}
+                </span>
+                {d.liveStatus.status === "LIVE" ? "En Vivo" : d.liveStatus.status === "ACTIVE" ? "Activo" : "Inactivo"}
+              </div>
             </div>
           </div>
-          <div className="mb-3">
+          <div className="pixel-header-collapse mb-3">
             <DateRangeFilter
               dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
               quickRanges={PIXEL_QUICK_RANGES} onQuickRange={setQuickRange}
@@ -521,31 +776,66 @@ export default function PixelPage() {
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mr-1">Modelo</span>
             <InfoTip text="El modelo de atribucion define como se reparte el credito de una venta entre los distintos canales que toco el cliente antes de comprar. Cambia de modelo y vas a ver como cambian todos los numeros." />
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 ml-2">
-              {MODEL_ORDER.map((model) => (
-                <button
-                  key={model}
-                  onClick={() => setSelectedModel(model)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    selectedModel === model
-                      ? model === "NITRO"
-                        ? "bg-orange-500 text-white shadow-sm"
-                        : "bg-white text-gray-700 shadow-sm border border-gray-200"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {model === "NITRO" && (
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
-                    </svg>
-                  )}
-                  {MODEL_LABELS[model]}
-                </button>
-              ))}
+              {MODEL_ORDER.map((model) => {
+                const tooltip = MODEL_DESCRIPTIONS[model];
+                const Icon = () => {
+                  if (model === "NITRO") {
+                    return (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                      </svg>
+                    );
+                  }
+                  if (model === "LAST_CLICK") {
+                    return (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <circle cx="12" cy="12" r="9" />
+                        <circle cx="12" cy="12" r="4" />
+                        <circle cx="12" cy="12" r="0.8" fill="currentColor" />
+                      </svg>
+                    );
+                  }
+                  if (model === "FIRST_CLICK") {
+                    return (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path d="M5 21V4" />
+                        <path d="M5 4h11l-2 4 2 4H5" />
+                      </svg>
+                    );
+                  }
+                  if (model === "LINEAR") {
+                    return (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <rect x="3" y="6" width="18" height="3" rx="1.5" />
+                        <rect x="3" y="15" width="18" height="3" rx="1.5" />
+                      </svg>
+                    );
+                  }
+                  return null;
+                };
+                return (
+                  <button
+                    key={model}
+                    onClick={() => setSelectedModel(model)}
+                    title={tooltip}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      selectedModel === model
+                        ? model === "NITRO"
+                          ? "bg-orange-500 text-white shadow-sm"
+                          : "bg-white text-gray-700 shadow-sm border border-gray-200"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    <Icon />
+                    {MODEL_LABELS[model]}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* ═══ MODEL DESCRIPTION BAR ═══ */}
-          <div className={`rounded-lg px-4 py-2.5 mb-2 flex items-start gap-3 ${
+          <div className={`pixel-header-collapse rounded-lg px-4 py-2.5 mb-2 flex items-start gap-3 ${
             selectedModel === "NITRO" ? "bg-orange-500/5 border border-orange-500/20" : "bg-white border border-gray-200"
           }`}>
             <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 ${
@@ -673,7 +963,7 @@ export default function PixelPage() {
           </div>
 
           {/* ═══ ATTRIBUTION WINDOW CONFIG ═══ */}
-          <div className="mt-3">
+          <div className="pixel-header-collapse mt-3">
             <button
               onClick={() => { setWindowOpen(!windowOpen); setEditingGlobalWindow(globalWindow); setEditingChannelWindows({...channelWindows}); setWindowError(null); }}
               className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-400 transition-colors"
@@ -775,14 +1065,24 @@ export default function PixelPage() {
           <div className="flex gap-1 -mb-px mt-1">
             {([
               { id: "resumen" as const, label: "Resumen" },
-              { id: "ordenes" as const, label: "Ordenes en Vivo" },
+              { id: "ordenes" as const, label: "Órdenes en Vivo" },
               { id: "canales" as const, label: "Canales" },
             ]).map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-all ${
-                  activeTab === tab.id ? "border-orange-500 text-orange-400" : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}>
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative px-4 py-2 text-[13px] font-semibold transition-all ${
+                  activeTab === tab.id ? "text-orange-600" : "text-gray-500 hover:text-gray-800"
+                }`}
+                style={{ letterSpacing: "-0.01em" }}
+              >
                 {tab.label}
+                {activeTab === tab.id && (
+                  <span
+                    className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full"
+                    style={{ background: "linear-gradient(90deg, #f97316, #fb923c)" }}
+                  />
+                )}
               </button>
             ))}
           </div>
@@ -792,63 +1092,157 @@ export default function PixelPage() {
       {/* ══════════════════════════════════════════════════════════ */}
       {/* PAGE CONTENT                                              */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <div className={`max-w-7xl mx-auto px-4 py-6 space-y-6 pixel-stagger ${loading && data ? "pixel-refetching" : ""}`}>
 
-        {/* ═══ PIXEL HEALTH BAR ═══ */}
-        <div className={`rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-          d.liveStatus.status === "LIVE"
-            ? "bg-emerald-500/5 border-emerald-500/20"
-            : d.liveStatus.status === "ACTIVE"
-            ? "bg-amber-500/5 border-amber-500/20"
-            : "bg-red-500/5 border-red-500/20"
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${
-              d.liveStatus.status === "LIVE"
-                ? "bg-emerald-400 animate-pulse"
-                : d.liveStatus.status === "ACTIVE"
-                ? "bg-amber-400"
-                : "bg-red-400"
-            }`} />
-            <div>
-              <span className={`text-sm font-semibold ${
-                d.liveStatus.status === "LIVE"
-                  ? "text-emerald-600"
-                  : d.liveStatus.status === "ACTIVE"
-                  ? "text-amber-600"
-                  : "text-red-500"
-              }`}>
-                {d.liveStatus.status === "LIVE" ? "EN VIVO" : d.liveStatus.status === "ACTIVE" ? "ACTIVO" : "INACTIVO"}
-              </span>
-              {d.liveStatus.lastEventAt && (
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Ultimo evento: {new Date(d.liveStatus.lastEventAt).toLocaleString("es-AR", {
-                    timeZone: "America/Argentina/Buenos_Aires",
-                    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                  })}
-                </p>
-              )}
+        {/* ═══ PIXEL HEALTH BAR — System Vitals Cockpit ═══ */}
+        {(() => {
+          const isLive = d.liveStatus.status === "LIVE";
+          const isActive = d.liveStatus.status === "ACTIVE";
+          const statusColor = isLive ? "#10b981" : isActive ? "#f59e0b" : "#ef4444";
+          const statusLabel = isLive ? "EN VIVO" : isActive ? "ACTIVO" : "INACTIVO";
+          const attrRate = d.pixelHealth?.attributionRate || 0;
+          const clickRate = d.pixelHealth?.clickCoverage?.clickIdRate || 0;
+          const lastHourEv = d.liveStatus.lastHourEvents || 0;
+
+          return (
+            <div
+              className="relative rounded-2xl bg-white border border-gray-200/80 overflow-hidden"
+              style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
+            >
+              {/* Top accent bar */}
+              <div
+                className="absolute top-0 left-0 right-0 h-[2px]"
+                style={{ background: `linear-gradient(90deg, ${statusColor}, ${statusColor}80, transparent 80%)` }}
+              />
+              {/* Subtle grid bg */}
+              <div className="absolute inset-0 pixel-grid-bg pointer-events-none opacity-50" />
+
+              <div className="relative grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 divide-x divide-gray-100">
+                {/* CELL 1: Status */}
+                <div className="px-5 py-4 col-span-2 sm:col-span-1">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="relative flex h-2 w-2">
+                      {isLive && <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-70" style={{ background: statusColor }} />}
+                      <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: statusColor, boxShadow: `0 0 8px ${statusColor}80` }} />
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">System</span>
+                  </div>
+                  <p className="text-[14px] font-bold tabular-nums leading-none" style={{ color: statusColor, letterSpacing: "-0.01em" }}>
+                    {statusLabel}
+                  </p>
+                  {d.liveStatus.lastEventAt && (
+                    <p className="text-[10px] text-gray-500 font-medium mt-1.5 tabular-nums">
+                      {new Date(d.liveStatus.lastEventAt).toLocaleString("es-AR", {
+                        timeZone: "America/Argentina/Buenos_Aires",
+                        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </p>
+                  )}
+                </div>
+
+                {/* CELL 2: Attribution Rate with progress bar */}
+                <div className="px-5 py-4">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center">
+                    Atribución<InfoTip text="Porcentaje de ordenes que NitroPixel pudo atribuir a un canal." />
+                  </p>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={`text-[18px] font-bold tabular-nums leading-none ${attrRate >= 50 ? "text-emerald-600" : attrRate >= 25 ? "text-amber-600" : "text-red-500"}`} style={{ letterSpacing: "-0.02em" }}>
+                      {attrRate}
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-400">%</span>
+                  </div>
+                  <div className="mt-2 h-1 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min(100, attrRate)}%`,
+                        background: attrRate >= 50
+                          ? "linear-gradient(90deg, #10b981, #34d399)"
+                          : attrRate >= 25
+                          ? "linear-gradient(90deg, #f59e0b, #fbbf24)"
+                          : "linear-gradient(90deg, #ef4444, #f87171)",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* CELL 3: Click IDs */}
+                <div className="px-5 py-4">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center">
+                    Click IDs<InfoTip text="Porcentaje de visitantes con click ID (fbclid, gclid). Mas alto = mejor atribucion." />
+                  </p>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-[18px] font-bold tabular-nums text-gray-900 leading-none" style={{ letterSpacing: "-0.02em" }}>
+                      {clickRate}
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-400">%</span>
+                  </div>
+                  <div className="mt-2 h-1 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min(100, clickRate)}%`,
+                        background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* CELL 4: Eventos / hora con signal bars */}
+                <div className="px-5 py-4">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center">
+                    Eventos/h<InfoTip text="Eventos que el pixel recibe por hora ahora mismo." />
+                  </p>
+                  <div className="flex items-end gap-2">
+                    <span className="text-[18px] font-bold tabular-nums text-gray-900 leading-none" style={{ letterSpacing: "-0.02em" }}>
+                      {fmt(lastHourEv)}
+                    </span>
+                    <span className="flex items-end gap-[2px] h-4 mb-0.5">
+                      {[0, 1, 2, 3].map((i) => (
+                        <span
+                          key={i}
+                          className="w-[2px] rounded-full bg-cyan-500"
+                          style={{
+                            height: `${30 + i * 18}%`,
+                            opacity: lastHourEv > 0 ? 1 : 0.3,
+                            animation: lastHourEv > 0 ? `pixelBarPulse 1.6s ease-in-out infinite ${i * 0.15}s` : undefined,
+                          }}
+                        />
+                      ))}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 font-medium mt-1.5 tabular-nums">
+                    Total: {fmt(d.liveStatus.totalEvents)}
+                  </p>
+                </div>
+
+                {/* CELL 5: Mini sparkline (revenue trend) */}
+                <div className="px-5 py-4 hidden lg:block col-span-1">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5">
+                    Tendencia
+                  </p>
+                  {headerSparkData.length > 1 ? (
+                    <div className="h-9 -mb-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={headerSparkData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="vitalsSpark" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#10b981" stopOpacity={0.30} />
+                              <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={1.5} fill="url(#vitalsSpark)" dot={false} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-gray-400 italic">Sin datos suficientes</p>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-4 text-xs">
-            <div className="text-center">
-              <p className="text-gray-500">Atribucion</p>
-              <p className={`font-semibold ${(d.pixelHealth?.attributionRate || 0) >= 50 ? "text-emerald-600" : (d.pixelHealth?.attributionRate || 0) >= 25 ? "text-amber-600" : "text-red-500"}`}>
-                {d.pixelHealth?.attributionRate || 0}%
-              </p>
-            </div>
-            <div className="w-px h-6 bg-gray-200" />
-            <div className="text-center">
-              <p className="text-gray-500">Click IDs<InfoTip text="Porcentaje de visitantes que llegaron con un click ID (fbclid, gclid). Mas alto = mejor atribucion." /></p>
-              <p className="font-medium text-gray-700">{d.pixelHealth?.clickCoverage?.clickIdRate || 0}%</p>
-            </div>
-            <div className="w-px h-6 bg-gray-200" />
-            <div className="text-center">
-              <p className="text-gray-500">Eventos<InfoTip text="Total de eventos que el pixel registro en este periodo." /></p>
-              <p className="font-medium text-gray-700">{fmt(d.liveStatus.totalEvents)}</p>
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* ═══ EMPTY STATE ═══ */}
         {!hasData && (
@@ -915,16 +1309,25 @@ export default function PixelPage() {
             {/* LIVE ORDERS WITH JOURNEY (Resumen + Ordenes tabs)        */}
             {/* ══════════════════════════════════════════════════════════ */}
             {(activeTab === "resumen" || activeTab === "ordenes") && d.recentJourneys && d.recentJourneys.length > 0 && (
-              <div className="rounded-2xl bg-white border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+              <div
+                className="relative rounded-2xl bg-white border border-gray-200/80 overflow-hidden"
+                style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
+              >
+                <div
+                  className="absolute top-0 left-5 right-5 h-[2px] rounded-full opacity-90"
+                  style={{ background: "linear-gradient(90deg, #10b981, #34d399)" }}
+                />
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
                     <span className="relative flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"/>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"/>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" style={{ boxShadow: "0 0 8px rgba(16,185,129,0.6)" }}/>
                     </span>
-                    <h2 className="text-base font-semibold text-gray-800">Ordenes en Vivo</h2>
+                    <h2 className="text-[15px] font-bold text-gray-900" style={{ letterSpacing: "-0.01em" }}>Órdenes en Vivo</h2>
                     <InfoTip text="Cada orden muestra su recorrido completo y como el modelo de atribucion seleccionado reparte el credito entre los canales." />
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full ml-2">Modelo: {MODEL_LABELS[selectedModel]}</span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full ml-1 uppercase tracking-wide">
+                      Modelo: {MODEL_LABELS[selectedModel]}
+                    </span>
                   </div>
                 </div>
 
@@ -965,10 +1368,11 @@ export default function PixelPage() {
                           )}
                         </div>
 
-                        {/* Expanded Journey */}
-                        {isExpanded && (
-                          <div className="px-5 pb-5 ml-10">
-                            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                        {/* Expanded Journey — smooth grid expand */}
+                        <div className={`pixel-expand ${isExpanded ? "open" : ""}`}>
+                          <div className="pixel-expand-inner">
+                            <div className="px-5 pb-5 ml-10 pt-1">
+                              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
                               {/* Unattributed order message */}
                               {journey.isAttributed === false && (
                                 <div className="mb-4 bg-amber-50 rounded-lg p-3 border border-amber-200">
@@ -1056,9 +1460,10 @@ export default function PixelPage() {
                                 <span>Fuente principal: <strong className="text-gray-700">{creditSummary[0]?.label} ({creditSummary[0]?.pct}%)</strong></span>
                                 <span>Touchpoints: <strong className="text-gray-700">{journey.touchpointCount}</strong></span>
                               </div>
+                              </div>
                             </div>
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1070,11 +1475,21 @@ export default function PixelPage() {
             {/* CHANNEL TABLE (Resumen + Canales tabs)                   */}
             {/* ══════════════════════════════════════════════════════════ */}
             {(activeTab === "resumen" || activeTab === "canales") && (d.channelRoas?.length > 0 || hasAttribution) && (
-              <div className="rounded-2xl bg-white border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-200">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-semibold text-gray-800">Rendimiento por Canal</h2>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Modelo: {MODEL_LABELS[selectedModel]}</span>
+              <div
+                className="relative rounded-2xl bg-white border border-gray-200/80 overflow-hidden"
+                style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
+              >
+                <div
+                  className="absolute top-0 left-5 right-5 h-[2px] rounded-full opacity-90"
+                  style={{ background: "linear-gradient(90deg, #f97316, #fb923c)" }}
+                />
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                    <h2 className="text-[15px] font-bold text-gray-900" style={{ letterSpacing: "-0.01em" }}>Rendimiento por Canal</h2>
+                    <span className="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                      Modelo: {MODEL_LABELS[selectedModel]}
+                    </span>
                     <InfoTip text="Los numeros de esta tabla cambian segun el modelo de atribucion seleccionado. Proba cambiar entre Nitro, Last Click, First Click y Linear para ver como se redistribuye el credito." />
                   </div>
                 </div>
@@ -1082,16 +1497,16 @@ export default function PixelPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Canal</th>
-                          <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Inversion</th>
-                          <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Rev. Pixel<InfoTip text="Revenue atribuido por NitroPixel segun el modelo seleccionado. Es TU verdad." /></th>
-                          <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Rev. Plat.<InfoTip text="Lo que Meta/Google dicen en sus dashboards. Suelen inflar 20-40%." /></th>
-                          <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Ordenes</th>
-                          <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">ROAS Pixel<InfoTip text="Retorno real. Si es 3x, por cada $1 invertido volvieron $3." /></th>
-                          <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">ROAS Plat.<InfoTip text="ROAS que dice la plataforma. Suele ser mas alto porque se auto-atribuyen." /></th>
-                          <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">CPA<InfoTip text="Costo por orden. Cuanto te costo cada venta en este canal." /></th>
-                          <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">AOV<InfoTip text="Ticket promedio de las ordenes de este canal." /></th>
+                        <tr className="bg-gray-50/70 border-b border-gray-200/80">
+                          <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Canal</th>
+                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Inversión</th>
+                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Rev. Pixel<InfoTip text="Revenue atribuido por NitroPixel segun el modelo seleccionado. Es TU verdad." /></th>
+                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Rev. Plat.<InfoTip text="Lo que Meta/Google dicen en sus dashboards. Suelen inflar 20-40%." /></th>
+                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Órdenes</th>
+                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">ROAS Pixel<InfoTip text="Retorno real. Si es 3x, por cada $1 invertido volvieron $3." /></th>
+                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">ROAS Plat.<InfoTip text="ROAS que dice la plataforma. Suele ser mas alto porque se auto-atribuyen." /></th>
+                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">CPA<InfoTip text="Costo por orden. Cuanto te costo cada venta en este canal." /></th>
+                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">AOV<InfoTip text="Ticket promedio de las ordenes de este canal." /></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1100,23 +1515,23 @@ export default function PixelPage() {
                           const cpa = ch.spend > 0 && ch.orders > 0 ? Math.round(ch.spend / ch.orders) : 0;
                           const aov = ch.orders > 0 ? Math.round(ch.pixelRevenue / ch.orders) : 0;
                           return (
-                            <tr key={ch.source} className="hover:bg-gray-50 transition-colors">
+                            <tr key={ch.source} className="group hover:bg-orange-50/30 transition-colors">
                               <td className="px-3 py-3">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-6 h-6 rounded-md flex items-center justify-center text-white" style={{ backgroundColor: info.color }}>
+                                  <div className="w-6 h-6 rounded-md flex items-center justify-center text-white shadow-sm" style={{ backgroundColor: info.color }}>
                                     <ChannelLogo source={ch.source} size={13} />
                                   </div>
-                                  <span className="text-gray-700 capitalize">{info.label}</span>
+                                  <span className="text-gray-800 font-medium capitalize">{info.label}</span>
                                 </div>
                               </td>
-                              <td className="px-3 py-3 text-right text-gray-400 font-medium">{ch.spend > 0 ? fmtARS(ch.spend) : "-"}</td>
-                              <td className="px-3 py-3 text-right text-gray-800 font-bold">{fmtARS(ch.pixelRevenue)}</td>
-                              <td className="px-3 py-3 text-right text-gray-500">{ch.platformRevenue > 0 ? fmtARS(ch.platformRevenue) : "-"}</td>
-                              <td className="px-3 py-3 text-right text-gray-400">{ch.orders}</td>
-                              <td className="px-3 py-3 text-right font-semibold text-orange-600">{ch.pixelRoas > 0 ? `${ch.pixelRoas}x` : "-"}</td>
-                              <td className="px-3 py-3 text-right text-gray-500">{ch.platformRoas > 0 ? `${ch.platformRoas}x` : "-"}</td>
-                              <td className="px-3 py-3 text-right text-gray-400">{cpa > 0 ? fmtARS(cpa) : "-"}</td>
-                              <td className="px-3 py-3 text-right text-gray-400">{aov > 0 ? fmtARS(aov) : "-"}</td>
+                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{ch.spend > 0 ? fmtARS(ch.spend) : "—"}</td>
+                              <td className="px-3 py-3 text-right text-gray-900 font-bold tabular-nums">{fmtARS(ch.pixelRevenue)}</td>
+                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{ch.platformRevenue > 0 ? fmtARS(ch.platformRevenue) : "—"}</td>
+                              <td className="px-3 py-3 text-right text-gray-600 tabular-nums">{ch.orders}</td>
+                              <td className="px-3 py-3 text-right font-bold text-orange-600 tabular-nums">{ch.pixelRoas > 0 ? `${ch.pixelRoas}x` : "—"}</td>
+                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{ch.platformRoas > 0 ? `${ch.platformRoas}x` : "—"}</td>
+                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{cpa > 0 ? fmtARS(cpa) : "—"}</td>
+                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{aov > 0 ? fmtARS(aov) : "—"}</td>
                             </tr>
                           );
                         })}
@@ -1142,10 +1557,20 @@ export default function PixelPage() {
             {/* DAILY TREND TABLE with Sparkline (Resumen tab only)      */}
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && (
-              <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+              <div
+                className="relative rounded-2xl bg-white border border-gray-200/80 overflow-hidden"
+                style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
+              >
+                <div
+                  className="absolute top-0 left-5 right-5 h-[2px] rounded-full opacity-90"
+                  style={{ background: "linear-gradient(90deg, #22c55e, #4ade80)" }}
+                />
                 {/* Header + Metric toggle */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                  <h2 className="text-sm font-semibold text-gray-800">Tendencia Diaria</h2>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <h2 className="text-[15px] font-bold text-gray-900" style={{ letterSpacing: "-0.01em" }}>Tendencia Diaria</h2>
+                  </div>
                   <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
                     {([
                       { key: "revenue" as const, label: "Revenue" },
@@ -1283,28 +1708,50 @@ export default function PixelPage() {
             {/* CONVERSION LAG (Resumen tab only)                        */}
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && d.attribution?.conversionLag?.length > 0 && (
-              <div className="rounded-2xl bg-white border border-gray-200 p-4">
+              <div
+                className="relative rounded-2xl bg-white border border-gray-200/80 p-5 overflow-hidden"
+                style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
+              >
+                <div
+                  className="absolute top-0 left-5 right-5 h-[2px] rounded-full opacity-90"
+                  style={{ background: "linear-gradient(90deg, #06b6d4, #0ea5e9)" }}
+                />
                 <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-sm font-semibold text-gray-800">Tiempo hasta la Compra</h2>
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                    <h2 className="text-[13px] font-semibold text-gray-900" style={{ letterSpacing: "-0.01em" }}>Tiempo hasta la Compra</h2>
+                  </div>
                   {d.pixelHealth?.pixelAgeDays !== undefined && d.pixelHealth.pixelAgeDays <= 30 && (
-                    <span className="text-[10px] text-amber-600/80 bg-amber-400/10 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
                       Pixel activo hace {d.pixelHealth.pixelAgeDays} {d.pixelHealth.pixelAgeDays === 1 ? "día" : "días"}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className="text-[11px] text-gray-500 mb-4 font-medium">
                   Días entre el primer contacto del pixel y la conversión
                   {d.pixelHealth?.pixelAgeDays !== undefined && d.pixelHealth.pixelAgeDays <= 7 && (
-                    <span className="text-amber-600/60"> — datos limitados por la edad del pixel</span>
+                    <span className="text-amber-600"> — datos limitados por la edad del pixel</span>
                   )}
                 </p>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={d.attribution.conversionLag.filter((b: any) => b.bucket !== "unknown")}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="bucket" tick={{ fill: "#9ca3af", fontSize: 11 }} stroke="rgba(255,255,255,0.1)" />
-                    <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} stroke="rgba(255,255,255,0.1)" allowDecimals={false} />
-                    <Tooltip contentStyle={{ backgroundColor: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }} formatter={(v: number, name: string) => [name === "orders" ? `${v} órdenes` : fmtARS(v), name === "orders" ? "Órdenes" : "Revenue"]} labelFormatter={(v) => `${v}`} />
-                    <Bar dataKey="orders" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(15,23,42,0.06)" />
+                    <XAxis dataKey="bucket" tick={{ fill: "#64748b", fontSize: 11 }} stroke="rgba(15,23,42,0.10)" />
+                    <YAxis tick={{ fill: "#64748b", fontSize: 11 }} stroke="rgba(15,23,42,0.10)" allowDecimals={false} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(6,182,212,0.06)" }}
+                      contentStyle={{
+                        backgroundColor: "#ffffff",
+                        border: "1px solid rgba(15,23,42,0.10)",
+                        borderRadius: "10px",
+                        boxShadow: "0 8px 24px rgba(15,23,42,0.10)",
+                        fontSize: 12,
+                      }}
+                      labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                      formatter={(v: number, name: string) => [name === "orders" ? `${v} órdenes` : fmtARS(v), name === "orders" ? "Órdenes" : "Revenue"]}
+                      labelFormatter={(v) => `${v}`}
+                    />
+                    <Bar dataKey="orders" fill="#06b6d4" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1315,34 +1762,59 @@ export default function PixelPage() {
             {/* ══════════════════════════════════════════════════════════ */}
             {activeTab === "resumen" && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="rounded-xl bg-white border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Match Rate (Web)<InfoTip text="Porcentaje de ordenes WEB que NitroPixel pudo atribuir. Excluye MercadoLibre (no trackeable por pixel)." /></span>
-                    <div className={`w-2 h-2 rounded-full ${bk.attributionRate >= 50 ? "bg-emerald-400" : bk.attributionRate >= 25 ? "bg-amber-400" : "bg-red-400"}`}/>
+                {[
+                  {
+                    label: "Match Rate (Web)",
+                    info: "Porcentaje de ordenes WEB que NitroPixel pudo atribuir. Excluye MercadoLibre (no trackeable por pixel).",
+                    value: `${bk.attributionRate}%`,
+                    sub: bk.marketplaceOrders > 0 ? `${fmt(bk.marketplaceOrders)} ML excluidas` : undefined,
+                    accent: bk.attributionRate >= 50
+                      ? { bar: "linear-gradient(90deg, #10b981, #34d399)", label: "text-emerald-600", dot: "bg-emerald-500" }
+                      : bk.attributionRate >= 25
+                      ? { bar: "linear-gradient(90deg, #f59e0b, #fbbf24)", label: "text-amber-600", dot: "bg-amber-500" }
+                      : { bar: "linear-gradient(90deg, #ef4444, #f87171)", label: "text-red-500", dot: "bg-red-500" },
+                  },
+                  {
+                    label: "Eventos/hora",
+                    info: "Eventos que el pixel recibe por hora. Si cae mucho, algo se rompio.",
+                    value: fmt(d.liveStatus.lastHourEvents),
+                    accent: d.liveStatus.lastHourEvents > 0
+                      ? { bar: "linear-gradient(90deg, #06b6d4, #0ea5e9)", label: "text-cyan-600", dot: "bg-cyan-500" }
+                      : { bar: "linear-gradient(90deg, #ef4444, #f87171)", label: "text-red-500", dot: "bg-red-500" },
+                  },
+                  {
+                    label: "Click IDs",
+                    info: "Porcentaje de visitas con click ID (fbclid/gclid). Mas alto = mejor atribucion.",
+                    value: `${d.pixelHealth?.clickCoverage?.clickIdRate || 0}%`,
+                    accent: (d.pixelHealth?.clickCoverage?.clickIdRate || 0) >= 30
+                      ? { bar: "linear-gradient(90deg, #6366f1, #8b5cf6)", label: "text-indigo-500", dot: "bg-indigo-500" }
+                      : { bar: "linear-gradient(90deg, #f59e0b, #fbbf24)", label: "text-amber-600", dot: "bg-amber-500" },
+                  },
+                  {
+                    label: "AOV",
+                    info: "Ticket promedio de ordenes atribuidas.",
+                    value: bk.aov > 0 ? fmtARS(bk.aov) : "—",
+                    accent: { bar: "linear-gradient(90deg, #ec4899, #f472b6)", label: "text-pink-500", dot: "bg-pink-500" },
+                  },
+                ].map((card) => (
+                  <div
+                    key={card.label}
+                    className="group relative rounded-xl bg-white border border-gray-200/80 p-4 transition-all duration-200 hover:-translate-y-0.5 overflow-hidden"
+                    style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
+                  >
+                    <div className="absolute top-0 left-3 right-3 h-[2px] rounded-full opacity-90" style={{ background: card.accent.bar }} />
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${card.accent.label} flex items-center`}>
+                        {card.label}<InfoTip text={card.info} />
+                      </span>
+                      <div className={`w-1.5 h-1.5 rounded-full ${card.accent.dot}`} />
+                    </div>
+                    <span className="text-[22px] leading-none font-bold text-gray-900 tabular-nums" style={{ letterSpacing: "-0.02em" }}>
+                      {card.value}
+                    </span>
+                    {card.sub && <p className="text-[11px] text-gray-500 mt-1.5 font-medium">{card.sub}</p>}
                   </div>
-                  <span className="text-xl font-bold text-gray-800">{bk.attributionRate}%</span>
-                  {bk.marketplaceOrders > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{fmt(bk.marketplaceOrders)} ML excluidas</p>}
-                </div>
-                <div className="rounded-xl bg-white border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Eventos/hora<InfoTip text="Eventos que el pixel recibe por hora. Si cae mucho, algo se rompio." /></span>
-                    <div className={`w-2 h-2 rounded-full ${d.liveStatus.lastHourEvents > 0 ? "bg-emerald-400" : "bg-red-400"}`}/>
-                  </div>
-                  <span className="text-xl font-bold text-gray-800">{fmt(d.liveStatus.lastHourEvents)}</span>
-                </div>
-                <div className="rounded-xl bg-white border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Click IDs<InfoTip text="Porcentaje de visitas con click ID (fbclid/gclid). Mas alto = mejor atribucion." /></span>
-                    <div className={`w-2 h-2 rounded-full ${(d.pixelHealth?.clickCoverage?.clickIdRate || 0) >= 30 ? "bg-emerald-400" : "bg-amber-400"}`}/>
-                  </div>
-                  <span className="text-xl font-bold text-gray-800">{d.pixelHealth?.clickCoverage?.clickIdRate || 0}%</span>
-                </div>
-                <div className="rounded-xl bg-white border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">AOV<InfoTip text="Ticket promedio de ordenes atribuidas." /></span>
-                  </div>
-                  <span className="text-xl font-bold text-gray-800">{bk.aov > 0 ? fmtARS(bk.aov) : "-"}</span>
-                </div>
+                ))}
               </div>
             )}
 
@@ -1353,12 +1825,25 @@ export default function PixelPage() {
         {/* VENTAS POR ANUNCIO — Two-panel layout (mockup v2)          */}
         {/* ══════════════════════════════════════════════════════════════ */}
         {salesBySource && salesBySource.length > 0 && (
-          <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+          <div
+            className="relative rounded-2xl bg-white border border-gray-200/80 overflow-hidden"
+            style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
+          >
+            <div
+              className="absolute top-0 left-6 right-6 h-[2px] rounded-full opacity-90"
+              style={{ background: "linear-gradient(90deg, #6366f1, #8b5cf6)" }}
+            />
             {/* Header */}
             <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Ventas por Canal</h2>
-              <p className="text-xs text-gray-500 mt-1">
-                Que productos vendio cada canal — Modelo: {MODEL_LABELS[selectedModel] || selectedModel}
+              <div className="flex items-center gap-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                <h2 className="text-[16px] font-bold text-gray-900" style={{ letterSpacing: "-0.02em" }}>Ventas por Canal</h2>
+                <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                  Modelo: {MODEL_LABELS[selectedModel] || selectedModel}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1 font-medium ml-4">
+                Qué productos vendió cada canal en este período
               </p>
             </div>
 
@@ -1372,31 +1857,33 @@ export default function PixelPage() {
                     <button
                       key={`${src.source}-${idx}`}
                       onClick={() => setSelectedSource(idx)}
-                      className={`w-full text-left px-5 py-4 border-b border-gray-50 transition-colors ${
-                        isSelected ? "bg-blue-50 border-l-4 border-l-blue-500" : "hover:bg-gray-50 border-l-4 border-l-transparent"
+                      className={`w-full text-left px-5 py-3.5 border-b border-gray-50 transition-all ${
+                        isSelected
+                          ? "bg-indigo-50/60 border-l-[3px] border-l-indigo-500"
+                          : "hover:bg-gray-50 border-l-[3px] border-l-transparent"
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm"
                           style={{ backgroundColor: info.color }}
                         >
                           <ChannelLogo source={src.source} size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-gray-900 text-sm truncate">
+                          <div className="font-semibold text-gray-900 text-[13px] truncate" style={{ letterSpacing: "-0.01em" }}>
                             {info.label}
                           </div>
-                          <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500 font-medium tabular-nums">
                             <span>{fmtARS(src.revenue)}</span>
-                            <span className="text-gray-700">|</span>
-                            <span>{src.orders} {src.orders === 1 ? "orden" : "ordenes"}</span>
-                            <span className="text-gray-700">|</span>
+                            <span className="text-gray-300">·</span>
+                            <span>{src.orders} {src.orders === 1 ? "orden" : "órdenes"}</span>
+                            <span className="text-gray-300">·</span>
                             <span>{src.units} uds</span>
                           </div>
                         </div>
                         {isSelected && (
-                          <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg className="w-4 h-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path d="M9 5l7 7-7 7" />
                           </svg>
                         )}
@@ -1417,28 +1904,31 @@ export default function PixelPage() {
                     <>
                       {/* Source summary cards */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                        <div className="bg-gray-50 rounded-xl p-3 text-center">
-                          <div className="text-lg font-bold text-gray-900">{fmtARS(selected.revenue)}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">Facturacion</div>
-                        </div>
-                        <div className="bg-gray-50 rounded-xl p-3 text-center">
-                          <div className="text-lg font-bold text-gray-900">{selected.orders}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">Ordenes</div>
-                        </div>
-                        <div className="bg-gray-50 rounded-xl p-3 text-center">
-                          <div className="text-lg font-bold text-gray-900">{selected.units}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">Unidades</div>
-                        </div>
-                        <div className="bg-gray-50 rounded-xl p-3 text-center">
-                          <div className="text-lg font-bold text-gray-900">{fmtARS(selected.avgTicket)}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">Ticket Prom.</div>
-                        </div>
+                        {[
+                          { label: "Facturación", value: fmtARS(selected.revenue), accent: "linear-gradient(90deg, #10b981, #34d399)", dot: "bg-emerald-500" },
+                          { label: "Órdenes", value: String(selected.orders), accent: "linear-gradient(90deg, #6366f1, #8b5cf6)", dot: "bg-indigo-500" },
+                          { label: "Unidades", value: String(selected.units), accent: "linear-gradient(90deg, #06b6d4, #0ea5e9)", dot: "bg-cyan-500" },
+                          { label: "Ticket Prom.", value: fmtARS(selected.avgTicket), accent: "linear-gradient(90deg, #f97316, #fb923c)", dot: "bg-orange-500" },
+                        ].map((s) => (
+                          <div
+                            key={s.label}
+                            className="relative rounded-xl bg-white border border-gray-200/80 p-3 text-center overflow-hidden"
+                            style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
+                          >
+                            <div className="absolute top-0 left-3 right-3 h-[2px] rounded-full opacity-90" style={{ background: s.accent }} />
+                            <div className="text-[18px] font-bold text-gray-900 tabular-nums" style={{ letterSpacing: "-0.02em" }}>{s.value}</div>
+                            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-[0.1em] mt-1">{s.label}</div>
+                          </div>
+                        ))}
                       </div>
 
                       {/* Product table */}
-                      <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                        Productos vendidos via {info.label}
-                      </h3>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        <h3 className="text-[13px] font-bold text-gray-900" style={{ letterSpacing: "-0.01em" }}>
+                          Productos vendidos vía {info.label}
+                        </h3>
+                      </div>
 
                       {selected.products.length === 0 ? (
                         <p className="text-sm text-gray-400 py-8 text-center">Sin datos de productos</p>
@@ -1447,10 +1937,11 @@ export default function PixelPage() {
                           {selected.products.map((prod, pidx) => (
                             <div
                               key={pidx}
-                              className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                              className="group flex items-center gap-4 p-3 bg-white border border-gray-200/80 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition-all"
+                              style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.03)" }}
                             >
                               {/* Product image */}
-                              <div className="w-14 h-14 rounded-lg bg-white border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                              <div className="w-14 h-14 rounded-lg bg-gray-50 border border-gray-200/80 overflow-hidden shrink-0 flex items-center justify-center">
                                 {prod.image ? (
                                   <img
                                     src={prod.image}
@@ -1459,7 +1950,7 @@ export default function PixelPage() {
                                     loading="lazy"
                                   />
                                 ) : (
-                                  <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                  <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                     <path d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
                                   </svg>
                                 )}
@@ -1467,25 +1958,25 @@ export default function PixelPage() {
 
                               {/* Product info */}
                               <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium text-gray-900 truncate">{prod.name}</div>
+                                <div className="text-[13px] font-semibold text-gray-900 truncate" style={{ letterSpacing: "-0.01em" }}>{prod.name}</div>
                                 {prod.sku && (
-                                  <div className="text-xs text-gray-400 mt-0.5">SKU: {prod.sku}</div>
+                                  <div className="text-[10px] text-gray-400 font-medium mt-0.5 tabular-nums">SKU: {prod.sku}</div>
                                 )}
                               </div>
 
                               {/* Stats */}
                               <div className="flex items-center gap-5 shrink-0">
                                 <div className="text-center">
-                                  <div className="text-sm font-semibold text-gray-900">{prod.units}</div>
-                                  <div className="text-[10px] text-gray-400 uppercase">Uds</div>
+                                  <div className="text-[13px] font-bold text-gray-900 tabular-nums">{prod.units}</div>
+                                  <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-[0.1em]">Uds</div>
                                 </div>
                                 <div className="text-center">
-                                  <div className="text-sm font-semibold text-gray-900">{fmtARS(prod.avgPrice)}</div>
-                                  <div className="text-[10px] text-gray-400 uppercase">Precio</div>
+                                  <div className="text-[13px] font-bold text-gray-900 tabular-nums">{fmtARS(prod.avgPrice)}</div>
+                                  <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-[0.1em]">Precio</div>
                                 </div>
                                 <div className="text-center min-w-[80px]">
-                                  <div className="text-sm font-bold text-gray-900">{fmtARS(prod.revenue)}</div>
-                                  <div className="text-[10px] text-gray-400 uppercase">Total</div>
+                                  <div className="text-[14px] font-bold text-indigo-600 tabular-nums">{fmtARS(prod.revenue)}</div>
+                                  <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-[0.1em]">Total</div>
                                 </div>
                               </div>
                             </div>
@@ -1516,8 +2007,92 @@ export default function PixelPage() {
             <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
             Hover para ver explicacion
           </span>
+          <span className="ml-4 flex items-center gap-1 text-gray-400">
+            <kbd className="text-[10px] font-mono bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-500">⌘K</kbd>
+            Comandos rápidos
+          </span>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* CMD+K COMMAND PALETTE                                    */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {paletteOpen && (
+        <div
+          className="pixel-palette-backdrop fixed inset-0 z-[100] flex items-start justify-center pt-[18vh] px-4"
+          style={{ background: "rgba(15,23,42,0.32)" }}
+          onClick={() => setPaletteOpen(false)}
+        >
+          <div
+            className="pixel-palette w-full max-w-lg rounded-2xl bg-white border border-gray-200 overflow-hidden"
+            style={{ boxShadow: "0 20px 60px rgba(15,23,42,0.18), 0 4px 16px rgba(15,23,42,0.08)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
+              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <span className="text-sm text-gray-400 flex-1">Comandos rápidos…</span>
+              <kbd className="text-[10px] font-mono bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 text-gray-500">ESC</kbd>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto py-2">
+              <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">Vistas</div>
+              {([
+                { id: "resumen", label: "Resumen" },
+                { id: "ordenes", label: "Órdenes" },
+                { id: "canales", label: "Canales" },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id); setPaletteOpen(false); }}
+                  className="w-full text-left px-3 py-2 mx-1 rounded-lg flex items-center gap-3 hover:bg-orange-50 transition-colors group"
+                >
+                  <span className="w-7 h-7 rounded-md bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+                    <svg className="w-3.5 h-3.5 text-gray-500 group-hover:text-orange-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                  </span>
+                  <span className="text-sm text-gray-700 flex-1">Ir a {tab.label}</span>
+                  {activeTab === tab.id && <span className="text-[10px] text-orange-600 font-bold">ACTIVO</span>}
+                </button>
+              ))}
+              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">Modelo de Atribución</div>
+              {MODEL_ORDER.map((model) => (
+                <button
+                  key={model}
+                  onClick={() => { setSelectedModel(model); setPaletteOpen(false); }}
+                  className="w-full text-left px-3 py-2 mx-1 rounded-lg flex items-center gap-3 hover:bg-orange-50 transition-colors group"
+                >
+                  <span className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                    model === "NITRO" ? "bg-orange-100" : "bg-gray-100 group-hover:bg-orange-100"
+                  }`}>
+                    {model === "NITRO" ? (
+                      <svg className="w-3.5 h-3.5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+                      </svg>
+                    ) : (
+                      <span className="text-[10px] font-bold text-gray-500">{model[0]}</span>
+                    )}
+                  </span>
+                  <span className="text-sm text-gray-700 flex-1">{MODEL_LABELS[model]}</span>
+                  {selectedModel === model && <span className="text-[10px] text-orange-600 font-bold">ACTIVO</span>}
+                </button>
+              ))}
+              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">Acciones</div>
+              <button
+                onClick={() => { fetchData(); setPaletteOpen(false); }}
+                className="w-full text-left px-3 py-2 mx-1 rounded-lg flex items-center gap-3 hover:bg-orange-50 transition-colors group"
+              >
+                <span className="w-7 h-7 rounded-md bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+                  <svg className="w-3.5 h-3.5 text-gray-500 group-hover:text-orange-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M4 4v6h6M20 20v-6h-6M4 10a8 8 0 0114-4M20 14a8 8 0 01-14 4"/>
+                  </svg>
+                </span>
+                <span className="text-sm text-gray-700 flex-1">Refrescar datos</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1541,28 +2116,59 @@ function KpiCard({
   info?: string;
   sub?: string;
 }) {
-  const colorMap: Record<string, string> = {
-    indigo: "bg-white border-indigo-200",
-    cyan: "bg-white border-cyan-200",
-    purple: "bg-white border-purple-200",
-    orange: "bg-white border-orange-200",
-    green: "bg-white border-emerald-200",
-    pink: "bg-white border-pink-200",
-    gray: "bg-white border-gray-200",
+  // Premium accent color per kpi (top hairline + label color)
+  const accentMap: Record<string, { bar: string; label: string; ring: string }> = {
+    indigo: { bar: "linear-gradient(90deg, #6366f1, #8b5cf6)", label: "text-indigo-500", ring: "rgba(99,102,241,0.10)" },
+    cyan:   { bar: "linear-gradient(90deg, #06b6d4, #0ea5e9)", label: "text-cyan-600",   ring: "rgba(6,182,212,0.10)" },
+    purple: { bar: "linear-gradient(90deg, #a855f7, #d946ef)", label: "text-purple-500", ring: "rgba(168,85,247,0.10)" },
+    orange: { bar: "linear-gradient(90deg, #f97316, #fb923c)", label: "text-orange-500", ring: "rgba(249,115,22,0.10)" },
+    green:  { bar: "linear-gradient(90deg, #10b981, #34d399)", label: "text-emerald-600",ring: "rgba(16,185,129,0.10)" },
+    pink:   { bar: "linear-gradient(90deg, #ec4899, #f472b6)", label: "text-pink-500",   ring: "rgba(236,72,153,0.10)" },
+    gray:   { bar: "linear-gradient(90deg, #64748b, #94a3b8)", label: "text-gray-500",   ring: "rgba(100,116,139,0.10)" },
   };
+  const a = accentMap[color] || accentMap.gray;
+  const displayValue = useAnimatedValue(value);
 
   return (
-    <div className={`rounded-xl ${colorMap[color] || colorMap.gray} border p-4 shadow-sm hover:shadow-md transition-shadow`}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+    <div
+      className="group relative rounded-xl bg-white border border-gray-200/80 p-4 transition-all duration-200 hover:-translate-y-0.5 overflow-hidden"
+      style={{
+        boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)",
+      }}
+    >
+      {/* Top hairline accent */}
+      <div
+        className="absolute top-0 left-3 right-3 h-[2px] rounded-full opacity-90"
+        style={{ background: a.bar }}
+      />
+      {/* Hover glow ring */}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        style={{ boxShadow: `0 0 0 4px ${a.ring}` }}
+      />
+      <div className="flex items-center justify-between mb-1.5">
+        <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${a.label}`}>
           {label}{info && <InfoTip text={info} />}
         </span>
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-gray-900">{value}</span>
-        {change !== undefined && <span className={`text-xs font-medium ${pctColor(change)}`}>{pctBadge(change)}</span>}
+        <span
+          className="text-[26px] leading-none font-bold text-gray-900 tabular-nums"
+          style={{ letterSpacing: "-0.02em" }}
+        >
+          {displayValue}
+        </span>
+        {change !== undefined && (
+          <span
+            className={`text-[11px] font-semibold tabular-nums ${pctColor(change)} flex items-center gap-0.5`}
+          >
+            {change > 0 && <span>↑</span>}
+            {change < 0 && <span>↓</span>}
+            {pctBadge(change)}
+          </span>
+        )}
       </div>
-      {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
+      {sub && <p className="text-[11px] text-gray-500 mt-1.5 font-medium">{sub}</p>}
     </div>
   );
 }
@@ -1573,6 +2179,234 @@ function EmptySection({ text }: { text: string }) {
       <p className="text-sm text-gray-500">{text}</p>
     </div>
   );
+}
+
+// ══════════════════════════════════════════════════════════════
+// PIXEL STYLES — keyframes premium tech-grade
+// ══════════════════════════════════════════════════════════════
+function PixelStyles() {
+  return (
+    <style>{`
+      @keyframes pixelHeartbeat {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.18); opacity: 0.85; }
+      }
+      @keyframes pixelLogoPulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 8px 24px rgba(249,115,22,0.30), inset 0 1px 0 rgba(255,255,255,0.30); }
+        50% { transform: scale(1.04); box-shadow: 0 12px 32px rgba(249,115,22,0.45), inset 0 1px 0 rgba(255,255,255,0.30); }
+      }
+      @keyframes pixelShine {
+        0% { transform: translateX(-100%); }
+        50%, 100% { transform: translateX(100%); }
+      }
+      @keyframes pixelSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes pixelDotFade {
+        0%, 100% { opacity: 0.4; transform: scale(0.9); }
+        50% { opacity: 1; transform: scale(1.2); }
+      }
+      @keyframes pixelFadeUp {
+        from { opacity: 0; transform: translateY(8px) scale(0.985); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      @keyframes pixelGridShift {
+        0% { background-position: 0 0; }
+        100% { background-position: 32px 32px; }
+      }
+      @keyframes pixelBarPulse {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 1; }
+      }
+      @keyframes pixelSignal {
+        0%, 100% { transform: scaleY(0.4); }
+        50% { transform: scaleY(1); }
+      }
+      .pixel-fade-up {
+        animation: pixelFadeUp 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .pixel-stagger > * {
+        animation: pixelFadeUp 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .pixel-stagger > *:nth-child(1) { animation-delay: 0ms; }
+      .pixel-stagger > *:nth-child(2) { animation-delay: 60ms; }
+      .pixel-stagger > *:nth-child(3) { animation-delay: 120ms; }
+      .pixel-stagger > *:nth-child(4) { animation-delay: 180ms; }
+      .pixel-stagger > *:nth-child(5) { animation-delay: 240ms; }
+      .pixel-stagger > *:nth-child(6) { animation-delay: 300ms; }
+      .pixel-stagger > *:nth-child(7) { animation-delay: 360ms; }
+      .pixel-stagger > *:nth-child(8) { animation-delay: 420ms; }
+      .pixel-stagger > *:nth-child(9) { animation-delay: 480ms; }
+      .pixel-stagger > *:nth-child(10) { animation-delay: 540ms; }
+      .pixel-stagger > *:nth-child(n+11) { animation-delay: 600ms; }
+      .pixel-grid-bg {
+        background-image:
+          linear-gradient(rgba(15,23,42,0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(15,23,42,0.04) 1px, transparent 1px);
+        background-size: 32px 32px;
+      }
+      .pixel-asset-glow {
+        background:
+          radial-gradient(ellipse 600px 200px at 20% 0%, rgba(249,115,22,0.06), transparent 60%),
+          radial-gradient(ellipse 500px 180px at 80% 100%, rgba(99,102,241,0.05), transparent 60%);
+      }
+      /* Smooth expand using grid-template-rows trick (Linear/Stripe-grade) */
+      .pixel-expand {
+        display: grid;
+        grid-template-rows: 0fr;
+        opacity: 0;
+        transition:
+          grid-template-rows 520ms cubic-bezier(0.16, 1, 0.3, 1),
+          opacity 360ms cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: grid-template-rows, opacity;
+      }
+      .pixel-expand.open {
+        grid-template-rows: 1fr;
+        opacity: 1;
+      }
+      .pixel-expand-inner {
+        overflow: hidden;
+        min-height: 0;
+      }
+      .pixel-expand.open .pixel-expand-inner > * {
+        animation: pixelFadeUp 540ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-delay: 80ms;
+      }
+      /* Skeleton shimmer */
+      @keyframes pixelShimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      .pixel-skeleton {
+        background: linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.08) 50%, rgba(15,23,42,0.04) 100%);
+        background-size: 200% 100%;
+        animation: pixelShimmer 1.6s ease-in-out infinite;
+        border-radius: 8px;
+      }
+      /* Refetch overlay */
+      .pixel-refetching {
+        position: relative;
+        opacity: 0.7;
+        transition: opacity 280ms ease-out;
+      }
+      .pixel-refetching::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+        background-size: 200% 100%;
+        animation: pixelShimmer 1.4s ease-in-out infinite;
+        pointer-events: none;
+        border-radius: inherit;
+      }
+      /* Compact sticky header on scroll */
+      .pixel-header-collapse {
+        max-height: 800px;
+        opacity: 1;
+        overflow: hidden;
+        transition:
+          max-height 420ms cubic-bezier(0.16, 1, 0.3, 1),
+          opacity 280ms cubic-bezier(0.16, 1, 0.3, 1),
+          margin 420ms cubic-bezier(0.16, 1, 0.3, 1),
+          padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .pixel-header-compact .pixel-header-collapse {
+        max-height: 0 !important;
+        opacity: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        pointer-events: none;
+      }
+      /* Cmd+K palette */
+      @keyframes pixelPaletteIn {
+        from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      @keyframes pixelBackdropIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .pixel-palette-backdrop {
+        animation: pixelBackdropIn 200ms ease-out both;
+        backdrop-filter: blur(6px);
+      }
+      .pixel-palette {
+        animation: pixelPaletteIn 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      /* Reduce motion */
+      @media (prefers-reduced-motion: reduce) {
+        .pixel-fade-up, .pixel-stagger > *, .pixel-expand, .pixel-expand.open .pixel-expand-inner > *, .pixel-palette, .pixel-skeleton {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// HOOKS — count-up animation premium
+// ══════════════════════════════════════════════════════════════
+function useCountUp(target: number, duration = 900): number {
+  const [value, setValue] = useState(target);
+  const prevTargetRef = useRef(target);
+  const rafRef = useRef<number | null>(null);
+  useEffect(() => {
+    const from = prevTargetRef.current;
+    const to = target;
+    if (from === to || !Number.isFinite(to)) {
+      setValue(to);
+      return;
+    }
+    const start = performance.now();
+    const ease = (t: number) => 1 - Math.pow(1 - t, 4);
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = ease(progress);
+      setValue(from + (to - from) * eased);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        prevTargetRef.current = to;
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [target, duration]);
+  return value;
+}
+
+// Animate any string that contains a numeric portion (e.g. "$12,345", "12.5%", "$1.2M")
+// Falls back gracefully when no number is detected.
+function useAnimatedValue(value: string, duration = 900): string {
+  // Match the FIRST numeric run (handles 1,234.56)
+  const match = value?.match?.(/-?\d+(?:[.,]\d+)*(?:\.\d+)?/);
+  const raw = match?.[0] ?? "";
+  const cleaned = raw.replace(/,/g, "");
+  const numeric = parseFloat(cleaned);
+  const animated = useCountUp(Number.isFinite(numeric) ? numeric : 0, duration);
+  if (!match || !Number.isFinite(numeric)) return value;
+
+  // Preserve original formatting style (commas + decimals)
+  const hasComma = raw.includes(",");
+  const decimals = (() => {
+    const dot = raw.lastIndexOf(".");
+    if (dot === -1) return 0;
+    const tail = raw.slice(dot + 1);
+    return /^\d+$/.test(tail) ? tail.length : 0;
+  })();
+  const formatted = animated.toLocaleString("es-AR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: hasComma || Math.abs(numeric) >= 1000,
+  });
+  return value.replace(raw, formatted);
 }
 
 function cleanUrl(url: string): string {

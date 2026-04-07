@@ -104,14 +104,11 @@ function AdminUsageInner() {
   return (
     <div
       style={{
-        minHeight: "100vh",
-        background: "linear-gradient(180deg, #0a0a0f 0%, #13111c 100%)",
         color: "#e4e4e7",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        padding: "32px 24px",
       }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+      <div>
         <header style={{ marginBottom: 32 }}>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "#fbbf24", margin: 0, letterSpacing: "-0.02em" }}>
             Aurum · Usage Telemetry

@@ -326,8 +326,7 @@ export default function CustomerJourneysPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    // Modelo fijo: DATA_DRIVEN (Nitro). La eleccion de modelo vive en /pixel.
-    fetch(`/api/metrics/pixel/journeys?limit=${limit}&model=DATA_DRIVEN`)
+    fetch(`/api/metrics/pixel/journeys?limit=${limit}`)
       .then((r) => (r.ok ? r.json() : r.json().then((j) => Promise.reject(j))))
       .then((d: JourneyResponse) => { if (!cancelled) setData(d); })
       .catch((e) => { if (!cancelled) setError(e?.error || "No se pudieron cargar los journeys"); })
