@@ -137,6 +137,12 @@ const NAV_GROUPS: NavGroup[] = [
     label: "HERRAMIENTAS",
     items: [
       {
+        href: "/chat",
+        label: "Aurum",
+        icon: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 4v12M8 10l4-4 4 4M8 14l4 4 4-4",
+        premium: { badge: "INTELLIGENCE", badgeColor: "#fbbf24", glowColor: "rgba(251,191,36,0.22)", description: "Inteligencia dorada del negocio" },
+      },
+      {
         href: "/pixel",
         label: "NitroPixel",
         icon: "M13 10V3L4 14h7v7l9-11h-7z",
@@ -179,13 +185,8 @@ const NAV_GROUPS: NavGroup[] = [
         icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
       },
       {
-        href: "/chat",
-        label: "Chat IA",
-        icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
-      },
-      {
         href: "/memory",
-        label: "Memoria del Bot",
+        label: "Memoria de Aurum",
         icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
       },
       {
@@ -236,6 +237,42 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="h-screen bg-nitro-bg flex overflow-hidden">
+      {/* Aurum global animations */}
+      <style jsx global>{`
+        @keyframes aurumShimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        .aurum-shimmer {
+          animation: aurumShimmer 4.5s ease-in-out infinite;
+        }
+        @keyframes aurumOrbit {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes aurumBreath {
+          0%, 100% { transform: scale(1); opacity: 0.9; }
+          50% { transform: scale(1.04); opacity: 1; }
+        }
+        @keyframes aurumFloat {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-3px); }
+        }
+        @keyframes aurumFadeUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes aurumPulseRing {
+          0% { transform: scale(0.95); opacity: 0.7; }
+          50% { transform: scale(1.05); opacity: 1; }
+          100% { transform: scale(0.95); opacity: 0.7; }
+        }
+        @keyframes aurumTextCycle {
+          0%, 20% { opacity: 0; transform: translateY(6px); }
+          25%, 45% { opacity: 1; transform: translateY(0); }
+          50%, 100% { opacity: 0; transform: translateY(-6px); }
+        }
+      `}</style>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -307,23 +344,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   (item.href === "/influencers" && pathname.startsWith("/influencers") && !isContentRoute);
                 const hasChildren = item.children && item.children.length > 0;
 
-                // ═══ Premium tool cards (NitroPixel, LTV) ═══
+                // ═══ Premium tool cards (Aurum, NitroPixel, LTV) ═══
                 if (item.premium) {
+                  const isAurum = item.label === "Aurum";
                   return (
-                    <div key={item.href} className="mb-1.5">
+                    <div key={item.href} className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""}`}>
                       <Link
                         href={item.href}
                         onClick={() => setSidebarOpen(false)}
-                        className="group block relative rounded-xl overflow-hidden transition-all duration-300"
+                        className="group block relative rounded-xl overflow-hidden transition-all duration-500"
                         style={{
-                          background: isActive
-                            ? `linear-gradient(135deg, ${item.premium.glowColor}, rgba(255,255,255,0.03))`
-                            : "rgba(255,255,255,0.02)",
-                          border: isActive
-                            ? `1px solid ${item.premium.badgeColor}33`
-                            : "1px solid rgba(255,255,255,0.06)",
+                          background: isAurum
+                            ? (isActive
+                                ? "linear-gradient(135deg, rgba(251,191,36,0.18), rgba(245,158,11,0.08) 50%, rgba(251,191,36,0.03))"
+                                : "linear-gradient(135deg, rgba(251,191,36,0.08), rgba(245,158,11,0.03) 50%, rgba(255,255,255,0.02))")
+                            : (isActive
+                                ? `linear-gradient(135deg, ${item.premium.glowColor}, rgba(255,255,255,0.03))`
+                                : "rgba(255,255,255,0.02)"),
+                          border: isAurum
+                            ? (isActive ? "1px solid rgba(251,191,36,0.45)" : "1px solid rgba(251,191,36,0.22)")
+                            : (isActive ? `1px solid ${item.premium.badgeColor}33` : "1px solid rgba(255,255,255,0.06)"),
+                          boxShadow: isAurum
+                            ? (isActive
+                                ? "0 0 30px rgba(251,191,36,0.20), inset 0 1px 0 rgba(253,224,71,0.15)"
+                                : "0 0 18px rgba(251,191,36,0.08), inset 0 1px 0 rgba(253,224,71,0.08)")
+                            : undefined,
                         }}
                       >
+                        {/* Aurum shimmer sweep */}
+                        {isAurum && (
+                          <div
+                            className="absolute inset-0 pointer-events-none aurum-shimmer"
+                            style={{
+                              background: "linear-gradient(110deg, transparent 30%, rgba(253,224,71,0.10) 50%, transparent 70%)",
+                              backgroundSize: "200% 100%",
+                            }}
+                          />
+                        )}
                         {/* Top glow line */}
                         <div
                           className="absolute top-0 left-2 right-2 h-[1px] opacity-60 group-hover:opacity-100 transition-opacity duration-500"
