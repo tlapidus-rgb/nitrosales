@@ -73,7 +73,7 @@ export async function GET() {
       if (!item.productId) continue;
       const entry = salesMap.get(item.productId) || { unitsSold: 0, revenue: 0, orders: new Set(), avgPrice: 0 };
       entry.unitsSold += item.quantity;
-      entry.revenue += item.totalPrice;
+      entry.revenue += Number(item.totalPrice);
       entry.orders.add(item.order.id);
       salesMap.set(item.productId, entry);
     }

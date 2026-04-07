@@ -31,7 +31,7 @@ export async function getMatchingCustomers(
 ): Promise<SyncableCustomer[]> {
   // Step 1: Get all customers with their order stats
   // We use raw SQL for performance (can be 60K+ customers)
-  const customers = await prisma.$queryRawUnsafe<Array<{
+  const customers = await prisma.$queryRaw<Array<{
     id: string;
     email: string | null;
     firstName: string | null;

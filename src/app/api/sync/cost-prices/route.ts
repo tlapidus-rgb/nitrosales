@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
       const results = await Promise.allSettled(
         batch.map(async (product) => {
           const skuId = product.externalId;
-          return fetchCostPrice(vtexConfig.baseUrl, vtexConfig.headers, skuId);
+          return fetchCostPrice(vtexConfig.baseUrl, vtexConfig.headers as unknown as Record<string, string>, skuId);
         })
       );
 

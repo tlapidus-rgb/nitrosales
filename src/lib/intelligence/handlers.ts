@@ -6,11 +6,12 @@
 // ══════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
+import type { $Enums } from "@prisma/client";
 
 // ── Helpers ──
 const fmt = (n: number) => Math.round(n).toLocaleString("es-AR");
 const pct = (c: number, p: number) => (p > 0 ? Math.round(((c - p) / p) * 100) : null);
-const billable = ["INVOICED", "SHIPPED", "DELIVERED"];
+const billable: $Enums.OrderStatus[] = ["INVOICED", "SHIPPED", "DELIVERED"] as $Enums.OrderStatus[];
 
 function dateRange(days: number) {
   const now = new Date();
@@ -41,10 +42,10 @@ export async function handleSalesOverview(orgId: string, input: any): Promise<st
   const pw7 = orders14.filter((o) => billable.includes(o.status));
   const canc = orders.filter((o) => o.status === "CANCELLED");
 
-  const rev = curr.reduce((s, o) => s + o.totalValue, 0);
-  const revP = prev.reduce((s, o) => s + o.totalValue, 0);
-  const rev7 = l7.reduce((s, o) => s + o.totalValue, 0);
-  const rev7P = pw7.reduce((s, o) => s + o.totalValue, 0);
+  const rev = curr.reduce((s, o) => s + Number(o.totalValue), 0);
+  const revP = prev.reduce((s, o) => s + Number(o.totalValue), 0);
+  const rev7 = l7.reduce((s, o) => s + Number(o.totalValue), 0);
+  const rev7P = pw7.reduce((s, o) => s + Number(o.totalValue), 0);
   const avgT = curr.length > 0 ? rev / curr.length : 0;
   const avgTP = prev.length > 0 ? revP / prev.length : 0;
 
@@ -54,7 +55,7 @@ export async function handleSalesOverview(orgId: string, input: any): Promise<st
     const d = o.deviceType || "unknown";
     if (!devMap[d]) devMap[d] = { orders: 0, rev: 0 };
     devMap[d].orders++;
-    devMap[d].rev += o.totalValue;
+    devMap[d].rev += Number(o.totalValue);
   }
   const devStr = Object.entries(devMap).map(([d, v]) => `${d}: ${v.orders} pedidos ($${fmt(v.rev)})`).join(" | ");
 
@@ -64,7 +65,7 @@ export async function handleSalesOverview(orgId: string, input: any): Promise<st
     const s = (o as any).source || "direct";
     if (!srcMap[s]) srcMap[s] = { orders: 0, rev: 0 };
     srcMap[s].orders++;
-    srcMap[s].rev += o.totalValue;
+    srcMap[s].rev += Number(o.totalValue);
   }
   const srcStr = Object.entries(srcMap).sort((a, b) => b[1].rev - a[1].rev).slice(0, 8)
     .map(([s, v]) => `${s}: ${v.orders} pedidos ($${fmt(v.rev)})`).join("\n");
@@ -74,7 +75,7 @@ export async function handleSalesOverview(orgId: string, input: any): Promise<st
   for (const o of l7) {
     const day = o.orderDate.toISOString().split("T")[0];
     const ex = dayMap.get(day) || { rev: 0, orders: 0 };
-    ex.rev += o.totalValue;
+    ex.rev += Number(o.totalValue);
     ex.orders++;
     dayMap.set(day, ex);
   }
@@ -127,7 +128,7 @@ export async function handleProductsInventory(orgId: string, input: any): Promis
     if (!item.productId) continue;
     const ex = salesMap.get(item.productId) || { qty: 0, rev: 0 };
     ex.qty += item.quantity;
-    ex.rev += item.totalPrice;
+    ex.rev += Number(item.totalPrice);
     salesMap.set(item.productId, ex);
   }
 
@@ -136,7 +137,7 @@ export async function handleProductsInventory(orgId: string, input: any): Promis
     const s = salesMap.get(p.id) || { qty: 0, rev: 0 };
     const dailyRate = s.qty / 30;
     const daysInv = dailyRate > 0 && p.stock ? Math.round(p.stock / dailyRate) : p.stock && p.stock > 0 ? 9999 : 0;
-    const margin = p.costPrice && p.price ? ((p.price - p.costPrice) / p.price * 100) : null;
+    const margin = p.costPrice && p.price ? ((Number(p.price) - Number(p.costPrice)) / Number(p.price) * 100) : null;
     return {
       ...p, unitsSold: s.qty, revenue: s.rev, dailyRate: Math.round(dailyRate * 100) / 100,
       daysInv, margin: margin ? Math.round(margin) : null,
@@ -157,7 +158,7 @@ export async function handleProductsInventory(orgId: string, input: any): Promis
     return `BUSQUEDA: "${input.search_term}" (${matches.length} resultados)\n\n` +
       matches.sort((a, b) => b.revenue - a.revenue).slice(0, 20).map((p, i) =>
         `${i + 1}. ${p.name} [${p.brand || "S/M"}/${p.category || "S/C"}] SKU:${p.sku || "N/A"}\n` +
-        `   Precio: $${fmt(p.price || 0)} | Costo: ${p.costPrice ? "$" + fmt(p.costPrice) : "N/A"} | Margen: ${p.margin !== null ? p.margin + "%" : "N/A"}\n` +
+        `   Precio: $${fmt(Number(p.price || 0))} | Costo: ${p.costPrice ? "$" + fmt(Number(p.costPrice)) : "N/A"} | Margen: ${p.margin !== null ? p.margin + "%" : "N/A"}\n` +
         `   Stock: ${p.stock || 0} | Vendido 30d: ${p.unitsSold}uds ($${fmt(p.revenue)}) | Vel: ${p.dailyRate}/dia\n` +
         `   Dias inventario: ${p.daysInv > 9000 ? "INF(sin venta)" : p.daysInv + "d"} | ${p.isActive ? "ACTIVO" : "INACTIVO"}`
       ).join("\n\n");
@@ -180,7 +181,7 @@ export async function handleProductsInventory(orgId: string, input: any): Promis
   }
 
   if (focus === "overview" || focus === "dead_stock") {
-    const deadVal = deadStock.reduce((s, p) => s + (p.stock || 0) * (p.price || 0), 0);
+    const deadVal = deadStock.reduce((s, p) => s + (p.stock || 0) * Number(p.price || 0), 0);
     const deadUnits = deadStock.reduce((s, p) => s + (p.stock || 0), 0);
     result += `DEAD STOCK: ${deadStock.length} productos, ${deadUnits} unidades, $${fmt(deadVal)} inmovilizados\n`;
     // Group by brand
@@ -190,7 +191,7 @@ export async function handleProductsInventory(orgId: string, input: any): Promis
       const ex = byBrand.get(b) || { count: 0, units: 0, value: 0 };
       ex.count++;
       ex.units += p.stock || 0;
-      ex.value += (p.stock || 0) * (p.price || 0);
+      ex.value += (p.stock || 0) * Number(p.price || 0);
       byBrand.set(b, ex);
     }
     result += [...byBrand.entries()].sort((a, b) => b[1].value - a[1].value).slice(0, 10)
@@ -200,8 +201,8 @@ export async function handleProductsInventory(orgId: string, input: any): Promis
   if (focus === "overview" || focus === "overstock") {
     if (overstock.length > 0) {
       result += `SOBRESTOCK (>90 dias de inventario):\n`;
-      result += overstock.sort((a, b) => (b.stock || 0) * (b.price || 0) - (a.stock || 0) * (a.price || 0)).slice(0, 15)
-        .map((p) => `- ${p.name} [${p.brand}] Stock:${p.stock} (${p.daysInv}d) | Valor:$${fmt((p.stock || 0) * (p.price || 0))}`).join("\n") + "\n\n";
+      result += overstock.sort((a, b) => (b.stock || 0) * Number(b.price || 0) - (a.stock || 0) * Number(a.price || 0)).slice(0, 15)
+        .map((p) => `- ${p.name} [${p.brand}] Stock:${p.stock} (${p.daysInv}d) | Valor:$${fmt((p.stock || 0) * Number(p.price || 0))}`).join("\n") + "\n\n";
     }
   }
 
@@ -412,7 +413,7 @@ export async function handleCustomersLtv(orgId: string): Promise<string> {
     }),
     prisma.customerLtvPrediction.findMany({
       where: { organizationId: orgId },
-      orderBy: { predictedLtv: "desc" },
+      orderBy: { predictedLtv90d: "desc" },
       take: 50,
     }),
     prisma.order.findMany({
@@ -423,7 +424,7 @@ export async function handleCustomersLtv(orgId: string): Promise<string> {
 
   const total = customers.length;
   const repeat = customers.filter((c) => c.totalOrders > 1).length;
-  const avgLTV = total > 0 ? customers.reduce((s, c) => s + c.totalSpent, 0) / total : 0;
+  const avgLTV = total > 0 ? customers.reduce((s, c) => s + Number(c.totalSpent), 0) / total : 0;
   const avgOrders = total > 0 ? customers.reduce((s, c) => s + c.totalOrders, 0) / total : 0;
 
   // Recency
@@ -434,22 +435,22 @@ export async function handleCustomersLtv(orgId: string): Promise<string> {
   // VIP (top 10%)
   const vipCount = Math.ceil(total * 0.1);
   const vips = customers.slice(0, vipCount);
-  const vipRev = vips.reduce((s, c) => s + c.totalSpent, 0);
-  const totalRev = customers.reduce((s, c) => s + c.totalSpent, 0);
+  const vipRev = vips.reduce((s, c) => s + Number(c.totalSpent), 0);
+  const totalRev = customers.reduce((s, c) => s + Number(c.totalSpent), 0);
 
   // At risk: bought before but not in last 90 days
   const activeIds = new Set(recentOrders.map((o) => o.customerId));
   const atRisk = customers.filter((c) => c.totalOrders > 1 && !activeIds.has(c.id));
 
   const topStr = customers.slice(0, 10).map((c, i) =>
-    `${i + 1}. ${c.firstName || ""} ${c.lastName || ""}: ${c.totalOrders} pedidos, $${fmt(c.totalSpent)} LTV, ultimo: ${c.lastOrderDate ? c.lastOrderDate.toISOString().split("T")[0] : "N/A"}`
+    `${i + 1}. ${c.firstName || ""} ${c.lastName || ""}: ${c.totalOrders} pedidos, $${fmt(Number(c.totalSpent))} LTV, ultimo: ${c.lastOrderAt ? c.lastOrderAt.toISOString().split("T")[0] : "N/A"}`
   ).join("\n");
 
   let ltvPredStr = "";
   if (predictions.length > 0) {
     ltvPredStr = `\nPREDICCIONES LTV (modelo BG/NBD):\n` +
       predictions.slice(0, 10).map((p, i) =>
-        `${i + 1}. Cliente ${p.customerId.substring(0, 8)}...: LTV predicho $${fmt(Number(p.predictedLtv))} | Confianza: ${(Number(p.confidence) * 100).toFixed(0)}% | Metodo: ${p.method}`
+        `${i + 1}. Cliente ${p.customerId.substring(0, 8)}...: LTV predicho $${fmt(Number(p.predictedLtv90d))} | Confianza: ${(Number(p.confidence) * 100).toFixed(0)}% | Segmento: ${p.segmentBucket}`
       ).join("\n");
   }
 
@@ -462,7 +463,7 @@ export async function handleCustomersLtv(orgId: string): Promise<string> {
 
 SEGMENTACION:
 - VIP (top 10%): ${vipCount} clientes generan $${fmt(vipRev)} (${totalRev > 0 ? Math.round((vipRev / totalRev) * 100) : 0}% del revenue total)
-- En riesgo (recurrentes sin compra en 90d): ${atRisk.length} clientes con $${fmt(atRisk.reduce((s, c) => s + c.totalSpent, 0))} en LTV historico
+- En riesgo (recurrentes sin compra en 90d): ${atRisk.length} clientes con $${fmt(atRisk.reduce((s, c) => s + Number(c.totalSpent), 0))} en LTV historico
 
 TOP 10 CLIENTES:
 ${topStr}
@@ -496,22 +497,22 @@ export async function handleSeoPerformance(orgId: string, input: any): Promise<s
   // Aggregate queries
   const qMap = new Map<string, { clicks: number; impr: number; pos: number; count: number }>();
   for (const q of queries) {
-    const ex = qMap.get(q.query) || { clicks: 0, impr: 0, pos: 0, count: 0 };
+    const ex = qMap.get(q.keyword) || { clicks: 0, impr: 0, pos: 0, count: 0 };
     ex.clicks += q.clicks;
     ex.impr += q.impressions;
-    ex.pos += q.position;
+    ex.pos += q.position ?? 0;
     ex.count++;
-    qMap.set(q.query, ex);
+    qMap.set(q.keyword, ex);
   }
 
   const qPrevMap = new Map<string, { clicks: number; impr: number; pos: number; count: number }>();
   for (const q of queriesPrev) {
-    const ex = qPrevMap.get(q.query) || { clicks: 0, impr: 0, pos: 0, count: 0 };
+    const ex = qPrevMap.get(q.keyword) || { clicks: 0, impr: 0, pos: 0, count: 0 };
     ex.clicks += q.clicks;
     ex.impr += q.impressions;
-    ex.pos += q.position;
+    ex.pos += q.position ?? 0;
     ex.count++;
-    qPrevMap.set(q.query, ex);
+    qPrevMap.set(q.keyword, ex);
   }
 
   // Top keywords
@@ -584,13 +585,14 @@ export async function handleCompetitorsAnalysis(orgId: string): Promise<string> 
   for (const cp of matched) {
     const own = ownMap.get(cp.ownProductId!);
     if (!own || !own.price || !cp.currentPrice) continue;
-    const diff = ((own.price - Number(cp.currentPrice)) / own.price) * 100;
+    const ownPriceNum = Number(own.price);
+    const diff = ((ownPriceNum - Number(cp.currentPrice)) / ownPriceNum) * 100;
     if (diff > 5) {
       pricier++;
-      threats.push({ name: own.name, ownPrice: own.price, compPrice: Number(cp.currentPrice), competitor: cp.competitor?.name || "?", diff });
+      threats.push({ name: own.name, ownPrice: ownPriceNum, compPrice: Number(cp.currentPrice), competitor: cp.competitor?.name || "?", diff });
     } else if (diff < -5) {
       cheaper++;
-      opportunities.push({ name: own.name, ownPrice: own.price, compPrice: Number(cp.currentPrice), competitor: cp.competitor?.name || "?", diff: Math.abs(diff) });
+      opportunities.push({ name: own.name, ownPrice: ownPriceNum, compPrice: Number(cp.currentPrice), competitor: cp.competitor?.name || "?", diff: Math.abs(diff) });
     } else {
       similar++;
     }
@@ -625,16 +627,16 @@ export async function handleFinancialPnl(orgId: string, input: any): Promise<str
     prisma.manualCost.findMany({ where: { organizationId: orgId } }),
   ]);
 
-  const rev = orders.reduce((s, o) => s + o.totalValue, 0);
-  const revP = ordersPrev.reduce((s, o) => s + o.totalValue, 0);
+  const rev = orders.reduce((s, o) => s + Number(o.totalValue), 0);
+  const revP = ordersPrev.reduce((s, o) => s + Number(o.totalValue), 0);
   const revNeto = rev / 1.21; // Sin IVA
-  const adSpend = ads.reduce((s, a) => s + a.spend, 0);
+  const adSpend = ads.reduce((s, a) => s + Number(a.spend), 0);
 
   // Breakdown by source
   const vtexOrders = orders.filter((o) => (o as any).source !== "MELI" && (o as any).source !== "mercadolibre");
   const meliOrders = orders.filter((o) => (o as any).source === "MELI" || (o as any).source === "mercadolibre");
-  const vtexRev = vtexOrders.reduce((s, o) => s + o.totalValue, 0);
-  const meliRev = meliOrders.reduce((s, o) => s + o.totalValue, 0);
+  const vtexRev = vtexOrders.reduce((s, o) => s + Number(o.totalValue), 0);
+  const meliRev = meliOrders.reduce((s, o) => s + Number(o.totalValue), 0);
 
   // Manual costs by category
   const costsByCategory = new Map<string, number>();
@@ -691,7 +693,7 @@ export async function handleMercadolibreHealth(orgId: string): Promise<string> {
   const activeListings = listings.filter((l) => l.status === "active");
   const pausedListings = listings.filter((l) => l.status === "paused");
   const unanswered = questions.filter((q) => q.status === "UNANSWERED");
-  const totalComm = commissions.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const totalComm = commissions.reduce((s, c) => s + Number(c.commissionAmount || 0), 0);
 
   // Latest seller metrics
   const latest = sellerMetrics.sort((a, b) => b.date.getTime() - a.date.getTime())[0];
@@ -732,12 +734,12 @@ export async function handleInfluencersPerformance(orgId: string): Promise<strin
   for (const a of attributions) {
     const name = a.influencer?.name || "Unknown";
     const ex = infMap.get(a.influencerId) || { name, rev: 0, orders: 0 };
-    ex.rev += a.order?.totalValue || 0;
+    ex.rev += Number(a.order?.totalValue || 0);
     ex.orders++;
     infMap.set(a.influencerId, ex);
   }
 
-  const totalRev = attributions.reduce((s, a) => s + (a.order?.totalValue || 0), 0);
+  const totalRev = attributions.reduce((s, a) => s + Number(a.order?.totalValue || 0), 0);
   const topInf = [...infMap.entries()].sort((a, b) => b[1].rev - a[1].rev);
 
   return `INFLUENCERS (Nitro Creators):
@@ -1001,8 +1003,8 @@ export async function handleAdCreatives(orgId: string, input: any): Promise<stri
   for (const m of metrics) {
     const ex = creativeMap.get(m.creativeId);
     if (ex) {
-      ex.spend += m.spend || 0;
-      ex.rev += m.conversionValue || 0;
+      ex.spend += Number(m.spend || 0);
+      ex.rev += Number(m.conversionValue || 0);
       ex.clicks += m.clicks || 0;
       ex.impr += m.impressions || 0;
       ex.conv += m.conversions || 0;
@@ -1011,8 +1013,8 @@ export async function handleAdCreatives(orgId: string, input: any): Promise<stri
 
   for (const m of metricsPrev) {
     const ex = creativePrevMap.get(m.creativeId) || { spend: 0, rev: 0, clicks: 0, impr: 0 };
-    ex.spend += m.spend || 0;
-    ex.rev += m.conversionValue || 0;
+    ex.spend += Number(m.spend || 0);
+    ex.rev += Number(m.conversionValue || 0);
     ex.clicks += m.clicks || 0;
     ex.impr += m.impressions || 0;
     creativePrevMap.set(m.creativeId, ex);

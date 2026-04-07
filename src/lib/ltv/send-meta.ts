@@ -126,7 +126,7 @@ export async function sendPredictedLtvToMeta(
     // Get customer data
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
-      select: { email: true, phone: true },
+      select: { email: true },
     });
 
     // Get first order (for value and order_id)
@@ -170,8 +170,6 @@ export async function sendPredictedLtvToMeta(
 
     const userData: Record<string, any> = {};
     if (customer?.email) userData.em = [sha256(customer.email)];
-    if (customer?.phone)
-      userData.ph = [sha256(customer.phone.replace(/[^0-9]/g, ""))];
     userData.country = [sha256("ar")];
 
     const customData: Record<string, any> = {

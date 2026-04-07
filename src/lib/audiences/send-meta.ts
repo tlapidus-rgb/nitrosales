@@ -131,7 +131,7 @@ async function uploadBatchToMeta(
     last_batch_flag: boolean;
     estimated_num_total?: number;
   }
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error: string }> {
   const url = `https://graph.facebook.com/v21.0/${audienceId}/users`;
 
   const body = {
@@ -165,7 +165,7 @@ async function uploadBatchToMeta(
     return { success: false, error: result.error?.message || `HTTP ${response.status}` };
   }
 
-  return { success: true };
+  return { success: true, error: "" };
 }
 
 // ─── Main Sync Function ───

@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
     const { processed, failed, results } = await vtex.syncInventoryBatch(
       skuIdsToSync,
       org.id,
-      prisma,
+      prisma as any,
       remainingBudget,
       MAX_CONCURRENT
     );
