@@ -4,16 +4,19 @@ export const maxDuration = 30;
 // ══════════════════════════════════════════════════════════════
 // Customer Journeys API — NitroPixel
 // ══════════════════════════════════════════════════════════════
-// Devuelve las ultimas N ordenes con su recorrido completo de
-// touchpoints. Estrategia: ALINEADA CON "ORDENES EN VIVO".
-//   - Solo ordenes con PixelAttribution del modelo seleccionado
-//     (default LAST_CLICK, igual que /api/metrics/pixel).
+// Devuelve las ultimas N ordenes con su recorrido de touchpoints.
+// Estrategia: ALINEADA CON "ORDENES EN VIVO".
+//   - Solo ordenes con CUALQUIER PixelAttribution (cualquier modelo).
+//     Los touchpoints son hechos del visitante; el modelo solo
+//     decide como repartir el credito. Por eso da igual el modelo
+//     a la hora de mostrar el journey.
+//   - Para cada orden se prefiere la attribution con mas touchpoints.
 //   - Sin waterfall a trafficSource (evita "Fulfillment", "Directo"
-//     y otros strings de canal que no son verdaderos touchpoints).
+//     y otros strings de canal que no son touchpoints reales).
 //   - Mismos filtros de calidad: excluye marketplace/MELI,
 //     CANCELLED/PENDING y totalValue <= 0.
 // ══════════════════════════════════════════════════════════════
-// GET /api/metrics/pixel/journeys?limit=20&model=LAST_CLICK
+// GET /api/metrics/pixel/journeys?limit=20
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -129,22 +132,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 50);
 
-    // Modelo de atribucion: alineado con /api/metrics/pixel (default LAST_CLICK)
-    const validModels = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "TIME_DECAY", "NITRO"] as const;
-    type ModelKey = (typeof validModels)[number];
-    const modelParam = (searchParams.get("model") || "LAST_CLICK").toUpperCase();
-    const selectedModel: ModelKey = (validModels as readonly string[]).includes(modelParam)
-      ? (modelParam as ModelKey)
-      : "LAST_CLICK";
-
-    const cacheKey = [orgId, limit, selectedModel];
+    const cacheKey = [orgId, limit];
     const cached = getCached<{ orders: JourneyOrder[] }>("journeys", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
-    // ── Traer las ultimas N ordenes que tengan PixelAttribution del modelo seleccionado ──
-    // Mismo universo de datos que "Ordenes en Vivo": solo ordenes web
-    // (sin marketplace), validas (no canceladas/pending) y con valor real,
-    // y que ademas hayan sido atribuidas por el modelo seleccionado.
+    // ── Traer las ultimas N ordenes que tengan ALGUNA PixelAttribution ──
+    // Da igual el modelo: los touchpoints son hechos del visitante.
     const recentOrders = await prisma.order.findMany({
       where: {
         organizationId: orgId,
@@ -153,8 +146,7 @@ export async function GET(request: NextRequest) {
         channel: { not: "marketplace" },
         status: { notIn: ["CANCELLED", "PENDING"] },
         totalValue: { gt: 0 },
-        // Solo ordenes ya atribuidas por el modelo seleccionado (sin waterfall)
-        pixelAttributions: { some: { model: selectedModel } },
+        pixelAttributions: { some: {} },
       },
       orderBy: { orderDate: "desc" },
       take: limit,
@@ -179,15 +171,25 @@ export async function GET(request: NextRequest) {
 
     const orderIds = recentOrders.map((o) => o.id);
 
-    // Traer las attributions del modelo seleccionado para esas ordenes
+    // Traer TODAS las attributions de esas ordenes (cualquier modelo)
     const attributions = await prisma.pixelAttribution.findMany({
-      where: { organizationId: orgId, orderId: { in: orderIds }, model: selectedModel },
+      where: { organizationId: orgId, orderId: { in: orderIds } },
       include: { visitor: { select: { id: true, visitorId: true, email: true } } },
     });
 
+    // Para cada orden, quedarse con la attribution que tenga MAS touchpoints reales
+    // (los touchpoints son hechos; en general son iguales entre modelos, pero por
+    // las dudas elegimos la mas rica).
     const attrByOrder = new Map<string, (typeof attributions)[number]>();
     for (const a of attributions) {
-      attrByOrder.set(a.orderId, a);
+      const aTpCount = Array.isArray(a.touchpoints) ? a.touchpoints.length : 0;
+      const existing = attrByOrder.get(a.orderId);
+      if (!existing) {
+        attrByOrder.set(a.orderId, a);
+        continue;
+      }
+      const eTpCount = Array.isArray(existing.touchpoints) ? existing.touchpoints.length : 0;
+      if (aTpCount > eTpCount) attrByOrder.set(a.orderId, a);
     }
 
     // ── Construir respuesta final (solo data real de pixel) ──
