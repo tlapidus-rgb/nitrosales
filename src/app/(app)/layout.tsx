@@ -466,6 +466,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           iconPath:
                             "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
                         },
+                        {
+                          href: "/pixel/journeys",
+                          label: "Journeys",
+                          sublabel: "Recorrido del cliente",
+                          iconPath:
+                            "M4 12h4m8 0h4M9 12a3 3 0 116 0 3 3 0 01-6 0zM4 12a0 0 0 100 0M20 12a0 0 0 100 0",
+                        },
                       ]
                     : [];
                   return (
@@ -707,7 +714,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                 }}
                               />
                               {pixelSubItems.map((sub, si) => {
-                                const subActive = pathname === sub.href || (sub.href === "/pixel" && pathname.startsWith("/pixel"));
+                                const subActive =
+                                  pathname === sub.href ||
+                                  (sub.href === "/pixel" && pathname.startsWith("/pixel") && !pathname.startsWith("/pixel/journeys")) ||
+                                  (sub.href === "/pixel/journeys" && pathname.startsWith("/pixel/journeys"));
                                 return (
                                   <Link
                                     key={sub.href}
@@ -956,6 +966,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const aurumRoutes = ["/chat", "/sinapsis", "/boveda", "/memory"];
           const isAurum = aurumRoutes.some((r) => pathname.startsWith(r));
           const isNitropixel = pathname.startsWith("/nitropixel");
+          const isJourneys = pathname.startsWith("/pixel/journeys");
           return (
             <main
               className={
@@ -963,6 +974,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   ? "flex-1 p-0 overflow-hidden bg-[#0a0a0f]"
                   : isNitropixel
                   ? "flex-1 p-0 overflow-hidden bg-[#05060a]"
+                  : isJourneys
+                  ? "flex-1 p-0 overflow-y-auto bg-[#05060a]"
                   : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
               }
             >

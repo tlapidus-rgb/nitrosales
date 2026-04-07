@@ -261,16 +261,8 @@ export default function NitroPixelPage() {
               <span style={{ animation: "pixelBreath 2.8s ease-in-out infinite" }}>EVOLVING</span>
             </div>
             <div
-              className="text-3xl lg:text-5xl font-bold mt-2 tracking-tight"
-              style={{
-                background: `linear-gradient(135deg, ${stageColor}, #a855f7)`,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
+              className="text-base lg:text-lg font-medium mt-2 tracking-wide text-cyan-50/80"
             >
-              {stage?.name ?? "Génesis"}
-            </div>
-            <div className="text-sm text-cyan-100/50 font-mono mt-1">
               {stage?.tagline ?? "El núcleo despierta"}
             </div>
             <div className="flex items-center justify-center gap-2 mt-3">
