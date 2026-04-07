@@ -247,8 +247,23 @@ export async function identifyVisitor(
       return null;
     }
 
-    // Si ya tiene el mismo email, no hacer nada
-    if (currentVisitor.email === email) return currentVisitor;
+    // Si ya tiene el mismo email: no hacer merge, pero PERSISTIR el phone
+    // si vino uno nuevo (mejora EMQ de Meta CAPI sin tocar el merge graph).
+    if (currentVisitor.email === email) {
+      if (phone && currentVisitor.phone !== phone) {
+        try {
+          const updated = await prisma.pixelVisitor.update({
+            where: { id: currentVisitor.id },
+            data: { phone },
+          });
+          return updated;
+        } catch {
+          // Non-fatal — devolver visitor original
+          return currentVisitor;
+        }
+      }
+      return currentVisitor;
+    }
 
     // Buscar si hay otro visitor con este email (para merge)
     const existingWithEmail = await prisma.pixelVisitor.findFirst({

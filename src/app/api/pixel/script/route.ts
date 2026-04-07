@@ -1453,7 +1453,7 @@ function generatePixelScript(orgId: string): string {
             var cpd = window.vtexjs.checkout.orderForm.clientProfileData;
             if (cpd && cpd.email && cpd.email !== _identifiedEmail) {
               _identifiedEmail = cpd.email;
-              identify({ email: cpd.email });
+              identify({ email: cpd.email, phone: cpd.phone || null });
             }
           }
         } catch(e2) {}

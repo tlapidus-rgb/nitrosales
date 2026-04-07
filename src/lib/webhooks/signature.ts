@@ -111,9 +111,25 @@ export async function verifyWebhookSignature(opts: {
 
   // Mode 2: Plain shared secret header (backwards compatible)
   const plain = headers.get("x-webhook-secret") || headers.get("x-vtex-secret");
-  if (plain && safeEqual(plain, secret)) {
-    return { ok: true, mode: "plain" };
+  if (plain) {
+    if (safeEqual(plain, secret)) {
+      return { ok: true, mode: "plain" };
+    }
+    // Plain header was sent but does NOT match → always hard deny
+    // (this is an unambiguous attempt to authenticate that failed).
+    return { ok: false, reason: "plain-secret-mismatch", mode: "plain" };
   }
 
-  return { ok: false, reason: "missing-or-invalid-signature" };
+  // Secret IS configured but the request did NOT include any signature
+  // header at all. This is the common case for VTEX, which by default
+  // does not sign webhooks. To preserve the gradual rollout promise,
+  // we soft-allow with a warning UNLESS WEBHOOK_ENFORCE=1 is set.
+  // This prevents a stray env var from silently 401-ing all real orders.
+  if (process.env.WEBHOOK_ENFORCE === "1") {
+    return { ok: false, reason: "missing-signature-and-enforce-on" };
+  }
+  console.warn(
+    `[Webhook Verify] Secret configured but no signature header present (provider=${providerEnvVar}, org=${organizationId || "unknown"}). Allowing with warning. Configure provider to send X-Webhook-Signature, or set WEBHOOK_ENFORCE=1 to hard-deny.`,
+  );
+  return { ok: true, mode: "no-secret-allow" };
 }
