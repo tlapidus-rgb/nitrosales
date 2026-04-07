@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-07 (Sesion 13 — Aurum Fase 2 reasoning modes + onboarding inteligente + 3 fixes UX + merge a main)
+## Ultima actualizacion: 2026-04-07 (Sesion 14 — Hotfix produccion: indices faltantes en Neon + maxDuration en metrics routes)
 
 ---
 
@@ -151,6 +151,9 @@
 | src/app/api/memory/[id]/route.ts | **v1** | NEW (S12) | PATCH/DELETE individual. REQUIERE authOptions. |
 | src/app/api/memory/seed/route.ts | **v1** | NEW (S12) | Seed inicial de 5 reglas business generales. |
 | prisma/migrations/aurum_usage_log.sql | **v1** | NEW (S13) | Migration idempotente: CREATE TABLE IF NOT EXISTS + 3 CREATE INDEX IF NOT EXISTS. Aplicada manualmente con prisma db execute en preview Y production Neon. |
+| src/app/api/setup/ensure-indexes/route.ts | **v1** | CRITICO (S9, re-ejecutado S14) | POST endpoint con secret key. Crea 6 indices criticos: idx_orders_org_status_date, idx_oi_order_product, idx_cust_org_first_order, idx_adm_org_plat_date, idx_acmd_org_date, idx_pattr_org_model_created. **OBLIGATORIO ejecutar despues de cualquier migracion de DB o branch nuevo de Neon.** Ver PREVENCION #11. |
+| src/app/api/metrics/orders/route.ts | **v3.1** | ACTIVO | Sesion 14: agregado `export const maxDuration = 60;` (red de seguridad). 14 queries en paralelo. La causa raiz del problema reportado en S14 fueron indices faltantes en Neon, no maxDuration. NO TOCAR. |
+| src/app/api/metrics/products/route.ts | **v2.1** | ACTIVO | Sesion 14: agregado `export const maxDuration = 60;` (red de seguridad). NO TOCAR. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
 ---
@@ -341,6 +344,75 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-07 — Sesion 14 (Hotfix produccion: indices faltantes en Neon + maxDuration en metrics routes)
+
+**Commits**: `d627885` (hotfix maxDuration en main)
+**Deploy**: d627885 → main → Vercel auto-deploy OK
+**Branch hotfix**: `hotfix/metrics-timeout` (mergeado a main por fast-forward)
+
+#### PROBLEMA REPORTADO
+Tomy reporto que en produccion (`nitrosales.vercel.app`):
+- `/orders` nunca terminaba de cargar (loading infinito)
+- `/products` a veces cargaba, a veces fallaba con error 500
+- En la preview branch todo funcionaba rapido y bien
+
+#### INVESTIGACION INICIAL (incorrecta — primer fix incompleto)
+1. Verifique con `git ls-remote` que main y la preview tienen IDENTICO codigo (`160fbab`).
+2. Conclui que la diferencia era el volumen de datos en la DB de produccion.
+3. Lei `src/app/api/metrics/orders/route.ts` (585 lineas) — corre 14 queries en paralelo via Promise.all.
+4. Lei `vercel.json` y comprobe que `/api/metrics/**` NO tenia `maxDuration` configurado.
+5. Asumi que el problema era timeout: 14 queries pesadas + default Vercel ~15s + DB pesada = function killed.
+6. Aplique fix surgico: agregue `export const maxDuration = 60;` en orders y products routes (1 linea cada uno).
+7. Commit `d627885`, merge a main, deploy automatico.
+
+#### EL FIX NO ALCANZO — Tomy reporto que SEGUIA con error 500 + lentitud
+- Esto indico que el problema NO era solo timeout, era algo mas profundo.
+- Hice `curl -m 90` directo contra `/api/metrics/orders` en produccion:
+  - **HTTP 504 `FUNCTION_INVOCATION_TIMEOUT` a los 60.4 segundos** — el max nuevo se estaba alcanzando.
+  - Las queries genuinamente tardaban >60s, lo cual es absurdo para tablas con indices correctos.
+
+#### CAUSA RAIZ REAL — Indices faltantes en la DB de Neon production
+- Existe un endpoint `POST /api/setup/ensure-indexes?key=...` que crea 6 indices criticos via `CREATE INDEX IF NOT EXISTS`.
+- Este endpoint **fue creado en Sesion 9** especificamente para resolver queries lentas en metrics.
+- Cuando se migro de Railway a Neon en Sesion 11, **ese endpoint nunca fue ejecutado contra la nueva DB de produccion**.
+- Sin esos indices, las 14 queries del route hacian **full table scan sobre 60K+ ordenes** → cada query tardaba 5-10s → total >60s → timeout.
+- Los indices que faltaban:
+  - `idx_orders_org_status_date` ON orders (organizationId, status, orderDate) — el mas critico
+  - `idx_oi_order_product` ON order_items (orderId, productId) — para JOIN en topProducts
+  - `idx_cust_org_first_order` ON customers (organizationId, firstOrderAt) — para topCustomers
+  - `idx_adm_org_plat_date` ON ad_metrics_daily (organizationId, platform, date)
+  - `idx_acmd_org_date` ON ad_creative_metrics_daily (organizationId, date)
+  - `idx_pattr_org_model_created` ON pixel_attributions (organizationId, model, createdAt)
+
+#### FIX REAL APLICADO — Cero cambios de codigo
+1. Llamada HTTP a produccion: `POST /api/setup/ensure-indexes?key=nitrosales-secret-key-2024-production`
+2. Respuesta en 1.36s — todos los 6 indices reportaron status `created` (confirmando que NO existian).
+3. Verificacion empirica post-fix con curl:
+   - `/api/metrics/orders?from=2026-03-01&to=2026-04-07` → **HTTP 200 en 0.76s** (antes: 504 en 60.4s = ~80x mejora)
+   - `/api/metrics/products?from=2026-03-01&to=2026-04-07` → **HTTP 200 en 0.70s** (antes: 500 en 10.9s = ~15x mejora)
+4. Re-verificacion 2da vez en vivo (orders 0.41s, products 0.84s) — estable.
+
+#### Que aprendi
+- **NO basta con leer codigo: hay que verificar empiricamente con curl directo a produccion ANTES de proponer un fix.**
+- El sintoma "loading infinito" puede ser timeout O queries bloqueadas en full scan — son cosas distintas.
+- El fix de `maxDuration=60` que apliqué primero NO causo dano (sigue como red de seguridad), pero NO era la causa raiz.
+- **Cualquier migracion de DB (Railway → Neon, branch nueva, etc.) DEBE re-ejecutar `ensure-indexes` despues del primer deploy.** Los indices NO se transfieren automaticamente entre DBs aunque el schema Prisma este igual — `prisma db push` solo crea las tablas, NO los indices definidos en raw SQL fuera del schema.
+- El endpoint `ensure-indexes` esta documentado pero su ejecucion no esta en ningun checklist post-migracion → este olvido se repitio una vez ya, no debe repetirse otra vez.
+
+#### Archivos modificados en esta sesion
+- `src/app/api/metrics/orders/route.ts` — agregado `export const maxDuration = 60;` (linea 22, 1 linea aditiva)
+- `src/app/api/metrics/products/route.ts` — agregado `export const maxDuration = 60;` (linea 9, 1 linea aditiva)
+- (Commit `d627885`, mergeado a main por fast-forward)
+
+#### Cambios en la DB de Neon production (NO en codigo)
+- 6 indices creados via `CREATE INDEX IF NOT EXISTS` ejecutado por el endpoint `/api/setup/ensure-indexes`
+- Persistentes en Neon — sobreviven deploys, redeploys, y branches futuros.
+
+#### Reglas de prevencion derivadas
+- Ver **PREVENCION #11** — checklist obligatorio post-migracion de DB.
+
+---
 
 ### 2026-04-05 — Sesiones 9-10 (Fix critico: connection pool exhaustion + force-dynamic)
 
@@ -2376,9 +2448,55 @@ Estas reglas nacen de errores reales cometidos en sesiones 9 y 10. **Son tan imp
 - **Ejemplo commit**: 10e5fff creó /api/debug/connection
 - **Después de verificar**: Eliminar el endpoint (no dejar in production)
 
+### PREVENCION #11: SIEMPRE ejecutar `/api/setup/ensure-indexes` despues de cualquier migracion o branch nuevo de DB
+- **CONTEXTO**: En Sesion 14 (2026-04-07) Tomy reporto que `/orders` no cargaba en produccion y `/products` daba 500. La causa raiz no era codigo: eran 6 indices criticos que **nunca se crearon en la DB de Neon production** despues de la migracion de Sesion 11.
+- Los indices definidos como `CREATE INDEX IF NOT EXISTS` dentro del endpoint `/api/setup/ensure-indexes` **NO son parte del schema Prisma**, por lo que `prisma db push` NO los crea.
+- Sin esos indices, las queries de `/api/metrics/orders` (14 queries en paralelo sobre tabla de 60K+ ordenes) tardaban >60 segundos = timeout.
+- **CHECKLIST OBLIGATORIO despues de cualquiera de estas situaciones:**
+  1. Migracion de DB a un proveedor nuevo (Railway → Neon, etc.)
+  2. Creacion de un branch nuevo de Neon (preview, dev, staging)
+  3. `prisma db push` o `prisma migrate` sobre una DB virgen
+  4. Restore de un backup
+  5. Cualquier cambio en `vercel.json regions` (porque puede activar una DB en otra region)
+- **Comando para ejecutar el checklist:**
+  ```bash
+  curl -X POST "https://nitrosales.vercel.app/api/setup/ensure-indexes?key=nitrosales-secret-key-2024-production"
+  ```
+  - La respuesta debe mostrar `status: "created"` o `status: "already exists"` para los 6 indices.
+  - Si algun indice no aparece o da error, investigar antes de seguir.
+- **Indices criticos que crea (ver `src/app/api/setup/ensure-indexes/route.ts`):**
+  - `idx_orders_org_status_date` — orders (organizationId, status, orderDate)
+  - `idx_oi_order_product` — order_items (orderId, productId)
+  - `idx_cust_org_first_order` — customers (organizationId, firstOrderAt)
+  - `idx_adm_org_plat_date` — ad_metrics_daily (organizationId, platform, date)
+  - `idx_acmd_org_date` — ad_creative_metrics_daily (organizationId, date)
+  - `idx_pattr_org_model_created` — pixel_attributions (organizationId, model, createdAt)
+- **REGLA: Cuando se agreguen nuevos indices criticos en el futuro, agregarlos a `ensure-indexes/route.ts` Y documentarlos aqui.**
+- **Verificacion post-ensure: Hacer curl al endpoint critico y medir el tiempo. Debe responder en <2s.**
+  ```bash
+  curl -s -o /dev/null -w "HTTP=%{http_code} TIME=%{time_total}s\n" -m 30 "https://nitrosales.vercel.app/api/metrics/orders?from=2026-03-01&to=2026-04-07"
+  ```
+
+### PREVENCION #12: Diagnostico de "loading infinito" en produccion — usar curl ANTES de modificar codigo
+- **LECCION DE SESION 14**: La primera hipotesis fue "falta `maxDuration` en metrics routes". Apliqué el fix, deploye, y el problema **seguia**. La causa real eran indices faltantes en la DB.
+- **REGLA: Antes de tocar codigo para diagnosticar lentitud en produccion, hacer SIEMPRE estos curls primero:**
+  ```bash
+  # 1. Check si responde y cuanto tarda
+  curl -s -o /tmp/r.txt -w "HTTP=%{http_code} TIME=%{time_total}s\n" -m 90 "https://nitrosales.vercel.app/api/metrics/<endpoint>?from=...&to=..."
+  # 2. Si HTTP 504 → es timeout (function killed por Vercel)
+  # 3. Si HTTP 500 → leer /tmp/r.txt para ver el mensaje de error real
+  # 4. Si HTTP 200 pero >5s → query lenta (probable falta de indices)
+  # 5. Si HTTP 200 y <2s → no es el endpoint, es el frontend
+  ```
+- **El fix correcto depende del HTTP code:**
+  - **504 timeout** → Investigar queries lentas + indices ANTES de aumentar `maxDuration`. Aumentar el timeout solo "esconde" el problema, no lo arregla.
+  - **500 error** → Leer el mensaje del catch block (la mayoria de routes devuelven `error.message` en el body). El mensaje suele apuntar directo a la query que falla.
+  - **200 lento** → Indices, plan de query (`EXPLAIN ANALYZE`), o cantidad excesiva de queries paralelas.
+- **NUNCA asumir que un timeout = falta de `maxDuration`. Casi siempre es indices o queries mal diseñadas.**
+
 ### Notas tecnicas para futuras sesiones
 
 - Los nombres de tabla correctos segun schema Prisma son: `orders`, `order_items`, `products`, `customers`, `ad_metrics_daily`, `ad_creative_metrics_daily`, `web_metrics_daily`, `ad_campaigns`, `ad_sets`, `ad_set_metrics_daily`, `ad_creatives`, `pixel_visitors`, `pixel_attributions`, `funnel_daily`
 - CSS: globals.css tiene `body { color: var(--nitro-text) }` donde `--nitro-text: #FFFFFF`. Usar inline `style={{ color: "#hex" }}` para texto en fondos claros
-- Los indices de la DB se crearon parcialmente en sesion 9 (endpoint ensure-indexes). Ejecutar de nuevo si hay queries lentas.
+- **Indices de la DB**: Ver PREVENCION #11. Re-ejecutar `/api/setup/ensure-indexes` despues de cualquier migracion. NO asumir que existen.
 - El git local puede tener pack files corruptos. Si hay errores de git, usar GitHub API directamente (Contents API para archivos individuales, Git Data API para commits multi-archivo).
