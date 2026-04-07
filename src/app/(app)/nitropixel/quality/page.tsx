@@ -44,16 +44,25 @@ interface Opportunity {
   createdAt: string;
 }
 
+type WindowKey = "24h" | "7d" | "30d";
+
 interface QualityResponse {
   ok: boolean;
+  window: WindowKey;
+  windowLabel: string;
+  windowDays: number;
   score: number;
   scoreLabel: string;
   scoreColor: string;
+  priorScore: number | null;
   trendDelta: number | null;
-  attributedRevenue30d: number;
-  totalPurchases30d: number;
+  attributedRevenue: number;
+  totalPurchases: number;
   levers: Lever[];
   opportunities: Opportunity[];
+  fixAppliedAt: string;
+  daysSinceFix: number;
+  historicalDragWarning: boolean;
   computedAt: string;
 }
 
@@ -135,12 +144,15 @@ export default function NitroPixelQualityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeLever, setActiveLever] = useState<Lever | null>(null);
+  const [windowKey, setWindowKey] = useState<WindowKey>("7d");
 
   useEffect(() => {
     let alive = true;
     async function load() {
       try {
-        const r = await fetch("/api/nitropixel/data-quality-score", { cache: "no-store" });
+        const r = await fetch(`/api/nitropixel/data-quality-score?window=${windowKey}`, {
+          cache: "no-store",
+        });
         const j = (await r.json()) as QualityResponse;
         if (!alive) return;
         if (!j.ok) throw new Error("API error");
@@ -153,13 +165,14 @@ export default function NitroPixelQualityPage() {
         if (alive) setLoading(false);
       }
     }
+    setLoading(true);
     load();
     const id = setInterval(load, 60_000);
     return () => {
       alive = false;
       clearInterval(id);
     };
-  }, []);
+  }, [windowKey]);
 
   const score = data?.score ?? 0;
   const animScore = useAnimatedNumber(score, 1800);
@@ -223,6 +236,24 @@ export default function NitroPixelQualityPage() {
           </Link>
         </div>
 
+        {/* ═══ BANNER EXPLICATIVO (historical drag) ═══ */}
+        {data?.historicalDragWarning && (
+          <HistoricalDragBanner
+            daysSinceFix={data.daysSinceFix}
+            windowDays={data.windowDays}
+            windowKey={data.window}
+            onSwitchTo24h={() => setWindowKey("24h")}
+          />
+        )}
+
+        {/* ═══ WINDOW SELECTOR ═══ */}
+        <div
+          className="flex items-center justify-center mb-6"
+          style={{ animation: "pixelFadeUp 700ms ease-out both" }}
+        >
+          <WindowSelector value={windowKey} onChange={setWindowKey} />
+        </div>
+
         {/* ═══ HERO SCORE ═══ */}
         <div
           className="relative flex flex-col items-center justify-center mb-12"
@@ -246,10 +277,43 @@ export default function NitroPixelQualityPage() {
               <span>NITROSCORE</span>
               <span className="opacity-30">·</span>
               <span>{data?.scoreLabel ?? "Calculando…"}</span>
+              {data?.windowLabel && (
+                <>
+                  <span className="opacity-30">·</span>
+                  <span>{data.windowLabel}</span>
+                </>
+              )}
             </div>
             <div className="text-base lg:text-lg font-medium mt-2 tracking-wide text-cyan-50/80 max-w-xl">
               NitroPixel está capturando el {animScore}% del valor real de tu publicidad
             </div>
+
+            {/* Trend delta */}
+            {data && data.trendDelta !== null && (
+              <div className="mt-3 inline-flex items-center gap-2 text-[11px] font-mono">
+                <span
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full"
+                  style={{
+                    background:
+                      data.trendDelta >= 0
+                        ? "rgba(16,185,129,0.12)"
+                        : "rgba(139,92,246,0.10)",
+                    border:
+                      data.trendDelta >= 0
+                        ? "1px solid rgba(16,185,129,0.4)"
+                        : "1px solid rgba(139,92,246,0.4)",
+                    color: data.trendDelta >= 0 ? "#10b981" : "#a855f7",
+                  }}
+                >
+                  <span>{data.trendDelta >= 0 ? "↑" : "↓"}</span>
+                  <span>
+                    {data.trendDelta >= 0 ? "+" : ""}
+                    {data.trendDelta} pts vs período anterior
+                  </span>
+                </span>
+              </div>
+            )}
+
             {data && totalAtRisk > 0 && (
               <div className="text-xs text-cyan-300/50 font-mono mt-3">
                 Subir al 100% desbloquea ~{formatARS(totalAtRisk)} de revenue atribuido
@@ -265,14 +329,14 @@ export default function NitroPixelQualityPage() {
             style={{ animation: "pixelFadeUp 900ms ease-out both" }}
           >
             <HeadlineCard
-              label="REVENUE ATRIBUIDO · 30D"
-              value={formatARS(data.attributedRevenue30d)}
+              label={`REVENUE ATRIBUIDO · ${data.window.toUpperCase()}`}
+              value={formatARS(data.attributedRevenue)}
               accent="#06b6d4"
               sub="Modelo NITRO · multi-touch"
             />
             <HeadlineCard
-              label="COMPRAS RASTREADAS · 30D"
-              value={new Intl.NumberFormat("es-AR").format(data.totalPurchases30d)}
+              label={`COMPRAS RASTREADAS · ${data.window.toUpperCase()}`}
+              value={new Intl.NumberFormat("es-AR").format(data.totalPurchases)}
               accent="#22d3ee"
               sub="Eventos PURCHASE de NitroPixel"
             />
@@ -403,6 +467,156 @@ export default function NitroPixelQualityPage() {
 
       {/* ═══ MODAL DESBLOQUEAR ═══ */}
       {activeLever && <UnlockModal lever={activeLever} onClose={() => setActiveLever(null)} />}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Window Selector — pills 24h / 7d / 30d
+// ──────────────────────────────────────────────────────────────
+function WindowSelector({
+  value,
+  onChange,
+}: {
+  value: WindowKey;
+  onChange: (w: WindowKey) => void;
+}) {
+  const options: Array<{ key: WindowKey; label: string; sub: string }> = [
+    { key: "24h", label: "24 H", sub: "post-fixes" },
+    { key: "7d", label: "7 D", sub: "semanal" },
+    { key: "30d", label: "30 D", sub: "mensual" },
+  ];
+  return (
+    <div
+      className="inline-flex items-center gap-1 p-1 rounded-2xl"
+      style={{
+        background: "rgba(6,182,212,0.05)",
+        border: "1px solid rgba(6,182,212,0.20)",
+        boxShadow: "inset 0 0 24px rgba(6,182,212,0.05)",
+      }}
+    >
+      {options.map((opt) => {
+        const active = opt.key === value;
+        return (
+          <button
+            key={opt.key}
+            onClick={() => onChange(opt.key)}
+            className="relative px-5 py-2.5 rounded-xl transition-all"
+            style={{
+              background: active
+                ? "linear-gradient(135deg, rgba(6,182,212,0.20), rgba(168,85,247,0.18))"
+                : "transparent",
+              border: active ? "1px solid rgba(6,182,212,0.45)" : "1px solid transparent",
+              boxShadow: active ? "0 0 18px rgba(6,182,212,0.25)" : "none",
+            }}
+          >
+            <div
+              className="text-[11px] font-mono font-bold uppercase tracking-[0.25em]"
+              style={{ color: active ? "#67e8f9" : "rgba(165,243,252,0.4)" }}
+            >
+              {opt.label}
+            </div>
+            <div
+              className="text-[8px] font-mono uppercase tracking-[0.2em] mt-0.5"
+              style={{ color: active ? "rgba(165,243,252,0.7)" : "rgba(165,243,252,0.25)" }}
+            >
+              {opt.sub}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Historical Drag Banner — explicación clara y honesta
+// ──────────────────────────────────────────────────────────────
+function HistoricalDragBanner({
+  daysSinceFix,
+  windowDays,
+  windowKey,
+  onSwitchTo24h,
+}: {
+  daysSinceFix: number;
+  windowDays: number;
+  windowKey: WindowKey;
+  onSwitchTo24h: () => void;
+}) {
+  // Si ya está mirando 24h no mostramos banner
+  if (windowKey === "24h") return null;
+
+  const daysOfClean = Math.min(daysSinceFix, windowDays);
+  const daysOfOld = Math.max(0, windowDays - daysOfClean);
+
+  return (
+    <div
+      className="relative mb-6 rounded-2xl overflow-hidden"
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(168,85,247,0.10), rgba(6,182,212,0.06) 60%, rgba(16,185,129,0.06))",
+        border: "1px solid rgba(168,85,247,0.35)",
+        boxShadow: "0 0 32px rgba(168,85,247,0.12)",
+        animation: "pixelFadeUp 650ms ease-out both",
+      }}
+    >
+      {/* Shimmer accent */}
+      <div
+        className="absolute inset-0 opacity-30 pointer-events-none"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.08) 50%, transparent 100%)",
+          animation: "pixelShimmer 4s ease-in-out infinite",
+        }}
+      />
+      <div className="relative p-5 lg:p-6 flex items-start gap-4">
+        <div
+          className="flex-none w-11 h-11 rounded-xl flex items-center justify-center text-xl"
+          style={{
+            background: "linear-gradient(135deg, rgba(168,85,247,0.25), rgba(6,182,212,0.15))",
+            border: "1px solid rgba(168,85,247,0.5)",
+            boxShadow: "0 0 16px rgba(168,85,247,0.35)",
+          }}
+        >
+          💡
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-violet-300/80 mb-1">
+            POR QUÉ TU SCORE PUEDE VERSE BAJO HOY
+          </div>
+          <div className="text-sm lg:text-base font-semibold text-white leading-snug">
+            Tu pixel está midiendo perfecto — el score histórico todavía arrastra data vieja
+          </div>
+          <div className="text-[12px] text-cyan-100/70 mt-2 leading-relaxed">
+            Aplicamos mejoras importantes al pixel hace{" "}
+            <strong className="text-white">
+              {daysSinceFix === 0 ? "menos de 24 horas" : `${daysSinceFix} día${daysSinceFix === 1 ? "" : "s"}`}
+            </strong>
+            . Estás viendo la ventana de los <strong className="text-white">{windowDays} días</strong>,
+            que mezcla{" "}
+            <span style={{ color: "#a855f7" }}>{daysOfOld} días con data vieja</span> +{" "}
+            <span style={{ color: "#10b981" }}>{daysOfClean} día{daysOfClean === 1 ? "" : "s"} con data limpia</span>.
+            El número va a subir solo a medida que pasen los días.
+          </div>
+          <div className="text-[11px] text-cyan-200/60 mt-2 leading-relaxed">
+            ¿Querés ver el score real de cómo está midiendo <strong className="text-white">ahora mismo</strong>?
+            Cambiá a la ventana de 24 h.
+          </div>
+          <button
+            onClick={onSwitchTo24h}
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-mono uppercase tracking-[0.2em] transition-all hover:scale-[1.02]"
+            style={{
+              background: "linear-gradient(135deg, rgba(16,185,129,0.20), rgba(6,182,212,0.15))",
+              border: "1px solid rgba(16,185,129,0.5)",
+              color: "#6ee7b7",
+              boxShadow: "0 0 14px rgba(16,185,129,0.25)",
+            }}
+          >
+            Ver score real (24 h)
+            <span>→</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
