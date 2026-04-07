@@ -10,6 +10,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -176,6 +177,8 @@ function getWidgetData(id: string, allData: Record<string, any>): { value: strin
 // ══════════════════════════════════════════════════════════════
 
 export default function DashboardPage() {
+  const { data: session } = useSession();
+  const orgName = (session?.user as any)?.organizationName || "Tu negocio";
   const [activeWidgets, setActiveWidgets] = useState<string[]>(DEFAULT_WIDGETS);
   const [allData, setAllData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -318,7 +321,7 @@ export default function DashboardPage() {
       <div className="flex justify-between items-start mb-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">Dashboard</h2>
-          <p className="text-gray-500">El Mundo del Juguete</p>
+          <p className="text-gray-500">{orgName}</p>
         </div>
         <div className="flex items-center gap-2">
           {editMode && (

@@ -43,6 +43,7 @@ model Organization {
   webMetrics               WebMetricDaily[]
   funnelData  FunnelDaily[]
   botChats    BotChat[]
+  botMemories BotMemory[]
   insights    Insight[]
   pixelVisitors            PixelVisitor[]
   pixelEvents              PixelEvent[]
@@ -580,6 +581,36 @@ enum MessageRole {
   ASSISTANT
 }
 
+// Memoria persistente del bot — aprendizajes y reglas de negocio
+model BotMemory {
+  id             String         @id @default(cuid())
+  category       MemoryCategory
+  title          String
+  content        String
+  priority       Int            @default(5)         // 0-10, mayor = más importante
+  isActive       Boolean        @default(true)
+  usageCount     Int            @default(0)
+  lastUsedAt     DateTime?
+  source         String         @default("MANUAL")  // MANUAL | AUTO_EXTRACTED | SYSTEM
+  createdBy      String?                             // Email o "SYSTEM"
+  sourceData     Json?                               // Datos extra (ej: chatId de origen)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, isActive, priority])
+  @@map("bot_memories")
+}
+
+enum MemoryCategory {
+  BUSINESS_RULE
+  CORRECTION
+  PREFERENCE
+  CONTEXT
+}
+
 // Insights automáticos generados por el bot
 model Insight {
   id          String       @id @default(cuid())
@@ -614,6 +645,32 @@ enum InsightPriority {
   HIGH
   MEDIUM
   LOW
+}
+
+// ─────────────────────────────────────────────
+// AURUM USAGE LOG — Telemetria del motor de razonamiento
+// ─────────────────────────────────────────────
+model AurumUsageLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  mode           String   // "FLASH" | "CORE" | "DEEP"
+  model          String   // exact model id used
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  totalTokens    Int      @default(0)
+  latencyMs      Int
+  toolRounds     Int      @default(0)
+  toolsUsed      String[] @default([])
+  stopReason     String?
+  success        Boolean  @default(true)
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([mode, createdAt])
+  @@index([createdAt])
+  @@map("aurum_usage_logs")
 }
 
 // ─────────────────────────────────────────────

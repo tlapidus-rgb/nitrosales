@@ -108,7 +108,7 @@ export async function fetchMetaAdLibrary(
   const maxPages = 5; // Safety limit
 
   while (nextUrl && pages < maxPages) {
-    const res = await fetch(nextUrl);
+    const res: Response = await fetch(nextUrl);
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: { message: res.statusText } }));
       throw new Error(
@@ -116,7 +116,7 @@ export async function fetchMetaAdLibrary(
       );
     }
 
-    const data = await res.json();
+    const data: any = await res.json();
     if (data.data && Array.isArray(data.data)) {
       allAds.push(...data.data);
     }

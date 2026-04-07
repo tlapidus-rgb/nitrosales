@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════
-// Motor del Bot de IA - NitroSales
+// Motor del Bot de IA - NitroSales (Aurum)
 // ══════════════════════════════════════════════
 // Este es el "cerebro" que analiza los datos de todas las
 // fuentes y genera insights accionables.
@@ -7,7 +7,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 const SYSTEM_PROMPT = `Sos un experto senior en ecommerce y marketing digital con 15 años de experiencia.
-Tu nombre es NitroBot y trabajás dentro de la plataforma NitroSales.
+Tu nombre es Aurum y trabajás dentro de la plataforma NitroSales.
 
 Tu rol es analizar los datos del ecommerce del cliente y darle recomendaciones ACCIONABLES para vender más.
 
@@ -35,7 +35,7 @@ Cuando analices datos, usá este formato para cada insight:
 📈 Impacto esperado: Qué resultado se podría esperar
 `;
 
-export class NitroBot {
+export class AurumBot {
   private client: Anthropic;
 
   constructor(apiKey: string) {

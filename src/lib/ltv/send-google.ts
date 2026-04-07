@@ -167,7 +167,7 @@ export async function sendLtvAdjustmentToGoogle(
     const pixelEvent = await prisma.pixelEvent.findFirst({
       where: {
         organizationId: orgId,
-        eventType: "Purchase",
+        type: "PURCHASE",
         props: {
           path: ["orderId"],
           equals: firstOrder.externalId || firstOrder.id,

@@ -49,7 +49,7 @@ async function buildContext(ORG_ID: string) {
   for (const item of orderItems) {
     if (!item.productId) continue;
     const e = salesMap.get(item.productId) || { unitsSold: 0, revenue: 0, orders: new Set() };
-    e.unitsSold += item.quantity; e.revenue += item.totalPrice; e.orders.add(item.order.id);
+    e.unitsSold += item.quantity; e.revenue += Number(item.totalPrice); e.orders.add(item.order.id);
     salesMap.set(item.productId, e);
   }
 

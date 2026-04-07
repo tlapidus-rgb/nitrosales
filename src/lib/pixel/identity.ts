@@ -187,7 +187,7 @@ export async function identifyVisitor(
           // Merge device types
           deviceTypes: [...new Set([...existingWithEmail.deviceTypes, ...currentVisitor.deviceTypes])],
           // Keep clickIds del mas reciente
-          clickIds: currentVisitor.clickIds || existingWithEmail.clickIds,
+          clickIds: (currentVisitor.clickIds || existingWithEmail.clickIds) as any,
         }
       });
 

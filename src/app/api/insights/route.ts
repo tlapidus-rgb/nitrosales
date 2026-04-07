@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import Anthropic from "@anthropic-ai/sdk";
+import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -17,11 +18,11 @@ async function fetchJSON(url: string) {
   return res.json();
 }
 
-function buildDashboardPrompt(metrics: any, trends: any) {
+function buildDashboardPrompt(metrics: any, trends: any, orgName: string) {
   const s = metrics?.summary;
   const c = metrics?.changes;
   if (!s) return null;
-  return `Analiza estos KPIs del dashboard de El Mundo del Juguete (ultimos 30 dias):
+  return `Analiza estos KPIs del dashboard de ${orgName} (ultimos 30 dias):
 - Facturacion: $${Math.round(s.revenue).toLocaleString()} (${c?.revenue ? (c.revenue > 0 ? "+" : "") + c.revenue + "%" : "sin comparacion"} vs periodo anterior)
 - Pedidos facturados: ${s.orders} (${c?.orders ? (c.orders > 0 ? "+" : "") + c.orders + "%" : ""})
 - Ticket promedio: $${Math.round(s.avgTicket).toLocaleString()}
@@ -33,7 +34,7 @@ function buildDashboardPrompt(metrics: any, trends: any) {
 - Cancelados: ${s.cancelledOrders} ordenes ($${Math.round(s.cancelledRevenue).toLocaleString()})`;
 }
 
-function buildProductsPrompt(data: any) {
+function buildProductsPrompt(data: any, orgName: string) {
   const s = data?.summary;
   const prods = data?.topProducts;
   if (!s || !prods) return null;
@@ -46,7 +47,7 @@ function buildProductsPrompt(data: any) {
     )
     .join("\n");
 
-  return `Analiza los datos de productos de El Mundo del Juguete (30 dias):
+  return `Analiza los datos de productos de ${orgName} (30 dias):
 - Unidades vendidas estimadas: ${s.estimatedTotalUnits.toLocaleString()}
 - Facturacion estimada: $${Math.round(s.estimatedTotalRevenue).toLocaleString()}
 - Productos unicos: ${s.uniqueProducts}
@@ -55,7 +56,7 @@ function buildProductsPrompt(data: any) {
 ${top5}`;
 }
 
-function buildCampaignsPrompt(data: any) {
+function buildCampaignsPrompt(data: any, orgName: string) {
   const camps = data?.campaigns;
   if (!camps || camps.length === 0) return null;
 
@@ -88,7 +89,7 @@ function buildCampaignsPrompt(data: any) {
     )
     .join("\n");
 
-  return `Analiza las campanas publicitarias de El Mundo del Juguete (30 dias):
+  return `Analiza las campanas publicitarias de ${orgName} (30 dias):
 - ${camps.length} campanas activas
 - Inversion total: $${Math.round(totalSpend).toLocaleString()}
 - Revenue publicitario: $${Math.round(totalRev).toLocaleString()}
@@ -101,7 +102,7 @@ function buildCampaignsPrompt(data: any) {
 ${campList}`;
 }
 
-function buildCustomersPrompt(data: any) {
+function buildCustomersPrompt(data: any, orgName: string) {
   const s = data?.summary;
   if (!s) return null;
 
@@ -127,7 +128,7 @@ function buildCustomersPrompt(data: any) {
         .join(", ")
     : "Sin datos";
 
-  return `Analiza los datos de clientes de El Mundo del Juguete (basado en pedidos facturados):
+  return `Analiza los datos de clientes de ${orgName} (basado en pedidos facturados):
 - Total clientes unicos: ${s.totalCustomers}
 - Clientes identificados (con datos de VTEX): ${s.identifiedCustomers}
 - Clientes que repiten: ${s.repeatCustomers} (tasa recompra: ${s.repeatRate}%)
@@ -158,6 +159,14 @@ export async function GET(req: Request) {
     const baseUrl =
       process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
 
+    // Load org context dynamically (name + industry/country from onboarding)
+    const org = await getOrganization();
+    const orgName = org.name;
+    const orgSettings = (org as any).settings || {};
+    const bc = orgSettings.businessContext || null;
+    const industryLabel = bc?.industry ? `${bc.industry}` : "ecommerce";
+    const countryLabel = bc?.country ? `en ${bc.country}` : "en Latinoamérica";
+
     let dataPrompt: string | null = null;
 
     if (section === "dashboard") {
@@ -165,16 +174,16 @@ export async function GET(req: Request) {
         fetchJSON(baseUrl + "/api/metrics"),
         fetchJSON(baseUrl + "/api/metrics/trends"),
       ]);
-      dataPrompt = buildDashboardPrompt(metrics, trends);
+      dataPrompt = buildDashboardPrompt(metrics, trends, orgName);
     } else if (section === "products") {
       const data = await fetchJSON(baseUrl + "/api/metrics/products");
-      dataPrompt = buildProductsPrompt(data);
+      dataPrompt = buildProductsPrompt(data, orgName);
     } else if (section === "campaigns") {
       const data = await fetchJSON(baseUrl + "/api/metrics/campaigns");
-      dataPrompt = buildCampaignsPrompt(data);
+      dataPrompt = buildCampaignsPrompt(data, orgName);
     } else if (section === "customers") {
       const data = await fetchJSON(baseUrl + "/api/metrics/customers");
-      dataPrompt = buildCustomersPrompt(data);
+      dataPrompt = buildCustomersPrompt(data, orgName);
     }
 
     if (!dataPrompt) {
@@ -202,7 +211,7 @@ export async function GET(req: Request) {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1500,
-      system: `Sos NitroBot, analista de growth de El Mundo del Juguete (ecommerce de juguetes en Argentina).
+      system: `Sos Aurum, analista de growth de ${orgName} (${industryLabel} ${countryLabel}).
 Genera exactamente 3 insights accionables sobre ${sectionNames[section] || section}.
 Habla en espanol rioplatense (vos, tenes, podes). Se directo y concreto.
 IMPORTANTE: Solo usa datos del contexto, nunca inventes numeros.
