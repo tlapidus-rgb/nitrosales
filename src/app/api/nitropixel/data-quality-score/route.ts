@@ -10,8 +10,14 @@
 //   4. Frescura de señales        (peso 15%)
 //   5. Confiabilidad del webhook  (peso 15%)
 //
-// Window selector: 24h (post-fixes), 7d (semanal), 30d (mensual).
-// Computa delta vs período anterior del mismo tamaño.
+// Filosofía: NitroPixel mide desde que está sano. Nunca arrastra
+// data previa al "measurement start" de la organización (definido
+// como max(fix-floor, primer evento del pixel)). Los clientes que
+// instalan limpio desde día 1 ven su score real desde el primer día.
+//
+// Si una palanca no tiene suficiente sample post-measurement-start,
+// se marca como "collecting" y NO afecta al score (re-normalización
+// sobre las palancas con datos).
 //
 // 100% READ-ONLY · cero migraciones · cero columnas nuevas.
 // Cacheado en memoria 5 minutos por org+window.
@@ -27,9 +33,20 @@ export const revalidate = 0;
 const MS_DAY = 24 * 60 * 60 * 1000;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
-// Fecha de los fixes de calidad de NitroPixel — usado para el banner explicativo.
-// El score histórico (7d/30d) está siendo arrastrado por data anterior a esta fecha.
-const FIX_APPLIED_AT = new Date("2026-04-07T00:00:00Z");
+// Fecha desde la cual la implementación del pixel está validada como sana.
+// Cualquier evento previo a esta fecha se ignora completamente — no arrastra al score.
+// Esto cubre los iterations + bug-fixes durante el desarrollo del propio NitroPixel.
+const PIXEL_HEALTHY_FLOOR = new Date("2026-04-07T00:00:00Z");
+
+// Mínimo de samples por palanca para considerarla con datos suficientes.
+// Por debajo de esto, la palanca queda en "collecting" y NO afecta al score.
+const MIN_SAMPLES = {
+  click_coverage: 20, // page_view events with click IDs
+  identity_richness: 10, // visitors with email captured post-start
+  capi_match: 5, // PURCHASE events
+  signal_freshness: 10, // touchpoints in attributions
+  webhook_reliability: 5, // orders with createdAt + orderDate
+};
 
 // ── Cache en memoria por organización + window ──
 type CacheEntry = { data: unknown; expiresAt: number };
@@ -37,6 +54,7 @@ const cache = new Map<string, CacheEntry>();
 
 // ── Tipos del resultado ──
 type WindowKey = "24h" | "7d" | "30d";
+type LeverStatus = "perfect" | "great" | "good" | "opportunity" | "collecting";
 
 interface LeverResult {
   key: "click_coverage" | "identity_richness" | "capi_match" | "signal_freshness" | "webhook_reliability";
@@ -45,7 +63,9 @@ interface LeverResult {
   current: number;
   target: number;
   weight: number;
-  status: "perfect" | "great" | "good" | "opportunity";
+  status: LeverStatus;
+  sampleSize: number;
+  minSampleNeeded: number;
   moneyAtRiskArs: number;
   unlockTitle: string;
   unlockSteps: string[];
@@ -56,13 +76,16 @@ interface QualityScoreResponse {
   window: WindowKey;
   windowLabel: string;
   windowDays: number;
-  score: number;
+  effectiveDays: number; // días reales medidos (clamped a measurementStart)
+  score: number | null; // null si no hay ninguna palanca con datos suficientes
   scoreLabel: string;
   scoreColor: string;
   priorScore: number | null;
   trendDelta: number | null;
   attributedRevenue: number;
   totalPurchases: number;
+  leversWithData: number;
+  totalLevers: number;
   levers: LeverResult[];
   opportunities: Array<{
     id: string;
@@ -73,10 +96,9 @@ interface QualityScoreResponse {
     metricValue: number | null;
     createdAt: string;
   }>;
-  // Contexto histórico para el banner explicativo
-  fixAppliedAt: string;
-  daysSinceFix: number;
-  historicalDragWarning: boolean;
+  measurementStartAt: string;
+  daysSinceMeasurementStart: number;
+  isCollectingState: boolean; // true si todavía no hay suficientes datos en NINGUNA palanca
   computedAt: string;
 }
 
@@ -85,14 +107,15 @@ function clamp(n: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, n));
 }
 
-function statusForRatio(current: number, target: number): LeverResult["status"] {
+function statusForRatio(current: number, target: number): LeverStatus {
   if (current >= target) return "perfect";
   if (current >= target * 0.9) return "great";
   if (current >= target * 0.7) return "good";
   return "opportunity";
 }
 
-function scoreLabel(score: number): { label: string; color: string } {
+function scoreLabel(score: number | null): { label: string; color: string } {
+  if (score === null) return { label: "Recopilando datos", color: "#06b6d4" };
   if (score >= 90) return { label: "Excelente", color: "#10b981" };
   if (score >= 75) return { label: "Muy bueno", color: "#06b6d4" };
   if (score >= 60) return { label: "Bueno", color: "#8b5cf6" };
@@ -106,7 +129,27 @@ function parseWindow(input: string | null): { key: WindowKey; days: number; labe
 }
 
 // ──────────────────────────────────────────────────────────
-// Compute lever percentages for a given time range
+// Determina el measurement start para una org:
+// max(PIXEL_HEALTHY_FLOOR, primer evento del pixel para esa org)
+// ──────────────────────────────────────────────────────────
+async function getOrgMeasurementStart(orgId: string): Promise<Date> {
+  const firstEvent = await prisma.pixelEvent.findFirst({
+    where: { organizationId: orgId },
+    orderBy: { receivedAt: "asc" },
+    select: { receivedAt: true },
+  });
+  if (!firstEvent) {
+    // No hay eventos todavía — measurement start = ahora (todo en estado collecting)
+    return new Date();
+  }
+  return firstEvent.receivedAt.getTime() > PIXEL_HEALTHY_FLOOR.getTime()
+    ? firstEvent.receivedAt
+    : PIXEL_HEALTHY_FLOOR;
+}
+
+// ──────────────────────────────────────────────────────────
+// Compute lever metrics for a clamped time range
+// (devuelve ratios + sample sizes)
 // ──────────────────────────────────────────────────────────
 async function computeLeverPercents(
   orgId: string,
@@ -114,19 +157,36 @@ async function computeLeverPercents(
   rangeEnd: Date
 ): Promise<{
   clickCoveragePct: number;
+  clickSample: number;
   identityPct: number;
+  identitySample: number;
   capiPct: number;
+  capiSample: number;
   freshPct: number;
+  freshSample: number;
   webhookPct: number;
+  webhookSample: number;
   attributedRevenue: number;
   totalPurchases: number;
-  visitorsWithEmail: number;
-  visitorsWithBoth: number;
-  clickTotal: number;
-  totalPurchasesForMatch: number;
-  totalTouchpoints: number;
-  totalOrders: number;
 }> {
+  // Si rangeStart >= rangeEnd no tiene sentido consultar
+  if (rangeStart.getTime() >= rangeEnd.getTime()) {
+    return {
+      clickCoveragePct: 0,
+      clickSample: 0,
+      identityPct: 0,
+      identitySample: 0,
+      capiPct: 0,
+      capiSample: 0,
+      freshPct: 0,
+      freshSample: 0,
+      webhookPct: 0,
+      webhookSample: 0,
+      attributedRevenue: 0,
+      totalPurchases: 0,
+    };
+  }
+
   const [
     clickCoverageRows,
     visitorsWithEmail,
@@ -155,11 +215,14 @@ async function computeLeverPercents(
         AND type IN ('PAGE_VIEW', 'PAGEVIEW', 'SESSION_START')
       GROUP BY 1, 2
     `,
+    // Identidad: solo visitors CREADOS post-measurement-start.
+    // Esto evita arrastrar visitors viejos cuya identidad fue capturada
+    // antes de los fixes (cuando phone se perdía).
     prisma.pixelVisitor.count({
       where: {
         organizationId: orgId,
         email: { not: null },
-        lastSeenAt: { gte: rangeStart, lt: rangeEnd },
+        firstSeenAt: { gte: rangeStart, lt: rangeEnd },
       },
     }),
     prisma.pixelVisitor.count({
@@ -167,7 +230,7 @@ async function computeLeverPercents(
         organizationId: orgId,
         email: { not: null },
         phone: { not: null },
-        lastSeenAt: { gte: rangeStart, lt: rangeEnd },
+        firstSeenAt: { gte: rangeStart, lt: rangeEnd },
       },
     }),
     prisma.$queryRaw<Array<{ has_match: boolean; cnt: bigint }>>`
@@ -226,10 +289,10 @@ async function computeLeverPercents(
     else if (r.has_click && !r.has_utm) clicksWithoutUtm += c;
   }
   const clickTotal = clicksWithUtm + clicksWithoutUtm;
-  const clickCoverageRatio = clickTotal > 0 ? clicksWithUtm / clickTotal : 1;
+  const clickCoverageRatio = clickTotal > 0 ? clicksWithUtm / clickTotal : 0;
 
   // Lever 2 — Identity richness
-  const identityRatio = visitorsWithEmail > 0 ? visitorsWithBoth / visitorsWithEmail : 1;
+  const identityRatio = visitorsWithEmail > 0 ? visitorsWithBoth / visitorsWithEmail : 0;
 
   // Lever 3 — CAPI match
   let purchasesWithMatch = 0;
@@ -240,7 +303,7 @@ async function computeLeverPercents(
     else purchasesWithoutMatch += c;
   }
   const totalPurchasesForMatch = purchasesWithMatch + purchasesWithoutMatch;
-  const capiRatio = totalPurchasesForMatch > 0 ? purchasesWithMatch / totalPurchasesForMatch : 1;
+  const capiRatio = totalPurchasesForMatch > 0 ? purchasesWithMatch / totalPurchasesForMatch : 0;
 
   // Lever 4 — Signal freshness
   let totalTouchpoints = 0;
@@ -261,7 +324,7 @@ async function computeLeverPercents(
       }
     }
   }
-  const freshRatio = totalTouchpoints > 0 ? freshTouchpoints / totalTouchpoints : 1;
+  const freshRatio = totalTouchpoints > 0 ? freshTouchpoints / totalTouchpoints : 0;
 
   // Lever 5 — Webhook reliability
   let ordersFast = 0;
@@ -273,45 +336,40 @@ async function computeLeverPercents(
     else ordersSlow += 1;
   }
   const totalOrders = ordersFast + ordersSlow;
-  const webhookRatio = totalOrders > 0 ? ordersFast / totalOrders : 1;
+  const webhookRatio = totalOrders > 0 ? ordersFast / totalOrders : 0;
 
   return {
     clickCoveragePct: Math.round(clickCoverageRatio * 100),
+    clickSample: clickTotal,
     identityPct: Math.round(identityRatio * 100),
+    identitySample: visitorsWithEmail,
     capiPct: Math.round(capiRatio * 100),
+    capiSample: totalPurchasesForMatch,
     freshPct: Math.round(freshRatio * 100),
+    freshSample: totalTouchpoints,
     webhookPct: Math.round(webhookRatio * 100),
+    webhookSample: totalOrders,
     attributedRevenue: Number(revenueAgg._sum.attributedValue ?? 0),
     totalPurchases,
-    visitorsWithEmail,
-    visitorsWithBoth,
-    clickTotal,
-    totalPurchasesForMatch,
-    totalTouchpoints,
-    totalOrders,
   };
 }
 
 // ──────────────────────────────────────────────────────────
-// Compute weighted score from lever percents
+// Compute weighted score, ignorando palancas en "collecting"
+// y re-normalizando los pesos sobre las palancas con datos
 // ──────────────────────────────────────────────────────────
-function computeWeightedScore(percents: {
-  clickCoveragePct: number;
-  identityPct: number;
-  capiPct: number;
-  freshPct: number;
-  webhookPct: number;
-}): number {
-  const targets = [
-    { pct: percents.clickCoveragePct, target: 95, weight: 0.25 },
-    { pct: percents.identityPct, target: 80, weight: 0.25 },
-    { pct: percents.capiPct, target: 70, weight: 0.2 },
-    { pct: percents.freshPct, target: 90, weight: 0.15 },
-    { pct: percents.webhookPct, target: 99, weight: 0.15 },
-  ];
-  const weightedSum = targets.reduce((acc, t) => {
-    const ratio = clamp(t.pct / t.target, 0, 1);
-    return acc + ratio * t.weight * 100;
+function computeWeightedScore(
+  levers: Array<{ pct: number; target: number; weight: number; collecting: boolean }>
+): number | null {
+  const withData = levers.filter((l) => !l.collecting);
+  if (withData.length === 0) return null;
+
+  const totalWeight = withData.reduce((acc, l) => acc + l.weight, 0);
+  if (totalWeight === 0) return null;
+
+  const weightedSum = withData.reduce((acc, l) => {
+    const ratio = clamp(l.pct / l.target, 0, 1);
+    return acc + ratio * (l.weight / totalWeight) * 100;
   }, 0);
   return Math.round(clamp(weightedSum));
 }
@@ -333,14 +391,30 @@ export async function GET(req: NextRequest) {
     }
 
     const now = new Date();
-    const rangeStart = new Date(now.getTime() - win.days * MS_DAY);
-    const priorStart = new Date(now.getTime() - 2 * win.days * MS_DAY);
-    const priorEnd = rangeStart;
+    const measurementStart = await getOrgMeasurementStart(orgId);
 
-    // Compute current and prior period in parallel
+    // Range solicitado por el window
+    const requestedStart = new Date(now.getTime() - win.days * MS_DAY);
+    // Clamped al measurement start (nunca arrastramos data anterior)
+    const effectiveStart = new Date(
+      Math.max(requestedStart.getTime(), measurementStart.getTime())
+    );
+    const effectiveDays = Math.max(
+      0,
+      (now.getTime() - effectiveStart.getTime()) / MS_DAY
+    );
+
+    // Período anterior del mismo tamaño (para delta) — también clampeado
+    const priorRangeSize = now.getTime() - effectiveStart.getTime();
+    const priorEnd = effectiveStart;
+    const priorStartRequested = new Date(priorEnd.getTime() - priorRangeSize);
+    const priorStartClamped = new Date(
+      Math.max(priorStartRequested.getTime(), measurementStart.getTime())
+    );
+
     const [current, prior, opportunities] = await Promise.all([
-      computeLeverPercents(orgId, rangeStart, now),
-      computeLeverPercents(orgId, priorStart, priorEnd),
+      computeLeverPercents(orgId, effectiveStart, now),
+      computeLeverPercents(orgId, priorStartClamped, priorEnd),
       prisma.insight.findMany({
         where: {
           organizationId: orgId,
@@ -364,13 +438,57 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const score = computeWeightedScore(current);
-    const priorScore = computeWeightedScore(prior);
-    const { label, color } = scoreLabel(score);
+    // Calculo de status y collecting por palanca
+    const clickCollecting = current.clickSample < MIN_SAMPLES.click_coverage;
+    const identityCollecting = current.identitySample < MIN_SAMPLES.identity_richness;
+    const capiCollecting = current.capiSample < MIN_SAMPLES.capi_match;
+    const freshCollecting = current.freshSample < MIN_SAMPLES.signal_freshness;
+    const webhookCollecting = current.webhookSample < MIN_SAMPLES.webhook_reliability;
 
+    const score = computeWeightedScore([
+      { pct: current.clickCoveragePct, target: 95, weight: 0.25, collecting: clickCollecting },
+      { pct: current.identityPct, target: 80, weight: 0.25, collecting: identityCollecting },
+      { pct: current.capiPct, target: 70, weight: 0.2, collecting: capiCollecting },
+      { pct: current.freshPct, target: 90, weight: 0.15, collecting: freshCollecting },
+      { pct: current.webhookPct, target: 99, weight: 0.15, collecting: webhookCollecting },
+    ]);
+
+    const priorScore = computeWeightedScore([
+      {
+        pct: prior.clickCoveragePct,
+        target: 95,
+        weight: 0.25,
+        collecting: prior.clickSample < MIN_SAMPLES.click_coverage,
+      },
+      {
+        pct: prior.identityPct,
+        target: 80,
+        weight: 0.25,
+        collecting: prior.identitySample < MIN_SAMPLES.identity_richness,
+      },
+      {
+        pct: prior.capiPct,
+        target: 70,
+        weight: 0.2,
+        collecting: prior.capiSample < MIN_SAMPLES.capi_match,
+      },
+      {
+        pct: prior.freshPct,
+        target: 90,
+        weight: 0.15,
+        collecting: prior.freshSample < MIN_SAMPLES.signal_freshness,
+      },
+      {
+        pct: prior.webhookPct,
+        target: 99,
+        weight: 0.15,
+        collecting: prior.webhookSample < MIN_SAMPLES.webhook_reliability,
+      },
+    ]);
+
+    const { label, color } = scoreLabel(score);
     const attributedRevenue = current.attributedRevenue;
 
-    // Build full lever results with money-at-risk + unlock instructions
     const clickCoverageRatio = current.clickCoveragePct / 100;
     const identityRatio = current.identityPct / 100;
     const capiRatio = current.capiPct / 100;
@@ -386,9 +504,11 @@ export async function GET(req: NextRequest) {
         current: current.clickCoveragePct,
         target: 95,
         weight: 0.25,
-        status: statusForRatio(current.clickCoveragePct, 95),
+        status: clickCollecting ? "collecting" : statusForRatio(current.clickCoveragePct, 95),
+        sampleSize: current.clickSample,
+        minSampleNeeded: MIN_SAMPLES.click_coverage,
         moneyAtRiskArs:
-          current.clickTotal > 0
+          !clickCollecting && current.clickSample > 0
             ? Math.round((1 - clickCoverageRatio) * attributedRevenue * 0.4)
             : 0,
         unlockTitle: "Etiquetá tus clicks pagados",
@@ -408,8 +528,12 @@ export async function GET(req: NextRequest) {
         current: current.identityPct,
         target: 80,
         weight: 0.25,
-        status: statusForRatio(current.identityPct, 80),
-        moneyAtRiskArs: Math.round((1 - identityRatio) * attributedRevenue * 0.15),
+        status: identityCollecting ? "collecting" : statusForRatio(current.identityPct, 80),
+        sampleSize: current.identitySample,
+        minSampleNeeded: MIN_SAMPLES.identity_richness,
+        moneyAtRiskArs: !identityCollecting
+          ? Math.round((1 - identityRatio) * attributedRevenue * 0.15)
+          : 0,
         unlockTitle: "Capturá teléfono en checkout",
         unlockSteps: [
           "VTEX ya pide teléfono en clientProfileData — verificá que el campo no esté oculto",
@@ -426,8 +550,12 @@ export async function GET(req: NextRequest) {
         current: current.capiPct,
         target: 70,
         weight: 0.2,
-        status: statusForRatio(current.capiPct, 70),
-        moneyAtRiskArs: Math.round((1 - capiRatio) * attributedRevenue * 0.2),
+        status: capiCollecting ? "collecting" : statusForRatio(current.capiPct, 70),
+        sampleSize: current.capiSample,
+        minSampleNeeded: MIN_SAMPLES.capi_match,
+        moneyAtRiskArs: !capiCollecting
+          ? Math.round((1 - capiRatio) * attributedRevenue * 0.2)
+          : 0,
         unlockTitle: "Verificá que el Meta Pixel se cargue antes que NitroPixel",
         unlockSteps: [
           "El Meta Pixel base debe cargarse en el <head> del sitio (no al final del body)",
@@ -445,8 +573,12 @@ export async function GET(req: NextRequest) {
         current: current.freshPct,
         target: 90,
         weight: 0.15,
-        status: statusForRatio(current.freshPct, 90),
-        moneyAtRiskArs: Math.round((1 - freshRatio) * attributedRevenue * 0.1),
+        status: freshCollecting ? "collecting" : statusForRatio(current.freshPct, 90),
+        sampleSize: current.freshSample,
+        minSampleNeeded: MIN_SAMPLES.signal_freshness,
+        moneyAtRiskArs: !freshCollecting
+          ? Math.round((1 - freshRatio) * attributedRevenue * 0.1)
+          : 0,
         unlockTitle: "Mantené las URLs limpias",
         unlockSteps: [
           "No uses redirects intermedios entre el click del ad y tu sitio (cada redirect puede perder el click ID)",
@@ -463,8 +595,12 @@ export async function GET(req: NextRequest) {
         current: current.webhookPct,
         target: 99,
         weight: 0.15,
-        status: statusForRatio(current.webhookPct, 99),
-        moneyAtRiskArs: Math.round((1 - webhookRatio) * attributedRevenue * 0.05),
+        status: webhookCollecting ? "collecting" : statusForRatio(current.webhookPct, 99),
+        sampleSize: current.webhookSample,
+        minSampleNeeded: MIN_SAMPLES.webhook_reliability,
+        moneyAtRiskArs: !webhookCollecting
+          ? Math.round((1 - webhookRatio) * attributedRevenue * 0.05)
+          : 0,
         unlockTitle: "Verificá el webhook de VTEX",
         unlockSteps: [
           "En VTEX → Admin → Webhooks, confirmá que el endpoint 'NitroSales Orders' esté activo",
@@ -475,35 +611,32 @@ export async function GET(req: NextRequest) {
       },
     ];
 
-    // Historical drag warning: si la ventana incluye días previos al fix
-    // y todavía no pasaron windowDays naturales desde el fix, marcamos warning.
-    const daysSinceFix = Math.max(
-      0,
-      Math.floor((now.getTime() - FIX_APPLIED_AT.getTime()) / MS_DAY)
-    );
-    const historicalDragWarning = daysSinceFix < win.days;
+    const leversWithData = levers.filter((l) => l.status !== "collecting").length;
+    const isCollectingState = score === null;
 
-    // Trend delta solo si hay data suficiente en el período prior
-    const priorHasData =
-      prior.clickTotal > 0 ||
-      prior.visitorsWithEmail > 0 ||
-      prior.totalPurchasesForMatch > 0 ||
-      prior.totalTouchpoints > 0 ||
-      prior.totalOrders > 0;
-    const trendDelta = priorHasData ? score - priorScore : null;
+    const daysSinceMeasurementStart = Math.max(
+      0,
+      Math.floor((now.getTime() - measurementStart.getTime()) / MS_DAY)
+    );
+
+    const trendDelta =
+      score !== null && priorScore !== null ? score - priorScore : null;
 
     const result: QualityScoreResponse = {
       ok: true,
       window: win.key,
       windowLabel: win.label,
       windowDays: win.days,
+      effectiveDays: Math.round(effectiveDays * 10) / 10,
       score,
       scoreLabel: label,
       scoreColor: color,
-      priorScore: priorHasData ? priorScore : null,
+      priorScore,
       trendDelta,
       attributedRevenue,
       totalPurchases: current.totalPurchases,
+      leversWithData,
+      totalLevers: levers.length,
       levers,
       opportunities: opportunities.map((o) => ({
         id: o.id,
@@ -514,9 +647,9 @@ export async function GET(req: NextRequest) {
         metricValue: o.metricValue,
         createdAt: o.createdAt.toISOString(),
       })),
-      fixAppliedAt: FIX_APPLIED_AT.toISOString(),
-      daysSinceFix,
-      historicalDragWarning,
+      measurementStartAt: measurementStart.toISOString(),
+      daysSinceMeasurementStart,
+      isCollectingState,
       computedAt: now.toISOString(),
     };
 

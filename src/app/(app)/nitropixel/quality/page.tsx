@@ -19,7 +19,7 @@ type LeverKey =
   | "signal_freshness"
   | "webhook_reliability";
 
-type LeverStatus = "perfect" | "great" | "good" | "opportunity";
+type LeverStatus = "perfect" | "great" | "good" | "opportunity" | "collecting";
 
 interface Lever {
   key: LeverKey;
@@ -29,6 +29,8 @@ interface Lever {
   target: number;
   weight: number;
   status: LeverStatus;
+  sampleSize: number;
+  minSampleNeeded: number;
   moneyAtRiskArs: number;
   unlockTitle: string;
   unlockSteps: string[];
@@ -51,18 +53,21 @@ interface QualityResponse {
   window: WindowKey;
   windowLabel: string;
   windowDays: number;
-  score: number;
+  effectiveDays: number;
+  score: number | null;
   scoreLabel: string;
   scoreColor: string;
   priorScore: number | null;
   trendDelta: number | null;
   attributedRevenue: number;
   totalPurchases: number;
+  leversWithData: number;
+  totalLevers: number;
   levers: Lever[];
   opportunities: Opportunity[];
-  fixAppliedAt: string;
-  daysSinceFix: number;
-  historicalDragWarning: boolean;
+  measurementStartAt: string;
+  daysSinceMeasurementStart: number;
+  isCollectingState: boolean;
   computedAt: string;
 }
 
@@ -88,6 +93,8 @@ function statusToColor(status: LeverStatus): string {
       return "#8b5cf6";
     case "opportunity":
       return "#a855f7";
+    case "collecting":
+      return "#22d3ee";
   }
 }
 
@@ -101,6 +108,8 @@ function statusToLabel(status: LeverStatus): string {
       return "Espacio para crecer";
     case "opportunity":
       return "Oportunidad para desbloquear";
+    case "collecting":
+      return "Recopilando datos";
   }
 }
 
@@ -174,8 +183,9 @@ export default function NitroPixelQualityPage() {
     };
   }, [windowKey]);
 
-  const score = data?.score ?? 0;
-  const animScore = useAnimatedNumber(score, 1800);
+  const isCollecting = data?.isCollectingState ?? false;
+  const scoreNumeric = data?.score ?? 0;
+  const animScore = useAnimatedNumber(scoreNumeric, 1800);
   const scoreColor = data?.scoreColor ?? "#06b6d4";
   const totalAtRisk = useMemo(() => {
     if (!data) return 0;
@@ -236,13 +246,16 @@ export default function NitroPixelQualityPage() {
           </Link>
         </div>
 
-        {/* ═══ BANNER EXPLICATIVO (historical drag) ═══ */}
-        {data?.historicalDragWarning && (
-          <HistoricalDragBanner
-            daysSinceFix={data.daysSinceFix}
+        {/* ═══ BANNER EXPLICATIVO (measurement start) ═══ */}
+        {data && (
+          <MeasurementStartBanner
+            measurementStartAt={data.measurementStartAt}
+            daysSinceMeasurementStart={data.daysSinceMeasurementStart}
+            isCollecting={data.isCollectingState}
+            leversWithData={data.leversWithData}
+            totalLevers={data.totalLevers}
+            effectiveDays={data.effectiveDays}
             windowDays={data.windowDays}
-            windowKey={data.window}
-            onSwitchTo24h={() => setWindowKey("24h")}
           />
         )}
 
@@ -259,7 +272,12 @@ export default function NitroPixelQualityPage() {
           className="relative flex flex-col items-center justify-center mb-12"
           style={{ animation: "pixelFadeUp 800ms ease-out both" }}
         >
-          <ScoreGauge value={animScore} color={scoreColor} loading={loading} />
+          <ScoreGauge
+            value={animScore}
+            color={scoreColor}
+            loading={loading}
+            isCollecting={isCollecting}
+          />
 
           <div className="text-center mt-2">
             <div
@@ -285,7 +303,9 @@ export default function NitroPixelQualityPage() {
               )}
             </div>
             <div className="text-base lg:text-lg font-medium mt-2 tracking-wide text-cyan-50/80 max-w-xl">
-              NitroPixel está capturando el {animScore}% del valor real de tu publicidad
+              {isCollecting
+                ? "NitroPixel está midiendo limpio — necesitamos un poco más de actividad para calcular el score"
+                : `NitroPixel está capturando el ${animScore}% del valor real de tu publicidad`}
             </div>
 
             {/* Trend delta */}
@@ -341,10 +361,14 @@ export default function NitroPixelQualityPage() {
               sub="Eventos PURCHASE de NitroPixel"
             />
             <HeadlineCard
-              label="PALANCAS ACTIVAS"
-              value={`${data.levers.filter((l) => l.status === "perfect").length}/${data.levers.length}`}
+              label="PALANCAS CON DATOS"
+              value={`${data.leversWithData}/${data.totalLevers}`}
               accent="#8b5cf6"
-              sub="En su mejor momento"
+              sub={
+                data.leversWithData < data.totalLevers
+                  ? "Las restantes están recopilando"
+                  : "Todas activas"
+              }
             />
           </div>
         )}
@@ -530,42 +554,57 @@ function WindowSelector({
 }
 
 // ──────────────────────────────────────────────────────────────
-// Historical Drag Banner — explicación clara y honesta
+// Measurement Start Banner — explicación clara y honesta
 // ──────────────────────────────────────────────────────────────
-function HistoricalDragBanner({
-  daysSinceFix,
+function MeasurementStartBanner({
+  measurementStartAt,
+  daysSinceMeasurementStart,
+  isCollecting,
+  leversWithData,
+  totalLevers,
+  effectiveDays,
   windowDays,
-  windowKey,
-  onSwitchTo24h,
 }: {
-  daysSinceFix: number;
+  measurementStartAt: string;
+  daysSinceMeasurementStart: number;
+  isCollecting: boolean;
+  leversWithData: number;
+  totalLevers: number;
+  effectiveDays: number;
   windowDays: number;
-  windowKey: WindowKey;
-  onSwitchTo24h: () => void;
 }) {
-  // Si ya está mirando 24h no mostramos banner
-  if (windowKey === "24h") return null;
+  const startDate = new Date(measurementStartAt);
+  const dateLabel = startDate.toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
-  const daysOfClean = Math.min(daysSinceFix, windowDays);
-  const daysOfOld = Math.max(0, windowDays - daysOfClean);
+  // Si la ventana solicitada > effectiveDays, hay clamping
+  const isClamped = effectiveDays < windowDays - 0.1;
+
+  // Tres modos distintos de banner según situación
+  // 1) Collecting state — todavía no hay datos para ninguna palanca
+  // 2) Clamped — la ventana se recortó porque measurement start es reciente
+  // 3) Steady state — ya no hay clamping, no se muestra banner (return null)
+  if (!isCollecting && !isClamped) return null;
 
   return (
     <div
       className="relative mb-6 rounded-2xl overflow-hidden"
       style={{
         background:
-          "linear-gradient(135deg, rgba(168,85,247,0.10), rgba(6,182,212,0.06) 60%, rgba(16,185,129,0.06))",
-        border: "1px solid rgba(168,85,247,0.35)",
-        boxShadow: "0 0 32px rgba(168,85,247,0.12)",
+          "linear-gradient(135deg, rgba(34,211,238,0.10), rgba(6,182,212,0.06) 60%, rgba(16,185,129,0.06))",
+        border: "1px solid rgba(34,211,238,0.40)",
+        boxShadow: "0 0 32px rgba(34,211,238,0.14)",
         animation: "pixelFadeUp 650ms ease-out both",
       }}
     >
-      {/* Shimmer accent */}
       <div
         className="absolute inset-0 opacity-30 pointer-events-none"
         style={{
           background:
-            "linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.08) 50%, transparent 100%)",
+            "linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.10) 50%, transparent 100%)",
           animation: "pixelShimmer 4s ease-in-out infinite",
         }}
       />
@@ -573,48 +612,57 @@ function HistoricalDragBanner({
         <div
           className="flex-none w-11 h-11 rounded-xl flex items-center justify-center text-xl"
           style={{
-            background: "linear-gradient(135deg, rgba(168,85,247,0.25), rgba(6,182,212,0.15))",
-            border: "1px solid rgba(168,85,247,0.5)",
-            boxShadow: "0 0 16px rgba(168,85,247,0.35)",
+            background:
+              "linear-gradient(135deg, rgba(34,211,238,0.25), rgba(16,185,129,0.18))",
+            border: "1px solid rgba(34,211,238,0.55)",
+            boxShadow: "0 0 16px rgba(34,211,238,0.35)",
           }}
         >
-          💡
+          {isCollecting ? "🌱" : "✨"}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-violet-300/80 mb-1">
-            POR QUÉ TU SCORE PUEDE VERSE BAJO HOY
+          <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-200/85 mb-1">
+            NITROPIXEL · MIDIENDO LIMPIO DESDE EL DÍA UNO
           </div>
           <div className="text-sm lg:text-base font-semibold text-white leading-snug">
-            Tu pixel está midiendo perfecto — el score histórico todavía arrastra data vieja
+            {isCollecting
+              ? "Tu pixel está midiendo correctamente — recopilando datos para mostrarte el score"
+              : "Tu pixel está midiendo correctamente desde el día uno, sin arrastrar nada"}
           </div>
-          <div className="text-[12px] text-cyan-100/70 mt-2 leading-relaxed">
-            Aplicamos mejoras importantes al pixel hace{" "}
-            <strong className="text-white">
-              {daysSinceFix === 0 ? "menos de 24 horas" : `${daysSinceFix} día${daysSinceFix === 1 ? "" : "s"}`}
-            </strong>
-            . Estás viendo la ventana de los <strong className="text-white">{windowDays} días</strong>,
-            que mezcla{" "}
-            <span style={{ color: "#a855f7" }}>{daysOfOld} días con data vieja</span> +{" "}
-            <span style={{ color: "#10b981" }}>{daysOfClean} día{daysOfClean === 1 ? "" : "s"} con data limpia</span>.
-            El número va a subir solo a medida que pasen los días.
+          <div className="text-[12px] text-cyan-100/75 mt-2 leading-relaxed">
+            NitroPixel arrancó a medir tu organización el{" "}
+            <strong className="text-white">{dateLabel}</strong>
+            {daysSinceMeasurementStart === 0
+              ? " (hoy)"
+              : ` (hace ${daysSinceMeasurementStart} día${daysSinceMeasurementStart === 1 ? "" : "s"})`}
+            . <strong className="text-white">Todo lo previo a esa fecha se ignora completamente</strong> —
+            no arrastra al score, no contamina las palancas, no infla ni deshincha el número. Lo que ves es
+            100% el desempeño actual de tu pixel.
           </div>
-          <div className="text-[11px] text-cyan-200/60 mt-2 leading-relaxed">
-            ¿Querés ver el score real de cómo está midiendo <strong className="text-white">ahora mismo</strong>?
-            Cambiá a la ventana de 24 h.
-          </div>
-          <button
-            onClick={onSwitchTo24h}
-            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-mono uppercase tracking-[0.2em] transition-all hover:scale-[1.02]"
-            style={{
-              background: "linear-gradient(135deg, rgba(16,185,129,0.20), rgba(6,182,212,0.15))",
-              border: "1px solid rgba(16,185,129,0.5)",
-              color: "#6ee7b7",
-              boxShadow: "0 0 14px rgba(16,185,129,0.25)",
-            }}
-          >
-            Ver score real (24 h)
-            <span>→</span>
-          </button>
+          {isCollecting ? (
+            <div className="text-[12px] text-cyan-100/70 mt-2 leading-relaxed">
+              Necesitamos un poco más de tráfico para calcular cada palanca con honestidad. A medida que
+              entren visitas, compras y eventos, las palancas van a "encenderse" una por una y el score
+              aparece automáticamente. <strong className="text-emerald-300">Mientras tanto, tranquilo:
+              tu pixel está funcionando perfecto.</strong>
+              {" "}Hoy ya tenés{" "}
+              <strong className="text-white">
+                {leversWithData} de {totalLevers} palancas
+              </strong>{" "}
+              con datos.
+            </div>
+          ) : (
+            <div className="text-[12px] text-cyan-100/70 mt-2 leading-relaxed">
+              La ventana solicitada es de <strong className="text-white">{windowDays} días</strong>, pero
+              como recién llevamos{" "}
+              <strong className="text-white">
+                {Math.max(1, Math.round(effectiveDays))} día
+                {Math.round(effectiveDays) === 1 ? "" : "s"}
+              </strong>{" "}
+              midiendo, calculamos sobre el período disponible. A medida que pasen los días el score se
+              vuelve más representativo automáticamente.
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -624,7 +672,17 @@ function HistoricalDragBanner({
 // ──────────────────────────────────────────────────────────────
 // Score Gauge — circular SVG con animación
 // ──────────────────────────────────────────────────────────────
-function ScoreGauge({ value, color, loading }: { value: number; color: string; loading: boolean }) {
+function ScoreGauge({
+  value,
+  color,
+  loading,
+  isCollecting,
+}: {
+  value: number;
+  color: string;
+  loading: boolean;
+  isCollecting: boolean;
+}) {
   const size = 240;
   const stroke = 14;
   const radius = (size - stroke) / 2;
@@ -667,7 +725,7 @@ function ScoreGauge({ value, color, loading }: { value: number; color: string; l
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
-          strokeDashoffset={loading ? circumference : offset}
+          strokeDashoffset={loading || isCollecting ? circumference : offset}
           style={{
             transition: "stroke-dashoffset 1.6s cubic-bezier(0.22, 1, 0.36, 1)",
             transform: `rotate(-90deg)`,
@@ -677,19 +735,40 @@ function ScoreGauge({ value, color, loading }: { value: number; color: string; l
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div
-          className="text-6xl font-bold tabular-nums"
-          style={{
-            background: "linear-gradient(135deg, #06b6d4, #a855f7)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          {value}
-        </div>
-        <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300/50 mt-1">
-          DE 100
-        </div>
+        {isCollecting ? (
+          <>
+            <div
+              className="text-6xl font-bold tabular-nums"
+              style={{
+                background: "linear-gradient(135deg, #22d3ee, #10b981)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                animation: "pixelHeartbeat 2.4s ease-in-out infinite",
+              }}
+            >
+              —
+            </div>
+            <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300/60 mt-1">
+              RECOPILANDO
+            </div>
+          </>
+        ) : (
+          <>
+            <div
+              className="text-6xl font-bold tabular-nums"
+              style={{
+                background: "linear-gradient(135deg, #06b6d4, #a855f7)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}
+            >
+              {value}
+            </div>
+            <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cyan-300/50 mt-1">
+              DE 100
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -737,6 +816,11 @@ function HeadlineCard({
 function LeverCard({ lever, onUnlock }: { lever: Lever; onUnlock: () => void }) {
   const color = statusToColor(lever.status);
   const animPct = useAnimatedNumber(lever.current, 1400);
+  const isCollecting = lever.status === "collecting";
+  const samplePct = Math.min(
+    100,
+    Math.round((lever.sampleSize / lever.minSampleNeeded) * 100)
+  );
 
   return (
     <div
@@ -767,43 +851,91 @@ function LeverCard({ lever, onUnlock }: { lever: Lever; onUnlock: () => void }) 
         </div>
       </div>
 
-      {/* Big % + target */}
-      <div className="flex items-baseline gap-2">
-        <span className="text-4xl font-bold text-white tabular-nums">{animPct}%</span>
-        <span className="text-[10px] font-mono text-cyan-300/40">/ {lever.target}% target</span>
-      </div>
-
-      {/* Mini bar */}
-      <div className="h-1.5 rounded-full overflow-hidden bg-white/5 relative">
-        <div
-          className="h-full rounded-full transition-all duration-1000 ease-out"
-          style={{
-            width: `${Math.min(100, lever.current)}%`,
-            background: `linear-gradient(90deg, ${color}, ${color}DD)`,
-            boxShadow: `0 0 12px ${color}80`,
-          }}
-        />
-      </div>
-
-      {/* Description */}
-      <div className="text-[11px] text-cyan-100/60 leading-snug">{lever.description}</div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between mt-auto pt-2">
-        {lever.moneyAtRiskArs > 0 ? (
-          <div className="text-[10px] font-mono" style={{ color: `${color}B3` }}>
-            +{formatARS(lever.moneyAtRiskArs)} disponibles
+      {isCollecting ? (
+        <>
+          {/* Collecting placeholder */}
+          <div className="flex items-baseline gap-2">
+            <span
+              className="text-4xl font-bold text-white tabular-nums"
+              style={{
+                animation: "pixelHeartbeat 2.4s ease-in-out infinite",
+              }}
+            >
+              —
+            </span>
+            <span className="text-[10px] font-mono text-cyan-300/40">
+              {lever.sampleSize} de {lever.minSampleNeeded} muestras
+            </span>
           </div>
-        ) : (
-          <div className="text-[10px] font-mono text-emerald-300/70">Maximizado 🦄</div>
-        )}
-        <div
-          className="text-[10px] font-mono uppercase tracking-[0.2em]"
-          style={{ color: color }}
-        >
-          Desbloquear →
-        </div>
-      </div>
+
+          {/* Sample progress bar */}
+          <div className="h-1.5 rounded-full overflow-hidden bg-white/5 relative">
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-out"
+              style={{
+                width: `${samplePct}%`,
+                background: `linear-gradient(90deg, ${color}, ${color}DD)`,
+                boxShadow: `0 0 12px ${color}80`,
+                animation: "pixelShimmer 3s ease-in-out infinite",
+              }}
+            />
+          </div>
+
+          <div className="text-[11px] text-cyan-100/60 leading-snug">{lever.description}</div>
+
+          <div className="flex items-center justify-between mt-auto pt-2">
+            <div className="text-[10px] font-mono text-cyan-300/60">
+              Recopilando datos limpios
+            </div>
+            <div
+              className="text-[10px] font-mono uppercase tracking-[0.2em]"
+              style={{ color: color }}
+            >
+              Detalle →
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Big % + target */}
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-bold text-white tabular-nums">{animPct}%</span>
+            <span className="text-[10px] font-mono text-cyan-300/40">
+              / {lever.target}% target
+            </span>
+          </div>
+
+          {/* Mini bar */}
+          <div className="h-1.5 rounded-full overflow-hidden bg-white/5 relative">
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-out"
+              style={{
+                width: `${Math.min(100, lever.current)}%`,
+                background: `linear-gradient(90deg, ${color}, ${color}DD)`,
+                boxShadow: `0 0 12px ${color}80`,
+              }}
+            />
+          </div>
+
+          <div className="text-[11px] text-cyan-100/60 leading-snug">{lever.description}</div>
+
+          <div className="flex items-center justify-between mt-auto pt-2">
+            {lever.moneyAtRiskArs > 0 ? (
+              <div className="text-[10px] font-mono" style={{ color: `${color}B3` }}>
+                +{formatARS(lever.moneyAtRiskArs)} disponibles
+              </div>
+            ) : (
+              <div className="text-[10px] font-mono text-emerald-300/70">Maximizado 🦄</div>
+            )}
+            <div
+              className="text-[10px] font-mono uppercase tracking-[0.2em]"
+              style={{ color: color }}
+            >
+              Desbloquear →
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
