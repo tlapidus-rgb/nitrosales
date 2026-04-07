@@ -19,6 +19,7 @@ import { getOrganizationId } from "@/lib/auth-guard";
 import { getCached, setCache } from "@/lib/api-cache";
 
 export const revalidate = 0;
+export const maxDuration = 60; // Vercel Pro: hasta 60s para queries pesadas en producción
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // Auto-migrate: ensure columns exist (runs once per cold start)

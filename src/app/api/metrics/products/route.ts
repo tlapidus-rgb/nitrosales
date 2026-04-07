@@ -6,6 +6,7 @@ import { getOrganizationId } from "@/lib/auth-guard";
 import { getCached, setCache } from "@/lib/api-cache";
 
 export const revalidate = 0;
+export const maxDuration = 60; // Vercel Pro: hasta 60s para queries pesadas en producción
 
 type ProductMetrics = {
   id: string;
