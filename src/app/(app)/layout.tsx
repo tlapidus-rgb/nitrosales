@@ -185,11 +185,6 @@ const NAV_GROUPS: NavGroup[] = [
         icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
       },
       {
-        href: "/memory",
-        label: "Memoria de Aurum",
-        icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
-      },
-      {
         href: "/settings",
         label: "Configuracion",
         icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
@@ -333,13 +328,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 // Content routes that belong to "Contenido" not "Influencers"
                 const contentRoutes = ["/influencers/briefings", "/influencers/content", "/influencers/ugc", "/influencers/seeding"];
                 const isContentRoute = contentRoutes.some(r => pathname.startsWith(r));
+                // Aurum-specific routes: /chat, /sinapsis, /boveda, /memory all activate Aurum
+                const aurumRoutes = ["/chat", "/sinapsis", "/boveda", "/memory"];
+                const isAurumRoute = item.label === "Aurum" && aurumRoutes.some(r => pathname.startsWith(r));
                 const isActive =
+                  // Aurum umbrella activation
+                  isAurumRoute ||
                   // Check if any child matches exactly
                   (item.children?.some(c => pathname === c.href || pathname.startsWith(c.href))) ||
                   // Or direct match
                   pathname === item.href ||
-                  // Or prefix match, but exclude content routes from influencers parent
-                  (item.href !== "/dashboard" && item.href !== "/influencers" && pathname.startsWith(item.href)) ||
+                  // Or prefix match, but exclude content routes from influencers parent, and exclude Aurum (handled above)
+                  (item.href !== "/dashboard" && item.href !== "/influencers" && item.label !== "Aurum" && pathname.startsWith(item.href)) ||
                   // Influencers only active when NOT on a content route
                   (item.href === "/influencers" && pathname.startsWith("/influencers") && !isContentRoute);
                 const hasChildren = item.children && item.children.length > 0;
@@ -347,6 +347,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 // ═══ Premium tool cards (Aurum, NitroPixel, LTV) ═══
                 if (item.premium) {
                   const isAurum = item.label === "Aurum";
+                  const aurumSubItems = isAurum
+                    ? [
+                        {
+                          href: "/sinapsis",
+                          label: "Sinapsis",
+                          sublabel: "Memoria viva",
+                          iconPath:
+                            "M8 3v4m0 0l-2.5 2.5M8 7l2.5 2.5M16 21v-4m0 0l-2.5-2.5M16 17l2.5-2.5M3 12h4m0 0l2.5-2.5M7 12l2.5 2.5M21 12h-4m0 0l-2.5-2.5M17 12l-2.5 2.5",
+                        },
+                        {
+                          href: "/boveda",
+                          label: "Bóveda",
+                          sublabel: "Artefactos",
+                          iconPath:
+                            "M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4",
+                        },
+                      ]
+                    : [];
                   return (
                     <div key={item.href} className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""}`}>
                       <Link
@@ -435,6 +453,102 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           </div>
                         </div>
                       </Link>
+
+                      {/* Aurum sub-items (Sinapsis + Bóveda) */}
+                      {isAurum && (
+                        <div
+                          className="overflow-hidden"
+                          style={{
+                            display: "grid",
+                            gridTemplateRows: isActive ? "1fr" : "0fr",
+                            opacity: isActive ? 1 : 0,
+                            marginTop: isActive ? "4px" : "0px",
+                            transition:
+                              "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
+                          }}
+                        >
+                          <div className="min-h-0">
+                            <div className="relative ml-5 pl-4 py-1 space-y-0.5">
+                              {/* Gold connector line */}
+                              <div
+                                className="absolute left-0 top-2 bottom-2 w-[1px]"
+                                style={{
+                                  background:
+                                    "linear-gradient(180deg, rgba(251,191,36,0.5), rgba(251,191,36,0.1))",
+                                }}
+                              />
+                              {aurumSubItems.map((sub, si) => {
+                                const subActive = pathname.startsWith(sub.href);
+                                return (
+                                  <Link
+                                    key={sub.href}
+                                    href={sub.href}
+                                    onClick={() => setSidebarOpen(false)}
+                                    className="group/sub relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-300"
+                                    style={{
+                                      background: subActive
+                                        ? "linear-gradient(90deg, rgba(251,191,36,0.12), rgba(251,191,36,0.02))"
+                                        : "transparent",
+                                      border: subActive
+                                        ? "1px solid rgba(251,191,36,0.25)"
+                                        : "1px solid transparent",
+                                      transitionDelay: isActive ? `${si * 60}ms` : "0ms",
+                                      transform: isActive ? "translateX(0)" : "translateX(-8px)",
+                                      opacity: isActive ? 1 : 0,
+                                      transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, background 200ms, border-color 200ms`,
+                                    }}
+                                  >
+                                    {/* Branch dot */}
+                                    <span
+                                      className="absolute -left-4 top-1/2 w-2 h-[1px]"
+                                      style={{
+                                        background: subActive
+                                          ? "#fbbf24"
+                                          : "rgba(251,191,36,0.35)",
+                                        transform: "translateY(-0.5px)",
+                                      }}
+                                    />
+                                    <svg
+                                      className="w-3 h-3 flex-shrink-0"
+                                      style={{
+                                        color: subActive ? "#fbbf24" : "rgba(251,191,36,0.55)",
+                                        filter: subActive
+                                          ? "drop-shadow(0 0 4px rgba(251,191,36,0.6))"
+                                          : "none",
+                                      }}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                      strokeWidth={1.8}
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d={sub.iconPath}
+                                      />
+                                    </svg>
+                                    <div className="flex-1 min-w-0">
+                                      <div
+                                        className="text-[11px] font-semibold transition-colors"
+                                        style={{
+                                          color: subActive
+                                            ? "#fde68a"
+                                            : "rgba(253,230,138,0.7)",
+                                        }}
+                                      >
+                                        {sub.label}
+                                      </div>
+                                      <div className="text-[9px] font-mono tracking-wider text-[#fde68a]/40 uppercase">
+                                        {sub.sublabel}
+                                      </div>
+                                    </div>
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 }
