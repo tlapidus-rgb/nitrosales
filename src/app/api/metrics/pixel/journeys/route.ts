@@ -6,13 +6,14 @@ export const maxDuration = 30;
 // ══════════════════════════════════════════════════════════════
 // Devuelve las ultimas N ordenes con su recorrido completo de
 // touchpoints. Estrategia: ALINEADA CON "ORDENES EN VIVO".
-//   - Solo ordenes con PixelAttribution modelo NITRO.
+//   - Solo ordenes con PixelAttribution del modelo seleccionado
+//     (default LAST_CLICK, igual que /api/metrics/pixel).
 //   - Sin waterfall a trafficSource (evita "Fulfillment", "Directo"
 //     y otros strings de canal que no son verdaderos touchpoints).
 //   - Mismos filtros de calidad: excluye marketplace/MELI,
 //     CANCELLED/PENDING y totalValue <= 0.
 // ══════════════════════════════════════════════════════════════
-// GET /api/metrics/pixel/journeys?limit=20
+// GET /api/metrics/pixel/journeys?limit=20&model=LAST_CLICK
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -128,14 +129,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 50);
 
-    const cacheKey = [orgId, limit];
+    // Modelo de atribucion: alineado con /api/metrics/pixel (default LAST_CLICK)
+    const validModels = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "TIME_DECAY", "NITRO"] as const;
+    type ModelKey = (typeof validModels)[number];
+    const modelParam = (searchParams.get("model") || "LAST_CLICK").toUpperCase();
+    const selectedModel: ModelKey = (validModels as readonly string[]).includes(modelParam)
+      ? (modelParam as ModelKey)
+      : "LAST_CLICK";
+
+    const cacheKey = [orgId, limit, selectedModel];
     const cached = getCached<{ orders: JourneyOrder[] }>("journeys", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
-    // ── Traer las ultimas N ordenes que tengan PixelAttribution NITRO ──
+    // ── Traer las ultimas N ordenes que tengan PixelAttribution del modelo seleccionado ──
     // Mismo universo de datos que "Ordenes en Vivo": solo ordenes web
     // (sin marketplace), validas (no canceladas/pending) y con valor real,
-    // y que ademas hayan sido atribuidas por el motor NITRO.
+    // y que ademas hayan sido atribuidas por el modelo seleccionado.
     const recentOrders = await prisma.order.findMany({
       where: {
         organizationId: orgId,
@@ -144,8 +153,8 @@ export async function GET(request: NextRequest) {
         channel: { not: "marketplace" },
         status: { notIn: ["CANCELLED", "PENDING"] },
         totalValue: { gt: 0 },
-        // Solo ordenes ya atribuidas por NITRO (sin waterfall)
-        pixelAttributions: { some: { model: "NITRO" } },
+        // Solo ordenes ya atribuidas por el modelo seleccionado (sin waterfall)
+        pixelAttributions: { some: { model: selectedModel } },
       },
       orderBy: { orderDate: "desc" },
       take: limit,
@@ -170,9 +179,9 @@ export async function GET(request: NextRequest) {
 
     const orderIds = recentOrders.map((o) => o.id);
 
-    // Traer las attributions NITRO de esas ordenes
+    // Traer las attributions del modelo seleccionado para esas ordenes
     const attributions = await prisma.pixelAttribution.findMany({
-      where: { organizationId: orgId, orderId: { in: orderIds }, model: "NITRO" },
+      where: { organizationId: orgId, orderId: { in: orderIds }, model: selectedModel },
       include: { visitor: { select: { id: true, visitorId: true, email: true } } },
     });
 
