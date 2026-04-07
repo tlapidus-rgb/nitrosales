@@ -223,13 +223,24 @@ export default function NitroPixelPage() {
               NitroPixel · Activo Vivo
             </span>
           </div>
-          <Link
-            href="/pixel"
-            className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300/60 hover:text-cyan-200 transition flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyan-500/20 hover:border-cyan-400/40"
-          >
-            Analytics detallado
-            <span>→</span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/nitropixel/quality"
+              className="text-[10px] font-mono uppercase tracking-[0.2em] text-violet-300/70 hover:text-violet-200 transition flex items-center gap-2 px-3 py-1.5 rounded-lg border border-violet-500/30 hover:border-violet-400/60"
+              style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.10), rgba(6,182,212,0.04))" }}
+            >
+              <span>🦄</span>
+              Calidad de Atribución
+              <span>→</span>
+            </Link>
+            <Link
+              href="/pixel"
+              className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300/60 hover:text-cyan-200 transition flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyan-500/20 hover:border-cyan-400/40"
+            >
+              Analytics detallado
+              <span>→</span>
+            </Link>
+          </div>
         </div>
 
         {/* ═══ HERO PIXEL BRAIN ═══ */}
