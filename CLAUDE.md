@@ -1,132 +1,191 @@
 # CLAUDE.md — Reglas de proceso para Claude en este repo
 
-> Este archivo existe para que Claude (yo) no vuelva a cometer errores de
-> proceso que ya cometió antes. Tomy no es técnico y espera que yo maneje
-> el flow de git de forma prolija sin que él tenga que pedirlo cada vez.
-> Si estás leyendo esto como Claude en una sesión nueva, **tratá estas
-> reglas como inmutables** salvo que Tomy explícitamente te las cambie.
+> Este archivo existe para que Claude (yo) maneje el flow de git de forma
+> prolija, simple y sin errores. Tomy es fundador no técnico y la simpleza
+> del flujo es prioridad #1: cuanto menos branches y URLs tenga que
+> recordar, mejor. Si estás leyendo esto como Claude en una sesión nueva,
+> **tratá estas reglas como inmutables** salvo que Tomy explícitamente
+> las cambie en el chat.
+
+> **Última actualización: 2026-04-07 noche — Sesión 9. Modelo simplificado
+> de 2 branches (`main` + `staging`) reemplaza el modelo anterior de
+> branches por feature.**
 
 ---
 
-## REGLA #1 — NUNCA commitear UI nueva directo a `main`
+## Modelo de branches: SOLO 2 BRANCHES, NUNCA MÁS
 
-Toda UI nueva, feature nueva, o cambio visible para el cliente final
-**va primero a una branch feature** (ej. `feat/<nombre-corto>`) que Vercel
-convierte en preview URL. Tomy mira el preview, aprueba, y recién ahí
-mergeamos a `main` (que es producción en `app.nitrosales.io`).
+Este repo opera con **exactamente dos branches permanentes**:
 
-**Solo se puede pushear directo a `main` cuando:**
-1. Tomy lo pidió explícitamente en la conversación ("dale, pusheá a main").
-2. Es un fix de bug crítico que él ya aprobó específicamente.
-3. Es un cambio de config (vercel.json, env vars) que él pidió explícitamente.
+| Branch | Qué es | URL |
+|---|---|---|
+| `main` | Producción. Lo que ven los clientes. | `app.nitrosales.io` |
+| `staging` | Entorno de prueba permanente. Donde Claude trabaja siempre. | preview URL fijo de Vercel |
 
-**Si dudás → branch feature + preview URL. Siempre.**
+**No existen branches `feat/*`, ni `hotfix/*`, ni nada más.** Si Claude
+crea una branch nueva sin que Tomy la pida explícitamente, está
+violando la regla.
 
-### Antipatrón histórico (ya pasó 3 veces)
+---
 
-> "Voy a trabajar en la UI nueva" → `git commit` → `git push origin main`
-> → NitroScore sale directo a producción sin que Tomy lo haya visto en
-> preview. Esto es lo que hay que evitar.
+## REGLA #1 — Claude trabaja SIEMPRE en `staging`. Nunca en `main`. Nunca en branches nuevas.
 
-### Patrón correcto
+Todo cambio que Claude haga (UI, backend, fix, refactor, lo que sea)
+se commitea y pushea a `staging`. Tomy mira el preview URL fijo de
+staging, valida visualmente, y recién entonces autoriza el merge a
+`main`.
+
+**Flujo correcto (siempre el mismo):**
 
 ```
-git checkout main
-git pull
-git checkout -b feat/<nombre>
+git checkout staging
+git pull origin staging
 # ... trabajo ...
-git push -u origin feat/<nombre>
-# → Vercel genera preview URL automáticamente
-# → Le paso el preview URL a Tomy
+git add <archivos>
+git commit -m "..."
+git push origin staging
+# → Vercel actualiza el preview URL fijo de staging
+# → Le aviso a Tomy: "listo, mirá en el preview"
 # → Tomy revisa, aprueba
-# → Recién ahí: git checkout main && git merge --no-ff feat/<nombre> && git push
+# → SOLO entonces mergeo a main (ver Regla #2)
 ```
 
+**Lo que NO se hace nunca:**
+- ❌ `git checkout -b feat/<nombre>` — no se crean branches nuevas
+- ❌ `git push origin main` directo — main solo se actualiza vía merge desde staging
+- ❌ Trabajar en `main` "porque es un fix rápido"
+
 ---
 
-## REGLA #2 — Después de mergear a `main`, volver inmediatamente a una branch
+## REGLA #2 — Merge a `main` solo con confirmación EXPLÍCITA de Tomy en el chat
 
-Cuando Tomy autoriza un merge a `main` por un motivo específico (ej. "bajá
-esto a producción"), ese merge **no es una licencia para seguir trabajando
-en `main`**. Terminado el merge, lo siguiente tiene que ser:
+`main` = producción. Solo se actualiza cuando Tomy escribe en el chat
+algo equivalente a "dale, pasalo a producción" / "mergealo a main" /
+"bajalo a prod". Sin esa confirmación explícita, **`main` no se toca
+jamás**.
+
+**Flujo correcto del merge:**
 
 ```
-git checkout -b feat/<siguiente-cosa>
+# 1. Verificar que staging está sano
+cd /tmp/nitrosales-fresh
+git checkout staging
+git pull origin staging
+npx next build              # OBLIGATORIO. No solo tsc --noEmit.
+
+# 2. Verificar la diferencia con main
+git fetch origin main
+git diff origin/main...HEAD --stat
+
+# 3. Mergear (no fast-forward para tener commit de merge claro)
+git checkout main
+git pull origin main
+git merge --no-ff staging -m "merge: <descripción>"
+git push origin main
+
+# 4. Esperar Vercel deploy success ANTES de declarar terminado
+curl -s -H "Authorization: token $GH_TOKEN" \
+  https://api.github.com/repos/tlapidus-rgb/nitrosales/commits/<sha>/status
+
+# 5. Volver a staging para seguir trabajando
+git checkout staging
 ```
 
-Cualquier trabajo posterior va ahí, NO en `main`.
+**Después del merge, Claude vuelve automáticamente a `staging`. No se
+queda en `main`.**
 
 ---
 
-## REGLA #3 — El preview URL es un derecho de Tomy, no un lujo
+## REGLA #3 — Tomy ve siempre el mismo preview URL
 
-Tomy es fundador no técnico y cada feature de UI la quiere ver en preview
-antes de que toque `app.nitrosales.io`. El preview URL de Vercel es la
-única forma que él tiene de validar visualmente antes de producción.
+Tomy bookmarkea **una sola URL** y siempre mira ahí. Esa URL es el
+preview de la branch `staging` que Vercel genera automáticamente. Como
+la branch nunca cambia de nombre, la URL nunca cambia.
 
-**Si le digo "ya está en producción" sin que él haya visto un preview,
-le estoy sacando su capacidad de decidir.** Eso es desprolijo y él ya lo
-marcó explícitamente como problema.
+URL del preview de staging:
+`https://nitrosales-git-staging-tlapidus-rgbs-projects.vercel.app`
 
----
-
-## REGLA #4 — Branches que Tomy conoce
-
-- `main` → producción (app.nitrosales.io). Solo cosas aprobadas.
-- `feat/nitropixel-asset` → branch histórica del trabajo de NitroPixel unicornio (mergeada).
-- `feat/nitropixel-quality` → NitroScore (Calidad de Atribución) — UI para el NitroScore.
-- Nuevas features → crear `feat/<nombre-corto>` siempre.
+(Si en algún momento se configura un alias custom como
+`staging.nitrosales.io`, esto se actualiza acá.)
 
 ---
 
-## REGLA #5 — Cómo manejar los commits "mixtos"
+## REGLA #4 — Antes de cualquier edit, ritual de arranque obligatorio
 
-Si en una misma sesión Tomy aprueba algunos cambios para producción
-(ej. fixes de bug) pero también quiere trabajar en UI nueva, separar en
-dos branches:
+Toda sesión nueva (o continuación post-compactación) empieza con:
 
-1. Los fixes aprobados → commit en `main` (con su autorización explícita).
-2. La UI nueva → commit en `feat/<nombre>`, push preview, esperar validación.
+```
+cd /tmp/nitrosales-fresh
+git fetch origin --prune
+git checkout staging
+git pull origin staging
+git status
+git branch --show-current   # debe decir "staging"
+git log --oneline -5
+```
 
-**Nunca mezclar ambas cosas en el mismo commit o en la misma branch.**
+Si `git branch --show-current` devuelve algo distinto de `staging`,
+**parar y reportar**. No editar nada.
 
----
-
-## REGLA #6 — Comunicación con Tomy sobre git/deploy
-
-Tomy no es técnico. Cuando pasa algo relacionado con git/deploy, la
-explicación tiene que ser en lenguaje simple, sin jerga. Analogías
-útiles que ya funcionaron:
-
-- Branch feature = "copia de prueba"
-- Preview URL = "link de prueba"
-- Producción (`main` → `app.nitrosales.io`) = "lo que ven tus clientes"
-- Merge = "juntar los cambios de la copia con lo que ven los clientes"
-- Revert = "sacar un cambio específico sin romper nada"
+Además, leer al inicio de toda sesión nueva:
+- `/sessions/peaceful-nifty-meitner/mnt/nitrosales/CLAUDE_STATE.md`
+- `/sessions/peaceful-nifty-meitner/mnt/NitroSales IA/ERRORES_CLAUDE_NO_REPETIR.md`
+- Este archivo (`CLAUDE.md`)
 
 ---
 
-## Historial de errores cometidos (para no repetir)
+## REGLA #5 — Validaciones obligatorias antes de pushear
 
-### Error 1-3 (hasta 2026-04-07): pushes directos a `main` sin preview
+Antes de cualquier `git push origin staging`:
+- [ ] `npx tsc --noEmit` pasa
+- [ ] Si tocó UI o rutas, `npx next build` pasa local
+- [ ] Los imports referenciados existen en la branch (ningún `@/lib/x` que falte)
+- [ ] Las API routes nuevas tienen `export const dynamic = "force-dynamic"` si usan DB/cookies/fetch
+- [ ] Las páginas client con `useSearchParams` están dentro de `<Suspense>`
 
-**Qué pasó:** Después de mergear `feat/nitropixel-asset` a `main` (con
-aprobación explícita de Tomy para bajar fixes de atribución), seguí
-pusheando commits directo a `main`:
-- `f65a63d` — vercel.json cron schedule (esto SÍ estaba aprobado)
-- `fe4c540` — 3 audit fixes (esto SÍ estaba aprobado)
-- `c119cbe` — **NitroScore UI entero** (esto NO estaba aprobado para producción)
-
-El commit `c119cbe` era UI nueva y debería haber ido a una branch feature
-con preview URL. En cambio salió directo a `app.nitrosales.io`.
-
-**Fix aplicado:** `git revert c119cbe` en `main` + cherry-pick a
-`feat/nitropixel-quality` + push, que es de donde Vercel genera el
-preview URL para que Tomy lo apruebe.
-
-**Cómo evitarlo la próxima vez:** seguir Regla #2. Después de cualquier
-merge a `main`, lo primero es `git checkout -b feat/<siguiente>`.
+Antes de cualquier `git merge staging → main`:
+- Todo lo de arriba +
+- [ ] `npx next build` completo (no solo tsc) pasa local
+- [ ] `git diff origin/main...HEAD --stat` revisado
+- [ ] Confirmación EXPLÍCITA de Tomy en el chat
+- [ ] Después del push: esperar Vercel deploy success vía GitHub commit status API
 
 ---
 
-_Última actualización: 2026-04-07_
+## REGLA #6 — Comunicación con Tomy en lenguaje simple
+
+Tomy no es técnico. Cuando pasa algo de git/deploy, explicación en
+lenguaje simple, sin jerga. Analogías que ya funcionaron:
+
+- `staging` = "tu copia de prueba"
+- Preview URL = "el link donde mirás antes de que lo vean los clientes"
+- `main` / `app.nitrosales.io` = "lo que ven tus clientes"
+- Merge a main = "pasar lo aprobado de la copia de prueba a producción"
+
+---
+
+## REGLA #7 — Cero excepciones a este modelo
+
+Si Claude siente la tentación de crear una branch nueva "solo por esta
+vez" (ej. para un experimento, para aislar un cambio raro, para no
+romper staging), **PARAR y preguntarle a Tomy en el chat primero**.
+Las excepciones se autorizan caso por caso, jamás unilateralmente.
+
+---
+
+## Historial: por qué cambiamos al modelo `staging` único
+
+Hasta sesión 9 (7 abril 2026), el modelo era "una branch feature por
+cada cambio de UI", lo que generaba:
+- Múltiples preview URLs cambiantes (Tomy nunca sabía cuál mirar)
+- Confusión sobre en qué branch estaba Claude
+- Errores 51, 55 del log de errores: pushes a main por confusión de branch
+- Overhead mental para Tomy de recordar nombres de branches
+
+Tomy explícitamente pidió simplificar el flujo. La nueva regla es:
+**1 sola branch de trabajo (`staging`), 1 sola URL de preview, 1 sola
+branch de producción (`main`)**. Punto.
+
+---
+
+_Última actualización: 2026-04-07 (Sesión 9 noche) — Modelo staging único._
