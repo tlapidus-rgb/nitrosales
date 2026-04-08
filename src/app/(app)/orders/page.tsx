@@ -15,13 +15,28 @@ import {
 import {
   KpiCard, ChangeBadge, DateRangeFilter, SourceFilter, WeeklySummary, StatusFilter,
 } from "@/components/dashboard";
+import {
+  OrdersHero,
+  AtencionHoyBlock,
+  ProfitabilityCard,
+  CohortsCard,
+  LogisticsCard,
+  SegmentationCard,
+  CouponsCard,
+  GeographyCard,
+  OrderFlagBadgeGroup,
+  type AnomalyFlag,
+  type OrdersV4Namespaces,
+} from "@/components/orders";
 
 // -- Types --
-interface OrdersData {
+interface OrdersData extends OrdersV4Namespaces {
   kpis: {
     totalOrders: number; totalRevenue: number; avgTicket: number;
     totalItems: number; totalShipping: number; totalDiscounts: number;
     cancellationRate: number; cancelledOrders: number; daysInPeriod: number;
+    // Tanda 2 extensions (optional for backward compat)
+    marginPct?: number; netRevenue?: number; totalCogs?: number;
     changes: { orders: number; revenue: number; avgTicket: number };
   };
   dailySales: Array<{ day: string; orders: number; revenue: number; items: number }>;
@@ -86,6 +101,7 @@ export default function OrdersPage() {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showComparison, setShowComparison] = useState(false);
+  const [flagFilter, setFlagFilter] = useState<AnomalyFlag | null>(null);
 
   // -- Single fetch (fixed: no duplicate) --
   useEffect(() => {
@@ -123,12 +139,28 @@ export default function OrdersPage() {
     setCurrentPage(1);
   };
 
-  // -- Filtered recent orders (search + status filter) --
+  // -- Map orderId -> flags (Tanda 2 anomalies) --
+  const orderFlagsMap = useMemo(() => {
+    const map = new Map<string, AnomalyFlag[]>();
+    const list = data?.anomalies?.orderLevel ?? [];
+    list.forEach((a: any) => {
+      if (a?.orderId && Array.isArray(a.flags)) map.set(a.orderId, a.flags);
+    });
+    return map;
+  }, [data?.anomalies?.orderLevel]);
+
+  // -- Filtered recent orders (search + status filter + flag filter) --
   const filteredOrders = useMemo(() => {
     if (!data) return [];
     let orders = [...data.recentOrders];
     if (statusFilter) {
       orders = orders.filter((o) => o.status === statusFilter);
+    }
+    if (flagFilter) {
+      orders = orders.filter((o) => {
+        const flags = orderFlagsMap.get(o.id);
+        return flags && flags.includes(flagFilter);
+      });
     }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -140,7 +172,12 @@ export default function OrdersPage() {
       );
     }
     return orders;
-  }, [data, searchTerm, statusFilter]);
+  }, [data, searchTerm, statusFilter, flagFilter, orderFlagsMap]);
+
+  const handleFilterByFlag = (flag: AnomalyFlag) => {
+    setFlagFilter((cur) => (cur === flag ? null : flag));
+    setCurrentPage(1);
+  };
 
   // -- Best day calculation for summary --
   const bestDay = useMemo(() => {
@@ -222,6 +259,22 @@ export default function OrdersPage() {
         />
       </div>
 
+      {/* ORDERS HERO (Tanda 4) — hero con bruto/neto/margen/pedidos */}
+      <OrdersHero
+        orgName="NitroSales"
+        grossRevenue={kpis.totalRevenue}
+        netRevenue={data.profitability?.netRevenue ?? kpis.netRevenue ?? (kpis.totalRevenue / 1.21)}
+        marginPct={data.profitability?.marginPct ?? kpis.marginPct ?? 0}
+        ordersCount={kpis.totalOrders}
+        revenueChange={kpis.changes?.revenue}
+      />
+
+      {/* ATENCION HOY (Tanda 4) — bloque de anomalias */}
+      <AtencionHoyBlock
+        data={data.anomalies}
+        onFilterByFlag={handleFilterByFlag}
+      />
+
       {/* WEEKLY SUMMARY */}
       <WeeklySummary
         totalRevenue={kpis.totalRevenue} totalOrders={kpis.totalOrders}
@@ -260,6 +313,12 @@ export default function OrdersPage() {
         <KpiCard icon={<Percent size={16} className="text-amber-600" />} iconBg="bg-amber-50"
           label="Margen envio/ticket" value={`${kpis.avgTicket > 0 ? ((avgShippingPerOrder / kpis.avgTicket) * 100).toFixed(1) : 0}%`}
           subtitle="costo envio sobre ticket" />
+      </div>
+
+      {/* PROFITABILITY + COHORTS (Tanda 4) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ProfitabilityCard data={data.profitability} loading={loading} />
+        <CohortsCard data={data.cohorts} loading={loading} />
       </div>
 
       {/* DAILY SALES CHART + COMPARISON */}
@@ -394,6 +453,12 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {/* LOGISTICS + SEGMENTATION (Tanda 4) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <LogisticsCard data={data.logistics} loading={loading} />
+        <SegmentationCard data={data.segmentation} loading={loading} />
+      </div>
+
       {/* PAYMENT + PROMOTIONS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
@@ -447,6 +512,12 @@ export default function OrdersPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* COUPONS + GEOGRAPHY (Tanda 4) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <CouponsCard data={data.coupons} loading={loading} />
+        <GeographyCard data={data.geography} loading={loading} />
       </div>
 
       {/* TOP PRODUCTS + CUSTOMERS */}
@@ -514,6 +585,21 @@ export default function OrdersPage() {
                 className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white w-64" />
             </div>
           </div>
+          {/* Flag filter active chip (Tanda 4) */}
+          {flagFilter && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-500">Filtrando por señal:</span>
+              <button
+                type="button"
+                onClick={() => setFlagFilter(null)}
+                className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-100"
+              >
+                {flagFilter}
+                <span className="ml-1 text-amber-500">×</span>
+              </button>
+            </div>
+          )}
+
           {/* Status filter chips */}
           <StatusFilter
             statuses={data.statusBreakdown}
@@ -536,6 +622,7 @@ export default function OrdersPage() {
                 <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Pago</th>
                 <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Canal</th>
                 <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Estado</th>
+                <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Señales</th>
               </tr>
             </thead>
             <tbody>
@@ -570,10 +657,13 @@ export default function OrdersPage() {
                         {STATUS_LABELS[order.status] || order.status}
                       </span>
                     </td>
+                    <td className="py-2.5 px-2">
+                      <OrderFlagBadgeGroup flags={orderFlagsMap.get(order.id) ?? []} max={3} compact />
+                    </td>
                   </tr>
                   {expandedOrderId === order.id && (
                     <tr className="bg-gray-50/80">
-                      <td colSpan={8} className="px-6 py-3">
+                      <td colSpan={9} className="px-6 py-3">
                         <div className="text-xs text-gray-600 mb-2 font-medium">Productos de esta orden:</div>
                         {order.items && order.items.length > 0 ? (
                           <div className="space-y-1.5">
@@ -607,7 +697,7 @@ export default function OrdersPage() {
                 </React.Fragment>
               ))}
               {filteredOrders.length === 0 && (
-                <tr><td colSpan={8} className="text-center py-8 text-xs text-gray-400">No se encontraron ordenes</td></tr>
+                <tr><td colSpan={9} className="text-center py-8 text-xs text-gray-400">No se encontraron ordenes</td></tr>
               )}
             </tbody>
           </table>
