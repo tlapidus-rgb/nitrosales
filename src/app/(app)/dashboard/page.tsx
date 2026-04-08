@@ -18,7 +18,6 @@ import {
 import { ArrowDownRight, ArrowUpRight, Check, Pencil, Plus, X, AlertTriangle, LayoutGrid } from "lucide-react";
 import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
 import { useAnimatedValue } from "@/lib/hooks/useAnimatedValue";
-import NitroInsightsPanel from "@/components/NitroInsightsPanel";
 import { DateRangeFilter } from "@/components/dashboard";
 import DashboardHero from "@/components/dashboard/DashboardHero";
 import DashboardTodayBlock, { buildTodayInsights } from "@/components/dashboard/DashboardTodayBlock";
@@ -748,15 +747,13 @@ export default function DashboardPage() {
             </button>
           )}
 
-          {/* Insights panel (from original dashboard) */}
-          <NitroInsightsPanel section="dashboard" />
         </>
       )}
 
       {/* ── Widget Catalog Modal — sheet premium ── */}
       {catalogOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           style={{
             background: "rgba(15, 23, 42, 0.42)",
             backdropFilter: "saturate(140%) blur(8px)",
@@ -765,7 +762,7 @@ export default function DashboardPage() {
           onClick={() => setCatalogOpen(false)}
         >
           <div
-            className="dash-sheet w-full max-w-3xl max-h-[78vh] overflow-y-auto p-6 sm:p-8"
+            className="dash-sheet dash-sheet--centered w-full max-w-3xl max-h-[85vh] overflow-y-auto p-6 sm:p-8"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-1">

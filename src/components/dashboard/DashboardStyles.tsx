@@ -202,6 +202,21 @@ export default function DashboardStyles() {
         to { transform: translateY(0); opacity: 1; }
       }
 
+      /* Centered modal variant — full rounded, balanced shadow */
+      .dash-sheet.dash-sheet--centered {
+        border-radius: 1.25rem;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        box-shadow:
+          0 1px 0 rgba(15, 23, 42, 0.04),
+          0 24px 60px -24px rgba(15, 23, 42, 0.28),
+          0 48px 96px -48px rgba(15, 23, 42, 0.20);
+        animation: dashSheetCenter 360ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      @keyframes dashSheetCenter {
+        from { transform: translateY(12px) scale(0.985); opacity: 0; }
+        to { transform: translateY(0) scale(1); opacity: 1; }
+      }
+
       /* Skeleton shimmer */
       .dash-skeleton {
         background: linear-gradient(
