@@ -21,6 +21,7 @@ import { useAnimatedValue } from "@/lib/hooks/useAnimatedValue";
 import NitroInsightsPanel from "@/components/NitroInsightsPanel";
 import { DateRangeFilter } from "@/components/dashboard";
 import DashboardHero from "@/components/dashboard/DashboardHero";
+import DashboardTodayBlock, { buildTodayInsights } from "@/components/dashboard/DashboardTodayBlock";
 import DashboardSparkline from "@/components/dashboard/DashboardSparkline";
 import DashboardStyles from "@/components/dashboard/DashboardStyles";
 
@@ -401,6 +402,10 @@ export default function DashboardPage() {
     // Hero header + sparklines always need metrics + trends
     needed.add("metrics");
     needed.add("trends");
+    // Today block insights necesitan products / customers / pnl para narrativa completa
+    needed.add("products");
+    needed.add("customers");
+    needed.add("pnl");
 
     // Fetch all needed sources in parallel, passing period params
     const fetches: Record<string, Promise<any>> = {};
@@ -474,6 +479,13 @@ export default function DashboardPage() {
   const heroMetrics = allData.metrics?.summary;
   const heroChanges = allData.metrics?.changes;
 
+  // ── Today block insights ──
+  const todayInsights = useMemo(
+    () => buildTodayInsights(allData),
+    [allData]
+  );
+  const todayLoading = loading && Object.keys(allData).length === 0;
+
   // ── Render ──
   return (
     <div className="light-canvas min-h-screen">
@@ -488,6 +500,9 @@ export default function DashboardPage() {
         roas={heroMetrics?.roas ?? 0}
         sessions={heroMetrics?.sessions ?? 0}
       />
+
+      {/* Today block — insights narrativos generados desde la data */}
+      <DashboardTodayBlock insights={todayInsights} loading={todayLoading} />
 
       {/* Toolbar — Personalizar / Guardar (slate-900 primary, lucide icons) */}
       <div className="flex items-center justify-end gap-2 mb-4">
