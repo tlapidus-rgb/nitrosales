@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-07 (Sesion 14 — Hotfix produccion: indices faltantes en Neon + maxDuration en metrics routes)
+## Ultima actualizacion: 2026-04-08 (Sesion 15 — Dashboard overhaul: sistema de slots por filas + widgets multi-formato + filtros por card + popover via portal — MERGEADO A MAIN)
 
 ---
 
@@ -54,7 +54,7 @@
 | Archivo | VersiÃ³n | Estado | Notas |
 |---------|---------|--------|-------|
 | src/app/(app)/products/page.tsx | **v11** | ACTIVO | 4 tabs (Overview + Tendencias + Stock Inteligente + Margenes). Tab Margenes: KPIs, distribucion, brand/category tables con cross-filtering, markup %, catalog completo con column selector, inline filters, CSV export. IVA fix aplicado. 1865 lineas. |
-| src/app/(app)/dashboard/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). Quick ranges + custom date. |
+| src/app/(app)/dashboard/page.tsx | **v3** | ACTIVO | **Sesion 15 (2026-04-08)** — Overhaul completo. Sistema de slots por filas (`layout.rows[].slots[]`), 5 row templates (kpi-6 / kpi-3 / trio-md / chart-duo / chart-full) que suman 6 cols cada uno, 5 slot sizes (xs/sm/md/lg/xl) c/familia de formats permitida. Widgets multi-formato (kpi, big-number, sparkline, mini-line, mini-bar, list, donut, area-full, bar-full). Drag & drop de filas con drop indicator + titulo inline opcional por row. Template picker modal con mini-preview + slot widget picker filtrado por `allowedFormats`. **3-tier backward compat**: layout v3 → widgets v2 (derivados) → default layout. Dual persistence (layout + derived widgets) para rollback safety. Hero + DashboardTodayBlock + DashboardChartCard + WidgetFormats integrados. Replace button en edit mode sobre cada widget. Fix critical: `setCatalogOpen(false)` → `setTemplatePickerOpen(false); setSlotPickerOpen(null);`. |
 | src/app/(app)/orders/page.tsx | - | Sin cambios | No modificado por Claude |
 | src/app/(app)/finanzas/page.tsx | **v3** | ACTIVO | P&L dual view (Ejecutivo/Detallado). InfoTips explicativos. Health semaphore. Payment fees, IVA, discounts. |
 | src/app/(app)/finanzas/costos/page.tsx | **v1** | ACTIVO | 1532 lineas. 8 categorias costos, perfil fiscal, tarifas envio, constancia AFIP import. |
@@ -64,12 +64,27 @@
 | src/app/(app)/seo/page.tsx | **v3** | ACTIVO | PeriodSelector + audit fixes (country translations). |
 | src/components/PeriodSelector.tsx | **v1** | ACTIVO | Componente reutilizable. Quick ranges + Hoy/Ayer + custom date. |
 | src/components/dashboard/DateRangeFilter.tsx | **v2** | ACTIVO | Usado en finanzas. Quick ranges + date inputs. |
+| src/components/dashboard/DashboardHero.tsx | **v1** | NEW (S15) | Hero header del dashboard con nombre del org, greeting dinamico, period selector integrado. Sesion 15. |
+| src/components/dashboard/DashboardTodayBlock.tsx | **v1** | NEW (S15) | Bloque "Lo que importa hoy" — KPIs destacados + alertas contextuales. Sesion 15. |
+| src/components/dashboard/DashboardChartCard.tsx | **v1** | NEW (S15) | Wrapper para charts full-width (area-full, bar-full). Maneja responsive + skeleton. Sesion 15. |
+| src/components/dashboard/DashboardSparkline.tsx | **v1** | NEW (S15) | Sparkline minimalista para slots sm/md (formats sparkline, mini-line, mini-bar). Sesion 15. |
+| src/components/dashboard/DashboardStyles.tsx | **v1** | NEW (S15) | CSS-in-JS centralizado del dashboard: `.dash-card`, `.dash-stagger`, `.dash-filter-popover`, `.dash-filter-backdrop`, `.dash-filter-segmented`, etc. Sesion 15 ab5f504: `.dash-filter-popover` cambiado de `position: absolute` a `position: fixed` + z-index 70 para soportar el portal. Mobile media query preservada con `!important`. |
+| src/components/dashboard/WidgetFormats.tsx | **v1** | NEW (S15) | Dispatcher visual por format (kpi, big-number, sparkline, mini-line, mini-bar, list, donut). Cada format es un subcomponente self-contained con su propio loading/error/empty state. |
+| src/components/dashboard/WidgetFilterPopover.tsx | **v2** | ACTIVO | **Sesion 15 ab5f504** — Refactorizado a React Portal con fixed positioning. `createPortal(..., document.body)` + `getBoundingClientRect()` + auto-flip si overflow. Reposiciona en scroll/resize via listeners. Soluciona clipping/stacking context bug donde el popover quedaba tapado por rows adyacentes. Mobile sigue siendo bottom-sheet. |
+| src/components/dashboard/WidgetFilterChips.tsx | **v1** | NEW (S15) | Chips inline que muestran los filtros activos de cada card con boton X para clear individual. |
 
 ### BACKEND (APIs)
 
 | Archivo | VersiÃ³n | Estado | Notas |
 |---------|---------|--------|-------|
 | src/app/api/metrics/products/route.ts | **v2** | ACTIVO | IVA fix: revenueNeto = revenue / 1.21, avgPriceNeto. Margen y markup calculados sin IVA. marginAnalysis con byBrand, byCategory, distribution, top/bottom. |
+| src/app/api/metrics/top/route.ts | **v1** | NEW (S15) | Top-N endpoint generico para widgets `list`. Soporta query params para metric/dimension. Usado por widgets multi-formato del dashboard. |
+| src/app/api/metrics/distribution/route.ts | **v1** | NEW (S15) | Distribution endpoint para widgets `donut`. Devuelve slices por categoria/brand/canal. Usado por widgets multi-formato del dashboard. |
+| src/app/api/dashboard/preferences/route.ts | **v2** | ACTIVO | **Sesion 15** — Soporta schema v3 `layout.rows[].slots[]` ademas del v2 legacy (widgets array). Fix TS: `data: { settings: newSettings as any }` para el tipo Prisma JsonValue. Persistencia dual (layout + widgets derivados) como rollback safety. |
+| src/lib/dashboard/slot-layout.ts | **v1** | NEW (S15) | Definiciones del sistema de slots: `SLOT_SIZES` (xs/sm/md/lg/xl con colSpan y allowedFormats), `ROW_TEMPLATES` (5 templates que suman 6 cols), types `Layout`/`LayoutRow`/`LayoutSlot`, helpers para crear rows/slots por defecto. Fuente unica de verdad del layout engine. |
+| src/lib/dashboard/format-config.ts | **v1** | NEW (S15) | Catalogo de widget formats con `FormatDef` (id, label, icon, defaultEndpoint, allowedSlotSizes). Define los 9 formats (kpi, big-number, sparkline, mini-line, mini-bar, list, donut, area-full, bar-full). |
+| src/lib/dashboard/filter-config.ts | **v1** | NEW (S15) | Pool de filtros por `SectionKey` (orders, products, customers, ads, etc.). Helpers `getApplicableFilters`, `countActiveFilters`. Cada widget declara su section y hereda los filtros aplicables. Tipos: `FilterDef`, `SectionKey`. |
+| src/hooks/useAnimatedValue.ts | **v1** | NEW (S15) | Hook de easing (cubic-bezier) para animar cambios numericos en KPIs. Usado por WidgetFormats. |
 | src/app/api/fix-brands/route.ts | **v5** | â OPERATIVO | Mejoras incrementales OK. BrandIdâBrandName 2-step, CategoryIdâCategoryName, acciones: stats/test/test-category/fix-vtex/fix-categories/deduplicate/debug. |
 | src/app/api/backfill/vtex/route.ts | **v1** | â ESTABLE | **NO TOCAR.** Backfill original con credenciales hardcodeadas. |
 
@@ -344,6 +359,133 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-08 — Sesion 15 (Dashboard overhaul: sistema de slots por filas + widgets multi-formato + filtros por card + popover via portal)
+
+**Commits** (staging → main fast-forward, 10 commits):
+- `cd07370` feat(dashboard): Tanda 1 — hero header + KPI cards rediseñadas + skeleton
+- `e10b181` feat(dashboard): Tanda 2 — bloque "Lo que importa hoy" + filtro repensado
+- `3a9b8db` feat(dashboard): Tanda 3 — charts premium + catalog modal + toast world-class
+- `1e3add1` fix(dashboard): elimino NitroInsightsPanel viejo + centrado catalog modal
+- `35268f6` feat(dashboard): per-card filter system with section pool model
+- `148cb43` feat(dashboard): multi-format widget system with format picker
+- `489825f` feat(dashboard): row-based slot layout system with draggable rows
+- `ab5f504` fix(dashboard): render widget filter popover via portal with fixed positioning
+
+**Deploy**: staging 10 commits → fast-forward merge → main → Vercel auto-deploy OK en produccion (`app.nitrosales.io`).
+**Modelo de branches respetado**: 2 branches (main + staging). Cero branches feature. Todo el trabajo se hizo en staging, validado por Tomy, y recien entonces merge a main con confirmacion explicita.
+
+#### OBJETIVO
+Reemplazar el viejo dashboard de widgets flotantes por un sistema estructurado tipo "rompecabezas":
+- Tomy necesita un canvas predecible donde cada fila tenga una forma definida
+- Poder mover filas enteras via drag & drop
+- Poder elegir entre multiples formatos visuales por cada slot (KPI, chart, list, donut, etc.)
+- Filtrar cada card independientemente con filtros que hereden del pool de la seccion del widget
+- Popover de filtros que no se tape con el contenido adyacente
+
+#### ARQUITECTURA NUEVA — Sistema de slots por filas
+
+**Capa 1: slot-layout.ts** (fuente de verdad)
+- `SLOT_SIZES`: xs, sm, md, lg, xl → cada size tiene `colSpan` (1-6) y `allowedFormats` (que formats caben ahi)
+- `ROW_TEMPLATES`: 5 templates predefinidos que SUMAN 6 cols cada uno
+  - `kpi-6`: 6 slots xs (6 KPIs en una fila)
+  - `kpi-3`: 3 slots sm (3 KPIs mas grandes)
+  - `trio-md`: 3 slots md (trio de medium widgets)
+  - `chart-duo`: 2 slots lg (dos charts lado a lado)
+  - `chart-full`: 1 slot xl (un chart full-width)
+- `Layout = { version: 3, rows: LayoutRow[] }`
+- `LayoutRow = { id, templateId, title?, slots: LayoutSlot[] }`
+- `LayoutSlot = { id, size, format, widgetId?, filters? }`
+
+**Capa 2: format-config.ts** (catalogo visual)
+- 9 formats: kpi, big-number, sparkline, mini-line, mini-bar, list, donut, area-full, bar-full
+- Cada `FormatDef` define que slot sizes lo permiten, su endpoint default, su icon
+- Al hacer pick de un slot, el picker filtra los formats por `SLOT_SIZES[slot.size].allowedFormats`
+
+**Capa 3: filter-config.ts** (pool de filtros por seccion)
+- `SectionKey`: orders | products | customers | ads | marketing | fulfillment
+- Cada seccion tiene su pool de `FilterDef[]` (ej. orders tiene status, channel, paymentMethod)
+- Los widgets declaran su section al mount → heredan los filtros aplicables automaticamente
+- `getApplicableFilters(section, excludeFilters?)` + `countActiveFilters(values)`
+
+**Capa 4: dashboard/page.tsx** (render + interacciones)
+- `renderSlotContent(row, slot, slotIdx)` — helper dispatch que para cada (slot + format) renderiza el componente correcto
+- Render loop: `layout.rows.map(row => row.slots.map(slot => renderSlotContent))`
+- Grid de slots: `grid-cols-2 md:grid-cols-3 lg:grid-cols-6` con colSpan aplicado por tamaño de slot
+- Drag & drop a nivel fila: handle `GripVertical`, drop indicator visual, reordena `layout.rows`
+- Row toolbar (edit mode): drag handle + title input opcional + template dropdown + delete button
+- Empty slot: placeholder clickable en edit mode, dashed border en read mode
+- Replace button en cada widget (edit mode) para swap rapido de format
+
+**Backward compat** (3-tier):
+1. Si el settings tiene `layout.rows` (v3) → usa el sistema nuevo
+2. Si solo tiene `widgets` (v2 legacy) → los derivamos a un layout default
+3. Si no tiene nada → layout default hardcoded (kpi-6 + chart-duo + chart-full)
+- **Dual persistence**: al guardar siempre se persisten AMBOS (layout + widgets derivados) como red de seguridad por si hay que rollbackear el schema.
+
+#### FIX CRITICO del popover de filtros (commit ab5f504)
+
+**Problema reportado por Tomy**: al abrir el popover "Filtros de la card" desde la esquina superior derecha de un widget, el popover se veia tapado por el contenido de la fila siguiente. Captura de pantalla enviada por el usuario.
+
+**Root cause**: `WidgetFilterPopover.tsx` usaba `position: absolute; top: 100%; right: 0;` anclado al trigger. El popover quedaba DENTRO del stacking context de la card, con `overflow` y `z-index` del padre compitiendo contra las cards vecinas. En `grid` de 6 cols con multiples rows, el row siguiente ganaba la z-battle visualmente.
+
+**Fix aplicado** — Migracion a React Portal con fixed positioning:
+1. `import { useLayoutEffect, useRef, useState } from "react"` + `import { createPortal } from "react-dom"`
+2. Estado nuevo: `mounted` (SSR-safe portal flag) + `coords: { top, left } | null`
+3. Funcion `updateCoords()`:
+   - `const rect = triggerRef.current.getBoundingClientRect()`
+   - Anchor right-aligned al trigger (`left = rect.right - POPOVER_W`)
+   - Clampeo a viewport con margen 8px
+   - **Auto-flip vertical**: si `rect.bottom + POPOVER_H > viewportH`, flip arriba; si ni arriba ni abajo entra, pega al borde inferior visible
+4. `useLayoutEffect(() => { if (open) updateCoords() }, [open])` — calcula coords sincronico al abrir
+5. Extension del `useEffect` existente para agregar `window.addEventListener("scroll", reflow, true)` + `"resize"` — reposiciona si el usuario scrollea o redimensiona
+6. JSX: `{open && mounted && createPortal(<><backdrop /><popover style={{ top, left }} /></>, document.body)}`
+7. CSS en `DashboardStyles.tsx`: `.dash-filter-popover` pasa a `position: fixed; top: 0; left: 0;` + `z-index: 70`. Mobile media query preserva el bottom-sheet con `!important`.
+
+**Resultado**: el popover vive ahora en `document.body`, escapa todos los stacking contexts, y las coordenadas calculadas via `getBoundingClientRect` lo mantienen perfectamente anclado al trigger incluso con scroll.
+
+#### PROCESO DE MERGE (Regla #2 del CLAUDE.md respetada)
+1. Tomy valido visualmente en el preview URL fijo de staging
+2. Tomy autorizo merge con "me gustaria ahora pasar el tablero de control a main. Tenes todo para poder hacerlo prolijamente y que salga bien?"
+3. Verifique staging clean, 10 commits ahead, 0 divergencia con main
+4. `npx next build` local → green
+5. `git checkout main && git pull && git merge --ff-only staging && git push origin main`
+6. Verificado que main y staging apuntan al mismo SHA `ab5f504a1f01c9c896f25b02bafa0b28da1898e1`
+7. `git checkout staging` — vuelta automatica a staging
+
+#### ARCHIVOS NUEVOS CREADOS EN S15
+Frontend:
+- `src/components/dashboard/DashboardHero.tsx`
+- `src/components/dashboard/DashboardTodayBlock.tsx`
+- `src/components/dashboard/DashboardChartCard.tsx`
+- `src/components/dashboard/DashboardSparkline.tsx`
+- `src/components/dashboard/DashboardStyles.tsx`
+- `src/components/dashboard/WidgetFormats.tsx`
+- `src/components/dashboard/WidgetFilterPopover.tsx`
+- `src/components/dashboard/WidgetFilterChips.tsx`
+- `src/hooks/useAnimatedValue.ts`
+
+Lib:
+- `src/lib/dashboard/slot-layout.ts`
+- `src/lib/dashboard/format-config.ts`
+- `src/lib/dashboard/filter-config.ts`
+
+API:
+- `src/app/api/metrics/top/route.ts`
+- `src/app/api/metrics/distribution/route.ts`
+
+Archivos modificados:
+- `src/app/(app)/dashboard/page.tsx` (v2 → v3)
+- `src/app/api/dashboard/preferences/route.ts` (v1 → v2, schema v3 + fix TS JsonValue)
+
+#### LECCIONES DE ESTA SESION
+1. **Portal + fixed positioning es la cura estandar para popovers que se tapan** en layouts con stacking context denso (grids, cards con overflow). `absolute` solo sirve cuando el padre directo es el contenedor de referencia.
+2. **`getBoundingClientRect` + auto-flip vertical** da UX profesional con cero dependencias externas (Popper/Floating UI). Mas liviano.
+3. **Schema dual-persistence (layout + widgets derivados)** permite lanzar cambios de estructura sin romper usuarios existentes ni quedarte sin via de rollback. Si v3 falla en produccion, basta con ignorar `layout` y leer `widgets`.
+4. **Row templates fijos con suma constante = 6** simplifican el mental model: Tomy no tiene que pensar en grid spans, solo en "que tipo de fila quiere".
+5. **Modelo staging-unico funciono perfecto**: 10 commits seguidos en staging, 1 fast-forward a main al final. Cero confusion de branches, cero preview URLs cambiantes.
+
+---
 
 ### 2026-04-07 — Sesion 14 (Hotfix produccion: indices faltantes en Neon + maxDuration en metrics routes)
 
