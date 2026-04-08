@@ -17,7 +17,8 @@
 //  - tabular-nums where applicable
 // ══════════════════════════════════════════════════════════════
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SlidersHorizontal, X, Check, ChevronDown } from "lucide-react";
 import {
   FilterDef,
@@ -47,13 +48,55 @@ export default function WidgetFilterPopover({
   dynamicOptions,
 }: WidgetFilterPopoverProps) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const filters = getApplicableFilters(section, excludeFilters);
   const activeCount = countActiveFilters(values);
 
-  // ── Close on outside click / Esc ──
+  // Needed for createPortal (SSR-safe)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // ── Compute popover position from trigger bounding rect ──
+  // Anchored to bottom-right of trigger, auto-flips up if overflows.
+  const updateCoords = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const POPOVER_W = 304;
+    const POPOVER_ESTIMATED_H = 420; // estimación conservadora
+    const MARGIN = 8;
+    const viewportH = window.innerHeight;
+    const viewportW = window.innerWidth;
+
+    // Right-aligned a la esquina derecha del trigger
+    let left = rect.right - POPOVER_W;
+    if (left < MARGIN) left = MARGIN;
+    if (left + POPOVER_W > viewportW - MARGIN) left = viewportW - POPOVER_W - MARGIN;
+
+    // Debajo del trigger por default; si no entra, lo flipeo arriba
+    let top = rect.bottom + 6;
+    if (top + POPOVER_ESTIMATED_H > viewportH - MARGIN) {
+      const flipTop = rect.top - POPOVER_ESTIMATED_H - 6;
+      if (flipTop >= MARGIN) {
+        top = flipTop;
+      } else {
+        // Ni arriba ni abajo — lo pego al borde visible inferior
+        top = Math.max(MARGIN, viewportH - POPOVER_ESTIMATED_H - MARGIN);
+      }
+    }
+    setCoords({ top, left });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updateCoords();
+  }, [open]);
+
+  // ── Close on outside click / Esc + reposition on scroll/resize ──
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
@@ -70,11 +113,16 @@ export default function WidgetFilterPopover({
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+    const handleReflow = () => updateCoords();
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleEsc);
+    window.addEventListener("scroll", handleReflow, true);
+    window.addEventListener("resize", handleReflow);
     return () => {
       document.removeEventListener("mousedown", handleClick);
       document.removeEventListener("keydown", handleEsc);
+      window.removeEventListener("scroll", handleReflow, true);
+      window.removeEventListener("resize", handleReflow);
     };
   }, [open]);
 
@@ -120,8 +168,8 @@ export default function WidgetFilterPopover({
         )}
       </button>
 
-      {/* ── Popover (anclado top-right) + bottom sheet en mobile ── */}
-      {open && (
+      {/* ── Popover (portal + fixed positioning) + bottom sheet en mobile ── */}
+      {open && mounted && createPortal(
         <>
           {/* Mobile backdrop */}
           <div
@@ -131,10 +179,15 @@ export default function WidgetFilterPopover({
 
           <div
             ref={popoverRef}
-            className="dash-filter-popover"
+            className="dash-filter-popover dash-filter-popover--portal"
             role="dialog"
             aria-label="Filtros de la card"
             onClick={(e) => e.stopPropagation()}
+            style={
+              coords
+                ? { top: `${coords.top}px`, left: `${coords.left}px` }
+                : undefined
+            }
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
@@ -214,7 +267,8 @@ export default function WidgetFilterPopover({
               Los filtros refinan sólo esta card. El filtro de fecha global sigue activo.
             </p>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </>
   );

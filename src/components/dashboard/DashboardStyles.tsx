@@ -227,13 +227,15 @@ export default function DashboardStyles() {
         to { opacity: 1; transform: translateY(0); }
       }
 
-      /* Popover (desktop) — anclado al trigger, top-right de la card */
+      /* Popover (desktop) — renderizado via portal con position fixed.
+         El componente calcula top/left a partir del bounding rect del
+         trigger, así escapa stacking contexts y overflows de las cards. */
       .dash-filter-popover {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        margin-top: 6px;
-        z-index: 30;
+        position: fixed;
+        top: 0;
+        left: 0;
+        margin: 0;
+        z-index: 70;
         width: 304px;
         max-width: calc(100vw - 32px);
         padding: 16px;
@@ -250,24 +252,24 @@ export default function DashboardStyles() {
         transform-origin: top right;
       }
 
-      /* Mobile: bottom sheet */
+      /* Mobile: bottom sheet — overrides inline coords via !important */
       @media (max-width: 639px) {
         .dash-filter-popover {
-          position: fixed;
-          top: auto;
-          bottom: 0;
-          left: 0;
-          right: 0;
+          position: fixed !important;
+          top: auto !important;
+          bottom: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
           margin: 0;
-          width: 100%;
-          max-width: 100%;
+          width: 100% !important;
+          max-width: 100% !important;
           max-height: 80vh;
           overflow-y: auto;
           padding: 20px 18px 28px;
           border-radius: 24px 24px 0 0;
           border: 1px solid rgba(15, 23, 42, 0.08);
           border-bottom: none;
-          z-index: 60;
+          z-index: 70;
           animation: dashFilterSheetUp 320ms cubic-bezier(0.16, 1, 0.3, 1);
           box-shadow:
             0 -1px 0 rgba(15, 23, 42, 0.04),
