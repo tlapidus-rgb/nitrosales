@@ -259,11 +259,13 @@ export default function OrdersPage() {
         />
       </div>
 
-      {/* ORDERS HERO (Tanda 4) — hero con bruto/neto/margen/pedidos */}
+      {/* ORDERS HERO (Tanda 4 + 7.6) \u2014 bruto / neto / ingreso real / margen / pedidos */}
       <OrdersHero
         orgName="NitroSales"
         grossRevenue={kpis.totalRevenue}
         netRevenue={data.profitability?.netRevenue ?? kpis.netRevenue ?? (kpis.totalRevenue / 1.21)}
+        realNetRevenue={data.profitability?.realNetRevenue ?? (kpis as any).realNetRevenue}
+        totalMarketplaceFee={data.profitability?.totalMarketplaceFee ?? (kpis as any).totalMarketplaceFee}
         marginPct={data.profitability?.marginPct ?? kpis.marginPct ?? 0}
         ordersCount={kpis.totalOrders}
         revenueChange={kpis.changes?.revenue}

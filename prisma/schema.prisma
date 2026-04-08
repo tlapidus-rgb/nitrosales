@@ -168,6 +168,7 @@ model Order {
   paymentMethod   String?
   shippingCost    Decimal?    @db.Decimal(12, 2)
   discountValue   Decimal?    @db.Decimal(12, 2)
+  marketplaceFee  Decimal?    @db.Decimal(12, 2)  // Comisión del marketplace (ML sale_fee). Null para VTEX. Tanda 7.
   couponCode      String?                         // Código de cupón usado (de VTEX marketingData.coupon)
   promotionNames  String?                         // Nombres de promociones aplicadas (de VTEX ratesAndBenefitsData/priceTags)
   deliveryType    String?                         // "pickup" | "shipping" — inferred from VTEX logisticsInfo

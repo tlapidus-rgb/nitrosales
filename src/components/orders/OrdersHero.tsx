@@ -17,6 +17,13 @@ interface OrdersHeroProps {
   orgName: string;
   grossRevenue: number;
   netRevenue: number;
+  /**
+   * Tanda 7.6 \u2014 Plata real que entra al negocio (neto sin IVA menos
+   * comisiones de marketplace). Si no est\u00e1 definido, se omite.
+   */
+  realNetRevenue?: number;
+  /** Total de comisiones retenidas por marketplaces (ML sale_fee). */
+  totalMarketplaceFee?: number;
   marginPct: number;
   ordersCount: number;
   revenueChange: number | null | undefined;
@@ -26,6 +33,8 @@ export default function OrdersHero({
   orgName,
   grossRevenue,
   netRevenue,
+  realNetRevenue,
+  totalMarketplaceFee,
   marginPct,
   ordersCount,
   revenueChange,
@@ -79,14 +88,26 @@ export default function OrdersHero({
           {/* KPIs secundarios */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <HeroStat
-              label="Neto (sin IVA)"
+              label="Neto sin IVA"
               value={formatARS(netRevenue)}
-              hint="Facturación descontando IVA 21%"
+              hint="Bruto / 1,21"
             />
+            {typeof realNetRevenue === "number" && (
+              <HeroStat
+                label="Ingreso real"
+                value={formatARS(realNetRevenue)}
+                hint={
+                  (totalMarketplaceFee ?? 0) > 0
+                    ? `\u2212 ${formatARS(totalMarketplaceFee ?? 0)} comisi\u00f3n ML`
+                    : "despu\u00e9s de comisiones"
+                }
+                emphasize
+              />
+            )}
             <HeroStat
               label="Margen"
               value={`${(marginPct ?? 0).toFixed(1)}%`}
-              hint="Qué queda después de costos"
+              hint="sobre items con costo"
             />
             <HeroStat
               label="Pedidos"
@@ -103,18 +124,20 @@ function HeroStat({
   label,
   value,
   hint,
+  emphasize,
 }: {
   label: string;
   value: string;
   hint?: string;
+  emphasize?: boolean;
 }) {
   const animated = useAnimatedValue(value, 900);
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+      <span className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${emphasize ? "text-cyan-700" : "text-slate-500"}`}>
         {label}
       </span>
-      <span className="text-lg font-semibold tabular-nums tracking-tight text-slate-900">
+      <span className={`text-lg font-semibold tabular-nums tracking-tight ${emphasize ? "text-cyan-700" : "text-slate-900"}`}>
         {animated}
       </span>
       {hint && <span className="text-[10px] text-slate-400 mt-0.5">{hint}</span>}

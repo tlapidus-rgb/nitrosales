@@ -7,7 +7,7 @@
 // muestra explícito para que cualquier analista entienda.
 // ══════════════════════════════════════════════════════════════
 
-import { Users, Sparkles, Repeat, UserPlus, UserX, Info } from "lucide-react";
+import { Users, Sparkles, Repeat, UserPlus, UserX, Info, AlertTriangle } from "lucide-react";
 import { formatARS } from "@/lib/utils/format";
 import type { CohortsData, CohortStats } from "./types";
 
@@ -90,13 +90,26 @@ export default function CohortsCard({ data, loading }: CohortsCardProps) {
         </div>
       </div>
 
-      {/* ML privacy note — BIEN SIMPLE */}
-      {(data.anonymous?.orders ?? 0) > 0 && (
+      {/* Tanda 7.7 \u2014 ML privacy note (esperado) + VTEX data quality warning (bug) */}
+      {(data.anonymousMeli?.orders ?? 0) > 0 && (
         <div className="mt-3 rounded-md bg-slate-50 border border-slate-100 px-2.5 py-1.5 flex items-start gap-1.5">
           <Info className="w-3 h-3 text-slate-400 flex-shrink-0 mt-0.5" />
           <p className="text-[10px] text-slate-500 leading-snug">
-            En MercadoLibre muchos clientes figuran como "Sin identificar"
-            porque ML no comparte el email real por privacidad.
+            <span className="font-semibold">ML (privacidad):</span>{" "}
+            {(data.anonymousMeli?.orders ?? 0).toLocaleString("es-AR")} pedidos
+            de MercadoLibre figuran como "Sin identificar" porque ML no
+            comparte el email real. Es esperado.
+          </p>
+        </div>
+      )}
+      {(data.anonymousVtex?.orders ?? 0) > 0 && (
+        <div className="mt-2 rounded-md bg-amber-50 border border-amber-100 px-2.5 py-1.5 flex items-start gap-1.5">
+          <AlertTriangle className="w-3 h-3 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-[10px] text-amber-900 leading-snug">
+            <span className="font-semibold">VTEX (posible bug):</span>{" "}
+            {(data.anonymousVtex?.orders ?? 0).toLocaleString("es-AR")} pedidos
+            de VTEX sin cliente asociado. En VTEX deber\u00edan tener email \u2014 revisar
+            el sync o el matching de clientes.
           </p>
         </div>
       )}

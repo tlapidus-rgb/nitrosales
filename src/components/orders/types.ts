@@ -17,16 +17,25 @@ export interface SourceCounts {
   total: number;
 }
 
-// ── Profitability (D1 + D2) ──
+// ── Profitability (D1 + D2 + Tanda 7 honesty fix) ──
+// Tanda 7.3: marginAbs/marginPct ahora se calculan SOLO sobre grossWithCost.
+// Tanda 7.6: realNetRevenue = netRevenue \u2212 totalMarketplaceFee (plata real que entra).
 export interface ProfitabilityData {
-  grossRevenue: number;
-  netRevenue: number;
+  grossRevenue: number;             // SUM(oi.totalPrice) total del per\u00edodo
+  grossWithCost?: number;           // SUM(oi.totalPrice) de items CON costPrice
+  grossWithoutCost?: number;        // SUM(oi.totalPrice) de items SIN costPrice
+  netRevenue: number;               // (orders.totalValue) / 1.21
+  realNetRevenue?: number;          // netRevenue \u2212 comisiones ML (plata real)
+  totalMarketplaceFee?: number;     // SUM(orders.marketplaceFee)
+  feeCoveragePct?: number;          // % de pedidos ML con fee cargado
+  ordersWithFee?: number;
   totalCogs: number;
-  marginAbs: number;
-  marginPct: number;
+  marginAbs: number;                // grossWithCost \u2212 totalCogs
+  marginPct: number;                // honesto: sobre grossWithCost
   ordersWithCost: number;
   ordersTotal: number;
   coveragePct: number;
+  coveragePctByRevenue?: number;
 }
 
 // ── Logistics (D5) ──
@@ -90,7 +99,9 @@ export interface CohortsData {
   new: CohortStats;
   returning: CohortStats;
   vip: CohortStats;
-  anonymous: CohortStats;
+  anonymous: CohortStats;             // total (legacy)
+  anonymousMeli?: CohortStats;        // Tanda 7.7 \u2014 esperado (privacidad ML)
+  anonymousVtex?: CohortStats;        // Tanda 7.7 \u2014 bug si > 0
   vipCriteria: {
     minOrders: number;
     minSpentArs: number;

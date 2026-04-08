@@ -69,12 +69,23 @@ export async function GET(req: NextRequest) {
           const itemCount = (order.order_items || []).reduce(
             (sum: number, i: any) => sum + (i.quantity || 1), 0
           );
+          // Tanda 7.5 \u2014 sale_fee por \u00edtem (comisi\u00f3n ML)
+          const marketplaceFee = (order.order_items || []).reduce(
+            (sum: number, item: any) => sum + (Number(item.sale_fee) || 0),
+            0
+          );
 
           await prisma.order.upsert({
             where: {
               organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
             },
-            update: { status, totalValue, itemCount, paymentMethod: order.payments?.[0]?.payment_type || null },
+            update: {
+              status,
+              totalValue,
+              itemCount,
+              marketplaceFee: marketplaceFee > 0 ? marketplaceFee : null,
+              paymentMethod: order.payments?.[0]?.payment_type || null,
+            },
             create: {
               organizationId: orgId,
               externalId: String(order.id),
@@ -82,6 +93,7 @@ export async function GET(req: NextRequest) {
               totalValue,
               currency: order.currency_id || "ARS",
               itemCount,
+              marketplaceFee: marketplaceFee > 0 ? marketplaceFee : null,
               source: "MELI",
               channel: "marketplace",
               paymentMethod: order.payments?.[0]?.payment_type || null,

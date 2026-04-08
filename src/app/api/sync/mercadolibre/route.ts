@@ -154,6 +154,16 @@ export async function GET(req: NextRequest) {
         const totalValue = order.total_amount || 0;
         const itemCount = (order.order_items || []).reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
 
+        // Tanda 7.5 — Capturamos la comisi\u00f3n de ML (sale_fee) sumando por \u00edtem.
+        // ML expone sale_fee en cada order_item. Si el vendedor es cl\u00e1sico,
+        // suele rondar el 13-16% del precio del listing.
+        // Nota: esto NO incluye costos de env\u00edo con descuento Full/Flex que ML a
+        // veces cobra aparte \u2014 para eso har\u00eda falta billing_info.
+        const marketplaceFee = (order.order_items || []).reduce(
+          (sum: number, item: any) => sum + (Number(item.sale_fee) || 0),
+          0
+        );
+
         await prisma.order.upsert({
           where: {
             organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
@@ -162,6 +172,7 @@ export async function GET(req: NextRequest) {
             status,
             totalValue,
             itemCount,
+            marketplaceFee: marketplaceFee > 0 ? marketplaceFee : null,
             paymentMethod: order.payments?.[0]?.payment_type || null,
           },
           create: {
@@ -171,6 +182,7 @@ export async function GET(req: NextRequest) {
             totalValue,
             currency: order.currency_id || "ARS",
             itemCount,
+            marketplaceFee: marketplaceFee > 0 ? marketplaceFee : null,
             source: "MELI",
             channel: "marketplace",
             paymentMethod: order.payments?.[0]?.payment_type || null,

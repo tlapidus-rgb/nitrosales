@@ -43,8 +43,11 @@ export default function ProfitabilityCard({
         ? "text-slate-900"
         : "text-rose-500";
 
-  // Confiabilidad: coverage % de pedidos con costo cargado
-  const coverage = data.coveragePct ?? 0;
+  // TANDA 7.3: coverage por facturaci\u00f3n es m\u00e1s honesto que por cantidad de pedidos.
+  // Fallback a coveragePct (por pedidos) si el backend todav\u00eda no expone el nuevo campo.
+  const coverage = data.coveragePctByRevenue ?? data.coveragePct ?? 0;
+  const grossWithCost = data.grossWithCost ?? data.grossRevenue ?? 0;
+  const grossWithoutCost = data.grossWithoutCost ?? 0;
   const coverageTone =
     coverage >= 90
       ? { color: "text-cyan-700", bg: "bg-cyan-50 border-cyan-100" }
@@ -71,9 +74,10 @@ export default function ProfitabilityCard({
         </div>
         <span
           className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${coverageTone.bg} ${coverageTone.color}`}
+          title="Porcentaje de la facturaci\u00f3n que tiene costo de mercader\u00eda cargado"
         >
           <Info className="w-3 h-3" />
-          {coverage.toFixed(0)}% con costo
+          {coverage.toFixed(0)}% facturaci\u00f3n con costo
         </span>
       </div>
 
@@ -109,20 +113,56 @@ export default function ProfitabilityCard({
           hint="Descontando el 21%"
         />
         <BreakdownItem
-          label="Costo mercadería"
+          label="Costo mercader\u00eda"
           value={formatARS(data.totalCogs ?? 0)}
-          hint="Lo que te costó"
+          hint={
+            grossWithCost > 0
+              ? `sobre ${formatARS(grossWithCost)} con costo`
+              : "Lo que te cost\u00f3"
+          }
           negative
         />
       </div>
 
-      {/* Nota de confiabilidad */}
-      {coverage < 90 && (
-        <p className="mt-3 text-[11px] text-slate-500 leading-snug">
-          Nota: {coverage < 60 ? "solo" : ""} {coverage.toFixed(0)}% de los
-          pedidos tienen costo cargado. El margen real puede diferir cuando
-          completes los costos faltantes.
-        </p>
+      {/* Tanda 7.6 \u2014 Comisiones de marketplace e ingreso real */}
+      {((data.totalMarketplaceFee ?? 0) > 0 || typeof data.realNetRevenue === "number") && (
+        <div className="grid grid-cols-2 gap-3 pt-3 mt-3 border-t border-slate-100">
+          <BreakdownItem
+            label="Comisiones ML"
+            value={formatARS(data.totalMarketplaceFee ?? 0)}
+            hint={
+              (data.feeCoveragePct ?? 0) < 95 && (data.ordersWithFee ?? 0) > 0
+                ? `${(data.feeCoveragePct ?? 0).toFixed(0)}% ped. ML cubiertos`
+                : "Retenido por el marketplace"
+            }
+            negative
+          />
+          <BreakdownItem
+            label="Ingreso real"
+            value={formatARS(data.realNetRevenue ?? 0)}
+            hint="Neto \u2212 comisiones"
+            emphasize
+          />
+        </div>
+      )}
+
+      {/* Nota de confiabilidad \u2014 TANDA 7.3 honest disclosure */}
+      {coverage < 95 && (
+        <div className="mt-3 rounded-md bg-amber-50 border border-amber-100 px-2.5 py-1.5 flex items-start gap-1.5">
+          <Info className="w-3 h-3 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-[10px] text-amber-900 leading-snug">
+            <p className="font-semibold">
+              El margen se calcula sobre {coverage.toFixed(0)}% de la
+              facturaci\u00f3n ({formatARS(grossWithCost)}).
+            </p>
+            {grossWithoutCost > 0 && (
+              <p className="mt-0.5 text-amber-800">
+                Quedan {formatARS(grossWithoutCost)} en facturaci\u00f3n sin costo
+                cargado \u2014 el margen real puede ser distinto.
+              </p>
+            )}
+          </div>
+        </div>
       )}
     </section>
   );
@@ -133,23 +173,30 @@ function BreakdownItem({
   value,
   hint,
   negative,
+  emphasize,
 }: {
   label: string;
   value: string;
   hint?: string;
   negative?: boolean;
+  emphasize?: boolean;
 }) {
+  const valueTone = negative
+    ? "text-rose-600"
+    : emphasize
+      ? "text-cyan-700"
+      : "text-slate-900";
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-        {label}
-      </p>
       <p
-        className={`text-sm font-semibold tabular-nums mt-0.5 ${
-          negative ? "text-rose-600" : "text-slate-900"
+        className={`text-[10px] font-semibold uppercase tracking-[0.15em] ${
+          emphasize ? "text-cyan-700" : "text-slate-500"
         }`}
       >
-        {negative ? "−" : ""}
+        {label}
+      </p>
+      <p className={`text-sm font-semibold tabular-nums mt-0.5 ${valueTone}`}>
+        {negative ? "\u2212" : ""}
         {value}
       </p>
       {hint && <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>}

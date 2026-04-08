@@ -129,7 +129,9 @@ export async function GET(request: NextRequest) {
       sourceCountsRow,
     ] = await Promise.all([
 
-      /* 1) Current period KPIs */
+      /* 1) Current period KPIs
+            Tanda 7.6: agregamos total_marketplace_fee para poder calcular
+            realNetRevenue = (totalValue / 1.21) - marketplaceFee */
       prisma.$queryRawUnsafe<[{
         total_orders: string;
         total_revenue: string;
@@ -137,6 +139,8 @@ export async function GET(request: NextRequest) {
         total_items: string;
         total_shipping: string;
         total_discounts: string;
+        total_marketplace_fee: string;
+        orders_with_fee: string;
       }]>(`
         SELECT
           COUNT(*)::text AS total_orders,
@@ -144,7 +148,9 @@ export async function GET(request: NextRequest) {
           COALESCE(AVG("totalValue"), 0)::text AS avg_ticket,
           COALESCE(SUM("itemCount"), 0)::text AS total_items,
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS total_shipping,
-          COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS total_discounts
+          COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS total_discounts,
+          COALESCE(SUM(COALESCE("marketplaceFee", 0)), 0)::text AS total_marketplace_fee,
+          COUNT(*) FILTER (WHERE "marketplaceFee" IS NOT NULL AND "marketplaceFee" > 0)::text AS orders_with_fee
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
@@ -467,16 +473,30 @@ export async function GET(request: NextRequest) {
          Backward compatible: nada se renombra, solo se agrega.
          ══════════════════════════════════════════════════════════ */
 
-      /* 15) Profitability: gross revenue + COGS + coverage (D1 + D2) */
+      /* 15) Profitability: gross revenue + COGS + coverage (D1 + D2)
+            TANDA 7.3 — COGS honesto: separamos "con costo cargado" vs "sin costo"
+            para que el margen no se infle por items que no tienen costPrice.
+            - gross_revenue:          SUM(oi.totalPrice) total (compat)
+            - gross_with_cost:        SUM(oi.totalPrice) solo de items CON costPrice > 0
+            - gross_without_cost:     SUM(oi.totalPrice) de items SIN costPrice
+            - total_cogs:             SUM(qty * costPrice) solo de items con costo
+            - orders_total / orders_with_cost: para coverage % a nivel pedido */
       prisma.$queryRawUnsafe<[{
         gross_revenue: string;
+        gross_with_cost: string;
+        gross_without_cost: string;
         total_cogs: string;
         orders_total: string;
         orders_with_cost: string;
       }]>(`
         SELECT
           COALESCE(SUM(oi."totalPrice"), 0)::text AS gross_revenue,
-          COALESCE(SUM(oi.quantity * COALESCE(oi."costPrice", 0)), 0)::text AS total_cogs,
+          COALESCE(SUM(CASE WHEN oi."costPrice" IS NOT NULL AND oi."costPrice" > 0
+                            THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_with_cost,
+          COALESCE(SUM(CASE WHEN oi."costPrice" IS NULL OR oi."costPrice" = 0
+                            THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_without_cost,
+          COALESCE(SUM(CASE WHEN oi."costPrice" IS NOT NULL AND oi."costPrice" > 0
+                            THEN oi.quantity * oi."costPrice" ELSE 0 END), 0)::text AS total_cogs,
           COUNT(DISTINCT o.id)::text AS orders_total,
           COUNT(DISTINCT CASE WHEN oi."costPrice" IS NOT NULL AND oi."costPrice" > 0 THEN o.id END)::text AS orders_with_cost
         FROM order_items oi
@@ -613,7 +633,9 @@ export async function GET(request: NextRequest) {
           ${srcWhereSimple}
       `, dateFrom, dateTo),
 
-      /* 20) Customer cohorts: new / returning / vip / anonymous (D10) */
+      /* 20) Customer cohorts: new / returning / vip / anonymous (D10)
+            Tanda 7.7 \u2014 Separamos 'anonymous_meli' de 'anonymous_vtex'.
+            En ML es esperado (privacidad). En VTEX es un data quality bug. */
       prisma.$queryRawUnsafe<Array<{
         cohort: string;
         customers: string;
@@ -625,6 +647,7 @@ export async function GET(request: NextRequest) {
             o.id,
             o."totalValue",
             o."customerId",
+            o."source",
             c."firstOrderAt",
             c."totalOrders",
             c."totalSpent"
@@ -638,7 +661,8 @@ export async function GET(request: NextRequest) {
         )
         SELECT
           CASE
-            WHEN "customerId" IS NULL THEN 'anonymous'
+            WHEN "customerId" IS NULL AND "source" = 'MELI' THEN 'anonymous_meli'
+            WHEN "customerId" IS NULL THEN 'anonymous_vtex'
             WHEN "totalOrders" >= 5 OR "totalSpent" >= 500000 THEN 'vip'
             WHEN "firstOrderAt" >= $1 THEN 'new'
             ELSE 'returning'
@@ -986,29 +1010,78 @@ export async function GET(request: NextRequest) {
     };
 
     // ── Profitability (D1 + D2) ──
+    // TANDA 7.2/7.3 — Fix del "neto sin IVA" y del margen honesto.
+    //
+    // PROBLEMA PREVIO (auditoría 2026-04-08):
+    //   1) grossRevenue venia de SUM(oi.totalPrice) mientras que kpis.totalRevenue
+    //      venia de SUM(orders.totalValue) — dos magnitudes distintas mezcladas
+    //      en el mismo hero.
+    //   2) COGS usaba COALESCE(costPrice, 0) → items sin costo contribuian 0
+    //      pero su gross si sumaba → margen artificialmente inflado.
+    //
+    // FIX:
+    //   - netRevenue ahora se calcula sobre orders.totalValue (la misma fuente
+    //     que kpis.totalRevenue) para que hero y KPIs sean coherentes.
+    //   - marginPct/marginAbs solo sobre items CON costo cargado (magnitud
+    //     honesta), expuesto como marginPctHonest + flag coveragePctByRevenue.
+    //   - grossWithoutCost se expone para que la UI muestre "facturacion sin
+    //     costo cargado" como warning.
     const prof = (marginAndNet as any)[0] || {};
-    const grossRevenue = Number(prof.gross_revenue || 0);
-    const totalCogs = Number(prof.total_cogs || 0);
+    const grossRevenue = Number(prof.gross_revenue || 0);            // items total (para compat)
+    const grossWithCost = Number(prof.gross_with_cost || 0);         // items con costo
+    const grossWithoutCost = Number(prof.gross_without_cost || 0);   // items sin costo
+    const totalCogs = Number(prof.total_cogs || 0);                  // solo items con costo
     const ordersTotal = Number(prof.orders_total || 0);
     const ordersWithCost = Number(prof.orders_with_cost || 0);
-    const netRevenue = Math.round(grossRevenue / 1.21);
-    const marginAbs = grossRevenue - totalCogs;
-    const marginPct = grossRevenue > 0 ? (marginAbs / grossRevenue) * 100 : 0;
+
+    // netRevenue ahora se basa en orders.totalValue (= kpis.totalRevenue)
+    // para que el hero muestre un numero consistente con el resto del dashboard.
+    const totalRevenueOrders = Number(curr.total_revenue || 0);
+    const netRevenue = Math.round(totalRevenueOrders / 1.21);
+
+    // Tanda 7.6 \u2014 realNetRevenue: neto sin IVA MENOS comisiones de marketplace
+    // Esta es la plata que realmente entra al bolsillo (antes de IIBB/Ganancias).
+    const totalMarketplaceFee = Number(curr.total_marketplace_fee || 0);
+    const ordersWithFee = Number(curr.orders_with_fee || 0);
+    const realNetRevenue = Math.round(netRevenue - totalMarketplaceFee);
+    // Coverage de comisiones: cu\u00e1ntos pedidos ML del per\u00edodo tienen fee cargado.
+    // Usamos sourceCounts para comparar contra el total de pedidos ML en el per\u00edodo
+    // (respeta el filtro del usuario si filtr\u00f3 por MELI).
+    const mlOrdersInPeriod = Number(sc.meli || 0);
+    const feeCoveragePct = mlOrdersInPeriod > 0
+      ? (ordersWithFee / mlOrdersInPeriod) * 100
+      : 0;
+
+    // Margen HONESTO: solo sobre el gross de items con costo cargado.
+    const marginAbsHonest = grossWithCost - totalCogs;
+    const marginPctHonest = grossWithCost > 0 ? (marginAbsHonest / grossWithCost) * 100 : 0;
+
+    // Coverage: dos formas para dar contexto completo.
     const coveragePct = ordersTotal > 0 ? (ordersWithCost / ordersTotal) * 100 : 0;
+    const coveragePctByRevenue = grossRevenue > 0 ? (grossWithCost / grossRevenue) * 100 : 0;
 
     response.profitability = {
       grossRevenue: Math.round(grossRevenue),
+      grossWithCost: Math.round(grossWithCost),
+      grossWithoutCost: Math.round(grossWithoutCost),
       netRevenue,
+      realNetRevenue,
+      totalMarketplaceFee: Math.round(totalMarketplaceFee),
+      feeCoveragePct: Math.round(feeCoveragePct * 10) / 10,
+      ordersWithFee,
       totalCogs: Math.round(totalCogs),
-      marginAbs: Math.round(marginAbs),
-      marginPct: Math.round(marginPct * 10) / 10,
+      marginAbs: Math.round(marginAbsHonest),
+      marginPct: Math.round(marginPctHonest * 10) / 10,
       ordersWithCost,
       ordersTotal,
       coveragePct: Math.round(coveragePct * 10) / 10,
+      coveragePctByRevenue: Math.round(coveragePctByRevenue * 10) / 10,
     };
     // Also expose inside kpis for convenience (backward compatible: adds new fields)
-    response.kpis.marginPct = Math.round(marginPct * 10) / 10;
+    response.kpis.marginPct = Math.round(marginPctHonest * 10) / 10;
     response.kpis.netRevenue = netRevenue;
+    response.kpis.realNetRevenue = realNetRevenue;
+    response.kpis.totalMarketplaceFee = Math.round(totalMarketplaceFee);
     response.kpis.totalCogs = Math.round(totalCogs);
 
     // ── Logistics (D5) ── VTEX_ONLY (ML no comparte carriers/shipping real)
@@ -1094,12 +1167,23 @@ export async function GET(request: NextRequest) {
           }
         : { ...emptyC };
     };
+    // Tanda 7.7 \u2014 Separamos anonymous VTEX vs MELI y exponemos ambos.
+    // 'anonymous' (agregado) se mantiene para retro-compatibilidad.
+    const anonymousMeli = findCohort("anonymous_meli");
+    const anonymousVtex = findCohort("anonymous_vtex");
+    const anonymousTotal = {
+      customers: anonymousMeli.customers + anonymousVtex.customers,
+      orders: anonymousMeli.orders + anonymousVtex.orders,
+      revenue: anonymousMeli.revenue + anonymousVtex.revenue,
+    };
     response.cohorts = {
       platformScope: "CROSS" as const,
       new: findCohort("new"),
       returning: findCohort("returning"),
       vip: findCohort("vip"),
-      anonymous: findCohort("anonymous"),
+      anonymous: anonymousTotal,
+      anonymousMeli,
+      anonymousVtex,
       vipCriteria: {
         minOrders: 5,
         minSpentArs: 500000,
