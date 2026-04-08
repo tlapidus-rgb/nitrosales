@@ -15,9 +15,14 @@ import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import { ArrowDownRight, ArrowUpRight, Check, Pencil, Plus, X } from "lucide-react";
 import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
+import { useAnimatedValue } from "@/lib/hooks/useAnimatedValue";
 import NitroInsightsPanel from "@/components/NitroInsightsPanel";
 import { DateRangeFilter } from "@/components/dashboard";
+import DashboardHero from "@/components/dashboard/DashboardHero";
+import DashboardSparkline from "@/components/dashboard/DashboardSparkline";
+import DashboardStyles from "@/components/dashboard/DashboardStyles";
 
 // ── Widget catalog definition ──
 
@@ -173,6 +178,154 @@ function getWidgetData(id: string, allData: Record<string, any>): { value: strin
 }
 
 // ══════════════════════════════════════════════════════════════
+// Sparkline series extractor — given a widget id and trends data,
+// returns the relevant numeric series. Empty array = no sparkline.
+// ══════════════════════════════════════════════════════════════
+function getSparklineSeries(id: string, trends: any[]): number[] {
+  if (!trends || trends.length === 0) return [];
+  const map: Record<string, (d: any) => number> = {
+    revenue: (d) => Number(d.revenue) || 0,
+    orders: (d) => Number(d.orders) || 0,
+    ticket: (d) => {
+      const r = Number(d.revenue) || 0;
+      const o = Number(d.orders) || 0;
+      return o > 0 ? r / o : 0;
+    },
+    sessions: (d) => Number(d.sessions) || 0,
+    conversion: (d) => {
+      const o = Number(d.orders) || 0;
+      const s = Number(d.sessions) || 0;
+      return s > 0 ? (o / s) * 100 : 0;
+    },
+    adspend: (d) => Number(d.adSpend) || 0,
+    roas: (d) => Number(d.roas) || 0,
+  };
+  const fn = map[id];
+  if (!fn) return [];
+  return trends.map(fn);
+}
+
+// ══════════════════════════════════════════════════════════════
+// KpiCardItem — single premium KPI card with count-up + sparkline
+// ══════════════════════════════════════════════════════════════
+interface KpiCardItemProps {
+  def: WidgetDef;
+  data: { value: string; sub: string; change?: number; inverse?: boolean } | null;
+  sparkline: number[];
+  editMode: boolean;
+  isDragging: boolean;
+  isDragOver: boolean;
+  onRemove: () => void;
+  dragHandlers: React.HTMLAttributes<HTMLDivElement>;
+}
+
+function KpiCardItem({
+  def,
+  data,
+  sparkline,
+  editMode,
+  isDragging,
+  isDragOver,
+  onRemove,
+  dragHandlers,
+}: KpiCardItemProps) {
+  const animatedValue = useAnimatedValue(data?.value ?? "", 1000);
+  const hasDelta = data?.change !== undefined && data?.change !== null;
+  const rawChange = data?.change ?? 0;
+  const inverse = !!data?.inverse;
+  // Color logic per bible: cyan positive, rose negative, slate neutral.
+  // `inverse` flips the meaning (e.g. ad spend going up is bad).
+  const isGoodPositive = inverse ? rawChange < 0 : rawChange > 0;
+  const isNeutral = rawChange === 0;
+  const deltaColor = isNeutral
+    ? "text-slate-400"
+    : isGoodPositive
+      ? "text-cyan-600"
+      : "text-rose-500";
+  const DeltaIcon = rawChange > 0 ? ArrowUpRight : ArrowDownRight;
+
+  const sparkColor = isNeutral || !hasDelta ? "#64748b" : isGoodPositive ? "#06b6d4" : "#f43f5e";
+
+  return (
+    <div
+      {...dragHandlers}
+      draggable={editMode}
+      className={`dash-card p-5 relative ${editMode ? "cursor-grab active:cursor-grabbing" : ""} ${
+        isDragging ? "opacity-40" : ""
+      } ${isDragOver ? "ring-2 ring-indigo-300" : ""}`}
+    >
+      {editMode && (
+        <button
+          onClick={onRemove}
+          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-md z-10 hover:bg-rose-600 transition-colors"
+          aria-label="Quitar widget"
+        >
+          <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+        </button>
+      )}
+
+      {/* Top: category + delta */}
+      <div className="flex items-start justify-between mb-2">
+        <span
+          className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+          style={{ color: def.catColor }}
+        >
+          {def.category}
+        </span>
+        {hasDelta && (
+          <span className={`inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums ${deltaColor}`}>
+            <DeltaIcon className="w-3 h-3" />
+            {Math.abs(rawChange).toFixed(1)}%
+          </span>
+        )}
+      </div>
+
+      {/* Title */}
+      <p className="text-xs font-medium text-slate-500 mb-1">{def.title}</p>
+
+      {/* Big number — count-up animated, tabular-nums */}
+      {data ? (
+        <p className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">
+          {animatedValue}
+        </p>
+      ) : (
+        <div className="h-7 w-24 dash-skeleton" />
+      )}
+
+      {/* Sparkline */}
+      {sparkline.length > 1 && (
+        <div className="mt-2 -mx-1">
+          <DashboardSparkline data={sparkline} color={sparkColor} height={28} />
+        </div>
+      )}
+
+      {/* Subtitle */}
+      {data?.sub && (
+        <p className="text-[11px] text-slate-400 mt-1.5 leading-tight">{data.sub}</p>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Skeleton card — matches KpiCardItem layout for loading state
+// ══════════════════════════════════════════════════════════════
+function KpiCardSkeleton() {
+  return (
+    <div className="dash-card p-5">
+      <div className="flex items-start justify-between mb-2">
+        <div className="h-3 w-14 dash-skeleton" />
+        <div className="h-3 w-10 dash-skeleton" />
+      </div>
+      <div className="h-3 w-20 dash-skeleton mb-2" />
+      <div className="h-7 w-28 dash-skeleton mb-3" />
+      <div className="h-7 w-full dash-skeleton mb-2" />
+      <div className="h-2.5 w-24 dash-skeleton" />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // Main Dashboard Component
 // ══════════════════════════════════════════════════════════════
 
@@ -245,6 +398,9 @@ export default function DashboardPage() {
       const w = WIDGET_MAP[wId];
       if (w) needed.add(w.dataSource);
     }
+    // Hero header + sparklines always need metrics + trends
+    needed.add("metrics");
+    needed.add("trends");
 
     // Fetch all needed sources in parallel, passing period params
     const fetches: Record<string, Promise<any>> = {};
@@ -314,43 +470,50 @@ export default function DashboardPage() {
   const trends = allData.trends?.days || [];
   const tooltipStyle = { contentStyle: { backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "12px" } };
 
+  // ── Hero data (always available because we force-fetch metrics + trends) ──
+  const heroMetrics = allData.metrics?.summary;
+  const heroChanges = allData.metrics?.changes;
+
   // ── Render ──
   return (
     <div className="light-canvas min-h-screen">
-      {/* Header */}
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">Dashboard</h2>
-          <p className="text-gray-500">{orgName}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {editMode && (
-            <button
-              onClick={savePreferences}
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
-              style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
-            >
-              {saving ? "Guardando..." : "Guardar Layout"}
-            </button>
-          )}
+      <DashboardStyles />
+
+      {/* Hero header — narrativa del día con auroras + prism delimiter */}
+      <DashboardHero
+        orgName={orgName}
+        revenue={heroMetrics?.revenue ?? 0}
+        revenueChange={heroChanges?.revenue}
+        orders={heroMetrics?.orders ?? 0}
+        roas={heroMetrics?.roas ?? 0}
+        sessions={heroMetrics?.sessions ?? 0}
+      />
+
+      {/* Toolbar — Personalizar / Guardar (slate-900 primary, lucide icons) */}
+      <div className="flex items-center justify-end gap-2 mb-4">
+        {editMode && (
           <button
-            onClick={() => { if (editMode) { setEditMode(false); setCatalogOpen(false); } else setEditMode(true); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${
-              editMode
-                ? "bg-gray-800 text-white border-gray-800"
-                : "bg-white text-indigo-600 border-gray-200 hover:border-indigo-400"
-            }`}
+            onClick={savePreferences}
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            style={{ transitionDuration: "220ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              {editMode
-                ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                : <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              }
-            </svg>
-            {editMode ? "Cancelar" : "Personalizar"}
+            <Check className="w-4 h-4" />
+            {saving ? "Guardando..." : "Guardar layout"}
           </button>
-        </div>
+        )}
+        <button
+          onClick={() => { if (editMode) { setEditMode(false); setCatalogOpen(false); } else setEditMode(true); }}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            editMode
+              ? "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+          }`}
+          style={{ transitionDuration: "220ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+        >
+          {editMode ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+          {editMode ? "Cancelar" : "Personalizar"}
+        </button>
       </div>
 
       {/* Period selector */}
@@ -368,14 +531,20 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {loading ? (
-        <p className="text-gray-400">Cargando metricas...</p>
-      ) : error ? (
-        <p className="text-red-500">{error}</p>
+      {error ? (
+        <div className="dash-card p-4 mb-4 text-sm text-rose-600 border-rose-200">{error}</div>
+      ) : null}
+
+      {loading && Object.keys(allData).length === 0 ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <KpiCardSkeleton key={i} />
+          ))}
+        </div>
       ) : (
         <>
-          {/* Widget grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+          {/* Widget grid — premium cards con count-up + sparkline + stagger entrance */}
+          <div className="dash-stagger grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
             {activeWidgets.map((wId, idx) => {
               const def = WIDGET_MAP[wId];
               if (!def) return null;
@@ -384,46 +553,44 @@ export default function DashboardPage() {
               if (def.large) return null; // Rendered below in chart section
 
               const d = getWidgetData(wId, allData);
+              const sparkline = getSparklineSeries(wId, allData.trends?.days || []);
               const isDragging = dragIndex === idx;
               const isDragOver = dragOverIndex === idx && dragIndex !== idx;
 
+              const dragHandlers = {
+                onDragStart: (e: React.DragEvent<HTMLDivElement>) => {
+                  setDragIndex(idx);
+                  e.dataTransfer.effectAllowed = "move";
+                },
+                onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+                  if (editMode) {
+                    e.preventDefault();
+                    setDragOverIndex(idx);
+                  }
+                },
+                onDrop: () => {
+                  if (dragIndex !== null) reorderWidgets(dragIndex, idx);
+                  setDragIndex(null);
+                  setDragOverIndex(null);
+                },
+                onDragEnd: () => {
+                  setDragIndex(null);
+                  setDragOverIndex(null);
+                },
+              };
+
               return (
-                <div
+                <KpiCardItem
                   key={wId}
-                  draggable={editMode}
-                  onDragStart={(e) => { setDragIndex(idx); e.dataTransfer.effectAllowed = "move"; }}
-                  onDragOver={(e) => { if (editMode) { e.preventDefault(); setDragOverIndex(idx); } }}
-                  onDrop={() => { if (dragIndex !== null) { reorderWidgets(dragIndex, idx); } setDragIndex(null); setDragOverIndex(null); }}
-                  onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
-                  className={`bg-white rounded-xl shadow-sm p-4 border relative transition-all ${
-                    editMode ? "border-dashed border-indigo-300 cursor-grab active:cursor-grabbing" : ""
-                  } ${isDragging ? "opacity-40" : ""} ${isDragOver ? "border-solid border-indigo-500 ring-2 ring-indigo-200" : ""}`}
-                >
-                  {editMode && (
-                    <button
-                      onClick={() => removeWidget(wId)}
-                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center shadow-md z-10 hover:bg-red-600"
-                    >×</button>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded"
-                        style={{ color: def.catColor, background: def.catColor + "15" }}
-                      >{def.category}</span>
-                    </div>
-                    {d?.change !== undefined && <ChangeIndicator value={d.change} inverse={d.inverse} />}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1.5">{def.title}</p>
-                  {d ? (
-                    <>
-                      <p className="text-xl font-bold text-gray-800 mt-1">{d.value}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{d.sub}</p>
-                    </>
-                  ) : (
-                    <p className="text-sm text-gray-300 mt-2">Sin datos</p>
-                  )}
-                </div>
+                  def={def}
+                  data={d}
+                  sparkline={sparkline}
+                  editMode={editMode}
+                  isDragging={isDragging}
+                  isDragOver={isDragOver}
+                  onRemove={() => removeWidget(wId)}
+                  dragHandlers={dragHandlers}
+                />
               );
             })}
           </div>
