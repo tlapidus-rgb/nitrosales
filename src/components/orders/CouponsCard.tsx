@@ -6,14 +6,22 @@
 
 import { Ticket } from "lucide-react";
 import { formatARS } from "@/lib/utils/format";
-import type { CouponsData } from "./types";
+import type { CouponsData, SourceCounts } from "./types";
+import PlatformScopeBanner from "./PlatformScopeBanner";
 
 interface CouponsCardProps {
   data: CouponsData | null | undefined;
   loading?: boolean;
+  source?: string;
+  sourceCounts?: SourceCounts;
 }
 
-export default function CouponsCard({ data, loading }: CouponsCardProps) {
+export default function CouponsCard({
+  data,
+  loading,
+  source,
+  sourceCounts,
+}: CouponsCardProps) {
   if (loading || !data) {
     return (
       <section className="dash-card dash-fade-up p-5">
@@ -23,6 +31,7 @@ export default function CouponsCard({ data, loading }: CouponsCardProps) {
   }
 
   const coupons = data.topCoupons ?? [];
+  const isMeliFilter = source === "MELI";
 
   return (
     <section className="dash-card dash-fade-up p-5">
@@ -51,8 +60,20 @@ export default function CouponsCard({ data, loading }: CouponsCardProps) {
         </div>
       </div>
 
+      <PlatformScopeBanner
+        source={source}
+        sourceCounts={sourceCounts}
+        reason="ML tiene su propio sistema de cupones que no registramos acá."
+      />
+
       {/* Table */}
-      {coupons.length === 0 ? (
+      {isMeliFilter ? (
+        <div className="py-6 text-center">
+          <p className="text-xs text-slate-500">
+            Filtrando por MercadoLibre — no hay datos de cupones para mostrar.
+          </p>
+        </div>
+      ) : coupons.length === 0 ? (
         <p className="text-xs text-slate-400">
           No se usaron cupones en este período.
         </p>

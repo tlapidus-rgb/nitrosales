@@ -7,7 +7,7 @@
 // muestra explícito para que cualquier analista entienda.
 // ══════════════════════════════════════════════════════════════
 
-import { Users, Sparkles, Repeat, UserPlus, UserX } from "lucide-react";
+import { Users, Sparkles, Repeat, UserPlus, UserX, Info } from "lucide-react";
 import { formatARS } from "@/lib/utils/format";
 import type { CohortsData, CohortStats } from "./types";
 
@@ -89,6 +89,17 @@ export default function CohortsCard({ data, loading }: CohortsCardProps) {
           </p>
         </div>
       </div>
+
+      {/* ML privacy note — BIEN SIMPLE */}
+      {(data.anonymous?.orders ?? 0) > 0 && (
+        <div className="mt-3 rounded-md bg-slate-50 border border-slate-100 px-2.5 py-1.5 flex items-start gap-1.5">
+          <Info className="w-3 h-3 text-slate-400 flex-shrink-0 mt-0.5" />
+          <p className="text-[10px] text-slate-500 leading-snug">
+            En MercadoLibre muchos clientes figuran como "Sin identificar"
+            porque ML no comparte el email real por privacidad.
+          </p>
+        </div>
+      )}
 
       {/* Rows */}
       <div className="mt-4 space-y-2.5">

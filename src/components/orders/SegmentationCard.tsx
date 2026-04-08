@@ -7,13 +7,15 @@
 // ══════════════════════════════════════════════════════════════
 
 import { useState } from "react";
-import { Smartphone, Megaphone, Compass } from "lucide-react";
+import { Smartphone, Megaphone, Compass, Info } from "lucide-react";
 import { formatARS } from "@/lib/utils/format";
-import type { SegmentationData, SegmentationBucket } from "./types";
+import type { SegmentationData, SegmentationBucket, SourceCounts } from "./types";
 
 interface SegmentationCardProps {
   data: SegmentationData | null | undefined;
   loading?: boolean;
+  source?: string;
+  sourceCounts?: SourceCounts;
 }
 
 type Tab = "device" | "channel" | "traffic";
@@ -21,8 +23,12 @@ type Tab = "device" | "channel" | "traffic";
 export default function SegmentationCard({
   data,
   loading,
+  source,
+  sourceCounts,
 }: SegmentationCardProps) {
   const [tab, setTab] = useState<Tab>("device");
+  const isMeliFilter = source === "MELI";
+  const isVtexOnlyTab = tab === "device" || tab === "traffic";
 
   if (loading || !data) {
     return (
@@ -99,8 +105,29 @@ export default function SegmentationCard({
         })}
       </div>
 
+      {/* VTEX-only note for device / traffic tabs */}
+      {isVtexOnlyTab && (
+        <div className="mb-3 inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-100 px-2 py-0.5">
+          <Info className="w-3 h-3 text-slate-400" />
+          <span className="text-[10px] text-slate-500">
+            Solo pedidos de VTEX — ML no abre estos datos
+            {sourceCounts?.meli
+              ? ` · ${sourceCounts.meli.toLocaleString("es-AR")} de ML excluidos`
+              : ""}
+          </span>
+        </div>
+      )}
+
       {/* Buckets */}
-      <BucketBars buckets={active.buckets} />
+      {isVtexOnlyTab && isMeliFilter ? (
+        <div className="py-6 text-center">
+          <p className="text-xs text-slate-500">
+            Filtrando por MercadoLibre — {tab === "device" ? "dispositivo" : "fuente de tráfico"} no está disponible.
+          </p>
+        </div>
+      ) : (
+        <BucketBars buckets={active.buckets} />
+      )}
     </section>
   );
 }

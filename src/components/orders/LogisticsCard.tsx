@@ -11,14 +11,22 @@
 import { Truck, AlertTriangle } from "lucide-react";
 import { formatARS } from "@/lib/utils/format";
 import { useAnimatedValue } from "@/lib/hooks/useAnimatedValue";
-import type { LogisticsData, LogisticsBucket } from "./types";
+import type { LogisticsData, LogisticsBucket, SourceCounts } from "./types";
+import PlatformScopeBanner from "./PlatformScopeBanner";
 
 interface LogisticsCardProps {
   data: LogisticsData | null | undefined;
   loading?: boolean;
+  source?: string;
+  sourceCounts?: SourceCounts;
 }
 
-export default function LogisticsCard({ data, loading }: LogisticsCardProps) {
+export default function LogisticsCard({
+  data,
+  loading,
+  source,
+  sourceCounts,
+}: LogisticsCardProps) {
   if (loading || !data) {
     return (
       <section className="dash-card dash-fade-up p-5">
@@ -30,6 +38,7 @@ export default function LogisticsCard({ data, loading }: LogisticsCardProps) {
   const gapTotal = data.shippingGapTotal ?? 0;
   const isLoss = gapTotal > 0;
   const animatedGap = useAnimatedValue(formatARS(Math.abs(gapTotal)), 900);
+  const isMeliFilter = source === "MELI";
 
   return (
     <section className="dash-card dash-fade-up p-5">
@@ -48,6 +57,20 @@ export default function LogisticsCard({ data, loading }: LogisticsCardProps) {
         </div>
       </div>
 
+      <PlatformScopeBanner
+        source={source}
+        sourceCounts={sourceCounts}
+        reason="ML maneja su propia logística (Full, Flex, Lugar) y no nos comparte el detalle del courier ni el costo real."
+      />
+
+      {isMeliFilter ? (
+        <div className="py-6 text-center">
+          <p className="text-xs text-slate-500">
+            Filtrando por MercadoLibre — no hay datos de logística para mostrar.
+          </p>
+        </div>
+      ) : (
+        <>
       {/* Shipping gap banner — explicación BIEN SIMPLE */}
       <div
         className={`rounded-lg border px-3 py-2.5 mb-4 ${
@@ -104,6 +127,8 @@ export default function LogisticsCard({ data, loading }: LogisticsCardProps) {
         </h4>
         <BucketList buckets={data.byCarrier ?? []} />
       </div>
+        </>
+      )}
     </section>
   );
 }

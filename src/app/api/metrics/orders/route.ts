@@ -86,6 +86,14 @@ export async function GET(request: NextRequest) {
     const srcWhere = sourceFilter ? `AND o."source" = '${sourceFilter}'` : "";
     const srcWhereSimple = sourceFilter ? `AND "source" = '${sourceFilter}'` : "";
 
+    // ── VTEX-only WHERE: combinable con el filtro del usuario. Tanda 6 (Session 16)
+    //    Se aplica a queries cuyos campos solo existen en VTEX (couponCode,
+    //    deliveryType, shippingCarrier, deviceType, trafficSource, postalCode,
+    //    customer.state). Cuando el usuario filtra MELI, estas queries devuelven
+    //    0 filas y la UI muestra un empty state explicito "ML no abre estos datos".
+    const vtexOnlyWhere = `AND o."source" = 'VTEX'`;
+    const vtexOnlyWhereSimple = `AND "source" = 'VTEX'`;
+
     // ── Count days in period for averages ──
     const daysInPeriod = Math.max(1, Math.ceil(periodMs / MS_PER_DAY));
 
@@ -117,6 +125,8 @@ export async function GET(request: NextRequest) {
       geographyBreakdown,
       orderAnomalies,
       periodAnomaliesRow,
+      // ── Tanda 6 (Session 16): conteo por plataforma del período ──
+      sourceCountsRow,
     ] = await Promise.all([
 
       /* 1) Current period KPIs */
@@ -478,7 +488,9 @@ export async function GET(request: NextRequest) {
           ${srcWhere}
       `, dateFrom, dateTo),
 
-      /* 16) Logistics breakdown: delivery type + carrier + shipping gap (D5) */
+      /* 16) Logistics breakdown: delivery type + carrier + shipping gap (D5)
+            VTEX-ONLY: deliveryType/shippingCarrier/realShippingCost solo existen
+            en pedidos VTEX. ML maneja su propia logistica (Full/Flex) y no la abre. */
       prisma.$queryRawUnsafe<Array<{
         dim: string;
         bucket: string;
@@ -495,6 +507,7 @@ export async function GET(request: NextRequest) {
             AND "orderDate" <= $2
             AND status NOT IN ('CANCELLED', 'RETURNED')
             ${srcWhereSimple}
+            ${vtexOnlyWhereSimple}
         )
         SELECT 'delivery' AS dim, COALESCE("deliveryType", 'Sin dato') AS bucket,
           COUNT(*)::text AS orders,
@@ -513,36 +526,50 @@ export async function GET(request: NextRequest) {
         GROUP BY "shippingCarrier"
       `, dateFrom, dateTo),
 
-      /* 17) Segmentation breakdown: device + channel + trafficSource (D6 + D7) */
+      /* 17) Segmentation breakdown: device + channel + trafficSource (D6 + D7)
+            Channel es cross-platform. Device y trafficSource son VTEX-only
+            (ML app no reporta device ni UTMs). Usamos dos CTEs. */
       prisma.$queryRawUnsafe<Array<{
         dim: string;
         bucket: string;
         orders: string;
         revenue: string;
       }>>(`
-        WITH base AS (
-          SELECT "deviceType", channel, "trafficSource", "totalValue"
+        WITH base_all AS (
+          SELECT channel, "totalValue"
           FROM orders
           WHERE "organizationId" = '${ORG_ID}'
             AND "orderDate" >= $1
             AND "orderDate" <= $2
             AND status NOT IN ('CANCELLED', 'RETURNED')
             ${srcWhereSimple}
+        ),
+        base_vtex AS (
+          SELECT "deviceType", "trafficSource", "totalValue"
+          FROM orders
+          WHERE "organizationId" = '${ORG_ID}'
+            AND "orderDate" >= $1
+            AND "orderDate" <= $2
+            AND status NOT IN ('CANCELLED', 'RETURNED')
+            ${srcWhereSimple}
+            ${vtexOnlyWhereSimple}
         )
         SELECT 'device' AS dim, COALESCE("deviceType", 'Sin dato') AS bucket,
           COUNT(*)::text AS orders, COALESCE(SUM("totalValue"), 0)::text AS revenue
-        FROM base GROUP BY "deviceType"
+        FROM base_vtex GROUP BY "deviceType"
         UNION ALL
         SELECT 'channel', COALESCE(channel, 'Sin dato'),
           COUNT(*)::text, COALESCE(SUM("totalValue"), 0)::text
-        FROM base GROUP BY channel
+        FROM base_all GROUP BY channel
         UNION ALL
         SELECT 'traffic', COALESCE("trafficSource", 'Sin dato'),
           COUNT(*)::text, COALESCE(SUM("totalValue"), 0)::text
-        FROM base GROUP BY "trafficSource"
+        FROM base_vtex GROUP BY "trafficSource"
       `, dateFrom, dateTo),
 
-      /* 18) Coupons breakdown — top 15 used (D8) */
+      /* 18) Coupons breakdown — top 15 used (D8)
+            VTEX-ONLY: couponCode se popula desde VTEX marketingData.coupon.
+            ML tiene su propio sistema de cupones que no registramos. */
       prisma.$queryRawUnsafe<Array<{
         code: string;
         orders: string;
@@ -562,6 +589,7 @@ export async function GET(request: NextRequest) {
           AND "couponCode" IS NOT NULL
           AND "couponCode" <> ''
           ${srcWhereSimple}
+          ${vtexOnlyWhereSimple}
         GROUP BY "couponCode"
         ORDER BY SUM("totalValue") DESC
         LIMIT 15
@@ -622,7 +650,10 @@ export async function GET(request: NextRequest) {
         GROUP BY 1
       `, dateFrom, dateTo),
 
-      /* 21) Geography: top 10 provincias + top 15 postal codes (D12) */
+      /* 21) Geography: top 10 provincias + top 15 postal codes (D12)
+            VTEX-ONLY: postalCode viene de VTEX shippingData.address y
+            customer.state tambien se carga desde VTEX. ML no comparte
+            ubicacion del comprador por privacidad. */
       prisma.$queryRawUnsafe<Array<{
         level: string;
         value: string;
@@ -638,6 +669,7 @@ export async function GET(request: NextRequest) {
             AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED')
             ${srcWhere}
+            ${vtexOnlyWhere}
         ),
         province_agg AS (
           SELECT COALESCE(state, 'Sin dato') AS value,
@@ -784,6 +816,26 @@ export async function GET(request: NextRequest) {
           COALESCE((SELECT dup_count FROM dup_candidates), 0)::text AS dup_count,
           COALESCE((SELECT json_agg(json_build_object('name', sku_name, 'count', recent_cnt))::text FROM viral_sku), '[]') AS viral_skus
       `),
+
+      /* 23) Source counts (Tanda 6) — cuántos pedidos hay por plataforma
+             en el período, ignorando el filtro de source del usuario.
+             Nos sirve para mostrar en la UI mensajes como "12 pedidos de ML
+             excluidos de este gráfico porque ML no abre estos datos". */
+      prisma.$queryRawUnsafe<[{
+        vtex: string;
+        meli: string;
+        total: string;
+      }]>(`
+        SELECT
+          COUNT(*) FILTER (WHERE "source" = 'VTEX')::text AS vtex,
+          COUNT(*) FILTER (WHERE "source" = 'MELI')::text AS meli,
+          COUNT(*)::text AS total
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1
+          AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+      `, dateFrom, dateTo),
     ]);
 
     // ── Process results ──
@@ -922,6 +974,17 @@ export async function GET(request: NextRequest) {
     // Se mergean al response sin tocar campos existentes
     // ══════════════════════════════════════════════════════════
 
+    // ── Source counts (Tanda 6) — contexto de plataforma ──
+    // Cuántos pedidos de VTEX vs ML hay en el período, ignorando el filtro
+    // que haya elegido el usuario. La UI lo usa para explicar por qué
+    // algunas tarjetas están vacías cuando se filtra por MELI.
+    const sc = (sourceCountsRow as any)[0] || {};
+    response.sourceCounts = {
+      vtex: Number(sc.vtex || 0),
+      meli: Number(sc.meli || 0),
+      total: Number(sc.total || 0),
+    };
+
     // ── Profitability (D1 + D2) ──
     const prof = (marginAndNet as any)[0] || {};
     const grossRevenue = Number(prof.gross_revenue || 0);
@@ -948,9 +1011,10 @@ export async function GET(request: NextRequest) {
     response.kpis.netRevenue = netRevenue;
     response.kpis.totalCogs = Math.round(totalCogs);
 
-    // ── Logistics (D5) ──
+    // ── Logistics (D5) ── VTEX_ONLY (ML no comparte carriers/shipping real)
     const logistics = (logisticsBreakdown as any[]) || [];
     response.logistics = {
+      platformScope: "VTEX_ONLY" as const,
       byDeliveryType: logistics
         .filter((r: any) => r.dim === "delivery")
         .map((r: any) => ({
@@ -987,15 +1051,18 @@ export async function GET(request: NextRequest) {
           revenue: Number(r.revenue),
         }))
         .sort((a: any, b: any) => b.revenue - a.revenue);
+    // VTEX_PARTIAL: channel es cross-platform; device/trafficSource son VTEX-only
     response.segmentation = {
+      platformScope: "VTEX_PARTIAL" as const,
       byDevice: mapSeg("device"),
       byChannel: mapSeg("channel"),
       byTrafficSource: mapSeg("traffic"),
     };
 
-    // ── Coupons (D8) ──
+    // ── Coupons (D8) ── VTEX_ONLY (ML tiene su propio sistema de cupones)
     const coupons = (couponsBreakdown as any[]) || [];
     response.coupons = {
+      platformScope: "VTEX_ONLY" as const,
       topCoupons: coupons.map((c: any) => ({
         code: c.code,
         orders: Number(c.orders),
@@ -1028,6 +1095,7 @@ export async function GET(request: NextRequest) {
         : { ...emptyC };
     };
     response.cohorts = {
+      platformScope: "CROSS" as const,
       new: findCohort("new"),
       returning: findCohort("returning"),
       vip: findCohort("vip"),
@@ -1037,11 +1105,16 @@ export async function GET(request: NextRequest) {
         minSpentArs: 500000,
         description: "VIP: 5+ compras O $500.000+ gastados con vos (histórico)",
       },
+      // Nota: en ML muchos clientes figuran como "Sin identificar" porque ML
+      // no comparte el email real por privacidad.
+      mlPrivacyNote:
+        "En MercadoLibre muchos clientes figuran como 'Sin identificar' porque ML no comparte el email real por privacidad.",
     };
 
-    // ── Geography (D12) ──
+    // ── Geography (D12) ── VTEX_ONLY (ML no comparte ubicación del comprador)
     const geo = (geographyBreakdown as any[]) || [];
     response.geography = {
+      platformScope: "VTEX_ONLY" as const,
       topProvinces: geo
         .filter((r: any) => r.level === "province")
         .map((r: any) => ({

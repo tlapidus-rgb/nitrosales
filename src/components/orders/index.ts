@@ -13,6 +13,7 @@ export { default as LogisticsCard } from "./LogisticsCard";
 export { default as SegmentationCard } from "./SegmentationCard";
 export { default as CouponsCard } from "./CouponsCard";
 export { default as GeographyCard } from "./GeographyCard";
+export { default as PlatformScopeBanner } from "./PlatformScopeBanner";
 export {
   default as OrderFlagBadge,
   OrderFlagBadgeGroup,
@@ -36,4 +37,6 @@ export type {
   PeriodLevelAnomaly,
   AnomaliesData,
   OrdersV4Namespaces,
+  PlatformScope,
+  SourceCounts,
 } from "./types";

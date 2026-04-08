@@ -5,6 +5,18 @@
 // endpoint siguen siendo tipados ad-hoc en el page.tsx.
 // ══════════════════════════════════════════════════════════════
 
+// ── Tanda 6 (Session 16): scope por plataforma ──
+// Algunas tarjetas solo se pueden calcular con datos de VTEX porque ML no
+// expone los campos equivalentes (logística real, cupones, device, CP, etc.).
+// La UI usa este scope para mostrar un banner explicativo o un empty state.
+export type PlatformScope = "CROSS" | "VTEX_ONLY" | "VTEX_PARTIAL";
+
+export interface SourceCounts {
+  vtex: number;
+  meli: number;
+  total: number;
+}
+
 // ── Profitability (D1 + D2) ──
 export interface ProfitabilityData {
   grossRevenue: number;
@@ -27,6 +39,7 @@ export interface LogisticsBucket {
   shippingGap: number;
 }
 export interface LogisticsData {
+  platformScope?: PlatformScope;
   byDeliveryType: LogisticsBucket[];
   byCarrier: LogisticsBucket[];
   shippingGapTotal: number;
@@ -39,6 +52,7 @@ export interface SegmentationBucket {
   revenue: number;
 }
 export interface SegmentationData {
+  platformScope?: PlatformScope;
   byDevice: SegmentationBucket[];
   byChannel: SegmentationBucket[];
   byTrafficSource: SegmentationBucket[];
@@ -52,6 +66,7 @@ export interface CouponItem {
   discountTotal: number;
 }
 export interface CouponsData {
+  platformScope?: PlatformScope;
   topCoupons: CouponItem[];
   totalCouponRevenue: number;
   totalCouponDiscount: number;
@@ -71,6 +86,7 @@ export interface CohortStats {
   revenue: number;
 }
 export interface CohortsData {
+  platformScope?: PlatformScope;
   new: CohortStats;
   returning: CohortStats;
   vip: CohortStats;
@@ -80,6 +96,7 @@ export interface CohortsData {
     minSpentArs: number;
     description: string;
   };
+  mlPrivacyNote?: string;
 }
 
 // ── Geography (D12) ──
@@ -89,6 +106,7 @@ export interface GeoBucket {
   revenue: number;
 }
 export interface GeographyData {
+  platformScope?: PlatformScope;
   topProvinces: GeoBucket[];
   topPostalCodes: GeoBucket[];
 }
@@ -141,4 +159,5 @@ export interface OrdersV4Namespaces {
   cohorts?: CohortsData;
   geography?: GeographyData;
   anomalies?: AnomaliesData;
+  sourceCounts?: SourceCounts;
 }

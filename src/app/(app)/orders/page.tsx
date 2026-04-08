@@ -455,8 +455,8 @@ export default function OrdersPage() {
 
       {/* LOGISTICS + SEGMENTATION (Tanda 4) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <LogisticsCard data={data.logistics} loading={loading} />
-        <SegmentationCard data={data.segmentation} loading={loading} />
+        <LogisticsCard data={data.logistics} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+        <SegmentationCard data={data.segmentation} loading={loading} source={source} sourceCounts={data.sourceCounts} />
       </div>
 
       {/* PAYMENT + PROMOTIONS */}
@@ -516,8 +516,8 @@ export default function OrdersPage() {
 
       {/* COUPONS + GEOGRAPHY (Tanda 4) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CouponsCard data={data.coupons} loading={loading} />
-        <GeographyCard data={data.geography} loading={loading} />
+        <CouponsCard data={data.coupons} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+        <GeographyCard data={data.geography} loading={loading} source={source} sourceCounts={data.sourceCounts} />
       </div>
 
       {/* TOP PRODUCTS + CUSTOMERS */}

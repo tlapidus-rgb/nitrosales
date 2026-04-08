@@ -7,17 +7,26 @@
 import { useState } from "react";
 import { MapPin, Map } from "lucide-react";
 import { formatARS } from "@/lib/utils/format";
-import type { GeographyData, GeoBucket } from "./types";
+import type { GeographyData, GeoBucket, SourceCounts } from "./types";
+import PlatformScopeBanner from "./PlatformScopeBanner";
 
 interface GeographyCardProps {
   data: GeographyData | null | undefined;
   loading?: boolean;
+  source?: string;
+  sourceCounts?: SourceCounts;
 }
 
 type Tab = "province" | "postal";
 
-export default function GeographyCard({ data, loading }: GeographyCardProps) {
+export default function GeographyCard({
+  data,
+  loading,
+  source,
+  sourceCounts,
+}: GeographyCardProps) {
   const [tab, setTab] = useState<Tab>("province");
+  const isMeliFilter = source === "MELI";
 
   if (loading || !data) {
     return (
@@ -53,22 +62,38 @@ export default function GeographyCard({ data, loading }: GeographyCardProps) {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 mb-4 p-0.5 bg-slate-50 border border-slate-100 rounded-lg w-fit">
-        <TabButton
-          active={tab === "province"}
-          onClick={() => setTab("province")}
-          label="Provincias"
-        />
-        <TabButton
-          active={tab === "postal"}
-          onClick={() => setTab("postal")}
-          label="Códigos postales"
-        />
-      </div>
+      <PlatformScopeBanner
+        source={source}
+        sourceCounts={sourceCounts}
+        reason="ML no comparte la ubicación del comprador por privacidad."
+      />
 
-      {/* List */}
-      <BucketList buckets={buckets} />
+      {isMeliFilter ? (
+        <div className="py-6 text-center">
+          <p className="text-xs text-slate-500">
+            Filtrando por MercadoLibre — no hay datos de ubicación para mostrar.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Tabs */}
+          <div className="flex items-center gap-1 mb-4 p-0.5 bg-slate-50 border border-slate-100 rounded-lg w-fit">
+            <TabButton
+              active={tab === "province"}
+              onClick={() => setTab("province")}
+              label="Provincias"
+            />
+            <TabButton
+              active={tab === "postal"}
+              onClick={() => setTab("postal")}
+              label="Códigos postales"
+            />
+          </div>
+
+          {/* List */}
+          <BucketList buckets={buckets} />
+        </>
+      )}
     </section>
   );
 }
