@@ -44,6 +44,31 @@ export async function POST(req: NextRequest) {
       name: "idx_oi_order_product",
       sql: `CREATE INDEX IF NOT EXISTS idx_oi_order_product ON order_items ("orderId", "productId")`,
     },
+    // ── Tanda 2 (Session 16) — Orders overhaul: fundación de datos ──
+    {
+      name: "idx_orders_org_status_updated",
+      sql: `CREATE INDEX IF NOT EXISTS idx_orders_org_status_updated ON orders ("organizationId", status, "updatedAt")`,
+    },
+    {
+      name: "idx_orders_org_coupon",
+      sql: `CREATE INDEX IF NOT EXISTS idx_orders_org_coupon ON orders ("organizationId", "couponCode") WHERE "couponCode" IS NOT NULL`,
+    },
+    {
+      name: "idx_orders_org_delivery_carrier",
+      sql: `CREATE INDEX IF NOT EXISTS idx_orders_org_delivery_carrier ON orders ("organizationId", "deliveryType", "shippingCarrier")`,
+    },
+    {
+      name: "idx_orders_org_device",
+      sql: `CREATE INDEX IF NOT EXISTS idx_orders_org_device ON orders ("organizationId", "deviceType")`,
+    },
+    {
+      name: "idx_orders_org_channel",
+      sql: `CREATE INDEX IF NOT EXISTS idx_orders_org_channel ON orders ("organizationId", channel)`,
+    },
+    {
+      name: "idx_oi_order_cost",
+      sql: `CREATE INDEX IF NOT EXISTS idx_oi_order_cost ON order_items ("orderId") INCLUDE ("costPrice", quantity, "totalPrice")`,
+    },
   ];
 
   for (const idx of indexes) {
