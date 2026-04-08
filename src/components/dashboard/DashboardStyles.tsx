@@ -217,6 +217,177 @@ export default function DashboardStyles() {
         to { transform: translateY(0) scale(1); opacity: 1; }
       }
 
+      /* ── Per-card filter system ── */
+      @keyframes dashFilterPop {
+        from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      @keyframes dashFilterSheetUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Popover (desktop) — anclado al trigger, top-right de la card */
+      .dash-filter-popover {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 6px;
+        z-index: 30;
+        width: 304px;
+        max-width: calc(100vw - 32px);
+        padding: 16px;
+        background: linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%);
+        border: 1px solid rgba(15, 23, 42, 0.06);
+        border-radius: 16px;
+        backdrop-filter: saturate(140%) blur(20px);
+        -webkit-backdrop-filter: saturate(140%) blur(20px);
+        box-shadow:
+          0 1px 0 rgba(15, 23, 42, 0.04),
+          0 12px 32px -16px rgba(15, 23, 42, 0.20),
+          0 28px 56px -32px rgba(15, 23, 42, 0.18);
+        animation: dashFilterPop 240ms cubic-bezier(0.16, 1, 0.3, 1);
+        transform-origin: top right;
+      }
+
+      /* Mobile: bottom sheet */
+      @media (max-width: 639px) {
+        .dash-filter-popover {
+          position: fixed;
+          top: auto;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          margin: 0;
+          width: 100%;
+          max-width: 100%;
+          max-height: 80vh;
+          overflow-y: auto;
+          padding: 20px 18px 28px;
+          border-radius: 24px 24px 0 0;
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          border-bottom: none;
+          z-index: 60;
+          animation: dashFilterSheetUp 320ms cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow:
+            0 -1px 0 rgba(15, 23, 42, 0.04),
+            0 -16px 40px -20px rgba(15, 23, 42, 0.22),
+            0 -32px 64px -40px rgba(15, 23, 42, 0.20);
+        }
+      }
+
+      .dash-filter-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.42);
+        backdrop-filter: saturate(140%) blur(8px);
+        -webkit-backdrop-filter: saturate(140%) blur(8px);
+        z-index: 55;
+        animation: dashFadeUp 260ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      /* Segmented control (≤4 options) */
+      .dash-filter-segmented {
+        display: flex;
+        align-items: stretch;
+        padding: 3px;
+        background: #f1f5f9;
+        border-radius: 10px;
+        gap: 2px;
+      }
+      .dash-filter-pill {
+        flex: 1 1 0;
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 8px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #64748b;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+        white-space: nowrap;
+      }
+      .dash-filter-pill:hover:not(.is-active) {
+        color: #0f172a;
+        background: rgba(255, 255, 255, 0.6);
+      }
+      .dash-filter-pill.is-active {
+        background: #0f172a;
+        color: #ffffff;
+        box-shadow:
+          0 1px 0 rgba(15, 23, 42, 0.06),
+          0 4px 12px -6px rgba(15, 23, 42, 0.30);
+      }
+
+      /* Dropdown select (5+ options) */
+      .dash-filter-select {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 100%;
+        padding: 8px 32px 8px 12px;
+        background: #ffffff;
+        border: 1px solid rgba(15, 23, 42, 0.10);
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #0f172a;
+        cursor: pointer;
+        transition: border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+                    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+        font-family: inherit;
+      }
+      .dash-filter-select:hover {
+        border-color: rgba(15, 23, 42, 0.18);
+      }
+      .dash-filter-select:focus {
+        outline: none;
+        border-color: #0f172a;
+        box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+      }
+      .dash-filter-select-chevron {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 14px;
+        height: 14px;
+        color: #94a3b8;
+        pointer-events: none;
+      }
+
+      /* Active filter chips (debajo del título de la card) */
+      .dash-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px 2px 8px;
+        background: #f8fafc;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 500;
+        color: #475569;
+        cursor: pointer;
+        transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+        line-height: 1.4;
+      }
+      .dash-filter-chip:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+        border-color: rgba(15, 23, 42, 0.16);
+      }
+
+      /* Card needs position:relative so popover can anchor */
+      .dash-card,
+      .dash-chart-card {
+        position: relative;
+      }
+
       /* Skeleton shimmer */
       .dash-skeleton {
         background: linear-gradient(
@@ -236,7 +407,9 @@ export default function DashboardStyles() {
         .dash-skeleton,
         .dash-hero::before,
         .dash-toast,
-        .dash-sheet {
+        .dash-sheet,
+        .dash-filter-popover,
+        .dash-filter-backdrop {
           animation: none !important;
           transition: none !important;
         }

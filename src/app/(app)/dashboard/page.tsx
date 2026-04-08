@@ -24,6 +24,9 @@ import DashboardTodayBlock, { buildTodayInsights } from "@/components/dashboard/
 import DashboardChartCard from "@/components/dashboard/DashboardChartCard";
 import DashboardSparkline from "@/components/dashboard/DashboardSparkline";
 import DashboardStyles from "@/components/dashboard/DashboardStyles";
+import WidgetFilterPopover from "@/components/dashboard/WidgetFilterPopover";
+import WidgetFilterChips from "@/components/dashboard/WidgetFilterChips";
+import { SectionKey, buildFilterQuery } from "@/lib/dashboard/filter-config";
 
 // ── Widget catalog definition ──
 
@@ -34,53 +37,67 @@ type WidgetDef = {
   title: string;
   dataSource: string; // which API to call
   large?: boolean;    // span 2 columns (for charts)
+  // ── Per-card filter system ──
+  // section: defines the filter pool the widget inherits from
+  // excludeFilters: opt-out de dimensiones del pool que no aplican
+  section?: SectionKey;
+  excludeFilters?: string[];
 };
 
 const WIDGET_CATALOG: WidgetDef[] = [
-  // Ventas
-  { id: "revenue", category: "Ventas", catColor: "#059669", title: "Facturacion", dataSource: "metrics" },
-  { id: "orders", category: "Ventas", catColor: "#059669", title: "Pedidos", dataSource: "metrics" },
-  { id: "ticket", category: "Ventas", catColor: "#059669", title: "Ticket Promedio", dataSource: "metrics" },
-  { id: "sessions", category: "Ventas", catColor: "#059669", title: "Sesiones", dataSource: "metrics" },
-  { id: "conversion", category: "Ventas", catColor: "#059669", title: "Tasa Conversion", dataSource: "metrics" },
-  { id: "revenue-chart", category: "Ventas", catColor: "#059669", title: "Facturacion Diaria", dataSource: "trends", large: true },
+  // ── Ventas — pool: canal, estado_pedido, pago, categoria, tipo_cliente, provincia
+  { id: "revenue", category: "Ventas", catColor: "#059669", title: "Facturacion", dataSource: "metrics", section: "ventas" },
+  { id: "orders", category: "Ventas", catColor: "#059669", title: "Pedidos", dataSource: "metrics", section: "ventas" },
+  { id: "ticket", category: "Ventas", catColor: "#059669", title: "Ticket Promedio", dataSource: "metrics", section: "ventas" },
+  // Sessions vienen de GA4 — no aplica filtro de pedido/pago/cliente
+  { id: "sessions", category: "Ventas", catColor: "#059669", title: "Sesiones", dataSource: "metrics", section: "ventas",
+    excludeFilters: ["estado_pedido", "pago", "tipo_cliente", "categoria"] },
+  // Conversion = pedidos/sesiones — estado del pedido no aplica
+  { id: "conversion", category: "Ventas", catColor: "#059669", title: "Tasa Conversion", dataSource: "metrics", section: "ventas",
+    excludeFilters: ["estado_pedido"] },
+  { id: "revenue-chart", category: "Ventas", catColor: "#059669", title: "Facturacion Diaria", dataSource: "trends", large: true, section: "ventas" },
 
-  // Marketing
-  { id: "adspend", category: "Marketing", catColor: "#7c3aed", title: "Inversion Ads", dataSource: "metrics" },
-  { id: "roas", category: "Marketing", catColor: "#7c3aed", title: "ROAS", dataSource: "metrics" },
-  { id: "ctr", category: "Marketing", catColor: "#7c3aed", title: "CTR", dataSource: "metrics" },
-  { id: "cpc", category: "Marketing", catColor: "#7c3aed", title: "CPC", dataSource: "metrics" },
-  { id: "impressions-ads", category: "Marketing", catColor: "#7c3aed", title: "Impresiones Ads", dataSource: "metrics" },
-  { id: "clicks-ads", category: "Marketing", catColor: "#7c3aed", title: "Clicks Ads", dataSource: "metrics" },
-  { id: "spend-chart", category: "Marketing", catColor: "#7c3aed", title: "Inversion por Plataforma", dataSource: "trends", large: true },
+  // ── Marketing — pool: plataforma_ad, tipo_campana, objetivo, audiencia
+  { id: "adspend", category: "Marketing", catColor: "#7c3aed", title: "Inversion Ads", dataSource: "metrics", section: "marketing" },
+  { id: "roas", category: "Marketing", catColor: "#7c3aed", title: "ROAS", dataSource: "metrics", section: "marketing" },
+  { id: "ctr", category: "Marketing", catColor: "#7c3aed", title: "CTR", dataSource: "metrics", section: "marketing" },
+  { id: "cpc", category: "Marketing", catColor: "#7c3aed", title: "CPC", dataSource: "metrics", section: "marketing" },
+  { id: "impressions-ads", category: "Marketing", catColor: "#7c3aed", title: "Impresiones Ads", dataSource: "metrics", section: "marketing" },
+  { id: "clicks-ads", category: "Marketing", catColor: "#7c3aed", title: "Clicks Ads", dataSource: "metrics", section: "marketing" },
+  { id: "spend-chart", category: "Marketing", catColor: "#7c3aed", title: "Inversion por Plataforma", dataSource: "trends", large: true, section: "marketing" },
 
-  // SEO
-  { id: "seo-clicks", category: "SEO", catColor: "#0284c7", title: "Clics Organicos", dataSource: "seo" },
-  { id: "seo-impressions", category: "SEO", catColor: "#0284c7", title: "Impresiones SEO", dataSource: "seo" },
-  { id: "seo-position", category: "SEO", catColor: "#0284c7", title: "Posicion Promedio", dataSource: "seo" },
-  { id: "seo-ctr", category: "SEO", catColor: "#0284c7", title: "CTR Organico", dataSource: "seo" },
-  { id: "seo-top10", category: "SEO", catColor: "#0284c7", title: "Keywords Top 10", dataSource: "seo" },
+  // ── SEO — pool: fuente_trafico, tipo_pagina, device, branded
+  { id: "seo-clicks", category: "SEO", catColor: "#0284c7", title: "Clics Organicos", dataSource: "seo", section: "seo" },
+  { id: "seo-impressions", category: "SEO", catColor: "#0284c7", title: "Impresiones SEO", dataSource: "seo", section: "seo" },
+  { id: "seo-position", category: "SEO", catColor: "#0284c7", title: "Posicion Promedio", dataSource: "seo", section: "seo" },
+  { id: "seo-ctr", category: "SEO", catColor: "#0284c7", title: "CTR Organico", dataSource: "seo", section: "seo" },
+  { id: "seo-top10", category: "SEO", catColor: "#0284c7", title: "Keywords Top 10", dataSource: "seo", section: "seo" },
 
-  // Clientes
-  { id: "new-customers", category: "Clientes", catColor: "#d97706", title: "Clientes Nuevos", dataSource: "customers" },
-  { id: "repeat-rate", category: "Clientes", catColor: "#d97706", title: "Tasa Recurrencia", dataSource: "customers" },
-  { id: "avg-spent", category: "Clientes", catColor: "#d97706", title: "Gasto Promedio", dataSource: "customers" },
+  // ── Clientes — pool: rfm, frecuencia, adquisicion, provincia
+  // New customers son por definición nuevos → excluir frecuencia/rfm
+  { id: "new-customers", category: "Clientes", catColor: "#d97706", title: "Clientes Nuevos", dataSource: "customers", section: "clientes",
+    excludeFilters: ["rfm", "frecuencia"] },
+  { id: "repeat-rate", category: "Clientes", catColor: "#d97706", title: "Tasa Recurrencia", dataSource: "customers", section: "clientes" },
+  { id: "avg-spent", category: "Clientes", catColor: "#d97706", title: "Gasto Promedio", dataSource: "customers", section: "clientes" },
 
-  // Finanzas
-  { id: "gross-margin", category: "Finanzas", catColor: "#db2777", title: "Margen Bruto", dataSource: "pnl" },
-  { id: "operating-profit", category: "Finanzas", catColor: "#db2777", title: "Ganancia Operativa", dataSource: "pnl" },
+  // ── Finanzas — pool: tipo_costo, canal, categoria
+  { id: "gross-margin", category: "Finanzas", catColor: "#db2777", title: "Margen Bruto", dataSource: "pnl", section: "finanzas",
+    excludeFilters: ["tipo_costo"] },
+  { id: "operating-profit", category: "Finanzas", catColor: "#db2777", title: "Ganancia Operativa", dataSource: "pnl", section: "finanzas" },
 
-  // Productos
-  { id: "low-stock", category: "Productos", catColor: "#16a34a", title: "Stock Bajo", dataSource: "products" },
-  { id: "dead-stock", category: "Productos", catColor: "#16a34a", title: "Dead Stock", dataSource: "products" },
+  // ── Productos — pool: categoria, marca, estado_stock, margen, canal
+  { id: "low-stock", category: "Productos", catColor: "#16a34a", title: "Stock Bajo", dataSource: "products", section: "productos",
+    excludeFilters: ["estado_stock"] }, // por definición ya filtra estado bajo
+  { id: "dead-stock", category: "Productos", catColor: "#16a34a", title: "Dead Stock", dataSource: "products", section: "productos",
+    excludeFilters: ["estado_stock"] },
 
-  // NitroPixel
-  { id: "pixel-revenue", category: "NitroPixel", catColor: "#f59e0b", title: "Revenue Atribuido", dataSource: "pixel" },
-  { id: "pixel-roas", category: "NitroPixel", catColor: "#f59e0b", title: "ROAS Pixel", dataSource: "pixel" },
-  { id: "pixel-orders", category: "NitroPixel", catColor: "#f59e0b", title: "Ordenes Atribuidas", dataSource: "pixel" },
-  { id: "pixel-attribution", category: "NitroPixel", catColor: "#f59e0b", title: "Tasa Atribucion", dataSource: "pixel" },
-  { id: "pixel-visitors", category: "NitroPixel", catColor: "#f59e0b", title: "Visitantes", dataSource: "pixel" },
-  { id: "pixel-identified", category: "NitroPixel", catColor: "#f59e0b", title: "Identificados", dataSource: "pixel" },
+  // ── NitroPixel — pool: pixel_fuente, device, identificado
+  { id: "pixel-revenue", category: "NitroPixel", catColor: "#f59e0b", title: "Revenue Atribuido", dataSource: "pixel", section: "nitropixel" },
+  { id: "pixel-roas", category: "NitroPixel", catColor: "#f59e0b", title: "ROAS Pixel", dataSource: "pixel", section: "nitropixel" },
+  { id: "pixel-orders", category: "NitroPixel", catColor: "#f59e0b", title: "Ordenes Atribuidas", dataSource: "pixel", section: "nitropixel" },
+  { id: "pixel-attribution", category: "NitroPixel", catColor: "#f59e0b", title: "Tasa Atribucion", dataSource: "pixel", section: "nitropixel" },
+  { id: "pixel-visitors", category: "NitroPixel", catColor: "#f59e0b", title: "Visitantes", dataSource: "pixel", section: "nitropixel" },
+  { id: "pixel-identified", category: "NitroPixel", catColor: "#f59e0b", title: "Identificados", dataSource: "pixel", section: "nitropixel" },
 ];
 
 const DEFAULT_WIDGETS = [
@@ -218,6 +235,10 @@ interface KpiCardItemProps {
   isDragOver: boolean;
   onRemove: () => void;
   dragHandlers: React.HTMLAttributes<HTMLDivElement>;
+  // ── Per-card filter system ──
+  filterValues: Record<string, string>;
+  onFilterChange: (filterId: string, value: string) => void;
+  onFilterClear: () => void;
 }
 
 function KpiCardItem({
@@ -229,6 +250,9 @@ function KpiCardItem({
   isDragOver,
   onRemove,
   dragHandlers,
+  filterValues,
+  onFilterChange,
+  onFilterClear,
 }: KpiCardItemProps) {
   const animatedValue = useAnimatedValue(data?.value ?? "", 1000);
   const hasDelta = data?.change !== undefined && data?.change !== null;
@@ -265,24 +289,42 @@ function KpiCardItem({
         </button>
       )}
 
-      {/* Top: category + delta */}
-      <div className="flex items-start justify-between mb-2">
+      {/* Top: category + delta + filter trigger */}
+      <div className="flex items-start justify-between mb-2 gap-2">
         <span
-          className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+          className="text-[10px] font-semibold uppercase tracking-[0.18em] truncate"
           style={{ color: def.catColor }}
         >
           {def.category}
         </span>
-        {hasDelta && (
-          <span className={`inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums ${deltaColor}`}>
-            <DeltaIcon className="w-3 h-3" />
-            {Math.abs(rawChange).toFixed(1)}%
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {hasDelta && (
+            <span className={`inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums ${deltaColor}`}>
+              <DeltaIcon className="w-3 h-3" />
+              {Math.abs(rawChange).toFixed(1)}%
+            </span>
+          )}
+          <WidgetFilterPopover
+            widgetId={def.id}
+            section={def.section}
+            excludeFilters={def.excludeFilters}
+            values={filterValues}
+            onChange={onFilterChange}
+            onClear={onFilterClear}
+          />
+        </div>
       </div>
 
       {/* Title */}
       <p className="text-xs font-medium text-slate-500 mb-1">{def.title}</p>
+
+      {/* Active filter chips (sólo si hay filtros aplicados) */}
+      <WidgetFilterChips
+        section={def.section}
+        excludeFilters={def.excludeFilters}
+        values={filterValues}
+        onRemove={(id) => onFilterChange(id, "all")}
+      />
 
       {/* Big number — count-up animated, tabular-nums */}
       {data ? (
@@ -334,6 +376,12 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const orgName = (session?.user as any)?.organizationName || "Tu negocio";
   const [activeWidgets, setActiveWidgets] = useState<string[]>(DEFAULT_WIDGETS);
+  // Per-widget filter values: { widgetId: { filterId: value } }
+  const [widgetFilters, setWidgetFilters] = useState<Record<string, Record<string, string>>>({});
+  // Per-widget data overrides — when a widget has wired filters active, its
+  // data is fetched independently from the section default and stored here.
+  // getWidgetData reads this override first, then falls back to allData.
+  const [widgetDataOverrides, setWidgetDataOverrides] = useState<Record<string, any>>({});
   const [allData, setAllData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -378,12 +426,15 @@ export default function DashboardPage() {
     [dateFrom, dateTo]
   );
 
-  // ── Load preferences on mount ──
+  // ── Load preferences on mount (widgets + per-card filters) ──
   useEffect(() => {
     fetch("/api/dashboard/preferences")
       .then(r => r.json())
       .then(data => {
         if (data.widgets?.length > 0) setActiveWidgets(data.widgets);
+        if (data.widgetFilters && typeof data.widgetFilters === "object") {
+          setWidgetFilters(data.widgetFilters);
+        }
       })
       .catch(() => {}); // Use defaults on error
   }, []);
@@ -428,6 +479,47 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [activeWidgets, periodQuery]);
 
+  // ── Per-widget filtered data overrides ──
+  // Each widget with wired filters fetches its own slice of data so its KPI
+  // reflects the active filters without polluting other cards.
+  useEffect(() => {
+    const widgetIds = Object.keys(widgetFilters);
+    if (widgetIds.length === 0) {
+      setWidgetDataOverrides({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const next: Record<string, any> = {};
+      await Promise.all(
+        widgetIds.map(async (wId) => {
+          const def = WIDGET_MAP[wId];
+          if (!def) return;
+          const baseUrl = DATA_SOURCES[def.dataSource];
+          if (!baseUrl) return;
+          const filterQuery = buildFilterQuery(
+            def.section,
+            def.excludeFilters,
+            widgetFilters[wId] || {}
+          );
+          if (!filterQuery) return; // sólo unwired → skip, no override
+          const sep = baseUrl.includes("?") ? "&" : "?";
+          try {
+            const r = await fetch(`${baseUrl}${sep}${periodQuery}&${filterQuery}`);
+            if (!r.ok) return;
+            next[wId] = await r.json();
+          } catch {
+            // silent
+          }
+        })
+      );
+      if (!cancelled) setWidgetDataOverrides(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [widgetFilters, periodQuery]);
+
   // ── Save preferences ──
   const savePreferences = useCallback(async () => {
     setSaving(true);
@@ -435,7 +527,7 @@ export default function DashboardPage() {
       await fetch("/api/dashboard/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ widgets: activeWidgets }),
+        body: JSON.stringify({ widgets: activeWidgets, widgetFilters }),
       });
       showToast("Layout guardado correctamente");
       setEditMode(false);
@@ -444,7 +536,58 @@ export default function DashboardPage() {
     } finally {
       setSaving(false);
     }
-  }, [activeWidgets]);
+  }, [activeWidgets, widgetFilters]);
+
+  // ── Per-card filter handlers (autosave on change) ──
+  const persistFilters = useCallback(
+    async (next: Record<string, Record<string, string>>) => {
+      try {
+        await fetch("/api/dashboard/preferences", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ widgets: activeWidgets, widgetFilters: next }),
+        });
+      } catch {
+        // silent — el cambio queda en estado local igual
+      }
+    },
+    [activeWidgets]
+  );
+
+  const updateWidgetFilter = useCallback(
+    (widgetId: string, filterId: string, value: string) => {
+      setWidgetFilters((prev) => {
+        const current = { ...(prev[widgetId] || {}) };
+        if (!value || value === "all") {
+          delete current[filterId];
+        } else {
+          current[filterId] = value;
+        }
+        const next = { ...prev };
+        if (Object.keys(current).length === 0) {
+          delete next[widgetId];
+        } else {
+          next[widgetId] = current;
+        }
+        persistFilters(next);
+        return next;
+      });
+    },
+    [persistFilters]
+  );
+
+  const clearWidgetFilters = useCallback(
+    (widgetId: string) => {
+      setWidgetFilters((prev) => {
+        if (!prev[widgetId]) return prev;
+        const next = { ...prev };
+        delete next[widgetId];
+        persistFilters(next);
+        return next;
+      });
+    },
+    [persistFilters]
+  );
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -567,7 +710,12 @@ export default function DashboardPage() {
               // Chart widgets render differently
               if (def.large) return null; // Rendered below in chart section
 
-              const d = getWidgetData(wId, allData);
+              // Si la card tiene filtros wired activos, usa su override.
+              const overrideForWidget = widgetDataOverrides[wId];
+              const dataForWidget = overrideForWidget
+                ? { ...allData, [def.dataSource]: overrideForWidget }
+                : allData;
+              const d = getWidgetData(wId, dataForWidget);
               const sparkline = getSparklineSeries(wId, allData.trends?.days || []);
               const isDragging = dragIndex === idx;
               const isDragOver = dragOverIndex === idx && dragIndex !== idx;
@@ -605,6 +753,9 @@ export default function DashboardPage() {
                   isDragOver={isDragOver}
                   onRemove={() => removeWidget(wId)}
                   dragHandlers={dragHandlers}
+                  filterValues={widgetFilters[wId] || {}}
+                  onFilterChange={(filterId, value) => updateWidgetFilter(wId, filterId, value)}
+                  onFilterClear={() => clearWidgetFilters(wId)}
                 />
               );
             })}
@@ -656,6 +807,24 @@ export default function DashboardPage() {
                       isDragOver={cDragOver}
                       onRemove={() => removeWidget(cId)}
                       dragProps={dragProps}
+                      headerRight={
+                        <WidgetFilterPopover
+                          widgetId={cDef.id}
+                          section={cDef.section}
+                          excludeFilters={cDef.excludeFilters}
+                          values={widgetFilters[cId] || {}}
+                          onChange={(filterId, value) => updateWidgetFilter(cId, filterId, value)}
+                          onClear={() => clearWidgetFilters(cId)}
+                        />
+                      }
+                      filterChips={
+                        <WidgetFilterChips
+                          section={cDef.section}
+                          excludeFilters={cDef.excludeFilters}
+                          values={widgetFilters[cId] || {}}
+                          onRemove={(id) => updateWidgetFilter(cId, id, "all")}
+                        />
+                      }
                     >
                       {cId === "revenue-chart" && (
                         <ResponsiveContainer width="100%" height={260}>

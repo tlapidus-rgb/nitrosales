@@ -7,7 +7,17 @@ import { getCached, setCache } from "@/lib/api-cache";
 
 // ── Optimized: all aggregation done in PostgreSQL, no full-table loads ──
 
-async function getPeriodMetrics(orgId: string, from: Date, to: Date) {
+async function getPeriodMetrics(
+  orgId: string,
+  from: Date,
+  to: Date,
+  canal?: string | null
+) {
+  // Per-card filter: canal (VTEX | MELI). Solo afecta queries de orders.
+  // Las métricas web/ads no tienen dimensión de canal.
+  const canalClause = canal ? ` AND source = $4` : "";
+  const orderArgs: any[] = canal ? [orgId, from, to, canal] : [orgId, from, to];
+
   const [orderStats, cancelledStats, webStats, adStats, adByPlatform] =
     await Promise.all([
       // 1) Billable orders aggregation (single query, no row fetching)
@@ -21,10 +31,8 @@ async function getPeriodMetrics(orgId: string, from: Date, to: Date) {
         FROM orders
         WHERE "organizationId" = $1
           AND "orderDate" >= $2 AND "orderDate" < $3
-          AND status IN ('INVOICED', 'SHIPPED', 'DELIVERED')`,
-        orgId,
-        from,
-        to
+          AND status IN ('INVOICED', 'SHIPPED', 'DELIVERED')${canalClause}`,
+        ...orderArgs
       ),
 
       // 2) Cancelled orders aggregation
@@ -35,10 +43,8 @@ async function getPeriodMetrics(orgId: string, from: Date, to: Date) {
         FROM orders
         WHERE "organizationId" = $1
           AND "orderDate" >= $2 AND "orderDate" < $3
-          AND status = 'CANCELLED'`,
-        orgId,
-        from,
-        to
+          AND status = 'CANCELLED'${canalClause}`,
+        ...orderArgs
       ),
 
       // 3) Web metrics aggregation
@@ -139,6 +145,10 @@ export async function GET(request: Request) {
 
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
+    // Per-card filter (canal): VTEX | MELI. Sólo aplica a orders queries.
+    const canalParamRaw = searchParams.get("canal");
+    const canal =
+      canalParamRaw === "VTEX" || canalParamRaw === "MELI" ? canalParamRaw : null;
 
     const to = toParam ? new Date(toParam + "T23:59:59.999-03:00") : now;
     const from = fromParam
@@ -146,7 +156,12 @@ export async function GET(request: Request) {
       : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // ── Cache: return cached response if fresh (60s TTL) ──
-    const cacheKey = [org.id, fromParam || "default", toParam || "default"];
+    const cacheKey = [
+      org.id,
+      fromParam || "default",
+      toParam || "default",
+      canal || "all",
+    ];
     const cached = getCached("metrics", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
@@ -155,8 +170,8 @@ export async function GET(request: Request) {
     const previousTo = from;
 
     const [current, previous] = await Promise.all([
-      getPeriodMetrics(org.id, from, to),
-      getPeriodMetrics(org.id, previousFrom, previousTo),
+      getPeriodMetrics(org.id, from, to, canal),
+      getPeriodMetrics(org.id, previousFrom, previousTo, canal),
     ]);
 
     const changes = {

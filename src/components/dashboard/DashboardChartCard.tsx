@@ -13,6 +13,10 @@ interface DashboardChartCardProps {
   isDragOver?: boolean;
   onRemove?: () => void;
   dragProps?: Record<string, any>;
+  // Optional slots for per-card filter UI (popover trigger + chips row).
+  // Rendered without changing the card's visual rhythm.
+  headerRight?: React.ReactNode;
+  filterChips?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -26,6 +30,8 @@ export default function DashboardChartCard({
   isDragOver,
   onRemove,
   dragProps,
+  headerRight,
+  filterChips,
   children,
 }: DashboardChartCardProps) {
   const draggingClass = isDragging ? "opacity-40 scale-[0.98]" : "";
@@ -60,8 +66,8 @@ export default function DashboardChartCard({
       )}
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-5">
-        <div className="flex-1">
+      <div className="flex items-start justify-between mb-3 gap-2">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
             <span
               className="w-1.5 h-1.5 rounded-full"
@@ -79,7 +85,13 @@ export default function DashboardChartCard({
             <p className="text-[12px] text-slate-500 mt-0.5">{subtitle}</p>
           )}
         </div>
+        {headerRight && (
+          <div className="shrink-0 flex items-center gap-1.5">{headerRight}</div>
+        )}
       </div>
+
+      {/* Active filter chips (sólo si hay filtros aplicados) */}
+      {filterChips && <div className="mb-2">{filterChips}</div>}
 
       {/* Chart body */}
       <div className="dash-chart-body">{children}</div>
