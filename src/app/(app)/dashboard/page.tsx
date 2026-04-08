@@ -15,13 +15,14 @@ import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { ArrowDownRight, ArrowUpRight, Check, Pencil, Plus, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Check, Pencil, Plus, X, AlertTriangle, LayoutGrid } from "lucide-react";
 import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
 import { useAnimatedValue } from "@/lib/hooks/useAnimatedValue";
 import NitroInsightsPanel from "@/components/NitroInsightsPanel";
 import { DateRangeFilter } from "@/components/dashboard";
 import DashboardHero from "@/components/dashboard/DashboardHero";
 import DashboardTodayBlock, { buildTodayInsights } from "@/components/dashboard/DashboardTodayBlock";
+import DashboardChartCard from "@/components/dashboard/DashboardChartCard";
 import DashboardSparkline from "@/components/dashboard/DashboardSparkline";
 import DashboardStyles from "@/components/dashboard/DashboardStyles";
 
@@ -610,27 +611,31 @@ export default function DashboardPage() {
             })}
           </div>
 
-          {/* Cancelled orders info (from original dashboard) */}
+          {/* Cancelled orders info — restyled como warning callout discreto */}
           {allData.metrics?.summary?.cancelledOrders > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-800">
-              {allData.metrics.summary.cancelledOrders} ordenes canceladas ({formatARS(allData.metrics.summary.cancelledRevenue)}) excluidas del calculo de facturacion.
+            <div
+              className="flex items-start gap-3 px-4 py-3 mb-5 rounded-xl border border-amber-200/70 bg-amber-50/50 text-[13px] text-amber-900"
+              style={{ boxShadow: "0 1px 0 rgba(180, 83, 9, 0.06), 0 4px 12px -6px rgba(180, 83, 9, 0.10)" }}
+            >
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                <strong className="font-semibold tabular-nums">{allData.metrics.summary.cancelledOrders}</strong> órdenes canceladas
+                <span className="text-amber-700"> ({formatARS(allData.metrics.summary.cancelledRevenue)})</span> excluidas del cálculo de facturación.
+              </span>
             </div>
           )}
 
-          {/* Chart widgets */}
+          {/* Chart widgets — premium con gradientes, axis sutil y tooltip backdrop */}
           {(() => {
             const chartWidgets = activeWidgets.filter(w => WIDGET_MAP[w]?.large);
             if (chartWidgets.length === 0) return null;
             return (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                {chartWidgets.map((cId, ci) => {
+              <div className="dash-stagger grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {chartWidgets.map((cId) => {
                   const cIdx = activeWidgets.indexOf(cId);
                   const cDef = WIDGET_MAP[cId];
                   const cDragging = dragIndex === cIdx;
                   const cDragOver = dragOverIndex === cIdx && dragIndex !== cIdx;
-                  const chartClass = `bg-white rounded-xl shadow-sm p-6 border relative transition-all ${
-                    editMode ? "border-dashed border-indigo-300 cursor-grab active:cursor-grabbing" : ""
-                  } ${cDragging ? "opacity-40" : ""} ${cDragOver ? "border-solid border-indigo-500 ring-2 ring-indigo-200" : ""}`;
 
                   const dragProps = editMode ? {
                     draggable: true,
@@ -641,43 +646,91 @@ export default function DashboardPage() {
                   } : {};
 
                   return (
-                    <div key={cId} className={chartClass} {...dragProps}>
-                      {editMode && (
-                        <button onClick={() => removeWidget(cId)}
-                          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center shadow-md z-10">×</button>
-                      )}
-                      <div className="flex items-center gap-2 mb-4">
-                        <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded"
-                          style={{ color: cDef.catColor, background: cDef.catColor + "15" }}>{cDef.category}</span>
-                        <h3 className="font-semibold text-gray-700">{cDef.title}</h3>
-                      </div>
-
+                    <DashboardChartCard
+                      key={cId}
+                      category={cDef.category}
+                      categoryColor={cDef.catColor}
+                      title={cDef.title}
+                      subtitle={cId === "revenue-chart" ? "Evolución diaria" : cId === "spend-chart" ? "Google + Meta acumulado" : undefined}
+                      editMode={editMode}
+                      isDragging={cDragging}
+                      isDragOver={cDragOver}
+                      onRemove={() => removeWidget(cId)}
+                      dragProps={dragProps}
+                    >
                       {cId === "revenue-chart" && (
                         <ResponsiveContainer width="100%" height={260}>
-                          <LineChart data={trends}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                            <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
-                            <Tooltip formatter={(value: number) => [formatARS(value), "Revenue"]} labelFormatter={formatDateShort} {...tooltipStyle} />
-                            <Line type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} dot={false} name="Revenue" />
-                          </LineChart>
+                          <AreaChart data={trends} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                            <defs>
+                              <linearGradient id="dashRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.32} />
+                                <stop offset="60%" stopColor="#06b6d4" stopOpacity={0.08} />
+                                <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
+                              </linearGradient>
+                              <linearGradient id="dashRevenueStroke" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stopColor="#06b6d4" />
+                                <stop offset="100%" stopColor="#8b5cf6" />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
+                            <XAxis dataKey="date" tickFormatter={formatDateShort} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                            <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tickLine={false} axisLine={false} width={62} />
+                            <Tooltip formatter={(value: number) => [formatARS(value), "Revenue"]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(15,23,42,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
+                            <Area
+                              type="monotone"
+                              dataKey="revenue"
+                              stroke="url(#dashRevenueStroke)"
+                              strokeWidth={2.5}
+                              fill="url(#dashRevenueFill)"
+                              activeDot={{ r: 5, strokeWidth: 2, stroke: "#ffffff", fill: "#06b6d4" }}
+                              name="Revenue"
+                            />
+                          </AreaChart>
                         </ResponsiveContainer>
                       )}
 
                       {cId === "spend-chart" && (
                         <ResponsiveContainer width="100%" height={260}>
-                          <AreaChart data={trends}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="date" tickFormatter={formatDateShort} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                            <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
-                            <Tooltip formatter={(value: number, name: string) => [formatARS(value), name]} labelFormatter={formatDateShort} {...tooltipStyle} />
-                            <Legend />
-                            <Area type="monotone" dataKey="googleSpend" stackId="1" stroke="#4285f4" fill="#4285f4" fillOpacity={0.6} name="Google Ads" />
-                            <Area type="monotone" dataKey="metaSpend" stackId="1" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} name="Meta Ads" />
+                          <AreaChart data={trends} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                            <defs>
+                              <linearGradient id="dashGoogleFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.42} />
+                                <stop offset="100%" stopColor="#6366f1" stopOpacity={0.04} />
+                              </linearGradient>
+                              <linearGradient id="dashMetaFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.42} />
+                                <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.04} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
+                            <XAxis dataKey="date" tickFormatter={formatDateShort} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                            <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tickLine={false} axisLine={false} width={62} />
+                            <Tooltip formatter={(value: number, name: string) => [formatARS(value), name]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(15,23,42,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
+                            <Legend iconType="circle" wrapperStyle={{ paddingTop: 8 }} />
+                            <Area
+                              type="monotone"
+                              dataKey="googleSpend"
+                              stackId="1"
+                              stroke="#6366f1"
+                              strokeWidth={2}
+                              fill="url(#dashGoogleFill)"
+                              name="Google Ads"
+                              activeDot={{ r: 4, strokeWidth: 2, stroke: "#ffffff", fill: "#6366f1" }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="metaSpend"
+                              stackId="1"
+                              stroke="#8b5cf6"
+                              strokeWidth={2}
+                              fill="url(#dashMetaFill)"
+                              name="Meta Ads"
+                              activeDot={{ r: 4, strokeWidth: 2, stroke: "#ffffff", fill: "#8b5cf6" }}
+                            />
                           </AreaChart>
                         </ResponsiveContainer>
                       )}
-                    </div>
+                    </DashboardChartCard>
                   );
                 })}
               </div>
@@ -688,12 +741,10 @@ export default function DashboardPage() {
           {editMode && (
             <button
               onClick={() => setCatalogOpen(true)}
-              className="w-full border-2 border-dashed border-indigo-300 rounded-xl py-6 flex items-center justify-center gap-2 text-indigo-600 font-semibold text-sm hover:bg-indigo-50/50 transition-all mb-8"
+              className="dash-add-slot w-full py-6 flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 font-semibold text-sm mb-8"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Agregar Widget
+              <Plus className="w-4 h-4" />
+              Agregar widget
             </button>
           )}
 
@@ -702,61 +753,103 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* ── Widget Catalog Modal ── */}
+      {/* ── Widget Catalog Modal — sheet premium ── */}
       {catalogOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end justify-center" onClick={() => setCatalogOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{
+            background: "rgba(15, 23, 42, 0.42)",
+            backdropFilter: "saturate(140%) blur(8px)",
+            WebkitBackdropFilter: "saturate(140%) blur(8px)",
+          }}
+          onClick={() => setCatalogOpen(false)}
+        >
           <div
-            className="bg-white rounded-t-2xl w-full max-w-3xl max-h-[70vh] overflow-y-auto p-6 animate-in slide-in-from-bottom"
+            className="dash-sheet w-full max-w-3xl max-h-[78vh] overflow-y-auto p-6 sm:p-8"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-1">
-              <h3 className="text-lg font-bold text-gray-800">Agregar Widget</h3>
-              <button onClick={() => setCatalogOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
-            </div>
-            <p className="text-sm text-gray-400 mb-5">Elegi que datos queres ver en tu dashboard</p>
-
-            {Array.from(new Set(WIDGET_CATALOG.map(w => w.category))).map(cat => {
-              const items = WIDGET_CATALOG.filter(w => w.category === cat);
-              const catColor = items[0]?.catColor || "#666";
-              return (
-                <div key={cat} className="mb-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2 h-2 rounded-full" style={{ background: catColor }} />
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{cat}</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {items.map(w => {
-                      const added = activeWidgets.includes(w.id);
-                      return (
-                        <button
-                          key={w.id}
-                          onClick={() => { if (!added) addWidget(w.id); }}
-                          disabled={added}
-                          className={`flex items-center justify-between px-3 py-2.5 border rounded-xl text-sm transition-all ${
-                            added
-                              ? "border-gray-200 bg-gray-50 text-gray-400 cursor-default"
-                              : "border-gray-200 text-gray-700 hover:border-indigo-400 hover:bg-indigo-50/50 cursor-pointer"
-                          }`}
-                        >
-                          <span className="font-medium">{w.title}</span>
-                          <span className={`text-lg font-bold ${added ? "text-gray-300" : "text-indigo-500"}`}>
-                            {added ? "✓" : "+"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+            <div className="flex justify-between items-start mb-1">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+                  <LayoutGrid className="w-[18px] h-[18px]" />
                 </div>
-              );
-            })}
+                <div>
+                  <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">Agregar widget</h3>
+                  <p className="text-[12px] text-slate-500">Elegí qué datos querés ver en tu dashboard</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCatalogOpen(false)}
+                aria-label="Cerrar"
+                className="w-8 h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors"
+                style={{ transitionDuration: "200ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-6">
+              {Array.from(new Set(WIDGET_CATALOG.map(w => w.category))).map(cat => {
+                const items = WIDGET_CATALOG.filter(w => w.category === cat);
+                const catColor = items[0]?.catColor || "#64748b";
+                return (
+                  <div key={cat}>
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: catColor, boxShadow: `0 0 0 3px ${catColor}22` }}
+                      />
+                      <span
+                        className="text-[10px] font-semibold tracking-[0.18em] uppercase"
+                        style={{ color: catColor }}
+                      >
+                        {cat}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {items.map(w => {
+                        const added = activeWidgets.includes(w.id);
+                        return (
+                          <button
+                            key={w.id}
+                            onClick={() => { if (!added) addWidget(w.id); }}
+                            disabled={added}
+                            className={`flex items-center justify-between px-3.5 py-2.5 border rounded-xl text-[13px] ${
+                              added
+                                ? "border-slate-200/70 bg-slate-50 text-slate-400 cursor-default"
+                                : "border-slate-200 text-slate-700 hover:border-slate-900 hover:bg-slate-50 cursor-pointer hover:shadow-[0_1px_0_rgba(15,23,42,0.04),0_4px_12px_-6px_rgba(15,23,42,0.10)]"
+                            }`}
+                            style={{
+                              transitionProperty: "border-color, background-color, color, box-shadow",
+                              transitionDuration: "220ms",
+                              transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+                            }}
+                          >
+                            <span className="font-medium tracking-tight truncate">{w.title}</span>
+                            {added ? (
+                              <Check className="w-4 h-4 text-slate-300 shrink-0 ml-2" />
+                            ) : (
+                              <Plus className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Toast */}
+      {/* Toast premium */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg z-50 animate-in fade-in">
-          {toast}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+          <div className="dash-toast flex items-center gap-2">
+            <Check className="w-4 h-4 text-cyan-400" />
+            {toast}
+          </div>
         </div>
       )}
     </div>
