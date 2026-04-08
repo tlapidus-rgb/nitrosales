@@ -12,21 +12,39 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import {
-  LineChart, Line, AreaChart, Area, XAxis, YAxis,
+  AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { ArrowDownRight, ArrowUpRight, Check, Pencil, Plus, X, AlertTriangle, LayoutGrid } from "lucide-react";
+import { Check, Pencil, Plus, X, AlertTriangle, LayoutGrid } from "lucide-react";
 import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
-import { useAnimatedValue } from "@/lib/hooks/useAnimatedValue";
 import { DateRangeFilter } from "@/components/dashboard";
 import DashboardHero from "@/components/dashboard/DashboardHero";
 import DashboardTodayBlock, { buildTodayInsights } from "@/components/dashboard/DashboardTodayBlock";
 import DashboardChartCard from "@/components/dashboard/DashboardChartCard";
-import DashboardSparkline from "@/components/dashboard/DashboardSparkline";
 import DashboardStyles from "@/components/dashboard/DashboardStyles";
 import WidgetFilterPopover from "@/components/dashboard/WidgetFilterPopover";
 import WidgetFilterChips from "@/components/dashboard/WidgetFilterChips";
 import { SectionKey, buildFilterQuery } from "@/lib/dashboard/filter-config";
+import {
+  FormatId,
+  FORMAT_REGISTRY,
+  WidgetInstance,
+  hydrateWidgetList,
+  formatGridClass,
+} from "@/lib/dashboard/format-config";
+import {
+  FormatKpi,
+  FormatBigNumber,
+  FormatSparkline,
+  FormatMiniLine,
+  FormatMiniBar,
+  FormatDonut,
+  FormatList,
+  KpiData,
+  SeriesPoint,
+  DistributionItem,
+  ListItem,
+} from "@/components/dashboard/WidgetFormats";
 
 // ── Widget catalog definition ──
 
@@ -35,80 +53,157 @@ type WidgetDef = {
   category: string;
   catColor: string;
   title: string;
-  dataSource: string; // which API to call
-  large?: boolean;    // span 2 columns (for charts)
+  dataSource: string; // which API to call (puede ser "metrics", "top:products", "dist:canal", etc.)
+  large?: boolean;    // span 2 columns (legacy chart cards — area-full)
   // ── Per-card filter system ──
-  // section: defines the filter pool the widget inherits from
-  // excludeFilters: opt-out de dimensiones del pool que no aplican
   section?: SectionKey;
   excludeFilters?: string[];
+  // ── Format system ──
+  // Lista de formatos compatibles con este widget. El usuario elige
+  // uno al agregarlo. Si solo hay uno, se selecciona automáticamente.
+  supportedFormats: FormatId[];
+  defaultFormat: FormatId;
 };
 
-const WIDGET_CATALOG: WidgetDef[] = [
-  // ── Ventas — pool: canal, estado_pedido, pago, categoria, tipo_cliente, provincia
-  { id: "revenue", category: "Ventas", catColor: "#059669", title: "Facturacion", dataSource: "metrics", section: "ventas" },
-  { id: "orders", category: "Ventas", catColor: "#059669", title: "Pedidos", dataSource: "metrics", section: "ventas" },
-  { id: "ticket", category: "Ventas", catColor: "#059669", title: "Ticket Promedio", dataSource: "metrics", section: "ventas" },
-  // Sessions vienen de GA4 — no aplica filtro de pedido/pago/cliente
-  { id: "sessions", category: "Ventas", catColor: "#059669", title: "Sesiones", dataSource: "metrics", section: "ventas",
-    excludeFilters: ["estado_pedido", "pago", "tipo_cliente", "categoria"] },
-  // Conversion = pedidos/sesiones — estado del pedido no aplica
-  { id: "conversion", category: "Ventas", catColor: "#059669", title: "Tasa Conversion", dataSource: "metrics", section: "ventas",
-    excludeFilters: ["estado_pedido"] },
-  { id: "revenue-chart", category: "Ventas", catColor: "#059669", title: "Facturacion Diaria", dataSource: "trends", large: true, section: "ventas" },
-
-  // ── Marketing — pool: plataforma_ad, tipo_campana, objetivo, audiencia
-  { id: "adspend", category: "Marketing", catColor: "#7c3aed", title: "Inversion Ads", dataSource: "metrics", section: "marketing" },
-  { id: "roas", category: "Marketing", catColor: "#7c3aed", title: "ROAS", dataSource: "metrics", section: "marketing" },
-  { id: "ctr", category: "Marketing", catColor: "#7c3aed", title: "CTR", dataSource: "metrics", section: "marketing" },
-  { id: "cpc", category: "Marketing", catColor: "#7c3aed", title: "CPC", dataSource: "metrics", section: "marketing" },
-  { id: "impressions-ads", category: "Marketing", catColor: "#7c3aed", title: "Impresiones Ads", dataSource: "metrics", section: "marketing" },
-  { id: "clicks-ads", category: "Marketing", catColor: "#7c3aed", title: "Clicks Ads", dataSource: "metrics", section: "marketing" },
-  { id: "spend-chart", category: "Marketing", catColor: "#7c3aed", title: "Inversion por Plataforma", dataSource: "trends", large: true, section: "marketing" },
-
-  // ── SEO — pool: fuente_trafico, tipo_pagina, device, branded
-  { id: "seo-clicks", category: "SEO", catColor: "#0284c7", title: "Clics Organicos", dataSource: "seo", section: "seo" },
-  { id: "seo-impressions", category: "SEO", catColor: "#0284c7", title: "Impresiones SEO", dataSource: "seo", section: "seo" },
-  { id: "seo-position", category: "SEO", catColor: "#0284c7", title: "Posicion Promedio", dataSource: "seo", section: "seo" },
-  { id: "seo-ctr", category: "SEO", catColor: "#0284c7", title: "CTR Organico", dataSource: "seo", section: "seo" },
-  { id: "seo-top10", category: "SEO", catColor: "#0284c7", title: "Keywords Top 10", dataSource: "seo", section: "seo" },
-
-  // ── Clientes — pool: rfm, frecuencia, adquisicion, provincia
-  // New customers son por definición nuevos → excluir frecuencia/rfm
-  { id: "new-customers", category: "Clientes", catColor: "#d97706", title: "Clientes Nuevos", dataSource: "customers", section: "clientes",
-    excludeFilters: ["rfm", "frecuencia"] },
-  { id: "repeat-rate", category: "Clientes", catColor: "#d97706", title: "Tasa Recurrencia", dataSource: "customers", section: "clientes" },
-  { id: "avg-spent", category: "Clientes", catColor: "#d97706", title: "Gasto Promedio", dataSource: "customers", section: "clientes" },
-
-  // ── Finanzas — pool: tipo_costo, canal, categoria
-  { id: "gross-margin", category: "Finanzas", catColor: "#db2777", title: "Margen Bruto", dataSource: "pnl", section: "finanzas",
-    excludeFilters: ["tipo_costo"] },
-  { id: "operating-profit", category: "Finanzas", catColor: "#db2777", title: "Ganancia Operativa", dataSource: "pnl", section: "finanzas" },
-
-  // ── Productos — pool: categoria, marca, estado_stock, margen, canal
-  { id: "low-stock", category: "Productos", catColor: "#16a34a", title: "Stock Bajo", dataSource: "products", section: "productos",
-    excludeFilters: ["estado_stock"] }, // por definición ya filtra estado bajo
-  { id: "dead-stock", category: "Productos", catColor: "#16a34a", title: "Dead Stock", dataSource: "products", section: "productos",
-    excludeFilters: ["estado_stock"] },
-
-  // ── NitroPixel — pool: pixel_fuente, device, identificado
-  { id: "pixel-revenue", category: "NitroPixel", catColor: "#f59e0b", title: "Revenue Atribuido", dataSource: "pixel", section: "nitropixel" },
-  { id: "pixel-roas", category: "NitroPixel", catColor: "#f59e0b", title: "ROAS Pixel", dataSource: "pixel", section: "nitropixel" },
-  { id: "pixel-orders", category: "NitroPixel", catColor: "#f59e0b", title: "Ordenes Atribuidas", dataSource: "pixel", section: "nitropixel" },
-  { id: "pixel-attribution", category: "NitroPixel", catColor: "#f59e0b", title: "Tasa Atribucion", dataSource: "pixel", section: "nitropixel" },
-  { id: "pixel-visitors", category: "NitroPixel", catColor: "#f59e0b", title: "Visitantes", dataSource: "pixel", section: "nitropixel" },
-  { id: "pixel-identified", category: "NitroPixel", catColor: "#f59e0b", title: "Identificados", dataSource: "pixel", section: "nitropixel" },
+// Numeric KPIs son compatibles con todos los formatos numéricos
+const NUMERIC_FORMATS: FormatId[] = [
+  "kpi", "big-number", "sparkline", "mini-line", "mini-bar",
 ];
 
-const DEFAULT_WIDGETS = [
-  "revenue", "orders", "ticket", "sessions", "adspend", "roas",
-  "ctr", "cpc", "conversion",
-  "revenue-chart", "spend-chart",
+const WIDGET_CATALOG: WidgetDef[] = [
+  // ══════════════════ Ventas ══════════════════
+  { id: "revenue", category: "Ventas", catColor: "#059669", title: "Facturacion", dataSource: "metrics", section: "ventas",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "orders", category: "Ventas", catColor: "#059669", title: "Pedidos", dataSource: "metrics", section: "ventas",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "ticket", category: "Ventas", catColor: "#059669", title: "Ticket Promedio", dataSource: "metrics", section: "ventas",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "sessions", category: "Ventas", catColor: "#059669", title: "Sesiones", dataSource: "metrics", section: "ventas",
+    excludeFilters: ["estado_pedido", "pago", "tipo_cliente", "categoria"],
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "conversion", category: "Ventas", catColor: "#059669", title: "Tasa Conversion", dataSource: "metrics", section: "ventas",
+    excludeFilters: ["estado_pedido"],
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "revenue-chart", category: "Ventas", catColor: "#059669", title: "Facturacion Diaria", dataSource: "trends", large: true, section: "ventas",
+    supportedFormats: ["area-full"], defaultFormat: "area-full" },
+  // Nuevos widgets de Ventas — top y distribuciones
+  { id: "top-products", category: "Ventas", catColor: "#059669", title: "Top Productos", dataSource: "top:products", section: "ventas",
+    supportedFormats: ["list"], defaultFormat: "list" },
+  { id: "top-categories", category: "Ventas", catColor: "#059669", title: "Top Categorias", dataSource: "top:categories", section: "ventas",
+    supportedFormats: ["list", "donut"], defaultFormat: "donut" },
+  { id: "top-brands", category: "Ventas", catColor: "#059669", title: "Top Marcas", dataSource: "top:brands", section: "ventas",
+    supportedFormats: ["list", "donut"], defaultFormat: "list" },
+  { id: "dist-canal", category: "Ventas", catColor: "#059669", title: "Distribucion por Canal", dataSource: "dist:canal", section: "ventas",
+    supportedFormats: ["donut"], defaultFormat: "donut" },
+  { id: "dist-estado", category: "Ventas", catColor: "#059669", title: "Distribucion por Estado", dataSource: "dist:estado", section: "ventas",
+    supportedFormats: ["donut"], defaultFormat: "donut" },
+  { id: "dist-device", category: "Ventas", catColor: "#059669", title: "Distribucion por Dispositivo", dataSource: "dist:device", section: "ventas",
+    supportedFormats: ["donut"], defaultFormat: "donut" },
+
+  // ══════════════════ Marketing ══════════════════
+  { id: "adspend", category: "Marketing", catColor: "#7c3aed", title: "Inversion Ads", dataSource: "metrics", section: "marketing",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "roas", category: "Marketing", catColor: "#7c3aed", title: "ROAS", dataSource: "metrics", section: "marketing",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "ctr", category: "Marketing", catColor: "#7c3aed", title: "CTR", dataSource: "metrics", section: "marketing",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "cpc", category: "Marketing", catColor: "#7c3aed", title: "CPC", dataSource: "metrics", section: "marketing",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "impressions-ads", category: "Marketing", catColor: "#7c3aed", title: "Impresiones Ads", dataSource: "metrics", section: "marketing",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "clicks-ads", category: "Marketing", catColor: "#7c3aed", title: "Clicks Ads", dataSource: "metrics", section: "marketing",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "spend-chart", category: "Marketing", catColor: "#7c3aed", title: "Inversion por Plataforma", dataSource: "trends", large: true, section: "marketing",
+    supportedFormats: ["area-full"], defaultFormat: "area-full" },
+  // Nuevos widgets de Marketing
+  { id: "top-campaigns", category: "Marketing", catColor: "#7c3aed", title: "Top Campañas (ROAS)", dataSource: "top:campaigns", section: "marketing",
+    supportedFormats: ["list"], defaultFormat: "list" },
+  { id: "dist-platform", category: "Marketing", catColor: "#7c3aed", title: "Distribucion Spend Plataforma", dataSource: "dist:platform", section: "marketing",
+    supportedFormats: ["donut"], defaultFormat: "donut" },
+
+  // ══════════════════ SEO ══════════════════
+  { id: "seo-clicks", category: "SEO", catColor: "#0284c7", title: "Clics Organicos", dataSource: "seo", section: "seo",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "seo-impressions", category: "SEO", catColor: "#0284c7", title: "Impresiones SEO", dataSource: "seo", section: "seo",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "seo-position", category: "SEO", catColor: "#0284c7", title: "Posicion Promedio", dataSource: "seo", section: "seo",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "seo-ctr", category: "SEO", catColor: "#0284c7", title: "CTR Organico", dataSource: "seo", section: "seo",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "seo-top10", category: "SEO", catColor: "#0284c7", title: "Keywords Top 10", dataSource: "seo", section: "seo",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+
+  // ══════════════════ Clientes ══════════════════
+  { id: "new-customers", category: "Clientes", catColor: "#d97706", title: "Clientes Nuevos", dataSource: "customers", section: "clientes",
+    excludeFilters: ["rfm", "frecuencia"],
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "repeat-rate", category: "Clientes", catColor: "#d97706", title: "Tasa Recurrencia", dataSource: "customers", section: "clientes",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "avg-spent", category: "Clientes", catColor: "#d97706", title: "Gasto Promedio", dataSource: "customers", section: "clientes",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  // Nuevo: top clientes
+  { id: "top-customers", category: "Clientes", catColor: "#d97706", title: "Top Clientes (Revenue)", dataSource: "top:customers", section: "clientes",
+    supportedFormats: ["list"], defaultFormat: "list" },
+
+  // ══════════════════ Finanzas ══════════════════
+  { id: "gross-margin", category: "Finanzas", catColor: "#db2777", title: "Margen Bruto", dataSource: "pnl", section: "finanzas",
+    excludeFilters: ["tipo_costo"],
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "operating-profit", category: "Finanzas", catColor: "#db2777", title: "Ganancia Operativa", dataSource: "pnl", section: "finanzas",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+
+  // ══════════════════ Productos ══════════════════
+  { id: "low-stock", category: "Productos", catColor: "#16a34a", title: "Stock Bajo", dataSource: "products", section: "productos",
+    excludeFilters: ["estado_stock"],
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "dead-stock", category: "Productos", catColor: "#16a34a", title: "Dead Stock", dataSource: "products", section: "productos",
+    excludeFilters: ["estado_stock"],
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+
+  // ══════════════════ NitroPixel ══════════════════
+  { id: "pixel-revenue", category: "NitroPixel", catColor: "#f59e0b", title: "Revenue Atribuido", dataSource: "pixel", section: "nitropixel",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "pixel-roas", category: "NitroPixel", catColor: "#f59e0b", title: "ROAS Pixel", dataSource: "pixel", section: "nitropixel",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "pixel-orders", category: "NitroPixel", catColor: "#f59e0b", title: "Ordenes Atribuidas", dataSource: "pixel", section: "nitropixel",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "pixel-attribution", category: "NitroPixel", catColor: "#f59e0b", title: "Tasa Atribucion", dataSource: "pixel", section: "nitropixel",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "pixel-visitors", category: "NitroPixel", catColor: "#f59e0b", title: "Visitantes", dataSource: "pixel", section: "nitropixel",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  { id: "pixel-identified", category: "NitroPixel", catColor: "#f59e0b", title: "Identificados", dataSource: "pixel", section: "nitropixel",
+    supportedFormats: NUMERIC_FORMATS, defaultFormat: "kpi" },
+  // Nuevo: top fuentes de tráfico atribuidas
+  { id: "top-sources", category: "NitroPixel", catColor: "#f59e0b", title: "Top Fuentes Trafico", dataSource: "top:sources", section: "nitropixel",
+    supportedFormats: ["list", "donut"], defaultFormat: "list" },
+];
+
+// Default widgets for first-time users (instancias completas con su default format)
+const DEFAULT_WIDGET_INSTANCES: WidgetInstance[] = [
+  { id: "revenue", format: "kpi" },
+  { id: "orders", format: "kpi" },
+  { id: "ticket", format: "kpi" },
+  { id: "sessions", format: "kpi" },
+  { id: "adspend", format: "kpi" },
+  { id: "roas", format: "kpi" },
+  { id: "ctr", format: "kpi" },
+  { id: "cpc", format: "kpi" },
+  { id: "conversion", format: "kpi" },
+  { id: "revenue-chart", format: "area-full" },
+  { id: "spend-chart", format: "area-full" },
 ];
 
 const WIDGET_MAP = Object.fromEntries(WIDGET_CATALOG.map(w => [w.id, w]));
 
+// Helper para resolver default format de un widget id (para hidratación legacy)
+const lookupDefaultFormat = (id: string): FormatId =>
+  WIDGET_MAP[id]?.defaultFormat || "kpi";
+
 // ── Data source URLs ──
+// Las claves "section default" son fetch compartido (todas las cards de una
+// sección que no tienen filtros específicos comparten el resultado).
+// Las claves "top:*" y "dist:*" son por-widget — cada widget hace su propio
+// fetch porque el `dim` cambia.
 const DATA_SOURCES: Record<string, string> = {
   metrics: "/api/metrics",
   trends: "/api/metrics/trends",
@@ -118,6 +213,27 @@ const DATA_SOURCES: Record<string, string> = {
   products: "/api/metrics/products",
   pixel: "/api/metrics/pixel",
 };
+
+// Resolves a widget's dataSource to a base URL.
+// Soporta los pseudo-sources "top:<dim>" y "dist:<dim>".
+function resolveDataUrl(dataSource: string): string | null {
+  if (DATA_SOURCES[dataSource]) return DATA_SOURCES[dataSource];
+  if (dataSource.startsWith("top:")) {
+    const dim = dataSource.slice(4);
+    return `/api/metrics/top?dim=${encodeURIComponent(dim)}`;
+  }
+  if (dataSource.startsWith("dist:")) {
+    const dim = dataSource.slice(5);
+    return `/api/metrics/distribution?dim=${encodeURIComponent(dim)}`;
+  }
+  return null;
+}
+
+// Devuelve true si un dataSource es un fetch por-widget (necesita fetch
+// individual por cada instancia, no compartido por sección).
+function isPerWidgetSource(dataSource: string): boolean {
+  return dataSource.startsWith("top:") || dataSource.startsWith("dist:");
+}
 
 // ── Helper: format number ──
 const fmt = (n: number) => n?.toLocaleString("es-AR") ?? "0";
@@ -224,133 +340,6 @@ function getSparklineSeries(id: string, trends: any[]): number[] {
 }
 
 // ══════════════════════════════════════════════════════════════
-// KpiCardItem — single premium KPI card with count-up + sparkline
-// ══════════════════════════════════════════════════════════════
-interface KpiCardItemProps {
-  def: WidgetDef;
-  data: { value: string; sub: string; change?: number; inverse?: boolean } | null;
-  sparkline: number[];
-  editMode: boolean;
-  isDragging: boolean;
-  isDragOver: boolean;
-  onRemove: () => void;
-  dragHandlers: React.HTMLAttributes<HTMLDivElement>;
-  // ── Per-card filter system ──
-  filterValues: Record<string, string>;
-  onFilterChange: (filterId: string, value: string) => void;
-  onFilterClear: () => void;
-}
-
-function KpiCardItem({
-  def,
-  data,
-  sparkline,
-  editMode,
-  isDragging,
-  isDragOver,
-  onRemove,
-  dragHandlers,
-  filterValues,
-  onFilterChange,
-  onFilterClear,
-}: KpiCardItemProps) {
-  const animatedValue = useAnimatedValue(data?.value ?? "", 1000);
-  const hasDelta = data?.change !== undefined && data?.change !== null;
-  const rawChange = data?.change ?? 0;
-  const inverse = !!data?.inverse;
-  // Color logic per bible: cyan positive, rose negative, slate neutral.
-  // `inverse` flips the meaning (e.g. ad spend going up is bad).
-  const isGoodPositive = inverse ? rawChange < 0 : rawChange > 0;
-  const isNeutral = rawChange === 0;
-  const deltaColor = isNeutral
-    ? "text-slate-400"
-    : isGoodPositive
-      ? "text-cyan-600"
-      : "text-rose-500";
-  const DeltaIcon = rawChange > 0 ? ArrowUpRight : ArrowDownRight;
-
-  const sparkColor = isNeutral || !hasDelta ? "#64748b" : isGoodPositive ? "#06b6d4" : "#f43f5e";
-
-  return (
-    <div
-      {...dragHandlers}
-      draggable={editMode}
-      className={`dash-card p-5 relative ${editMode ? "cursor-grab active:cursor-grabbing" : ""} ${
-        isDragging ? "opacity-40" : ""
-      } ${isDragOver ? "ring-2 ring-indigo-300" : ""}`}
-    >
-      {editMode && (
-        <button
-          onClick={onRemove}
-          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-md z-10 hover:bg-rose-600 transition-colors"
-          aria-label="Quitar widget"
-        >
-          <X className="w-3.5 h-3.5" strokeWidth={2.5} />
-        </button>
-      )}
-
-      {/* Top: category + delta + filter trigger */}
-      <div className="flex items-start justify-between mb-2 gap-2">
-        <span
-          className="text-[10px] font-semibold uppercase tracking-[0.18em] truncate"
-          style={{ color: def.catColor }}
-        >
-          {def.category}
-        </span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {hasDelta && (
-            <span className={`inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums ${deltaColor}`}>
-              <DeltaIcon className="w-3 h-3" />
-              {Math.abs(rawChange).toFixed(1)}%
-            </span>
-          )}
-          <WidgetFilterPopover
-            widgetId={def.id}
-            section={def.section}
-            excludeFilters={def.excludeFilters}
-            values={filterValues}
-            onChange={onFilterChange}
-            onClear={onFilterClear}
-          />
-        </div>
-      </div>
-
-      {/* Title */}
-      <p className="text-xs font-medium text-slate-500 mb-1">{def.title}</p>
-
-      {/* Active filter chips (sólo si hay filtros aplicados) */}
-      <WidgetFilterChips
-        section={def.section}
-        excludeFilters={def.excludeFilters}
-        values={filterValues}
-        onRemove={(id) => onFilterChange(id, "all")}
-      />
-
-      {/* Big number — count-up animated, tabular-nums */}
-      {data ? (
-        <p className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">
-          {animatedValue}
-        </p>
-      ) : (
-        <div className="h-7 w-24 dash-skeleton" />
-      )}
-
-      {/* Sparkline */}
-      {sparkline.length > 1 && (
-        <div className="mt-2 -mx-1">
-          <DashboardSparkline data={sparkline} color={sparkColor} height={28} />
-        </div>
-      )}
-
-      {/* Subtitle */}
-      {data?.sub && (
-        <p className="text-[11px] text-slate-400 mt-1.5 leading-tight">{data.sub}</p>
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
 // Skeleton card — matches KpiCardItem layout for loading state
 // ══════════════════════════════════════════════════════════════
 function KpiCardSkeleton() {
@@ -375,7 +364,7 @@ function KpiCardSkeleton() {
 export default function DashboardPage() {
   const { data: session } = useSession();
   const orgName = (session?.user as any)?.organizationName || "Tu negocio";
-  const [activeWidgets, setActiveWidgets] = useState<string[]>(DEFAULT_WIDGETS);
+  const [activeWidgets, setActiveWidgets] = useState<WidgetInstance[]>(DEFAULT_WIDGET_INSTANCES);
   // Per-widget filter values: { widgetId: { filterId: value } }
   const [widgetFilters, setWidgetFilters] = useState<Record<string, Record<string, string>>>({});
   // Per-widget data overrides — when a widget has wired filters active, its
@@ -431,7 +420,12 @@ export default function DashboardPage() {
     fetch("/api/dashboard/preferences")
       .then(r => r.json())
       .then(data => {
-        if (data.widgets?.length > 0) setActiveWidgets(data.widgets);
+        if (Array.isArray(data.widgets) && data.widgets.length > 0) {
+          // Hidrata legacy strings → instancias con default format
+          const hydrated = hydrateWidgetList(data.widgets, lookupDefaultFormat)
+            .filter((inst) => WIDGET_MAP[inst.id]); // descarta IDs que ya no existen
+          if (hydrated.length > 0) setActiveWidgets(hydrated);
+        }
         if (data.widgetFilters && typeof data.widgetFilters === "object") {
           setWidgetFilters(data.widgetFilters);
         }
@@ -440,40 +434,66 @@ export default function DashboardPage() {
   }, []);
 
   // ── Fetch data based on active widgets + period ──
+  // Section sources (metrics, trends, etc.) son fetch único compartido.
+  // Per-widget sources (top:*, dist:*) son fetch individual por widget,
+  // se almacenan bajo `perWidgetData[widgetId]`.
+  const [perWidgetData, setPerWidgetData] = useState<Record<string, any>>({});
+
   useEffect(() => {
     setLoading(true);
     setError("");
 
-    // Determine which data sources are needed
-    const needed = new Set<string>();
-    for (const wId of activeWidgets) {
-      const w = WIDGET_MAP[wId];
-      if (w) needed.add(w.dataSource);
+    // 1) Section-level sources (compartidos)
+    const sectionNeeded = new Set<string>();
+    for (const inst of activeWidgets) {
+      const w = WIDGET_MAP[inst.id];
+      if (w && !isPerWidgetSource(w.dataSource)) sectionNeeded.add(w.dataSource);
     }
-    // Hero header + sparklines always need metrics + trends
-    needed.add("metrics");
-    needed.add("trends");
-    // Today block insights necesitan products / customers / pnl para narrativa completa
-    needed.add("products");
-    needed.add("customers");
-    needed.add("pnl");
+    sectionNeeded.add("metrics");
+    sectionNeeded.add("trends");
+    sectionNeeded.add("products");
+    sectionNeeded.add("customers");
+    sectionNeeded.add("pnl");
 
-    // Fetch all needed sources in parallel, passing period params
-    const fetches: Record<string, Promise<any>> = {};
-    for (const src of needed) {
+    const sectionFetches: Record<string, Promise<any>> = {};
+    for (const src of sectionNeeded) {
       const baseUrl = DATA_SOURCES[src];
       if (baseUrl) {
         const sep = baseUrl.includes("?") ? "&" : "?";
-        fetches[src] = fetch(`${baseUrl}${sep}${periodQuery}`).then(r => r.json()).catch(() => null);
+        sectionFetches[src] = fetch(`${baseUrl}${sep}${periodQuery}`)
+          .then(r => r.json())
+          .catch(() => null);
       }
     }
 
-    const keys = Object.keys(fetches);
-    Promise.all(Object.values(fetches))
+    // 2) Per-widget sources (top:*, dist:*) — fetch por instancia
+    const perWidgetFetches: Record<string, Promise<any>> = {};
+    for (const inst of activeWidgets) {
+      const w = WIDGET_MAP[inst.id];
+      if (!w || !isPerWidgetSource(w.dataSource)) continue;
+      const baseUrl = resolveDataUrl(w.dataSource);
+      if (!baseUrl) continue;
+      const sep = baseUrl.includes("?") ? "&" : "?";
+      perWidgetFetches[inst.id] = fetch(`${baseUrl}${sep}${periodQuery}`)
+        .then(r => r.json())
+        .catch(() => null);
+    }
+
+    const sectionKeys = Object.keys(sectionFetches);
+    const widgetKeys = Object.keys(perWidgetFetches);
+    Promise.all([
+      ...Object.values(sectionFetches),
+      ...Object.values(perWidgetFetches),
+    ])
       .then(results => {
-        const data: Record<string, any> = {};
-        keys.forEach((k, i) => { data[k] = results[i]; });
-        setAllData(data);
+        const sectionData: Record<string, any> = {};
+        sectionKeys.forEach((k, i) => { sectionData[k] = results[i]; });
+        setAllData(sectionData);
+        const widgetData: Record<string, any> = {};
+        widgetKeys.forEach((k, i) => {
+          widgetData[k] = results[sectionKeys.length + i];
+        });
+        setPerWidgetData(widgetData);
       })
       .catch(() => setError("Error cargando datos"))
       .finally(() => setLoading(false));
@@ -495,7 +515,7 @@ export default function DashboardPage() {
         widgetIds.map(async (wId) => {
           const def = WIDGET_MAP[wId];
           if (!def) return;
-          const baseUrl = DATA_SOURCES[def.dataSource];
+          const baseUrl = resolveDataUrl(def.dataSource);
           if (!baseUrl) return;
           const filterQuery = buildFilterQuery(
             def.section,
@@ -594,17 +614,19 @@ export default function DashboardPage() {
     setTimeout(() => setToast(""), 2500);
   };
 
-  const removeWidget = (id: string) => {
-    setActiveWidgets(prev => prev.filter(w => w !== id));
+  const removeWidgetAt = (idx: number) => {
+    setActiveWidgets(prev => prev.filter((_, i) => i !== idx));
     showToast("Widget removido");
   };
 
-  const addWidget = (id: string) => {
-    if (!activeWidgets.includes(id)) {
-      setActiveWidgets(prev => [...prev, id]);
-      showToast("Widget agregado");
-    }
+  const addWidget = (id: string, format: FormatId) => {
+    setActiveWidgets(prev => [...prev, { id, format }]);
+    showToast("Widget agregado");
   };
+
+  // Helper para chequear si una combinación id+format ya está activa
+  const isInstanceActive = (id: string, format: FormatId) =>
+    activeWidgets.some((w) => w.id === id && w.format === format);
 
   const reorderWidgets = (fromIdx: number, toIdx: number) => {
     if (fromIdx === toIdx) return;
@@ -701,25 +723,28 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          {/* Widget grid — premium cards con count-up + sparkline + stagger entrance */}
-          <div className="dash-stagger grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
-            {activeWidgets.map((wId, idx) => {
-              const def = WIDGET_MAP[wId];
+          {/* Cancelled orders info — restyled como warning callout discreto */}
+          {allData.metrics?.summary?.cancelledOrders > 0 && (
+            <div
+              className="flex items-start gap-3 px-4 py-3 mb-5 rounded-xl border border-amber-200/70 bg-amber-50/50 text-[13px] text-amber-900"
+              style={{ boxShadow: "0 1px 0 rgba(180, 83, 9, 0.06), 0 4px 12px -6px rgba(180, 83, 9, 0.10)" }}
+            >
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                <strong className="font-semibold tabular-nums">{allData.metrics.summary.cancelledOrders}</strong> órdenes canceladas
+                <span className="text-amber-700"> ({formatARS(allData.metrics.summary.cancelledRevenue)})</span> excluidas del cálculo de facturación.
+              </span>
+            </div>
+          )}
+
+          {/* ── Unified widget grid: dispatcher por formato ── */}
+          <div className="dash-stagger grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 auto-rows-auto gap-4 mb-8">
+            {activeWidgets.map((inst, idx) => {
+              const def = WIDGET_MAP[inst.id];
               if (!def) return null;
 
-              // Chart widgets render differently
-              if (def.large) return null; // Rendered below in chart section
-
-              // Si la card tiene filtros wired activos, usa su override.
-              const overrideForWidget = widgetDataOverrides[wId];
-              const dataForWidget = overrideForWidget
-                ? { ...allData, [def.dataSource]: overrideForWidget }
-                : allData;
-              const d = getWidgetData(wId, dataForWidget);
-              const sparkline = getSparklineSeries(wId, allData.trends?.days || []);
               const isDragging = dragIndex === idx;
               const isDragOver = dragOverIndex === idx && dragIndex !== idx;
-
               const dragHandlers = {
                 onDragStart: (e: React.DragEvent<HTMLDivElement>) => {
                   setDragIndex(idx);
@@ -742,91 +767,187 @@ export default function DashboardPage() {
                 },
               };
 
-              return (
-                <KpiCardItem
-                  key={wId}
-                  def={def}
-                  data={d}
-                  sparkline={sparkline}
-                  editMode={editMode}
-                  isDragging={isDragging}
-                  isDragOver={isDragOver}
-                  onRemove={() => removeWidget(wId)}
-                  dragHandlers={dragHandlers}
-                  filterValues={widgetFilters[wId] || {}}
-                  onFilterChange={(filterId, value) => updateWidgetFilter(wId, filterId, value)}
-                  onFilterClear={() => clearWidgetFilters(wId)}
-                />
-              );
-            })}
-          </div>
+              const baseProps = {
+                category: def.category,
+                categoryColor: def.catColor,
+                title: def.title,
+                editMode,
+                isDragging,
+                isDragOver,
+                onRemove: () => removeWidgetAt(idx),
+                dragHandlers,
+                draggable: true,
+                headerRight: (
+                  <WidgetFilterPopover
+                    widgetId={def.id}
+                    section={def.section}
+                    excludeFilters={def.excludeFilters}
+                    values={widgetFilters[inst.id] || {}}
+                    onChange={(filterId, value) => updateWidgetFilter(inst.id, filterId, value)}
+                    onClear={() => clearWidgetFilters(inst.id)}
+                  />
+                ),
+                filterChips: (
+                  <WidgetFilterChips
+                    section={def.section}
+                    excludeFilters={def.excludeFilters}
+                    values={widgetFilters[inst.id] || {}}
+                    onRemove={(id) => updateWidgetFilter(inst.id, id, "all")}
+                  />
+                ),
+              };
 
-          {/* Cancelled orders info — restyled como warning callout discreto */}
-          {allData.metrics?.summary?.cancelledOrders > 0 && (
-            <div
-              className="flex items-start gap-3 px-4 py-3 mb-5 rounded-xl border border-amber-200/70 bg-amber-50/50 text-[13px] text-amber-900"
-              style={{ boxShadow: "0 1px 0 rgba(180, 83, 9, 0.06), 0 4px 12px -6px rgba(180, 83, 9, 0.10)" }}
-            >
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>
-                <strong className="font-semibold tabular-nums">{allData.metrics.summary.cancelledOrders}</strong> órdenes canceladas
-                <span className="text-amber-700"> ({formatARS(allData.metrics.summary.cancelledRevenue)})</span> excluidas del cálculo de facturación.
-              </span>
-            </div>
-          )}
+              const gridClass = formatGridClass(inst.format);
+              const instanceKey = `${inst.id}__${inst.format}__${idx}`;
+              const trendDays = allData.trends?.days || [];
 
-          {/* Chart widgets — premium con gradientes, axis sutil y tooltip backdrop */}
-          {(() => {
-            const chartWidgets = activeWidgets.filter(w => WIDGET_MAP[w]?.large);
-            if (chartWidgets.length === 0) return null;
-            return (
-              <div className="dash-stagger grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                {chartWidgets.map((cId) => {
-                  const cIdx = activeWidgets.indexOf(cId);
-                  const cDef = WIDGET_MAP[cId];
-                  const cDragging = dragIndex === cIdx;
-                  const cDragOver = dragOverIndex === cIdx && dragIndex !== cIdx;
+              // Numeric formats: usan getWidgetData / getSparklineSeries
+              if (
+                inst.format === "kpi" ||
+                inst.format === "big-number" ||
+                inst.format === "sparkline" ||
+                inst.format === "mini-line" ||
+                inst.format === "mini-bar"
+              ) {
+                const overrideForWidget = widgetDataOverrides[inst.id];
+                const dataForWidget = overrideForWidget
+                  ? { ...allData, [def.dataSource]: overrideForWidget }
+                  : allData;
+                const d = getWidgetData(inst.id, dataForWidget);
+                const sparkline = getSparklineSeries(inst.id, trendDays);
 
-                  const dragProps = editMode ? {
-                    draggable: true,
-                    onDragStart: (e: React.DragEvent) => { setDragIndex(cIdx); e.dataTransfer.effectAllowed = "move"; },
-                    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDragOverIndex(cIdx); },
-                    onDrop: () => { if (dragIndex !== null) reorderWidgets(dragIndex, cIdx); setDragIndex(null); setDragOverIndex(null); },
-                    onDragEnd: () => { setDragIndex(null); setDragOverIndex(null); },
-                  } : {};
-
+                if (inst.format === "kpi") {
                   return (
+                    <div key={instanceKey} className={gridClass}>
+                      <FormatKpi {...baseProps} data={d} sparkline={sparkline} />
+                    </div>
+                  );
+                }
+                if (inst.format === "big-number") {
+                  return (
+                    <div key={instanceKey} className={gridClass}>
+                      <FormatBigNumber {...baseProps} data={d} sparkline={sparkline} />
+                    </div>
+                  );
+                }
+                if (inst.format === "sparkline") {
+                  return (
+                    <div key={instanceKey} className={gridClass}>
+                      <FormatSparkline {...baseProps} data={d} sparkline={sparkline} />
+                    </div>
+                  );
+                }
+                // mini-line / mini-bar: convertir sparkline a series con fechas
+                const series: SeriesPoint[] = trendDays.map((day: any, i: number) => ({
+                  date: day.date,
+                  value: sparkline[i] ?? 0,
+                }));
+                if (inst.format === "mini-line") {
+                  return (
+                    <div key={instanceKey} className={gridClass}>
+                      <FormatMiniLine
+                        {...baseProps}
+                        series={series}
+                        color={def.catColor}
+                        valueFormatter={(v) => formatCompact(v)}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <div key={instanceKey} className={gridClass}>
+                    <FormatMiniBar
+                      {...baseProps}
+                      series={series}
+                      color={def.catColor}
+                      valueFormatter={(v) => formatCompact(v)}
+                    />
+                  </div>
+                );
+              }
+
+              // List format (top:*)
+              if (inst.format === "list") {
+                const resp = widgetDataOverrides[inst.id] || perWidgetData[inst.id];
+                const items: ListItem[] = (resp?.items as ListItem[]) || [];
+                const isCampaigns = def.dataSource === "top:campaigns";
+                return (
+                  <div key={instanceKey} className={gridClass}>
+                    <FormatList
+                      {...baseProps}
+                      items={items}
+                      accent={def.catColor}
+                      valueFormatter={isCampaigns ? (v) => `${v.toFixed(2)}x` : (v) => formatARS(v)}
+                      secondaryFormatter={
+                        isCampaigns
+                          ? (v) => `Spend: ${formatARS(v)}`
+                          : (v) => `${v} u.`
+                      }
+                    />
+                  </div>
+                );
+              }
+
+              // Donut format (dist:* or top:* with donut chosen)
+              if (inst.format === "donut") {
+                const resp = widgetDataOverrides[inst.id] || perWidgetData[inst.id];
+                const items: DistributionItem[] =
+                  (resp?.slices as DistributionItem[]) ||
+                  (resp?.items as DistributionItem[]) ||
+                  [];
+                return (
+                  <div key={instanceKey} className={gridClass}>
+                    <FormatDonut
+                      {...baseProps}
+                      items={items}
+                      valueFormatter={(v) => formatARS(v)}
+                    />
+                  </div>
+                );
+              }
+
+              // area-full / bar-full: legacy chart cards
+              if (inst.format === "area-full" || inst.format === "bar-full") {
+                const dragProps = editMode ? {
+                  draggable: true,
+                  onDragStart: (e: React.DragEvent) => { setDragIndex(idx); e.dataTransfer.effectAllowed = "move"; },
+                  onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDragOverIndex(idx); },
+                  onDrop: () => { if (dragIndex !== null) reorderWidgets(dragIndex, idx); setDragIndex(null); setDragOverIndex(null); },
+                  onDragEnd: () => { setDragIndex(null); setDragOverIndex(null); },
+                } : {};
+
+                return (
+                  <div key={instanceKey} className={gridClass}>
                     <DashboardChartCard
-                      key={cId}
-                      category={cDef.category}
-                      categoryColor={cDef.catColor}
-                      title={cDef.title}
-                      subtitle={cId === "revenue-chart" ? "Evolución diaria" : cId === "spend-chart" ? "Google + Meta acumulado" : undefined}
+                      category={def.category}
+                      categoryColor={def.catColor}
+                      title={def.title}
+                      subtitle={inst.id === "revenue-chart" ? "Evolución diaria" : inst.id === "spend-chart" ? "Google + Meta acumulado" : undefined}
                       editMode={editMode}
-                      isDragging={cDragging}
-                      isDragOver={cDragOver}
-                      onRemove={() => removeWidget(cId)}
+                      isDragging={isDragging}
+                      isDragOver={isDragOver}
+                      onRemove={() => removeWidgetAt(idx)}
                       dragProps={dragProps}
                       headerRight={
                         <WidgetFilterPopover
-                          widgetId={cDef.id}
-                          section={cDef.section}
-                          excludeFilters={cDef.excludeFilters}
-                          values={widgetFilters[cId] || {}}
-                          onChange={(filterId, value) => updateWidgetFilter(cId, filterId, value)}
-                          onClear={() => clearWidgetFilters(cId)}
+                          widgetId={def.id}
+                          section={def.section}
+                          excludeFilters={def.excludeFilters}
+                          values={widgetFilters[inst.id] || {}}
+                          onChange={(filterId, value) => updateWidgetFilter(inst.id, filterId, value)}
+                          onClear={() => clearWidgetFilters(inst.id)}
                         />
                       }
                       filterChips={
                         <WidgetFilterChips
-                          section={cDef.section}
-                          excludeFilters={cDef.excludeFilters}
-                          values={widgetFilters[cId] || {}}
-                          onRemove={(id) => updateWidgetFilter(cId, id, "all")}
+                          section={def.section}
+                          excludeFilters={def.excludeFilters}
+                          values={widgetFilters[inst.id] || {}}
+                          onRemove={(id) => updateWidgetFilter(inst.id, id, "all")}
                         />
                       }
                     >
-                      {cId === "revenue-chart" && (
+                      {inst.id === "revenue-chart" && (
                         <ResponsiveContainer width="100%" height={260}>
                           <AreaChart data={trends} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                             <defs>
@@ -857,7 +978,7 @@ export default function DashboardPage() {
                         </ResponsiveContainer>
                       )}
 
-                      {cId === "spend-chart" && (
+                      {inst.id === "spend-chart" && (
                         <ResponsiveContainer width="100%" height={260}>
                           <AreaChart data={trends} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                             <defs>
@@ -899,11 +1020,13 @@ export default function DashboardPage() {
                         </ResponsiveContainer>
                       )}
                     </DashboardChartCard>
-                  );
-                })}
-              </div>
-            );
-          })()}
+                  </div>
+                );
+              }
+
+              return null;
+            })}
+          </div>
 
           {/* Add widget button (edit mode) */}
           {editMode && (
@@ -972,32 +1095,50 @@ export default function DashboardPage() {
                         {cat}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {items.map(w => {
-                        const added = activeWidgets.includes(w.id);
                         return (
-                          <button
+                          <div
                             key={w.id}
-                            onClick={() => { if (!added) addWidget(w.id); }}
-                            disabled={added}
-                            className={`flex items-center justify-between px-3.5 py-2.5 border rounded-xl text-[13px] ${
-                              added
-                                ? "border-slate-200/70 bg-slate-50 text-slate-400 cursor-default"
-                                : "border-slate-200 text-slate-700 hover:border-slate-900 hover:bg-slate-50 cursor-pointer hover:shadow-[0_1px_0_rgba(15,23,42,0.04),0_4px_12px_-6px_rgba(15,23,42,0.10)]"
-                            }`}
+                            className="flex flex-col gap-2 px-3.5 py-3 border border-slate-200 rounded-xl bg-white"
                             style={{
-                              transitionProperty: "border-color, background-color, color, box-shadow",
-                              transitionDuration: "220ms",
-                              transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+                              boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
                             }}
                           >
-                            <span className="font-medium tracking-tight truncate">{w.title}</span>
-                            {added ? (
-                              <Check className="w-4 h-4 text-slate-300 shrink-0 ml-2" />
-                            ) : (
-                              <Plus className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
-                            )}
-                          </button>
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium tracking-tight text-[13px] text-slate-800 truncate">{w.title}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {w.supportedFormats.map(fmt => {
+                                const fdef = FORMAT_REGISTRY[fmt];
+                                const isActive = isInstanceActive(w.id, fmt);
+                                const isDefault = fmt === w.defaultFormat;
+                                return (
+                                  <button
+                                    key={fmt}
+                                    onClick={() => { if (!isActive) addWidget(w.id, fmt); }}
+                                    disabled={isActive}
+                                    title={fdef.description + (isDefault ? " (Recomendado)" : "")}
+                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border ${
+                                      isActive
+                                        ? "border-slate-200/70 bg-slate-50 text-slate-400 cursor-default"
+                                        : isDefault
+                                        ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 cursor-pointer"
+                                        : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50 cursor-pointer"
+                                    }`}
+                                    style={{
+                                      transitionProperty: "border-color, background-color, color",
+                                      transitionDuration: "180ms",
+                                      transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+                                    }}
+                                  >
+                                    {isActive ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                                    {fdef.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
