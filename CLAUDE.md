@@ -132,6 +132,9 @@ Además, leer al inicio de toda sesión nueva:
 - `/sessions/peaceful-nifty-meitner/mnt/NitroSales IA/ERRORES_CLAUDE_NO_REPETIR.md`
 - Este archivo (`CLAUDE.md`)
 
+**Y si la tarea involucra UI/UX/visual/animaciones/componentes/estilos/layout, leer ADEMÁS (obligatorio):**
+- `/sessions/peaceful-nifty-meitner/mnt/nitrosales/UI_VISION_NITROSALES.md` — la biblia visual de NitroSales con la ambición Linear/Stripe/Vercel-grade, criterio light vs dark, animaciones permitidas, anti-patrones prohibidos y traducción del vocabulario visual de Tomy. Sin leer este archivo, cualquier cambio de UI viola la visión del fundador.
+
 ---
 
 ## REGLA #5 — Validaciones obligatorias antes de pushear
