@@ -15,7 +15,7 @@ import {
   AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { Check, Pencil, Plus, X, AlertTriangle, LayoutGrid } from "lucide-react";
+import { Check, Pencil, Plus, X, AlertTriangle, LayoutGrid, GripVertical, Trash2, ChevronDown, Replace } from "lucide-react";
 import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
 import { DateRangeFilter } from "@/components/dashboard";
 import DashboardHero from "@/components/dashboard/DashboardHero";
@@ -30,8 +30,24 @@ import {
   FORMAT_REGISTRY,
   WidgetInstance,
   hydrateWidgetList,
-  formatGridClass,
 } from "@/lib/dashboard/format-config";
+import {
+  SlotSize,
+  SLOT_SIZES,
+  ROW_TEMPLATES,
+  ALL_ROW_TEMPLATES,
+  RowTemplateId,
+  LayoutRow,
+  LayoutSlot,
+  DashboardLayout,
+  slotGridClass,
+  makeRowId,
+  createEmptyRow,
+  changeRowTemplate,
+  migrateInstancesToLayout,
+  hydrateLayout,
+  sizeForFormat,
+} from "@/lib/dashboard/slot-layout";
 import {
   FormatKpi,
   FormatBigNumber,
@@ -192,6 +208,58 @@ const DEFAULT_WIDGET_INSTANCES: WidgetInstance[] = [
   { id: "revenue-chart", format: "area-full" },
   { id: "spend-chart", format: "area-full" },
 ];
+
+// Default layout para first-time users — 5 filas con estructura ordenada
+const DEFAULT_LAYOUT: DashboardLayout = {
+  rows: [
+    {
+      id: "default-row-kpi-1",
+      templateId: "kpi-3",
+      title: "Ventas del periodo",
+      slots: [
+        { size: "sm", widgetId: "revenue", format: "big-number" },
+        { size: "sm", widgetId: "orders", format: "big-number" },
+        { size: "sm", widgetId: "ticket", format: "mini-line" },
+      ],
+    },
+    {
+      id: "default-row-kpi-2",
+      templateId: "kpi-3",
+      title: "Marketing & trafico",
+      slots: [
+        { size: "sm", widgetId: "sessions", format: "mini-line" },
+        { size: "sm", widgetId: "adspend", format: "big-number" },
+        { size: "sm", widgetId: "roas", format: "big-number" },
+      ],
+    },
+    {
+      id: "default-row-chart-1",
+      templateId: "chart-full",
+      title: "Facturacion diaria",
+      slots: [
+        { size: "xl", widgetId: "revenue-chart", format: "area-full" },
+      ],
+    },
+    {
+      id: "default-row-trio",
+      templateId: "trio-md",
+      title: "Top rankings",
+      slots: [
+        { size: "md", widgetId: "top-products", format: "list" },
+        { size: "md", widgetId: "top-customers", format: "list" },
+        { size: "md", widgetId: "dist-canal", format: "donut" },
+      ],
+    },
+    {
+      id: "default-row-chart-2",
+      templateId: "chart-full",
+      title: "Inversion en ads",
+      slots: [
+        { size: "xl", widgetId: "spend-chart", format: "area-full" },
+      ],
+    },
+  ],
+};
 
 const WIDGET_MAP = Object.fromEntries(WIDGET_CATALOG.map(w => [w.id, w]));
 
@@ -364,7 +432,8 @@ function KpiCardSkeleton() {
 export default function DashboardPage() {
   const { data: session } = useSession();
   const orgName = (session?.user as any)?.organizationName || "Tu negocio";
-  const [activeWidgets, setActiveWidgets] = useState<WidgetInstance[]>(DEFAULT_WIDGET_INSTANCES);
+  // Layout principal (rompecabezas de filas)
+  const [layout, setLayout] = useState<DashboardLayout>(DEFAULT_LAYOUT);
   // Per-widget filter values: { widgetId: { filterId: value } }
   const [widgetFilters, setWidgetFilters] = useState<Record<string, Record<string, string>>>({});
   // Per-widget data overrides — when a widget has wired filters active, its
@@ -376,10 +445,14 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [catalogOpen, setCatalogOpen] = useState(false);
   const [toast, setToast] = useState("");
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  // Drag & drop de filas
+  const [dragRowIndex, setDragRowIndex] = useState<number | null>(null);
+  const [dragOverRowIndex, setDragOverRowIndex] = useState<number | null>(null);
+  // Template picker (para agregar fila nueva o cambiar template de una)
+  const [templatePickerOpen, setTemplatePickerOpen] = useState<false | { mode: "add" } | { mode: "change"; rowId: string }>(false);
+  // Slot widget picker: { rowId, slotIdx, size } cuando está abierto
+  const [slotPickerOpen, setSlotPickerOpen] = useState<{ rowId: string; slotIdx: number; size: SlotSize } | null>(null);
 
   // ── Period state ──
   const toDateStr = (d: Date) => d.toISOString().split("T")[0];
@@ -415,17 +488,35 @@ export default function DashboardPage() {
     [dateFrom, dateTo]
   );
 
-  // ── Load preferences on mount (widgets + per-card filters) ──
+  // ── Load preferences on mount (layout + per-card filters) ──
   useEffect(() => {
     fetch("/api/dashboard/preferences")
       .then(r => r.json())
       .then(data => {
-        if (Array.isArray(data.widgets) && data.widgets.length > 0) {
-          // Hidrata legacy strings → instancias con default format
-          const hydrated = hydrateWidgetList(data.widgets, lookupDefaultFormat)
-            .filter((inst) => WIDGET_MAP[inst.id]); // descarta IDs que ya no existen
-          if (hydrated.length > 0) setActiveWidgets(hydrated);
+        const widgetExists = (id: string) => !!WIDGET_MAP[id];
+
+        // Priority 1: new `layout` field (v3)
+        if (data.layout) {
+          const hydratedLayout = hydrateLayout(data.layout, widgetExists);
+          if (hydratedLayout && hydratedLayout.rows.length > 0) {
+            setLayout(hydratedLayout);
+            if (data.widgetFilters && typeof data.widgetFilters === "object") {
+              setWidgetFilters(data.widgetFilters);
+            }
+            return;
+          }
         }
+
+        // Priority 2: legacy `widgets` (v2) → migrate to layout
+        if (Array.isArray(data.widgets) && data.widgets.length > 0) {
+          const instances = hydrateWidgetList(data.widgets, lookupDefaultFormat)
+            .filter((inst) => WIDGET_MAP[inst.id]);
+          if (instances.length > 0) {
+            const migrated = migrateInstancesToLayout(instances, widgetExists);
+            if (migrated.rows.length > 0) setLayout(migrated);
+          }
+        }
+
         if (data.widgetFilters && typeof data.widgetFilters === "object") {
           setWidgetFilters(data.widgetFilters);
         }
@@ -443,10 +534,18 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
 
+    // Recorro todos los slots del layout para recolectar widgetIds activos.
+    const activeSlotWidgetIds: string[] = [];
+    for (const row of layout.rows) {
+      for (const slot of row.slots) {
+        if (slot.widgetId) activeSlotWidgetIds.push(slot.widgetId);
+      }
+    }
+
     // 1) Section-level sources (compartidos)
     const sectionNeeded = new Set<string>();
-    for (const inst of activeWidgets) {
-      const w = WIDGET_MAP[inst.id];
+    for (const wId of activeSlotWidgetIds) {
+      const w = WIDGET_MAP[wId];
       if (w && !isPerWidgetSource(w.dataSource)) sectionNeeded.add(w.dataSource);
     }
     sectionNeeded.add("metrics");
@@ -466,15 +565,18 @@ export default function DashboardPage() {
       }
     }
 
-    // 2) Per-widget sources (top:*, dist:*) — fetch por instancia
+    // 2) Per-widget sources (top:*, dist:*) — fetch por widget único
     const perWidgetFetches: Record<string, Promise<any>> = {};
-    for (const inst of activeWidgets) {
-      const w = WIDGET_MAP[inst.id];
+    const seenPerWidget = new Set<string>();
+    for (const wId of activeSlotWidgetIds) {
+      if (seenPerWidget.has(wId)) continue;
+      const w = WIDGET_MAP[wId];
       if (!w || !isPerWidgetSource(w.dataSource)) continue;
+      seenPerWidget.add(wId);
       const baseUrl = resolveDataUrl(w.dataSource);
       if (!baseUrl) continue;
       const sep = baseUrl.includes("?") ? "&" : "?";
-      perWidgetFetches[inst.id] = fetch(`${baseUrl}${sep}${periodQuery}`)
+      perWidgetFetches[wId] = fetch(`${baseUrl}${sep}${periodQuery}`)
         .then(r => r.json())
         .catch(() => null);
     }
@@ -497,7 +599,7 @@ export default function DashboardPage() {
       })
       .catch(() => setError("Error cargando datos"))
       .finally(() => setLoading(false));
-  }, [activeWidgets, periodQuery]);
+  }, [layout, periodQuery]);
 
   // ── Per-widget filtered data overrides ──
   // Each widget with wired filters fetches its own slice of data so its KPI
@@ -540,6 +642,20 @@ export default function DashboardPage() {
     };
   }, [widgetFilters, periodQuery]);
 
+  // ── Derivar lista plana de widgets desde el layout (para persistir
+  //     una copia legacy v2 y permitir rollback sin perder datos) ──
+  const derivedWidgetInstances = useMemo<WidgetInstance[]>(() => {
+    const out: WidgetInstance[] = [];
+    for (const row of layout.rows) {
+      for (const slot of row.slots) {
+        if (slot.widgetId && slot.format) {
+          out.push({ id: slot.widgetId, format: slot.format });
+        }
+      }
+    }
+    return out;
+  }, [layout]);
+
   // ── Save preferences ──
   const savePreferences = useCallback(async () => {
     setSaving(true);
@@ -547,7 +663,11 @@ export default function DashboardPage() {
       await fetch("/api/dashboard/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ widgets: activeWidgets, widgetFilters }),
+        body: JSON.stringify({
+          layout,
+          widgets: derivedWidgetInstances,
+          widgetFilters,
+        }),
       });
       showToast("Layout guardado correctamente");
       setEditMode(false);
@@ -556,7 +676,7 @@ export default function DashboardPage() {
     } finally {
       setSaving(false);
     }
-  }, [activeWidgets, widgetFilters]);
+  }, [layout, derivedWidgetInstances, widgetFilters]);
 
   // ── Per-card filter handlers (autosave on change) ──
   const persistFilters = useCallback(
@@ -565,13 +685,17 @@ export default function DashboardPage() {
         await fetch("/api/dashboard/preferences", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ widgets: activeWidgets, widgetFilters: next }),
+          body: JSON.stringify({
+            layout,
+            widgets: derivedWidgetInstances,
+            widgetFilters: next,
+          }),
         });
       } catch {
         // silent — el cambio queda en estado local igual
       }
     },
-    [activeWidgets]
+    [layout, derivedWidgetInstances]
   );
 
   const updateWidgetFilter = useCallback(
@@ -614,26 +738,82 @@ export default function DashboardPage() {
     setTimeout(() => setToast(""), 2500);
   };
 
-  const removeWidgetAt = (idx: number) => {
-    setActiveWidgets(prev => prev.filter((_, i) => i !== idx));
-    showToast("Widget removido");
-  };
+  // ── Row / Slot operations ────────────────────────────────────
 
-  const addWidget = (id: string, format: FormatId) => {
-    setActiveWidgets(prev => [...prev, { id, format }]);
-    showToast("Widget agregado");
-  };
-
-  // Helper para chequear si una combinación id+format ya está activa
-  const isInstanceActive = (id: string, format: FormatId) =>
-    activeWidgets.some((w) => w.id === id && w.format === format);
-
-  const reorderWidgets = (fromIdx: number, toIdx: number) => {
+  // Reordena filas via drag & drop (fromIdx → toIdx)
+  const reorderRows = (fromIdx: number, toIdx: number) => {
     if (fromIdx === toIdx) return;
-    const newList = [...activeWidgets];
-    const [moved] = newList.splice(fromIdx, 1);
-    newList.splice(toIdx, 0, moved);
-    setActiveWidgets(newList);
+    setLayout((prev) => {
+      const next = [...prev.rows];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return { rows: next };
+    });
+  };
+
+  // Agrega una fila nueva al final con el template elegido
+  const addRow = (templateId: RowTemplateId) => {
+    setLayout((prev) => ({
+      rows: [...prev.rows, createEmptyRow(templateId)],
+    }));
+    showToast("Fila agregada");
+  };
+
+  // Elimina una fila entera
+  const removeRow = (rowId: string) => {
+    setLayout((prev) => ({
+      rows: prev.rows.filter((r) => r.id !== rowId),
+    }));
+    showToast("Fila removida");
+  };
+
+  // Cambia el template de una fila preservando widgets compatibles
+  const changeTemplate = (rowId: string, newTemplateId: RowTemplateId) => {
+    setLayout((prev) => ({
+      rows: prev.rows.map((r) =>
+        r.id === rowId ? changeRowTemplate(r, newTemplateId) : r
+      ),
+    }));
+  };
+
+  // Setea el título opcional de una fila
+  const setRowTitle = (rowId: string, title: string) => {
+    setLayout((prev) => ({
+      rows: prev.rows.map((r) =>
+        r.id === rowId ? { ...r, title: title.trim().length > 0 ? title : undefined } : r
+      ),
+    }));
+  };
+
+  // Asigna (o reemplaza) el widget de un slot específico
+  const setSlotWidget = (rowId: string, slotIdx: number, widgetId: string, format: FormatId) => {
+    setLayout((prev) => ({
+      rows: prev.rows.map((r) => {
+        if (r.id !== rowId) return r;
+        return {
+          ...r,
+          slots: r.slots.map((s, i) =>
+            i === slotIdx ? { ...s, widgetId, format } : s
+          ),
+        };
+      }),
+    }));
+    showToast("Widget actualizado");
+  };
+
+  // Vacía un slot (no lo elimina — queda disponible para un nuevo widget)
+  const clearSlot = (rowId: string, slotIdx: number) => {
+    setLayout((prev) => ({
+      rows: prev.rows.map((r) => {
+        if (r.id !== rowId) return r;
+        return {
+          ...r,
+          slots: r.slots.map((s, i) =>
+            i === slotIdx ? { ...s, widgetId: null, format: null } : s
+          ),
+        };
+      }),
+    }));
   };
 
   // ── Chart data ──
@@ -650,6 +830,266 @@ export default function DashboardPage() {
     [allData]
   );
   const todayLoading = loading && Object.keys(allData).length === 0;
+
+  // ── Slot content dispatcher ──────────────────────────────────
+  // Dado un row + slot, renderiza el contenido del slot. Maneja
+  // slots vacíos (placeholder en edit mode), numeric formats,
+  // list/donut y chart cards full width.
+  const renderSlotContent = (row: LayoutRow, slot: LayoutSlot, slotIdx: number) => {
+    // Empty slot
+    if (!slot.widgetId || !slot.format) {
+      if (editMode) {
+        return (
+          <button
+            onClick={() => setSlotPickerOpen({ rowId: row.id, slotIdx, size: slot.size })}
+            className="w-full h-full min-h-[112px] flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600 hover:bg-slate-50/60"
+            style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+          >
+            <Plus className="w-4 h-4" />
+            <span className="text-[10px] font-medium tracking-wider uppercase">
+              {SLOT_SIZES[slot.size].label}
+            </span>
+          </button>
+        );
+      }
+      return (
+        <div className="w-full h-full min-h-[112px] rounded-xl border border-dashed border-slate-200/60" />
+      );
+    }
+
+    const def = WIDGET_MAP[slot.widgetId];
+    if (!def) return null;
+
+    const trendDays = allData.trends?.days || [];
+
+    const headerRight = (
+      <div className="flex items-center gap-1">
+        {editMode && (
+          <button
+            onClick={() => setSlotPickerOpen({ rowId: row.id, slotIdx, size: slot.size })}
+            title="Reemplazar widget"
+            className="w-7 h-7 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors"
+            style={{ transitionDuration: "200ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+          >
+            <Replace className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <WidgetFilterPopover
+          widgetId={def.id}
+          section={def.section}
+          excludeFilters={def.excludeFilters}
+          values={widgetFilters[slot.widgetId!] || {}}
+          onChange={(filterId, value) => updateWidgetFilter(slot.widgetId!, filterId, value)}
+          onClear={() => clearWidgetFilters(slot.widgetId!)}
+        />
+      </div>
+    );
+
+    const filterChips = (
+      <WidgetFilterChips
+        section={def.section}
+        excludeFilters={def.excludeFilters}
+        values={widgetFilters[slot.widgetId!] || {}}
+        onRemove={(id) => updateWidgetFilter(slot.widgetId!, id, "all")}
+      />
+    );
+
+    const baseProps = {
+      category: def.category,
+      categoryColor: def.catColor,
+      title: def.title,
+      editMode,
+      isDragging: false,
+      isDragOver: false,
+      onRemove: () => clearSlot(row.id, slotIdx),
+      dragHandlers: {},
+      draggable: false,
+      headerRight,
+      filterChips,
+    };
+
+    // Numeric formats
+    if (
+      slot.format === "kpi" ||
+      slot.format === "big-number" ||
+      slot.format === "sparkline" ||
+      slot.format === "mini-line" ||
+      slot.format === "mini-bar"
+    ) {
+      const overrideForWidget = widgetDataOverrides[slot.widgetId];
+      const dataForWidget = overrideForWidget
+        ? { ...allData, [def.dataSource]: overrideForWidget }
+        : allData;
+      const d = getWidgetData(slot.widgetId, dataForWidget);
+      const sparkline = getSparklineSeries(slot.widgetId, trendDays);
+
+      if (slot.format === "kpi") {
+        return <FormatKpi {...baseProps} data={d} sparkline={sparkline} />;
+      }
+      if (slot.format === "big-number") {
+        return <FormatBigNumber {...baseProps} data={d} sparkline={sparkline} />;
+      }
+      if (slot.format === "sparkline") {
+        return <FormatSparkline {...baseProps} data={d} sparkline={sparkline} />;
+      }
+      const series: SeriesPoint[] = trendDays.map((day: any, i: number) => ({
+        date: day.date,
+        value: sparkline[i] ?? 0,
+      }));
+      if (slot.format === "mini-line") {
+        return (
+          <FormatMiniLine
+            {...baseProps}
+            series={series}
+            color={def.catColor}
+            valueFormatter={(v) => formatCompact(v)}
+          />
+        );
+      }
+      return (
+        <FormatMiniBar
+          {...baseProps}
+          series={series}
+          color={def.catColor}
+          valueFormatter={(v) => formatCompact(v)}
+        />
+      );
+    }
+
+    // List format
+    if (slot.format === "list") {
+      const resp = widgetDataOverrides[slot.widgetId] || perWidgetData[slot.widgetId];
+      const items: ListItem[] = (resp?.items as ListItem[]) || [];
+      const isCampaigns = def.dataSource === "top:campaigns";
+      return (
+        <FormatList
+          {...baseProps}
+          items={items}
+          accent={def.catColor}
+          valueFormatter={isCampaigns ? (v) => `${v.toFixed(2)}x` : (v) => formatARS(v)}
+          secondaryFormatter={
+            isCampaigns ? (v) => `Spend: ${formatARS(v)}` : (v) => `${v} u.`
+          }
+        />
+      );
+    }
+
+    // Donut format
+    if (slot.format === "donut") {
+      const resp = widgetDataOverrides[slot.widgetId] || perWidgetData[slot.widgetId];
+      const items: DistributionItem[] =
+        (resp?.slices as DistributionItem[]) ||
+        (resp?.items as DistributionItem[]) ||
+        [];
+      return (
+        <FormatDonut
+          {...baseProps}
+          items={items}
+          valueFormatter={(v) => formatARS(v)}
+        />
+      );
+    }
+
+    // area-full / bar-full
+    if (slot.format === "area-full" || slot.format === "bar-full") {
+      return (
+        <DashboardChartCard
+          category={def.category}
+          categoryColor={def.catColor}
+          title={def.title}
+          subtitle={
+            slot.widgetId === "revenue-chart"
+              ? "Evolución diaria"
+              : slot.widgetId === "spend-chart"
+              ? "Google + Meta acumulado"
+              : undefined
+          }
+          editMode={editMode}
+          isDragging={false}
+          isDragOver={false}
+          onRemove={() => clearSlot(row.id, slotIdx)}
+          dragProps={{}}
+          headerRight={headerRight}
+          filterChips={filterChips}
+        >
+          {slot.widgetId === "revenue-chart" && (
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={trends} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="dashRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.32} />
+                    <stop offset="60%" stopColor="#06b6d4" stopOpacity={0.08} />
+                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="dashRevenueStroke" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#06b6d4" />
+                    <stop offset="100%" stopColor="#8b5cf6" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
+                <XAxis dataKey="date" tickFormatter={formatDateShort} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tickLine={false} axisLine={false} width={62} />
+                <Tooltip formatter={(value: number) => [formatARS(value), "Revenue"]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(15,23,42,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="url(#dashRevenueStroke)"
+                  strokeWidth={2.5}
+                  fill="url(#dashRevenueFill)"
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#ffffff", fill: "#06b6d4" }}
+                  name="Revenue"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+
+          {slot.widgetId === "spend-chart" && (
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={trends} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="dashGoogleFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.42} />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0.04} />
+                  </linearGradient>
+                  <linearGradient id="dashMetaFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.42} />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.04} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
+                <XAxis dataKey="date" tickFormatter={formatDateShort} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tickLine={false} axisLine={false} width={62} />
+                <Tooltip formatter={(value: number, name: string) => [formatARS(value), name]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(15,23,42,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: 8 }} />
+                <Area
+                  type="monotone"
+                  dataKey="googleSpend"
+                  stackId="1"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  fill="url(#dashGoogleFill)"
+                  name="Google Ads"
+                  activeDot={{ r: 4, strokeWidth: 2, stroke: "#ffffff", fill: "#6366f1" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="metaSpend"
+                  stackId="1"
+                  stroke="#8b5cf6"
+                  strokeWidth={2}
+                  fill="url(#dashMetaFill)"
+                  name="Meta Ads"
+                  activeDot={{ r: 4, strokeWidth: 2, stroke: "#ffffff", fill: "#8b5cf6" }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </DashboardChartCard>
+      );
+    }
+
+    return null;
+  };
 
   // ── Render ──
   return (
@@ -683,7 +1123,7 @@ export default function DashboardPage() {
           </button>
         )}
         <button
-          onClick={() => { if (editMode) { setEditMode(false); setCatalogOpen(false); } else setEditMode(true); }}
+          onClick={() => { if (editMode) { setEditMode(false); setTemplatePickerOpen(false); setSlotPickerOpen(null); } else setEditMode(true); }}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
             editMode
               ? "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
@@ -737,313 +1177,128 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ── Unified widget grid: dispatcher por formato ── */}
-          <div className="dash-stagger grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 auto-rows-auto gap-4 mb-8">
-            {activeWidgets.map((inst, idx) => {
-              const def = WIDGET_MAP[inst.id];
-              if (!def) return null;
+          {/* ── Row-based slot layout ── */}
+          <div className="dash-stagger flex flex-col gap-4 mb-6">
+            {layout.rows.map((row, rowIdx) => {
+              const tpl = ROW_TEMPLATES[row.templateId];
+              const isDragging = dragRowIndex === rowIdx;
+              const isDragOver = dragOverRowIndex === rowIdx && dragRowIndex !== rowIdx;
 
-              const isDragging = dragIndex === idx;
-              const isDragOver = dragOverIndex === idx && dragIndex !== idx;
-              const dragHandlers = {
-                onDragStart: (e: React.DragEvent<HTMLDivElement>) => {
-                  setDragIndex(idx);
-                  e.dataTransfer.effectAllowed = "move";
-                },
-                onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
-                  if (editMode) {
-                    e.preventDefault();
-                    setDragOverIndex(idx);
-                  }
-                },
-                onDrop: () => {
-                  if (dragIndex !== null) reorderWidgets(dragIndex, idx);
-                  setDragIndex(null);
-                  setDragOverIndex(null);
-                },
-                onDragEnd: () => {
-                  setDragIndex(null);
-                  setDragOverIndex(null);
-                },
-              };
-
-              const baseProps = {
-                category: def.category,
-                categoryColor: def.catColor,
-                title: def.title,
-                editMode,
-                isDragging,
-                isDragOver,
-                onRemove: () => removeWidgetAt(idx),
-                dragHandlers,
-                draggable: true,
-                headerRight: (
-                  <WidgetFilterPopover
-                    widgetId={def.id}
-                    section={def.section}
-                    excludeFilters={def.excludeFilters}
-                    values={widgetFilters[inst.id] || {}}
-                    onChange={(filterId, value) => updateWidgetFilter(inst.id, filterId, value)}
-                    onClear={() => clearWidgetFilters(inst.id)}
-                  />
-                ),
-                filterChips: (
-                  <WidgetFilterChips
-                    section={def.section}
-                    excludeFilters={def.excludeFilters}
-                    values={widgetFilters[inst.id] || {}}
-                    onRemove={(id) => updateWidgetFilter(inst.id, id, "all")}
-                  />
-                ),
-              };
-
-              const gridClass = formatGridClass(inst.format);
-              const instanceKey = `${inst.id}__${inst.format}__${idx}`;
-              const trendDays = allData.trends?.days || [];
-
-              // Numeric formats: usan getWidgetData / getSparklineSeries
-              if (
-                inst.format === "kpi" ||
-                inst.format === "big-number" ||
-                inst.format === "sparkline" ||
-                inst.format === "mini-line" ||
-                inst.format === "mini-bar"
-              ) {
-                const overrideForWidget = widgetDataOverrides[inst.id];
-                const dataForWidget = overrideForWidget
-                  ? { ...allData, [def.dataSource]: overrideForWidget }
-                  : allData;
-                const d = getWidgetData(inst.id, dataForWidget);
-                const sparkline = getSparklineSeries(inst.id, trendDays);
-
-                if (inst.format === "kpi") {
-                  return (
-                    <div key={instanceKey} className={gridClass}>
-                      <FormatKpi {...baseProps} data={d} sparkline={sparkline} />
-                    </div>
-                  );
-                }
-                if (inst.format === "big-number") {
-                  return (
-                    <div key={instanceKey} className={gridClass}>
-                      <FormatBigNumber {...baseProps} data={d} sparkline={sparkline} />
-                    </div>
-                  );
-                }
-                if (inst.format === "sparkline") {
-                  return (
-                    <div key={instanceKey} className={gridClass}>
-                      <FormatSparkline {...baseProps} data={d} sparkline={sparkline} />
-                    </div>
-                  );
-                }
-                // mini-line / mini-bar: convertir sparkline a series con fechas
-                const series: SeriesPoint[] = trendDays.map((day: any, i: number) => ({
-                  date: day.date,
-                  value: sparkline[i] ?? 0,
-                }));
-                if (inst.format === "mini-line") {
-                  return (
-                    <div key={instanceKey} className={gridClass}>
-                      <FormatMiniLine
-                        {...baseProps}
-                        series={series}
-                        color={def.catColor}
-                        valueFormatter={(v) => formatCompact(v)}
-                      />
-                    </div>
-                  );
-                }
-                return (
-                  <div key={instanceKey} className={gridClass}>
-                    <FormatMiniBar
-                      {...baseProps}
-                      series={series}
-                      color={def.catColor}
-                      valueFormatter={(v) => formatCompact(v)}
-                    />
-                  </div>
-                );
-              }
-
-              // List format (top:*)
-              if (inst.format === "list") {
-                const resp = widgetDataOverrides[inst.id] || perWidgetData[inst.id];
-                const items: ListItem[] = (resp?.items as ListItem[]) || [];
-                const isCampaigns = def.dataSource === "top:campaigns";
-                return (
-                  <div key={instanceKey} className={gridClass}>
-                    <FormatList
-                      {...baseProps}
-                      items={items}
-                      accent={def.catColor}
-                      valueFormatter={isCampaigns ? (v) => `${v.toFixed(2)}x` : (v) => formatARS(v)}
-                      secondaryFormatter={
-                        isCampaigns
-                          ? (v) => `Spend: ${formatARS(v)}`
-                          : (v) => `${v} u.`
-                      }
-                    />
-                  </div>
-                );
-              }
-
-              // Donut format (dist:* or top:* with donut chosen)
-              if (inst.format === "donut") {
-                const resp = widgetDataOverrides[inst.id] || perWidgetData[inst.id];
-                const items: DistributionItem[] =
-                  (resp?.slices as DistributionItem[]) ||
-                  (resp?.items as DistributionItem[]) ||
-                  [];
-                return (
-                  <div key={instanceKey} className={gridClass}>
-                    <FormatDonut
-                      {...baseProps}
-                      items={items}
-                      valueFormatter={(v) => formatARS(v)}
-                    />
-                  </div>
-                );
-              }
-
-              // area-full / bar-full: legacy chart cards
-              if (inst.format === "area-full" || inst.format === "bar-full") {
-                const dragProps = editMode ? {
-                  draggable: true,
-                  onDragStart: (e: React.DragEvent) => { setDragIndex(idx); e.dataTransfer.effectAllowed = "move"; },
-                  onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDragOverIndex(idx); },
-                  onDrop: () => { if (dragIndex !== null) reorderWidgets(dragIndex, idx); setDragIndex(null); setDragOverIndex(null); },
-                  onDragEnd: () => { setDragIndex(null); setDragOverIndex(null); },
-                } : {};
-
-                return (
-                  <div key={instanceKey} className={gridClass}>
-                    <DashboardChartCard
-                      category={def.category}
-                      categoryColor={def.catColor}
-                      title={def.title}
-                      subtitle={inst.id === "revenue-chart" ? "Evolución diaria" : inst.id === "spend-chart" ? "Google + Meta acumulado" : undefined}
-                      editMode={editMode}
-                      isDragging={isDragging}
-                      isDragOver={isDragOver}
-                      onRemove={() => removeWidgetAt(idx)}
-                      dragProps={dragProps}
-                      headerRight={
-                        <WidgetFilterPopover
-                          widgetId={def.id}
-                          section={def.section}
-                          excludeFilters={def.excludeFilters}
-                          values={widgetFilters[inst.id] || {}}
-                          onChange={(filterId, value) => updateWidgetFilter(inst.id, filterId, value)}
-                          onClear={() => clearWidgetFilters(inst.id)}
-                        />
-                      }
-                      filterChips={
-                        <WidgetFilterChips
-                          section={def.section}
-                          excludeFilters={def.excludeFilters}
-                          values={widgetFilters[inst.id] || {}}
-                          onRemove={(id) => updateWidgetFilter(inst.id, id, "all")}
-                        />
-                      }
+              return (
+                <div
+                  key={row.id}
+                  className={`relative ${isDragging ? "opacity-40" : ""}`}
+                  style={{ transition: "opacity 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+                >
+                  {/* Row toolbar — edit mode */}
+                  {editMode && (
+                    <div
+                      className="flex items-center gap-2 mb-2 px-1"
+                      draggable
+                      onDragStart={(e) => {
+                        setDragRowIndex(rowIdx);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverRowIndex(rowIdx);
+                      }}
+                      onDrop={() => {
+                        if (dragRowIndex !== null) reorderRows(dragRowIndex, rowIdx);
+                        setDragRowIndex(null);
+                        setDragOverRowIndex(null);
+                      }}
+                      onDragEnd={() => {
+                        setDragRowIndex(null);
+                        setDragOverRowIndex(null);
+                      }}
                     >
-                      {inst.id === "revenue-chart" && (
-                        <ResponsiveContainer width="100%" height={260}>
-                          <AreaChart data={trends} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                            <defs>
-                              <linearGradient id="dashRevenueFill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.32} />
-                                <stop offset="60%" stopColor="#06b6d4" stopOpacity={0.08} />
-                                <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
-                              </linearGradient>
-                              <linearGradient id="dashRevenueStroke" x1="0" y1="0" x2="1" y2="0">
-                                <stop offset="0%" stopColor="#06b6d4" />
-                                <stop offset="100%" stopColor="#8b5cf6" />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
-                            <XAxis dataKey="date" tickFormatter={formatDateShort} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                            <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tickLine={false} axisLine={false} width={62} />
-                            <Tooltip formatter={(value: number) => [formatARS(value), "Revenue"]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(15,23,42,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
-                            <Area
-                              type="monotone"
-                              dataKey="revenue"
-                              stroke="url(#dashRevenueStroke)"
-                              strokeWidth={2.5}
-                              fill="url(#dashRevenueFill)"
-                              activeDot={{ r: 5, strokeWidth: 2, stroke: "#ffffff", fill: "#06b6d4" }}
-                              name="Revenue"
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      )}
+                      <span
+                        className="w-6 h-6 flex items-center justify-center text-slate-400 cursor-grab active:cursor-grabbing"
+                        title="Arrastrar fila"
+                      >
+                        <GripVertical className="w-4 h-4" />
+                      </span>
+                      <input
+                        type="text"
+                        value={row.title || ""}
+                        onChange={(e) => setRowTitle(row.id, e.target.value)}
+                        placeholder="Titulo de la fila (opcional)"
+                        className="flex-1 min-w-0 text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-700 bg-transparent border-0 border-b border-transparent hover:border-slate-300 focus:border-slate-500 focus:outline-none px-1 py-0.5"
+                        style={{ transition: "border-color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+                      />
+                      <button
+                        onClick={() => setTemplatePickerOpen({ mode: "change", rowId: row.id })}
+                        title="Cambiar plantilla de fila"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                        style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+                      >
+                        <LayoutGrid className="w-3 h-3" />
+                        {tpl.label}
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => removeRow(row.id)}
+                        title="Eliminar fila"
+                        className="w-7 h-7 rounded-lg text-rose-500 hover:bg-rose-50 flex items-center justify-center"
+                        style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
 
-                      {inst.id === "spend-chart" && (
-                        <ResponsiveContainer width="100%" height={260}>
-                          <AreaChart data={trends} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                            <defs>
-                              <linearGradient id="dashGoogleFill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.42} />
-                                <stop offset="100%" stopColor="#6366f1" stopOpacity={0.04} />
-                              </linearGradient>
-                              <linearGradient id="dashMetaFill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.42} />
-                                <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.04} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} />
-                            <XAxis dataKey="date" tickFormatter={formatDateShort} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                            <YAxis tickFormatter={(v) => "$" + formatCompact(v)} tickLine={false} axisLine={false} width={62} />
-                            <Tooltip formatter={(value: number, name: string) => [formatARS(value), name]} labelFormatter={formatDateShort} cursor={{ stroke: "rgba(15,23,42,0.12)", strokeWidth: 1, strokeDasharray: "4 4" }} />
-                            <Legend iconType="circle" wrapperStyle={{ paddingTop: 8 }} />
-                            <Area
-                              type="monotone"
-                              dataKey="googleSpend"
-                              stackId="1"
-                              stroke="#6366f1"
-                              strokeWidth={2}
-                              fill="url(#dashGoogleFill)"
-                              name="Google Ads"
-                              activeDot={{ r: 4, strokeWidth: 2, stroke: "#ffffff", fill: "#6366f1" }}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="metaSpend"
-                              stackId="1"
-                              stroke="#8b5cf6"
-                              strokeWidth={2}
-                              fill="url(#dashMetaFill)"
-                              name="Meta Ads"
-                              activeDot={{ r: 4, strokeWidth: 2, stroke: "#ffffff", fill: "#8b5cf6" }}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      )}
-                    </DashboardChartCard>
+                  {/* Read-mode title pill */}
+                  {!editMode && row.title && (
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                      <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                        {row.title}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Drop indicator */}
+                  {isDragOver && (
+                    <div
+                      className="absolute -top-2 left-0 right-0 h-1 rounded-full bg-indigo-500"
+                      style={{ boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.22)" }}
+                    />
+                  )}
+
+                  {/* Slots grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 auto-rows-auto gap-4">
+                    {row.slots.map((slot, slotIdx) => {
+                      const gridClass = slotGridClass(slot.size);
+                      const slotKey = `${row.id}__${slotIdx}`;
+                      return (
+                        <div key={slotKey} className={gridClass}>
+                          {renderSlotContent(row, slot, slotIdx)}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              }
-
-              return null;
+                </div>
+              );
             })}
           </div>
 
-          {/* Add widget button (edit mode) */}
+          {/* ── Agregar fila (edit mode) ── */}
           {editMode && (
             <button
-              onClick={() => setCatalogOpen(true)}
+              onClick={() => setTemplatePickerOpen({ mode: "add" })}
               className="dash-add-slot w-full py-6 flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 font-semibold text-sm mb-8"
             >
               <Plus className="w-4 h-4" />
-              Agregar widget
+              Agregar fila
             </button>
           )}
 
         </>
       )}
 
-      {/* ── Widget Catalog Modal — sheet premium ── */}
-      {catalogOpen && (
+      {/* ── Template Picker Modal ── */}
+      {templatePickerOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           style={{
@@ -1051,11 +1306,11 @@ export default function DashboardPage() {
             backdropFilter: "saturate(140%) blur(8px)",
             WebkitBackdropFilter: "saturate(140%) blur(8px)",
           }}
-          onClick={() => setCatalogOpen(false)}
+          onClick={() => setTemplatePickerOpen(false)}
         >
           <div
-            className="dash-sheet dash-sheet--centered w-full max-w-3xl max-h-[85vh] overflow-y-auto p-6 sm:p-8"
-            onClick={e => e.stopPropagation()}
+            className="dash-sheet dash-sheet--centered w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6 sm:p-8"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-1">
               <div className="flex items-center gap-2.5">
@@ -1063,12 +1318,103 @@ export default function DashboardPage() {
                   <LayoutGrid className="w-[18px] h-[18px]" />
                 </div>
                 <div>
-                  <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">Agregar widget</h3>
-                  <p className="text-[12px] text-slate-500">Elegí qué datos querés ver en tu dashboard</p>
+                  <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">
+                    {templatePickerOpen && typeof templatePickerOpen === "object" && templatePickerOpen.mode === "add"
+                      ? "Agregar fila"
+                      : "Cambiar plantilla"}
+                  </h3>
+                  <p className="text-[12px] text-slate-500">Elegí la estructura de slots para esta fila</p>
                 </div>
               </div>
               <button
-                onClick={() => setCatalogOpen(false)}
+                onClick={() => setTemplatePickerOpen(false)}
+                aria-label="Cerrar"
+                className="w-8 h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors"
+                style={{ transitionDuration: "200ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {ALL_ROW_TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  onClick={() => {
+                    if (templatePickerOpen && typeof templatePickerOpen === "object") {
+                      if (templatePickerOpen.mode === "add") {
+                        addRow(tpl.id);
+                      } else if (templatePickerOpen.mode === "change") {
+                        changeTemplate(templatePickerOpen.rowId, tpl.id);
+                      }
+                    }
+                    setTemplatePickerOpen(false);
+                  }}
+                  className="flex flex-col gap-2 p-3.5 border border-slate-200 rounded-xl bg-white text-left hover:border-slate-400 hover:bg-slate-50"
+                  style={{
+                    boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
+                    transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)",
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold tracking-tight text-[13px] text-slate-900">{tpl.label}</span>
+                    <span className="text-[10px] font-medium tracking-wider uppercase text-slate-400">
+                      {tpl.height === "tall" ? "Alto" : "Compacto"}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-500 leading-snug">{tpl.description}</span>
+                  {/* Mini preview — barras proporcionales al tamaño */}
+                  <div className="flex gap-1 mt-1 h-4">
+                    {tpl.slots.map((size, i) => {
+                      const colSpan = SLOT_SIZES[size].cols;
+                      const height = SLOT_SIZES[size].rows === 2 ? "h-4" : "h-2";
+                      return (
+                        <div
+                          key={i}
+                          className={`${height} bg-slate-200 rounded`}
+                          style={{ flex: colSpan }}
+                        />
+                      );
+                    })}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Slot Widget Picker Modal ── */}
+      {slotPickerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+          style={{
+            background: "rgba(15, 23, 42, 0.42)",
+            backdropFilter: "saturate(140%) blur(8px)",
+            WebkitBackdropFilter: "saturate(140%) blur(8px)",
+          }}
+          onClick={() => setSlotPickerOpen(null)}
+        >
+          <div
+            className="dash-sheet dash-sheet--centered w-full max-w-3xl max-h-[85vh] overflow-y-auto p-6 sm:p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-1">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+                  <LayoutGrid className="w-[18px] h-[18px]" />
+                </div>
+                <div>
+                  <h3 className="text-[17px] font-semibold tracking-tight text-slate-900">
+                    Elegir widget
+                  </h3>
+                  <p className="text-[12px] text-slate-500">
+                    Slot {SLOT_SIZES[slotPickerOpen.size].label} — mostrando widgets compatibles
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSlotPickerOpen(null)}
                 aria-label="Cerrar"
                 className="w-8 h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors"
                 style={{ transitionDuration: "200ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
@@ -1078,8 +1424,14 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-6 space-y-6">
-              {Array.from(new Set(WIDGET_CATALOG.map(w => w.category))).map(cat => {
-                const items = WIDGET_CATALOG.filter(w => w.category === cat);
+              {Array.from(new Set(WIDGET_CATALOG.map((w) => w.category))).map((cat) => {
+                const allowedFormats = SLOT_SIZES[slotPickerOpen.size].allowedFormats;
+                const items = WIDGET_CATALOG.filter(
+                  (w) =>
+                    w.category === cat &&
+                    w.supportedFormats.some((f) => allowedFormats.includes(f))
+                );
+                if (items.length === 0) return null;
                 const catColor = items[0]?.catColor || "#64748b";
                 return (
                   <div key={cat}>
@@ -1096,35 +1448,42 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {items.map(w => {
+                      {items.map((w) => {
+                        const compatibleFormats = w.supportedFormats.filter((f) =>
+                          allowedFormats.includes(f)
+                        );
                         return (
                           <div
                             key={w.id}
                             className="flex flex-col gap-2 px-3.5 py-3 border border-slate-200 rounded-xl bg-white"
-                            style={{
-                              boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
-                            }}
+                            style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.03)" }}
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-medium tracking-tight text-[13px] text-slate-800 truncate">{w.title}</span>
+                              <span className="font-medium tracking-tight text-[13px] text-slate-800 truncate">
+                                {w.title}
+                              </span>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
-                              {w.supportedFormats.map(fmt => {
+                              {compatibleFormats.map((fmt) => {
                                 const fdef = FORMAT_REGISTRY[fmt];
-                                const isActive = isInstanceActive(w.id, fmt);
                                 const isDefault = fmt === w.defaultFormat;
                                 return (
                                   <button
                                     key={fmt}
-                                    onClick={() => { if (!isActive) addWidget(w.id, fmt); }}
-                                    disabled={isActive}
+                                    onClick={() => {
+                                      setSlotWidget(
+                                        slotPickerOpen.rowId,
+                                        slotPickerOpen.slotIdx,
+                                        w.id,
+                                        fmt
+                                      );
+                                      setSlotPickerOpen(null);
+                                    }}
                                     title={fdef.description + (isDefault ? " (Recomendado)" : "")}
                                     className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border ${
-                                      isActive
-                                        ? "border-slate-200/70 bg-slate-50 text-slate-400 cursor-default"
-                                        : isDefault
-                                        ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 cursor-pointer"
-                                        : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50 cursor-pointer"
+                                      isDefault
+                                        ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                                        : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
                                     }`}
                                     style={{
                                       transitionProperty: "border-color, background-color, color",
@@ -1132,7 +1491,7 @@ export default function DashboardPage() {
                                       transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
                                     }}
                                   >
-                                    {isActive ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                                    <Plus className="w-3 h-3" />
                                     {fdef.label}
                                   </button>
                                 );
