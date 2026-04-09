@@ -182,13 +182,25 @@ export async function POST(req: NextRequest) {
       ? payments.map((p: any) => p.paymentSystemName || p.group).join(", ")
       : null;
 
-    const promoNames = (Array.isArray(vtexOrder.ratesAndBenefitsData) ? vtexOrder.ratesAndBenefitsData : [])
-      .map((r: any) => r.name)
-      .filter(Boolean)
-      .join(', ') || null;
+    // Tanda 7.10.4 — captura robusta de promociones: ratesAndBenefitsData
+    // es la fuente primaria pero VTEX a veces no la envía en el webhook.
+    // Fallback: leer priceTags de los items (nombres únicos) para no quedarse
+    // con promotionNames en null cuando sí hubo una promo.
+    const benefits: string[] = (Array.isArray(vtexOrder.ratesAndBenefitsData?.rateAndBenefitsIdentifiers) ? vtexOrder.ratesAndBenefitsData.rateAndBenefitsIdentifiers : [])
+      .map((r: any) => (r?.name || "").toString().trim())
+      .filter(Boolean);
+    const benefitsLegacy: string[] = Array.isArray(vtexOrder.ratesAndBenefitsData)
+      ? vtexOrder.ratesAndBenefitsData.map((r: any) => (r?.name || "").toString().trim()).filter(Boolean)
+      : [];
+    const priceTagNames: string[] = (items as any[])
+      .flatMap((it: any) => Array.isArray(it?.priceTags) ? it.priceTags.map((t: any) => (t?.name || t?.identifier || "").toString().trim()) : [])
+      .filter(Boolean);
+    const allPromoNames = Array.from(new Set([...benefits, ...benefitsLegacy, ...priceTagNames]));
+    const promoNames = allPromoNames.length ? allPromoNames.join(", ") : null;
 
-    // Extract coupon code from VTEX marketingData
-    const couponCode = vtexOrder.marketingData?.coupon || null;
+    // Extract coupon code from VTEX marketingData (normalizado)
+    const couponCodeRaw = (vtexOrder.marketingData?.coupon || "").toString().trim();
+    const couponCode = couponCodeRaw.length > 0 ? couponCodeRaw : null;
 
     // ── Check if this order already exists (for dedup logic) ──
     const existingOrder = await prisma.order.findUnique({

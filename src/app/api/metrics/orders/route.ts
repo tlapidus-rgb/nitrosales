@@ -440,22 +440,30 @@ export async function GET(request: NextRequest) {
         ORDER BY day ASC
       `, prevFrom, prevTo),
 
-      /* 13) Promotion breakdown — was sequential, now parallel */
+      /* 13) Promotion breakdown
+            Tanda 7.10.3 — normaliza case+trim sobre promotionNames. Display
+            final con INITCAP para que quede prolijo en la UI. */
       prisma.$queryRawUnsafe<Array<{
         promo: string;
         orders: string;
         revenue: string;
       }>>(`
+        WITH norm AS (
+          SELECT
+            NULLIF(LOWER(TRIM("promotionNames")), '') AS promo_key,
+            "totalValue"
+          FROM orders
+          WHERE "organizationId" = '${ORG_ID}'
+            AND "orderDate" >= $1 AND "orderDate" <= $2
+            AND status NOT IN ('CANCELLED', 'RETURNED')
+            ${srcWhereSimple}
+        )
         SELECT
-          COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo') AS promo,
+          COALESCE(INITCAP(promo_key), 'Sin promo') AS promo,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
-        FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED')
-          ${srcWhereSimple}
-        GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo')
+        FROM norm
+        GROUP BY promo_key
         ORDER BY SUM("totalValue") DESC
         LIMIT 15
       `, dateFrom, dateTo),
@@ -589,7 +597,8 @@ export async function GET(request: NextRequest) {
 
       /* 18) Coupons breakdown — top 15 used (D8)
             VTEX-ONLY: couponCode se popula desde VTEX marketingData.coupon.
-            ML tiene su propio sistema de cupones que no registramos. */
+            ML tiene su propio sistema de cupones que no registramos.
+            Tanda 7.10.3 — normaliza case+trim: "BIENVENIDA" == "bienvenida". */
       prisma.$queryRawUnsafe<Array<{
         code: string;
         orders: string;
@@ -597,7 +606,7 @@ export async function GET(request: NextRequest) {
         discount_total: string;
       }>>(`
         SELECT
-          "couponCode" AS code,
+          UPPER(TRIM("couponCode")) AS code,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue,
           COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS discount_total
@@ -607,10 +616,10 @@ export async function GET(request: NextRequest) {
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
           AND "couponCode" IS NOT NULL
-          AND "couponCode" <> ''
+          AND TRIM("couponCode") <> ''
           ${srcWhereSimple}
           ${vtexOnlyWhereSimple}
-        GROUP BY "couponCode"
+        GROUP BY UPPER(TRIM("couponCode"))
         ORDER BY SUM("totalValue") DESC
         LIMIT 15
       `, dateFrom, dateTo),

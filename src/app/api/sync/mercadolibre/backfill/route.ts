@@ -75,6 +75,16 @@ export async function GET(req: NextRequest) {
             0
           );
 
+          // Tanda 7.10.4 — promociones ML (order-level + item-level)
+          const orderPromos: string[] = Array.isArray(order.promotions)
+            ? order.promotions.map((p: any) => (p?.name || p?.type || "").toString().trim()).filter(Boolean)
+            : [];
+          const itemPromos: string[] = (order.order_items || [])
+            .map((it: any) => (it?.promotion?.name || it?.promotion?.type || "").toString().trim())
+            .filter(Boolean);
+          const allPromos = Array.from(new Set([...orderPromos, ...itemPromos]));
+          const promotionNames = allPromos.length ? allPromos.join(", ") : null;
+
           await prisma.order.upsert({
             where: {
               organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
@@ -84,6 +94,7 @@ export async function GET(req: NextRequest) {
               totalValue,
               itemCount,
               marketplaceFee: marketplaceFee > 0 ? marketplaceFee : null,
+              promotionNames,
               paymentMethod: order.payments?.[0]?.payment_type || null,
             },
             create: {
@@ -94,6 +105,7 @@ export async function GET(req: NextRequest) {
               currency: order.currency_id || "ARS",
               itemCount,
               marketplaceFee: marketplaceFee > 0 ? marketplaceFee : null,
+              promotionNames,
               source: "MELI",
               channel: "marketplace",
               paymentMethod: order.payments?.[0]?.payment_type || null,
