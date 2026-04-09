@@ -14,6 +14,9 @@ export { default as SegmentationCard } from "./SegmentationCard";
 export { default as CouponsCard } from "./CouponsCard";
 export { default as GeographyCard } from "./GeographyCard";
 export { default as PlatformScopeBanner } from "./PlatformScopeBanner";
+export { default as SourceTabs } from "./SourceTabs";
+export { default as SourceSplitBar } from "./SourceSplitBar";
+export { default as MercadoLibreCascadeCard } from "./MercadoLibreCascadeCard";
 export {
   default as OrderFlagBadge,
   OrderFlagBadgeGroup,

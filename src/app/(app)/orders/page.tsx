@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
@@ -13,7 +14,7 @@ import {
   Percent, Truck, Tag, ExternalLink,
 } from "lucide-react";
 import {
-  KpiCard, ChangeBadge, DateRangeFilter, SourceFilter, WeeklySummary, StatusFilter,
+  KpiCard, ChangeBadge, DateRangeFilter, WeeklySummary, StatusFilter,
 } from "@/components/dashboard";
 import {
   OrdersHero,
@@ -25,6 +26,9 @@ import {
   CouponsCard,
   GeographyCard,
   OrderFlagBadgeGroup,
+  SourceTabs,
+  SourceSplitBar,
+  MercadoLibreCascadeCard,
   type AnomalyFlag,
   type OrdersV4Namespaces,
 } from "@/components/orders";
@@ -84,13 +88,41 @@ function toDateInputValue(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
+type SourceValue = "ALL" | "VTEX" | "MELI";
+const VALID_SOURCES: SourceValue[] = ["ALL", "VTEX", "MELI"];
+
+function parseSourceParam(raw: string | null): SourceValue {
+  if (!raw) return "ALL";
+  const upper = raw.toUpperCase();
+  return (VALID_SOURCES as string[]).includes(upper) ? (upper as SourceValue) : "ALL";
+}
+
 export default function OrdersPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const defaultTo = new Date();
   const defaultFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const [dateFrom, setDateFrom] = useState(toDateInputValue(defaultFrom));
   const [dateTo, setDateTo] = useState(toDateInputValue(defaultTo));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
-  const [source, setSource] = useState<string>("ALL");
+
+  // Source tab sincronizada con URL (?source=VTEX|MELI, omitido si ALL)
+  const source: SourceValue = useMemo(
+    () => parseSourceParam(searchParams?.get("source") ?? null),
+    [searchParams]
+  );
+  const setSource = (next: SourceValue) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (next === "ALL") {
+      params.delete("source");
+    } else {
+      params.set("source", next);
+    }
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  };
   const [data, setData] = useState<OrdersData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +134,11 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showComparison, setShowComparison] = useState(false);
   const [flagFilter, setFlagFilter] = useState<AnomalyFlag | null>(null);
+
+  // Reset pagination cuando cambia source (tab) o fechas
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [source, dateFrom, dateTo]);
 
   // -- Single fetch (fixed: no duplicate) --
   useEffect(() => {
@@ -242,15 +279,27 @@ export default function OrdersPage() {
   const avgShippingPerOrder = kpis.totalOrders > 0 ? kpis.totalShipping / kpis.totalOrders : 0;
 
   return (
-    <div className="space-y-6">
-      {/* HEADER + FILTERS */}
+    <div
+      className="space-y-6 dash-stagger"
+      style={{ fontVariantNumeric: "tabular-nums" }}
+      key={source}
+    >
+      {/* HEADER + TABS + DATE FILTERS (Tanda 8.1) */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Ordenes</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Analisis de ventas y rendimiento por periodo</p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Pedidos</h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {source === "ALL" && "Consolidado VTEX + Mercado Libre"}
+              {source === "VTEX" && "Solo órdenes de VTEX"}
+              {source === "MELI" && "Solo órdenes de Mercado Libre"}
+            </p>
           </div>
-          <SourceFilter source={source} onSourceChange={setSource} />
+          <SourceTabs
+            source={source}
+            onSourceChange={setSource}
+            sourceCounts={data?.sourceCounts ?? null}
+          />
         </div>
         <DateRangeFilter
           dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
@@ -276,6 +325,16 @@ export default function OrdersPage() {
         data={data.anomalies}
         onFilterByFlag={handleFilterByFlag}
       />
+
+      {/* SOURCE SPLIT BAR (Tanda 8.5) — solo visible en tab Todos */}
+      {source === "ALL" && data.sourceCounts && (data.sourceCounts.vtex > 0 || data.sourceCounts.meli > 0) && (
+        <SourceSplitBar
+          vtexOrders={data.sourceCounts.vtex}
+          meliOrders={data.sourceCounts.meli}
+          vtexRevenue={data.sourceCounts.vtexRevenue ?? 0}
+          meliRevenue={data.sourceCounts.meliRevenue ?? 0}
+        />
+      )}
 
       {/* WEEKLY SUMMARY */}
       <WeeklySummary
@@ -317,11 +376,30 @@ export default function OrdersPage() {
           subtitle="costo envio sobre ticket" />
       </div>
 
-      {/* PROFITABILITY + COHORTS (Tanda 4) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ProfitabilityCard data={data.profitability} loading={loading} />
-        <CohortsCard data={data.cohorts} loading={loading} />
-      </div>
+      {/* ML CASCADE (Tanda 8.4) — exclusiva de la tab Mercado Libre */}
+      {source === "MELI" && (
+        <MercadoLibreCascadeCard
+          grossRevenue={kpis.totalRevenue}
+          marketplaceFee={data.profitability?.totalMarketplaceFee ?? (kpis as any).totalMarketplaceFee ?? 0}
+          shippingCost={kpis.totalShipping ?? 0}
+          ordersCount={kpis.totalOrders}
+          feeCoveragePct={data.profitability?.feeCoveragePct}
+        />
+      )}
+
+      {/* PROFITABILITY + COHORTS (Tanda 4 + 8.2)
+          - VTEX: muestra ambos (margen real con COGS)
+          - Todos/ML: solo cohorts (margen requiere COGS que solo VTEX tiene) */}
+      {source === "VTEX" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ProfitabilityCard data={data.profitability} loading={loading} />
+          <CohortsCard data={data.cohorts} loading={loading} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          <CohortsCard data={data.cohorts} loading={loading} />
+        </div>
+      )}
 
       {/* DAILY SALES CHART + COMPARISON */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
@@ -455,11 +533,13 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* LOGISTICS + SEGMENTATION (Tanda 4) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <LogisticsCard data={data.logistics} loading={loading} source={source} sourceCounts={data.sourceCounts} />
-        <SegmentationCard data={data.segmentation} loading={loading} source={source} sourceCounts={data.sourceCounts} />
-      </div>
+      {/* LOGISTICS + SEGMENTATION (Tanda 4 + 8.2) — solo en tab VTEX */}
+      {source === "VTEX" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <LogisticsCard data={data.logistics} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+          <SegmentationCard data={data.segmentation} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+        </div>
+      )}
 
       {/* PAYMENT + PROMOTIONS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -488,7 +568,7 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {data.promotionBreakdown && data.promotionBreakdown.length > 0 && (
+        {source === "VTEX" && data.promotionBreakdown && data.promotionBreakdown.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-gray-800 mb-4">Ventas por promocion</h2>
             <div className="flex gap-4">
@@ -516,11 +596,13 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* COUPONS + GEOGRAPHY (Tanda 4) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CouponsCard data={data.coupons} loading={loading} source={source} sourceCounts={data.sourceCounts} />
-        <GeographyCard data={data.geography} loading={loading} source={source} sourceCounts={data.sourceCounts} />
-      </div>
+      {/* COUPONS + GEOGRAPHY (Tanda 4 + 8.2) — solo en tab VTEX */}
+      {source === "VTEX" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CouponsCard data={data.coupons} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+          <GeographyCard data={data.geography} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+        </div>
+      )}
 
       {/* TOP PRODUCTS + CUSTOMERS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

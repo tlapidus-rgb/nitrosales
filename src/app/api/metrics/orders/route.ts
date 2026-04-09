@@ -858,11 +858,23 @@ export async function GET(request: NextRequest) {
         vtex: string;
         meli: string;
         total: string;
+        vtex_revenue: string;
+        meli_revenue: string;
+        vtex_marketplace_fee: string;
+        meli_marketplace_fee: string;
+        vtex_shipping: string;
+        meli_shipping: string;
       }]>(`
         SELECT
           COUNT(*) FILTER (WHERE "source" = 'VTEX')::text AS vtex,
           COUNT(*) FILTER (WHERE "source" = 'MELI')::text AS meli,
-          COUNT(*)::text AS total
+          COUNT(*)::text AS total,
+          COALESCE(SUM("totalValue") FILTER (WHERE "source" = 'VTEX'), 0)::text AS vtex_revenue,
+          COALESCE(SUM("totalValue") FILTER (WHERE "source" = 'MELI'), 0)::text AS meli_revenue,
+          COALESCE(SUM(COALESCE("marketplaceFee", 0)) FILTER (WHERE "source" = 'VTEX'), 0)::text AS vtex_marketplace_fee,
+          COALESCE(SUM(COALESCE("marketplaceFee", 0)) FILTER (WHERE "source" = 'MELI'), 0)::text AS meli_marketplace_fee,
+          COALESCE(SUM(COALESCE("shippingCost", 0)) FILTER (WHERE "source" = 'VTEX'), 0)::text AS vtex_shipping,
+          COALESCE(SUM(COALESCE("shippingCost", 0)) FILTER (WHERE "source" = 'MELI'), 0)::text AS meli_shipping
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
@@ -1016,6 +1028,12 @@ export async function GET(request: NextRequest) {
       vtex: Number(sc.vtex || 0),
       meli: Number(sc.meli || 0),
       total: Number(sc.total || 0),
+      vtexRevenue: Number(sc.vtex_revenue || 0),
+      meliRevenue: Number(sc.meli_revenue || 0),
+      vtexMarketplaceFee: Number(sc.vtex_marketplace_fee || 0),
+      meliMarketplaceFee: Number(sc.meli_marketplace_fee || 0),
+      vtexShipping: Number(sc.vtex_shipping || 0),
+      meliShipping: Number(sc.meli_shipping || 0),
     };
 
     // ── Profitability (D1 + D2) ──

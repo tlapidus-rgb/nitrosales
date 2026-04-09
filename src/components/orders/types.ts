@@ -15,6 +15,13 @@ export interface SourceCounts {
   vtex: number;
   meli: number;
   total: number;
+  // Tanda 8 — desglose por fuente para SourceSplitBar y cascada ML
+  vtexRevenue?: number;
+  meliRevenue?: number;
+  vtexMarketplaceFee?: number;
+  meliMarketplaceFee?: number;
+  vtexShipping?: number;
+  meliShipping?: number;
 }
 
 // ── Profitability (D1 + D2 + Tanda 7 honesty fix) ──
