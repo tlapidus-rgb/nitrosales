@@ -28,15 +28,17 @@ function convertDecimalsToNumbers(obj: unknown): unknown {
 
 function createPrismaClient(): PrismaClient {
   // Append connection pool params if not already present in DATABASE_URL
-  // Railway default is connection_limit=5 which is too low for 25 parallel queries
+  // Railway default is connection_limit=5 which is too low for batched queries
   const dbUrl = process.env.DATABASE_URL || "";
+  let finalUrl = dbUrl;
   if (dbUrl && !dbUrl.includes("connection_limit")) {
     const separator = dbUrl.includes("?") ? "&" : "?";
-    process.env.DATABASE_URL = `${dbUrl}${separator}connection_limit=15&pool_timeout=20`;
+    finalUrl = `${dbUrl}${separator}connection_limit=15&pool_timeout=20`;
   }
 
   const client = new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    datasourceUrl: finalUrl || undefined,
   });
 
   // Middleware: auto-convert Decimal → number on all query results
