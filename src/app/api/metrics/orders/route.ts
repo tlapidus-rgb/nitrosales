@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getCached, setCache } from "@/lib/api-cache";
-import { getSellerToken } from "@/lib/connectors/mercadolibre-seller";
+// enrichment moved to /api/metrics/orders/enrich (non-blocking)
 
 export const revalidate = 0;
 export const maxDuration = 120; // Vercel Pro: up to 120s (250k orders + 170k items need headroom)
@@ -824,10 +824,7 @@ export async function GET(request: NextRequest) {
         totalOrders: Number(c.total_orders),
         totalSpent: Number(c.total_spent),
       })),
-      recentOrders: await enrichRecentOrders(recentOrders, ORG_ID).catch((err) => {
-        console.error("[Orders API] enrichRecentOrders crashed:", err.message);
-        return recentOrders.map(formatOrder); // Safe fallback — never breaks the page
-      }),
+      recentOrders: recentOrders.map(formatOrder),
       // ── v4 namespaces ──
       sourceCounts: (() => {
         const vtexRow = sourceCountsRaw.find(r => r.source === "VTEX");
@@ -965,199 +962,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// SYNCHRONOUS MELI enrichment — fetches items from ML API for
-// orders missing product details BEFORE returning the response.
-// Adds ~1-3s latency but GUARANTEES items appear on first load.
-// ══════════════════════════════════════════════════════════════
-const ML_API_BASE = "https://api.mercadolibre.com";
-
-async function enrichRecentOrders(
-  recentOrders: Array<any>,
-  orgId: string
-): Promise<Array<any>> {
-  // Identify MELI orders missing items
-  const missingItems = recentOrders.filter(
-    o => o.source === "MELI" && (!o.items_json || o.items_json === "[]" || o.items_json === "null")
-  );
-
-  // If none missing, just format and return
-  if (missingItems.length === 0) {
-    return recentOrders.map(formatOrder);
-  }
-
-  // ── Use ML Search API (1 call) instead of individual order fetches ──
-  let token: string | null = null;
-  let mlUserId: number = 0;
-  try {
-    const tokenResult = await getSellerToken();
-    token = tokenResult.token;
-    mlUserId = tokenResult.mlUserId;
-  } catch (err: any) {
-    console.error("[Orders API] getSellerToken failed:", err.message);
-    return recentOrders.map(formatOrder);
-  }
-
-  // Find the earliest order date among missing items to narrow the search
-  const missingDates = missingItems.map(o => o.order_date).filter(Boolean).sort();
-  const earliestDate = missingDates[0] || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const searchFrom = earliestDate.slice(0, 10) + "T00:00:00.000-03:00";
-
-  // Build a set of external IDs we need
-  const neededIds = new Set(missingItems.map(o => o.external_id));
-
-  // Fetch via ML Search API — paginate until we've found all needed orders or run out
-  // Safety: 15s max for enrichment, max 3 pages (150 orders scanned)
-  const enrichedMap = new Map<string, any[]>();
-  let offset = 0;
-  const batchSize = 50;
-  const maxPages = 3;
-  let totalFetched = 0;
-  let pagesScanned = 0;
-  const enrichStart = Date.now();
-  const ENRICH_TIMEOUT_MS = 15_000;
-
-  try {
-    while (enrichedMap.size < neededIds.size && pagesScanned < maxPages) {
-      // Safety timeout
-      if (Date.now() - enrichStart > ENRICH_TIMEOUT_MS) {
-        console.log(`[Orders API] Enrichment timeout after ${pagesScanned} pages, ${enrichedMap.size} enriched`);
-        break;
-      }
-      const searchUrl = `${ML_API_BASE}/orders/search?seller=${mlUserId}&sort=date_desc&limit=${batchSize}&offset=${offset}&order.date_created.from=${encodeURIComponent(searchFrom)}`;
-      const res = await fetch(searchUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!res.ok) {
-        console.error(`[Orders API] ML search failed: ${res.status}`);
-        break;
-      }
-      const data = await res.json();
-      const results = data.results || [];
-      if (results.length === 0) break;
-      totalFetched += results.length;
-
-      // Process only the orders we need
-      for (const mlOrder of results) {
-        const extId = String(mlOrder.id);
-        if (!neededIds.has(extId)) continue;
-
-        const mlItems = mlOrder.order_items || [];
-        if (mlItems.length === 0) continue;
-
-        // Find the DB order ID for this external ID
-        const dbOrder = missingItems.find(o => o.external_id === extId);
-        if (!dbOrder) continue;
-
-        try {
-          const savedItems: any[] = [];
-          for (const mlItem of mlItems) {
-            const mlItemId = String(mlItem.item?.id || "");
-            const itemTitle = mlItem.item?.title || "ML Item";
-            const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
-            const quantity = mlItem.quantity || 1;
-            const thumbnailUrl = mlItem.item?.thumbnail || null;
-
-            // Save product to DB (skip on error, still show inline)
-            try {
-              const product = await prisma.product.upsert({
-                where: {
-                  organizationId_externalId: {
-                    organizationId: orgId,
-                    externalId: mlItemId || `meli-${extId}-0`,
-                  },
-                },
-                create: {
-                  organizationId: orgId,
-                  externalId: mlItemId || `meli-${extId}-0`,
-                  name: itemTitle,
-                  sku: mlItem.item?.seller_sku || mlItemId,
-                  price: unitPrice,
-                  imageUrl: thumbnailUrl,
-                  isActive: true,
-                },
-                update: {
-                  name: itemTitle,
-                  price: unitPrice,
-                  ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
-                },
-              });
-
-              await prisma.orderItem.create({
-                data: {
-                  orderId: dbOrder.id,
-                  productId: product.id,
-                  quantity,
-                  unitPrice,
-                  totalPrice: unitPrice * quantity,
-                } as any,
-              }).catch(() => {}); // already exists
-            } catch (dbErr: any) {
-              // DB save failed but we can still show items inline
-              console.error(`[Orders API] DB save failed for ${mlItemId}:`, dbErr.message);
-            }
-
-            // Always add to inline result regardless of DB save
-            savedItems.push({
-              name: itemTitle,
-              imageUrl: thumbnailUrl,
-              quantity,
-              unitPrice,
-              totalPrice: unitPrice * quantity,
-            });
-          }
-
-          enrichedMap.set(extId, savedItems);
-        } catch (orderErr: any) {
-          console.error(`[Orders API] Enrich order ${extId} failed:`, orderErr.message);
-        }
-      }
-
-      // Check if we've found all needed or reached end of results
-      const total = data.paging?.total || 0;
-      offset += batchSize;
-      pagesScanned++;
-      if (offset >= total) break;
-      if (enrichedMap.size >= neededIds.size) break;
-    }
-
-    console.log(`[Orders API] ML search enriched ${enrichedMap.size}/${neededIds.size} orders (scanned ${totalFetched} ML orders)`);
-  } catch (err: any) {
-    console.error("[Orders API] ML search enrichment failed:", err.message);
-  }
-
-  // Format orders, injecting enriched items where available
-  return recentOrders.map(o => {
-    let items: any[] = [];
-    try { items = JSON.parse(o.items_json); } catch {}
-
-    // If items were empty but we just enriched, use enriched data
-    if (items.length === 0 && enrichedMap.has(o.external_id)) {
-      items = enrichedMap.get(o.external_id)!;
-    }
-
-    return {
-      id: o.id,
-      externalId: o.external_id,
-      status: o.status,
-      totalValue: Number(o.total_value),
-      itemCount: Number(o.item_count),
-      paymentMethod: o.payment_method,
-      source: o.source,
-      orderDate: o.order_date,
-      customerName: o.customer_name || "Sin nombre",
-      customerEmail: o.customer_email,
-      items,
-      promotionNames: o.promotion_names || null,
-      discountValue: Number(o.discount_value),
-      shippingCost: Number(o.shipping_cost),
-      channel: o.channel || null,
-      deliveryType: o.delivery_type || null,
-      shippingCarrier: o.shipping_carrier || null,
-    };
-  });
-}
+// enrichRecentOrders moved to /api/metrics/orders/enrich route
 
 function formatOrder(o: any) {
   let items: any[] = [];

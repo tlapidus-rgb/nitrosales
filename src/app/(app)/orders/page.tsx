@@ -164,6 +164,45 @@ export default function OrdersPage() {
     fetchData();
   }, [dateFrom, dateTo, source, currentPage]);
 
+  // -- Auto-enrich MELI orders missing items --
+  useEffect(() => {
+    if (!data) return;
+    const meliMissing = data.recentOrders.filter(
+      (o) => o.source === "MELI" && (!o.items || o.items.length === 0)
+    );
+    if (meliMissing.length === 0) return;
+
+    const enrichOrders = async () => {
+      try {
+        const res = await fetch("/api/metrics/orders/enrich", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderIds: meliMissing.map((o) => o.id) }),
+        });
+        if (!res.ok) return;
+        const { enriched } = await res.json();
+        if (!enriched || Object.keys(enriched).length === 0) return;
+
+        // Merge enriched items into existing data
+        setData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            recentOrders: prev.recentOrders.map((o) => {
+              if (enriched[o.id]) {
+                return { ...o, items: enriched[o.id] };
+              }
+              return o;
+            }),
+          };
+        });
+      } catch {
+        // Silent fail — enrichment is best-effort
+      }
+    };
+    enrichOrders();
+  }, [data?.meta?.dateFrom, data?.meta?.dateTo, data?.meta?.source, currentPage]);
+
   const handleQuickRange = (days: number) => {
     const to = new Date();
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
