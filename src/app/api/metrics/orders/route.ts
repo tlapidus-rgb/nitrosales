@@ -113,8 +113,11 @@ export async function GET(request: NextRequest) {
     const daysInPeriod = Math.max(1, Math.ceil(periodMs / MS_PER_DAY));
 
     /* ══════════════════════════════════════════════════════════
-       ALL QUERIES IN PARALLEL — no sequential queries
+       QUERIES IN 3 BATCHES — avoids connection pool exhaustion
+       (pool limit is 5-15, 25 parallel queries would timeout)
        ══════════════════════════════════════════════════════════ */
+
+    // ── BATCH 1: Core KPIs + main data (10 queries) ──
     const [
       currentPeriod,
       previousPeriod,
@@ -126,22 +129,6 @@ export async function GET(request: NextRequest) {
       topProducts,
       topCustomers,
       recentOrders,
-      cancelledResult,
-      prevDailySales,
-      promotionBreakdown,
-      totalCountResult,
-      // v4 namespaces
-      sourceCountsRaw,
-      cohortsRaw,
-      profitabilityRaw,
-      logisticsByDelivery,
-      logisticsByCarrier,
-      segByDevice,
-      segByChannel,
-      segByTraffic,
-      couponsRaw,
-      geoProvinces,
-      geoPostalCodes,
     ] = await Promise.all([
 
       /* 1) Current period KPIs */
@@ -438,8 +425,21 @@ export async function GET(request: NextRequest) {
         ORDER BY o."orderDate" DESC
         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
       `, dateFrom, dateTo),
+    ]);
 
-      /* 11) Cancelled count — was sequential, now parallel */
+    // ── BATCH 2: Supplementary metrics (8 queries) ──
+    const [
+      cancelledResult,
+      prevDailySales,
+      promotionBreakdown,
+      totalCountResult,
+      sourceCountsRaw,
+      cohortsRaw,
+      profitabilityRaw,
+      logisticsByDelivery,
+    ] = await Promise.all([
+
+      /* 11) Cancelled count */
       prisma.$queryRawUnsafe<[{ cnt: string }]>(`
         SELECT COUNT(*)::text AS cnt FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -595,6 +595,18 @@ export async function GET(request: NextRequest) {
         GROUP BY "deliveryType"
         ORDER BY COUNT(*) DESC
       `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 3: Segmentation, coupons, geography (7 queries) ──
+    const [
+      logisticsByCarrier,
+      segByDevice,
+      segByChannel,
+      segByTraffic,
+      couponsRaw,
+      geoProvinces,
+      geoPostalCodes,
+    ] = await Promise.all([
 
       /* 19) Logistics — by carrier */
       prisma.$queryRawUnsafe<Array<{
