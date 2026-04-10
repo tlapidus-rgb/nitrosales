@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -164,17 +164,24 @@ export default function OrdersPage() {
     fetchData();
   }, [dateFrom, dateTo, source, currentPage]);
 
-  // -- Auto-enrich MELI orders missing items OR missing images --
+  // -- Auto-enrich MELI orders missing items OR missing images (runs ONCE per data load) --
+  const enrichAttemptedRef = useRef<string>("");
   useEffect(() => {
     if (!data) return;
+
+    // Build a key so we only attempt enrichment once per unique data load
+    const enrichKey = `${data.meta?.dateFrom}|${data.meta?.dateTo}|${data.meta?.source}|${currentPage}`;
+    if (enrichAttemptedRef.current === enrichKey) return;
+
     const meliNeedsEnrich = data.recentOrders.filter((o) => {
       if (o.source !== "MELI") return false;
-      // No items at all
       if (!o.items || o.items.length === 0) return true;
-      // Has items but some are missing images
       return o.items.some((item: any) => !item.imageUrl);
     });
     if (meliNeedsEnrich.length === 0) return;
+
+    // Mark as attempted BEFORE the fetch to prevent re-triggers
+    enrichAttemptedRef.current = enrichKey;
 
     const enrichOrders = async () => {
       try {
@@ -187,7 +194,6 @@ export default function OrdersPage() {
         const { enriched } = await res.json();
         if (!enriched || Object.keys(enriched).length === 0) return;
 
-        // Merge enriched items into existing data
         setData((prev) => {
           if (!prev) return prev;
           return {
@@ -205,7 +211,7 @@ export default function OrdersPage() {
       }
     };
     enrichOrders();
-  }, [data?.meta?.dateFrom, data?.meta?.dateTo, data?.meta?.source, currentPage]);
+  }, [data, currentPage]);
 
   const handleQuickRange = (days: number) => {
     const to = new Date();
