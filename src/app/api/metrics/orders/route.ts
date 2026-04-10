@@ -35,6 +35,9 @@ async function ensureColumns() {
       CREATE INDEX IF NOT EXISTS "orders_organizationId_source_orderDate_idx"
       ON orders ("organizationId", "source", "orderDate")
     `);
+    // Ensure order_items indexes exist (critical for LATERAL JOIN + top products query)
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "order_items_orderId_idx" ON order_items ("orderId")`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "order_items_productId_idx" ON order_items ("productId")`);
   } catch (e) {
     // Columns/indexes likely already exist
   }
