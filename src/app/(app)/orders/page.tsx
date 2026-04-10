@@ -620,7 +620,7 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {source === "VTEX" && data.promotionBreakdown && data.promotionBreakdown.length > 0 && (
+        {data.promotionBreakdown && data.promotionBreakdown.length > 0 && (
           <div className="dash-card dash-chart-card p-6">
             <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Ventas por promocion</h2>
             <div className="flex gap-4">

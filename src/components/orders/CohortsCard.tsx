@@ -17,13 +17,14 @@ interface CohortsCardProps {
 }
 
 export default function CohortsCard({ data, loading }: CohortsCardProps) {
-  if (loading || !data) {
+  if (loading) {
     return (
       <section className="dash-card dash-fade-up p-5">
         <div className="h-56 dash-skeleton rounded-lg" />
       </section>
     );
   }
+  if (!data) return null;
 
   const total =
     (data.new?.orders ?? 0) +
