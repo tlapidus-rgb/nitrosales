@@ -5,11 +5,11 @@ export const maxDuration = 60;
 // Orders Enrich API — Non-blocking MELI product enrichment
 // ══════════════════════════════════════════════════════════════
 // POST /api/metrics/orders/enrich
-// Body: { orderIds: string[] }  (DB order IDs with missing items)
+// Body: { orderIds: string[] }  (DB order IDs needing enrichment)
 //
 // Called by the frontend AFTER the main orders API returns.
-// Fetches product details from ML Search API, saves to DB,
-// and returns enriched items for immediate display.
+// Fetches product details from ML Search API + thumbnails from
+// ML Items API, saves to DB, and returns enriched items.
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -21,6 +21,55 @@ const ML_API_BASE = "https://api.mercadolibre.com";
 
 interface EnrichRequest {
   orderIds: string[];
+}
+
+// Fetch thumbnails from ML Items API (multi-get, up to 20 per call)
+async function fetchThumbnails(
+  itemIds: string[],
+  token: string
+): Promise<Map<string, string>> {
+  const thumbnailMap = new Map<string, string>();
+  if (itemIds.length === 0) return thumbnailMap;
+
+  // ML multi-get supports up to 20 items per call
+  const chunks: string[][] = [];
+  for (let i = 0; i < itemIds.length; i += 20) {
+    chunks.push(itemIds.slice(i, i + 20));
+  }
+
+  for (const chunk of chunks) {
+    try {
+      const url = `${ML_API_BASE}/items?ids=${chunk.join(",")}&attributes=id,thumbnail,pictures`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+
+      for (const item of data) {
+        if (item.code === 200 && item.body) {
+          const id = item.body.id;
+          // Prefer first picture, fall back to thumbnail
+          let imgUrl = item.body.thumbnail || null;
+          if (item.body.pictures && item.body.pictures.length > 0) {
+            imgUrl = item.body.pictures[0].secure_url || item.body.pictures[0].url || imgUrl;
+          }
+          // Ensure https
+          if (imgUrl && imgUrl.startsWith("http://")) {
+            imgUrl = imgUrl.replace("http://", "https://");
+          }
+          if (id && imgUrl) {
+            thumbnailMap.set(id, imgUrl);
+          }
+        }
+      }
+    } catch {
+      // Continue with next chunk
+    }
+  }
+
+  return thumbnailMap;
 }
 
 export async function POST(req: NextRequest) {
@@ -80,14 +129,27 @@ export async function POST(req: NextRequest) {
 
     // Fetch via ML Search API
     const enrichedMap: Record<string, any[]> = {};
+    const allItemIds = new Set<string>(); // Collect item IDs for thumbnail fetch
     let offset = 0;
     const batchSize = 50;
     const maxPages = 3;
     let pagesScanned = 0;
     const startTime = Date.now();
-    const TIMEOUT_MS = 20_000;
+    const TIMEOUT_MS = 25_000;
 
-    while (Object.keys(enrichedMap).length < neededIds.size && pagesScanned < maxPages) {
+    // Intermediate storage: orderId → items (without thumbnails yet)
+    const rawItemsMap: Record<string, Array<{
+      mlItemId: string;
+      title: string;
+      unitPrice: number;
+      quantity: number;
+      orderThumbnail: string | null; // thumbnail from order API (may be null)
+      sellerSku: string;
+      dbOrderId: string;
+      extId: string;
+    }>> = {};
+
+    while (Object.keys(rawItemsMap).length < neededIds.size && pagesScanned < maxPages) {
       if (Date.now() - startTime > TIMEOUT_MS) break;
 
       const searchUrl = `${ML_API_BASE}/orders/search?seller=${mlUserId}&sort=date_desc&limit=${batchSize}&offset=${offset}&order.date_created.from=${encodeURIComponent(searchFrom)}`;
@@ -121,69 +183,99 @@ export async function POST(req: NextRequest) {
         const dbOrder = orderByExtId.get(extId);
         if (!dbOrder) continue;
 
-        const items: any[] = [];
-
+        const items: typeof rawItemsMap[string] = [];
         for (const mlItem of mlItems) {
           const mlItemId = String(mlItem.item?.id || "");
-          const itemTitle = mlItem.item?.title || "ML Item";
-          const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
-          const quantity = mlItem.quantity || 1;
-          const thumbnailUrl = mlItem.item?.thumbnail || null;
-
-          // Save to DB (best-effort)
-          try {
-            const product = await prisma.product.upsert({
-              where: {
-                organizationId_externalId: {
-                  organizationId: ORG_ID,
-                  externalId: mlItemId || `meli-${extId}-0`,
-                },
-              },
-              create: {
-                organizationId: ORG_ID,
-                externalId: mlItemId || `meli-${extId}-0`,
-                name: itemTitle,
-                sku: mlItem.item?.seller_sku || mlItemId,
-                price: unitPrice,
-                imageUrl: thumbnailUrl,
-                isActive: true,
-              },
-              update: {
-                name: itemTitle,
-                price: unitPrice,
-                ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
-              },
-            });
-
-            await prisma.orderItem.create({
-              data: {
-                orderId: dbOrder.id,
-                productId: product.id,
-                quantity,
-                unitPrice,
-                totalPrice: unitPrice * quantity,
-              } as any,
-            }).catch(() => {}); // duplicate
-          } catch {
-            // DB save failed, still show inline
-          }
+          if (mlItemId) allItemIds.add(mlItemId);
 
           items.push({
-            name: itemTitle,
-            imageUrl: thumbnailUrl,
-            quantity,
-            unitPrice,
-            totalPrice: unitPrice * quantity,
+            mlItemId,
+            title: mlItem.item?.title || "ML Item",
+            unitPrice: mlItem.unit_price || mlItem.full_unit_price || 0,
+            quantity: mlItem.quantity || 1,
+            orderThumbnail: mlItem.item?.thumbnail || null,
+            sellerSku: mlItem.item?.seller_sku || mlItemId,
+            dbOrderId: dbOrder.id,
+            extId,
           });
         }
 
-        enrichedMap[dbOrder.id] = items;
+        rawItemsMap[dbOrder.id] = items;
       }
 
       const total = data.paging?.total || 0;
       offset += batchSize;
       pagesScanned++;
       if (offset >= total) break;
+    }
+
+    // Step 2: Fetch thumbnails from ML Items API (batch)
+    const thumbnailMap = await fetchThumbnails(
+      Array.from(allItemIds),
+      token
+    );
+
+    console.log(`[Enrich API] Fetched ${thumbnailMap.size} thumbnails for ${allItemIds.size} items`);
+
+    // Step 3: Save to DB and build response with thumbnails
+    for (const [dbOrderId, items] of Object.entries(rawItemsMap)) {
+      const enrichedItems: any[] = [];
+
+      for (const item of items) {
+        // Best image: Items API > order API thumbnail
+        let imageUrl = thumbnailMap.get(item.mlItemId) || item.orderThumbnail || null;
+        if (imageUrl && imageUrl.startsWith("http://")) {
+          imageUrl = imageUrl.replace("http://", "https://");
+        }
+
+        // Save to DB (best-effort)
+        try {
+          const product = await prisma.product.upsert({
+            where: {
+              organizationId_externalId: {
+                organizationId: ORG_ID,
+                externalId: item.mlItemId || `meli-${item.extId}-0`,
+              },
+            },
+            create: {
+              organizationId: ORG_ID,
+              externalId: item.mlItemId || `meli-${item.extId}-0`,
+              name: item.title,
+              sku: item.sellerSku,
+              price: item.unitPrice,
+              imageUrl,
+              isActive: true,
+            },
+            update: {
+              name: item.title,
+              price: item.unitPrice,
+              ...(imageUrl ? { imageUrl } : {}),
+            },
+          });
+
+          await prisma.orderItem.create({
+            data: {
+              orderId: dbOrderId,
+              productId: product.id,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.unitPrice * item.quantity,
+            } as any,
+          }).catch(() => {}); // duplicate
+        } catch {
+          // DB save failed, still show inline
+        }
+
+        enrichedItems.push({
+          name: item.title,
+          imageUrl,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.unitPrice * item.quantity,
+        });
+      }
+
+      enrichedMap[dbOrderId] = enrichedItems;
     }
 
     console.log(`[Enrich API] Enriched ${Object.keys(enrichedMap).length}/${neededIds.size} orders`);

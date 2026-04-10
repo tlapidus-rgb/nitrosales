@@ -164,20 +164,24 @@ export default function OrdersPage() {
     fetchData();
   }, [dateFrom, dateTo, source, currentPage]);
 
-  // -- Auto-enrich MELI orders missing items --
+  // -- Auto-enrich MELI orders missing items OR missing images --
   useEffect(() => {
     if (!data) return;
-    const meliMissing = data.recentOrders.filter(
-      (o) => o.source === "MELI" && (!o.items || o.items.length === 0)
-    );
-    if (meliMissing.length === 0) return;
+    const meliNeedsEnrich = data.recentOrders.filter((o) => {
+      if (o.source !== "MELI") return false;
+      // No items at all
+      if (!o.items || o.items.length === 0) return true;
+      // Has items but some are missing images
+      return o.items.some((item: any) => !item.imageUrl);
+    });
+    if (meliNeedsEnrich.length === 0) return;
 
     const enrichOrders = async () => {
       try {
         const res = await fetch("/api/metrics/orders/enrich", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderIds: meliMissing.map((o) => o.id) }),
+          body: JSON.stringify({ orderIds: meliNeedsEnrich.map((o) => o.id) }),
         });
         if (!res.ok) return;
         const { enriched } = await res.json();
