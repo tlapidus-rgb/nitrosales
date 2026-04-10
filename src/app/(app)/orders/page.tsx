@@ -844,42 +844,63 @@ export default function OrdersPage() {
                 {/* Left accent bar */}
                 <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: accentColor, opacity: isExpanded ? 1 : 0.5, transition: "opacity 280ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
 
-                {/* ─── Main card row ─── */}
+                {/* ─── Main card row — PRODUCT-FIRST layout ─── */}
                 <div className="flex items-center gap-4 pl-5 pr-5 py-4">
-                  {/* Source avatar */}
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isMeli ? "bg-yellow-50 border border-yellow-200/60" : "bg-indigo-50 border border-indigo-200/60"}`}>
-                    {isMeli ? (
-                      <span className="text-[11px] font-bold text-yellow-600">ML</span>
-                    ) : (
-                      <span className="text-[11px] font-bold text-indigo-600">VTX</span>
-                    )}
-                  </div>
-
-                  {/* Customer + date */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      {isMeliAnon ? (
-                        <span className="text-sm text-slate-500 italic">Cliente MercadoLibre</span>
+                  {/* Product image (hero) — first product or source badge */}
+                  {order.items && order.items.length > 0 && order.items[0].imageUrl ? (
+                    <div className="w-12 h-12 rounded-xl flex-shrink-0 overflow-hidden bg-slate-50 border border-slate-100"
+                      style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.06)" }}>
+                      <img src={order.items[0].imageUrl} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${isMeli ? "bg-yellow-50 border border-yellow-200/60" : "bg-indigo-50 border border-indigo-200/60"}`}>
+                      {isMeli ? (
+                        <span className="text-xs font-bold text-yellow-600">ML</span>
                       ) : (
-                        <span className="text-sm font-medium text-slate-800 truncate">{order.customerName}</span>
-                      )}
-                      {flags.length > 0 && (
-                        <OrderFlagBadgeGroup flags={flags} max={2} compact />
+                        <span className="text-xs font-bold text-indigo-600">VTX</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2.5 text-[11px] text-slate-400">
+                  )}
+
+                  {/* Product name + sale details (hero info) */}
+                  <div className="flex-1 min-w-0">
+                    {order.items && order.items.length > 0 ? (
+                      <>
+                        <p className="text-sm font-semibold text-slate-800 truncate leading-tight tracking-tight">
+                          {order.items[0].name || "Producto sin nombre"}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-xs text-slate-500 tabular-nums">
+                            {order.items[0].quantity} × {formatARS(order.items[0].unitPrice)}
+                          </span>
+                          {order.items.length > 1 && (
+                            <>
+                              <span className="text-slate-300">·</span>
+                              <span className="text-[11px] text-slate-400">
+                                +{order.items.length - 1} producto{order.items.length - 1 > 1 ? "s" : ""}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-slate-500 italic truncate">Sin detalle de productos</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{order.itemCount} item{order.itemCount !== 1 ? "s" : ""}</p>
+                      </>
+                    )}
+                    {/* Secondary metadata row */}
+                    <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400">
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold ${isMeli ? "bg-yellow-50 text-yellow-600" : "bg-indigo-50 text-indigo-500"}`}>
+                        {isMeli ? "ML" : "VTX"}
+                      </span>
                       <span className="tabular-nums">{dateFormatted}</span>
                       <span className="text-slate-200">·</span>
-                      <span className="font-mono text-slate-400">
-                        #{order.externalId.length > 10 ? order.externalId.slice(-8) : order.externalId}
+                      <span className="truncate max-w-[120px]">
+                        {isMeliAnon ? "Cliente ML" : order.customerName}
                       </span>
-                      <span className="text-slate-200">·</span>
-                      <span>{order.itemCount} item{order.itemCount !== 1 ? "s" : ""}</span>
-                      {order.paymentMethod && (
-                        <>
-                          <span className="text-slate-200">·</span>
-                          <span className="truncate max-w-[100px]">{order.paymentMethod}</span>
-                        </>
+                      {flags.length > 0 && (
+                        <OrderFlagBadgeGroup flags={flags} max={2} compact />
                       )}
                     </div>
                   </div>
@@ -905,11 +926,11 @@ export default function OrdersPage() {
                     style={{ transition: "transform 280ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
                 </div>
 
-                {/* ─── Product thumbnails strip (collapsed only, if products exist) ─── */}
-                {!isExpanded && order.items && order.items.length > 0 && (
+                {/* ─── Additional product thumbnails (collapsed, multi-product orders) ─── */}
+                {!isExpanded && order.items && order.items.length > 1 && (
                   <div className="flex items-center gap-1.5 pl-5 pb-3 -mt-1">
                     <div className="flex -space-x-1.5">
-                      {order.items.slice(0, 5).map((item: any, idx: number) => (
+                      {order.items.slice(1, 6).map((item: any, idx: number) => (
                         <div key={idx} className="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 border-2 border-white flex-shrink-0"
                           style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}>
                           {item.imageUrl ? (
@@ -921,15 +942,15 @@ export default function OrdersPage() {
                           )}
                         </div>
                       ))}
-                      {order.items.length > 5 && (
+                      {order.items.length > 6 && (
                         <div className="w-7 h-7 rounded-lg bg-slate-100 border-2 border-white flex items-center justify-center flex-shrink-0">
-                          <span className="text-[9px] font-semibold text-slate-400">+{order.items.length - 5}</span>
+                          <span className="text-[9px] font-semibold text-slate-400">+{order.items.length - 6}</span>
                         </div>
                       )}
                     </div>
                     <span className="text-[10px] text-slate-400 ml-1">
-                      {order.items.slice(0, 2).map((it: any) => it.name?.split(" ").slice(0, 3).join(" ") || "").filter(Boolean).join(", ")}
-                      {order.items.length > 2 ? ` y ${order.items.length - 2} mas` : ""}
+                      {order.items.slice(1, 3).map((it: any) => it.name?.split(" ").slice(0, 3).join(" ") || "").filter(Boolean).join(", ")}
+                      {order.items.length > 3 ? ` y ${order.items.length - 3} mas` : ""}
                     </span>
                   </div>
                 )}
@@ -939,97 +960,58 @@ export default function OrdersPage() {
                   <div className="border-t border-slate-100/80" onClick={(e) => e.stopPropagation()}>
                     <div className="bg-gradient-to-b from-slate-50/50 to-white px-6 py-5">
 
-                      {/* 3-column detail grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                        {/* Col 1: Pedido */}
-                        <div className="space-y-3">
-                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <ShoppingCart size={10} />
-                            Pedido
-                          </div>
-                          <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-slate-400 font-medium">ID completo</span>
-                              <span className="text-xs font-mono text-indigo-600">{order.externalId}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-slate-400 font-medium">Fecha</span>
-                              <span className="text-xs text-slate-700 tabular-nums">{order.orderDate}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-slate-400 font-medium">Estado</span>
-                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                                style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}12`, color: STATUS_COLORS[order.status] || "#94a3b8" }}>
-                                {STATUS_LABELS[order.status] || order.status}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-slate-400 font-medium">Fuente</span>
-                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${isMeli ? "bg-yellow-50 text-yellow-700 border border-yellow-200/60" : "bg-indigo-50 text-indigo-600 border border-indigo-200/60"}`}>
-                                {isMeli ? "MercadoLibre" : "VTEX"}
-                              </span>
-                            </div>
-                            {order.channel && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400 font-medium">Canal</span>
-                                <span className="text-xs text-slate-600">{order.channel}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Col 2: Cliente */}
-                        <div className="space-y-3">
-                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <Users size={10} />
-                            Cliente
-                          </div>
-                          {isMeliAnon ? (
-                            <div className="bg-gradient-to-br from-yellow-50 to-amber-50/60 border border-yellow-200/60 rounded-xl px-4 py-4">
-                              <div className="flex items-center gap-2.5 mb-2">
-                                <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center border border-yellow-200/60">
-                                  <span className="text-[10px] font-bold text-yellow-600">ML</span>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium text-yellow-800">Cliente MercadoLibre</p>
-                                  <p className="text-[10px] text-yellow-600/70">Usuario anonimo</p>
-                                </div>
-                              </div>
-                              <div className="bg-yellow-100/50 rounded-lg px-3 py-2 mt-2">
-                                <p className="text-[10px] text-yellow-700/80 leading-relaxed flex items-start gap-1.5">
-                                  <Info size={10} className="flex-shrink-0 mt-0.5" />
-                                  MercadoLibre no comparte datos del comprador por politicas de privacidad
-                                </p>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
-                              <div className="flex items-center gap-3 mb-1">
-                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200/60">
-                                  <span className="text-[10px] font-bold text-slate-500">
-                                    {order.customerName.charAt(0).toUpperCase()}
-                                  </span>
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-xs font-medium text-slate-800 truncate">{order.customerName}</p>
-                                  {order.customerEmail && <p className="text-[10px] text-slate-400 truncate">{order.customerEmail}</p>}
-                                </div>
-                              </div>
-                            </div>
+                      {/* ─── PRODUCTS FIRST (hero section of expanded card) ─── */}
+                      <div className="space-y-3 mb-6">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Package size={10} />
+                          Productos ({order.items?.length || 0})
+                          {order.items && order.items.length > 0 && (
+                            <span className="ml-auto text-xs font-bold text-slate-800 tabular-nums tracking-tight normal-case">
+                              Total: {formatARS(order.totalValue)}
+                            </span>
                           )}
                         </div>
+                        {order.items && order.items.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                            {order.items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex items-center gap-3 bg-white rounded-xl px-3.5 py-3 border border-slate-200/60 hover:border-slate-300/80 group/item"
+                                style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)", transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                                <div className="w-14 h-14 rounded-xl flex-shrink-0 overflow-hidden bg-slate-50 cursor-pointer border border-slate-100"
+                                  onClick={(e) => { e.stopPropagation(); item.imageUrl && setZoomedImage(item.imageUrl); }}>
+                                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={20} className="text-slate-300 m-auto mt-4" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-slate-800 font-semibold truncate leading-tight">{item.name || "Producto sin nombre"}</p>
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <span className="text-[11px] text-slate-500 tabular-nums">{item.quantity} × {formatARS(item.unitPrice)}</span>
+                                  </div>
+                                  <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight mt-1">{formatARS(item.totalPrice)}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="bg-slate-50/80 rounded-xl px-4 py-4 border border-slate-200/40 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                              <Package size={14} className="text-slate-300" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">Sin detalle de productos</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">El detalle se genera en la proxima sincronizacion</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
 
-                        {/* Col 3: Financiero */}
+                      {/* ─── SECONDARY: Order details (collapsed by default feel — compact) ─── */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Col 1: Financiero (most important secondary) */}
                         <div className="space-y-3">
                           <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                             <DollarSign size={10} />
                             Financiero
                           </div>
                           <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
-                            <div className="flex items-center justify-between pb-2 border-b border-slate-100/80">
-                              <span className="text-[10px] text-slate-400 font-medium">Total</span>
-                              <span className="text-base font-bold text-slate-900 tabular-nums">{formatARS(order.totalValue)}</span>
-                            </div>
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] text-slate-400 font-medium">Pago</span>
                               <span className="text-xs text-slate-700 font-medium">{order.paymentMethod}</span>
@@ -1052,9 +1034,62 @@ export default function OrdersPage() {
                                 <span className="text-xs text-purple-600 font-medium truncate max-w-[150px]">{order.promotionNames}</span>
                               </div>
                             )}
+                          </div>
+                        </div>
+
+                        {/* Col 2: Cliente */}
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Users size={10} />
+                            Cliente
+                          </div>
+                          {isMeliAnon ? (
+                            <div className="bg-gradient-to-br from-yellow-50 to-amber-50/60 border border-yellow-200/60 rounded-xl px-4 py-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center border border-yellow-200/60">
+                                  <span className="text-[10px] font-bold text-yellow-600">ML</span>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-yellow-800">Cliente MercadoLibre</p>
+                                  <p className="text-[10px] text-yellow-600/70">Datos de comprador protegidos</p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-white rounded-xl border border-slate-200/60 p-3.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200/60">
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    {order.customerName.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium text-slate-800 truncate">{order.customerName}</p>
+                                  {order.customerEmail && <p className="text-[10px] text-slate-400 truncate">{order.customerEmail}</p>}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Col 3: Detalles del pedido */}
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <ShoppingCart size={10} />
+                            Pedido
+                          </div>
+                          <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">ID</span>
+                              <span className="text-xs font-mono text-indigo-600">{order.externalId}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">Fecha</span>
+                              <span className="text-xs text-slate-700 tabular-nums">{order.orderDate}</span>
+                            </div>
                             {order.deliveryType && (
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400 font-medium">Tipo envio</span>
+                                <span className="text-[10px] text-slate-400 font-medium">Envio</span>
                                 <span className="text-xs text-slate-600">{order.deliveryType}</span>
                               </div>
                             )}
@@ -1066,44 +1101,6 @@ export default function OrdersPage() {
                             )}
                           </div>
                         </div>
-                      </div>
-
-                      {/* Products section */}
-                      <div className="space-y-3">
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                          <Package size={10} />
-                          Productos ({order.items?.length || 0})
-                        </div>
-                        {order.items && order.items.length > 0 ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                            {order.items.map((item: any, idx: number) => (
-                              <div key={idx} className="flex items-center gap-3 bg-white rounded-xl px-3.5 py-3 border border-slate-200/60 hover:border-slate-300/80 group/item"
-                                style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)", transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
-                                <div className="w-12 h-12 rounded-xl flex-shrink-0 overflow-hidden bg-slate-50 cursor-pointer border border-slate-100"
-                                  onClick={(e) => { e.stopPropagation(); item.imageUrl && setZoomedImage(item.imageUrl); }}>
-                                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={18} className="text-slate-300 m-auto mt-3" />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs text-slate-800 font-medium truncate leading-tight">{item.name || "Producto sin nombre"}</p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-[10px] text-slate-400 tabular-nums">{item.quantity} × {formatARS(item.unitPrice)}</span>
-                                  </div>
-                                  <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight mt-0.5">{formatARS(item.totalPrice)}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="bg-slate-50/80 rounded-xl px-4 py-4 border border-slate-200/40 flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                              <Package size={14} className="text-slate-300" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-slate-500 font-medium">Sin detalle de productos</p>
-                              <p className="text-[10px] text-slate-400 mt-0.5">El detalle se genera en la proxima sincronizacion</p>
-                            </div>
-                          </div>
-                        )}
                       </div>
 
                       {/* Anomaly badges */}
