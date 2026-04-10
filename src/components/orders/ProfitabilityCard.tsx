@@ -22,13 +22,14 @@ export default function ProfitabilityCard({
   data,
   loading,
 }: ProfitabilityCardProps) {
-  if (loading || !data) {
+  if (loading) {
     return (
       <section className="dash-card dash-fade-up p-5">
         <div className="h-40 dash-skeleton rounded-lg" />
       </section>
     );
   }
+  if (!data) return null;
 
   const animatedMargin = useAnimatedValue(
     `${(data.marginPct ?? 0).toFixed(1)}%`,

@@ -30,13 +30,14 @@ export default function SegmentationCard({
   const isMeliFilter = source === "MELI";
   const isVtexOnlyTab = tab === "device" || tab === "traffic";
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <section className="dash-card dash-fade-up p-5">
         <div className="h-56 dash-skeleton rounded-lg" />
       </section>
     );
   }
+  if (!data) return null;
 
   const tabs: Array<{
     key: Tab;

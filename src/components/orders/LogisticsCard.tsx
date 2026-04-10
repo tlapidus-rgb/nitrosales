@@ -27,13 +27,14 @@ export default function LogisticsCard({
   source,
   sourceCounts,
 }: LogisticsCardProps) {
-  if (loading || !data) {
+  if (loading) {
     return (
       <section className="dash-card dash-fade-up p-5">
         <div className="h-56 dash-skeleton rounded-lg" />
       </section>
     );
   }
+  if (!data) return null;
 
   const gapTotal = data.shippingGapTotal ?? 0;
   const isLoss = gapTotal > 0;
