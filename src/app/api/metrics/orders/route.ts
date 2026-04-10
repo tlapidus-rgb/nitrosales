@@ -824,7 +824,10 @@ export async function GET(request: NextRequest) {
         totalOrders: Number(c.total_orders),
         totalSpent: Number(c.total_spent),
       })),
-      recentOrders: await enrichRecentOrders(recentOrders, ORG_ID),
+      recentOrders: await enrichRecentOrders(recentOrders, ORG_ID).catch((err) => {
+        console.error("[Orders API] enrichRecentOrders crashed:", err.message);
+        return recentOrders.map(formatOrder); // Safe fallback — never breaks the page
+      }),
       // ── v4 namespaces ──
       sourceCounts: (() => {
         const vtexRow = sourceCountsRaw.find(r => r.source === "VTEX");
@@ -1004,13 +1007,23 @@ async function enrichRecentOrders(
   const neededIds = new Set(missingItems.map(o => o.external_id));
 
   // Fetch via ML Search API — paginate until we've found all needed orders or run out
+  // Safety: 15s max for enrichment, max 3 pages (150 orders scanned)
   const enrichedMap = new Map<string, any[]>();
   let offset = 0;
   const batchSize = 50;
+  const maxPages = 3;
   let totalFetched = 0;
+  let pagesScanned = 0;
+  const enrichStart = Date.now();
+  const ENRICH_TIMEOUT_MS = 15_000;
 
   try {
-    while (enrichedMap.size < neededIds.size && offset < 500) {
+    while (enrichedMap.size < neededIds.size && pagesScanned < maxPages) {
+      // Safety timeout
+      if (Date.now() - enrichStart > ENRICH_TIMEOUT_MS) {
+        console.log(`[Orders API] Enrichment timeout after ${pagesScanned} pages, ${enrichedMap.size} enriched`);
+        break;
+      }
       const searchUrl = `${ML_API_BASE}/orders/search?seller=${mlUserId}&sort=date_desc&limit=${batchSize}&offset=${offset}&order.date_created.from=${encodeURIComponent(searchFrom)}`;
       const res = await fetch(searchUrl, {
         headers: { Authorization: `Bearer ${token}` },
@@ -1033,70 +1046,79 @@ async function enrichRecentOrders(
         const mlItems = mlOrder.order_items || [];
         if (mlItems.length === 0) continue;
 
-        const savedItems: any[] = [];
         // Find the DB order ID for this external ID
         const dbOrder = missingItems.find(o => o.external_id === extId);
         if (!dbOrder) continue;
 
-        for (const mlItem of mlItems) {
-          const mlItemId = String(mlItem.item?.id || "");
-          const itemTitle = mlItem.item?.title || "ML Item";
-          const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
-          const quantity = mlItem.quantity || 1;
-          const thumbnailUrl = mlItem.item?.thumbnail || null;
+        try {
+          const savedItems: any[] = [];
+          for (const mlItem of mlItems) {
+            const mlItemId = String(mlItem.item?.id || "");
+            const itemTitle = mlItem.item?.title || "ML Item";
+            const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
+            const quantity = mlItem.quantity || 1;
+            const thumbnailUrl = mlItem.item?.thumbnail || null;
 
-          const product = await prisma.product.upsert({
-            where: {
-              organizationId_externalId: {
-                organizationId: orgId,
-                externalId: mlItemId || `meli-${extId}-0`,
-              },
-            },
-            create: {
-              organizationId: orgId,
-              externalId: mlItemId || `meli-${extId}-0`,
+            // Save product to DB (skip on error, still show inline)
+            try {
+              const product = await prisma.product.upsert({
+                where: {
+                  organizationId_externalId: {
+                    organizationId: orgId,
+                    externalId: mlItemId || `meli-${extId}-0`,
+                  },
+                },
+                create: {
+                  organizationId: orgId,
+                  externalId: mlItemId || `meli-${extId}-0`,
+                  name: itemTitle,
+                  sku: mlItem.item?.seller_sku || mlItemId,
+                  price: unitPrice,
+                  imageUrl: thumbnailUrl,
+                  isActive: true,
+                },
+                update: {
+                  name: itemTitle,
+                  price: unitPrice,
+                  ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
+                },
+              });
+
+              await prisma.orderItem.create({
+                data: {
+                  orderId: dbOrder.id,
+                  productId: product.id,
+                  quantity,
+                  unitPrice,
+                  totalPrice: unitPrice * quantity,
+                } as any,
+              }).catch(() => {}); // already exists
+            } catch (dbErr: any) {
+              // DB save failed but we can still show items inline
+              console.error(`[Orders API] DB save failed for ${mlItemId}:`, dbErr.message);
+            }
+
+            // Always add to inline result regardless of DB save
+            savedItems.push({
               name: itemTitle,
-              sku: mlItem.item?.seller_sku || mlItemId,
-              price: unitPrice,
               imageUrl: thumbnailUrl,
-              isActive: true,
-            },
-            update: {
-              name: itemTitle,
-              price: unitPrice,
-              ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
-            },
-          });
-
-          try {
-            await prisma.orderItem.create({
-              data: {
-                orderId: dbOrder.id,
-                productId: product.id,
-                quantity,
-                unitPrice,
-                totalPrice: unitPrice * quantity,
-              } as any,
+              quantity,
+              unitPrice,
+              totalPrice: unitPrice * quantity,
             });
-          } catch { /* already exists */ }
+          }
 
-          savedItems.push({
-            name: itemTitle,
-            imageUrl: thumbnailUrl,
-            quantity,
-            unitPrice,
-            totalPrice: unitPrice * quantity,
-          });
+          enrichedMap.set(extId, savedItems);
+        } catch (orderErr: any) {
+          console.error(`[Orders API] Enrich order ${extId} failed:`, orderErr.message);
         }
-
-        enrichedMap.set(extId, savedItems);
       }
 
       // Check if we've found all needed or reached end of results
       const total = data.paging?.total || 0;
       offset += batchSize;
+      pagesScanned++;
       if (offset >= total) break;
-      // Stop if we've found all the orders we need
       if (enrichedMap.size >= neededIds.size) break;
     }
 
