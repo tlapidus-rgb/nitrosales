@@ -14,7 +14,6 @@ export const dynamic = "force-dynamic";
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
-import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getCached, setCache } from "@/lib/api-cache";
@@ -825,29 +824,7 @@ export async function GET(request: NextRequest) {
         totalOrders: Number(c.total_orders),
         totalSpent: Number(c.total_spent),
       })),
-      recentOrders: recentOrders.map(o => {
-        let items: any[] = [];
-        try { items = JSON.parse(o.items_json); } catch {}
-        return {
-          id: o.id,
-          externalId: o.external_id,
-          status: o.status,
-          totalValue: Number(o.total_value),
-          itemCount: Number(o.item_count),
-          paymentMethod: o.payment_method,
-          source: o.source,
-          orderDate: o.order_date,
-          customerName: o.customer_name || "Sin nombre",
-          customerEmail: o.customer_email,
-          items,
-          promotionNames: o.promotion_names || null,
-          discountValue: Number(o.discount_value),
-          shippingCost: Number(o.shipping_cost),
-          channel: o.channel || null,
-          deliveryType: o.delivery_type || null,
-          shippingCarrier: o.shipping_carrier || null,
-        };
-      }),
+      recentOrders: await enrichRecentOrders(recentOrders, ORG_ID),
       // ── v4 namespaces ──
       sourceCounts: (() => {
         const vtexRow = sourceCountsRaw.find(r => r.source === "VTEX");
@@ -975,21 +952,6 @@ export async function GET(request: NextRequest) {
     };
 
     setCache("orders", response, ...cacheKey);
-
-    // ── Background: enrich MELI orders missing items ──
-    // If any MELI orders on this page have no items, trigger enrichment
-    // via waitUntil so it runs AFTER the response is sent
-    const meliOrdersMissingItems = recentOrders.filter(
-      o => o.source === "MELI" && (o.items_json === "[]" || o.items_json === null || o.items_json === "null")
-    );
-    if (meliOrdersMissingItems.length > 0) {
-      waitUntil(
-        enrichMeliOrderItems(ORG_ID, meliOrdersMissingItems.map(o => o.external_id)).catch(err => {
-          console.error("[Orders API] Background MELI enrichment error:", err.message);
-        })
-      );
-    }
-
     return NextResponse.json(response);
   } catch (error: any) {
     console.error("Orders API error:", error);
@@ -1001,83 +963,181 @@ export async function GET(request: NextRequest) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// Background MELI enrichment — fetches items from ML API for
-// orders that are missing product details, runs via waitUntil
+// SYNCHRONOUS MELI enrichment — fetches items from ML API for
+// orders missing product details BEFORE returning the response.
+// Adds ~1-3s latency but GUARANTEES items appear on first load.
 // ══════════════════════════════════════════════════════════════
-const ML_API = "https://api.mercadolibre.com";
+const ML_API_BASE = "https://api.mercadolibre.com";
 
-async function enrichMeliOrderItems(orgId: string, externalIds: string[]): Promise<void> {
-  if (externalIds.length === 0) return;
+async function enrichRecentOrders(
+  recentOrders: Array<any>,
+  orgId: string
+): Promise<Array<any>> {
+  // Identify MELI orders missing items
+  const missingItems = recentOrders.filter(
+    o => o.source === "MELI" && (!o.items_json || o.items_json === "[]" || o.items_json === "null")
+  );
 
+  // If none missing, just format and return
+  if (missingItems.length === 0) {
+    return recentOrders.map(formatOrder);
+  }
+
+  // Fetch items from ML API in parallel (max 20, with 5s timeout per call)
+  let token: string | null = null;
   try {
-    const { token } = await getSellerToken();
+    const tokenResult = await getSellerToken();
+    token = tokenResult.token;
+  } catch (err: any) {
+    console.error("[Orders API] getSellerToken failed:", err.message);
+    return recentOrders.map(formatOrder); // Return without enrichment
+  }
 
-    for (const extId of externalIds.slice(0, 20)) { // Max 20 per page load
-      try {
-        // Fetch order from ML API
-        const res = await fetch(`${ML_API}/orders/${extId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!res.ok) continue;
-        const mlOrder = await res.json();
-        const mlItems = mlOrder.order_items || [];
-        if (mlItems.length === 0) continue;
+  // Build a map of externalId → ML items (fetched in parallel)
+  const enrichedMap = new Map<string, any[]>();
 
-        // Find the DB order
-        const dbOrders: { id: string }[] = await prisma.$queryRawUnsafe(
-          `SELECT id FROM orders WHERE "organizationId" = $1 AND "externalId" = $2 AND NOT EXISTS (SELECT 1 FROM order_items WHERE "orderId" = orders.id)`,
-          orgId, extId
-        );
-        if (dbOrders.length === 0) continue;
-        const dbOrderId = dbOrders[0].id;
+  const fetchPromises = missingItems.slice(0, 20).map(async (order) => {
+    try {
+      const res = await fetch(`${ML_API_BASE}/orders/${order.external_id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return;
+      const mlOrder = await res.json();
+      const mlItems = mlOrder.order_items || [];
+      if (mlItems.length === 0) return;
 
-        // Upsert products and create order items
-        for (const mlItem of mlItems) {
-          const mlItemId = String(mlItem.item?.id || "");
-          const itemTitle = mlItem.item?.title || "ML Item";
-          const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
-          const quantity = mlItem.quantity || 1;
-          const thumbnailUrl = mlItem.item?.thumbnail || null;
-          const sku = mlItem.item?.seller_sku || mlItemId;
+      // Save to DB (upsert products + create order_items)
+      const savedItems: any[] = [];
+      for (const mlItem of mlItems) {
+        const mlItemId = String(mlItem.item?.id || "");
+        const itemTitle = mlItem.item?.title || "ML Item";
+        const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
+        const quantity = mlItem.quantity || 1;
 
-          const product = await prisma.product.upsert({
-            where: {
-              organizationId_externalId: { organizationId: orgId, externalId: mlItemId || `meli-${extId}-0` },
-            },
-            create: {
+        // Get thumbnail from item detail if not in order (ML often omits it)
+        let thumbnailUrl = mlItem.item?.thumbnail || null;
+        if (!thumbnailUrl && mlItemId) {
+          try {
+            const itemRes = await fetch(`${ML_API_BASE}/items/${mlItemId}?attributes=thumbnail`, {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: AbortSignal.timeout(3000),
+            });
+            if (itemRes.ok) {
+              const itemData = await itemRes.json();
+              thumbnailUrl = itemData.thumbnail || null;
+            }
+          } catch { /* ignore thumbnail fetch failure */ }
+        }
+
+        const product = await prisma.product.upsert({
+          where: {
+            organizationId_externalId: {
               organizationId: orgId,
-              externalId: mlItemId || `meli-${extId}-0`,
-              name: itemTitle,
-              sku,
-              price: unitPrice,
-              imageUrl: thumbnailUrl,
-              isActive: true,
+              externalId: mlItemId || `meli-${order.external_id}-0`,
             },
-            update: {
-              name: itemTitle,
-              price: unitPrice,
-              ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
-            },
-          });
+          },
+          create: {
+            organizationId: orgId,
+            externalId: mlItemId || `meli-${order.external_id}-0`,
+            name: itemTitle,
+            sku: mlItem.item?.seller_sku || mlItemId,
+            price: unitPrice,
+            imageUrl: thumbnailUrl,
+            isActive: true,
+          },
+          update: {
+            name: itemTitle,
+            price: unitPrice,
+            ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
+          },
+        });
 
+        // Create order_item only if it doesn't exist
+        try {
           await prisma.orderItem.create({
             data: {
-              orderId: dbOrderId,
+              orderId: order.id,
               productId: product.id,
               quantity,
               unitPrice,
               totalPrice: unitPrice * quantity,
             } as any,
           });
+        } catch {
+          // Might already exist from a previous partial run
         }
 
-        console.log(`[Orders API] Enriched MELI order ${extId} with ${mlItems.length} items`);
-      } catch (err: any) {
-        console.error(`[Orders API] Enrich order ${extId} failed:`, err.message);
+        savedItems.push({
+          name: itemTitle,
+          imageUrl: thumbnailUrl,
+          quantity,
+          unitPrice,
+          totalPrice: unitPrice * quantity,
+        });
       }
+
+      enrichedMap.set(order.external_id, savedItems);
+      console.log(`[Orders API] Inline-enriched MELI order ${order.external_id} → ${savedItems.length} items`);
+    } catch (err: any) {
+      console.error(`[Orders API] Enrich ${order.external_id} failed:`, err.message);
     }
-  } catch (err: any) {
-    console.error("[Orders API] Enrichment failed:", err.message);
-  }
+  });
+
+  await Promise.all(fetchPromises);
+
+  // Format orders, injecting enriched items where available
+  return recentOrders.map(o => {
+    let items: any[] = [];
+    try { items = JSON.parse(o.items_json); } catch {}
+
+    // If items were empty but we just enriched, use enriched data
+    if (items.length === 0 && enrichedMap.has(o.external_id)) {
+      items = enrichedMap.get(o.external_id)!;
+    }
+
+    return {
+      id: o.id,
+      externalId: o.external_id,
+      status: o.status,
+      totalValue: Number(o.total_value),
+      itemCount: Number(o.item_count),
+      paymentMethod: o.payment_method,
+      source: o.source,
+      orderDate: o.order_date,
+      customerName: o.customer_name || "Sin nombre",
+      customerEmail: o.customer_email,
+      items,
+      promotionNames: o.promotion_names || null,
+      discountValue: Number(o.discount_value),
+      shippingCost: Number(o.shipping_cost),
+      channel: o.channel || null,
+      deliveryType: o.delivery_type || null,
+      shippingCarrier: o.shipping_carrier || null,
+    };
+  });
+}
+
+function formatOrder(o: any) {
+  let items: any[] = [];
+  try { items = JSON.parse(o.items_json); } catch {}
+  return {
+    id: o.id,
+    externalId: o.external_id,
+    status: o.status,
+    totalValue: Number(o.total_value),
+    itemCount: Number(o.item_count),
+    paymentMethod: o.payment_method,
+    source: o.source,
+    orderDate: o.order_date,
+    customerName: o.customer_name || "Sin nombre",
+    customerEmail: o.customer_email,
+    items,
+    promotionNames: o.promotion_names || null,
+    discountValue: Number(o.discount_value),
+    shippingCost: Number(o.shipping_cost),
+    channel: o.channel || null,
+    deliveryType: o.delivery_type || null,
+    shippingCarrier: o.shipping_carrier || null,
+  };
 }
