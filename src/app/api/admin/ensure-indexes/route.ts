@@ -37,6 +37,14 @@ export async function GET(req: NextRequest) {
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "products_orgId_extId_idx" ON products ("organizationId", "externalId")`);
     log.push("products_orgId_extId_idx: OK");
 
+    // Update query planner statistics
+    await prisma.$executeRawUnsafe(`ANALYZE order_items`);
+    log.push("ANALYZE order_items: OK");
+    await prisma.$executeRawUnsafe(`ANALYZE orders`);
+    log.push("ANALYZE orders: OK");
+    await prisma.$executeRawUnsafe(`ANALYZE products`);
+    log.push("ANALYZE products: OK");
+
     // Check table sizes
     const counts: any[] = await prisma.$queryRawUnsafe(`
       SELECT
