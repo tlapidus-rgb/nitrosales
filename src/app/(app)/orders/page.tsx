@@ -16,6 +16,7 @@ import {
 import {
   KpiCard, ChangeBadge, DateRangeFilter, WeeklySummary, StatusFilter,
 } from "@/components/dashboard";
+import DashboardStyles from "@/components/dashboard/DashboardStyles";
 import {
   OrdersHero,
   AtencionHoyBlock,
@@ -303,6 +304,7 @@ export default function OrdersPage() {
       style={{ fontVariantNumeric: "tabular-nums" }}
       key={source}
     >
+      <DashboardStyles />
       {/* HEADER + TABS + DATE FILTERS (Tanda 8.1) */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
