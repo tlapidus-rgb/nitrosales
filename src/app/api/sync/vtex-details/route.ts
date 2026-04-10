@@ -5,7 +5,21 @@ import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
+// ─── Tanda 9 Hotfix: ensure new columns exist before any upsert ───
+let t9Migrated = false;
+async function ensureT9Columns() {
+  if (t9Migrated) return;
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "itemsTotal" DECIMAL(12,2)`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(12,2)`);
+    t9Migrated = true;
+  } catch { t9Migrated = true; }
+}
+
 export async function GET(req: Request) {
+  // Ensure Tanda 9 columns exist before any DB write
+  await ensureT9Columns();
+
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key");
@@ -120,6 +134,107 @@ export async function GET(req: Request) {
 
     /* ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ MODE: normal (default) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
        Original behavior: process orders without items. */
+
+    /* ── MODE: resync-enrichment (Tanda 9) ── */
+    // Backfill enrichment para órdenes VTEX que ya tienen items (creadas por webhook)
+    // pero les falta deliveryType, deviceType, trafficSource, postalCode, shippingCarrier,
+    // itemsTotal, taxAmount. Esto cubre el BUG V2 de la auditoría.
+    if (mode === "resync-enrichment") {
+      const ordersNeedEnrichment = await prisma.$queryRawUnsafe<Array<{ id: string; externalId: string }>>(`
+        SELECT id, "externalId"
+        FROM orders
+        WHERE "organizationId" = '${org.id}'
+          AND "source" = 'VTEX'
+          AND ("deliveryType" IS NULL OR "itemsTotal" IS NULL)
+        ORDER BY "orderDate" DESC
+        LIMIT ${batchSize}
+      `);
+
+      if (ordersNeedEnrichment.length === 0) {
+        return NextResponse.json({ ok: true, mode: "resync-enrichment", message: "All VTEX orders already enriched", updated: 0 });
+      }
+
+      const totalNeedResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
+        SELECT COUNT(*)::text AS cnt FROM orders
+        WHERE "organizationId" = '${org.id}'
+          AND "source" = 'VTEX'
+          AND ("deliveryType" IS NULL OR "itemsTotal" IS NULL)
+      `);
+      const totalNeed = Number(totalNeedResult[0].cnt);
+
+      let updated = 0;
+      const errors: string[] = [];
+
+      for (const order of ordersNeedEnrichment) {
+        try {
+          const detailUrl = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${order.externalId}`;
+          const res = await fetch(detailUrl, {
+            headers: { "X-VTEX-API-AppKey": appKey, "X-VTEX-API-AppToken": appToken, Accept: "application/json" },
+          });
+          if (!res.ok) { errors.push(order.externalId + ": HTTP " + res.status); continue; }
+          const detail = await res.json();
+
+          // Extract enrichment fields (same logic as webhook Tanda 9)
+          const allLogInfo = detail.shippingData?.logisticsInfo || [];
+          let bestCarrier: string | null = null;
+          let bestSla: string | null = null;
+          let isPickup = false;
+          let pickupName: string | null = null;
+
+          for (const li of allLogInfo) {
+            if (li?.pickupStoreInfo?.isPickupStore === true) {
+              isPickup = true;
+              pickupName = li.pickupStoreInfo.friendlyName || null;
+            }
+            if (li?.deliveryCompany && !bestCarrier) bestCarrier = li.deliveryCompany;
+            if (li?.selectedSla && !bestSla) bestSla = li.selectedSla;
+          }
+          const logFirst = allLogInfo[0];
+          if (!bestCarrier && logFirst?.deliveryCompany) bestCarrier = logFirst.deliveryCompany;
+          if (!bestSla && logFirst?.selectedSla) bestSla = logFirst.selectedSla;
+
+          const itemsTotalCents = (detail.totals || []).find((t: any) => t.id === "Items")?.value || 0;
+          const taxAmountCents = (detail.totals || []).find((t: any) => t.id === "Tax")?.value || 0;
+          const shipTotalCents = (detail.totals || []).find((t: any) => t.id === "Shipping")?.value || 0;
+
+          // Promos: use same robust extraction as webhook (Tanda 9)
+          const benefits: string[] = (Array.isArray(detail.ratesAndBenefitsData?.rateAndBenefitsIdentifiers) ? detail.ratesAndBenefitsData.rateAndBenefitsIdentifiers : [])
+            .map((r: any) => (r?.name || "").toString().trim()).filter(Boolean);
+          const benefitsLegacy: string[] = Array.isArray(detail.ratesAndBenefitsData)
+            ? detail.ratesAndBenefitsData.map((r: any) => (r?.name || "").toString().trim()).filter(Boolean) : [];
+          const vtexItems = detail.items || [];
+          const priceTagNames: string[] = vtexItems
+            .flatMap((it: any) => Array.isArray(it?.priceTags) ? it.priceTags.map((t: any) => (t?.name || t?.identifier || "").toString().trim()) : [])
+            .filter(Boolean);
+          const allPromos = Array.from(new Set([...benefits, ...benefitsLegacy, ...priceTagNames])).sort();
+          const promoStr = allPromos.length ? allPromos.join(", ") : null;
+
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              deliveryType: isPickup ? "pickup" : "shipping",
+              pickupStoreName: isPickup ? pickupName : null,
+              deviceType: detail.deviceInfo?.deviceType || null,
+              trafficSource: detail.origin || null,
+              postalCode: detail.shippingData?.address?.postalCode || null,
+              shippingCarrier: bestCarrier,
+              shippingService: bestSla,
+              shippingCost: shipTotalCents / 100,
+              itemsTotal: itemsTotalCents / 100,
+              taxAmount: taxAmountCents / 100,
+              ...(promoStr ? { promotionNames: promoStr } : {}),
+            },
+          });
+          updated++;
+        } catch (e: any) {
+          errors.push(order.externalId + ": " + e.message.substring(0, 80));
+        }
+      }
+
+      return NextResponse.json({
+        ok: true, mode: "resync-enrichment", updated, remaining: totalNeed - updated, errors: errors.slice(0, 10),
+      });
+    }
 
     /* ── MODE: resync-promos ── */
     if (mode === "resync-promos") {
@@ -393,6 +508,9 @@ export async function GET(req: Request) {
       if (!bestSla && logInfoFirst?.selectedSla) bestSla = logInfoFirst.selectedSla;
 
       const shipTotalCents = ((detail.totals || []).find((t: any) => t.id === "Shipping") || {}).value || 0;
+      // Tanda 9: itemsTotal y taxAmount desde totals[]
+      const itemsTotalCents = ((detail.totals || []).find((t: any) => t.id === "Items") || {}).value || 0;
+      const taxAmountCents = ((detail.totals || []).find((t: any) => t.id === "Tax") || {}).value || 0;
 
       try {
           await prisma.order.update({
@@ -406,6 +524,9 @@ export async function GET(req: Request) {
                 postalCode: detail.shippingData?.address?.postalCode || null,
                 shippingCarrier: bestCarrier,
                 shippingService: bestSla,
+                // Tanda 9: revenue limpio + IVA real
+                itemsTotal: itemsTotalCents / 100,
+                taxAmount: taxAmountCents / 100,
               },
             });
           } catch {}

@@ -35,6 +35,13 @@ async function ensureColumns() {
       CREATE INDEX IF NOT EXISTS "orders_organizationId_source_orderDate_idx"
       ON orders ("organizationId", "source", "orderDate")
     `);
+    // Tanda 9: itemsTotal (revenue limpio sin shipping) y taxAmount (IVA real)
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS "itemsTotal" DECIMAL(12,2)
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(12,2)
+    `);
   } catch (e) {
     // Columns/indexes likely already exist
   }
@@ -141,6 +148,8 @@ export async function GET(request: NextRequest) {
         total_discounts: string;
         total_marketplace_fee: string;
         orders_with_fee: string;
+        total_items_revenue: string;
+        total_tax: string;
       }]>(`
         SELECT
           COUNT(*)::text AS total_orders,
@@ -150,7 +159,9 @@ export async function GET(request: NextRequest) {
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS total_shipping,
           COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS total_discounts,
           COALESCE(SUM(COALESCE("marketplaceFee", 0)), 0)::text AS total_marketplace_fee,
-          COUNT(*) FILTER (WHERE "marketplaceFee" IS NOT NULL AND "marketplaceFee" > 0)::text AS orders_with_fee
+          COUNT(*) FILTER (WHERE "marketplaceFee" IS NOT NULL AND "marketplaceFee" > 0)::text AS orders_with_fee,
+          COALESCE(SUM(COALESCE("itemsTotal", "totalValue")), 0)::text AS total_items_revenue,
+          COALESCE(SUM(COALESCE("taxAmount", 0)), 0)::text AS total_tax
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
@@ -468,11 +479,14 @@ export async function GET(request: NextRequest) {
         LIMIT 15
       `, dateFrom, dateTo),
 
-      /* 14) Total count for pagination — was sequential, now parallel */
+      /* 14) Total count for pagination — Tanda 9: excluye CANCELLED/RETURNED
+            para que matchee con KPI (BUG V3: antes incluía todo y generaba
+            números contradictorios entre hero y tabla) */
       prisma.$queryRawUnsafe<[{ cnt: string }]>(`
         SELECT COUNT(*)::text AS cnt FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
       `, dateFrom, dateTo),
 
@@ -1037,37 +1051,38 @@ export async function GET(request: NextRequest) {
     };
 
     // ── Profitability (D1 + D2) ──
-    // TANDA 7.2/7.3 — Fix del "neto sin IVA" y del margen honesto.
+    // TANDA 9 — Revenue unificado + IVA real
     //
-    // PROBLEMA PREVIO (auditoría 2026-04-08):
-    //   1) grossRevenue venia de SUM(oi.totalPrice) mientras que kpis.totalRevenue
-    //      venia de SUM(orders.totalValue) — dos magnitudes distintas mezcladas
-    //      en el mismo hero.
-    //   2) COGS usaba COALESCE(costPrice, 0) → items sin costo contribuian 0
-    //      pero su gross si sumaba → margen artificialmente inflado.
-    //
-    // FIX:
-    //   - netRevenue ahora se calcula sobre orders.totalValue (la misma fuente
-    //     que kpis.totalRevenue) para que hero y KPIs sean coherentes.
-    //   - marginPct/marginAbs solo sobre items CON costo cargado (magnitud
-    //     honesta), expuesto como marginPctHonest + flag coveragePctByRevenue.
-    //   - grossWithoutCost se expone para que la UI muestre "facturacion sin
-    //     costo cargado" como warning.
+    // EVOLUCIÓN:
+    //   Tanda 7.2/7.3: grossRevenue de oi.totalPrice, netRevenue de totalValue/1.21
+    //   Tanda 9:
+    //     - itemsRevenue = SUM(COALESCE(itemsTotal, totalValue)) — revenue limpio sin shipping
+    //       itemsTotal viene de VTEX totals["Items"] o ML SUM(unit_price*qty)
+    //       Fallback a totalValue si itemsTotal no está populado aún (pre-backfill)
+    //     - taxAmount real de VTEX totals["Tax"] (no /1.21 aproximado)
+    //     - netRevenue = itemsRevenue - taxAmount (exacto para VTEX, /1.21 fallback para ML)
     const prof = (marginAndNet as any)[0] || {};
-    const grossRevenue = Number(prof.gross_revenue || 0);            // items total (para compat)
+    const grossRevenue = Number(prof.gross_revenue || 0);            // items total from order_items (para compat)
     const grossWithCost = Number(prof.gross_with_cost || 0);         // items con costo
     const grossWithoutCost = Number(prof.gross_without_cost || 0);   // items sin costo
     const totalCogs = Number(prof.total_cogs || 0);                  // solo items con costo
     const ordersTotal = Number(prof.orders_total || 0);
     const ordersWithCost = Number(prof.orders_with_cost || 0);
 
-    // netRevenue ahora se basa en orders.totalValue (= kpis.totalRevenue)
-    // para que el hero muestre un numero consistente con el resto del dashboard.
+    // Tanda 9: itemsRevenue desde el nuevo campo itemsTotal (revenue limpio sin shipping)
+    // Fallback a totalValue para órdenes que aún no tienen itemsTotal populado
+    const itemsRevenue = Number(curr.total_items_revenue || 0);
+    const totalTax = Number(curr.total_tax || 0);
     const totalRevenueOrders = Number(curr.total_revenue || 0);
-    const netRevenue = Math.round(totalRevenueOrders / 1.21);
 
-    // Tanda 7.6 \u2014 realNetRevenue: neto sin IVA MENOS comisiones de marketplace
-    // Esta es la plata que realmente entra al bolsillo (antes de IIBB/Ganancias).
+    // Tanda 9: netRevenue usa IVA real cuando hay taxAmount, fallback a /1.21
+    // Si totalTax > 0 tenemos IVA real de VTEX → restamos directamente
+    // Si totalTax = 0 (ML o pre-backfill) → /1.21 como fallback
+    const netRevenue = totalTax > 0
+      ? Math.round(itemsRevenue - totalTax)
+      : Math.round(itemsRevenue / 1.21);
+
+    // Tanda 7.6 — realNetRevenue: neto sin IVA MENOS comisiones de marketplace
     const totalMarketplaceFee = Number(curr.total_marketplace_fee || 0);
     const ordersWithFee = Number(curr.orders_with_fee || 0);
     const realNetRevenue = Math.round(netRevenue - totalMarketplaceFee);
@@ -1093,6 +1108,9 @@ export async function GET(request: NextRequest) {
       grossWithoutCost: Math.round(grossWithoutCost),
       netRevenue,
       realNetRevenue,
+      // Tanda 9: nuevos campos de revenue unificado
+      itemsRevenue: Math.round(itemsRevenue),    // Revenue limpio (solo ítems, sin shipping)
+      totalTax: Math.round(totalTax),             // IVA real de VTEX (0 si ML o pre-backfill)
       totalMarketplaceFee: Math.round(totalMarketplaceFee),
       feeCoveragePct: Math.round(feeCoveragePct * 10) / 10,
       ordersWithFee,
@@ -1107,6 +1125,8 @@ export async function GET(request: NextRequest) {
     // Also expose inside kpis for convenience (backward compatible: adds new fields)
     response.kpis.marginPct = Math.round(marginPctHonest * 10) / 10;
     response.kpis.netRevenue = netRevenue;
+    response.kpis.itemsRevenue = Math.round(itemsRevenue);  // Tanda 9
+    response.kpis.totalTax = Math.round(totalTax);           // Tanda 9
     response.kpis.realNetRevenue = realNetRevenue;
     response.kpis.totalMarketplaceFee = Math.round(totalMarketplaceFee);
     response.kpis.totalCogs = Math.round(totalCogs);
