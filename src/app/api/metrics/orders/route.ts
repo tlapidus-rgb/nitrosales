@@ -983,108 +983,127 @@ async function enrichRecentOrders(
     return recentOrders.map(formatOrder);
   }
 
-  // Fetch items from ML API in parallel (max 20, with 5s timeout per call)
+  // ── Use ML Search API (1 call) instead of individual order fetches ──
   let token: string | null = null;
+  let mlUserId: number = 0;
   try {
     const tokenResult = await getSellerToken();
     token = tokenResult.token;
+    mlUserId = tokenResult.mlUserId;
   } catch (err: any) {
     console.error("[Orders API] getSellerToken failed:", err.message);
-    return recentOrders.map(formatOrder); // Return without enrichment
+    return recentOrders.map(formatOrder);
   }
 
-  // Build a map of externalId → ML items (fetched in parallel)
+  // Find the earliest order date among missing items to narrow the search
+  const missingDates = missingItems.map(o => o.order_date).filter(Boolean).sort();
+  const earliestDate = missingDates[0] || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const searchFrom = earliestDate.slice(0, 10) + "T00:00:00.000-03:00";
+
+  // Build a set of external IDs we need
+  const neededIds = new Set(missingItems.map(o => o.external_id));
+
+  // Fetch via ML Search API — paginate until we've found all needed orders or run out
   const enrichedMap = new Map<string, any[]>();
+  let offset = 0;
+  const batchSize = 50;
+  let totalFetched = 0;
 
-  const fetchPromises = missingItems.slice(0, 20).map(async (order) => {
-    try {
-      const res = await fetch(`${ML_API_BASE}/orders/${order.external_id}`, {
+  try {
+    while (enrichedMap.size < neededIds.size && offset < 500) {
+      const searchUrl = `${ML_API_BASE}/orders/search?seller=${mlUserId}&sort=date_desc&limit=${batchSize}&offset=${offset}&order.date_created.from=${encodeURIComponent(searchFrom)}`;
+      const res = await fetch(searchUrl, {
         headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) return;
-      const mlOrder = await res.json();
-      const mlItems = mlOrder.order_items || [];
-      if (mlItems.length === 0) return;
+      if (!res.ok) {
+        console.error(`[Orders API] ML search failed: ${res.status}`);
+        break;
+      }
+      const data = await res.json();
+      const results = data.results || [];
+      if (results.length === 0) break;
+      totalFetched += results.length;
 
-      // Save to DB (upsert products + create order_items)
-      const savedItems: any[] = [];
-      for (const mlItem of mlItems) {
-        const mlItemId = String(mlItem.item?.id || "");
-        const itemTitle = mlItem.item?.title || "ML Item";
-        const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
-        const quantity = mlItem.quantity || 1;
+      // Process only the orders we need
+      for (const mlOrder of results) {
+        const extId = String(mlOrder.id);
+        if (!neededIds.has(extId)) continue;
 
-        // Get thumbnail from item detail if not in order (ML often omits it)
-        let thumbnailUrl = mlItem.item?.thumbnail || null;
-        if (!thumbnailUrl && mlItemId) {
-          try {
-            const itemRes = await fetch(`${ML_API_BASE}/items/${mlItemId}?attributes=thumbnail`, {
-              headers: { Authorization: `Bearer ${token}` },
-              signal: AbortSignal.timeout(3000),
-            });
-            if (itemRes.ok) {
-              const itemData = await itemRes.json();
-              thumbnailUrl = itemData.thumbnail || null;
-            }
-          } catch { /* ignore thumbnail fetch failure */ }
-        }
+        const mlItems = mlOrder.order_items || [];
+        if (mlItems.length === 0) continue;
 
-        const product = await prisma.product.upsert({
-          where: {
-            organizationId_externalId: {
-              organizationId: orgId,
-              externalId: mlItemId || `meli-${order.external_id}-0`,
+        const savedItems: any[] = [];
+        // Find the DB order ID for this external ID
+        const dbOrder = missingItems.find(o => o.external_id === extId);
+        if (!dbOrder) continue;
+
+        for (const mlItem of mlItems) {
+          const mlItemId = String(mlItem.item?.id || "");
+          const itemTitle = mlItem.item?.title || "ML Item";
+          const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
+          const quantity = mlItem.quantity || 1;
+          const thumbnailUrl = mlItem.item?.thumbnail || null;
+
+          const product = await prisma.product.upsert({
+            where: {
+              organizationId_externalId: {
+                organizationId: orgId,
+                externalId: mlItemId || `meli-${extId}-0`,
+              },
             },
-          },
-          create: {
-            organizationId: orgId,
-            externalId: mlItemId || `meli-${order.external_id}-0`,
-            name: itemTitle,
-            sku: mlItem.item?.seller_sku || mlItemId,
-            price: unitPrice,
-            imageUrl: thumbnailUrl,
-            isActive: true,
-          },
-          update: {
-            name: itemTitle,
-            price: unitPrice,
-            ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
-          },
-        });
-
-        // Create order_item only if it doesn't exist
-        try {
-          await prisma.orderItem.create({
-            data: {
-              orderId: order.id,
-              productId: product.id,
-              quantity,
-              unitPrice,
-              totalPrice: unitPrice * quantity,
-            } as any,
+            create: {
+              organizationId: orgId,
+              externalId: mlItemId || `meli-${extId}-0`,
+              name: itemTitle,
+              sku: mlItem.item?.seller_sku || mlItemId,
+              price: unitPrice,
+              imageUrl: thumbnailUrl,
+              isActive: true,
+            },
+            update: {
+              name: itemTitle,
+              price: unitPrice,
+              ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
+            },
           });
-        } catch {
-          // Might already exist from a previous partial run
+
+          try {
+            await prisma.orderItem.create({
+              data: {
+                orderId: dbOrder.id,
+                productId: product.id,
+                quantity,
+                unitPrice,
+                totalPrice: unitPrice * quantity,
+              } as any,
+            });
+          } catch { /* already exists */ }
+
+          savedItems.push({
+            name: itemTitle,
+            imageUrl: thumbnailUrl,
+            quantity,
+            unitPrice,
+            totalPrice: unitPrice * quantity,
+          });
         }
 
-        savedItems.push({
-          name: itemTitle,
-          imageUrl: thumbnailUrl,
-          quantity,
-          unitPrice,
-          totalPrice: unitPrice * quantity,
-        });
+        enrichedMap.set(extId, savedItems);
       }
 
-      enrichedMap.set(order.external_id, savedItems);
-      console.log(`[Orders API] Inline-enriched MELI order ${order.external_id} → ${savedItems.length} items`);
-    } catch (err: any) {
-      console.error(`[Orders API] Enrich ${order.external_id} failed:`, err.message);
+      // Check if we've found all needed or reached end of results
+      const total = data.paging?.total || 0;
+      offset += batchSize;
+      if (offset >= total) break;
+      // Stop if we've found all the orders we need
+      if (enrichedMap.size >= neededIds.size) break;
     }
-  });
 
-  await Promise.all(fetchPromises);
+    console.log(`[Orders API] ML search enriched ${enrichedMap.size}/${neededIds.size} orders (scanned ${totalFetched} ML orders)`);
+  } catch (err: any) {
+    console.error("[Orders API] ML search enrichment failed:", err.message);
+  }
 
   // Format orders, injecting enriched items where available
   return recentOrders.map(o => {
