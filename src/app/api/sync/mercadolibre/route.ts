@@ -149,12 +149,50 @@ export async function GET(req: NextRequest) {
       log.push(`Fetched ${mlOrders.length} orders from ML`);
 
       let ordersUpserted = 0;
+      let mlItemsCreated = 0;
+      let mlProductsCreated = 0;
+      let mlCustomersCreated = 0;
       for (const order of mlOrders) {
         const status = mapMLOrderStatus(order.status);
         const totalValue = order.total_amount || 0;
-        const itemCount = (order.order_items || []).reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
+        const mlItems = order.order_items || [];
+        const itemCount = mlItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
 
-        await prisma.order.upsert({
+        // Tanda 7.5 — Capturamos la comisión de ML (sale_fee) sumando por ítem.
+        const marketplaceFee = mlItems.reduce(
+          (sum: number, item: any) => sum + (Number(item.sale_fee) || 0),
+          0
+        );
+
+        // Tanda 9 — shippingCost desde ML shipping object
+        const shippingCost = Number(order.shipping?.cost) || 0;
+
+        // Tanda 9 — itemsTotal: revenue limpio = SUM(unit_price * quantity)
+        const itemsTotal = mlItems.reduce(
+          (sum: number, item: any) => sum + ((Number(item.unit_price) || 0) * (item.quantity || 1)),
+          0
+        );
+
+        // Tanda 9 — discountValue: diferencia entre full_unit_price y total_amount
+        // full_unit_price es el precio original antes de cupones/descuentos ML
+        const fullTotal = mlItems.reduce(
+          (sum: number, item: any) => sum + ((Number(item.full_unit_price) || Number(item.unit_price) || 0) * (item.quantity || 1)),
+          0
+        );
+        const discountValue = Math.max(0, fullTotal - totalValue);
+
+        // Tanda 7.10.4 + Tanda 9 (sort) — capturar promociones ML
+        const orderPromos: string[] = Array.isArray(order.promotions)
+          ? order.promotions.map((p: any) => (p?.name || p?.type || "").toString().trim()).filter(Boolean)
+          : [];
+        const itemPromos: string[] = mlItems
+          .map((it: any) => (it?.promotion?.name || it?.promotion?.type || "").toString().trim())
+          .filter(Boolean);
+        // Tanda 9: sort para consistencia (evita duplicados "A, B" vs "B, A")
+        const allPromos = Array.from(new Set([...orderPromos, ...itemPromos])).sort();
+        const promotionNames = allPromos.length ? allPromos.join(", ") : null;
+
+        const upsertedOrder = await prisma.order.upsert({
           where: {
             organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
           },
@@ -162,7 +200,13 @@ export async function GET(req: NextRequest) {
             status,
             totalValue,
             itemCount,
+            marketplaceFee: marketplaceFee > 0 ? marketplaceFee : null,
+            promotionNames,
             paymentMethod: order.payments?.[0]?.payment_type || null,
+            // Tanda 9: campos nuevos
+            shippingCost: shippingCost > 0 ? shippingCost : null,
+            discountValue: discountValue > 0 ? discountValue : null,
+            itemsTotal: itemsTotal > 0 ? itemsTotal : null,
           },
           create: {
             organizationId: orgId,
@@ -171,15 +215,116 @@ export async function GET(req: NextRequest) {
             totalValue,
             currency: order.currency_id || "ARS",
             itemCount,
+            marketplaceFee: marketplaceFee > 0 ? marketplaceFee : null,
+            promotionNames,
             source: "MELI",
             channel: "marketplace",
             paymentMethod: order.payments?.[0]?.payment_type || null,
             orderDate: new Date(order.date_created),
+            // Tanda 9: campos nuevos
+            shippingCost: shippingCost > 0 ? shippingCost : null,
+            discountValue: discountValue > 0 ? discountValue : null,
+            itemsTotal: itemsTotal > 0 ? itemsTotal : null,
           },
         });
+
+        // ── Tanda 9: Crear order_items + products para ML (BUG C1) ──
+        // Primero limpiamos items viejos (dedup) y recreamos
+        try {
+          await prisma.orderItem.deleteMany({ where: { orderId: upsertedOrder.id } });
+        } catch {}
+
+        for (const mlItem of mlItems) {
+          try {
+            const mlItemId = String(mlItem.item?.id || mlItem.item_id || `ml-${order.id}-${mlItem.title || "unknown"}`);
+            const unitPrice = Number(mlItem.unit_price) || 0;
+            const qty = mlItem.quantity || 1;
+
+            // Upsert product (placeholder para ML — sin SKU porque ML no lo comparte fácilmente)
+            let product = null;
+            try {
+              product = await prisma.product.upsert({
+                where: {
+                  organizationId_externalId: { organizationId: orgId, externalId: mlItemId },
+                },
+                update: {
+                  name: mlItem.item?.title || mlItem.title || "Producto ML",
+                  price: unitPrice,
+                  imageUrl: mlItem.item?.thumbnail || null,
+                  isActive: true,
+                },
+                create: {
+                  externalId: mlItemId,
+                  name: mlItem.item?.title || mlItem.title || "Producto ML",
+                  price: unitPrice,
+                  imageUrl: mlItem.item?.thumbnail || null,
+                  isActive: true,
+                  organizationId: orgId,
+                  category: mlItem.item?.category_id || null,
+                },
+              });
+              mlProductsCreated++;
+            } catch (pe: any) {
+              // Product creation might fail on unique constraint race — continue with null
+            }
+
+            await prisma.orderItem.create({
+              data: {
+                quantity: qty,
+                unitPrice: unitPrice,
+                totalPrice: unitPrice * qty,
+                orderId: upsertedOrder.id,
+                productId: product?.id || null,
+              },
+            });
+            mlItemsCreated++;
+          } catch (ie: any) {
+            // Log but don't fail the whole order
+          }
+        }
+
+        // ── Tanda 9: Crear/vincular customer para ML (BUG M2) ──
+        // ML expone buyer.id y buyer.nickname. No tiene email por privacidad.
+        const buyer = order.buyer;
+        if (buyer?.id) {
+          try {
+            const buyerExtId = `ml-buyer-${buyer.id}`;
+            const customer = await prisma.customer.upsert({
+              where: {
+                organizationId_externalId: { organizationId: orgId, externalId: buyerExtId },
+              },
+              update: {
+                lastName: buyer.nickname || null,
+                lastOrderAt: new Date(order.date_created),
+                totalOrders: { increment: 1 },
+                totalSpent: { increment: totalValue },
+              },
+              create: {
+                organizationId: orgId,
+                externalId: buyerExtId,
+                email: "",  // ML no comparte email
+                firstName: buyer.first_name || null,
+                lastName: buyer.last_name || buyer.nickname || null,
+                firstOrderAt: new Date(order.date_created),
+                lastOrderAt: new Date(order.date_created),
+                totalOrders: 1,
+                totalSpent: totalValue,
+              },
+            });
+            // Link customer to order
+            await prisma.order.update({
+              where: { id: upsertedOrder.id },
+              data: { customerId: customer.id },
+            });
+            mlCustomersCreated++;
+          } catch (ce: any) {
+            // Customer upsert might fail — continue
+          }
+        }
+
         ordersUpserted++;
       }
-      log.push(`Upserted ${ordersUpserted} MELI orders`);
+      log.push(`Upserted ${ordersUpserted} MELI orders, ${mlItemsCreated} items, ${mlProductsCreated} products, ${mlCustomersCreated} customers`);
     } catch (err: any) {
       errors.push(`Orders: ${err.message}`);
     }
