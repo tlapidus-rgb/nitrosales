@@ -113,22 +113,16 @@ export async function GET(request: NextRequest) {
     const daysInPeriod = Math.max(1, Math.ceil(periodMs / MS_PER_DAY));
 
     /* ══════════════════════════════════════════════════════════
-       QUERIES IN 3 BATCHES — avoids connection pool exhaustion
-       (pool limit is 5-15, 25 parallel queries would timeout)
+       QUERIES IN 5 BATCHES of max 5 — Railway pool_limit=5
        ══════════════════════════════════════════════════════════ */
 
-    // ── BATCH 1: Core KPIs + main data (10 queries) ──
+    // ── BATCH 1a: Core KPIs (5 queries) ──
     const [
       currentPeriod,
       previousPeriod,
       dailySales,
       salesByDayOfWeek,
       salesByHour,
-      topPaymentMethods,
-      statusBreakdown,
-      topProducts,
-      topCustomers,
-      recentOrders,
     ] = await Promise.all([
 
       /* 1) Current period KPIs */
@@ -261,6 +255,16 @@ export async function GET(request: NextRequest) {
         GROUP BY hr
         ORDER BY hr
       `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 1b: Charts + lists (5 queries) ──
+    const [
+      topPaymentMethods,
+      statusBreakdown,
+      topProducts,
+      topCustomers,
+      recentOrders,
+    ] = await Promise.all([
 
       /* 6) Payment methods — with source for label translation */
       prisma.$queryRawUnsafe<Array<{
@@ -427,16 +431,13 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
-    // ── BATCH 2: Supplementary metrics (8 queries) ──
+    // ── BATCH 2a: Supplementary metrics (5 queries) ──
     const [
       cancelledResult,
       prevDailySales,
       promotionBreakdown,
       totalCountResult,
       sourceCountsRaw,
-      cohortsRaw,
-      profitabilityRaw,
-      logisticsByDelivery,
     ] = await Promise.all([
 
       /* 11) Cancelled count */
@@ -511,6 +512,14 @@ export async function GET(request: NextRequest) {
           AND status NOT IN ('CANCELLED', 'RETURNED')
         GROUP BY COALESCE("source", 'VTEX')
       `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 2b: Heavy analytics (3 queries) ──
+    const [
+      cohortsRaw,
+      profitabilityRaw,
+      logisticsByDelivery,
+    ] = await Promise.all([
 
       /* 16) Cohorts — new / returning / VIP / anonymous (split by source) */
       prisma.$queryRawUnsafe<Array<{
@@ -597,15 +606,13 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
-    // ── BATCH 3: Segmentation, coupons, geography (7 queries) ──
+    // ── BATCH 3a: Segmentation (5 queries) ──
     const [
       logisticsByCarrier,
       segByDevice,
       segByChannel,
       segByTraffic,
       couponsRaw,
-      geoProvinces,
-      geoPostalCodes,
     ] = await Promise.all([
 
       /* 19) Logistics — by carrier */
@@ -698,6 +705,13 @@ export async function GET(request: NextRequest) {
         ORDER BY COUNT(*) DESC
         LIMIT 15
       `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 3b: Geography (2 queries) ──
+    const [
+      geoProvinces,
+      geoPostalCodes,
+    ] = await Promise.all([
 
       /* 24) Geography — top provinces (first 4 digits of postal code as proxy) */
       prisma.$queryRawUnsafe<Array<{
