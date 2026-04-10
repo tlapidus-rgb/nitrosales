@@ -42,6 +42,24 @@ async function ensureColumns() {
 
 let migrated = false;
 
+// Payment label translation — makes PieChart labels human-friendly
+function getPaymentLabel(method: string, source: string): string {
+  const isMeli = source === "MELI";
+  const lower = method.toLowerCase();
+  if (isMeli) {
+    if (lower === "account_money") return "Mercado Pago (MELI)";
+    if (lower === "credit_card") return "Tarjeta crédito (MELI)";
+    if (lower === "debit_card") return "Tarjeta débito (MELI)";
+    if (lower === "ticket") return "Efectivo (MELI)";
+    if (lower === "atm") return "ATM (MELI)";
+    return `${method} (MELI)`;
+  }
+  // VTEX
+  if (lower.includes("mercado") || lower.includes("mercadopago")) return "Mercado Pago (VTEX)";
+  if (lower === "sin dato") return "Sin dato";
+  return `${method} (VTEX)`;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const ORG_ID = await getOrganizationId();
@@ -252,14 +270,16 @@ export async function GET(request: NextRequest) {
         ORDER BY hr
       `, dateFrom, dateTo),
 
-      /* 6) Payment methods */
+      /* 6) Payment methods — with source for label translation */
       prisma.$queryRawUnsafe<Array<{
         payment_method: string;
+        source: string;
         orders: string;
         revenue: string;
       }>>(`
         SELECT
           COALESCE("paymentMethod", 'Sin dato') AS payment_method,
+          COALESCE("source", 'VTEX') AS source,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
@@ -268,9 +288,9 @@ export async function GET(request: NextRequest) {
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
-        GROUP BY "paymentMethod"
+        GROUP BY "paymentMethod", COALESCE("source", 'VTEX')
         ORDER BY SUM("totalValue") DESC
-        LIMIT 10
+        LIMIT 15
       `, dateFrom, dateTo),
 
       /* 7) Status breakdown — cast to text to avoid enum serialization issues */
@@ -349,7 +369,7 @@ export async function GET(request: NextRequest) {
         LIMIT 10
       `, dateFrom, dateTo),
 
-      /* 10) Recent orders — optimized with lateral join instead of correlated subquery */
+      /* 10) Recent orders — optimized with lateral join, enriched for detail view */
       prisma.$queryRawUnsafe<Array<{
         id: string;
         external_id: string;
@@ -363,6 +383,11 @@ export async function GET(request: NextRequest) {
         customer_email: string;
         items_json: string;
         promotion_names: string;
+        discount_value: string;
+        shipping_cost: string;
+        channel: string;
+        delivery_type: string;
+        shipping_carrier: string;
       }>>(`
         SELECT
           o.id,
@@ -373,10 +398,18 @@ export async function GET(request: NextRequest) {
           COALESCE(o."paymentMethod", '-') AS payment_method,
           COALESCE(o."source", 'VTEX') AS source,
           TO_CHAR(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') AS order_date,
-          TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) AS customer_name,
+          CASE
+            WHEN o."customerId" IS NULL AND COALESCE(o."source", 'VTEX') = 'MELI' THEN 'Cliente MercadoLibre'
+            ELSE TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", '')))
+          END AS customer_name,
           COALESCE(c.email, '') AS customer_email,
           COALESCE(items_agg.items_json, '[]') AS items_json,
-          COALESCE(o."promotionNames", '') AS promotion_names
+          COALESCE(o."promotionNames", '') AS promotion_names,
+          COALESCE(o."discountValue", 0)::text AS discount_value,
+          COALESCE(o."shippingCost", 0)::text AS shipping_cost,
+          COALESCE(o."channel", '') AS channel,
+          COALESCE(o."deliveryType", '') AS delivery_type,
+          COALESCE(o."shippingCarrier", '') AS shipping_carrier
         FROM orders o
         LEFT JOIN customers c ON c.id = o."customerId"
         LEFT JOIN LATERAL (
@@ -426,14 +459,16 @@ export async function GET(request: NextRequest) {
         ORDER BY day ASC
       `, prevFrom, prevTo),
 
-      /* 13) Promotion breakdown — was sequential, now parallel */
+      /* 13) Promotion breakdown — with source for "Sin promo" distinction */
       prisma.$queryRawUnsafe<Array<{
         promo: string;
+        source: string;
         orders: string;
         revenue: string;
       }>>(`
         SELECT
           COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo') AS promo,
+          COALESCE("source", 'VTEX') AS source,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
@@ -441,7 +476,7 @@ export async function GET(request: NextRequest) {
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
-        GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo')
+        GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo'), COALESCE("source", 'VTEX')
         ORDER BY SUM("totalValue") DESC
         LIMIT 15
       `, dateFrom, dateTo),
@@ -470,13 +505,14 @@ export async function GET(request: NextRequest) {
         GROUP BY COALESCE("source", 'VTEX')
       `, dateFrom, dateTo),
 
-      /* 16) Cohorts — new / returning / VIP / anonymous */
+      /* 16) Cohorts — new / returning / VIP / anonymous (split by source) */
       prisma.$queryRawUnsafe<Array<{
         cohort: string; customers: string; orders: string; revenue: string;
       }>>(`
         WITH customer_history AS (
           SELECT
             o."customerId",
+            COALESCE(o."source", 'VTEX') AS src,
             COUNT(*)::int AS period_orders,
             SUM(o."totalValue") AS period_revenue,
             MIN(first_order.first_date) AS first_order_date
@@ -492,12 +528,12 @@ export async function GET(request: NextRequest) {
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED')
             ${srcWhereSimple}
-          GROUP BY o."customerId", first_order.first_date
+          GROUP BY o."customerId", o."source", first_order.first_date
         ),
         classified AS (
           SELECT
             CASE
-              WHEN "customerId" IS NULL THEN 'anonymous'
+              WHEN "customerId" IS NULL THEN CONCAT('anonymous_', src)
               WHEN first_order_date >= $1 THEN 'new'
               ELSE 'returning'
             END AS cohort,
@@ -750,7 +786,7 @@ export async function GET(request: NextRequest) {
         numDays: Number(h.num_days),
       })),
       paymentMethods: topPaymentMethods.map(pm => ({
-        method: pm.payment_method,
+        method: getPaymentLabel(pm.payment_method, pm.source),
         orders: Number(pm.orders),
         revenue: Number(pm.revenue),
       })),
@@ -760,7 +796,7 @@ export async function GET(request: NextRequest) {
       })),
 
       promotionBreakdown: promotionBreakdown.map(p => ({
-        promo: p.promo,
+        promo: p.promo === "Sin promo" ? `Sin promo (${p.source === "MELI" ? "MELI" : "VTEX"})` : p.promo,
         orders: Number(p.orders),
         revenue: Number(p.revenue),
       })),
@@ -797,6 +833,11 @@ export async function GET(request: NextRequest) {
           customerEmail: o.customer_email,
           items,
           promotionNames: o.promotion_names || null,
+          discountValue: Number(o.discount_value),
+          shippingCost: Number(o.shipping_cost),
+          channel: o.channel || null,
+          deliveryType: o.delivery_type || null,
+          shippingCarrier: o.shipping_carrier || null,
         };
       }),
       // ── v4 namespaces ──
@@ -817,13 +858,28 @@ export async function GET(request: NextRequest) {
         const get = (c: string) => cohortsRaw.find(r => r.cohort === c);
         const newC = get("new");
         const ret = get("returning");
-        const anon = get("anonymous");
+        const anonMeli = get("anonymous_MELI");
+        const anonVtex = get("anonymous_VTEX");
+        const toStats = (r: typeof newC) => ({
+          customers: Number(r?.customers || 0),
+          orders: Number(r?.orders || 0),
+          revenue: Number(r?.revenue || 0),
+        });
+        const anonMeliStats = toStats(anonMeli);
+        const anonVtexStats = toStats(anonVtex);
         return {
-          new: { customers: Number(newC?.customers || 0), orders: Number(newC?.orders || 0), revenue: Number(newC?.revenue || 0) },
-          returning: { customers: Number(ret?.customers || 0), orders: Number(ret?.orders || 0), revenue: Number(ret?.revenue || 0) },
-          vip: { customers: 0, orders: 0, revenue: 0 }, // TODO: VIP classification requires lifetime query
-          anonymous: { customers: Number(anon?.customers || 0), orders: Number(anon?.orders || 0), revenue: Number(anon?.revenue || 0) },
+          new: toStats(newC),
+          returning: toStats(ret),
+          vip: { customers: 0, orders: 0, revenue: 0 },
+          anonymous: {
+            customers: anonMeliStats.customers + anonVtexStats.customers,
+            orders: anonMeliStats.orders + anonVtexStats.orders,
+            revenue: anonMeliStats.revenue + anonVtexStats.revenue,
+          },
+          anonymousMeli: anonMeliStats.orders > 0 ? anonMeliStats : undefined,
+          anonymousVtex: anonVtexStats.orders > 0 ? anonVtexStats : undefined,
           vipCriteria: { minOrders: 5, minSpentArs: 500000, description: "5+ compras o $500k+ gastados" },
+          mlPrivacyNote: anonMeliStats.orders > 0 ? "MercadoLibre no comparte datos del comprador" : undefined,
         };
       })(),
       profitability: (() => {
