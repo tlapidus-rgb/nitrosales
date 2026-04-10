@@ -715,295 +715,391 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* RECENT ORDERS TABLE — redesign */}
-      <div className="dash-card p-6">
-        {/* Header row: title + source filter + search */}
-        <div className="flex flex-col gap-3 mb-5">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <h2 className="text-sm font-semibold text-slate-800 tracking-tight">Ultimas ordenes</h2>
-            <div className="flex items-center gap-3">
-              {/* Local source filter — independent of global tab */}
-              <div className="flex items-center bg-slate-100/80 rounded-lg p-0.5">
-                {(["ALL", "VTEX", "MELI"] as const).map((s) => (
-                  <button key={s} onClick={() => setTableSourceFilter(s)}
-                    className={`px-3 py-1 rounded-md text-[11px] font-medium transition-all ${tableSourceFilter === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                    style={{ transitionDuration: "180ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}>
-                    {s === "ALL" ? "Todos" : s}
-                  </button>
-                ))}
+      {/* ═══ RECENT ORDERS — Card Feed ═══ */}
+      <div className="space-y-4">
+        {/* Header bar — filters + search */}
+        <div className="dash-card px-6 py-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Pedidos recientes</h2>
+                {data.pagination && (
+                  <span className="text-xs text-slate-400 tabular-nums">{data.pagination.totalCount.toLocaleString("es-AR")} ordenes</span>
+                )}
               </div>
-              <div className="relative">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="Buscar por ID, cliente o pago..."
-                  value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 bg-white w-72 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all" style={{ transitionDuration: "220ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }} />
+              <div className="flex items-center gap-3">
+                {/* Source filter pills */}
+                <div className="flex items-center bg-slate-100/80 rounded-xl p-0.5">
+                  {(["ALL", "VTEX", "MELI"] as const).map((s) => (
+                    <button key={s} onClick={() => setTableSourceFilter(s)}
+                      className={`px-3.5 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide ${tableSourceFilter === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                      style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                      {s === "ALL" ? "Todos" : s}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="text" placeholder="Buscar orden, cliente o pago..."
+                    value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white/80 w-72 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+                    style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
+                </div>
               </div>
+            </div>
+
+            {/* Active filters row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <StatusFilter
+                statuses={data.statusBreakdown}
+                activeStatus={statusFilter}
+                onStatusChange={setStatusFilter}
+                statusLabels={STATUS_LABELS}
+                statusColors={STATUS_COLORS}
+              />
+              {flagFilter && (
+                <button type="button" onClick={() => setFlagFilter(null)}
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-100"
+                  style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                  {flagFilter}
+                  <span className="ml-0.5 text-amber-500">×</span>
+                </button>
+              )}
             </div>
           </div>
-
-          {/* Flag filter active chip */}
-          {flagFilter && (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-500">Filtrando por señal:</span>
-              <button type="button" onClick={() => setFlagFilter(null)}
-                className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-100">
-                {flagFilter}
-                <span className="ml-1 text-amber-500">×</span>
-              </button>
-            </div>
-          )}
-
-          {/* Status filter chips */}
-          <StatusFilter
-            statuses={data.statusBreakdown}
-            activeStatus={statusFilter}
-            onStatusChange={setStatusFilter}
-            statusLabels={STATUS_LABELS}
-            statusColors={STATUS_COLORS}
-          />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200/80">
-                <th className="text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-3 px-3">ID</th>
-                <th className="text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-3 px-3">Fecha</th>
-                <th className="text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-3 px-3">Cliente</th>
-                <th className="text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-3 px-3">Monto</th>
-                <th className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-3 px-3">Items</th>
-                <th className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-3 px-3">Fuente</th>
-                <th className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-3 px-3">Estado</th>
-                <th className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-3 px-3">Señales</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredOrders.map((order) => (
-                <React.Fragment key={order.id}>
-                  <tr className="border-b border-slate-100/60 hover:bg-slate-50/60 cursor-pointer group"
-                    style={{ transition: "background-color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
-                    onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1.5">
-                        <ChevronDown size={12} className={`text-slate-300 group-hover:text-slate-500 transition-transform ${expandedOrderId === order.id ? "rotate-180" : ""}`} style={{ transitionDuration: "280ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }} />
-                        <span className="text-xs font-mono text-indigo-600 font-medium">
-                          {order.externalId.length > 15 ? `...${order.externalId.slice(-12)}` : order.externalId}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="text-xs text-slate-500 tabular-nums">{order.orderDate}</span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2">
-                        {order.source === "MELI" && order.customerName === "Cliente MercadoLibre" ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
-                              <span className="text-[9px] font-bold text-yellow-600">ML</span>
-                            </div>
-                            <span className="text-xs text-slate-500 italic">Cliente MercadoLibre</span>
-                          </div>
-                        ) : (
-                          <div className="min-w-0">
-                            <span className="text-xs text-slate-700 font-medium truncate max-w-[160px] block">{order.customerName}</span>
-                            {order.customerEmail && <span className="text-[10px] text-slate-400 truncate max-w-[160px] block">{order.customerEmail}</span>}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      <span className="text-sm font-semibold text-slate-900 tabular-nums">{formatARS(order.totalValue)}</span>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <span className="text-xs text-slate-600 tabular-nums">{order.itemCount}</span>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide ${order.source === "MELI" ? "bg-yellow-50 text-yellow-700 border border-yellow-200/60" : "bg-indigo-50 text-indigo-600 border border-indigo-200/60"}`}>
-                        {order.source === "MELI" ? "MELI" : "VTEX"}
+        {/* Order cards feed */}
+        <div className="space-y-3">
+          {filteredOrders.map((order, orderIdx) => {
+            const isExpanded = expandedOrderId === order.id;
+            const isMeli = order.source === "MELI";
+            const isMeliAnon = isMeli && (order.customerName === "Cliente MercadoLibre" || order.customerName === "Cliente sin datos");
+            const flags = orderFlagsMap.get(order.id) ?? [];
+            const accentColor = isMeli ? "#eab308" : "#6366f1";
+            const dateFormatted = (() => { try { const d = new Date(order.orderDate); return d.toLocaleDateString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); } catch { return order.orderDate; } })();
+
+            return (
+              <div key={order.id}
+                className="group relative rounded-2xl bg-white overflow-hidden cursor-pointer"
+                style={{
+                  boxShadow: isExpanded
+                    ? "0 1px 0 rgba(15,23,42,0.06), 0 12px 32px -8px rgba(15,23,42,0.14), 0 24px 48px -16px rgba(15,23,42,0.1)"
+                    : "0 1px 0 rgba(15,23,42,0.04), 0 4px 12px -6px rgba(15,23,42,0.08)",
+                  border: "1px solid rgba(15,23,42,0.06)",
+                  transition: "box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1), transform 280ms cubic-bezier(0.16, 1, 0.3, 1)",
+                  animationDelay: `${orderIdx * 40}ms`,
+                }}
+                onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}>
+
+                {/* Left accent bar */}
+                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: accentColor, opacity: isExpanded ? 1 : 0.5, transition: "opacity 280ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
+
+                {/* ─── Main card row ─── */}
+                <div className="flex items-center gap-4 pl-5 pr-5 py-4">
+                  {/* Source avatar */}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isMeli ? "bg-yellow-50 border border-yellow-200/60" : "bg-indigo-50 border border-indigo-200/60"}`}>
+                    {isMeli ? (
+                      <span className="text-[11px] font-bold text-yellow-600">ML</span>
+                    ) : (
+                      <span className="text-[11px] font-bold text-indigo-600">VTX</span>
+                    )}
+                  </div>
+
+                  {/* Customer + date */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      {isMeliAnon ? (
+                        <span className="text-sm text-slate-500 italic">Cliente MercadoLibre</span>
+                      ) : (
+                        <span className="text-sm font-medium text-slate-800 truncate">{order.customerName}</span>
+                      )}
+                      {flags.length > 0 && (
+                        <OrderFlagBadgeGroup flags={flags} max={2} compact />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[11px] text-slate-400">
+                      <span className="tabular-nums">{dateFormatted}</span>
+                      <span className="text-slate-200">·</span>
+                      <span className="font-mono text-slate-400">
+                        #{order.externalId.length > 10 ? order.externalId.slice(-8) : order.externalId}
                       </span>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-semibold"
-                        style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}12`, color: STATUS_COLORS[order.status] || "#94a3b8" }}>
-                        {STATUS_LABELS[order.status] || order.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <OrderFlagBadgeGroup flags={orderFlagsMap.get(order.id) ?? []} max={3} compact />
-                    </td>
-                  </tr>
+                      <span className="text-slate-200">·</span>
+                      <span>{order.itemCount} item{order.itemCount !== 1 ? "s" : ""}</span>
+                      {order.paymentMethod && (
+                        <>
+                          <span className="text-slate-200">·</span>
+                          <span className="truncate max-w-[100px]">{order.paymentMethod}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
 
-                  {/* ─── Expanded detail — 3 column layout ─── */}
-                  {expandedOrderId === order.id && (
-                    <tr>
-                      <td colSpan={8} className="p-0">
-                        <div className="bg-gradient-to-b from-slate-50/80 to-white border-b border-slate-200/60 px-6 py-5">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
-                            {/* Col 1: Pedido */}
-                            <div className="space-y-2.5">
-                              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Pedido</div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-slate-400 w-14">ID</span>
-                                <span className="text-xs font-mono text-slate-700">{order.externalId}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-slate-400 w-14">Fecha</span>
-                                <span className="text-xs text-slate-700">{order.orderDate}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-slate-400 w-14">Estado</span>
-                                <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                                  style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}12`, color: STATUS_COLORS[order.status] || "#94a3b8" }}>
-                                  {STATUS_LABELS[order.status] || order.status}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-slate-400 w-14">Fuente</span>
-                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${order.source === "MELI" ? "bg-yellow-50 text-yellow-700" : "bg-indigo-50 text-indigo-600"}`}>
-                                  {order.source === "MELI" ? "MercadoLibre" : "VTEX"}
-                                </span>
-                              </div>
-                              {order.channel && (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] text-slate-400 w-14">Canal</span>
-                                  <span className="text-xs text-slate-700">{order.channel}</span>
-                                </div>
-                              )}
-                            </div>
+                  {/* Amount — hero number */}
+                  <div className="text-right flex-shrink-0 mr-3">
+                    <p className="text-lg font-bold text-slate-900 tabular-nums tracking-tight">{formatARS(order.totalValue)}</p>
+                    {order.promotionNames && (
+                      <p className="text-[10px] text-purple-500 font-medium truncate max-w-[120px] text-right">{order.promotionNames}</p>
+                    )}
+                  </div>
 
-                            {/* Col 2: Cliente */}
-                            <div className="space-y-2.5">
-                              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Cliente</div>
-                              {order.source === "MELI" && order.customerName === "Cliente MercadoLibre" ? (
-                                <div className="bg-yellow-50/60 border border-yellow-200/60 rounded-xl px-3 py-2.5">
-                                  <div className="flex items-center gap-2 mb-1.5">
-                                    <div className="w-6 h-6 rounded-full bg-yellow-100 flex items-center justify-center">
-                                      <span className="text-[9px] font-bold text-yellow-600">ML</span>
-                                    </div>
-                                    <span className="text-xs font-medium text-yellow-800">Cliente MercadoLibre</span>
-                                  </div>
-                                  <p className="text-[10px] text-yellow-600/80 leading-relaxed">MercadoLibre no comparte datos del comprador por politicas de privacidad</p>
-                                </div>
-                              ) : (
-                                <>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-slate-400 w-14">Nombre</span>
-                                    <span className="text-xs text-slate-700 font-medium">{order.customerName}</span>
-                                  </div>
-                                  {order.customerEmail && (
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[10px] text-slate-400 w-14">Email</span>
-                                      <span className="text-xs text-slate-600">{order.customerEmail}</span>
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
+                  {/* Status pill */}
+                  <div className="flex-shrink-0">
+                    <span className="inline-flex px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide"
+                      style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}10`, color: STATUS_COLORS[order.status] || "#94a3b8", border: `1px solid ${STATUS_COLORS[order.status] || "#94a3b8"}20` }}>
+                      {STATUS_LABELS[order.status] || order.status}
+                    </span>
+                  </div>
 
-                            {/* Col 3: Financiero */}
-                            <div className="space-y-2.5">
-                              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Financiero</div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400">Total</span>
-                                <span className="text-sm font-bold text-slate-900 tabular-nums">{formatARS(order.totalValue)}</span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400">Pago</span>
-                                <span className="text-xs text-slate-700">{order.paymentMethod}</span>
-                              </div>
-                              {(order.discountValue ?? 0) > 0 && (
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] text-slate-400">Descuento</span>
-                                  <span className="text-xs text-emerald-600 font-medium">-{formatARS(order.discountValue || 0)}</span>
-                                </div>
-                              )}
-                              {(order.shippingCost ?? 0) > 0 && (
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] text-slate-400">Envio</span>
-                                  <span className="text-xs text-slate-700 tabular-nums">{formatARS(order.shippingCost || 0)}</span>
-                                </div>
-                              )}
-                              {order.promotionNames && (
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] text-slate-400">Promo</span>
-                                  <span className="text-xs text-purple-600 font-medium truncate max-w-[160px]">{order.promotionNames}</span>
-                                </div>
-                              )}
-                              {order.deliveryType && (
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] text-slate-400">Envio tipo</span>
-                                  <span className="text-xs text-slate-600">{order.deliveryType}</span>
-                                </div>
-                              )}
-                              {order.shippingCarrier && (
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] text-slate-400">Transporte</span>
-                                  <span className="text-xs text-slate-600">{order.shippingCarrier}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                  {/* Chevron */}
+                  <ChevronDown size={16} className={`text-slate-300 group-hover:text-slate-500 flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
+                    style={{ transition: "transform 280ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
+                </div>
 
-                          {/* Products grid */}
-                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Productos ({order.items?.length || 0})</div>
-                          {order.items && order.items.length > 0 ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                              {order.items.map((item: any, idx: number) => (
-                                <div key={idx} className="flex items-center gap-3 bg-white rounded-xl px-3.5 py-2.5 border border-slate-200/60 hover:border-slate-300/80"
-                                  style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.04)", transition: "border-color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
-                                  <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-slate-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); item.imageUrl && setZoomedImage(item.imageUrl); }}>
-                                    {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={16} className="text-slate-300 m-auto mt-2.5" />}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs text-slate-800 font-medium truncate">{item.name || "Producto sin nombre"}</p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[10px] text-slate-400">{item.quantity} × {formatARS(item.unitPrice)}</span>
-                                      <span className="text-xs font-semibold text-slate-900 tabular-nums">{formatARS(item.totalPrice)}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                {/* ─── Product thumbnails strip (collapsed only, if products exist) ─── */}
+                {!isExpanded && order.items && order.items.length > 0 && (
+                  <div className="flex items-center gap-1.5 pl-5 pb-3 -mt-1">
+                    <div className="flex -space-x-1.5">
+                      {order.items.slice(0, 5).map((item: any, idx: number) => (
+                        <div key={idx} className="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 border-2 border-white flex-shrink-0"
+                          style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}>
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
                           ) : (
-                            <div className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-200/40">
-                              <p className="text-xs text-slate-400">Sin detalle de productos disponible</p>
-                            </div>
-                          )}
-
-                          {/* Anomaly badges if any */}
-                          {(orderFlagsMap.get(order.id) ?? []).length > 0 && (
-                            <div className="mt-4 pt-3 border-t border-slate-100">
-                              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Señales detectadas</div>
-                              <OrderFlagBadgeGroup flags={orderFlagsMap.get(order.id) ?? []} max={10} compact={false} />
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package size={10} className="text-slate-300" />
                             </div>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-              {filteredOrders.length === 0 && (
-                <tr><td colSpan={8} className="text-center py-12 text-xs text-slate-400">No se encontraron ordenes</td></tr>
-              )}
-            </tbody>
-          </table>
+                      ))}
+                      {order.items.length > 5 && (
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 border-2 border-white flex items-center justify-center flex-shrink-0">
+                          <span className="text-[9px] font-semibold text-slate-400">+{order.items.length - 5}</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 ml-1">
+                      {order.items.slice(0, 2).map((it: any) => it.name?.split(" ").slice(0, 3).join(" ") || "").filter(Boolean).join(", ")}
+                      {order.items.length > 2 ? ` y ${order.items.length - 2} mas` : ""}
+                    </span>
+                  </div>
+                )}
+
+                {/* ─── Expanded detail panel ─── */}
+                {isExpanded && (
+                  <div className="border-t border-slate-100/80" onClick={(e) => e.stopPropagation()}>
+                    <div className="bg-gradient-to-b from-slate-50/50 to-white px-6 py-5">
+
+                      {/* 3-column detail grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        {/* Col 1: Pedido */}
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <ShoppingCart size={10} />
+                            Pedido
+                          </div>
+                          <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">ID completo</span>
+                              <span className="text-xs font-mono text-indigo-600">{order.externalId}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">Fecha</span>
+                              <span className="text-xs text-slate-700 tabular-nums">{order.orderDate}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">Estado</span>
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}12`, color: STATUS_COLORS[order.status] || "#94a3b8" }}>
+                                {STATUS_LABELS[order.status] || order.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">Fuente</span>
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${isMeli ? "bg-yellow-50 text-yellow-700 border border-yellow-200/60" : "bg-indigo-50 text-indigo-600 border border-indigo-200/60"}`}>
+                                {isMeli ? "MercadoLibre" : "VTEX"}
+                              </span>
+                            </div>
+                            {order.channel && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Canal</span>
+                                <span className="text-xs text-slate-600">{order.channel}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Col 2: Cliente */}
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Users size={10} />
+                            Cliente
+                          </div>
+                          {isMeliAnon ? (
+                            <div className="bg-gradient-to-br from-yellow-50 to-amber-50/60 border border-yellow-200/60 rounded-xl px-4 py-4">
+                              <div className="flex items-center gap-2.5 mb-2">
+                                <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center border border-yellow-200/60">
+                                  <span className="text-[10px] font-bold text-yellow-600">ML</span>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-yellow-800">Cliente MercadoLibre</p>
+                                  <p className="text-[10px] text-yellow-600/70">Usuario anonimo</p>
+                                </div>
+                              </div>
+                              <div className="bg-yellow-100/50 rounded-lg px-3 py-2 mt-2">
+                                <p className="text-[10px] text-yellow-700/80 leading-relaxed flex items-start gap-1.5">
+                                  <Info size={10} className="flex-shrink-0 mt-0.5" />
+                                  MercadoLibre no comparte datos del comprador por politicas de privacidad
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                              <div className="flex items-center gap-3 mb-1">
+                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200/60">
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    {order.customerName.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium text-slate-800 truncate">{order.customerName}</p>
+                                  {order.customerEmail && <p className="text-[10px] text-slate-400 truncate">{order.customerEmail}</p>}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Col 3: Financiero */}
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <DollarSign size={10} />
+                            Financiero
+                          </div>
+                          <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-100/80">
+                              <span className="text-[10px] text-slate-400 font-medium">Total</span>
+                              <span className="text-base font-bold text-slate-900 tabular-nums">{formatARS(order.totalValue)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">Pago</span>
+                              <span className="text-xs text-slate-700 font-medium">{order.paymentMethod}</span>
+                            </div>
+                            {(order.discountValue ?? 0) > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Descuento</span>
+                                <span className="text-xs text-emerald-600 font-semibold tabular-nums">-{formatARS(order.discountValue || 0)}</span>
+                              </div>
+                            )}
+                            {(order.shippingCost ?? 0) > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Envio</span>
+                                <span className="text-xs text-slate-700 tabular-nums">{formatARS(order.shippingCost || 0)}</span>
+                              </div>
+                            )}
+                            {order.promotionNames && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Promo</span>
+                                <span className="text-xs text-purple-600 font-medium truncate max-w-[150px]">{order.promotionNames}</span>
+                              </div>
+                            )}
+                            {order.deliveryType && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Tipo envio</span>
+                                <span className="text-xs text-slate-600">{order.deliveryType}</span>
+                              </div>
+                            )}
+                            {order.shippingCarrier && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Transporte</span>
+                                <span className="text-xs text-slate-600">{order.shippingCarrier}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Products section */}
+                      <div className="space-y-3">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Package size={10} />
+                          Productos ({order.items?.length || 0})
+                        </div>
+                        {order.items && order.items.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                            {order.items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex items-center gap-3 bg-white rounded-xl px-3.5 py-3 border border-slate-200/60 hover:border-slate-300/80 group/item"
+                                style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)", transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                                <div className="w-12 h-12 rounded-xl flex-shrink-0 overflow-hidden bg-slate-50 cursor-pointer border border-slate-100"
+                                  onClick={(e) => { e.stopPropagation(); item.imageUrl && setZoomedImage(item.imageUrl); }}>
+                                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={18} className="text-slate-300 m-auto mt-3" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-slate-800 font-medium truncate leading-tight">{item.name || "Producto sin nombre"}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-slate-400 tabular-nums">{item.quantity} × {formatARS(item.unitPrice)}</span>
+                                  </div>
+                                  <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight mt-0.5">{formatARS(item.totalPrice)}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="bg-slate-50/80 rounded-xl px-4 py-4 border border-slate-200/40 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                              <Package size={14} className="text-slate-300" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">Sin detalle de productos</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">El detalle se genera en la proxima sincronizacion</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Anomaly badges */}
+                      {flags.length > 0 && (
+                        <div className="mt-5 pt-4 border-t border-slate-100/80">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                            <Info size={10} />
+                            Señales detectadas
+                          </div>
+                          <OrderFlagBadgeGroup flags={flags} max={10} compact={false} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Empty state */}
+          {filteredOrders.length === 0 && (
+            <div className="dash-card flex flex-col items-center justify-center py-16">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                <Search size={20} className="text-slate-300" />
+              </div>
+              <p className="text-sm font-medium text-slate-500 mb-1">No se encontraron ordenes</p>
+              <p className="text-xs text-slate-400">Intenta con otros filtros o un periodo distinto</p>
+            </div>
+          )}
         </div>
 
-        {/* Pagination — footer bar */}
-        {data.pagination && (
-          <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100/80 bg-slate-50/40 -mx-6 -mb-6 px-6 py-3 rounded-b-2xl">
+        {/* Pagination bar */}
+        {data.pagination && data.pagination.totalPages > 1 && (
+          <div className="dash-card px-6 py-3.5 flex items-center justify-between">
             <div className="text-xs text-slate-500 tabular-nums">
-              Pagina {currentPage} de {data.pagination.totalPages || 0} · {data.pagination.totalCount.toLocaleString("es-AR")} ordenes
+              Pagina {currentPage} de {data.pagination.totalPages || 0}
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                 Anterior
               </button>
               <button onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage >= (data.pagination?.totalPages || 1)}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                 Siguiente
               </button>

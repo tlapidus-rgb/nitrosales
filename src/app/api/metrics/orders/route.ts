@@ -400,6 +400,8 @@ export async function GET(request: NextRequest) {
           TO_CHAR(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') AS order_date,
           CASE
             WHEN o."customerId" IS NULL AND COALESCE(o."source", 'VTEX') = 'MELI' THEN 'Cliente MercadoLibre'
+            WHEN o."customerId" IS NULL THEN 'Cliente sin datos'
+            WHEN TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) = '' THEN 'Cliente sin nombre'
             ELSE TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", '')))
           END AS customer_name,
           COALESCE(c.email, '') AS customer_email,
