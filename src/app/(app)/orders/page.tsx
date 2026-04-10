@@ -1157,18 +1157,52 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* IMAGE ZOOM MODAL */}
+      {/* IMAGE ZOOM MODAL — smooth fade-in, hi-res ML image */}
       {zoomedImage && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 dash-filter-backdrop" onClick={() => setZoomedImage(null)}>
-          <div className="dash-sheet dash-sheet--centered max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{
+            backgroundColor: "rgba(15,23,42,0.4)",
+            backdropFilter: "blur(8px)",
+            animation: "fadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+          onClick={() => setZoomedImage(null)}
+        >
+          <div
+            className="dash-sheet dash-sheet--centered max-w-md w-full p-5"
+            style={{ animation: "scaleIn 200ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-800 tracking-tight">Imagen ampliada</h3>
               <button onClick={() => setZoomedImage(null)} className="text-slate-400 hover:text-slate-900 text-lg" style={{ transition: "color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>&times;</button>
             </div>
-            <div className="bg-slate-50 rounded-xl w-full aspect-square flex items-center justify-center overflow-hidden">
-              <img src={zoomedImage} alt="" className="w-full h-full object-contain" />
+            <div className="bg-slate-50 rounded-xl w-full aspect-square flex items-center justify-center overflow-hidden relative">
+              {/* Spinner while image loads */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-slate-200 border-t-slate-500 rounded-full" style={{ animation: "spin 0.8s linear infinite" }} />
+              </div>
+              <img
+                src={(() => {
+                  // Upgrade ML thumbnail to high-res: replace size suffix in URL
+                  let url = zoomedImage;
+                  if (url.includes("http.mlstatic.com") || url.includes("mla-")) {
+                    url = url.replace(/-I\.jpg/, "-O.jpg").replace(/-S\.jpg/, "-O.jpg").replace(/-V\.jpg/, "-O.jpg");
+                  }
+                  return url;
+                })()}
+                alt=""
+                className="w-full h-full object-contain relative z-10"
+                style={{ opacity: 0, transition: "opacity 250ms ease" }}
+                onLoad={(e) => { (e.target as HTMLImageElement).style.opacity = "1"; }}
+              />
             </div>
           </div>
+          <style>{`
+            @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+            @keyframes scaleIn { from { opacity: 0; transform: scale(0.95) } to { opacity: 1; transform: scale(1) } }
+            @keyframes spin { to { transform: rotate(360deg) } }
+          `}</style>
         </div>
       )}
     </div>
