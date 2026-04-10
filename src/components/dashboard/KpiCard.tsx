@@ -38,22 +38,22 @@ export default function KpiCard({
   subtitle,
 }: KpiCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 lg:p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-2">
-        <div className={`p-2 rounded-lg ${iconBg}`}>{icon}</div>
-        <span className="text-xs text-gray-500 font-medium">{label}</span>
+    <div className="dash-card p-5 lg:p-6">
+      <div className="flex items-center gap-2.5 mb-3">
+        <div className={`p-2 rounded-xl ${iconBg}`}>{icon}</div>
+        <span className="text-xs text-slate-500 font-medium tracking-tight">{label}</span>
       </div>
-      <p className="text-xl lg:text-2xl font-bold text-gray-900">{value}</p>
-      <div className="mt-1">
+      <p className="text-xl lg:text-2xl font-bold text-slate-900 tabular-nums tracking-tight">{value}</p>
+      <div className="mt-1.5">
         {change !== undefined && change !== null ? (
           <>
             <ChangeBadge value={change} />
-            <span className="text-[10px] text-gray-400 ml-1">
+            <span className="text-[10px] text-slate-400 ml-1">
               {changeLabel || "vs periodo anterior"}
             </span>
           </>
         ) : subtitle ? (
-          <span className="text-[10px] text-gray-400">{subtitle}</span>
+          <span className="text-[10px] text-slate-400">{subtitle}</span>
         ) : null}
       </div>
     </div>

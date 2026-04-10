@@ -9,9 +9,10 @@
 // Count-up animado en el valor principal.
 // ══════════════════════════════════════════════════════════════
 
-import { ArrowDownRight, ArrowUpRight, ShoppingBag } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ShoppingBag, Activity } from "lucide-react";
 import { useAnimatedValue } from "@/lib/hooks/useAnimatedValue";
 import { formatARS } from "@/lib/utils/format";
+import { useState, useEffect } from "react";
 
 interface OrdersHeroProps {
   orgName: string;
@@ -39,7 +40,14 @@ export default function OrdersHero({
   ordersCount,
   revenueChange,
 }: OrdersHeroProps) {
-  const animatedRevenue = useAnimatedValue(formatARS(grossRevenue), 1000);
+  const animatedRevenue = useAnimatedValue(formatARS(grossRevenue), 1200);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+
+  useEffect(() => {
+    setLastUpdate(new Date());
+  }, [grossRevenue, ordersCount]);
+
+  const minutesAgo = Math.max(0, Math.round((Date.now() - lastUpdate.getTime()) / 60000));
 
   const hasDelta = revenueChange !== null && revenueChange !== undefined;
   const isPositive = (revenueChange ?? 0) > 0;
@@ -53,25 +61,37 @@ export default function OrdersHero({
 
   return (
     <section className="dash-hero dash-fade-up mb-5">
-      <div className="dash-hero-inner px-6 py-6 sm:px-8 sm:py-7">
-        {/* Top row — tag + contexto */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 backdrop-blur-sm border border-slate-200/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-            <ShoppingBag className="w-3 h-3 text-orange-500" />
-            {orgName} · Pedidos
-          </span>
-          <span className="text-xs text-slate-500">
-            Resumen del período seleccionado
-          </span>
+      <div className="dash-hero-inner px-6 py-6 sm:px-8 sm:py-8">
+        {/* Top row — tag + contexto + pulse */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 backdrop-blur-sm border border-slate-200/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+              <ShoppingBag className="w-3 h-3 text-orange-500" />
+              {orgName} · Pedidos
+            </span>
+            <span className="text-xs text-slate-500">
+              Resumen del período seleccionado
+            </span>
+          </div>
+          {/* Pulse indicator */}
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium tabular-nums">
+              {minutesAgo === 0 ? "Actualizado ahora" : `Hace ${minutesAgo} min`}
+            </span>
+          </div>
         </div>
 
         {/* Main row — facturación bruta (count-up) + secundarios */}
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">
               Facturación bruta
             </p>
-            <p className="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight text-slate-900">
+            <p className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tabular-nums tracking-tight text-slate-900 leading-none">
               {animatedRevenue}
             </p>
             {hasDelta && (
@@ -85,8 +105,8 @@ export default function OrdersHero({
             )}
           </div>
 
-          {/* KPIs secundarios */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {/* KPIs secundarios — vital signs */}
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 sm:border-l sm:border-slate-200/60 sm:pl-8">
             <HeroStat
               label="Neto sin IVA"
               value={formatARS(netRevenue)}
@@ -131,16 +151,16 @@ function HeroStat({
   hint?: string;
   emphasize?: boolean;
 }) {
-  const animated = useAnimatedValue(value, 900);
+  const animated = useAnimatedValue(value, 1000);
   return (
     <div className="flex flex-col">
-      <span className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${emphasize ? "text-cyan-700" : "text-slate-500"}`}>
+      <span className={`text-[10px] font-semibold uppercase tracking-[0.2em] mb-0.5 ${emphasize ? "text-cyan-600" : "text-slate-500"}`}>
         {label}
       </span>
-      <span className={`text-lg font-semibold tabular-nums tracking-tight ${emphasize ? "text-cyan-700" : "text-slate-900"}`}>
+      <span className={`text-xl font-bold tabular-nums tracking-tight ${emphasize ? "text-cyan-700" : "text-slate-900"}`}>
         {animated}
       </span>
-      {hint && <span className="text-[10px] text-slate-400 mt-0.5">{hint}</span>}
+      {hint && <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">{hint}</span>}
     </div>
   );
 }
