@@ -26,6 +26,17 @@ import { verifyWebhookSignature } from "@/lib/webhooks/signature";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
+// ─── Tanda 9 Hotfix: ensure new columns exist before any upsert ───
+let t9Migrated = false;
+async function ensureT9Columns() {
+  if (t9Migrated) return;
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "itemsTotal" DECIMAL(12,2)`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(12,2)`);
+    t9Migrated = true;
+  } catch { t9Migrated = true; }
+}
+
 // ─── Helper: Extract real email from VTEX masked format ───
 // VTEX masks emails: "real@email.com-265600829169b.ct.vtex.com.br"
 // We need the real email for pixel visitor matching.
@@ -53,6 +64,9 @@ function extractRealEmail(vtexEmail: string): string {
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
+
+  // Ensure Tanda 9 columns exist before any DB write
+  await ensureT9Columns();
 
   try {
     // ── VTEX Validation/Ping handler ──

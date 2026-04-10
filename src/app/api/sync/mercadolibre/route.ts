@@ -19,10 +19,24 @@ import { getSellerToken, fetchSellerListings, fetchSellerReputation, fetchSeller
 export const dynamic = "force-dynamic"; // Prevent static generation at build time
 export const maxDuration = 300; // Vercel timeout: 5 min (Pro plan)
 
+// ─── Tanda 9 Hotfix: ensure new columns exist before any upsert ───
+let t9Migrated = false;
+async function ensureT9Columns() {
+  if (t9Migrated) return;
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "itemsTotal" DECIMAL(12,2)`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(12,2)`);
+    t9Migrated = true;
+  } catch { t9Migrated = true; }
+}
+
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
   const log: string[] = [];
   const errors: string[] = [];
+
+  // Ensure Tanda 9 columns exist before any DB write
+  await ensureT9Columns();
 
   try {
     // ── Step 0: Get valid token ──────────────────────────────
