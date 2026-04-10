@@ -225,8 +225,8 @@ export async function GET(req: Request) {
               details.push({
                 id: order.externalId,
                 action: "enriched",
-                customer: result.customerCreated,
-                items: result.itemsCreated,
+                customer: result!.customerCreated,
+                items: result!.itemsCreated,
               });
             } else {
               alreadyCorrect++;
