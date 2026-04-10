@@ -153,7 +153,11 @@ export default function OrdersPage() {
         const params = new URLSearchParams({ from: dateFrom, to: dateTo, page: currentPage.toString() });
         if (source !== "ALL") params.set("source", source);
         const res = await fetch(`/api/metrics/orders?${params}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          let detail = "";
+          try { const body = await res.json(); detail = body?.detail || body?.error || ""; } catch {}
+          throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
+        }
         setData(await res.json());
       } catch (e: any) {
         setError(e.message);
