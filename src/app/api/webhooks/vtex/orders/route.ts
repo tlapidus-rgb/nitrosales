@@ -26,17 +26,6 @@ import { verifyWebhookSignature } from "@/lib/webhooks/signature";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-// ─── Tanda 9 Hotfix: ensure new columns exist before any upsert ───
-let t9Migrated = false;
-async function ensureT9Columns() {
-  if (t9Migrated) return;
-  try {
-    await prisma.$executeRawUnsafe(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "itemsTotal" DECIMAL(12,2)`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(12,2)`);
-    t9Migrated = true;
-  } catch { t9Migrated = true; }
-}
-
 // ─── Helper: Extract real email from VTEX masked format ───
 // VTEX masks emails: "real@email.com-265600829169b.ct.vtex.com.br"
 // We need the real email for pixel visitor matching.
@@ -64,9 +53,6 @@ function extractRealEmail(vtexEmail: string): string {
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
-
-  // Ensure Tanda 9 columns exist before any DB write
-  await ensureT9Columns();
 
   try {
     // ── VTEX Validation/Ping handler ──
@@ -191,70 +177,18 @@ export async function POST(req: NextRequest) {
     const shippingCost = (vtexOrder.totals?.find((t: any) => t.id === "Shipping")?.value || 0);
     const discountValue = Math.abs(vtexOrder.totals?.find((t: any) => t.id === "Discounts")?.value || 0);
 
-    // ── Tanda 9: itemsTotal y taxAmount desde totals[] ──
-    // itemsTotal = revenue limpio (solo ítems, sin shipping ni descuentos)
-    // taxAmount = IVA real de VTEX (no el /1.21 aproximado)
-    // Ambos en centavos en VTEX → dividimos por 100
-    const itemsTotalCents = vtexOrder.totals?.find((t: any) => t.id === "Items")?.value || 0;
-    const taxAmountCents = vtexOrder.totals?.find((t: any) => t.id === "Tax")?.value || 0;
-    const itemsTotal = itemsTotalCents / 100;
-    const taxAmount = taxAmountCents / 100;
-
-    // ── Tanda 9: Enrichment logístico + segmentación desde VTEX detail ──
-    // El webhook ya tiene el detalle completo (fetched above), así que extraemos
-    // aquí en vez de depender del vtex-details sync (que antes ignoraba estas órdenes).
-    const allLogInfo = vtexOrder.shippingData?.logisticsInfo || [];
-    let bestCarrier: string | null = null;
-    let bestSla: string | null = null;
-    let isPickup = false;
-    let pickupName: string | null = null;
-
-    for (const li of allLogInfo) {
-      if (li?.pickupStoreInfo?.isPickupStore === true) {
-        isPickup = true;
-        pickupName = li.pickupStoreInfo.friendlyName || null;
-      }
-      if (li?.deliveryCompany && !bestCarrier) {
-        bestCarrier = li.deliveryCompany;
-      }
-      if (li?.selectedSla && !bestSla) {
-        bestSla = li.selectedSla;
-      }
-    }
-    const logInfoFirst = allLogInfo[0];
-    if (!bestCarrier && logInfoFirst?.deliveryCompany) bestCarrier = logInfoFirst.deliveryCompany;
-    if (!bestSla && logInfoFirst?.selectedSla) bestSla = logInfoFirst.selectedSla;
-
-    const enrichedDeliveryType = isPickup ? "pickup" : "shipping";
-    const enrichedDeviceType = vtexOrder.deviceInfo?.deviceType || null;
-    const enrichedTrafficSource = vtexOrder.origin || null;
-    const enrichedPostalCode = vtexOrder.shippingData?.address?.postalCode || null;
-
     const payments = vtexOrder.paymentData?.transactions?.[0]?.payments || [];
     const paymentMethod = payments.length
       ? payments.map((p: any) => p.paymentSystemName || p.group).join(", ")
       : null;
 
-    // Tanda 7.10.4 — captura robusta de promociones: ratesAndBenefitsData
-    // es la fuente primaria pero VTEX a veces no la envía en el webhook.
-    // Fallback: leer priceTags de los items (nombres únicos) para no quedarse
-    // con promotionNames en null cuando sí hubo una promo.
-    const benefits: string[] = (Array.isArray(vtexOrder.ratesAndBenefitsData?.rateAndBenefitsIdentifiers) ? vtexOrder.ratesAndBenefitsData.rateAndBenefitsIdentifiers : [])
-      .map((r: any) => (r?.name || "").toString().trim())
-      .filter(Boolean);
-    const benefitsLegacy: string[] = Array.isArray(vtexOrder.ratesAndBenefitsData)
-      ? vtexOrder.ratesAndBenefitsData.map((r: any) => (r?.name || "").toString().trim()).filter(Boolean)
-      : [];
-    const priceTagNames: string[] = (items as any[])
-      .flatMap((it: any) => Array.isArray(it?.priceTags) ? it.priceTags.map((t: any) => (t?.name || t?.identifier || "").toString().trim()) : [])
-      .filter(Boolean);
-    // Tanda 9: sort alfabético para evitar duplicados ("A, B" vs "B, A")
-    const allPromoNames = Array.from(new Set([...benefits, ...benefitsLegacy, ...priceTagNames])).sort();
-    const promoNames = allPromoNames.length ? allPromoNames.join(", ") : null;
+    const promoNames = (Array.isArray(vtexOrder.ratesAndBenefitsData) ? vtexOrder.ratesAndBenefitsData : [])
+      .map((r: any) => r.name)
+      .filter(Boolean)
+      .join(', ') || null;
 
-    // Extract coupon code from VTEX marketingData (normalizado)
-    const couponCodeRaw = (vtexOrder.marketingData?.coupon || "").toString().trim();
-    const couponCode = couponCodeRaw.length > 0 ? couponCodeRaw : null;
+    // Extract coupon code from VTEX marketingData
+    const couponCode = vtexOrder.marketingData?.coupon || null;
 
     // ── Check if this order already exists (for dedup logic) ──
     const existingOrder = await prisma.order.findUnique({
@@ -289,17 +223,6 @@ export async function POST(req: NextRequest) {
         orderDate: new Date(vtexOrder.creationDate),
         ...(promoNames ? { promotionNames: promoNames } : {}),
         ...(couponCode ? { couponCode } : {}),
-        // Tanda 9: campos nuevos para revenue limpio + IVA real
-        itemsTotal: itemsTotal,
-        taxAmount: taxAmount,
-        // Tanda 9: enrichment logístico + segmentación (antes solo venía del vtex-details sync)
-        deliveryType: enrichedDeliveryType,
-        pickupStoreName: isPickup ? pickupName : null,
-        deviceType: enrichedDeviceType,
-        trafficSource: enrichedTrafficSource,
-        postalCode: enrichedPostalCode,
-        shippingCarrier: bestCarrier,
-        shippingService: bestSla,
       },
       update: {
         status: nsStatus as any,
@@ -310,16 +233,6 @@ export async function POST(req: NextRequest) {
         discountValue: discountValue / 100,
         ...(promoNames ? { promotionNames: promoNames } : {}),
         ...(couponCode ? { couponCode } : {}),
-        // Tanda 9: campos nuevos
-        itemsTotal: itemsTotal,
-        taxAmount: taxAmount,
-        deliveryType: enrichedDeliveryType,
-        pickupStoreName: isPickup ? pickupName : null,
-        deviceType: enrichedDeviceType,
-        trafficSource: enrichedTrafficSource,
-        postalCode: enrichedPostalCode,
-        shippingCarrier: bestCarrier,
-        shippingService: bestSla,
       },
     });
 
