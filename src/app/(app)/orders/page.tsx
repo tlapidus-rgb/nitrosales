@@ -1,7 +1,8 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
@@ -10,18 +11,39 @@ import { formatARS, formatCompact } from "@/lib/utils/format";
 import {
   DollarSign, ShoppingCart, CreditCard, XCircle, Package, Users,
   Search, ChevronDown, ArrowUpRight, ArrowDownRight, Clock,
-  Percent, Truck, Tag, ExternalLink,
+  Percent, Truck, Tag, ExternalLink, MapPin, Calendar, Info,
+  LayoutDashboard, ListOrdered,
 } from "lucide-react";
 import {
-  KpiCard, ChangeBadge, DateRangeFilter, SourceFilter, WeeklySummary, StatusFilter,
+  KpiCard, ChangeBadge, DateRangeFilter, WeeklySummary, StatusFilter,
 } from "@/components/dashboard";
+import DashboardStyles from "@/components/dashboard/DashboardStyles";
+import {
+  OrdersHero,
+  AtencionHoyBlock,
+  ProfitabilityCard,
+  CohortsCard,
+  LogisticsCard,
+  SegmentationCard,
+  CouponsCard,
+  GeographyCard,
+  OrderFlagBadgeGroup,
+  SourceTabs,
+  SourceSplitBar,
+  MercadoLibreCascadeCard,
+  OrdersMasterDetail,
+  type AnomalyFlag,
+  type OrdersV4Namespaces,
+} from "@/components/orders";
 
 // -- Types --
-interface OrdersData {
+interface OrdersData extends OrdersV4Namespaces {
   kpis: {
     totalOrders: number; totalRevenue: number; avgTicket: number;
     totalItems: number; totalShipping: number; totalDiscounts: number;
     cancellationRate: number; cancelledOrders: number; daysInPeriod: number;
+    // Tanda 2 extensions (optional for backward compat)
+    marginPct?: number; netRevenue?: number; totalCogs?: number;
     changes: { orders: number; revenue: number; avgTicket: number };
   };
   dailySales: Array<{ day: string; orders: number; revenue: number; items: number }>;
@@ -38,6 +60,8 @@ interface OrdersData {
     paymentMethod: string; source: string; orderDate: string; customerName: string;
     customerEmail: string; items: Array<{ name: string | null; imageUrl?: string; quantity: number; unitPrice: number; totalPrice: number }>;
     promotionNames: string | null;
+    discountValue?: number; shippingCost?: number; channel?: string | null;
+    deliveryType?: string | null; shippingCarrier?: string | null;
   }>;
   pagination?: { page: number; pageSize: number; totalCount: number; totalPages: number };
   meta: { dateFrom: string; dateTo: string; source: string; daysInPeriod: number };
@@ -69,13 +93,41 @@ function toDateInputValue(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
+type SourceValue = "ALL" | "VTEX" | "MELI";
+const VALID_SOURCES: SourceValue[] = ["ALL", "VTEX", "MELI"];
+
+function parseSourceParam(raw: string | null): SourceValue {
+  if (!raw) return "ALL";
+  const upper = raw.toUpperCase();
+  return (VALID_SOURCES as string[]).includes(upper) ? (upper as SourceValue) : "ALL";
+}
+
 export default function OrdersPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const defaultTo = new Date();
   const defaultFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const [dateFrom, setDateFrom] = useState(toDateInputValue(defaultFrom));
   const [dateTo, setDateTo] = useState(toDateInputValue(defaultTo));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
-  const [source, setSource] = useState<string>("ALL");
+
+  // Source tab sincronizada con URL (?source=VTEX|MELI, omitido si ALL)
+  const source: SourceValue = useMemo(
+    () => parseSourceParam(searchParams?.get("source") ?? null),
+    [searchParams]
+  );
+  const setSource = (next: SourceValue) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (next === "ALL") {
+      params.delete("source");
+    } else {
+      params.set("source", next);
+    }
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  };
   const [data, setData] = useState<OrdersData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +138,14 @@ export default function OrdersPage() {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showComparison, setShowComparison] = useState(false);
+  const [flagFilter, setFlagFilter] = useState<AnomalyFlag | null>(null);
+  const [tableSourceFilter, setTableSourceFilter] = useState<"ALL" | "VTEX" | "MELI">("ALL");
+  const [pageView, setPageView] = useState<"dashboard" | "pedidos">("pedidos");
+
+  // Reset pagination cuando cambia source (tab) o fechas
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [source, dateFrom, dateTo]);
 
   // -- Single fetch (fixed: no duplicate) --
   useEffect(() => {
@@ -94,9 +154,16 @@ export default function OrdersPage() {
       setError(null);
       try {
         const params = new URLSearchParams({ from: dateFrom, to: dateTo, page: currentPage.toString() });
-        if (source !== "ALL") params.set("source", source);
+        // En vista Pedidos, traer ALL para que el filtro interno del master-detail funcione.
+        // En vista Resumen, respetar el source de la URL.
+        const effectiveSource = pageView === "pedidos" ? "ALL" : source;
+        if (effectiveSource !== "ALL") params.set("source", effectiveSource);
         const res = await fetch(`/api/metrics/orders?${params}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          let detail = "";
+          try { const body = await res.json(); detail = body?.detail || body?.error || ""; } catch {}
+          throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
+        }
         setData(await res.json());
       } catch (e: any) {
         setError(e.message);
@@ -105,7 +172,56 @@ export default function OrdersPage() {
       }
     };
     fetchData();
-  }, [dateFrom, dateTo, source, currentPage]);
+  }, [dateFrom, dateTo, source, currentPage, pageView]);
+
+  // -- Auto-enrich MELI orders missing items OR missing images (runs ONCE per data load) --
+  const enrichAttemptedRef = useRef<string>("");
+  useEffect(() => {
+    if (!data) return;
+
+    // Build a key so we only attempt enrichment once per unique data load
+    const enrichKey = `${data.meta?.dateFrom}|${data.meta?.dateTo}|${data.meta?.source}|${currentPage}`;
+    if (enrichAttemptedRef.current === enrichKey) return;
+
+    const meliNeedsEnrich = data.recentOrders.filter((o) => {
+      if (o.source !== "MELI") return false;
+      if (!o.items || o.items.length === 0) return true;
+      return o.items.some((item: any) => !item.imageUrl);
+    });
+    if (meliNeedsEnrich.length === 0) return;
+
+    // Mark as attempted BEFORE the fetch to prevent re-triggers
+    enrichAttemptedRef.current = enrichKey;
+
+    const enrichOrders = async () => {
+      try {
+        const res = await fetch("/api/metrics/orders/enrich", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderIds: meliNeedsEnrich.map((o) => o.id) }),
+        });
+        if (!res.ok) return;
+        const { enriched } = await res.json();
+        if (!enriched || Object.keys(enriched).length === 0) return;
+
+        setData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            recentOrders: prev.recentOrders.map((o) => {
+              if (enriched[o.id]) {
+                return { ...o, items: enriched[o.id] };
+              }
+              return o;
+            }),
+          };
+        });
+      } catch {
+        // Silent fail — enrichment is best-effort
+      }
+    };
+    enrichOrders();
+  }, [data, currentPage]);
 
   const handleQuickRange = (days: number) => {
     const to = new Date();
@@ -123,12 +239,31 @@ export default function OrdersPage() {
     setCurrentPage(1);
   };
 
-  // -- Filtered recent orders (search + status filter) --
+  // -- Map orderId -> flags (Tanda 2 anomalies) --
+  const orderFlagsMap = useMemo(() => {
+    const map = new Map<string, AnomalyFlag[]>();
+    const list = data?.anomalies?.orderLevel ?? [];
+    list.forEach((a: any) => {
+      if (a?.orderId && Array.isArray(a.flags)) map.set(a.orderId, a.flags);
+    });
+    return map;
+  }, [data?.anomalies?.orderLevel]);
+
+  // -- Filtered recent orders (search + status filter + flag filter + local source) --
   const filteredOrders = useMemo(() => {
     if (!data) return [];
     let orders = [...data.recentOrders];
+    if (tableSourceFilter !== "ALL") {
+      orders = orders.filter((o) => o.source === tableSourceFilter);
+    }
     if (statusFilter) {
       orders = orders.filter((o) => o.status === statusFilter);
+    }
+    if (flagFilter) {
+      orders = orders.filter((o) => {
+        const flags = orderFlagsMap.get(o.id);
+        return flags && flags.includes(flagFilter);
+      });
     }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -140,7 +275,12 @@ export default function OrdersPage() {
       );
     }
     return orders;
-  }, [data, searchTerm, statusFilter]);
+  }, [data, searchTerm, statusFilter, flagFilter, orderFlagsMap, tableSourceFilter]);
+
+  const handleFilterByFlag = (flag: AnomalyFlag) => {
+    setFlagFilter((cur) => (cur === flag ? null : flag));
+    setCurrentPage(1);
+  };
 
   // -- Best day calculation for summary --
   const bestDay = useMemo(() => {
@@ -176,10 +316,29 @@ export default function OrdersPage() {
   // -- Loading --
   if (loading && !data) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3" />
-          <p className="text-gray-500">Cargando ordenes...</p>
+      <div className="space-y-6 dash-stagger">
+        {/* Hero skeleton */}
+        <div className="dash-hero rounded-2xl overflow-hidden">
+          <div className="dash-hero-inner px-8 py-7">
+            <div className="dash-skeleton h-4 w-32 mb-4" />
+            <div className="dash-skeleton h-12 w-64 mb-3" />
+            <div className="dash-skeleton h-4 w-48" />
+          </div>
+        </div>
+        {/* KPI grid skeleton */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="dash-card p-5">
+              <div className="dash-skeleton h-3 w-20 mb-3" />
+              <div className="dash-skeleton h-7 w-28 mb-2" />
+              <div className="dash-skeleton h-3 w-16" />
+            </div>
+          ))}
+        </div>
+        {/* Chart skeleton */}
+        <div className="dash-card p-6">
+          <div className="dash-skeleton h-3 w-32 mb-4" />
+          <div className="dash-skeleton h-64 w-full rounded-xl" />
         </div>
       </div>
     );
@@ -205,22 +364,114 @@ export default function OrdersPage() {
   const avgShippingPerOrder = kpis.totalOrders > 0 ? kpis.totalShipping / kpis.totalOrders : 0;
 
   return (
-    <div className="space-y-6">
-      {/* HEADER + FILTERS */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Ordenes</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Analisis de ventas y rendimiento por periodo</p>
+    <div
+      className="space-y-3 dash-stagger"
+      style={{ fontVariantNumeric: "tabular-nums" }}
+      key={source}
+    >
+      <DashboardStyles />
+      {/* HEADER — compact: title + view tabs + date on one strip */}
+      <div className="flex flex-col gap-2">
+        {/* Row 1: Title + View tabs + Source tabs (Resumen) + Date filters */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-4">
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">Pedidos</h1>
+            {/* View tabs — inline with title */}
+            <div className="flex items-center gap-0.5 bg-slate-100/80 rounded-lg p-0.5">
+              {([
+                { key: "pedidos", label: "Pedidos", icon: <ListOrdered size={13} /> },
+                { key: "dashboard", label: "Resumen", icon: <LayoutDashboard size={13} /> },
+              ] as const).map(({ key, label, icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setPageView(key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide ${
+                    pageView === key
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                  style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* SourceTabs solo visible en Resumen */}
+            {pageView === "dashboard" && (
+              <SourceTabs
+                source={source}
+                onSourceChange={setSource}
+                sourceCounts={data?.sourceCounts ?? null}
+              />
+            )}
           </div>
-          <SourceFilter source={source} onSourceChange={setSource} />
+          <DateRangeFilter
+            dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
+            quickRanges={QUICK_RANGES} onQuickRange={handleQuickRange}
+            onDateChange={handleDateChange} loading={loading}
+          />
         </div>
-        <DateRangeFilter
-          dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
-          quickRanges={QUICK_RANGES} onQuickRange={handleQuickRange}
-          onDateChange={handleDateChange} loading={loading}
-        />
       </div>
+
+      {/* ═══ VIEW: PEDIDOS (Master-Detail) ═══ */}
+      {pageView === "pedidos" && (
+        <OrdersMasterDetail
+          orders={filteredOrders}
+          totalCount={data.pagination?.totalCount || 0}
+          currentPage={currentPage}
+          totalPages={data.pagination?.totalPages || 1}
+          pageSize={data.pagination?.pageSize || 50}
+          onPageChange={setCurrentPage}
+          loading={loading}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          statusFilter={statusFilter}
+          onStatusChange={setStatusFilter}
+          sourceFilter={tableSourceFilter}
+          onSourceFilterChange={setTableSourceFilter}
+          statusBreakdown={data.statusBreakdown}
+          onImageZoom={setZoomedImage}
+          billingKpis={{
+            totalRevenue: kpis.totalRevenue,
+            totalOrders: kpis.totalOrders,
+            avgTicket: kpis.avgTicket,
+            totalDiscounts: kpis.totalDiscounts,
+            changes: kpis.changes,
+          }}
+        />
+      )}
+
+      {/* ═══ VIEW: DASHBOARD (existing analytics) ═══ */}
+      {pageView === "dashboard" && (<>
+
+      {/* ORDERS HERO (Tanda 4 + 7.6) \u2014 bruto / neto / ingreso real / margen / pedidos */}
+      <OrdersHero
+        orgName="NitroSales"
+        grossRevenue={kpis.totalRevenue}
+        netRevenue={data.profitability?.netRevenue ?? kpis.netRevenue ?? (kpis.totalRevenue / 1.21)}
+        realNetRevenue={data.profitability?.realNetRevenue ?? (kpis as any).realNetRevenue}
+        totalMarketplaceFee={data.profitability?.totalMarketplaceFee ?? (kpis as any).totalMarketplaceFee}
+        marginPct={data.profitability?.marginPct ?? kpis.marginPct ?? 0}
+        ordersCount={kpis.totalOrders}
+        revenueChange={kpis.changes?.revenue}
+      />
+
+      {/* ATENCION HOY (Tanda 4) — bloque de anomalias */}
+      <AtencionHoyBlock
+        data={data.anomalies}
+        onFilterByFlag={handleFilterByFlag}
+      />
+
+      {/* SOURCE SPLIT BAR (Tanda 8.5) — solo visible en tab Todos */}
+      {source === "ALL" && data.sourceCounts && (data.sourceCounts.vtex > 0 || data.sourceCounts.meli > 0) && (
+        <SourceSplitBar
+          vtexOrders={data.sourceCounts.vtex}
+          meliOrders={data.sourceCounts.meli}
+          vtexRevenue={data.sourceCounts.vtexRevenue ?? 0}
+          meliRevenue={data.sourceCounts.meliRevenue ?? 0}
+        />
+      )}
 
       {/* WEEKLY SUMMARY */}
       <WeeklySummary
@@ -262,20 +513,46 @@ export default function OrdersPage() {
           subtitle="costo envio sobre ticket" />
       </div>
 
+      {/* ML CASCADE (Tanda 8.4) — exclusiva de la tab Mercado Libre */}
+      {source === "MELI" && (
+        <MercadoLibreCascadeCard
+          grossRevenue={kpis.totalRevenue}
+          marketplaceFee={data.profitability?.totalMarketplaceFee ?? (kpis as any).totalMarketplaceFee ?? 0}
+          shippingCost={kpis.totalShipping ?? 0}
+          ordersCount={kpis.totalOrders}
+          feeCoveragePct={data.profitability?.feeCoveragePct}
+        />
+      )}
+
+      {/* PROFITABILITY + COHORTS (Tanda 4 + 8.2)
+          - VTEX: muestra ambos (margen real con COGS)
+          - Todos/ML: solo cohorts (margen requiere COGS que solo VTEX tiene) */}
+      {source === "VTEX" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ProfitabilityCard data={data.profitability} loading={loading} />
+          <CohortsCard data={data.cohorts} loading={loading} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          <CohortsCard data={data.cohorts} loading={loading} />
+        </div>
+      )}
+
       {/* DAILY SALES CHART + COMPARISON */}
-      <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+      <div className="dash-card dash-chart-card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-800">Ventas por dia</h2>
+          <h2 className="text-sm font-semibold text-slate-800 tracking-tight">Ventas por dia</h2>
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input type="checkbox" checked={showComparison} onChange={(e) => setShowComparison(e.target.checked)}
                 className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
-              <span className="text-xs text-gray-500">vs periodo anterior</span>
+              <span className="text-xs text-slate-500">vs periodo anterior</span>
             </label>
             <div className="flex gap-1.5">
               {(["revenue", "orders"] as const).map((m) => (
                 <button key={m} onClick={() => setDailyMetric(m)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${dailyMetric === m ? "bg-indigo-100 text-indigo-700" : "text-gray-500 hover:bg-gray-100"}`}>
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${dailyMetric === m ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}`}
+                  style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                   {m === "revenue" ? "Facturacion" : "Ordenes"}
                 </button>
               ))}
@@ -286,15 +563,16 @@ export default function OrdersPage() {
           <AreaChart data={showComparison ? comparisonData : data.dailySales}>
             <defs>
               <linearGradient id="colorCurrent" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.28} />
+                <stop offset="40%" stopColor="#8b5cf6" stopOpacity={0.12} />
+                <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorPrevious" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.1} />
-                <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
+                <stop offset="0%" stopColor="#94a3b8" stopOpacity={0.12} />
+                <stop offset="100%" stopColor="#94a3b8" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" strokeOpacity={0.6} />
             <XAxis
               dataKey="day"
               tickFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return `${date.getDate()}/${date.getMonth() + 1}`; } catch { return d; } }}
@@ -310,51 +588,64 @@ export default function OrdersPage() {
                 showComparison ? (name === "current" ? "Actual" : "Anterior") : (dailyMetric === "revenue" ? "Facturacion" : "Ordenes"),
               ]}
               labelFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return date.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "short" }); } catch { return d; } }}
-              contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }}
+              contentStyle={{
+                background: "rgba(15, 23, 42, 0.95)",
+                border: "1px solid rgba(99, 102, 241, 0.3)",
+                borderRadius: "12px",
+                fontSize: "12px",
+                color: "#ffffff",
+                boxShadow: "0 12px 32px -12px rgba(15, 23, 42, 0.5)",
+                backdropFilter: "blur(10px)",
+              }}
+              labelStyle={{ color: "rgba(255,255,255,0.6)", fontSize: "10px", fontWeight: 500, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: "4px" }}
+              itemStyle={{ color: "#ffffff", fontWeight: 600, fontFeatureSettings: '"tnum"' }}
             />
             {showComparison ? (
               <>
-                <Area type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 4" fill="url(#colorPrevious)" name="previous" />
-                <Area type="monotone" dataKey="current" stroke="#6366f1" strokeWidth={2} fill="url(#colorCurrent)" name="current" />
+                <Area type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="5 5" fill="url(#colorPrevious)" name="previous" />
+                <Area type="monotone" dataKey="current" stroke="#6366f1" strokeWidth={2.5} fill="url(#colorCurrent)" name="current" />
               </>
             ) : (
-              <Area type="monotone" dataKey={dailyMetric} stroke="#6366f1" strokeWidth={2} fill="url(#colorCurrent)"
+              <Area type="monotone" dataKey={dailyMetric} stroke="#6366f1" strokeWidth={2.5} fill="url(#colorCurrent)"
                 name={dailyMetric === "revenue" ? "Facturacion" : "Ordenes"} />
             )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      {/* STATUS FUNNEL */}
-      <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-800 mb-4">Flujo operativo de ordenes</h2>
-        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+      {/* STATUS FUNNEL — Waterfall visual */}
+      <div className="dash-card p-6">
+        <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-5">Flujo operativo de ordenes</h2>
+        <div className="flex items-end gap-3 overflow-x-auto pb-2">
           {funnelData.map((step, i) => {
             const maxCount = Math.max(...funnelData.map((s) => s.count), 1);
-            const widthPct = Math.max((step.count / maxCount) * 100, 15);
+            const heightPct = Math.max((step.count / maxCount) * 100, 20);
+            const total = funnelData.reduce((acc, s) => acc + s.count, 0);
+            const pct = total > 0 ? ((step.count / total) * 100).toFixed(0) : "0";
             return (
               <React.Fragment key={step.status}>
-                <div className="flex-1 min-w-[100px]">
-                  <div className="text-center mb-2">
-                    <p className="text-2xl font-bold" style={{ color: step.color }}>{step.count}</p>
-                    <p className="text-[10px] text-gray-500 font-medium">{step.label}</p>
+                <div className="flex-1 min-w-[90px] group">
+                  <div className="text-center mb-3">
+                    <p className="text-2xl font-bold tabular-nums tracking-tight" style={{ color: step.color }}>{step.count.toLocaleString("es-AR")}</p>
+                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">{step.label}</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5 opacity-0 group-hover:opacity-100" style={{ transition: "opacity 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>{pct}% del total</p>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div className="h-2 rounded-full transition-all" style={{ width: `${widthPct}%`, backgroundColor: step.color }} />
+                  <div className="relative w-full bg-slate-50 rounded-xl overflow-hidden" style={{ height: "48px" }}>
+                    <div className="absolute bottom-0 left-0 right-0 rounded-xl" style={{ height: `${heightPct}%`, backgroundColor: step.color, opacity: 0.85, transition: "height 600ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
                   </div>
                 </div>
                 {i < funnelData.length - 1 && (
-                  <div className="text-gray-300 flex-shrink-0 text-lg">&rarr;</div>
+                  <div className="text-slate-300 flex-shrink-0 text-sm mb-6">→</div>
                 )}
               </React.Fragment>
             );
           })}
-          {/* Cancelled separate */}
+          {/* Cancelled / returned — separated */}
           {data.statusBreakdown.filter((s) => s.status === "CANCELLED" || s.status === "RETURNED").map((s) => (
-            <div key={s.status} className="min-w-[80px] opacity-60 ml-4 pl-4 border-l border-gray-200">
-              <div className="text-center mb-2">
-                <p className="text-xl font-bold" style={{ color: STATUS_COLORS[s.status] }}>{s.count}</p>
-                <p className="text-[10px] text-gray-500 font-medium">{STATUS_LABELS[s.status]}</p>
+            <div key={s.status} className="min-w-[80px] opacity-50 ml-3 pl-3 border-l border-slate-200/60">
+              <div className="text-center mb-3">
+                <p className="text-xl font-bold tabular-nums" style={{ color: STATUS_COLORS[s.status] }}>{s.count.toLocaleString("es-AR")}</p>
+                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">{STATUS_LABELS[s.status]}</p>
               </div>
             </div>
           ))}
@@ -363,41 +654,65 @@ export default function OrdersPage() {
 
       {/* DAY OF WEEK + HOUR CHARTS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Promedio de ordenes por dia de la semana</h2>
+        <div className="dash-card dash-chart-card p-6">
+          <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Promedio de ordenes por dia de la semana</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data.salesByDayOfWeek}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <defs>
+                <linearGradient id="barGradientIndigo" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" />
+                  <stop offset="100%" stopColor="#818cf8" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" strokeOpacity={0.6} />
               <XAxis dataKey="dayName" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
               <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
-                contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }} />
-              <Bar dataKey="avgOrders" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(15,23,42,0.5)" }}
+                labelStyle={{ color: "rgba(255,255,255,0.6)", fontSize: "10px", fontWeight: 500 }}
+                itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
+              <Bar dataKey="avgOrders" fill="url(#barGradientIndigo)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-[10px] text-gray-400 mt-2 text-center">Promedio diario - util para saber cuando pautar ads</p>
+          <p className="text-[10px] text-slate-400 mt-2 text-center">Promedio diario - util para saber cuando pautar ads</p>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Promedio de ordenes por hora del dia</h2>
+        <div className="dash-card dash-chart-card p-6">
+          <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Promedio de ordenes por hora del dia</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data.salesByHour}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <defs>
+                <linearGradient id="barGradientEmerald" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" />
+                  <stop offset="100%" stopColor="#34d399" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" strokeOpacity={0.6} />
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} interval={2} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={40} />
               <Tooltip formatter={(value: number) => [value.toLocaleString("es-AR"), "Prom. ordenes/dia"]}
-                contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }} />
-              <Bar dataKey="avgOrders" fill="#10b981" radius={[4, 4, 0, 0]} />
+                contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(15,23,42,0.5)" }}
+                labelStyle={{ color: "rgba(255,255,255,0.6)", fontSize: "10px", fontWeight: 500 }}
+                itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
+              <Bar dataKey="avgOrders" fill="url(#barGradientEmerald)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-[10px] text-gray-400 mt-2 text-center">Horas pico para WhatsApp, emails y ofertas</p>
+          <p className="text-[10px] text-slate-400 mt-2 text-center">Horas pico para WhatsApp, emails y ofertas</p>
         </div>
       </div>
 
+      {/* LOGISTICS + SEGMENTATION (Tanda 4 + 8.2) — solo en tab VTEX */}
+      {source === "VTEX" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <LogisticsCard data={data.logistics} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+          <SegmentationCard data={data.segmentation} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+        </div>
+      )}
+
       {/* PAYMENT + PROMOTIONS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Metodos de pago</h2>
+        <div className="dash-card dash-chart-card p-6">
+          <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Metodos de pago</h2>
           <div className="flex gap-4">
             <div className="w-1/2">
               <ResponsiveContainer width="100%" height={200}>
@@ -405,7 +720,7 @@ export default function OrdersPage() {
                   <Pie data={data.paymentMethods} dataKey="revenue" nameKey="method" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2}>
                     {data.paymentMethods.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }} />
+                  <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(15,23,42,0.5)" }} itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -413,8 +728,8 @@ export default function OrdersPage() {
               {data.paymentMethods.slice(0, 5).map((pm, i) => (
                 <div key={pm.method} className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                  <span className="text-xs text-gray-600 truncate flex-1">{pm.method}</span>
-                  <span className="text-xs font-medium text-gray-800">{pm.orders.toLocaleString("es-AR")}</span>
+                  <span className="text-xs text-slate-600 truncate flex-1">{pm.method}</span>
+                  <span className="text-xs font-medium text-slate-800">{pm.orders.toLocaleString("es-AR")}</span>
                 </div>
               ))}
             </div>
@@ -422,8 +737,8 @@ export default function OrdersPage() {
         </div>
 
         {data.promotionBreakdown && data.promotionBreakdown.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-gray-800 mb-4">Ventas por promocion</h2>
+          <div className="dash-card dash-chart-card p-6">
+            <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Ventas por promocion</h2>
             <div className="flex gap-4">
               <div className="w-1/2">
                 <ResponsiveContainer width="100%" height={200}>
@@ -431,7 +746,7 @@ export default function OrdersPage() {
                     <Pie data={data.promotionBreakdown} dataKey="revenue" nameKey="promo" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2}>
                       {data.promotionBreakdown.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }} />
+                    <Tooltip formatter={(value: number) => formatARS(value)} contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", fontSize: "12px", color: "#fff", boxShadow: "0 12px 32px -12px rgba(15,23,42,0.5)" }} itemStyle={{ color: "#ffffff", fontWeight: 600 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -439,8 +754,8 @@ export default function OrdersPage() {
                 {data.promotionBreakdown.map((p: any, i: number) => (
                   <div key={p.promo} className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-xs text-gray-600 truncate flex-1">{p.promo}</span>
-                    <span className="text-xs font-medium text-gray-800">{p.orders.toLocaleString("es-AR")}</span>
+                    <span className="text-xs text-slate-600 truncate flex-1">{p.promo}</span>
+                    <span className="text-xs font-medium text-slate-800">{p.orders.toLocaleString("es-AR")}</span>
                   </div>
                 ))}
               </div>
@@ -449,202 +764,505 @@ export default function OrdersPage() {
         )}
       </div>
 
+      {/* COUPONS + GEOGRAPHY (Tanda 4 + 8.2) — solo en tab VTEX */}
+      {source === "VTEX" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CouponsCard data={data.coupons} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+          <GeographyCard data={data.geography} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+        </div>
+      )}
+
       {/* TOP PRODUCTS + CUSTOMERS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Top productos vendidos</h2>
+        <div className="dash-card p-6">
+          <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Top productos vendidos</h2>
           <div className="space-y-2.5 max-h-[320px] overflow-y-auto">
             {data.topProducts.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3 py-1.5">
-                <span className="text-xs font-bold text-gray-400 w-5 text-right">{i + 1}</span>
-                <div className="w-8 h-8 rounded flex-shrink-0 cursor-pointer overflow-hidden bg-gray-100" onClick={() => p.imageUrl && setZoomedImage(p.imageUrl)}>
-                  {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-gray-400 m-auto mt-2" />}
+                <span className="text-xs font-bold text-slate-400 w-5 text-right">{i + 1}</span>
+                <div className="w-8 h-8 rounded flex-shrink-0 cursor-pointer overflow-hidden bg-slate-100" onClick={() => p.imageUrl && setZoomedImage(p.imageUrl)}>
+                  {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-slate-400 m-auto mt-2" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-800 truncate">{p.name}</p>
-                  <p className="text-[10px] text-gray-400">{p.brand} - {p.category}</p>
+                  <p className="text-xs font-medium text-slate-800 truncate">{p.name}</p>
+                  <p className="text-[10px] text-slate-400">{p.brand} - {p.category}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-semibold text-gray-800">{formatARS(p.revenue)}</p>
-                  <p className="text-[10px] text-gray-400">{p.unitsSold} uds - {p.orders} ord</p>
+                  <p className="text-xs font-semibold text-slate-800">{formatARS(p.revenue)}</p>
+                  <p className="text-[10px] text-slate-400">{p.unitsSold} uds - {p.orders} ord</p>
                 </div>
               </div>
             ))}
             {data.topProducts.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este periodo</p>
+              <p className="text-xs text-slate-400 text-center py-4">Sin datos para este periodo</p>
             )}
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+        <div className="dash-card p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Users size={14} className="text-gray-400" />
-            <h2 className="text-sm font-semibold text-gray-800">Top clientes</h2>
+            <Users size={14} className="text-slate-400" />
+            <h2 className="text-sm font-semibold text-slate-800 tracking-tight">Top clientes</h2>
           </div>
           <div className="space-y-2.5 max-h-[320px] overflow-y-auto">
             {data.topCustomers.map((c, i) => (
               <div key={c.id} className="flex items-center gap-3 py-1.5">
-                <span className="text-xs font-bold text-gray-400 w-5 text-right">{i + 1}</span>
+                <span className="text-xs font-bold text-slate-400 w-5 text-right">{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-800 truncate">{c.name}</p>
-                  <p className="text-[10px] text-gray-400 truncate">{c.email}</p>
+                  <p className="text-xs font-medium text-slate-800 truncate">{c.name}</p>
+                  <p className="text-[10px] text-slate-400 truncate">{c.email}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-semibold text-gray-800">{formatARS(c.totalSpent)}</p>
-                  <p className="text-[10px] text-gray-400">{c.totalOrders} orden{c.totalOrders !== 1 ? "es" : ""}</p>
+                  <p className="text-xs font-semibold text-slate-800">{formatARS(c.totalSpent)}</p>
+                  <p className="text-[10px] text-slate-400">{c.totalOrders} orden{c.totalOrders !== 1 ? "es" : ""}</p>
                 </div>
               </div>
             ))}
             {data.topCustomers.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Sin datos para este periodo</p>
+              <p className="text-xs text-slate-400 text-center py-4">Sin datos para este periodo</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* RECENT ORDERS TABLE */}
-      <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex flex-col gap-3 mb-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">Ultimas ordenes</h2>
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="text" placeholder="Buscar por ID, cliente o pago..."
-                value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-700 bg-white w-64" />
+      </>)}
+
+      {/* ═══ OLD RECENT ORDERS — replaced by master-detail, kept but hidden ═══ */}
+      {false && (<div className="space-y-4">
+        {/* Header bar — filters + search */}
+        <div className="dash-card px-6 py-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Pedidos recientes</h2>
+                {data.pagination && (
+                  <span className="text-xs text-slate-400 tabular-nums">{data.pagination.totalCount.toLocaleString("es-AR")} ordenes</span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                {/* Source filter pills */}
+                <div className="flex items-center bg-slate-100/80 rounded-xl p-0.5">
+                  {(["ALL", "VTEX", "MELI"] as const).map((s) => (
+                    <button key={s} onClick={() => setTableSourceFilter(s)}
+                      className={`px-3.5 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide ${tableSourceFilter === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                      style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                      {s === "ALL" ? "Todos" : s}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="text" placeholder="Buscar orden, cliente o pago..."
+                    value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white/80 w-72 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+                    style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Active filters row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <StatusFilter
+                statuses={data.statusBreakdown}
+                activeStatus={statusFilter}
+                onStatusChange={setStatusFilter}
+                statusLabels={STATUS_LABELS}
+                statusColors={STATUS_COLORS}
+              />
+              {flagFilter && (
+                <button type="button" onClick={() => setFlagFilter(null)}
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-100"
+                  style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                  {flagFilter}
+                  <span className="ml-0.5 text-amber-500">×</span>
+                </button>
+              )}
             </div>
           </div>
-          {/* Status filter chips */}
-          <StatusFilter
-            statuses={data.statusBreakdown}
-            activeStatus={statusFilter}
-            onStatusChange={setStatusFilter}
-            statusLabels={STATUS_LABELS}
-            statusColors={STATUS_COLORS}
-          />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">ID</th>
-                <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Fecha</th>
-                <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Cliente</th>
-                <th className="text-right text-[11px] font-medium text-gray-500 pb-2 px-2">Monto</th>
-                <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Items</th>
-                <th className="text-left text-[11px] font-medium text-gray-500 pb-2 px-2">Pago</th>
-                <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Canal</th>
-                <th className="text-center text-[11px] font-medium text-gray-500 pb-2 px-2">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredOrders.map((order) => (
-                <React.Fragment key={order.id}>
-                  <tr className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
-                    onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>
-                    <td className="py-2.5 px-2">
-                      <div className="flex items-center gap-1">
-                        <ChevronDown size={12} className={`text-gray-400 transition-transform ${expandedOrderId === order.id ? "rotate-180" : ""}`} />
-                        <span className="text-xs font-mono text-indigo-600">
-                          {order.externalId.length > 15 ? `...${order.externalId.slice(-12)}` : order.externalId}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-2"><span className="text-xs text-gray-600">{order.orderDate}</span></td>
-                    <td className="py-2.5 px-2">
-                      <span className="text-xs text-gray-700 truncate max-w-[150px] block">{order.customerName}</span>
-                      {order.customerEmail && <span className="text-[10px] text-gray-400 truncate max-w-[150px] block">{order.customerEmail}</span>}
-                    </td>
-                    <td className="py-2.5 px-2 text-right"><span className="text-xs font-medium text-gray-800">{formatARS(order.totalValue)}</span></td>
-                    <td className="py-2.5 px-2 text-center"><span className="text-xs text-gray-600">{order.itemCount}</span></td>
-                    <td className="py-2.5 px-2"><span className="text-xs text-gray-600 truncate max-w-[100px] block">{order.paymentMethod}</span></td>
-                    <td className="py-2.5 px-2 text-center">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${order.source === "MELI" ? "bg-yellow-100 text-yellow-700" : "bg-indigo-50 text-indigo-600"}`}>
-                        {order.source}
+        {/* Order cards feed */}
+        <div className="space-y-3">
+          {filteredOrders.map((order, orderIdx) => {
+            const isExpanded = expandedOrderId === order.id;
+            const isMeli = order.source === "MELI";
+            const isMeliAnon = isMeli && (order.customerName === "Cliente MercadoLibre" || order.customerName === "Cliente sin datos");
+            const flags = orderFlagsMap.get(order.id) ?? [];
+            const accentColor = isMeli ? "#eab308" : "#6366f1";
+            const dateFormatted = (() => { try { const d = new Date(order.orderDate); return d.toLocaleDateString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); } catch { return order.orderDate; } })();
+
+            return (
+              <div key={order.id}
+                className="group relative rounded-2xl bg-white overflow-hidden cursor-pointer"
+                style={{
+                  boxShadow: isExpanded
+                    ? "0 1px 0 rgba(15,23,42,0.06), 0 12px 32px -8px rgba(15,23,42,0.14), 0 24px 48px -16px rgba(15,23,42,0.1)"
+                    : "0 1px 0 rgba(15,23,42,0.04), 0 4px 12px -6px rgba(15,23,42,0.08)",
+                  border: "1px solid rgba(15,23,42,0.06)",
+                  transition: "box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1), transform 280ms cubic-bezier(0.16, 1, 0.3, 1)",
+                  animationDelay: `${orderIdx * 40}ms`,
+                }}
+                onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}>
+
+                {/* Left accent bar */}
+                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: accentColor, opacity: isExpanded ? 1 : 0.5, transition: "opacity 280ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
+
+                {/* ─── Main card row — PRODUCT-FIRST layout ─── */}
+                <div className="flex items-center gap-4 pl-5 pr-5 py-4">
+                  {/* Product image (hero) — first product or source badge */}
+                  {order.items && order.items.length > 0 && order.items[0].imageUrl ? (
+                    <div className="w-12 h-12 rounded-xl flex-shrink-0 overflow-hidden bg-slate-50 border border-slate-100"
+                      style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.06)" }}>
+                      <img src={order.items[0].imageUrl} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${isMeli ? "bg-yellow-50 border border-yellow-200/60" : "bg-indigo-50 border border-indigo-200/60"}`}>
+                      {isMeli ? (
+                        <span className="text-xs font-bold text-yellow-600">ML</span>
+                      ) : (
+                        <span className="text-xs font-bold text-indigo-600">VTX</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Product name + sale details (hero info) */}
+                  <div className="flex-1 min-w-0">
+                    {order.items && order.items.length > 0 ? (
+                      <>
+                        <p className="text-sm font-semibold text-slate-800 truncate leading-tight tracking-tight">
+                          {order.items[0].name || "Producto sin nombre"}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-xs text-slate-500 tabular-nums">
+                            {order.items[0].quantity} × {formatARS(order.items[0].unitPrice)}
+                          </span>
+                          {order.items.length > 1 && (
+                            <>
+                              <span className="text-slate-300">·</span>
+                              <span className="text-[11px] text-slate-400">
+                                +{order.items.length - 1} producto{order.items.length - 1 > 1 ? "s" : ""}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-slate-500 italic truncate">Sin detalle de productos</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{order.itemCount} item{order.itemCount !== 1 ? "s" : ""}</p>
+                      </>
+                    )}
+                    {/* Secondary metadata row */}
+                    <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400">
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold ${isMeli ? "bg-yellow-50 text-yellow-600" : "bg-indigo-50 text-indigo-500"}`}>
+                        {isMeli ? "ML" : "VTX"}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-2 text-center">
-                      <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium"
-                        style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}15`, color: STATUS_COLORS[order.status] || "#94a3b8" }}>
-                        {STATUS_LABELS[order.status] || order.status}
+                      <span className="tabular-nums">{dateFormatted}</span>
+                      <span className="text-slate-200">·</span>
+                      <span className="truncate max-w-[120px]">
+                        {isMeliAnon ? "Cliente ML" : order.customerName}
                       </span>
-                    </td>
-                  </tr>
-                  {expandedOrderId === order.id && (
-                    <tr className="bg-gray-50/80">
-                      <td colSpan={8} className="px-6 py-3">
-                        <div className="text-xs text-gray-600 mb-2 font-medium">Productos de esta orden:</div>
+                      {flags.length > 0 && (
+                        <OrderFlagBadgeGroup flags={flags} max={2} compact />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Amount — hero number */}
+                  <div className="text-right flex-shrink-0 mr-3">
+                    <p className="text-lg font-bold text-slate-900 tabular-nums tracking-tight">{formatARS(order.totalValue)}</p>
+                    {order.promotionNames && (
+                      <p className="text-[10px] text-purple-500 font-medium truncate max-w-[120px] text-right">{order.promotionNames}</p>
+                    )}
+                  </div>
+
+                  {/* Status pill */}
+                  <div className="flex-shrink-0">
+                    <span className="inline-flex px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide"
+                      style={{ backgroundColor: `${STATUS_COLORS[order.status] || "#94a3b8"}10`, color: STATUS_COLORS[order.status] || "#94a3b8", border: `1px solid ${STATUS_COLORS[order.status] || "#94a3b8"}20` }}>
+                      {STATUS_LABELS[order.status] || order.status}
+                    </span>
+                  </div>
+
+                  {/* Chevron */}
+                  <ChevronDown size={16} className={`text-slate-300 group-hover:text-slate-500 flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
+                    style={{ transition: "transform 280ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
+                </div>
+
+                {/* ─── Additional product thumbnails (collapsed, multi-product orders) ─── */}
+                {!isExpanded && order.items && order.items.length > 1 && (
+                  <div className="flex items-center gap-1.5 pl-5 pb-3 -mt-1">
+                    <div className="flex -space-x-1.5">
+                      {order.items.slice(1, 6).map((item: any, idx: number) => (
+                        <div key={idx} className="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 border-2 border-white flex-shrink-0"
+                          style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}>
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package size={10} className="text-slate-300" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {order.items.length > 6 && (
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 border-2 border-white flex items-center justify-center flex-shrink-0">
+                          <span className="text-[9px] font-semibold text-slate-400">+{order.items.length - 6}</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 ml-1">
+                      {order.items.slice(1, 3).map((it: any) => it.name?.split(" ").slice(0, 3).join(" ") || "").filter(Boolean).join(", ")}
+                      {order.items.length > 3 ? ` y ${order.items.length - 3} mas` : ""}
+                    </span>
+                  </div>
+                )}
+
+                {/* ─── Expanded detail panel ─── */}
+                {isExpanded && (
+                  <div className="border-t border-slate-100/80" onClick={(e) => e.stopPropagation()}>
+                    <div className="bg-gradient-to-b from-slate-50/50 to-white px-6 py-5">
+
+                      {/* ─── PRODUCTS FIRST (hero section of expanded card) ─── */}
+                      <div className="space-y-3 mb-6">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Package size={10} />
+                          Productos ({order.items?.length || 0})
+                          {order.items && order.items.length > 0 && (
+                            <span className="ml-auto text-xs font-bold text-slate-800 tabular-nums tracking-tight normal-case">
+                              Total: {formatARS(order.totalValue)}
+                            </span>
+                          )}
+                        </div>
                         {order.items && order.items.length > 0 ? (
-                          <div className="space-y-1.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                             {order.items.map((item: any, idx: number) => (
-                              <div key={idx} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
-                                <div className="flex items-center gap-2 flex-1">
-                                  <div className="w-8 h-8 rounded flex-shrink-0 overflow-hidden bg-gray-100 cursor-pointer" onClick={() => item.imageUrl && setZoomedImage(item.imageUrl)}>
-                                    {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-gray-400" />}
-                                  </div>
-                                  <span className="text-xs text-gray-800">{item.name || "Producto sin nombre"}</span>
+                              <div key={idx} className="flex items-center gap-3 bg-white rounded-xl px-3.5 py-3 border border-slate-200/60 hover:border-slate-300/80 group/item"
+                                style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)", transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+                                <div className="w-14 h-14 rounded-xl flex-shrink-0 overflow-hidden bg-slate-50 cursor-pointer border border-slate-100"
+                                  onClick={(e) => { e.stopPropagation(); item.imageUrl && setZoomedImage(item.imageUrl); }}>
+                                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={20} className="text-slate-300 m-auto mt-4" />}
                                 </div>
-                                <div className="flex items-center gap-4 text-xs text-gray-500">
-                                  <span>{item.quantity} x {formatARS(item.unitPrice)}</span>
-                                  <span className="font-medium text-gray-800">{formatARS(item.totalPrice)}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-slate-800 font-semibold truncate leading-tight">{item.name || "Producto sin nombre"}</p>
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <span className="text-[11px] text-slate-500 tabular-nums">{item.quantity} × {formatARS(item.unitPrice)}</span>
+                                  </div>
+                                  <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight mt-1">{formatARS(item.totalPrice)}</p>
                                 </div>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-400">Sin detalle de productos disponible</p>
+                          <div className="bg-slate-50/80 rounded-xl px-4 py-4 border border-slate-200/40 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                              <Package size={14} className="text-slate-300" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">Sin detalle de productos</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">El detalle se genera en la proxima sincronizacion</p>
+                            </div>
+                          </div>
                         )}
-                        <div className="mt-2 flex gap-4 text-[10px] text-gray-400">
-                          <span>ID: {order.externalId}</span>
-                          <span>Pago: {order.paymentMethod}</span>
-                          <span>Canal: {order.source}</span>
-                          {order.promotionNames && <span>Promo: {order.promotionNames}</span>}
+                      </div>
+
+                      {/* ─── SECONDARY: Order details (collapsed by default feel — compact) ─── */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Col 1: Financiero (most important secondary) */}
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <DollarSign size={10} />
+                            Financiero
+                          </div>
+                          <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">Pago</span>
+                              <span className="text-xs text-slate-700 font-medium">{order.paymentMethod}</span>
+                            </div>
+                            {(order.discountValue ?? 0) > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Descuento</span>
+                                <span className="text-xs text-emerald-600 font-semibold tabular-nums">-{formatARS(order.discountValue || 0)}</span>
+                              </div>
+                            )}
+                            {(order.shippingCost ?? 0) > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Envio</span>
+                                <span className="text-xs text-slate-700 tabular-nums">{formatARS(order.shippingCost || 0)}</span>
+                              </div>
+                            )}
+                            {order.promotionNames && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Promo</span>
+                                <span className="text-xs text-purple-600 font-medium truncate max-w-[150px]">{order.promotionNames}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-              {filteredOrders.length === 0 && (
-                <tr><td colSpan={8} className="text-center py-8 text-xs text-gray-400">No se encontraron ordenes</td></tr>
-              )}
-            </tbody>
-          </table>
+
+                        {/* Col 2: Cliente */}
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Users size={10} />
+                            Cliente
+                          </div>
+                          {isMeliAnon ? (
+                            <div className="bg-gradient-to-br from-yellow-50 to-amber-50/60 border border-yellow-200/60 rounded-xl px-4 py-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center border border-yellow-200/60">
+                                  <span className="text-[10px] font-bold text-yellow-600">ML</span>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-yellow-800">Cliente MercadoLibre</p>
+                                  <p className="text-[10px] text-yellow-600/70">Datos de comprador protegidos</p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-white rounded-xl border border-slate-200/60 p-3.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200/60">
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    {order.customerName.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium text-slate-800 truncate">{order.customerName}</p>
+                                  {order.customerEmail && <p className="text-[10px] text-slate-400 truncate">{order.customerEmail}</p>}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Col 3: Detalles del pedido */}
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <ShoppingCart size={10} />
+                            Pedido
+                          </div>
+                          <div className="bg-white rounded-xl border border-slate-200/60 p-3.5 space-y-2.5" style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)" }}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">ID</span>
+                              <span className="text-xs font-mono text-indigo-600">{order.externalId}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium">Fecha</span>
+                              <span className="text-xs text-slate-700 tabular-nums">{order.orderDate}</span>
+                            </div>
+                            {order.deliveryType && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Envio</span>
+                                <span className="text-xs text-slate-600">{order.deliveryType}</span>
+                              </div>
+                            )}
+                            {order.shippingCarrier && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Transporte</span>
+                                <span className="text-xs text-slate-600">{order.shippingCarrier}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Anomaly badges */}
+                      {flags.length > 0 && (
+                        <div className="mt-5 pt-4 border-t border-slate-100/80">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                            <Info size={10} />
+                            Señales detectadas
+                          </div>
+                          <OrderFlagBadgeGroup flags={flags} max={10} compact={false} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Empty state */}
+          {filteredOrders.length === 0 && (
+            <div className="dash-card flex flex-col items-center justify-center py-16">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                <Search size={20} className="text-slate-300" />
+              </div>
+              <p className="text-sm font-medium text-slate-500 mb-1">No se encontraron ordenes</p>
+              <p className="text-xs text-slate-400">Intenta con otros filtros o un periodo distinto</p>
+            </div>
+          )}
         </div>
 
-        {/* Pagination */}
-        {data.pagination && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-            <div className="text-xs text-gray-500">
-              Pagina {currentPage} de {data.pagination.totalPages || 0} ({data.pagination.totalCount} ordenes)
+        {/* Pagination bar */}
+        {data.pagination && data.pagination.totalPages > 1 && (
+          <div className="dash-card px-6 py-3.5 flex items-center justify-between">
+            <div className="text-xs text-slate-500 tabular-nums">
+              Pagina {currentPage} de {data.pagination.totalPages || 0}
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                 Anterior
               </button>
               <button onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage >= (data.pagination?.totalPages || 1)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ transition: "all 220ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
                 Siguiente
               </button>
             </div>
           </div>
         )}
-      </div>
+      </div>)}
 
-      {/* IMAGE ZOOM MODAL */}
+      {/* IMAGE ZOOM MODAL — smooth fade-in, hi-res ML image */}
       {zoomedImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setZoomedImage(null)}>
-          <div className="bg-white rounded-xl max-w-md w-full p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-800">Imagen ampliada</h3>
-              <button onClick={() => setZoomedImage(null)} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{
+            backgroundColor: "rgba(15,23,42,0.4)",
+            backdropFilter: "blur(8px)",
+            animation: "fadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+          onClick={() => setZoomedImage(null)}
+        >
+          <div
+            className="dash-sheet dash-sheet--centered max-w-md w-full p-5"
+            style={{ animation: "scaleIn 200ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-800 tracking-tight">Imagen ampliada</h3>
+              <button onClick={() => setZoomedImage(null)} className="text-slate-400 hover:text-slate-900 text-lg" style={{ transition: "color 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>&times;</button>
             </div>
-            <div className="bg-gray-100 rounded-lg w-full aspect-square flex items-center justify-center overflow-hidden">
-              <img src={zoomedImage} alt="" className="w-full h-full object-contain" />
+            <div className="bg-slate-50 rounded-xl w-full aspect-square flex items-center justify-center overflow-hidden relative">
+              {/* Spinner while image loads */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-slate-200 border-t-slate-500 rounded-full" style={{ animation: "spin 0.8s linear infinite" }} />
+              </div>
+              <img
+                src={(() => {
+                  // Upgrade ML thumbnail to high-res: replace size suffix in URL
+                  let url = zoomedImage;
+                  if (url.includes("http.mlstatic.com") || url.includes("mla-")) {
+                    url = url.replace(/-I\.jpg/, "-O.jpg").replace(/-S\.jpg/, "-O.jpg").replace(/-V\.jpg/, "-O.jpg");
+                  }
+                  return url;
+                })()}
+                alt=""
+                className="w-full h-full object-contain relative z-10"
+                style={{ opacity: 0, transition: "opacity 250ms ease" }}
+                onLoad={(e) => { (e.target as HTMLImageElement).style.opacity = "1"; }}
+              />
             </div>
           </div>
+          <style>{`
+            @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+            @keyframes scaleIn { from { opacity: 0; transform: scale(0.95) } to { opacity: 1; transform: scale(1) } }
+            @keyframes spin { to { transform: rotate(360deg) } }
+          `}</style>
         </div>
       )}
     </div>

@@ -17,9 +17,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getCached, setCache } from "@/lib/api-cache";
+// enrichment moved to /api/metrics/orders/enrich (non-blocking)
 
 export const revalidate = 0;
-export const maxDuration = 60; // Vercel Pro: hasta 60s para queries pesadas en producción
+export const maxDuration = 120; // Vercel Pro: up to 120s (250k orders + 170k items need headroom)
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // Auto-migrate: ensure columns exist (runs once per cold start)
@@ -35,6 +36,11 @@ async function ensureColumns() {
       CREATE INDEX IF NOT EXISTS "orders_organizationId_source_orderDate_idx"
       ON orders ("organizationId", "source", "orderDate")
     `);
+    // Ensure order_items indexes exist (critical for LATERAL JOIN + top products query)
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "order_items_orderId_idx" ON order_items ("orderId")`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "order_items_productId_idx" ON order_items ("productId")`);
+    // Index on products.sku for cross-referencing MELI→VTEX costs by SKU
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "products_org_sku_idx" ON products ("organizationId", sku) WHERE sku IS NOT NULL AND sku != ''`);
   } catch (e) {
     // Columns/indexes likely already exist
   }
@@ -42,11 +48,30 @@ async function ensureColumns() {
 
 let migrated = false;
 
+// Payment label translation — makes PieChart labels human-friendly
+function getPaymentLabel(method: string, source: string): string {
+  const isMeli = source === "MELI";
+  const lower = method.toLowerCase();
+  if (isMeli) {
+    if (lower === "account_money") return "Mercado Pago (MELI)";
+    if (lower === "credit_card") return "Tarjeta crédito (MELI)";
+    if (lower === "debit_card") return "Tarjeta débito (MELI)";
+    if (lower === "ticket") return "Efectivo (MELI)";
+    if (lower === "atm") return "ATM (MELI)";
+    return `${method} (MELI)`;
+  }
+  // VTEX
+  if (lower.includes("mercado") || lower.includes("mercadopago")) return "Mercado Pago (VTEX)";
+  if (lower === "sin dato") return "Sin dato";
+  return `${method} (VTEX)`;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const ORG_ID = await getOrganizationId();
     if (!migrated) {
-      await ensureColumns();
+      // Don't await in hot path — fire and forget to avoid adding latency
+      ensureColumns().catch(() => {});
       migrated = true;
     }
     const { searchParams } = new URL(request.url);
@@ -70,7 +95,7 @@ export async function GET(request: NextRequest) {
 
     // ── Pagination ──
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
+    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 50));
 
     // Cache check
     const cacheKey = [ORG_ID, fromParam || "default", toParam || "default", sourceParam || "default", page];
@@ -90,23 +115,15 @@ export async function GET(request: NextRequest) {
     const daysInPeriod = Math.max(1, Math.ceil(periodMs / MS_PER_DAY));
 
     /* ══════════════════════════════════════════════════════════
-       ALL 14 QUERIES IN PARALLEL — no sequential queries
+       QUERIES IN BATCHES of 3 — Railway default pool_limit=5
+       Max 3 parallel = always safe with any pool config.
        ══════════════════════════════════════════════════════════ */
+
+    // ── BATCH 1: KPIs (3 queries) ──
     const [
       currentPeriod,
       previousPeriod,
       dailySales,
-      salesByDayOfWeek,
-      salesByHour,
-      topPaymentMethods,
-      statusBreakdown,
-      topProducts,
-      topCustomers,
-      recentOrders,
-      cancelledResult,
-      prevDailySales,
-      promotionBreakdown,
-      totalCountResult,
     ] = await Promise.all([
 
       /* 1) Current period KPIs */
@@ -172,6 +189,13 @@ export async function GET(request: NextRequest) {
         GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')
         ORDER BY day ASC
       `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 2: Charts (2 queries) ──
+    const [
+      salesByDayOfWeek,
+      salesByHour,
+    ] = await Promise.all([
 
       /* 4) Sales by day of week */
       prisma.$queryRawUnsafe<Array<{
@@ -239,15 +263,25 @@ export async function GET(request: NextRequest) {
         GROUP BY hr
         ORDER BY hr
       `, dateFrom, dateTo),
+    ]);
 
-      /* 6) Payment methods */
+    // ── BATCH 3: Payment + status + top products (3 queries) ──
+    const [
+      topPaymentMethods,
+      statusBreakdown,
+      topProducts,
+    ] = await Promise.all([
+
+      /* 6) Payment methods — with source for label translation */
       prisma.$queryRawUnsafe<Array<{
         payment_method: string;
+        source: string;
         orders: string;
         revenue: string;
       }>>(`
         SELECT
           COALESCE("paymentMethod", 'Sin dato') AS payment_method,
+          COALESCE("source", 'VTEX') AS source,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
@@ -256,9 +290,9 @@ export async function GET(request: NextRequest) {
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
-        GROUP BY "paymentMethod"
+        GROUP BY "paymentMethod", COALESCE("source", 'VTEX')
         ORDER BY SUM("totalValue") DESC
-        LIMIT 10
+        LIMIT 15
       `, dateFrom, dateTo),
 
       /* 7) Status breakdown — cast to text to avoid enum serialization issues */
@@ -310,6 +344,13 @@ export async function GET(request: NextRequest) {
         ORDER BY SUM(oi."totalPrice") DESC
         LIMIT 15
       `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 4: Customers + recent orders (2 queries) ──
+    const [
+      topCustomers,
+      recentOrders,
+    ] = await Promise.all([
 
       /* 9) Top customers */
       prisma.$queryRawUnsafe<Array<{
@@ -337,7 +378,7 @@ export async function GET(request: NextRequest) {
         LIMIT 10
       `, dateFrom, dateTo),
 
-      /* 10) Recent orders — optimized with lateral join instead of correlated subquery */
+      /* 10) Recent orders — optimized with lateral join, enriched for detail view */
       prisma.$queryRawUnsafe<Array<{
         id: string;
         external_id: string;
@@ -351,6 +392,12 @@ export async function GET(request: NextRequest) {
         customer_email: string;
         items_json: string;
         promotion_names: string;
+        discount_value: string;
+        shipping_cost: string;
+        channel: string;
+        delivery_type: string;
+        shipping_carrier: string;
+        pickup_store_name: string;
       }>>(`
         SELECT
           o.id,
@@ -361,19 +408,50 @@ export async function GET(request: NextRequest) {
           COALESCE(o."paymentMethod", '-') AS payment_method,
           COALESCE(o."source", 'VTEX') AS source,
           TO_CHAR(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') AS order_date,
-          TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) AS customer_name,
+          CASE
+            WHEN o."customerId" IS NULL AND COALESCE(o."source", 'VTEX') = 'MELI' THEN 'Cliente MercadoLibre'
+            WHEN o."customerId" IS NULL THEN 'Cliente sin datos'
+            WHEN TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) = '' THEN 'Cliente sin nombre'
+            ELSE TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", '')))
+          END AS customer_name,
           COALESCE(c.email, '') AS customer_email,
           COALESCE(items_agg.items_json, '[]') AS items_json,
-          COALESCE(o."promotionNames", '') AS promotion_names
+          COALESCE(o."promotionNames", '') AS promotion_names,
+          COALESCE(o."discountValue", 0)::text AS discount_value,
+          COALESCE(o."shippingCost", 0)::text AS shipping_cost,
+          COALESCE(o."channel", '') AS channel,
+          COALESCE(o."deliveryType", '') AS delivery_type,
+          COALESCE(o."shippingCarrier", '') AS shipping_carrier,
+          COALESCE(o."pickupStoreName", '') AS pickup_store_name,
+          COALESCE(o."realShippingCost", 0)::text AS real_shipping_cost,
+          COALESCE(mc."commissionAmount", 0)::text AS ml_commission_amount,
+          COALESCE(mc."commissionRate", 0)::text AS ml_commission_rate,
+          COALESCE(mc."taxWithholdings", 0)::text AS ml_tax_withholdings,
+          COALESCE(mc."netAmount", 0)::text AS ml_net_amount
         FROM orders o
         LEFT JOIN customers c ON c.id = o."customerId"
+        LEFT JOIN ml_commissions mc ON mc."mlOrderId" = o."externalId" AND mc."organizationId" = o."organizationId"
         LEFT JOIN LATERAL (
           SELECT json_agg(json_build_object(
             'name', p.name,
             'imageUrl', p."imageUrl",
+            'brand', COALESCE(p.brand,
+              (SELECT p2.brand FROM products p2
+               WHERE p2."organizationId" = o."organizationId"
+                 AND p2.sku IS NOT NULL AND p2.sku != ''
+                 AND p2.sku = p.sku AND p2.id != p.id
+                 AND p2.brand IS NOT NULL
+               LIMIT 1)),
             'quantity', oi.quantity,
             'unitPrice', oi."unitPrice",
-            'totalPrice', oi."totalPrice"
+            'totalPrice', oi."totalPrice",
+            'costPrice', COALESCE(oi."costPrice", p."costPrice",
+              (SELECT p2."costPrice" FROM products p2
+               WHERE p2."organizationId" = o."organizationId"
+                 AND p2.sku IS NOT NULL AND p2.sku != ''
+                 AND p2.sku = p.sku AND p2.id != p.id
+                 AND p2."costPrice" IS NOT NULL AND p2."costPrice" > 0
+               LIMIT 1))
           ))::text AS items_json
           FROM order_items oi
           LEFT JOIN products p ON p.id = oi."productId"
@@ -386,8 +464,16 @@ export async function GET(request: NextRequest) {
         ORDER BY o."orderDate" DESC
         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
       `, dateFrom, dateTo),
+    ]);
 
-      /* 11) Cancelled count — was sequential, now parallel */
+    // ── BATCH 5: Cancelled + prevDaily + promotions (3 queries) ──
+    const [
+      cancelledResult,
+      prevDailySales,
+      promotionBreakdown,
+    ] = await Promise.all([
+
+      /* 11) Cancelled count */
       prisma.$queryRawUnsafe<[{ cnt: string }]>(`
         SELECT COUNT(*)::text AS cnt FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -414,14 +500,16 @@ export async function GET(request: NextRequest) {
         ORDER BY day ASC
       `, prevFrom, prevTo),
 
-      /* 13) Promotion breakdown — was sequential, now parallel */
+      /* 13) Promotion breakdown — with source for "Sin promo" distinction */
       prisma.$queryRawUnsafe<Array<{
         promo: string;
+        source: string;
         orders: string;
         revenue: string;
       }>>(`
         SELECT
           COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo') AS promo,
+          COALESCE("source", 'VTEX') AS source,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
@@ -429,17 +517,283 @@ export async function GET(request: NextRequest) {
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
-        GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo')
+        GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo'), COALESCE("source", 'VTEX')
         ORDER BY SUM("totalValue") DESC
         LIMIT 15
       `, dateFrom, dateTo),
+    ]);
 
-      /* 14) Total count for pagination — was sequential, now parallel */
+    // ── BATCH 6: Pagination count + source counts (2 queries) ──
+    const [
+      totalCountResult,
+      sourceCountsRaw,
+    ] = await Promise.all([
+
+      /* 14) Total count for pagination */
       prisma.$queryRawUnsafe<[{ cnt: string }]>(`
         SELECT COUNT(*)::text AS cnt FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           ${srcWhereSimple}
+      `, dateFrom, dateTo),
+
+      /* 15) Source counts — VTEX vs MELI split */
+      prisma.$queryRawUnsafe<Array<{
+        source: string; cnt: string; revenue: string; shipping: string;
+      }>>(`
+        SELECT
+          COALESCE("source", 'VTEX') AS source,
+          COUNT(*)::text AS cnt,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue,
+          COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS shipping
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+        GROUP BY COALESCE("source", 'VTEX')
+      `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 7: Heavy analytics (3 queries) ──
+    const [
+      cohortsRaw,
+      profitabilityRaw,
+      logisticsByDelivery,
+    ] = await Promise.all([
+
+      /* 16) Cohorts — new / returning / VIP / anonymous (split by source) */
+      prisma.$queryRawUnsafe<Array<{
+        cohort: string; customers: string; orders: string; revenue: string;
+      }>>(`
+        WITH customer_history AS (
+          SELECT
+            o."customerId",
+            COALESCE(o."source", 'VTEX') AS src,
+            COUNT(*)::int AS period_orders,
+            SUM(o."totalValue") AS period_revenue,
+            MIN(first_order.first_date) AS first_order_date
+          FROM orders o
+          LEFT JOIN LATERAL (
+            SELECT MIN("orderDate") AS first_date
+            FROM orders
+            WHERE "organizationId" = '${ORG_ID}'
+              AND "customerId" = o."customerId"
+              AND "customerId" IS NOT NULL
+          ) first_order ON true
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o."orderDate" >= $1 AND o."orderDate" <= $2
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            ${srcWhereSimple}
+          GROUP BY o."customerId", o."source", first_order.first_date
+        ),
+        classified AS (
+          SELECT
+            CASE
+              WHEN "customerId" IS NULL THEN CONCAT('anonymous_', src)
+              WHEN first_order_date >= $1 THEN 'new'
+              ELSE 'returning'
+            END AS cohort,
+            "customerId", period_orders, period_revenue
+          FROM customer_history
+        )
+        SELECT
+          cohort,
+          COUNT(DISTINCT "customerId")::text AS customers,
+          SUM(period_orders)::text AS orders,
+          SUM(period_revenue)::text AS revenue
+        FROM classified
+        GROUP BY cohort
+      `, dateFrom, dateTo),
+
+      /* 17) Profitability — gross, COGS, net, margin */
+      prisma.$queryRawUnsafe<[{
+        gross_revenue: string; gross_with_cost: string; gross_without_cost: string;
+        total_cogs: string; orders_with_cost: string; orders_total: string;
+      }]>(`
+        SELECT
+          COALESCE(SUM(oi."totalPrice"), 0)::text AS gross_revenue,
+          COALESCE(SUM(CASE WHEN p."costPrice" IS NOT NULL AND p."costPrice" > 0 THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_with_cost,
+          COALESCE(SUM(CASE WHEN p."costPrice" IS NULL OR p."costPrice" = 0 THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_without_cost,
+          COALESCE(SUM(CASE WHEN p."costPrice" IS NOT NULL AND p."costPrice" > 0 THEN oi.quantity * p."costPrice" ELSE 0 END), 0)::text AS total_cogs,
+          COUNT(DISTINCT CASE WHEN p."costPrice" IS NOT NULL AND p."costPrice" > 0 THEN o.id END)::text AS orders_with_cost,
+          COUNT(DISTINCT o.id)::text AS orders_total
+        FROM order_items oi
+        JOIN orders o ON o.id = oi."orderId"
+        LEFT JOIN products p ON p.id = oi."productId"
+        WHERE o."organizationId" = '${ORG_ID}'
+          AND o."orderDate" >= $1 AND o."orderDate" <= $2
+          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhere}
+      `, dateFrom, dateTo),
+
+      /* 18) Logistics — by delivery type */
+      prisma.$queryRawUnsafe<Array<{
+        bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string;
+      }>>(`
+        SELECT
+          COALESCE("deliveryType", 'Sin dato') AS bucket,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue,
+          COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS shipping_charged,
+          COALESCE(SUM(COALESCE("realShippingCost", 0)), 0)::text AS shipping_real
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+        GROUP BY "deliveryType"
+        ORDER BY COUNT(*) DESC
+      `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 8: Logistics + segmentation (3 queries) ──
+    const [
+      logisticsByCarrier,
+      segByDevice,
+      segByChannel,
+    ] = await Promise.all([
+
+      /* 19) Logistics — by carrier */
+      prisma.$queryRawUnsafe<Array<{
+        bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string;
+      }>>(`
+        SELECT
+          COALESCE("shippingCarrier", 'Sin dato') AS bucket,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue,
+          COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS shipping_charged,
+          COALESCE(SUM(COALESCE("realShippingCost", 0)), 0)::text AS shipping_real
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+        GROUP BY "shippingCarrier"
+        ORDER BY COUNT(*) DESC
+        LIMIT 10
+      `, dateFrom, dateTo),
+
+      /* 20) Segmentation — by device */
+      prisma.$queryRawUnsafe<Array<{
+        bucket: string; orders: string; revenue: string;
+      }>>(`
+        SELECT
+          COALESCE("deviceType", 'Sin dato') AS bucket,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+        GROUP BY "deviceType"
+        ORDER BY COUNT(*) DESC
+      `, dateFrom, dateTo),
+
+      /* 21) Segmentation — by channel */
+      prisma.$queryRawUnsafe<Array<{
+        bucket: string; orders: string; revenue: string;
+      }>>(`
+        SELECT
+          COALESCE("channel", 'Sin dato') AS bucket,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+        GROUP BY "channel"
+        ORDER BY COUNT(*) DESC
+      `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 9: Traffic + coupons (2 queries) ──
+    const [
+      segByTraffic,
+      couponsRaw,
+    ] = await Promise.all([
+
+      /* 22) Segmentation — by traffic source */
+      prisma.$queryRawUnsafe<Array<{
+        bucket: string; orders: string; revenue: string;
+      }>>(`
+        SELECT
+          COALESCE("trafficSource", 'Sin dato') AS bucket,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          ${srcWhereSimple}
+        GROUP BY "trafficSource"
+        ORDER BY COUNT(*) DESC
+      `, dateFrom, dateTo),
+
+      /* 23) Coupons — top coupon codes */
+      prisma.$queryRawUnsafe<Array<{
+        code: string; orders: string; revenue: string; discount: string;
+      }>>(`
+        SELECT
+          COALESCE("couponCode", 'Sin cupon') AS code,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue,
+          COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS discount
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "couponCode" IS NOT NULL AND "couponCode" != ''
+          ${srcWhereSimple}
+        GROUP BY "couponCode"
+        ORDER BY COUNT(*) DESC
+        LIMIT 15
+      `, dateFrom, dateTo),
+    ]);
+
+    // ── BATCH 10: Geography (2 queries) ──
+    const [
+      geoProvinces,
+      geoPostalCodes,
+    ] = await Promise.all([
+
+      /* 24) Geography — top provinces (first 4 digits of postal code as proxy) */
+      prisma.$queryRawUnsafe<Array<{
+        value: string; orders: string; revenue: string;
+      }>>(`
+        SELECT
+          COALESCE("postalCode", 'Sin dato') AS value,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "postalCode" IS NOT NULL AND "postalCode" != ''
+          ${srcWhereSimple}
+        GROUP BY "postalCode"
+        ORDER BY COUNT(*) DESC
+        LIMIT 20
+      `, dateFrom, dateTo),
+
+      /* 25) Geography — postal codes (same data, kept separate for type clarity) */
+      prisma.$queryRawUnsafe<Array<{
+        value: string; orders: string; revenue: string;
+      }>>(`
+        SELECT
+          COALESCE("postalCode", 'Sin dato') AS value,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "postalCode" IS NOT NULL AND "postalCode" != ''
+          ${srcWhereSimple}
+        GROUP BY "postalCode"
+        ORDER BY COUNT(*) DESC
+        LIMIT 20
       `, dateFrom, dateTo),
     ]);
 
@@ -510,7 +864,7 @@ export async function GET(request: NextRequest) {
         numDays: Number(h.num_days),
       })),
       paymentMethods: topPaymentMethods.map(pm => ({
-        method: pm.payment_method,
+        method: getPaymentLabel(pm.payment_method, pm.source),
         orders: Number(pm.orders),
         revenue: Number(pm.revenue),
       })),
@@ -520,7 +874,7 @@ export async function GET(request: NextRequest) {
       })),
 
       promotionBreakdown: promotionBreakdown.map(p => ({
-        promo: p.promo,
+        promo: p.promo === "Sin promo" ? `Sin promo (${p.source === "MELI" ? "MELI" : "VTEX"})` : p.promo,
         orders: Number(p.orders),
         revenue: Number(p.revenue),
       })),
@@ -541,24 +895,118 @@ export async function GET(request: NextRequest) {
         totalOrders: Number(c.total_orders),
         totalSpent: Number(c.total_spent),
       })),
-      recentOrders: recentOrders.map(o => {
-        let items: any[] = [];
-        try { items = JSON.parse(o.items_json); } catch {}
+      recentOrders: recentOrders.map(formatOrder),
+      // ── v4 namespaces ──
+      sourceCounts: (() => {
+        const vtexRow = sourceCountsRaw.find(r => r.source === "VTEX");
+        const meliRow = sourceCountsRaw.find(r => r.source === "MELI");
         return {
-          id: o.id,
-          externalId: o.external_id,
-          status: o.status,
-          totalValue: Number(o.total_value),
-          itemCount: Number(o.item_count),
-          paymentMethod: o.payment_method,
-          source: o.source,
-          orderDate: o.order_date,
-          customerName: o.customer_name || "Sin nombre",
-          customerEmail: o.customer_email,
-          items,
-          promotionNames: o.promotion_names || null,
+          vtex: Number(vtexRow?.cnt || 0),
+          meli: Number(meliRow?.cnt || 0),
+          total: Number(vtexRow?.cnt || 0) + Number(meliRow?.cnt || 0),
+          vtexRevenue: Number(vtexRow?.revenue || 0),
+          meliRevenue: Number(meliRow?.revenue || 0),
+          vtexShipping: Number(vtexRow?.shipping || 0),
+          meliShipping: Number(meliRow?.shipping || 0),
         };
-      }),
+      })(),
+      cohorts: (() => {
+        const get = (c: string) => cohortsRaw.find(r => r.cohort === c);
+        const newC = get("new");
+        const ret = get("returning");
+        const anonMeli = get("anonymous_MELI");
+        const anonVtex = get("anonymous_VTEX");
+        const toStats = (r: typeof newC) => ({
+          customers: Number(r?.customers || 0),
+          orders: Number(r?.orders || 0),
+          revenue: Number(r?.revenue || 0),
+        });
+        const anonMeliStats = toStats(anonMeli);
+        const anonVtexStats = toStats(anonVtex);
+        return {
+          new: toStats(newC),
+          returning: toStats(ret),
+          vip: { customers: 0, orders: 0, revenue: 0 },
+          anonymous: {
+            customers: anonMeliStats.customers + anonVtexStats.customers,
+            orders: anonMeliStats.orders + anonVtexStats.orders,
+            revenue: anonMeliStats.revenue + anonVtexStats.revenue,
+          },
+          anonymousMeli: anonMeliStats.orders > 0 ? anonMeliStats : undefined,
+          anonymousVtex: anonVtexStats.orders > 0 ? anonVtexStats : undefined,
+          vipCriteria: { minOrders: 5, minSpentArs: 500000, description: "5+ compras o $500k+ gastados" },
+          mlPrivacyNote: anonMeliStats.orders > 0 ? "MercadoLibre no comparte datos del comprador" : undefined,
+        };
+      })(),
+      profitability: (() => {
+        const p = profitabilityRaw[0];
+        const grossRevenue = Number(p?.gross_revenue || 0);
+        const grossWithCost = Number(p?.gross_with_cost || 0);
+        const grossWithoutCost = Number(p?.gross_without_cost || 0);
+        const totalCogs = Number(p?.total_cogs || 0);
+        const ordersWithCost = Number(p?.orders_with_cost || 0);
+        const ordersTotal = Number(p?.orders_total || 0);
+        const marginAbs = grossWithCost - totalCogs;
+        const marginPct = grossWithCost > 0 ? (marginAbs / grossWithCost) * 100 : 0;
+        const netRevenue = totalRevenue / 1.21;
+        return {
+          grossRevenue,
+          grossWithCost: grossWithCost > 0 ? grossWithCost : undefined,
+          grossWithoutCost: grossWithoutCost > 0 ? grossWithoutCost : undefined,
+          netRevenue,
+          totalCogs,
+          marginAbs: Math.round(marginAbs),
+          marginPct: Math.round(marginPct * 10) / 10,
+          ordersWithCost,
+          ordersTotal,
+          coveragePct: ordersTotal > 0 ? Math.round((ordersWithCost / ordersTotal) * 1000) / 10 : 0,
+        };
+      })(),
+      logistics: (() => {
+        const mapBucket = (r: any) => ({
+          bucket: r.bucket,
+          orders: Number(r.orders),
+          revenue: Number(r.revenue),
+          shippingCharged: Number(r.shipping_charged),
+          shippingReal: Number(r.shipping_real),
+          shippingGap: Number(r.shipping_charged) - Number(r.shipping_real),
+        });
+        const byDelivery = logisticsByDelivery.map(mapBucket);
+        const byCarrier = logisticsByCarrier.map(mapBucket);
+        const shippingGapTotal = byDelivery.reduce((sum, b) => sum + b.shippingGap, 0);
+        if (byDelivery.length === 0 && byCarrier.length === 0) return undefined;
+        return { byDeliveryType: byDelivery, byCarrier: byCarrier, shippingGapTotal };
+      })(),
+      segmentation: (() => {
+        const mapSeg = (r: any) => ({ bucket: r.bucket, orders: Number(r.orders), revenue: Number(r.revenue) });
+        const byDevice = segByDevice.map(mapSeg);
+        const byChannel = segByChannel.map(mapSeg);
+        const byTrafficSource = segByTraffic.map(mapSeg);
+        if (byDevice.length === 0 && byChannel.length === 0 && byTrafficSource.length === 0) return undefined;
+        return { byDevice, byChannel, byTrafficSource };
+      })(),
+      coupons: (() => {
+        if (couponsRaw.length === 0) return undefined;
+        const topCoupons = couponsRaw.map(c => ({
+          code: c.code,
+          orders: Number(c.orders),
+          revenue: Number(c.revenue),
+          discountTotal: Number(c.discount),
+        }));
+        return {
+          topCoupons,
+          totalCouponRevenue: topCoupons.reduce((s, c) => s + c.revenue, 0),
+          totalCouponDiscount: topCoupons.reduce((s, c) => s + c.discountTotal, 0),
+        };
+      })(),
+      geography: (() => {
+        if (geoProvinces.length === 0) return undefined;
+        const mapGeo = (r: any) => ({ value: r.value, orders: Number(r.orders), revenue: Number(r.revenue) });
+        return {
+          topProvinces: geoProvinces.map(mapGeo),
+          topPostalCodes: geoPostalCodes.map(mapGeo),
+        };
+      })(),
       pagination: {
         page,
         pageSize,
@@ -583,4 +1031,36 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// enrichRecentOrders moved to /api/metrics/orders/enrich route
+
+function formatOrder(o: any) {
+  let items: any[] = [];
+  try { items = JSON.parse(o.items_json); } catch {}
+  return {
+    id: o.id,
+    externalId: o.external_id,
+    status: o.status,
+    totalValue: Number(o.total_value),
+    itemCount: Number(o.item_count),
+    paymentMethod: o.payment_method,
+    source: o.source,
+    orderDate: o.order_date,
+    customerName: o.customer_name || "Sin nombre",
+    customerEmail: o.customer_email,
+    items,
+    promotionNames: o.promotion_names || null,
+    discountValue: Number(o.discount_value),
+    shippingCost: Number(o.shipping_cost),
+    channel: o.channel || null,
+    deliveryType: o.delivery_type || null,
+    shippingCarrier: o.shipping_carrier || null,
+    pickupStoreName: o.pickup_store_name || null,
+    realShippingCost: Number(o.real_shipping_cost) || 0,
+    mlCommissionAmount: Number(o.ml_commission_amount) || 0,
+    mlCommissionRate: Number(o.ml_commission_rate) || 0,
+    mlTaxWithholdings: Number(o.ml_tax_withholdings) || 0,
+    mlNetAmount: Number(o.ml_net_amount) || 0,
+  };
 }

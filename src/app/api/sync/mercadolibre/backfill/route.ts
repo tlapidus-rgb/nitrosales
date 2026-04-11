@@ -63,18 +63,41 @@ export async function GET(req: NextRequest) {
         });
 
         let upserted = 0;
+        let itemsCreated = 0;
         for (const order of filtered) {
           const status = mapMLOrderStatus(order.status);
           const totalValue = order.total_amount || 0;
-          const itemCount = (order.order_items || []).reduce(
+          const mlItems = order.order_items || [];
+          const itemCount = mlItems.reduce(
             (sum: number, i: any) => sum + (i.quantity || 1), 0
           );
+          // Tanda 7.5 \u2014 sale_fee por \u00edtem (comisi\u00f3n ML)
+          const marketplaceFee = mlItems.reduce(
+            (sum: number, item: any) => sum + (Number(item.sale_fee) || 0),
+            0
+          );
 
-          await prisma.order.upsert({
+          // Tanda 7.10.4 — promociones ML (order-level + item-level)
+          const orderPromos: string[] = Array.isArray(order.promotions)
+            ? order.promotions.map((p: any) => (p?.name || p?.type || "").toString().trim()).filter(Boolean)
+            : [];
+          const itemPromos: string[] = mlItems
+            .map((it: any) => (it?.promotion?.name || it?.promotion?.type || "").toString().trim())
+            .filter(Boolean);
+          const allPromos = Array.from(new Set([...orderPromos, ...itemPromos]));
+          const promotionNames = allPromos.length ? allPromos.join(", ") : null;
+
+          const dbOrder = await prisma.order.upsert({
             where: {
               organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
             },
-            update: { status, totalValue, itemCount, paymentMethod: order.payments?.[0]?.payment_type || null },
+            update: {
+              status,
+              totalValue,
+              itemCount,
+              promotionNames,
+              paymentMethod: order.payments?.[0]?.payment_type || null,
+            },
             create: {
               organizationId: orgId,
               externalId: String(order.id),
@@ -82,12 +105,56 @@ export async function GET(req: NextRequest) {
               totalValue,
               currency: order.currency_id || "ARS",
               itemCount,
+              promotionNames,
               source: "MELI",
               channel: "marketplace",
               paymentMethod: order.payments?.[0]?.payment_type || null,
               orderDate: new Date(order.date_created),
             },
           });
+
+          // ── Create Products + OrderItems for MELI ──
+          if (mlItems.length > 0) {
+            await prisma.orderItem.deleteMany({ where: { orderId: dbOrder.id } });
+            for (const mlItem of mlItems) {
+              const mlItemId = String(mlItem.item?.id || mlItem.item_id || "");
+              const itemTitle = mlItem.item?.title || mlItem.title || `ML Item ${mlItemId}`;
+              const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
+              const quantity = mlItem.quantity || 1;
+              const thumbnailUrl = mlItem.item?.thumbnail || null;
+
+              const product = await prisma.product.upsert({
+                where: {
+                  organizationId_externalId: { organizationId: orgId, externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}` },
+                },
+                create: {
+                  organizationId: orgId,
+                  externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}`,
+                  name: itemTitle,
+                  sku: mlItemId,
+                  price: unitPrice,
+                  imageUrl: thumbnailUrl,
+                  isActive: true,
+                },
+                update: {
+                  name: itemTitle,
+                  price: unitPrice,
+                  ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
+                },
+              });
+
+              await prisma.orderItem.create({
+                data: {
+                  orderId: dbOrder.id,
+                  productId: product.id,
+                  quantity,
+                  unitPrice,
+                  totalPrice: unitPrice * quantity,
+                } as any,
+              });
+              itemsCreated++;
+            }
+          }
           upserted++;
         }
 

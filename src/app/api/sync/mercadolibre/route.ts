@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
       errors.push(`Reputation: ${err.message}`);
     }
 
-    // ── Step 3: Sync Recent Orders → main Orders table ───────
+    // ── Step 3: Sync Recent Orders → main Orders table + OrderItems ───────
     try {
       // Fetch ALL orders from last 6 months (backfill + ongoing)
       const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
@@ -149,12 +149,24 @@ export async function GET(req: NextRequest) {
       log.push(`Fetched ${mlOrders.length} orders from ML`);
 
       let ordersUpserted = 0;
+      let itemsCreated = 0;
       for (const order of mlOrders) {
         const status = mapMLOrderStatus(order.status);
         const totalValue = order.total_amount || 0;
-        const itemCount = (order.order_items || []).reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
+        const mlItems = order.order_items || [];
+        const itemCount = mlItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
 
-        await prisma.order.upsert({
+        // Tanda 7.10.4 — promociones ML (order-level + item-level)
+        const orderPromos: string[] = Array.isArray(order.promotions)
+          ? order.promotions.map((p: any) => (p?.name || p?.type || "").toString().trim()).filter(Boolean)
+          : [];
+        const itemPromos: string[] = mlItems
+          .map((it: any) => (it?.promotion?.name || it?.promotion?.type || "").toString().trim())
+          .filter(Boolean);
+        const allPromos = Array.from(new Set([...orderPromos, ...itemPromos]));
+        const promotionNames = allPromos.length ? allPromos.join(", ") : null;
+
+        const dbOrder = await prisma.order.upsert({
           where: {
             organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
           },
@@ -162,6 +174,7 @@ export async function GET(req: NextRequest) {
             status,
             totalValue,
             itemCount,
+            promotionNames,
             paymentMethod: order.payments?.[0]?.payment_type || null,
           },
           create: {
@@ -171,6 +184,7 @@ export async function GET(req: NextRequest) {
             totalValue,
             currency: order.currency_id || "ARS",
             itemCount,
+            promotionNames,
             source: "MELI",
             channel: "marketplace",
             paymentMethod: order.payments?.[0]?.payment_type || null,
@@ -178,8 +192,55 @@ export async function GET(req: NextRequest) {
           },
         });
         ordersUpserted++;
+
+        // ── Create Products + OrderItems for MELI (same pattern as VTEX) ──
+        if (mlItems.length > 0) {
+          // Delete existing items to avoid duplicates on re-sync
+          await prisma.orderItem.deleteMany({ where: { orderId: dbOrder.id } });
+
+          for (const mlItem of mlItems) {
+            const mlItemId = String(mlItem.item?.id || mlItem.item_id || "");
+            const itemTitle = mlItem.item?.title || mlItem.title || `ML Item ${mlItemId}`;
+            const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
+            const quantity = mlItem.quantity || 1;
+            const thumbnailUrl = mlItem.item?.thumbnail || null;
+
+            // Upsert Product
+            const product = await prisma.product.upsert({
+              where: {
+                organizationId_externalId: { organizationId: orgId, externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}` },
+              },
+              create: {
+                organizationId: orgId,
+                externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}`,
+                name: itemTitle,
+                sku: mlItemId,
+                price: unitPrice,
+                imageUrl: thumbnailUrl,
+                isActive: true,
+              },
+              update: {
+                name: itemTitle,
+                price: unitPrice,
+                ...(thumbnailUrl ? { imageUrl: thumbnailUrl } : {}),
+              },
+            });
+
+            // Create OrderItem
+            await prisma.orderItem.create({
+              data: {
+                orderId: dbOrder.id,
+                productId: product.id,
+                quantity,
+                unitPrice,
+                totalPrice: unitPrice * quantity,
+              } as any,
+            });
+            itemsCreated++;
+          }
+        }
       }
-      log.push(`Upserted ${ordersUpserted} MELI orders`);
+      log.push(`Upserted ${ordersUpserted} MELI orders, ${itemsCreated} order items`);
     } catch (err: any) {
       errors.push(`Orders: ${err.message}`);
     }

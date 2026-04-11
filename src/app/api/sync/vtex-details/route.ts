@@ -176,6 +176,73 @@ export async function GET(req: Request) {
       });
     }
 
+    // ═══ MODE: resync-delivery — backfill deliveryType for orders missing it ═══
+    if (mode === "resync-delivery") {
+      const ordersNeedDelivery = await prisma.$queryRawUnsafe<Array<{ id: string; externalId: string }>>(`
+        SELECT o.id, o."externalId"
+        FROM orders o
+        WHERE o."organizationId" = '${org.id}'
+          AND o.source = 'VTEX'
+          AND (o."deliveryType" IS NULL OR o."deliveryType" = '')
+        ORDER BY o."orderDate" DESC
+        LIMIT ${batchSize}
+      `);
+
+      if (ordersNeedDelivery.length === 0) {
+        return NextResponse.json({ ok: true, mode: "resync-delivery", message: "All VTEX orders have deliveryType", updated: 0 });
+      }
+
+      const totalMissingResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
+        SELECT COUNT(*)::text AS cnt FROM orders
+        WHERE "organizationId" = '${org.id}' AND source = 'VTEX'
+          AND ("deliveryType" IS NULL OR "deliveryType" = '')
+      `);
+      const totalMissing = Number(totalMissingResult[0].cnt);
+
+      let updated = 0;
+      const errors: string[] = [];
+
+      for (const order of ordersNeedDelivery) {
+        try {
+          const detailUrl = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${order.externalId}`;
+          const res = await fetch(detailUrl, {
+            headers: { "X-VTEX-API-AppKey": appKey, "X-VTEX-API-AppToken": appToken, Accept: "application/json" },
+          });
+          if (!res.ok) { errors.push(order.externalId + ": HTTP " + res.status); continue; }
+          const detail = await res.json();
+
+          const logInfo = detail.shippingData?.logisticsInfo || [];
+          let carrier: string | null = null;
+          let sla: string | null = null;
+          let isPk = false;
+          let pkName: string | null = null;
+          for (const li of logInfo) {
+            if (li?.pickupStoreInfo?.isPickupStore === true) { isPk = true; pkName = li.pickupStoreInfo.friendlyName || null; }
+            if (li?.deliveryCompany && !carrier) carrier = li.deliveryCompany;
+            if (li?.selectedSla && !sla) sla = li.selectedSla;
+          }
+
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              deliveryType: isPk ? "pickup" : "shipping",
+              pickupStoreName: isPk ? pkName : null,
+              shippingCarrier: carrier,
+              shippingService: sla,
+              postalCode: detail.shippingData?.address?.postalCode || null,
+            },
+          });
+          updated++;
+        } catch (e: any) {
+          errors.push(order.externalId + ": " + e.message.substring(0, 80));
+        }
+      }
+
+      return NextResponse.json({
+        ok: true, mode: "resync-delivery", updated, remaining: totalMissing - updated, errors: errors.slice(0, 10),
+      });
+    }
+
     const ordersWithoutItems = await prisma.order.findMany({
       where: {
         organizationId: org.id,

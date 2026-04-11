@@ -15,10 +15,12 @@
 // ══════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
 import { processMLNotification } from "@/lib/connectors/ml-notification-processor";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Ensure enough time for ML API fetch + DB writes
 
 // ML Notification IPs (for future IP filtering)
 // 54.88.218.97, 18.215.140.160, 18.213.114.129, 18.206.34.84
@@ -53,12 +55,14 @@ export async function POST(req: NextRequest) {
   // Log for debugging (remove in production later)
   console.log(`[ML Webhook] topic=${notification.topic} resource=${notification.resource} attempts=${notification.attempts}`);
 
-  // ── Step 2: Queue async processing (don't block response) ──
-  // Using a fire-and-forget pattern since we must respond <500ms
-  // The actual processing happens in the background
-  processMLNotification(notification).catch((err) => {
-    console.error(`[ML Webhook] Error processing ${notification.topic}:`, err.message);
-  });
+  // ── Step 2: Queue async processing via waitUntil ──
+  // waitUntil keeps the Vercel function alive AFTER responding 200
+  // so processMLNotification completes reliably (including item creation)
+  waitUntil(
+    processMLNotification(notification).catch((err) => {
+      console.error(`[ML Webhook] Error processing ${notification.topic}:`, err.message);
+    })
+  );
 
   // ── Step 3: Return 200 immediately ──
   return NextResponse.json({ ok: true });
