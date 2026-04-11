@@ -44,6 +44,11 @@ interface Order {
   deliveryType?: string | null;
   shippingCarrier?: string | null;
   pickupStoreName?: string | null;
+  realShippingCost?: number;
+  mlCommissionAmount?: number;
+  mlCommissionRate?: number;
+  mlTaxWithholdings?: number;
+  mlNetAmount?: number;
 }
 
 interface BillingKpis {
@@ -390,7 +395,19 @@ function OrderDetailPanel({
   const hasPromo = order.promotionNames && order.promotionNames.trim().length > 0;
 
   const netAfterIVA = order.totalValue / 1.21;
-  const meliCommission = isMeli ? order.totalValue * 0.13 : 0;
+  const ivaAmount = order.totalValue - netAfterIVA;
+
+  // ML commission: real data from ml_commissions table, fallback to ~13% estimate
+  const hasRealCommission = isMeli && (order.mlCommissionAmount || 0) > 0;
+  const meliCommission = hasRealCommission
+    ? (order.mlCommissionAmount || 0)
+    : (isMeli ? order.totalValue * 0.13 : 0);
+  const meliCommissionPct = hasRealCommission
+    ? (order.mlCommissionRate || 13)
+    : 13;
+
+  // ML tax withholdings (IIBB, IVA Perception, Ganancias) — real data only
+  const mlTaxWithholdings = (order.mlTaxWithholdings || 0);
 
   // Real COGS from product cost data
   const totalCogs = order.items.reduce((sum, item) => {
@@ -399,9 +416,11 @@ function OrderDetailPanel({
   }, 0);
   const hasCostData = totalCogs > 0;
 
-  const estimatedNet = hasCostData
-    ? netAfterIVA - meliCommission - shipping - totalCogs
-    : netAfterIVA - meliCommission - shipping;
+  // Shipping cost: real cost from tariff table, or charged to customer
+  const realShipCost = (order.realShippingCost || 0) > 0 ? (order.realShippingCost || 0) : shipping;
+
+  // Net calculation — includes all known variable costs
+  const estimatedNet = netAfterIVA - meliCommission - mlTaxWithholdings - realShipCost - totalCogs;
   const estimatedMarginPct = order.totalValue > 0 ? (estimatedNet / order.totalValue) * 100 : 0;
 
   const [detailTab, setDetailTab] = useState<"comercial" | "rentabilidad">("comercial");
@@ -690,9 +709,9 @@ function OrderDetailPanel({
                   sub={`-${formatARS(order.totalValue - netAfterIVA)} IVA`}
                 />
                 <MetricPill
-                  label={hasCostData ? "Ganancia neta" : "Estimado neto"}
+                  label={hasCostData && hasRealCommission ? "Ganancia neta" : "Estimado neto"}
                   value={formatARS(estimatedNet)}
-                  sub={hasCostData ? `${estimatedMarginPct.toFixed(0)}% margen (c/ COGS)` : `~${estimatedMarginPct.toFixed(0)}% margen (sin COGS)`}
+                  sub={`${hasCostData && hasRealCommission ? "" : "~"}${estimatedMarginPct.toFixed(0)}% margen`}
                   color={estimatedMarginPct > 20 ? "text-emerald-600" : estimatedMarginPct > 10 ? "text-amber-600" : "text-red-600"}
                 />
               </div>
@@ -726,18 +745,28 @@ function OrderDetailPanel({
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">- IVA 21%</span>
-                  <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(order.totalValue - netAfterIVA)}</span>
+                  <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(ivaAmount)}</span>
                 </div>
                 {isMeli && meliCommission > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">- Comisión ML (~13%)</span>
+                    <span className="text-sm text-slate-500">
+                      - Comisión ML {hasRealCommission ? `(${meliCommissionPct.toFixed(1)}%)` : "(~13% est.)"}
+                    </span>
                     <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(meliCommission)}</span>
                   </div>
                 )}
-                {shipping > 0 && (
+                {isMeli && mlTaxWithholdings > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">- Costo envío</span>
-                    <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(shipping)}</span>
+                    <span className="text-sm text-slate-500">- Retenciones ML (IIBB/IVA/Gan.)</span>
+                    <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(mlTaxWithholdings)}</span>
+                  </div>
+                )}
+                {realShipCost > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">
+                      - Costo envío{(order.realShippingCost || 0) > 0 ? " (tarifa real)" : ""}
+                    </span>
+                    <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(realShipCost)}</span>
                   </div>
                 )}
                 {hasCostData && (
@@ -746,17 +775,27 @@ function OrderDetailPanel({
                     <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(totalCogs)}</span>
                   </div>
                 )}
-                {!hasCostData && (
-                  <div className="flex items-center gap-1.5 mt-1 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200/60">
-                    <AlertTriangle size={11} className="text-amber-500 flex-shrink-0" />
-                    <span className="text-[10px] text-amber-700">Sin costos cargados — margen estimado sin COGS</span>
-                  </div>
-                )}
+                {/* Warning about missing data */}
+                {(() => {
+                  const missing: string[] = [];
+                  if (!hasCostData) missing.push("COGS");
+                  if (isMeli && !hasRealCommission) missing.push("comisión real ML");
+                  if (isMeli && mlTaxWithholdings === 0) missing.push("retenciones");
+                  if (missing.length === 0) return null;
+                  return (
+                    <div className="flex items-center gap-1.5 mt-1 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200/60">
+                      <AlertTriangle size={11} className="text-amber-500 flex-shrink-0" />
+                      <span className="text-[10px] text-amber-700">Faltan: {missing.join(", ")}</span>
+                    </div>
+                  );
+                })()}
                 <div
                   className="flex items-center justify-between pt-2.5"
                   style={{ borderTop: "2px dashed rgba(15,23,42,0.08)" }}
                 >
-                  <span className="text-sm font-bold text-slate-900">{hasCostData ? "Ganancia neta" : "Ingreso neto estimado"}</span>
+                  <span className="text-sm font-bold text-slate-900">
+                    {hasCostData && hasRealCommission ? "Ganancia neta" : "Ingreso neto estimado"}
+                  </span>
                   <span className={`text-base font-bold tabular-nums tracking-tight ${estimatedNet >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                     {formatARS(estimatedNet)}
                   </span>

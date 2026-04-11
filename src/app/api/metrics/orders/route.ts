@@ -420,9 +420,15 @@ export async function GET(request: NextRequest) {
           COALESCE(o."channel", '') AS channel,
           COALESCE(o."deliveryType", '') AS delivery_type,
           COALESCE(o."shippingCarrier", '') AS shipping_carrier,
-          COALESCE(o."pickupStoreName", '') AS pickup_store_name
+          COALESCE(o."pickupStoreName", '') AS pickup_store_name,
+          COALESCE(o."realShippingCost", 0)::text AS real_shipping_cost,
+          COALESCE(mc."commissionAmount", 0)::text AS ml_commission_amount,
+          COALESCE(mc."commissionRate", 0)::text AS ml_commission_rate,
+          COALESCE(mc."taxWithholdings", 0)::text AS ml_tax_withholdings,
+          COALESCE(mc."netAmount", 0)::text AS ml_net_amount
         FROM orders o
         LEFT JOIN customers c ON c.id = o."customerId"
+        LEFT JOIN ml_commissions mc ON mc."mlOrderId" = o."externalId" AND mc."organizationId" = o."organizationId"
         LEFT JOIN LATERAL (
           SELECT json_agg(json_build_object(
             'name', p.name,
@@ -1037,5 +1043,10 @@ function formatOrder(o: any) {
     deliveryType: o.delivery_type || null,
     shippingCarrier: o.shipping_carrier || null,
     pickupStoreName: o.pickup_store_name || null,
+    realShippingCost: Number(o.real_shipping_cost) || 0,
+    mlCommissionAmount: Number(o.ml_commission_amount) || 0,
+    mlCommissionRate: Number(o.ml_commission_rate) || 0,
+    mlTaxWithholdings: Number(o.ml_tax_withholdings) || 0,
+    mlNetAmount: Number(o.ml_net_amount) || 0,
   };
 }
