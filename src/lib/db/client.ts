@@ -27,10 +27,14 @@ function convertDecimalsToNumbers(obj: unknown): unknown {
 }
 
 function createPrismaClient(): PrismaClient {
-  // Use Neon DATABASE_URL as-is — do NOT override connection_limit.
-  // Neon manages its own pool; overriding can cause silent failures.
-  // Queries are batched sequentially (max 3 parallel) to stay within limits.
+  // Railway DB allows max 5 connections. Limit Prisma to 3 so webhook/cron
+  // can still get connections when the API is running heavy queries.
+  const rawUrl = process.env.DATABASE_URL || "";
+  const sep = rawUrl.includes("?") ? "&" : "?";
+  const dsUrl = `${rawUrl}${sep}connection_limit=3&pool_timeout=15`;
+
   const client = new PrismaClient({
+    datasourceUrl: dsUrl,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 

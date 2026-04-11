@@ -70,8 +70,9 @@ export async function GET(request: NextRequest) {
   try {
     const ORG_ID = await getOrganizationId();
     if (!migrated) {
-      // Don't await in hot path — fire and forget to avoid adding latency
-      ensureColumns().catch(() => {});
+      // Await to avoid competing for connections with the query batches below.
+      // Only runs once per cold start — subsequent requests skip this.
+      await ensureColumns().catch(() => {});
       migrated = true;
     }
     const { searchParams } = new URL(request.url);
@@ -119,11 +120,10 @@ export async function GET(request: NextRequest) {
        Max 3 parallel = always safe with any pool config.
        ══════════════════════════════════════════════════════════ */
 
-    // ── BATCH 1: KPIs (3 queries) ──
+    // ── BATCH 1a: KPIs current + previous (2 queries) ──
     const [
       currentPeriod,
       previousPeriod,
-      dailySales,
     ] = await Promise.all([
 
       /* 1) Current period KPIs */
@@ -167,7 +167,10 @@ export async function GET(request: NextRequest) {
           AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
       `, prevFrom, prevTo),
+    ]);
 
+    // ── BATCH 1b: Daily sales (1 query, separate to stay within pool limit) ──
+    const [dailySales] = await Promise.all([
       /* 3) Daily sales */
       prisma.$queryRawUnsafe<Array<{
         day: string;
@@ -265,11 +268,10 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
-    // ── BATCH 3: Payment + status + top products (3 queries) ──
+    // ── BATCH 3: Payment + status (2 queries) ──
     const [
       topPaymentMethods,
       statusBreakdown,
-      topProducts,
     ] = await Promise.all([
 
       /* 6) Payment methods — with source for label translation */
@@ -311,7 +313,10 @@ export async function GET(request: NextRequest) {
         GROUP BY status
         ORDER BY COUNT(*) DESC
       `, dateFrom, dateTo),
+    ]);
 
+    // ── BATCH 3b: Top products (heavy JOIN, runs alone) ──
+    const [topProducts] = await Promise.all([
       /* 8) Top products */
       prisma.$queryRawUnsafe<Array<{
         product_id: string;
@@ -466,11 +471,10 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
-    // ── BATCH 5: Cancelled + prevDaily + promotions (3 queries) ──
+    // ── BATCH 5: Cancelled + prevDaily (2 queries) ──
     const [
       cancelledResult,
       prevDailySales,
-      promotionBreakdown,
     ] = await Promise.all([
 
       /* 11) Cancelled count */
@@ -499,7 +503,10 @@ export async function GET(request: NextRequest) {
         GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')
         ORDER BY day ASC
       `, prevFrom, prevTo),
+    ]);
 
+    // ── BATCH 5b: Promotions (1 query) ──
+    const [promotionBreakdown] = await Promise.all([
       /* 13) Promotion breakdown — with source for "Sin promo" distinction */
       prisma.$queryRawUnsafe<Array<{
         promo: string;
@@ -554,11 +561,10 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
-    // ── BATCH 7: Heavy analytics (3 queries) ──
+    // ── BATCH 7a: Cohorts + profitability (2 queries) ──
     const [
       cohortsRaw,
       profitabilityRaw,
-      logisticsByDelivery,
     ] = await Promise.all([
 
       /* 16) Cohorts — new / returning / VIP / anonymous (split by source) */
@@ -625,7 +631,10 @@ export async function GET(request: NextRequest) {
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhere}
       `, dateFrom, dateTo),
+    ]);
 
+    // ── BATCH 7b: Logistics by delivery (1 query) ──
+    const [logisticsByDelivery] = await Promise.all([
       /* 18) Logistics — by delivery type */
       prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string;
@@ -646,11 +655,10 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
-    // ── BATCH 8: Logistics + segmentation (3 queries) ──
+    // ── BATCH 8a: Logistics + device (2 queries) ──
     const [
       logisticsByCarrier,
       segByDevice,
-      segByChannel,
     ] = await Promise.all([
 
       /* 19) Logistics — by carrier */
@@ -689,7 +697,10 @@ export async function GET(request: NextRequest) {
         GROUP BY "deviceType"
         ORDER BY COUNT(*) DESC
       `, dateFrom, dateTo),
+    ]);
 
+    // ── BATCH 8b: Channel segmentation (1 query) ──
+    const [segByChannel] = await Promise.all([
       /* 21) Segmentation — by channel */
       prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string;
