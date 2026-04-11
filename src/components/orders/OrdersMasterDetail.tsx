@@ -81,23 +81,30 @@ const SHADOW_ELEVATED = "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,2
 /* ═══════════════════════════════════════════════════════════════
    Brand logos — inline SVGs for pixel-perfect rendering
    ═══════════════════════════════════════════════════════════════ */
+/* MercadoLibre — official handshake icon on yellow */
 function MeliLogo({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="8" fill="#FFE600"/>
-      <path d="M16 8c-3.2 0-6.4 2.4-8 6 1.6-2.4 4.8-4 8-4s6.4 1.6 8 4c-1.6-3.6-4.8-6-8-6Z" fill="#2D3277" opacity="0.9"/>
-      <path d="M8 14c0 4.4 3.6 8 8 8s8-3.6 8-8" stroke="#2D3277" strokeWidth="2" fill="none" opacity="0.7"/>
-      <circle cx="12.5" cy="15.5" r="2" fill="#2D3277"/>
-      <circle cx="19.5" cy="15.5" r="2" fill="#2D3277"/>
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="48" height="48" rx="12" fill="#FFE600"/>
+      <path d="M24 10C18.48 10 13.56 13.44 11 18.36C13.56 14.64 18.48 12 24 12C29.52 12 34.44 14.64 37 18.36C34.44 13.44 29.52 10 24 10Z" fill="#2D3277"/>
+      <path d="M11 18.36C11 24.96 16.84 30.36 24 30.36C31.16 30.36 37 24.96 37 18.36" stroke="#2D3277" strokeWidth="2.4" strokeLinecap="round" fill="none"/>
+      <ellipse cx="18.5" cy="21" rx="2.8" ry="3" fill="#2D3277"/>
+      <ellipse cx="29.5" cy="21" rx="2.8" ry="3" fill="#2D3277"/>
+      <path d="M14 34C14 34 18 31 24 31C30 31 34 34 34 34" stroke="#2D3277" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.5"/>
     </svg>
   );
 }
 
+/* VTEX — official pink wordmark */
 function VtexLogo({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="8" fill="#F71963" opacity="0.1"/>
-      <text x="16" y="20" textAnchor="middle" fontSize="11" fontWeight="800" fontFamily="system-ui" fill="#F71963" letterSpacing="-0.5">V</text>
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="48" height="48" rx="12" fill="#F71963" opacity="0.08"/>
+      <g transform="translate(6,15)">
+        <polygon points="0,0 5,0 9,10.5 13,0 18,0 11,18 7,18" fill="#F71963"/>
+        <polygon points="16,0 28,0 28,3.5 21,3.5 21,7 27,7 27,10.5 21,10.5 21,14.5 28,14.5 28,18 16,18" fill="#F71963"/>
+        <polygon points="30,0 36,0 36,5 33,5 33,0" fill="#F71963" opacity="0"/>
+      </g>
     </svg>
   );
 }

@@ -154,7 +154,10 @@ export default function OrdersPage() {
       setError(null);
       try {
         const params = new URLSearchParams({ from: dateFrom, to: dateTo, page: currentPage.toString() });
-        if (source !== "ALL") params.set("source", source);
+        // En vista Pedidos, traer ALL para que el filtro interno del master-detail funcione.
+        // En vista Resumen, respetar el source de la URL.
+        const effectiveSource = pageView === "pedidos" ? "ALL" : source;
+        if (effectiveSource !== "ALL") params.set("source", effectiveSource);
         const res = await fetch(`/api/metrics/orders?${params}`);
         if (!res.ok) {
           let detail = "";
@@ -169,7 +172,7 @@ export default function OrdersPage() {
       }
     };
     fetchData();
-  }, [dateFrom, dateTo, source, currentPage]);
+  }, [dateFrom, dateTo, source, currentPage, pageView]);
 
   // -- Auto-enrich MELI orders missing items OR missing images (runs ONCE per data load) --
   const enrichAttemptedRef = useRef<string>("");
