@@ -652,20 +652,32 @@ export async function GET(request: NextRequest) {
         gross_revenue: string; gross_with_cost: string; gross_without_cost: string;
         total_cogs: string; orders_with_cost: string; orders_total: string;
       }]>(`
+        WITH item_costs AS (
+          SELECT oi."orderId", oi."totalPrice", oi.quantity,
+            COALESCE(oi."costPrice", p."costPrice",
+              (SELECT p2."costPrice" FROM products p2
+               WHERE p2."organizationId" = o."organizationId"
+                 AND p2.sku IS NOT NULL AND p2.sku != ''
+                 AND p2.sku = p.sku AND p2.id != p.id
+                 AND p2."costPrice" IS NOT NULL AND p2."costPrice" > 0
+               LIMIT 1)
+            ) AS effective_cost
+          FROM order_items oi
+          JOIN orders o ON o.id = oi."orderId"
+          LEFT JOIN products p ON p.id = oi."productId"
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o."orderDate" >= $1 AND o."orderDate" <= $2
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            ${srcWhere}
+        )
         SELECT
-          COALESCE(SUM(oi."totalPrice"), 0)::text AS gross_revenue,
-          COALESCE(SUM(CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NOT NULL AND COALESCE(oi."costPrice", p."costPrice") > 0 THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_with_cost,
-          COALESCE(SUM(CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NULL OR COALESCE(oi."costPrice", p."costPrice") = 0 THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_without_cost,
-          COALESCE(SUM(CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NOT NULL AND COALESCE(oi."costPrice", p."costPrice") > 0 THEN oi.quantity * COALESCE(oi."costPrice", p."costPrice") ELSE 0 END), 0)::text AS total_cogs,
-          COUNT(DISTINCT CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NOT NULL AND COALESCE(oi."costPrice", p."costPrice") > 0 THEN o.id END)::text AS orders_with_cost,
-          COUNT(DISTINCT o.id)::text AS orders_total
-        FROM order_items oi
-        JOIN orders o ON o.id = oi."orderId"
-        LEFT JOIN products p ON p.id = oi."productId"
-        WHERE o."organizationId" = '${ORG_ID}'
-          AND o."orderDate" >= $1 AND o."orderDate" <= $2
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
-          ${srcWhere}
+          COALESCE(SUM("totalPrice"), 0)::text AS gross_revenue,
+          COALESCE(SUM(CASE WHEN effective_cost IS NOT NULL AND effective_cost > 0 THEN "totalPrice" ELSE 0 END), 0)::text AS gross_with_cost,
+          COALESCE(SUM(CASE WHEN effective_cost IS NULL OR effective_cost = 0 THEN "totalPrice" ELSE 0 END), 0)::text AS gross_without_cost,
+          COALESCE(SUM(CASE WHEN effective_cost IS NOT NULL AND effective_cost > 0 THEN quantity * effective_cost ELSE 0 END), 0)::text AS total_cogs,
+          COUNT(DISTINCT CASE WHEN effective_cost IS NOT NULL AND effective_cost > 0 THEN "orderId" END)::text AS orders_with_cost,
+          COUNT(DISTINCT "orderId")::text AS orders_total
+        FROM item_costs
       `, dateFrom, dateTo),
     ]);
 
