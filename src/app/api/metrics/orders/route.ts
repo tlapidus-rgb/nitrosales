@@ -41,6 +41,9 @@ async function ensureColumns() {
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "order_items_productId_idx" ON order_items ("productId")`);
     // Index on products.sku for cross-referencing MELI→VTEX costs by SKU
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "products_org_sku_idx" ON products ("organizationId", sku) WHERE sku IS NOT NULL AND sku != ''`);
+    // Tanda 9: marketplaceFee column for ML commission tracking
+    await prisma.$executeRawUnsafe(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "marketplaceFee" DECIMAL(12, 2) NULL`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS orders_marketplace_fee_idx ON orders ("organizationId", "orderDate") WHERE "marketplaceFee" IS NOT NULL`);
   } catch (e) {
     // Columns/indexes likely already exist
   }
