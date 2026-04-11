@@ -81,31 +81,33 @@ const SHADOW_ELEVATED = "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,2
 /* ═══════════════════════════════════════════════════════════════
    Brand logos — inline SVGs for pixel-perfect rendering
    ═══════════════════════════════════════════════════════════════ */
-/* MercadoLibre — official handshake icon on yellow */
+/* MercadoLibre — official brand icon from /public */
 function MeliLogo({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="48" height="48" rx="12" fill="#FFE600"/>
-      <path d="M24 10C18.48 10 13.56 13.44 11 18.36C13.56 14.64 18.48 12 24 12C29.52 12 34.44 14.64 37 18.36C34.44 13.44 29.52 10 24 10Z" fill="#2D3277"/>
-      <path d="M11 18.36C11 24.96 16.84 30.36 24 30.36C31.16 30.36 37 24.96 37 18.36" stroke="#2D3277" strokeWidth="2.4" strokeLinecap="round" fill="none"/>
-      <ellipse cx="18.5" cy="21" rx="2.8" ry="3" fill="#2D3277"/>
-      <ellipse cx="29.5" cy="21" rx="2.8" ry="3" fill="#2D3277"/>
-      <path d="M14 34C14 34 18 31 24 31C30 31 34 34 34 34" stroke="#2D3277" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.5"/>
-    </svg>
+    <img
+      src="/logos/mercadolibre.svg"
+      alt="ML"
+      width={size}
+      height={size}
+      className="object-contain"
+      style={{ display: "block", borderRadius: size > 20 ? 6 : 3 }}
+      loading="lazy"
+    />
   );
 }
 
-/* VTEX — official pink wordmark */
+/* VTEX — official brand icon from /public */
 function VtexLogo({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="48" height="48" rx="12" fill="#F71963" opacity="0.08"/>
-      <g transform="translate(6,15)">
-        <polygon points="0,0 5,0 9,10.5 13,0 18,0 11,18 7,18" fill="#F71963"/>
-        <polygon points="16,0 28,0 28,3.5 21,3.5 21,7 27,7 27,10.5 21,10.5 21,14.5 28,14.5 28,18 16,18" fill="#F71963"/>
-        <polygon points="30,0 36,0 36,5 33,5 33,0" fill="#F71963" opacity="0"/>
-      </g>
-    </svg>
+    <img
+      src="/logos/vtex.svg"
+      alt="VTEX"
+      width={size}
+      height={size}
+      className="object-contain"
+      style={{ display: "block", borderRadius: size > 20 ? 6 : 3 }}
+      loading="lazy"
+    />
   );
 }
 
@@ -945,32 +947,39 @@ export default function OrdersMasterDetail({
             />
           </div>
 
-          {/* Source filter with logos */}
+          {/* Source filter with brand logos */}
           <div
-            className="flex items-center rounded-xl p-0.5"
+            className="flex items-center rounded-xl p-[3px] gap-[2px]"
             style={{
-              background: "linear-gradient(135deg, #f1f5f9 0%, #e8ecf1 100%)",
+              background: "linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)",
+              border: "1px solid rgba(15,23,42,0.06)",
             }}
           >
-            {(["ALL", "VTEX", "MELI"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => onSourceFilterChange(s)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold tracking-wide ${
-                  sourceFilter === s
-                    ? "bg-white text-slate-900"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-                style={{
-                  transition: `all 180ms ${EASE}`,
-                  ...(sourceFilter === s ? { boxShadow: "0 1px 3px rgba(15,23,42,0.08)" } : {}),
-                }}
-              >
-                {s === "VTEX" && <VtexLogo size={14} />}
-                {s === "MELI" && <MeliLogo size={14} />}
-                {s === "ALL" ? "Todos" : s === "MELI" ? "Mercado Libre" : "VTEX"}
-              </button>
-            ))}
+            {(["ALL", "VTEX", "MELI"] as const).map((s) => {
+              const isActive = sourceFilter === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => onSourceFilterChange(s)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-[10px] text-[11px] font-semibold ${
+                    isActive
+                      ? "bg-white text-slate-900"
+                      : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                  }`}
+                  style={{
+                    transition: `all 200ms ${EASE}`,
+                    ...(isActive ? {
+                      boxShadow: "0 1px 3px rgba(15,23,42,0.1), 0 1px 2px rgba(15,23,42,0.06)",
+                    } : {}),
+                  }}
+                >
+                  {s === "VTEX" && <VtexLogo size={18} />}
+                  {s === "MELI" && <MeliLogo size={18} />}
+                  {s === "ALL" && <Layers size={13} className="text-slate-400" />}
+                  {s === "ALL" ? "Todos" : s === "MELI" ? "Mercado Libre" : "VTEX"}
+                </button>
+              );
+            })}
           </div>
 
           {/* Status pills */}
