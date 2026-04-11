@@ -27,11 +27,13 @@ function convertDecimalsToNumbers(obj: unknown): unknown {
 }
 
 function createPrismaClient(): PrismaClient {
-  // Railway DB allows max 5 connections. Limit Prisma to 3 so webhook/cron
-  // can still get connections when the API is running heavy queries.
+  // Railway PostgreSQL allows many more connections than we were using.
+  // Bumped pool to 8 so the dashboard's ~15 sequential query batches
+  // don't queue behind slow /sync/inventory or webhook calls.
+  // pool_timeout=30 gives headroom before Prisma throws "timed out".
   const rawUrl = process.env.DATABASE_URL || "";
   const sep = rawUrl.includes("?") ? "&" : "?";
-  const dsUrl = `${rawUrl}${sep}connection_limit=3&pool_timeout=15`;
+  const dsUrl = `${rawUrl}${sep}connection_limit=8&pool_timeout=30&statement_timeout=25000`;
 
   const client = new PrismaClient({
     datasourceUrl: dsUrl,

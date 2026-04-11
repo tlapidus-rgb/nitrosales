@@ -150,43 +150,58 @@ export default function OrdersPage() {
     setCompOffset(0);
   }, [source, dateFrom, dateTo]);
 
-  // -- Single fetch (fixed: no duplicate) --
+  // -- Single fetch with automatic retry --
   useEffect(() => {
+    let cancelled = false;
+
+    const fetchOnce = async (signal: AbortSignal): Promise<Response> => {
+      const params = new URLSearchParams({ from: dateFrom, to: dateTo, page: currentPage.toString() });
+      const effectiveSource = pageView === "pedidos" ? "ALL" : source;
+      if (effectiveSource !== "ALL") params.set("source", effectiveSource);
+      if (compMode !== "off") {
+        params.set("compMode", compMode);
+        if (compOffset !== 0) params.set("compOffset", String(compOffset));
+      }
+      return fetch(`/api/metrics/orders?${params}`, { signal });
+    };
+
     const fetchData = async () => {
       setLoading(true);
       setError(null);
-      try {
-        const params = new URLSearchParams({ from: dateFrom, to: dateTo, page: currentPage.toString() });
-        // En vista Pedidos, traer ALL para que el filtro interno del master-detail funcione.
-        // En vista Resumen, respetar el source de la URL.
-        const effectiveSource = pageView === "pedidos" ? "ALL" : source;
-        if (effectiveSource !== "ALL") params.set("source", effectiveSource);
-        // Comparison mode params
-        if (compMode !== "off") {
-          params.set("compMode", compMode);
-          if (compOffset !== 0) params.set("compOffset", String(compOffset));
+      const MAX_RETRIES = 2; // up to 3 total attempts
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (cancelled) return;
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 45000); // 45s timeout
+          const res = await fetchOnce(controller.signal);
+          clearTimeout(timeout);
+          if (cancelled) return;
+          if (!res.ok) {
+            let detail = "";
+            try { const body = await res.json(); detail = body?.detail || body?.error || ""; } catch {}
+            // Retry on 500/502/503/504
+            if (res.status >= 500 && attempt < MAX_RETRIES) continue;
+            throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
+          }
+          setData(await res.json());
+          return; // success
+        } catch (e: any) {
+          if (cancelled) return;
+          if (e.name === "AbortError" && attempt < MAX_RETRIES) continue; // retry on timeout
+          if (attempt >= MAX_RETRIES) {
+            if (e.name === "AbortError") {
+              setError("La carga tardó demasiado. Probá refrescar la página o cerrar otras pestañas que usen la app.");
+            } else {
+              setError(e.message);
+            }
+          }
         }
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
-        const res = await fetch(`/api/metrics/orders?${params}`, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (!res.ok) {
-          let detail = "";
-          try { const body = await res.json(); detail = body?.detail || body?.error || ""; } catch {}
-          throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
-        }
-        setData(await res.json());
-      } catch (e: any) {
-        if (e.name === "AbortError") {
-          setError("La carga tardó demasiado. Probá refrescar la página o cerrar otras pestañas que usen la app.");
-        } else {
-          setError(e.message);
-        }
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     };
-    fetchData();
+    fetchData().finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [dateFrom, dateTo, source, currentPage, pageView, compMode, compOffset]);
 
   // -- Auto-enrich MELI orders missing items OR missing images (runs ONCE per data load) --
