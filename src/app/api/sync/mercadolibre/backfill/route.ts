@@ -87,6 +87,11 @@ export async function GET(req: NextRequest) {
           const allPromos = Array.from(new Set([...orderPromos, ...itemPromos]));
           const promotionNames = allPromos.length ? allPromos.join(", ") : null;
 
+          // Extract shipping cost & delivery type from shipping data
+          const shippingCost = order.shipping?.cost ?? null;
+          const deliveryType = order.shipping?.shipment_type === "pickup"
+            ? "pickup" : order.shipping ? "shipping" : null;
+
           const dbOrder = await prisma.order.upsert({
             where: {
               organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
@@ -97,6 +102,9 @@ export async function GET(req: NextRequest) {
               itemCount,
               promotionNames,
               paymentMethod: order.payments?.[0]?.payment_type || null,
+              ...(marketplaceFee > 0 ? { marketplaceFee } : {}),
+              ...(shippingCost != null ? { shippingCost } : {}),
+              ...(deliveryType ? { deliveryType } : {}),
             },
             create: {
               organizationId: orgId,
@@ -109,6 +117,9 @@ export async function GET(req: NextRequest) {
               source: "MELI",
               channel: "marketplace",
               paymentMethod: order.payments?.[0]?.payment_type || null,
+              ...(marketplaceFee > 0 ? { marketplaceFee } : {}),
+              ...(shippingCost != null ? { shippingCost } : {}),
+              ...(deliveryType ? { deliveryType } : {}),
               orderDate: new Date(order.date_created),
             },
           });
@@ -228,6 +239,68 @@ export async function GET(req: NextRequest) {
           upserted++;
         }
         result = { step: "questions", fetched: questions.length, upserted };
+        break;
+      }
+
+      case "fees": {
+        // Backfill marketplaceFee for MELI orders that don't have it
+        const ordersNeedFees = await prisma.order.findMany({
+          where: {
+            organizationId: orgId,
+            source: "MELI",
+            marketplaceFee: null,
+          },
+          select: { id: true, externalId: true },
+          orderBy: { orderDate: "desc" },
+          take: parseInt(searchParams.get("batch") || "50"),
+        });
+
+        const totalMissing = await prisma.order.count({
+          where: { organizationId: orgId, source: "MELI", marketplaceFee: null },
+        });
+
+        let updated = 0;
+        const errors: string[] = [];
+        const ML_API = "https://api.mercadolibre.com";
+
+        for (const order of ordersNeedFees) {
+          try {
+            const res = await fetch(`${ML_API}/orders/${order.externalId}`, {
+              headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+              signal: AbortSignal.timeout(10000),
+            });
+            if (!res.ok) { errors.push(`${order.externalId}: HTTP ${res.status}`); continue; }
+            const detail = await res.json();
+
+            const mlItems = detail.order_items || [];
+            const fee = mlItems.reduce(
+              (sum: number, item: any) => sum + (Number(item.sale_fee) || 0), 0
+            );
+            const shipCost = detail.shipping?.cost ?? null;
+            const deliveryType = detail.shipping?.shipment_type === "pickup"
+              ? "pickup" : detail.shipping ? "shipping" : null;
+
+            await prisma.order.update({
+              where: { id: order.id },
+              data: {
+                marketplaceFee: fee > 0 ? fee : 0,
+                ...(shipCost != null ? { shippingCost: shipCost } : {}),
+                ...(deliveryType ? { deliveryType } : {}),
+                paymentMethod: detail.payments?.[0]?.payment_type || undefined,
+              },
+            });
+            updated++;
+          } catch (e: any) {
+            errors.push(`${order.externalId}: ${e.message.substring(0, 80)}`);
+          }
+        }
+
+        result = {
+          step: "fees",
+          updated,
+          remaining: totalMissing - updated,
+          errors: errors.slice(0, 10),
+        };
         break;
       }
 

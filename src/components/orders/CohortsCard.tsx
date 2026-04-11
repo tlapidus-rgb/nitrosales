@@ -7,16 +7,18 @@
 // muestra explícito para que cualquier analista entienda.
 // ══════════════════════════════════════════════════════════════
 
-import { Users, Sparkles, Repeat, UserPlus, UserX, Info, AlertTriangle } from "lucide-react";
+import { Users, Sparkles, Repeat, UserPlus, UserX, Info, AlertTriangle, Store, ShoppingBag } from "lucide-react";
 import { formatARS } from "@/lib/utils/format";
-import type { CohortsData, CohortStats } from "./types";
+import type { CohortsData, CohortStats, SourceCounts } from "./types";
 
 interface CohortsCardProps {
   data: CohortsData | null | undefined;
   loading?: boolean;
+  source?: "ALL" | "VTEX" | "MELI";
+  sourceCounts?: SourceCounts;
 }
 
-export default function CohortsCard({ data, loading }: CohortsCardProps) {
+export default function CohortsCard({ data, loading, source, sourceCounts }: CohortsCardProps) {
   if (loading) {
     return (
       <section className="dash-card dash-fade-up p-5">
@@ -112,6 +114,34 @@ export default function CohortsCard({ data, loading }: CohortsCardProps) {
             de VTEX sin cliente asociado. En VTEX deber\u00edan tener email \u2014 revisar
             el sync o el matching de clientes.
           </p>
+        </div>
+      )}
+
+      {/* Tanda 9 — Resumen VTEX vs MELI por cantidad de pedidos (solo tab "Todos") */}
+      {source === "ALL" && sourceCounts && (sourceCounts.vtex > 0 || sourceCounts.meli > 0) && (
+        <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Pedidos por fuente</p>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                <Store className="w-3 h-3 text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold tabular-nums text-slate-900">{sourceCounts.vtex.toLocaleString("es-AR")}</p>
+                <p className="text-[10px] text-slate-500">VTEX (con cliente)</p>
+              </div>
+            </div>
+            <div className="h-8 w-px bg-slate-200" />
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-amber-50 flex items-center justify-center flex-shrink-0">
+                <ShoppingBag className="w-3 h-3 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold tabular-nums text-slate-900">{sourceCounts.meli.toLocaleString("es-AR")}</p>
+                <p className="text-[10px] text-slate-500">MELI (anónimos)</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

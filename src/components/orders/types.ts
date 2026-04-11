@@ -167,6 +167,14 @@ export interface AnomaliesData {
   thresholds: Record<string, number>;
 }
 
+// ── MELI Catalog (Tanda 9) ──
+export interface MeliCatalogItem {
+  type: string;     // "Catálogo" | "Fuera de catálogo"
+  orders: number;
+  revenue: number;
+  units: number;
+}
+
 // ── Union envelope — pieces of the v4 response we consume in Tanda 3 ──
 export interface OrdersV4Namespaces {
   profitability?: ProfitabilityData;
@@ -178,4 +186,5 @@ export interface OrdersV4Namespaces {
   geography?: GeographyData;
   anomalies?: AnomaliesData;
   sourceCounts?: SourceCounts;
+  meliCatalog?: MeliCatalogItem[];
 }

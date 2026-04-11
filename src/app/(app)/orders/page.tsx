@@ -31,6 +31,7 @@ import {
   SourceTabs,
   SourceSplitBar,
   MercadoLibreCascadeCard,
+  MeliCatalogCard,
   OrdersMasterDetail,
   type AnomalyFlag,
   type OrdersV4Namespaces,
@@ -524,18 +525,25 @@ export default function OrdersPage() {
         />
       )}
 
-      {/* PROFITABILITY + COHORTS (Tanda 4 + 8.2)
-          - VTEX: muestra ambos (margen real con COGS)
-          - Todos/ML: solo cohorts (margen requiere COGS que solo VTEX tiene) */}
+      {/* PROFITABILITY + COHORTS (Tanda 4 + 8.2 + Tanda 9)
+          - VTEX: muestra ambos (margen real con COGS + tipos de cliente)
+          - Todos: solo cohorts (split VTEX/MELI)
+          - MELI: ni profitability card ni cohorts (100% anónimo, inutil)
+                  → se reemplaza por MeliCatalogCard */}
       {source === "VTEX" ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ProfitabilityCard data={data.profitability} loading={loading} />
-          <CohortsCard data={data.cohorts} loading={loading} />
+          <CohortsCard data={data.cohorts} loading={loading} source={source} sourceCounts={data.sourceCounts} />
         </div>
-      ) : (
+      ) : source === "ALL" ? (
         <div className="grid grid-cols-1 gap-4">
-          <CohortsCard data={data.cohorts} loading={loading} />
+          <CohortsCard data={data.cohorts} loading={loading} source={source} sourceCounts={data.sourceCounts} />
         </div>
+      ) : null}
+
+      {/* MELI CATALOG (Tanda 9) — catálogo vs fuera de catálogo, solo en tab MELI */}
+      {source === "MELI" && (
+        <MeliCatalogCard data={data.meliCatalog} loading={loading} />
       )}
 
       {/* DAILY SALES CHART + COMPARISON */}
@@ -736,7 +744,7 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {data.promotionBreakdown && data.promotionBreakdown.length > 0 && (
+        {data.promotionBreakdown && data.promotionBreakdown.length > 0 && source !== "MELI" && (
           <div className="dash-card dash-chart-card p-6">
             <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Ventas por promocion</h2>
             <div className="flex gap-4">
@@ -772,8 +780,8 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* TOP PRODUCTS + CUSTOMERS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* TOP PRODUCTS + CUSTOMERS (Tanda 9: Top Clientes oculto para MELI — no hay datos de clientes) */}
+      <div className={`grid grid-cols-1 ${source !== "MELI" ? "lg:grid-cols-2" : ""} gap-4`}>
         <div className="dash-card p-6">
           <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Top productos vendidos</h2>
           <div className="space-y-2.5 max-h-[320px] overflow-y-auto">
@@ -799,6 +807,7 @@ export default function OrdersPage() {
           </div>
         </div>
 
+        {source !== "MELI" && (
         <div className="dash-card p-6">
           <div className="flex items-center gap-2 mb-4">
             <Users size={14} className="text-slate-400" />
@@ -823,6 +832,7 @@ export default function OrdersPage() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       </>)}

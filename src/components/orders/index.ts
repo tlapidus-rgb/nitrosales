@@ -18,6 +18,7 @@ export { default as PlatformScopeBanner } from "./PlatformScopeBanner";
 export { default as SourceTabs } from "./SourceTabs";
 export { default as SourceSplitBar } from "./SourceSplitBar";
 export { default as MercadoLibreCascadeCard } from "./MercadoLibreCascadeCard";
+export { default as MeliCatalogCard } from "./MeliCatalogCard";
 export {
   default as OrderFlagBadge,
   OrderFlagBadgeGroup,
@@ -43,4 +44,5 @@ export type {
   OrdersV4Namespaces,
   PlatformScope,
   SourceCounts,
+  MeliCatalogItem,
 } from "./types";

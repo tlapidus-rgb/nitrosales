@@ -176,6 +176,7 @@ model Order {
   shippingCarrier String?                         // Mensajería usada (ANDREANI, OCA, etc.)
   shippingService String?                         // Tipo de servicio (ESTANDAR, EXPRESS)
   realShippingCost Decimal? @db.Decimal(12, 2)   // Costo real calculado desde tabla de tarifas
+  marketplaceFee  Decimal?  @db.Decimal(12, 2)  // Comisión del marketplace (ML sale_fee). NULL para VTEX.
   deviceType      String?                         // mobile, desktop, tablet
   orderDate       DateTime    @db.Timestamptz      // Fecha del pedido (UTC from VTEX)
   createdAt       DateTime    @default(now())

@@ -141,7 +141,9 @@ export async function GET(request: NextRequest) {
           COALESCE(AVG("totalValue"), 0)::text AS avg_ticket,
           COALESCE(SUM("itemCount"), 0)::text AS total_items,
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS total_shipping,
-          COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS total_discounts
+          COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS total_discounts,
+          COALESCE(SUM(COALESCE("marketplaceFee", 0)), 0)::text AS total_marketplace_fee,
+          COUNT(CASE WHEN "marketplaceFee" IS NOT NULL AND "marketplaceFee" > 0 THEN 1 END)::text AS orders_with_fee
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
@@ -681,20 +683,33 @@ export async function GET(request: NextRequest) {
         LIMIT 10
       `, dateFrom, dateTo),
 
-      /* 20) Segmentation — by device */
+      /* 20) Segmentation — by device (enriched from NitroPixel when order field is NULL) */
       prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string;
       }>>(`
+        WITH order_device AS (
+          SELECT DISTINCT ON (o.id)
+            o.id,
+            o."totalValue",
+            COALESCE(
+              o."deviceType",
+              pv."deviceTypes"[1]
+            ) AS device
+          FROM orders o
+          LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id
+          LEFT JOIN pixel_visitors pv ON pv.id = pa."visitorId"
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o."orderDate" >= $1 AND o."orderDate" <= $2
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            ${srcWhere}
+          ORDER BY o.id, pa."createdAt" DESC NULLS LAST
+        )
         SELECT
-          COALESCE("deviceType", 'Sin dato') AS bucket,
+          COALESCE(device, 'Sin dato') AS bucket,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
-        FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED')
-          ${srcWhereSimple}
-        GROUP BY "deviceType"
+        FROM order_device
+        GROUP BY device
         ORDER BY COUNT(*) DESC
       `, dateFrom, dateTo),
     ]);
@@ -725,20 +740,32 @@ export async function GET(request: NextRequest) {
       couponsRaw,
     ] = await Promise.all([
 
-      /* 22) Segmentation — by traffic source */
+      /* 22) Segmentation — by traffic source (enriched from NitroPixel touchpoints) */
       prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string;
       }>>(`
+        WITH order_traffic AS (
+          SELECT DISTINCT ON (o.id)
+            o.id,
+            o."totalValue",
+            COALESCE(
+              o."trafficSource",
+              (pa.touchpoints::jsonb->0->>'source')
+            ) AS traffic_src
+          FROM orders o
+          LEFT JOIN pixel_attributions pa ON pa."orderId" = o.id
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o."orderDate" >= $1 AND o."orderDate" <= $2
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            ${srcWhere}
+          ORDER BY o.id, pa."createdAt" DESC NULLS LAST
+        )
         SELECT
-          COALESCE("trafficSource", 'Sin dato') AS bucket,
+          COALESCE(traffic_src, 'Sin dato') AS bucket,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
-        FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED')
-          ${srcWhereSimple}
-        GROUP BY "trafficSource"
+        FROM order_traffic
+        GROUP BY traffic_src
         ORDER BY COUNT(*) DESC
       `, dateFrom, dateTo),
 
@@ -808,6 +835,26 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
+    // ── BATCH 11: MELI catalog breakdown (only when source=MELI) ──
+    const meliCatalogRaw = sourceFilter === "MELI" ? await prisma.$queryRawUnsafe<Array<{
+      catalog_type: string; orders: string; revenue: string; units: string;
+    }>>(`
+      SELECT
+        CASE WHEN ml."catalogListing" = true THEN 'Catálogo' ELSE 'Fuera de catálogo' END AS catalog_type,
+        COUNT(DISTINCT o.id)::text AS orders,
+        COALESCE(SUM(oi."totalPrice"), 0)::text AS revenue,
+        SUM(oi.quantity)::text AS units
+      FROM order_items oi
+      JOIN orders o ON o.id = oi."orderId"
+      JOIN products p ON p.id = oi."productId"
+      LEFT JOIN ml_listings ml ON ml."mlItemId" = p."externalId" AND ml."organizationId" = o."organizationId"
+      WHERE o."organizationId" = '${ORG_ID}'
+        AND o."orderDate" >= $1 AND o."orderDate" <= $2
+        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+        AND o."source" = 'MELI'
+      GROUP BY CASE WHEN ml."catalogListing" = true THEN 'Catálogo' ELSE 'Fuera de catálogo' END
+    `, dateFrom, dateTo) : [];
+
     // ── Process results ──
     const curr = currentPeriod[0];
     const prev = previousPeriod[0];
@@ -817,6 +864,8 @@ export async function GET(request: NextRequest) {
     const totalOrders = Number(curr.total_orders);
     const totalRevenue = Number(curr.total_revenue);
     const avgTicket = Number(curr.avg_ticket);
+    const totalMarketplaceFee = Number((curr as any).total_marketplace_fee || 0);
+    const ordersWithFee = Number((curr as any).orders_with_fee || 0);
     const cancellationRate = totalOrders + cancelledOrders > 0
       ? (cancelledOrders / (totalOrders + cancelledOrders)) * 100
       : 0;
@@ -960,11 +1009,19 @@ export async function GET(request: NextRequest) {
         const marginAbs = grossWithCost - totalCogs;
         const marginPct = grossWithCost > 0 ? (marginAbs / grossWithCost) * 100 : 0;
         const netRevenue = totalRevenue / 1.21;
+        // MELI: real net = gross - marketplace fee - shipping. VTEX: gross / 1.21
+        const realNetRevenue = sourceFilter === "MELI"
+          ? totalRevenue - totalMarketplaceFee - Number(curr.total_shipping)
+          : netRevenue;
+        const feeCoveragePct = totalOrders > 0 ? (ordersWithFee / totalOrders) * 100 : 0;
         return {
           grossRevenue,
           grossWithCost: grossWithCost > 0 ? grossWithCost : undefined,
           grossWithoutCost: grossWithoutCost > 0 ? grossWithoutCost : undefined,
           netRevenue,
+          realNetRevenue: Math.round(realNetRevenue),
+          totalMarketplaceFee,
+          feeCoveragePct: Math.round(feeCoveragePct * 10) / 10,
           totalCogs,
           marginAbs: Math.round(marginAbs),
           marginPct: Math.round(marginPct * 10) / 10,
@@ -1018,6 +1075,12 @@ export async function GET(request: NextRequest) {
           topPostalCodes: geoPostalCodes.map(mapGeo),
         };
       })(),
+      meliCatalog: meliCatalogRaw.length > 0 ? meliCatalogRaw.map(r => ({
+        type: r.catalog_type,
+        orders: Number(r.orders),
+        revenue: Number(r.revenue),
+        units: Number(r.units),
+      })) : undefined,
       pagination: {
         page,
         pageSize,

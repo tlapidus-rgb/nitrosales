@@ -176,6 +176,112 @@ export async function GET(req: Request) {
       });
     }
 
+    // ═══ MODE: resync-coupons — backfill couponCode from VTEX marketingData ═══
+    if (mode === "resync-coupons") {
+      const ordersNeedCoupon = await prisma.$queryRawUnsafe<Array<{ id: string; externalId: string }>>(`
+        SELECT o.id, o."externalId"
+        FROM orders o
+        WHERE o."organizationId" = '${org.id}'
+          AND o.source = 'VTEX'
+          AND o."couponCode" IS NULL
+        ORDER BY o."orderDate" DESC
+        LIMIT ${batchSize}
+      `);
+
+      if (ordersNeedCoupon.length === 0) {
+        return NextResponse.json({ ok: true, mode: "resync-coupons", message: "All VTEX orders checked for coupons", updated: 0 });
+      }
+
+      const totalMissingResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
+        SELECT COUNT(*)::text AS cnt FROM orders
+        WHERE "organizationId" = '${org.id}' AND source = 'VTEX' AND "couponCode" IS NULL
+      `);
+      const totalMissing = Number(totalMissingResult[0].cnt);
+
+      let updated = 0;
+      let noCoupon = 0;
+      const errors: string[] = [];
+
+      for (const order of ordersNeedCoupon) {
+        try {
+          const detailUrl = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${order.externalId}`;
+          const res = await fetch(detailUrl, {
+            headers: { "X-VTEX-API-AppKey": appKey, "X-VTEX-API-AppToken": appToken, Accept: "application/json" },
+          });
+          if (!res.ok) { errors.push(order.externalId + ": HTTP " + res.status); continue; }
+          const detail = await res.json();
+          const coupon = detail.marketingData?.coupon || null;
+
+          await prisma.$executeRawUnsafe(
+            `UPDATE orders SET "couponCode" = $1 WHERE id = $2`,
+            coupon || "__none__",
+            order.id
+          );
+          if (coupon) updated++;
+          else noCoupon++;
+        } catch (e: any) {
+          errors.push(order.externalId + ": " + e.message.substring(0, 80));
+        }
+      }
+
+      return NextResponse.json({
+        ok: true, mode: "resync-coupons", updated, noCoupon, remaining: totalMissing - updated - noCoupon, errors: errors.slice(0, 10),
+      });
+    }
+
+    // ═══ MODE: resync-postalcodes — backfill postalCode from VTEX shippingData ═══
+    if (mode === "resync-postalcodes") {
+      const ordersNeedPostal = await prisma.$queryRawUnsafe<Array<{ id: string; externalId: string }>>(`
+        SELECT o.id, o."externalId"
+        FROM orders o
+        WHERE o."organizationId" = '${org.id}'
+          AND o.source = 'VTEX'
+          AND (o."postalCode" IS NULL OR o."postalCode" = '')
+        ORDER BY o."orderDate" DESC
+        LIMIT ${batchSize}
+      `);
+
+      if (ordersNeedPostal.length === 0) {
+        return NextResponse.json({ ok: true, mode: "resync-postalcodes", message: "All VTEX orders have postalCode", updated: 0 });
+      }
+
+      const totalMissingResult = await prisma.$queryRawUnsafe<[{ cnt: string }]>(`
+        SELECT COUNT(*)::text AS cnt FROM orders
+        WHERE "organizationId" = '${org.id}' AND source = 'VTEX'
+          AND ("postalCode" IS NULL OR "postalCode" = '')
+      `);
+      const totalMissing = Number(totalMissingResult[0].cnt);
+
+      let updated = 0;
+      const errors: string[] = [];
+
+      for (const order of ordersNeedPostal) {
+        try {
+          const detailUrl = `https://${account}.vtexcommercestable.com.br/api/oms/pvt/orders/${order.externalId}`;
+          const res = await fetch(detailUrl, {
+            headers: { "X-VTEX-API-AppKey": appKey, "X-VTEX-API-AppToken": appToken, Accept: "application/json" },
+          });
+          if (!res.ok) { errors.push(order.externalId + ": HTTP " + res.status); continue; }
+          const detail = await res.json();
+          const postal = detail.shippingData?.address?.postalCode || null;
+
+          if (postal) {
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { postalCode: postal },
+            });
+            updated++;
+          }
+        } catch (e: any) {
+          errors.push(order.externalId + ": " + e.message.substring(0, 80));
+        }
+      }
+
+      return NextResponse.json({
+        ok: true, mode: "resync-postalcodes", updated, remaining: totalMissing - updated, errors: errors.slice(0, 10),
+      });
+    }
+
     // ═══ MODE: resync-delivery — backfill deliveryType for orders missing it ═══
     if (mode === "resync-delivery") {
       const ordersNeedDelivery = await prisma.$queryRawUnsafe<Array<{ id: string; externalId: string }>>(`
