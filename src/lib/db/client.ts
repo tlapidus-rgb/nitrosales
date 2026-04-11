@@ -27,8 +27,8 @@ function convertDecimalsToNumbers(obj: unknown): unknown {
 }
 
 function createPrismaClient(): PrismaClient {
-  // Use Railway DATABASE_URL as-is — do NOT override connection_limit.
-  // Railway manages its own pool; overriding can cause silent failures.
+  // Use Neon DATABASE_URL as-is — do NOT override connection_limit.
+  // Neon manages its own pool; overriding can cause silent failures.
   // Queries are batched sequentially (max 3 parallel) to stay within limits.
   const client = new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
