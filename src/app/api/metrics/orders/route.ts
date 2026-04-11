@@ -39,6 +39,8 @@ async function ensureColumns() {
     // Ensure order_items indexes exist (critical for LATERAL JOIN + top products query)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "order_items_orderId_idx" ON order_items ("orderId")`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "order_items_productId_idx" ON order_items ("productId")`);
+    // Index on products.sku for cross-referencing MELI→VTEX costs by SKU
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "products_org_sku_idx" ON products ("organizationId", sku) WHERE sku IS NOT NULL AND sku != ''`);
   } catch (e) {
     // Columns/indexes likely already exist
   }
@@ -433,11 +435,23 @@ export async function GET(request: NextRequest) {
           SELECT json_agg(json_build_object(
             'name', p.name,
             'imageUrl', p."imageUrl",
-            'brand', p.brand,
+            'brand', COALESCE(p.brand,
+              (SELECT p2.brand FROM products p2
+               WHERE p2."organizationId" = o."organizationId"
+                 AND p2.sku IS NOT NULL AND p2.sku != ''
+                 AND p2.sku = p.sku AND p2.id != p.id
+                 AND p2.brand IS NOT NULL
+               LIMIT 1)),
             'quantity', oi.quantity,
             'unitPrice', oi."unitPrice",
             'totalPrice', oi."totalPrice",
-            'costPrice', COALESCE(oi."costPrice", p."costPrice")
+            'costPrice', COALESCE(oi."costPrice", p."costPrice",
+              (SELECT p2."costPrice" FROM products p2
+               WHERE p2."organizationId" = o."organizationId"
+                 AND p2.sku IS NOT NULL AND p2.sku != ''
+                 AND p2.sku = p.sku AND p2.id != p.id
+                 AND p2."costPrice" IS NOT NULL AND p2."costPrice" > 0
+               LIMIT 1))
           ))::text AS items_json
           FROM order_items oi
           LEFT JOIN products p ON p.id = oi."productId"
