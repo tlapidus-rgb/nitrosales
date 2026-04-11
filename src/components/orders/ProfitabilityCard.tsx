@@ -46,8 +46,8 @@ export default function ProfitabilityCard({
         ? "text-slate-900"
         : "text-rose-500";
 
-  // TANDA 7.3: coverage por facturaci\u00f3n es m\u00e1s honesto que por cantidad de pedidos.
-  // Fallback a coveragePct (por pedidos) si el backend todav\u00eda no expone el nuevo campo.
+  // TANDA 7.3: coverage por facturación es más honesto que por cantidad de pedidos.
+  // Fallback a coveragePct (por pedidos) si el backend todavía no expone el nuevo campo.
   const coverage = data.coveragePctByRevenue ?? data.coveragePct ?? 0;
   const grossWithCost = data.grossWithCost ?? data.grossRevenue ?? 0;
   const grossWithoutCost = data.grossWithoutCost ?? 0;
@@ -77,10 +77,10 @@ export default function ProfitabilityCard({
         </div>
         <span
           className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${coverageTone.bg} ${coverageTone.color}`}
-          title="Porcentaje de la facturaci\u00f3n que tiene costo de mercader\u00eda cargado"
+          title="Porcentaje de la facturación que tiene costo de mercadería cargado"
         >
           <Info className="w-3 h-3" />
-          {coverage.toFixed(0)}% facturaci\u00f3n con costo
+          {coverage.toFixed(0)}% facturación con costo
         </span>
       </div>
 
@@ -116,7 +116,7 @@ export default function ProfitabilityCard({
           hint="Descontando el 21%"
         />
         <BreakdownItem
-          label="Costo mercader\u00eda"
+          label="Costo mercadería"
           value={formatARS(data.totalCogs ?? 0)}
           hint={
             grossWithCost > 0
@@ -147,25 +147,25 @@ export default function ProfitabilityCard({
           <BreakdownItem
             label="Ingreso real"
             value={formatARS(data.realNetRevenue ?? 0)}
-            hint="Neto \u2212 comisiones"
+            hint="Neto − comisiones"
             emphasize
           />
         </div>
       )}
 
-      {/* Nota de confiabilidad \u2014 TANDA 7.3 honest disclosure */}
+      {/* Nota de confiabilidad — TANDA 7.3 honest disclosure */}
       {coverage < 95 && (
         <div className="mt-3 rounded-md bg-amber-50 border border-amber-100 px-2.5 py-1.5 flex items-start gap-1.5">
           <Info className="w-3 h-3 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="text-[10px] text-amber-900 leading-snug">
             <p className="font-semibold">
               El margen se calcula sobre {coverage.toFixed(0)}% de la
-              facturaci\u00f3n ({formatARS(grossWithCost)}).
+              facturación ({formatARS(grossWithCost)}).
             </p>
             {grossWithoutCost > 0 && (
               <p className="mt-0.5 text-amber-800">
-                Quedan {formatARS(grossWithoutCost)} en facturaci\u00f3n sin costo
-                cargado \u2014 el margen real puede ser distinto.
+                Quedan {formatARS(grossWithoutCost)} en facturación sin costo
+                cargado — el margen real puede ser distinto.
               </p>
             )}
           </div>
@@ -203,7 +203,7 @@ function BreakdownItem({
         {label}
       </p>
       <p className={`text-sm font-semibold tabular-nums mt-0.5 ${valueTone}`}>
-        {negative ? "\u2212" : ""}
+        {negative ? "−" : ""}
         {value}
       </p>
       {hint && <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>}
