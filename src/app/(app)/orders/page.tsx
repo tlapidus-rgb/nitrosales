@@ -378,11 +378,14 @@ export default function OrdersPage() {
               {source === "MELI" && "Solo órdenes de Mercado Libre"}
             </p>
           </div>
-          <SourceTabs
-            source={source}
-            onSourceChange={setSource}
-            sourceCounts={data?.sourceCounts ?? null}
-          />
+          {/* SourceTabs solo visible en Resumen — Pedidos tiene su propio filtro de canal */}
+          {pageView === "dashboard" && (
+            <SourceTabs
+              source={source}
+              onSourceChange={setSource}
+              sourceCounts={data?.sourceCounts ?? null}
+            />
+          )}
         </div>
         <DateRangeFilter
           dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}

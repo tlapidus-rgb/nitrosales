@@ -521,15 +521,34 @@ function OrderDetailPanel({
                   <p className="text-xs text-slate-400 mt-1">Canal: {order.channel}</p>
                 )}
               </DetailSection>
-              <DetailSection title="Envío" icon={<Truck size={14} />} className="col-span-1">
-                <p className="text-sm font-medium text-slate-800 tabular-nums">{formatARS(shipping)}</p>
-                {order.deliveryType && (
-                  <p className="text-xs text-slate-400 mt-1">{order.deliveryType}</p>
-                )}
-                {order.shippingCarrier && (
-                  <p className="text-xs text-slate-400">{order.shippingCarrier}</p>
-                )}
-              </DetailSection>
+              {(() => {
+                const dt = (order.deliveryType || "").toLowerCase();
+                const isPickup = dt.includes("pickup") || dt.includes("retiro") || dt.includes("store") || dt.includes("sucursal") || dt.includes("withdraw");
+                if (isPickup) {
+                  return (
+                    <DetailSection title="Retiro en sucursal" icon={<MapPin size={14} />} className="col-span-1">
+                      <p className="text-sm font-medium text-slate-800">Retiro en punto de entrega</p>
+                      {order.deliveryType && (
+                        <p className="text-xs text-slate-400 mt-1">{order.deliveryType}</p>
+                      )}
+                      {order.shippingCarrier && (
+                        <p className="text-xs text-slate-400">{order.shippingCarrier}</p>
+                      )}
+                    </DetailSection>
+                  );
+                }
+                return (
+                  <DetailSection title="Envío" icon={<Truck size={14} />} className="col-span-1">
+                    <p className="text-sm font-medium text-slate-800 tabular-nums">{formatARS(shipping)}</p>
+                    {order.deliveryType && (
+                      <p className="text-xs text-slate-400 mt-1">{order.deliveryType}</p>
+                    )}
+                    {order.shippingCarrier && (
+                      <p className="text-xs text-slate-400">{order.shippingCarrier}</p>
+                    )}
+                  </DetailSection>
+                );
+              })()}
             </div>
           </>
         ) : (
