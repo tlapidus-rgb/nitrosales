@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
 
     // ── Pagination ──
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
+    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 50));
 
     // Cache check
     const cacheKey = [ORG_ID, fromParam || "default", toParam || "default", sourceParam || "default", page];

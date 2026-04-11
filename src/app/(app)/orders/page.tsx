@@ -12,6 +12,7 @@ import {
   DollarSign, ShoppingCart, CreditCard, XCircle, Package, Users,
   Search, ChevronDown, ArrowUpRight, ArrowDownRight, Clock,
   Percent, Truck, Tag, ExternalLink, MapPin, Calendar, Info,
+  LayoutDashboard, ListOrdered,
 } from "lucide-react";
 import {
   KpiCard, ChangeBadge, DateRangeFilter, WeeklySummary, StatusFilter,
@@ -30,6 +31,7 @@ import {
   SourceTabs,
   SourceSplitBar,
   MercadoLibreCascadeCard,
+  OrdersMasterDetail,
   type AnomalyFlag,
   type OrdersV4Namespaces,
 } from "@/components/orders";
@@ -138,6 +140,7 @@ export default function OrdersPage() {
   const [showComparison, setShowComparison] = useState(false);
   const [flagFilter, setFlagFilter] = useState<AnomalyFlag | null>(null);
   const [tableSourceFilter, setTableSourceFilter] = useState<"ALL" | "VTEX" | "MELI">("ALL");
+  const [pageView, setPageView] = useState<"dashboard" | "pedidos">("pedidos");
 
   // Reset pagination cuando cambia source (tab) o fechas
   useEffect(() => {
@@ -386,7 +389,53 @@ export default function OrdersPage() {
           quickRanges={QUICK_RANGES} onQuickRange={handleQuickRange}
           onDateChange={handleDateChange} loading={loading}
         />
+
+        {/* ═══ PAGE VIEW TABS — Dashboard vs Pedidos ═══ */}
+        <div className="flex items-center gap-1 bg-slate-100/80 rounded-xl p-0.5 w-fit">
+          {([
+            { key: "pedidos", label: "Pedidos", icon: <ListOrdered size={14} /> },
+            { key: "dashboard", label: "Resumen", icon: <LayoutDashboard size={14} /> },
+          ] as const).map(({ key, label, icon }) => (
+            <button
+              key={key}
+              onClick={() => setPageView(key)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide ${
+                pageView === key
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+              style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* ═══ VIEW: PEDIDOS (Master-Detail) ═══ */}
+      {pageView === "pedidos" && (
+        <OrdersMasterDetail
+          orders={filteredOrders}
+          totalCount={data.pagination?.totalCount || 0}
+          currentPage={currentPage}
+          totalPages={data.pagination?.totalPages || 1}
+          pageSize={data.pagination?.pageSize || 20}
+          onPageChange={setCurrentPage}
+          loading={loading}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          statusFilter={statusFilter}
+          onStatusChange={setStatusFilter}
+          sourceFilter={tableSourceFilter}
+          onSourceFilterChange={setTableSourceFilter}
+          statusBreakdown={data.statusBreakdown}
+          onImageZoom={setZoomedImage}
+        />
+      )}
+
+      {/* ═══ VIEW: DASHBOARD (existing analytics) ═══ */}
+      {pageView === "dashboard" && (<>
 
       {/* ORDERS HERO (Tanda 4 + 7.6) \u2014 bruto / neto / ingreso real / margen / pedidos */}
       <OrdersHero
@@ -768,8 +817,10 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* ═══ RECENT ORDERS — Card Feed ═══ */}
-      <div className="space-y-4">
+      </>)}
+
+      {/* ═══ OLD RECENT ORDERS — replaced by master-detail, kept but hidden ═══ */}
+      {false && (<div className="space-y-4">
         {/* Header bar — filters + search */}
         <div className="dash-card px-6 py-4">
           <div className="flex flex-col gap-3">
@@ -1156,7 +1207,7 @@ export default function OrdersPage() {
             </div>
           </div>
         )}
-      </div>
+      </div>)}
 
       {/* IMAGE ZOOM MODAL — smooth fade-in, hi-res ML image */}
       {zoomedImage && (

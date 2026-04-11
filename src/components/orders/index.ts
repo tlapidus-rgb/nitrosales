@@ -6,6 +6,7 @@
 // ══════════════════════════════════════════════════════════════
 
 export { default as OrdersHero } from "./OrdersHero";
+export { default as OrdersMasterDetail } from "./OrdersMasterDetail";
 export { default as AtencionHoyBlock } from "./AtencionHoyBlock";
 export { default as ProfitabilityCard } from "./ProfitabilityCard";
 export { default as CohortsCard } from "./CohortsCard";
