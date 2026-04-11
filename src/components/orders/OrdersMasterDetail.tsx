@@ -85,7 +85,7 @@ const SHADOW_ELEVATED = "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,2
 function MeliLogo({ size = 16 }: { size?: number }) {
   return (
     <img
-      src="/logos/mercadolibre.svg"
+      src="/logos/mercadolibre.png"
       alt="ML"
       width={size}
       height={size}
