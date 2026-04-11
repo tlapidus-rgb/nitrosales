@@ -365,57 +365,52 @@ export default function OrdersPage() {
 
   return (
     <div
-      className="space-y-6 dash-stagger"
+      className="space-y-3 dash-stagger"
       style={{ fontVariantNumeric: "tabular-nums" }}
       key={source}
     >
       <DashboardStyles />
-      {/* HEADER + TABS + DATE FILTERS (Tanda 8.1) */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Pedidos</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {source === "ALL" && "Consolidado VTEX + Mercado Libre"}
-              {source === "VTEX" && "Solo órdenes de VTEX"}
-              {source === "MELI" && "Solo órdenes de Mercado Libre"}
-            </p>
+      {/* HEADER — compact: title + view tabs + date on one strip */}
+      <div className="flex flex-col gap-2">
+        {/* Row 1: Title + View tabs + Source tabs (Resumen) + Date filters */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-4">
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">Pedidos</h1>
+            {/* View tabs — inline with title */}
+            <div className="flex items-center gap-0.5 bg-slate-100/80 rounded-lg p-0.5">
+              {([
+                { key: "pedidos", label: "Pedidos", icon: <ListOrdered size={13} /> },
+                { key: "dashboard", label: "Resumen", icon: <LayoutDashboard size={13} /> },
+              ] as const).map(({ key, label, icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setPageView(key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide ${
+                    pageView === key
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                  style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* SourceTabs solo visible en Resumen */}
+            {pageView === "dashboard" && (
+              <SourceTabs
+                source={source}
+                onSourceChange={setSource}
+                sourceCounts={data?.sourceCounts ?? null}
+              />
+            )}
           </div>
-          {/* SourceTabs solo visible en Resumen — Pedidos tiene su propio filtro de canal */}
-          {pageView === "dashboard" && (
-            <SourceTabs
-              source={source}
-              onSourceChange={setSource}
-              sourceCounts={data?.sourceCounts ?? null}
-            />
-          )}
-        </div>
-        <DateRangeFilter
-          dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
-          quickRanges={QUICK_RANGES} onQuickRange={handleQuickRange}
-          onDateChange={handleDateChange} loading={loading}
-        />
-
-        {/* ═══ PAGE VIEW TABS — Dashboard vs Pedidos ═══ */}
-        <div className="flex items-center gap-1 bg-slate-100/80 rounded-xl p-0.5 w-fit">
-          {([
-            { key: "pedidos", label: "Pedidos", icon: <ListOrdered size={14} /> },
-            { key: "dashboard", label: "Resumen", icon: <LayoutDashboard size={14} /> },
-          ] as const).map(({ key, label, icon }) => (
-            <button
-              key={key}
-              onClick={() => setPageView(key)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide ${
-                pageView === key
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-              style={{ transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}
-            >
-              {icon}
-              {label}
-            </button>
-          ))}
+          <DateRangeFilter
+            dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
+            quickRanges={QUICK_RANGES} onQuickRange={handleQuickRange}
+            onDateChange={handleDateChange} loading={loading}
+          />
         </div>
       </div>
 

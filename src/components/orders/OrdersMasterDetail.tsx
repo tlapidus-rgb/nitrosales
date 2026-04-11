@@ -850,8 +850,8 @@ export default function OrdersMasterDetail({
     <div
       className="flex flex-col rounded-2xl bg-white overflow-hidden"
       style={{
-        height: "calc(100vh - 180px)",
-        minHeight: "640px",
+        height: "calc(100vh - 140px)",
+        minHeight: "560px",
         border: "1px solid rgba(15,23,42,0.06)",
         boxShadow: SHADOW_ELEVATED,
       }}
@@ -864,85 +864,80 @@ export default function OrdersMasterDetail({
           borderBottom: "1px solid rgba(15,23,42,0.06)",
         }}
       >
-        {/* KPIs row */}
+        {/* Compact KPIs strip — single line, minimal height */}
         {billingKpis && (
           <div
-            className="px-5 pt-5 pb-4"
+            className="px-5 py-2.5 flex items-center gap-6"
             style={{ borderBottom: "1px solid rgba(15,23,42,0.04)" }}
           >
-            <div className="flex items-center gap-8">
-              {/* Revenue KPI with accent icon */}
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{
-                    background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-                    boxShadow: "0 2px 8px rgba(15,23,42,0.3)",
-                  }}
-                >
-                  <DollarSign size={15} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Facturación bruta</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xl font-bold text-slate-900 tabular-nums tracking-tight">
-                      {formatCompact(billingKpis.totalRevenue)}
-                    </p>
-                    <InlineChange value={billingKpis.changes?.revenue} />
-                  </div>
-                </div>
+            {/* Revenue — with small icon */}
+            <div className="flex items-center gap-2">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+                  boxShadow: "0 1px 4px rgba(15,23,42,0.25)",
+                }}
+              >
+                <DollarSign size={13} className="text-white" />
               </div>
-
-              <div className="w-px h-10 bg-slate-100" />
-
-              {/* Orders */}
               <div>
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Órdenes</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-lg font-bold text-slate-900 tabular-nums tracking-tight">
-                    {billingKpis.totalOrders.toLocaleString("es-AR")}
+                <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wider leading-none">Facturación</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight leading-none">
+                    {formatCompact(billingKpis.totalRevenue)}
                   </p>
-                  <InlineChange value={billingKpis.changes?.orders} />
+                  <InlineChange value={billingKpis.changes?.revenue} />
                 </div>
               </div>
+            </div>
 
-              <div className="w-px h-10 bg-slate-100" />
+            <div className="w-px h-8 bg-slate-100" />
 
-              {/* Ticket */}
-              <div>
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Ticket promedio</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-lg font-bold text-slate-900 tabular-nums tracking-tight">
-                    {formatARS(billingKpis.avgTicket)}
-                  </p>
-                  <InlineChange value={billingKpis.changes?.avgTicket} />
-                </div>
-              </div>
-
-              <div className="w-px h-10 bg-slate-100" />
-
-              {/* Discounts */}
-              <div>
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Descuentos</p>
-                <p className="text-lg font-bold text-emerald-600 tabular-nums tracking-tight">
-                  -{formatCompact(billingKpis.totalDiscounts)}
+            <div>
+              <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wider leading-none">Órdenes</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight leading-none">
+                  {billingKpis.totalOrders.toLocaleString("es-AR")}
                 </p>
+                <InlineChange value={billingKpis.changes?.orders} />
               </div>
+            </div>
+
+            <div className="w-px h-8 bg-slate-100" />
+
+            <div>
+              <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wider leading-none">Ticket</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight leading-none">
+                  {formatARS(billingKpis.avgTicket)}
+                </p>
+                <InlineChange value={billingKpis.changes?.avgTicket} />
+              </div>
+            </div>
+
+            <div className="w-px h-8 bg-slate-100" />
+
+            <div>
+              <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wider leading-none">Descuentos</p>
+              <p className="text-sm font-bold text-emerald-600 tabular-nums tracking-tight leading-none mt-0.5">
+                -{formatCompact(billingKpis.totalDiscounts)}
+              </p>
             </div>
           </div>
         )}
 
         {/* Filters row */}
-        <div className="px-5 py-3 flex items-center gap-3 flex-wrap">
+        <div className="px-5 py-2 flex items-center gap-3 flex-wrap">
           {/* Search */}
-          <div className="relative w-60">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="relative w-52">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Buscar orden, cliente..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white/80 placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+              className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-[11px] text-slate-700 bg-white/80 placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
               style={{ transition: `all 220ms ${EASE}` }}
             />
           </div>
@@ -961,7 +956,7 @@ export default function OrdersMasterDetail({
                 <button
                   key={s}
                   onClick={() => onSourceFilterChange(s)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-[10px] text-[11px] font-semibold ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold ${
                     isActive
                       ? "bg-white text-slate-900"
                       : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
@@ -992,7 +987,7 @@ export default function OrdersMasterDetail({
                 <button
                   key={s.status}
                   onClick={() => onStatusChange(isActive ? null : s.status)}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold ${
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold ${
                     isActive
                       ? "bg-slate-900 text-white"
                       : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
