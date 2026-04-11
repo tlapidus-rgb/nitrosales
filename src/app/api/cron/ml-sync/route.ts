@@ -1,15 +1,15 @@
 // ══════════════════════════════════════════════════════════════
-// ML Cron Sync — Scheduled backup sync + missed feeds recovery
+// ML Cron Sync — Robust safety net for MercadoLibre data
 // ══════════════════════════════════════════════════════════════
-// This endpoint runs periodically (via Vercel Cron or external cron)
-// to catch anything the webhook might have missed.
+// Runs every 4 hours (Vercel Cron). Does THREE things:
+//   1. SYNCS RECENT ORDERS directly from ML /orders/search API
+//      → This is the REAL safety net. If the webhook missed orders,
+//        this step creates them. Covers last 48 hours.
+//   2. Enriches order items (products + order_items rows)
+//   3. Snapshots seller reputation metrics
 //
-// It does two things:
-//   1. Checks /missed_feeds for lost notifications and processes them
-//   2. Syncs reputation metrics (snapshot once per run)
-//
-// The webhook handles real-time updates for orders, items, questions.
-// This cron is the safety net.
+// NOTE: /missed_feeds was removed — it returns 401 for non-app-owners.
+// Instead we do a direct order search which is 100% reliable.
 //
 // SAFETY: READ-ONLY from ML API. Only writes to our DB.
 // ══════════════════════════════════════════════════════════════
@@ -17,13 +17,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSellerToken, fetchSellerReputation, fetchSellerOrders } from "@/lib/connectors/mercadolibre-seller";
-import { processMLNotification } from "@/lib/connectors/ml-notification-processor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel Pro plan — 5 min
 
-const ML_API = "https://api.mercadolibre.com";
-const ML_APP_ID = process.env.ML_APP_ID || "5750438437863167";
+function mapMLOrderStatus(mlStatus: string): "PENDING" | "APPROVED" | "SHIPPED" | "DELIVERED" | "CANCELLED" {
+  switch (mlStatus) {
+    case "confirmed": return "APPROVED";
+    case "payment_required": return "PENDING";
+    case "payment_in_process": return "PENDING";
+    case "paid": return "APPROVED";
+    case "partially_paid": return "PENDING";
+    case "shipped": return "SHIPPED";
+    case "delivered": return "DELIVERED";
+    case "cancelled": return "CANCELLED";
+    default: return "PENDING";
+  }
+}
 
 export async function GET(req: NextRequest) {
   // Optional: Verify cron secret
@@ -38,6 +48,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const { token, mlUserId } = await getSellerToken();
+    log.push(`Token OK for user ${mlUserId}`);
+
     const connection = await prisma.connection.findFirst({
       where: { platform: "MERCADOLIBRE" as any },
     });
@@ -46,38 +58,75 @@ export async function GET(req: NextRequest) {
     }
     const orgId = connection.organizationId;
 
-    // ── 1. Process missed feeds ──────────────────────────────
-    const missedTopics = ["orders_v2", "items", "questions"];
-    let totalMissed = 0;
+    // ── 1. Sync recent orders from ML API (last 48h) ─────────
+    // This is the PRIMARY safety net — catches any orders the
+    // webhook missed (e.g. due to token expiry, deploy issues, etc.)
+    try {
+      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const mlOrders = await fetchSellerOrders(token, mlUserId, {
+        dateFrom: twoDaysAgo,
+        maxOrders: 5000,
+      });
+      log.push(`Fetched ${mlOrders.length} orders from ML (last 48h)`);
 
-    for (const topic of missedTopics) {
-      try {
-        const res = await fetch(
-          `${ML_API}/missed_feeds?app_id=${ML_APP_ID}&topic=${topic}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            signal: AbortSignal.timeout(10000),
-          }
-        );
+      let ordersCreated = 0;
+      let ordersUpdated = 0;
+      for (const order of mlOrders) {
+        const status = mapMLOrderStatus(order.status);
+        const totalValue = order.total_amount || 0;
+        const mlItems = order.order_items || [];
+        const itemCount = mlItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
 
-        if (res.ok) {
-          const data = await res.json();
-          const missed = data.results || [];
-          for (const notification of missed) {
-            await processMLNotification(notification);
-            totalMissed++;
+        // Extract promotions
+        const orderPromos: string[] = Array.isArray(order.promotions)
+          ? order.promotions.map((p: any) => (p?.name || p?.type || "").toString().trim()).filter(Boolean)
+          : [];
+        const itemPromos: string[] = mlItems
+          .map((it: any) => (it?.promotion?.name || it?.promotion?.type || "").toString().trim())
+          .filter(Boolean);
+        const allPromos = Array.from(new Set([...orderPromos, ...itemPromos]));
+        const promotionNames = allPromos.length ? allPromos.join(", ") : null;
+
+        // Check if order exists
+        const existing = await prisma.order.findUnique({
+          where: {
+            organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
+          },
+          select: { id: true, status: true },
+        });
+
+        if (existing) {
+          // Only update if status changed
+          if (existing.status !== status) {
+            await prisma.order.update({
+              where: { id: existing.id },
+              data: { status, totalValue, itemCount, promotionNames, paymentMethod: order.payments?.[0]?.payment_type || null },
+            });
+            ordersUpdated++;
           }
-          if (missed.length > 0) {
-            log.push(`Recovered ${missed.length} missed ${topic} notifications`);
-          }
+        } else {
+          // Create new order (webhook missed it)
+          await prisma.order.create({
+            data: {
+              organizationId: orgId,
+              externalId: String(order.id),
+              status,
+              totalValue,
+              currency: order.currency_id || "ARS",
+              itemCount,
+              promotionNames,
+              source: "MELI",
+              channel: "marketplace",
+              paymentMethod: order.payments?.[0]?.payment_type || null,
+              orderDate: new Date(order.date_created),
+            },
+          });
+          ordersCreated++;
         }
-      } catch (err: any) {
-        log.push(`Missed feeds ${topic}: ${err.message}`);
       }
-    }
-
-    if (totalMissed === 0) {
-      log.push("No missed notifications found");
+      log.push(`Orders: ${ordersCreated} created, ${ordersUpdated} updated`);
+    } catch (err: any) {
+      log.push(`Order sync error: ${err.message}`);
     }
 
     // ── 2. Sync reputation snapshot ──────────────────────────
