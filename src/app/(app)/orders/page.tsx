@@ -166,7 +166,10 @@ export default function OrdersPage() {
           params.set("compMode", compMode);
           if (compOffset !== 0) params.set("compOffset", String(compOffset));
         }
-        const res = await fetch(`/api/metrics/orders?${params}`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        const res = await fetch(`/api/metrics/orders?${params}`, { signal: controller.signal });
+        clearTimeout(timeout);
         if (!res.ok) {
           let detail = "";
           try { const body = await res.json(); detail = body?.detail || body?.error || ""; } catch {}
@@ -174,7 +177,11 @@ export default function OrdersPage() {
         }
         setData(await res.json());
       } catch (e: any) {
-        setError(e.message);
+        if (e.name === "AbortError") {
+          setError("La carga tardó demasiado. Probá refrescar la página o cerrar otras pestañas que usen la app.");
+        } else {
+          setError(e.message);
+        }
       } finally {
         setLoading(false);
       }
@@ -364,7 +371,29 @@ export default function OrdersPage() {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    // Fallback: show loading skeleton if somehow we got past the loading check
+    return (
+      <div className="space-y-6 dash-stagger">
+        <div className="dash-hero rounded-2xl overflow-hidden">
+          <div className="dash-hero-inner px-8 py-7">
+            <div className="dash-skeleton h-4 w-32 mb-4" />
+            <div className="dash-skeleton h-12 w-64 mb-3" />
+            <div className="dash-skeleton h-4 w-48" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="dash-card p-5">
+              <div className="dash-skeleton h-3 w-20 mb-3" />
+              <div className="dash-skeleton h-7 w-28 mb-2" />
+              <div className="dash-skeleton h-3 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
   const { kpis } = data;
   const avgRevenuePerDay = kpis.totalRevenue / Math.max(kpis.daysInPeriod || 1, 1);
   const avgOrdersPerDay = kpis.totalOrders / Math.max(kpis.daysInPeriod || 1, 1);
