@@ -18,9 +18,11 @@ import { formatARS, formatCompact } from "@/lib/utils/format";
 interface OrderItem {
   name: string | null;
   imageUrl?: string;
+  brand?: string | null;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  costPrice?: number | null;
 }
 
 interface Order {
@@ -389,7 +391,17 @@ function OrderDetailPanel({
 
   const netAfterIVA = order.totalValue / 1.21;
   const meliCommission = isMeli ? order.totalValue * 0.13 : 0;
-  const estimatedNet = netAfterIVA - meliCommission - shipping;
+
+  // Real COGS from product cost data
+  const totalCogs = order.items.reduce((sum, item) => {
+    const cost = item.costPrice != null ? Number(item.costPrice) : 0;
+    return sum + (cost > 0 ? cost * item.quantity : 0);
+  }, 0);
+  const hasCostData = totalCogs > 0;
+
+  const estimatedNet = hasCostData
+    ? netAfterIVA - meliCommission - shipping - totalCogs
+    : netAfterIVA - meliCommission - shipping;
   const estimatedMarginPct = order.totalValue > 0 ? (estimatedNet / order.totalValue) * 100 : 0;
 
   const [detailTab, setDetailTab] = useState<"comercial" | "rentabilidad">("comercial");
@@ -525,14 +537,26 @@ function OrderDetailPanel({
                       <p className="text-[13px] font-semibold text-slate-800 leading-tight tracking-tight">
                         {item.name || "Producto sin nombre"}
                       </p>
-                      <p className="text-xs text-slate-400 tabular-nums mt-1">
-                        {item.quantity} × {formatARS(item.unitPrice)}
-                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {item.brand && (
+                          <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded leading-none">
+                            {item.brand}
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-400 tabular-nums">
+                          {item.quantity} × {formatARS(item.unitPrice)}
+                        </span>
+                      </div>
                     </div>
                     <div className="text-right flex-shrink-0 pt-0.5">
                       <p className="text-sm font-bold text-slate-900 tabular-nums tracking-tight">
                         {formatARS(item.totalPrice)}
                       </p>
+                      {item.costPrice != null && Number(item.costPrice) > 0 && (
+                        <p className="text-[10px] text-slate-400 tabular-nums mt-0.5">
+                          Costo: {formatARS(Number(item.costPrice) * item.quantity)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )) : (
@@ -666,9 +690,9 @@ function OrderDetailPanel({
                   sub={`-${formatARS(order.totalValue - netAfterIVA)} IVA`}
                 />
                 <MetricPill
-                  label="Estimado neto"
+                  label={hasCostData ? "Ganancia neta" : "Estimado neto"}
                   value={formatARS(estimatedNet)}
-                  sub={`~${estimatedMarginPct.toFixed(0)}% margen`}
+                  sub={hasCostData ? `${estimatedMarginPct.toFixed(0)}% margen (c/ COGS)` : `~${estimatedMarginPct.toFixed(0)}% margen (sin COGS)`}
                   color={estimatedMarginPct > 20 ? "text-emerald-600" : estimatedMarginPct > 10 ? "text-amber-600" : "text-red-600"}
                 />
               </div>
@@ -716,11 +740,23 @@ function OrderDetailPanel({
                     <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(shipping)}</span>
                   </div>
                 )}
+                {hasCostData && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">- Costo productos (COGS)</span>
+                    <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(totalCogs)}</span>
+                  </div>
+                )}
+                {!hasCostData && (
+                  <div className="flex items-center gap-1.5 mt-1 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200/60">
+                    <AlertTriangle size={11} className="text-amber-500 flex-shrink-0" />
+                    <span className="text-[10px] text-amber-700">Sin costos cargados — margen estimado sin COGS</span>
+                  </div>
+                )}
                 <div
                   className="flex items-center justify-between pt-2.5"
                   style={{ borderTop: "2px dashed rgba(15,23,42,0.08)" }}
                 >
-                  <span className="text-sm font-bold text-slate-900">Ingreso neto estimado</span>
+                  <span className="text-sm font-bold text-slate-900">{hasCostData ? "Ganancia neta" : "Ingreso neto estimado"}</span>
                   <span className={`text-base font-bold tabular-nums tracking-tight ${estimatedNet >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                     {formatARS(estimatedNet)}
                   </span>

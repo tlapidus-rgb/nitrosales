@@ -427,9 +427,11 @@ export async function GET(request: NextRequest) {
           SELECT json_agg(json_build_object(
             'name', p.name,
             'imageUrl', p."imageUrl",
+            'brand', p.brand,
             'quantity', oi.quantity,
             'unitPrice', oi."unitPrice",
-            'totalPrice', oi."totalPrice"
+            'totalPrice', oi."totalPrice",
+            'costPrice', COALESCE(oi."costPrice", p."costPrice")
           ))::text AS items_json
           FROM order_items oi
           LEFT JOIN products p ON p.id = oi."productId"
