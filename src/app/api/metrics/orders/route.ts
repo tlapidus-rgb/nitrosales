@@ -654,10 +654,10 @@ export async function GET(request: NextRequest) {
       }]>(`
         SELECT
           COALESCE(SUM(oi."totalPrice"), 0)::text AS gross_revenue,
-          COALESCE(SUM(CASE WHEN p."costPrice" IS NOT NULL AND p."costPrice" > 0 THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_with_cost,
-          COALESCE(SUM(CASE WHEN p."costPrice" IS NULL OR p."costPrice" = 0 THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_without_cost,
-          COALESCE(SUM(CASE WHEN p."costPrice" IS NOT NULL AND p."costPrice" > 0 THEN oi.quantity * p."costPrice" ELSE 0 END), 0)::text AS total_cogs,
-          COUNT(DISTINCT CASE WHEN p."costPrice" IS NOT NULL AND p."costPrice" > 0 THEN o.id END)::text AS orders_with_cost,
+          COALESCE(SUM(CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NOT NULL AND COALESCE(oi."costPrice", p."costPrice") > 0 THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_with_cost,
+          COALESCE(SUM(CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NULL OR COALESCE(oi."costPrice", p."costPrice") = 0 THEN oi."totalPrice" ELSE 0 END), 0)::text AS gross_without_cost,
+          COALESCE(SUM(CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NOT NULL AND COALESCE(oi."costPrice", p."costPrice") > 0 THEN oi.quantity * COALESCE(oi."costPrice", p."costPrice") ELSE 0 END), 0)::text AS total_cogs,
+          COUNT(DISTINCT CASE WHEN COALESCE(oi."costPrice", p."costPrice") IS NOT NULL AND COALESCE(oi."costPrice", p."costPrice") > 0 THEN o.id END)::text AS orders_with_cost,
           COUNT(DISTINCT o.id)::text AS orders_total
         FROM order_items oi
         JOIN orders o ON o.id = oi."orderId"
