@@ -205,6 +205,16 @@ function OrderListItem({
               {statusCfg.label}
             </span>
             <span className="text-[10px] text-slate-400">{itemCountLabel}</span>
+            {(() => {
+              const dt = (order.deliveryType || "").toLowerCase();
+              const isP = dt.includes("pickup") || dt.includes("retiro") || !!order.pickupStoreName;
+              if (isP) return (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold leading-none bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+                  <MapPin size={8} /> Retiro
+                </span>
+              );
+              return null;
+            })()}
           </div>
           {/* Row 3: Customer + date/time */}
           <div className="flex items-center justify-between gap-2 mt-1.5">
