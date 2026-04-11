@@ -8,7 +8,7 @@
 
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { BookOpen, Package } from "lucide-react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import type { MeliCatalogItem } from "./types";
@@ -18,7 +18,11 @@ interface MeliCatalogCardProps {
   loading?: boolean;
 }
 
+type CatalogMetric = "revenue" | "orders";
+
 export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps) {
+  const [metric, setMetric] = useState<CatalogMetric>("revenue");
+
   if (loading) {
     return (
       <section className="dash-card dash-fade-up p-5">
@@ -35,10 +39,12 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
   const totalOrders = (catalog?.orders ?? 0) + (nonCatalog?.orders ?? 0);
   const totalRevenue = (catalog?.revenue ?? 0) + (nonCatalog?.revenue ?? 0);
 
-  const catalogPct = totalOrders > 0 ? ((catalog?.orders ?? 0) / totalOrders) * 100 : 0;
-  const nonCatalogPct = totalOrders > 0 ? ((nonCatalog?.orders ?? 0) / totalOrders) * 100 : 0;
-
-  const catalogRevPct = totalRevenue > 0 ? ((catalog?.revenue ?? 0) / totalRevenue) * 100 : 0;
+  // Percentages depend on selected metric
+  const total = metric === "revenue" ? totalRevenue : totalOrders;
+  const catalogVal = metric === "revenue" ? (catalog?.revenue ?? 0) : (catalog?.orders ?? 0);
+  const nonCatalogVal = metric === "revenue" ? (nonCatalog?.revenue ?? 0) : (nonCatalog?.orders ?? 0);
+  const catalogPct = total > 0 ? (catalogVal / total) * 100 : 0;
+  const nonCatalogPct = total > 0 ? (nonCatalogVal / total) * 100 : 0;
 
   return (
     <section className="dash-card dash-fade-up p-5" style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -49,13 +55,25 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
           </div>
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Catálogo vs Individual</h3>
-            <p className="text-[11px] text-slate-500">Ventas por tipo de publicación en ML</p>
+            <p className="text-[11px] text-slate-500">Por tipo de publicación en ML</p>
           </div>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200/70 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-          MELI
-        </span>
+        {/* Metric toggle */}
+        <div className="flex gap-1">
+          {([
+            { key: "revenue" as const, label: "Facturación" },
+            { key: "orders" as const, label: "Pedidos" },
+          ]).map(({ key, label }) => (
+            <button key={key} onClick={() => setMetric(key)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-200 ${
+                metric === key
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Stacked bar */}
@@ -77,8 +95,9 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
           label="Catálogo"
           sublabel="Publicaciones unificadas"
           color="bg-indigo-500"
+          mainValue={catalogVal}
+          metric={metric}
           orders={catalog?.orders ?? 0}
-          revenue={catalog?.revenue ?? 0}
           units={catalog?.units ?? 0}
           pct={catalogPct}
         />
@@ -87,8 +106,9 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
           label="Fuera de catálogo"
           sublabel="Publicaciones individuales"
           color="bg-slate-400"
+          mainValue={nonCatalogVal}
+          metric={metric}
           orders={nonCatalog?.orders ?? 0}
-          revenue={nonCatalog?.revenue ?? 0}
           units={nonCatalog?.units ?? 0}
           pct={nonCatalogPct}
         />
@@ -96,21 +116,23 @@ export default function MeliCatalogCard({ data, loading }: MeliCatalogCardProps)
 
       {/* Footer insight */}
       <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500">
-        <span className="font-semibold text-indigo-600">{catalogRevPct.toFixed(0)}%</span> de la facturación MELI viene de publicaciones en catálogo.
+        <span className="font-semibold text-indigo-600">{catalogPct.toFixed(0)}%</span>{" "}
+        de {metric === "revenue" ? "la facturación" : "los pedidos"} MELI viene de publicaciones en catálogo.
       </div>
     </section>
   );
 }
 
 function Row({
-  icon, label, sublabel, color, orders, revenue, units, pct,
+  icon, label, sublabel, color, mainValue, metric, orders, units, pct,
 }: {
   icon: React.ReactNode;
   label: string;
   sublabel: string;
   color: string;
+  mainValue: number;
+  metric: CatalogMetric;
   orders: number;
-  revenue: number;
   units: number;
   pct: number;
 }) {
@@ -125,9 +147,14 @@ function Row({
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        <p className="text-xs font-semibold text-slate-900">{formatCompact(revenue)}</p>
+        <p className="text-xs font-semibold text-slate-900">
+          {metric === "revenue" ? formatCompact(mainValue) : mainValue.toLocaleString("es-AR")}
+        </p>
         <p className="text-[10px] text-slate-400">
-          {orders.toLocaleString("es-AR")} órd · {units.toLocaleString("es-AR")} uds · {pct.toFixed(0)}%
+          {metric === "revenue"
+            ? `${orders.toLocaleString("es-AR")} órd · ${units.toLocaleString("es-AR")} uds · ${pct.toFixed(0)}%`
+            : `${formatCompact(mainValue)} · ${units.toLocaleString("es-AR")} uds · ${pct.toFixed(0)}%`
+          }
         </p>
       </div>
     </div>

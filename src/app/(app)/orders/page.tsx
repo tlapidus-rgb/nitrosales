@@ -556,11 +556,6 @@ export default function OrdersPage() {
         </div>
       ) : null}
 
-      {/* MELI CATALOG (Tanda 9) — catálogo vs fuera de catálogo, solo en tab MELI */}
-      {source === "MELI" && (
-        <MeliCatalogCard data={data.meliCatalog} loading={loading} />
-      )}
-
       {/* DAILY SALES CHART + COMPARISON */}
       <div className="dash-card dash-chart-card p-6">
         <div className="flex flex-col gap-3 mb-4">
@@ -769,6 +764,12 @@ export default function OrdersPage() {
           </div>
         </div>
 
+        {/* MELI: Catálogo vs Individual al lado de Métodos de pago */}
+        {source === "MELI" && (
+          <MeliCatalogCard data={data.meliCatalog} loading={loading} />
+        )}
+
+        {/* Non-MELI: Promotion breakdown */}
         {data.promotionBreakdown && data.promotionBreakdown.length > 0 && source !== "MELI" && (
           <div className="dash-card dash-chart-card p-6">
             <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-4">Ventas por promocion</h2>
