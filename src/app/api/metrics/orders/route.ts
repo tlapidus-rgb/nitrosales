@@ -842,37 +842,57 @@ export async function GET(request: NextRequest) {
       geoPostalCodes,
     ] = await Promise.all([
 
-      /* 24) Geography — top provinces (CPA letter→province mapping) */
+      /* 24) Geography — top provinces (CPA letter or numeric CP → province) */
       prisma.$queryRawUnsafe<Array<{
         value: string; orders: string; revenue: string;
       }>>(`
         SELECT
-          CASE UPPER(LEFT(TRIM("postalCode"), 1))
-            WHEN 'B' THEN 'Buenos Aires'
-            WHEN 'C' THEN 'CABA'
-            WHEN 'D' THEN 'San Luis'
-            WHEN 'E' THEN 'Entre Ríos'
-            WHEN 'F' THEN 'La Rioja'
-            WHEN 'G' THEN 'Santiago del Estero'
-            WHEN 'H' THEN 'Chaco'
-            WHEN 'J' THEN 'San Juan'
-            WHEN 'K' THEN 'Catamarca'
-            WHEN 'L' THEN 'La Pampa'
-            WHEN 'M' THEN 'Mendoza'
-            WHEN 'N' THEN 'Misiones'
-            WHEN 'P' THEN 'Formosa'
-            WHEN 'Q' THEN 'Neuquén'
-            WHEN 'R' THEN 'Río Negro'
-            WHEN 'S' THEN 'Santa Fe'
-            WHEN 'T' THEN 'Tucumán'
-            WHEN 'U' THEN 'Chubut'
-            WHEN 'V' THEN 'Tierra del Fuego'
-            WHEN 'W' THEN 'Corrientes'
-            WHEN 'X' THEN 'Córdoba'
-            WHEN 'Y' THEN 'Jujuy'
-            WHEN 'Z' THEN 'Santa Cruz'
-            WHEN 'A' THEN 'Salta'
-            ELSE COALESCE("postalCode", 'Sin dato')
+          CASE
+            WHEN LEFT(TRIM("postalCode"), 1) BETWEEN 'A' AND 'Z' THEN
+              CASE UPPER(LEFT(TRIM("postalCode"), 1))
+                WHEN 'B' THEN 'Buenos Aires'
+                WHEN 'C' THEN 'CABA'
+                WHEN 'D' THEN 'San Luis'
+                WHEN 'E' THEN 'Entre Ríos'
+                WHEN 'F' THEN 'La Rioja'
+                WHEN 'G' THEN 'Santiago del Estero'
+                WHEN 'H' THEN 'Chaco'
+                WHEN 'J' THEN 'San Juan'
+                WHEN 'K' THEN 'Catamarca'
+                WHEN 'L' THEN 'La Pampa'
+                WHEN 'M' THEN 'Mendoza'
+                WHEN 'N' THEN 'Misiones'
+                WHEN 'P' THEN 'Formosa'
+                WHEN 'Q' THEN 'Neuquén'
+                WHEN 'R' THEN 'Río Negro'
+                WHEN 'S' THEN 'Santa Fe'
+                WHEN 'T' THEN 'Tucumán'
+                WHEN 'U' THEN 'Chubut'
+                WHEN 'V' THEN 'Tierra del Fuego'
+                WHEN 'W' THEN 'Corrientes'
+                WHEN 'X' THEN 'Córdoba'
+                WHEN 'Y' THEN 'Jujuy'
+                WHEN 'Z' THEN 'Santa Cruz'
+                WHEN 'A' THEN 'Salta'
+                ELSE 'Otro'
+              END
+            WHEN LEFT(TRIM("postalCode"), 1) BETWEEN '0' AND '9' THEN
+              CASE LEFT(TRIM("postalCode"), 1)
+                WHEN '1' THEN
+                  CASE WHEN LEFT(TRIM("postalCode"), 2) IN ('10','11','12','13','14') THEN 'CABA / GBA'
+                       ELSE 'Buenos Aires'
+                  END
+                WHEN '2' THEN 'Santa Fe / Córdoba'
+                WHEN '3' THEN 'Entre Ríos / Misiones'
+                WHEN '4' THEN 'Tucumán / Salta / Jujuy'
+                WHEN '5' THEN 'Córdoba / San Luis / Mendoza'
+                WHEN '6' THEN 'Buenos Aires (interior)'
+                WHEN '7' THEN 'Buenos Aires (costa/sur)'
+                WHEN '8' THEN 'Patagonia Norte'
+                WHEN '9' THEN 'Patagonia Sur'
+                ELSE 'Otro'
+              END
+            ELSE 'Sin dato'
           END AS value,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
