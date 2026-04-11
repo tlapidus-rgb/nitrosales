@@ -28,9 +28,11 @@ export default function MercadoLibreCascadeCard({
   ordersCount,
   feeCoveragePct,
 }: MercadoLibreCascadeCardProps) {
-  const realNet = Math.max(grossRevenue - marketplaceFee - shippingCost, 0);
+  // shippingCost may be stored as negative — always use absolute value
+  const absShipping = Math.abs(shippingCost);
+  const realNet = Math.max(grossRevenue - marketplaceFee - absShipping, 0);
   const feePct = grossRevenue > 0 ? (marketplaceFee / grossRevenue) * 100 : 0;
-  const shippingPct = grossRevenue > 0 ? (shippingCost / grossRevenue) * 100 : 0;
+  const shippingPct = grossRevenue > 0 ? (absShipping / grossRevenue) * 100 : 0;
   const netPct = grossRevenue > 0 ? (realNet / grossRevenue) * 100 : 0;
 
   const Step = ({
@@ -161,7 +163,7 @@ export default function MercadoLibreCascadeCard({
         />
         <Step
           label="Costo de envío"
-          value={shippingCost}
+          value={absShipping}
           pct={shippingPct}
           widthPct={shippingPct}
           tone="negative"
