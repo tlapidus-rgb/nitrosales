@@ -1012,9 +1012,11 @@ export async function GET(request: NextRequest) {
         const marginAbs = grossWithCost - totalCogs;
         const marginPct = grossWithCost > 0 ? (marginAbs / grossWithCost) * 100 : 0;
         const netRevenue = totalRevenue / 1.21;
-        // MELI: real net = gross - marketplace fee - shipping. VTEX: gross / 1.21
+        // MELI: real net = gross - marketplace fee - |shipping|.
+        // Note: shippingCost is stored as NEGATIVE, so we use Math.abs.
+        const totalShippingAbs = Math.abs(Number(curr.total_shipping));
         const realNetRevenue = sourceFilter === "MELI"
-          ? totalRevenue - totalMarketplaceFee - Number(curr.total_shipping)
+          ? totalRevenue - totalMarketplaceFee - totalShippingAbs
           : netRevenue;
         const feeCoveragePct = totalOrders > 0 ? (ordersWithFee / totalOrders) * 100 : 0;
         return {
