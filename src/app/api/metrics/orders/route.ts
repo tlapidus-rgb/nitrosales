@@ -395,6 +395,7 @@ export async function GET(request: NextRequest) {
         channel: string;
         delivery_type: string;
         shipping_carrier: string;
+        pickup_store_name: string;
       }>>(`
         SELECT
           o.id,
@@ -418,7 +419,8 @@ export async function GET(request: NextRequest) {
           COALESCE(o."shippingCost", 0)::text AS shipping_cost,
           COALESCE(o."channel", '') AS channel,
           COALESCE(o."deliveryType", '') AS delivery_type,
-          COALESCE(o."shippingCarrier", '') AS shipping_carrier
+          COALESCE(o."shippingCarrier", '') AS shipping_carrier,
+          COALESCE(o."pickupStoreName", '') AS pickup_store_name
         FROM orders o
         LEFT JOIN customers c ON c.id = o."customerId"
         LEFT JOIN LATERAL (
@@ -1032,5 +1034,6 @@ function formatOrder(o: any) {
     channel: o.channel || null,
     deliveryType: o.delivery_type || null,
     shippingCarrier: o.shipping_carrier || null,
+    pickupStoreName: o.pickup_store_name || null,
   };
 }

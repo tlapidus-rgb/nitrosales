@@ -40,6 +40,7 @@ interface Order {
   channel?: string | null;
   deliveryType?: string | null;
   shippingCarrier?: string | null;
+  pickupStoreName?: string | null;
 }
 
 interface BillingKpis {
@@ -523,16 +524,17 @@ function OrderDetailPanel({
               </DetailSection>
               {(() => {
                 const dt = (order.deliveryType || "").toLowerCase();
-                const isPickup = dt.includes("pickup") || dt.includes("retiro") || dt.includes("store") || dt.includes("sucursal") || dt.includes("withdraw");
+                const isPickup = dt.includes("pickup") || dt.includes("retiro") || dt.includes("store") || dt.includes("sucursal") || dt.includes("withdraw") || !!order.pickupStoreName;
                 if (isPickup) {
                   return (
                     <DetailSection title="Retiro en sucursal" icon={<MapPin size={14} />} className="col-span-1">
-                      <p className="text-sm font-medium text-slate-800">Retiro en punto de entrega</p>
-                      {order.deliveryType && (
-                        <p className="text-xs text-slate-400 mt-1">{order.deliveryType}</p>
+                      {order.pickupStoreName ? (
+                        <p className="text-sm font-medium text-slate-800">{order.pickupStoreName}</p>
+                      ) : (
+                        <p className="text-sm font-medium text-slate-800">Retiro en punto de entrega</p>
                       )}
-                      {order.shippingCarrier && (
-                        <p className="text-xs text-slate-400">{order.shippingCarrier}</p>
+                      {order.deliveryType && order.deliveryType.toLowerCase() !== "pickup" && (
+                        <p className="text-xs text-slate-400 mt-1">{order.deliveryType}</p>
                       )}
                     </DetailSection>
                   );
