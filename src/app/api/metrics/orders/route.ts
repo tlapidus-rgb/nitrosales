@@ -842,70 +842,46 @@ export async function GET(request: NextRequest) {
       geoPostalCodes,
     ] = await Promise.all([
 
-      /* 24) Geography — top provinces (from customer.state or CP→province mapping) */
+      /* 24) Geography — top provinces (CPA letter→province mapping) */
       prisma.$queryRawUnsafe<Array<{
         value: string; orders: string; revenue: string;
       }>>(`
         SELECT
-          COALESCE(
-            NULLIF(TRIM(c.state), ''),
-            CASE
-              WHEN o."postalCode" ~ '^[A-Z]' THEN
-                CASE UPPER(LEFT(o."postalCode", 1))
-                  WHEN 'B' THEN 'Buenos Aires'
-                  WHEN 'C' THEN 'CABA'
-                  WHEN 'D' THEN 'San Luis'
-                  WHEN 'E' THEN 'Entre Ríos'
-                  WHEN 'F' THEN 'La Rioja'
-                  WHEN 'G' THEN 'Santiago del Estero'
-                  WHEN 'H' THEN 'Chaco'
-                  WHEN 'J' THEN 'San Juan'
-                  WHEN 'K' THEN 'Catamarca'
-                  WHEN 'L' THEN 'La Pampa'
-                  WHEN 'M' THEN 'Mendoza'
-                  WHEN 'N' THEN 'Misiones'
-                  WHEN 'P' THEN 'Formosa'
-                  WHEN 'Q' THEN 'Neuquén'
-                  WHEN 'R' THEN 'Río Negro'
-                  WHEN 'S' THEN 'Santa Fe'
-                  WHEN 'T' THEN 'Tucumán'
-                  WHEN 'U' THEN 'Chubut'
-                  WHEN 'V' THEN 'Tierra del Fuego'
-                  WHEN 'W' THEN 'Corrientes'
-                  WHEN 'X' THEN 'Córdoba'
-                  WHEN 'Y' THEN 'Jujuy'
-                  WHEN 'Z' THEN 'Santa Cruz'
-                  WHEN 'A' THEN 'Salta'
-                  ELSE 'Otro'
-                END
-              WHEN o."postalCode" ~ '^[0-9]{4}' THEN
-                CASE
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 1000 AND 1499 THEN 'CABA'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 1500 AND 1999 THEN 'Buenos Aires'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 2000 AND 2599 THEN 'Santa Fe'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 2600 AND 2999 THEN 'Santa Fe'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 3000 AND 3599 THEN 'Entre Ríos'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 3600 AND 3999 THEN 'Corrientes/Misiones'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 4000 AND 4599 THEN 'Tucumán/Sgo del Estero'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 4600 AND 4699 THEN 'Jujuy/Salta'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 5000 AND 5999 THEN 'Córdoba/San Luis'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 6000 AND 6999 THEN 'Buenos Aires (interior)'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 7000 AND 7999 THEN 'Buenos Aires (costa/sur)'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 8000 AND 8999 THEN 'Patagonia Norte'
-                  WHEN CAST(LEFT(o."postalCode", 4) AS int) BETWEEN 9000 AND 9999 THEN 'Patagonia Sur'
-                  ELSE 'Otro'
-                END
-              ELSE 'Sin dato'
-            END
-          ) AS value,
+          CASE UPPER(LEFT(TRIM("postalCode"), 1))
+            WHEN 'B' THEN 'Buenos Aires'
+            WHEN 'C' THEN 'CABA'
+            WHEN 'D' THEN 'San Luis'
+            WHEN 'E' THEN 'Entre Ríos'
+            WHEN 'F' THEN 'La Rioja'
+            WHEN 'G' THEN 'Santiago del Estero'
+            WHEN 'H' THEN 'Chaco'
+            WHEN 'J' THEN 'San Juan'
+            WHEN 'K' THEN 'Catamarca'
+            WHEN 'L' THEN 'La Pampa'
+            WHEN 'M' THEN 'Mendoza'
+            WHEN 'N' THEN 'Misiones'
+            WHEN 'P' THEN 'Formosa'
+            WHEN 'Q' THEN 'Neuquén'
+            WHEN 'R' THEN 'Río Negro'
+            WHEN 'S' THEN 'Santa Fe'
+            WHEN 'T' THEN 'Tucumán'
+            WHEN 'U' THEN 'Chubut'
+            WHEN 'V' THEN 'Tierra del Fuego'
+            WHEN 'W' THEN 'Corrientes'
+            WHEN 'X' THEN 'Córdoba'
+            WHEN 'Y' THEN 'Jujuy'
+            WHEN 'Z' THEN 'Santa Cruz'
+            WHEN 'A' THEN 'Salta'
+            ELSE COALESCE("postalCode", 'Sin dato')
+          END AS value,
           COUNT(*)::text AS orders,
-          COALESCE(SUM(o."totalValue"), 0)::text AS revenue
-        FROM orders o
-        LEFT JOIN customers c ON c.id = o."customerId"
-        WHERE o."organizationId" = '${ORG_ID}'
-          AND o."orderDate" >= $1 AND o."orderDate" <= $2
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
-          ${srcWhere}
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "postalCode" IS NOT NULL AND "postalCode" != ''
+          ${srcWhereSimple}
         GROUP BY 1
         ORDER BY COUNT(*) DESC
         LIMIT 20
