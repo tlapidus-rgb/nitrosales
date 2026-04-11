@@ -101,6 +101,16 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
     (sum: number, i: any) => sum + (i.quantity || 1), 0
   );
 
+  // ── Extract marketplace fee (commission) from order items ──
+  const marketplaceFee = mlItems.reduce(
+    (sum: number, item: any) => sum + (Number(item.sale_fee) || 0), 0
+  );
+
+  // ── Extract shipping cost & delivery type ──
+  const shippingCost = order.shipping?.cost ?? null;
+  const deliveryType = order.shipping?.shipment_type === "pickup"
+    ? "pickup" : order.shipping ? "shipping" : null;
+
   const dbOrder = await prisma.order.upsert({
     where: {
       organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
@@ -110,6 +120,9 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
       totalValue,
       itemCount,
       paymentMethod: order.payments?.[0]?.payment_type || null,
+      ...(marketplaceFee > 0 ? { marketplaceFee } : {}),
+      ...(shippingCost != null ? { shippingCost } : {}),
+      ...(deliveryType ? { deliveryType } : {}),
     },
     create: {
       organizationId: orgId,
@@ -121,6 +134,9 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
       source: "MELI",
       channel: "marketplace",
       paymentMethod: order.payments?.[0]?.payment_type || null,
+      ...(marketplaceFee > 0 ? { marketplaceFee } : {}),
+      ...(shippingCost != null ? { shippingCost } : {}),
+      ...(deliveryType ? { deliveryType } : {}),
       orderDate: new Date(order.date_created),
     },
   });
@@ -167,7 +183,7 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
     }
   }
 
-  console.log(`[ML Processor] Order ${order.id} upserted (${status}), ${mlItems.length} items`);
+  console.log(`[ML Processor] Order ${order.id} upserted (${status}), ${mlItems.length} items, fee=${marketplaceFee}, ship=${shippingCost}`);
 }
 
 // ── Item processor ───────────────────────────────────────────

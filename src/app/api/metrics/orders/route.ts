@@ -101,15 +101,44 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 50));
 
+    // ── Comparison mode ──
+    // compMode: "prev" (default — period immediately before), "yoy", "mom", "wow"
+    // compOffset: integer, 0 = default position, +1 = shift right (more recent), -1 = shift left (further back)
+    const VALID_COMP_MODES = ["prev", "yoy", "mom", "wow"];
+    const compModeParam = searchParams.get("compMode") || "prev";
+    const compMode = VALID_COMP_MODES.includes(compModeParam) ? compModeParam : "prev";
+    const compOffset = Number(searchParams.get("compOffset")) || 0;
+
     // Cache check
-    const cacheKey = [ORG_ID, fromParam || "default", toParam || "default", sourceParam || "default", page];
+    const cacheKey = [ORG_ID, fromParam || "default", toParam || "default", sourceParam || "default", page, compMode, compOffset];
     const cached = getCached("orders", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
     // ── Previous period for comparison ──
     const periodMs = dateTo.getTime() - dateFrom.getTime();
-    const prevFrom = new Date(dateFrom.getTime() - periodMs);
-    const prevTo = new Date(dateFrom.getTime() - 1);
+    let prevFrom: Date;
+    let prevTo: Date;
+
+    if (compMode === "yoy") {
+      // Interanual: same dates, 1 year back, then shift by offset * 7 days
+      const offsetMs = compOffset * 7 * MS_PER_DAY;
+      prevFrom = new Date(dateFrom.getTime() - 365 * MS_PER_DAY + offsetMs);
+      prevTo = new Date(dateTo.getTime() - 365 * MS_PER_DAY + offsetMs);
+    } else if (compMode === "mom") {
+      // Intermensual: same duration, 1 month back, then shift by offset * 7 days
+      const offsetMs = compOffset * 7 * MS_PER_DAY;
+      prevFrom = new Date(dateFrom.getTime() - 30 * MS_PER_DAY + offsetMs);
+      prevTo = new Date(prevFrom.getTime() + periodMs);
+    } else if (compMode === "wow") {
+      // Intersemanal: same duration, 1 week back, then shift by offset * 7 days
+      const offsetMs = compOffset * 7 * MS_PER_DAY;
+      prevFrom = new Date(dateFrom.getTime() - 7 * MS_PER_DAY + offsetMs);
+      prevTo = new Date(prevFrom.getTime() + periodMs);
+    } else {
+      // Default: previous period of same length immediately before
+      prevFrom = new Date(dateFrom.getTime() - periodMs);
+      prevTo = new Date(dateFrom.getTime() - 1);
+    }
 
     // ── Build source WHERE fragment (safe: sourceFilter validated against whitelist) ──
     const srcWhere = sourceFilter ? `AND o."source" = '${sourceFilter}'` : "";
@@ -1098,6 +1127,10 @@ export async function GET(request: NextRequest) {
         source: sourceFilter || "ALL",
         daysInPeriod,
         totalOrdersInDB: totalOrders + cancelledOrders,
+        compMode,
+        compOffset,
+        compFrom: prevFrom.toISOString(),
+        compTo: prevTo.toISOString(),
       },
     };
 

@@ -1,17 +1,22 @@
 // ══════════════════════════════════════════════════════════════
-// Orders — MercadoLibreCascadeCard (Tanda 8.4)
+// Orders — MercadoLibreCascadeCard (Tanda 8.4 + Tanda 10)
 // ══════════════════════════════════════════════════════════════
 // Cascada visual exclusiva de la tab ML: muestra cómo se descompone
-// el ingreso bruto de ML en comisión, envío y el neto real que
-// efectivamente cobrás. Cada paso con barra de magnitud, % del
-// bruto y tone contextual.
+// el ingreso bruto de ML en comisión, costo mercadería, envío y
+// el neto real que efectivamente cobrás.
+//
+// Cuando la cobertura de datos de comisión es baja (<80%), se usa
+// una estimación basada en tipo de publicación:
+//   • Catálogo: ~12%
+//   • Premium/Clásica: ~17%
+// y se muestra un disclaimer transparente.
 // ══════════════════════════════════════════════════════════════
 
 "use client";
 
 import React from "react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
-import { ArrowDownRight, TrendingDown, Wallet } from "lucide-react";
+import { ArrowDownRight, TrendingDown, Wallet, Package, AlertTriangle } from "lucide-react";
 
 interface MercadoLibreCascadeCardProps {
   grossRevenue: number;
@@ -19,6 +24,10 @@ interface MercadoLibreCascadeCardProps {
   shippingCost: number;
   ordersCount: number;
   feeCoveragePct?: number;
+  totalCogs?: number;
+  // catalog breakdown for commission estimation
+  catalogRevenue?: number;
+  nonCatalogRevenue?: number;
 }
 
 export default function MercadoLibreCascadeCard({
@@ -27,12 +36,43 @@ export default function MercadoLibreCascadeCard({
   shippingCost,
   ordersCount,
   feeCoveragePct,
+  totalCogs,
+  catalogRevenue,
+  nonCatalogRevenue,
 }: MercadoLibreCascadeCardProps) {
   // shippingCost may be stored as negative — always use absolute value
   const absShipping = Math.abs(shippingCost);
-  const realNet = Math.max(grossRevenue - marketplaceFee - absShipping, 0);
-  const feePct = grossRevenue > 0 ? (marketplaceFee / grossRevenue) * 100 : 0;
+  const absCogs = Math.abs(totalCogs || 0);
+  const hasCogs = absCogs > 0;
+
+  // ── Commission logic ──
+  // If coverage is >= 80%, use real data. Otherwise, estimate.
+  const CATALOG_RATE = 0.12;     // ~12% for catalog listings
+  const NON_CATALOG_RATE = 0.17; // ~17% for premium/classic
+  const COVERAGE_THRESHOLD = 80;
+
+  const isEstimated = (feeCoveragePct ?? 0) < COVERAGE_THRESHOLD;
+  let effectiveFee = marketplaceFee;
+  let estimatedRate: number | null = null;
+
+  if (isEstimated && grossRevenue > 0) {
+    // Use catalog/non-catalog breakdown if available, else flat 15%
+    const catRev = catalogRevenue ?? 0;
+    const nonCatRev = nonCatalogRevenue ?? 0;
+    if (catRev > 0 || nonCatRev > 0) {
+      effectiveFee = catRev * CATALOG_RATE + nonCatRev * NON_CATALOG_RATE;
+      estimatedRate = grossRevenue > 0 ? (effectiveFee / grossRevenue) * 100 : 0;
+    } else {
+      // Fallback: flat 15%
+      effectiveFee = grossRevenue * 0.15;
+      estimatedRate = 15;
+    }
+  }
+
+  const feePct = grossRevenue > 0 ? (effectiveFee / grossRevenue) * 100 : 0;
   const shippingPct = grossRevenue > 0 ? (absShipping / grossRevenue) * 100 : 0;
+  const cogsPct = grossRevenue > 0 ? (absCogs / grossRevenue) * 100 : 0;
+  const realNet = Math.max(grossRevenue - effectiveFee - absShipping - absCogs, 0);
   const netPct = grossRevenue > 0 ? (realNet / grossRevenue) * 100 : 0;
 
   const Step = ({
@@ -43,6 +83,7 @@ export default function MercadoLibreCascadeCard({
     tone,
     icon,
     subtitle,
+    badge,
   }: {
     label: string;
     value: number;
@@ -51,6 +92,7 @@ export default function MercadoLibreCascadeCard({
     tone: "neutral" | "negative" | "positive";
     icon: React.ReactNode;
     subtitle?: string;
+    badge?: string;
   }) => {
     const tones = {
       neutral: {
@@ -82,7 +124,14 @@ export default function MercadoLibreCascadeCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-end justify-between gap-2 mb-1">
               <div>
-                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{label}</p>
+                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+                  {label}
+                  {badge && (
+                    <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-50 border border-amber-200/70 px-1.5 py-px text-[9px] font-semibold text-amber-600 normal-case tracking-normal">
+                      {badge}
+                    </span>
+                  )}
+                </p>
                 {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
               </div>
               <div className="text-right">
@@ -150,17 +199,29 @@ export default function MercadoLibreCascadeCard({
         />
         <Step
           label="Comisión Mercado Libre"
-          value={marketplaceFee}
+          value={effectiveFee}
           pct={feePct}
           widthPct={feePct}
           tone="negative"
           icon={<TrendingDown size={16} />}
+          badge={isEstimated ? "estimada" : undefined}
           subtitle={
-            feeCoveragePct !== undefined
-              ? `Cobertura de datos: ${feeCoveragePct.toFixed(0)}% de órdenes con comisión registrada`
-              : "Sale fee retenido por ML"
+            isEstimated
+              ? `Estimada: catálogo ~${(CATALOG_RATE*100).toFixed(0)}%, premium ~${(NON_CATALOG_RATE*100).toFixed(0)}%. Solo ${(feeCoveragePct ?? 0).toFixed(0)}% con dato real.`
+              : `Comisión real de ${(feeCoveragePct ?? 100).toFixed(0)}% de las órdenes`
           }
         />
+        {hasCogs && (
+          <Step
+            label="Costo de mercadería"
+            value={absCogs}
+            pct={cogsPct}
+            widthPct={cogsPct}
+            tone="negative"
+            icon={<Package size={16} />}
+            subtitle="COGS — costo de los productos vendidos"
+          />
+        )}
         <Step
           label="Costo de envío"
           value={absShipping}
@@ -172,19 +233,34 @@ export default function MercadoLibreCascadeCard({
         />
         <div className="pt-4 border-t border-slate-100">
           <Step
-            label="Ingreso real (neto)"
+            label={hasCogs ? "Ganancia neta" : "Ingreso real (neto)"}
             value={realNet}
             pct={netPct}
             widthPct={netPct}
             tone="positive"
             icon={<Wallet size={16} />}
-            subtitle="Lo que efectivamente entra al negocio"
+            subtitle={hasCogs
+              ? "Lo que queda después de todas las deducciones"
+              : "Lo que efectivamente entra al negocio (sin COGS)"
+            }
           />
         </div>
       </div>
 
+      {/* Disclaimer for estimated data */}
+      {isEstimated && (
+        <div className="mt-4 pt-3 border-t border-amber-100 flex items-start gap-2 bg-amber-50/50 rounded-lg p-3 -mx-1">
+          <AlertTriangle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+          <p className="text-[10px] text-amber-700 leading-relaxed">
+            <span className="font-semibold">Comisión estimada.</span> Solo el {(feeCoveragePct ?? 0).toFixed(0)}% de las órdenes tiene la comisión real registrada.
+            El resto se calcula con tasas aproximadas (catálogo ~{(CATALOG_RATE*100).toFixed(0)}%, premium ~{(NON_CATALOG_RATE*100).toFixed(0)}%).
+            A medida que se sincronicen más datos, el cálculo será más preciso.
+          </p>
+        </div>
+      )}
+
       <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-        <span>Bruto → Neto</span>
+        <span>Bruto → {hasCogs ? "Ganancia" : "Neto"}</span>
         <span className="font-semibold text-emerald-700 tabular-nums">{formatCompact(realNet)}</span>
       </div>
     </div>

@@ -10,7 +10,7 @@ import {
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import {
   DollarSign, ShoppingCart, CreditCard, XCircle, Package, Users,
-  Search, ChevronDown, ArrowUpRight, ArrowDownRight, Clock,
+  Search, ChevronDown, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight, Clock,
   Percent, Truck, Tag, ExternalLink, MapPin, Calendar, Info,
   LayoutDashboard, ListOrdered,
 } from "lucide-react";
@@ -65,7 +65,7 @@ interface OrdersData extends OrdersV4Namespaces {
     deliveryType?: string | null; shippingCarrier?: string | null;
   }>;
   pagination?: { page: number; pageSize: number; totalCount: number; totalPages: number };
-  meta: { dateFrom: string; dateTo: string; source: string; daysInPeriod: number };
+  meta: { dateFrom: string; dateTo: string; source: string; daysInPeriod: number; compMode?: string; compOffset?: number; compFrom?: string; compTo?: string };
 }
 
 // -- Constants --
@@ -138,14 +138,16 @@ export default function OrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [showComparison, setShowComparison] = useState(false);
+  const [compMode, setCompMode] = useState<"off" | "yoy" | "mom" | "wow">("off");
+  const [compOffset, setCompOffset] = useState(0);
   const [flagFilter, setFlagFilter] = useState<AnomalyFlag | null>(null);
   const [tableSourceFilter, setTableSourceFilter] = useState<"ALL" | "VTEX" | "MELI">("ALL");
   const [pageView, setPageView] = useState<"dashboard" | "pedidos">("pedidos");
 
-  // Reset pagination cuando cambia source (tab) o fechas
+  // Reset pagination + comparison offset cuando cambia source (tab) o fechas
   useEffect(() => {
     setCurrentPage(1);
+    setCompOffset(0);
   }, [source, dateFrom, dateTo]);
 
   // -- Single fetch (fixed: no duplicate) --
@@ -159,6 +161,11 @@ export default function OrdersPage() {
         // En vista Resumen, respetar el source de la URL.
         const effectiveSource = pageView === "pedidos" ? "ALL" : source;
         if (effectiveSource !== "ALL") params.set("source", effectiveSource);
+        // Comparison mode params
+        if (compMode !== "off") {
+          params.set("compMode", compMode);
+          if (compOffset !== 0) params.set("compOffset", String(compOffset));
+        }
         const res = await fetch(`/api/metrics/orders?${params}`);
         if (!res.ok) {
           let detail = "";
@@ -173,7 +180,7 @@ export default function OrdersPage() {
       }
     };
     fetchData();
-  }, [dateFrom, dateTo, source, currentPage, pageView]);
+  }, [dateFrom, dateTo, source, currentPage, pageView, compMode, compOffset]);
 
   // -- Auto-enrich MELI orders missing items OR missing images (runs ONCE per data load) --
   const enrichAttemptedRef = useRef<string>("");
@@ -290,6 +297,7 @@ export default function OrdersPage() {
   }, [data?.dailySales]);
 
   // -- Comparison chart data --
+  const showComparison = compMode !== "off";
   const comparisonData = useMemo(() => {
     if (!data?.dailySales) return [];
     const current = data.dailySales;
@@ -504,26 +512,33 @@ export default function OrdersPage() {
           label="Venta promedio/dia" value={formatCompact(avgRevenuePerDay)}
           subtitle={`${avgOrdersPerDay.toFixed(1)} ordenes/dia`} />
         <KpiCard icon={<Truck size={16} className="text-cyan-600" />} iconBg="bg-cyan-50"
-          label="Envio promedio" value={formatARS(avgShippingPerOrder)}
-          subtitle={`${formatCompact(kpis.totalShipping)} total`} />
+          label="Envio promedio" value={formatARS(Math.abs(avgShippingPerOrder))}
+          subtitle={`${formatCompact(Math.abs(kpis.totalShipping))} total`} />
         <KpiCard icon={<Tag size={16} className="text-pink-600" />} iconBg="bg-pink-50"
           label="Descuento promedio" value={formatARS(avgDiscountPerOrder)}
           subtitle={`${formatCompact(kpis.totalDiscounts)} total`} />
         <KpiCard icon={<Percent size={16} className="text-amber-600" />} iconBg="bg-amber-50"
-          label="Margen envio/ticket" value={`${kpis.avgTicket > 0 ? ((avgShippingPerOrder / kpis.avgTicket) * 100).toFixed(1) : 0}%`}
-          subtitle="costo envio sobre ticket" />
+          label="Peso envío/ticket" value={`${kpis.avgTicket > 0 ? ((Math.abs(avgShippingPerOrder) / kpis.avgTicket) * 100).toFixed(1) : 0}%`}
+          subtitle="Qué % del ticket se va en logística" />
       </div>
 
       {/* ML CASCADE (Tanda 8.4) — exclusiva de la tab Mercado Libre */}
-      {source === "MELI" && (
-        <MercadoLibreCascadeCard
-          grossRevenue={kpis.totalRevenue}
-          marketplaceFee={data.profitability?.totalMarketplaceFee ?? (kpis as any).totalMarketplaceFee ?? 0}
-          shippingCost={kpis.totalShipping ?? 0}
-          ordersCount={kpis.totalOrders}
-          feeCoveragePct={data.profitability?.feeCoveragePct}
-        />
-      )}
+      {source === "MELI" && (() => {
+        const catRow = data.meliCatalog?.find((r: any) => r.type === "Catálogo");
+        const nonCatRow = data.meliCatalog?.find((r: any) => r.type === "Fuera de catálogo");
+        return (
+          <MercadoLibreCascadeCard
+            grossRevenue={kpis.totalRevenue}
+            marketplaceFee={data.profitability?.totalMarketplaceFee ?? (kpis as any).totalMarketplaceFee ?? 0}
+            shippingCost={kpis.totalShipping ?? 0}
+            ordersCount={kpis.totalOrders}
+            feeCoveragePct={data.profitability?.feeCoveragePct}
+            totalCogs={data.profitability?.totalCogs ?? 0}
+            catalogRevenue={catRow?.revenue ?? 0}
+            nonCatalogRevenue={nonCatRow?.revenue ?? 0}
+          />
+        );
+      })()}
 
       {/* PROFITABILITY + COHORTS (Tanda 4 + 8.2 + Tanda 9)
           - VTEX: muestra ambos (margen real con COGS + tipos de cliente)
@@ -548,14 +563,9 @@ export default function OrdersPage() {
 
       {/* DAILY SALES CHART + COMPARISON */}
       <div className="dash-card dash-chart-card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-800 tracking-tight">Ventas por dia</h2>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" checked={showComparison} onChange={(e) => setShowComparison(e.target.checked)}
-                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
-              <span className="text-xs text-slate-500">vs periodo anterior</span>
-            </label>
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-800 tracking-tight">Ventas por dia</h2>
             <div className="flex gap-1.5">
               {(["revenue", "orders"] as const).map((m) => (
                 <button key={m} onClick={() => setDailyMetric(m)}
@@ -566,6 +576,58 @@ export default function OrdersPage() {
               ))}
             </div>
           </div>
+          {/* Comparison mode selector */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-slate-500 mr-1">Comparar:</span>
+              {([
+                { key: "off", label: "Sin" },
+                { key: "wow", label: "Semanal" },
+                { key: "mom", label: "Mensual" },
+                { key: "yoy", label: "Anual" },
+              ] as const).map(({ key, label }) => (
+                <button key={key}
+                  onClick={() => { setCompMode(key); setCompOffset(0); }}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-200 ${
+                    compMode === key
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200"
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* Shift arrows — only visible when comparison is active */}
+            {showComparison && (
+              <div className="flex items-center gap-1">
+                <button onClick={() => setCompOffset(o => o - 1)}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200 transition-colors"
+                  title="Mover período atrás">
+                  <ChevronLeft size={14} />
+                </button>
+                {compOffset !== 0 && (
+                  <button onClick={() => setCompOffset(0)}
+                    className="px-2 py-1 rounded-md text-[10px] font-medium text-indigo-600 hover:bg-indigo-50 border border-indigo-200 transition-colors">
+                    Reset
+                  </button>
+                )}
+                <button onClick={() => setCompOffset(o => o + 1)}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200 transition-colors"
+                  title="Mover período adelante">
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Show comparison date range when active */}
+          {showComparison && data?.meta?.compFrom && (
+            <p className="text-[10px] text-slate-400">
+              Comparando con: {new Date(data.meta.compFrom).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
+              {" — "}
+              {new Date(data.meta.compTo!).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
+              {compOffset !== 0 && <span className="ml-1 text-indigo-500 font-medium">({compOffset > 0 ? "+" : ""}{compOffset} sem)</span>}
+            </p>
+          )}
         </div>
         <ResponsiveContainer width="100%" height={280}>
           <AreaChart data={showComparison ? comparisonData : data.dailySales}>
@@ -621,44 +683,7 @@ export default function OrdersPage() {
         </ResponsiveContainer>
       </div>
 
-      {/* STATUS FUNNEL — Waterfall visual */}
-      <div className="dash-card p-6">
-        <h2 className="text-sm font-semibold text-slate-800 tracking-tight mb-5">Flujo operativo de ordenes</h2>
-        <div className="flex items-end gap-3 overflow-x-auto pb-2">
-          {funnelData.map((step, i) => {
-            const maxCount = Math.max(...funnelData.map((s) => s.count), 1);
-            const heightPct = Math.max((step.count / maxCount) * 100, 20);
-            const total = funnelData.reduce((acc, s) => acc + s.count, 0);
-            const pct = total > 0 ? ((step.count / total) * 100).toFixed(0) : "0";
-            return (
-              <React.Fragment key={step.status}>
-                <div className="flex-1 min-w-[90px] group">
-                  <div className="text-center mb-3">
-                    <p className="text-2xl font-bold tabular-nums tracking-tight" style={{ color: step.color }}>{step.count.toLocaleString("es-AR")}</p>
-                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">{step.label}</p>
-                    <p className="text-[9px] text-slate-400 mt-0.5 opacity-0 group-hover:opacity-100" style={{ transition: "opacity 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>{pct}% del total</p>
-                  </div>
-                  <div className="relative w-full bg-slate-50 rounded-xl overflow-hidden" style={{ height: "48px" }}>
-                    <div className="absolute bottom-0 left-0 right-0 rounded-xl" style={{ height: `${heightPct}%`, backgroundColor: step.color, opacity: 0.85, transition: "height 600ms cubic-bezier(0.16, 1, 0.3, 1)" }} />
-                  </div>
-                </div>
-                {i < funnelData.length - 1 && (
-                  <div className="text-slate-300 flex-shrink-0 text-sm mb-6">→</div>
-                )}
-              </React.Fragment>
-            );
-          })}
-          {/* Cancelled / returned — separated */}
-          {data.statusBreakdown.filter((s) => s.status === "CANCELLED" || s.status === "RETURNED").map((s) => (
-            <div key={s.status} className="min-w-[80px] opacity-50 ml-3 pl-3 border-l border-slate-200/60">
-              <div className="text-center mb-3">
-                <p className="text-xl font-bold tabular-nums" style={{ color: STATUS_COLORS[s.status] }}>{s.count.toLocaleString("es-AR")}</p>
-                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">{STATUS_LABELS[s.status]}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* STATUS FUNNEL removed (Tanda 10) — Tomy: "no suma" */}
 
       {/* DAY OF WEEK + HOUR CHARTS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
