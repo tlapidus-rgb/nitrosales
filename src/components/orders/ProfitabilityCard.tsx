@@ -16,11 +16,13 @@ import type { ProfitabilityData } from "./types";
 interface ProfitabilityCardProps {
   data: ProfitabilityData | null | undefined;
   loading?: boolean;
+  source?: string;
 }
 
 export default function ProfitabilityCard({
   data,
   loading,
+  source,
 }: ProfitabilityCardProps) {
   if (loading) {
     return (
@@ -119,22 +121,26 @@ export default function ProfitabilityCard({
           hint={
             grossWithCost > 0
               ? `sobre ${formatARS(grossWithCost)} con costo`
-              : "Lo que te cost\u00f3"
+              : "Costo unitario cargado en Productos"
           }
           negative
         />
       </div>
 
-      {/* Tanda 7.6 \u2014 Comisiones de marketplace e ingreso real */}
+      {/* Tanda 7.6 — Comisiones de marketplace e ingreso real */}
       {((data.totalMarketplaceFee ?? 0) > 0 || typeof data.realNetRevenue === "number") && (
         <div className="grid grid-cols-2 gap-3 pt-3 mt-3 border-t border-slate-100">
           <BreakdownItem
-            label="Comisiones ML"
+            label={source === "VTEX" ? "Comisiones VTEX" : source === "MELI" ? "Comisiones ML" : "Comisiones"}
             value={formatARS(data.totalMarketplaceFee ?? 0)}
             hint={
-              (data.feeCoveragePct ?? 0) < 95 && (data.ordersWithFee ?? 0) > 0
-                ? `${(data.feeCoveragePct ?? 0).toFixed(0)}% ped. ML cubiertos`
-                : "Retenido por el marketplace"
+              source === "VTEX"
+                ? (data.totalMarketplaceFee ?? 0) > 0
+                  ? "Configurado en P&L → Costos"
+                  : "Configurar en P&L → Costos"
+                : (data.feeCoveragePct ?? 0) < 95 && (data.ordersWithFee ?? 0) > 0
+                  ? `${(data.feeCoveragePct ?? 0).toFixed(0)}% ped. ML cubiertos`
+                  : "Retenido por el marketplace"
             }
             negative
           />

@@ -591,7 +591,7 @@ export default function OrdersPage() {
                   → se reemplaza por MeliCatalogCard */}
       {source === "VTEX" ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ProfitabilityCard data={data.profitability} loading={loading} />
+          <ProfitabilityCard data={data.profitability} loading={loading} source={source} />
           <CohortsCard data={data.cohorts} loading={loading} source={source} sourceCounts={data.sourceCounts} />
         </div>
       ) : source === "ALL" ? (
