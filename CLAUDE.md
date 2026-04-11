@@ -94,6 +94,30 @@ Antes de cualquier `git push origin main`:
 - [ ] Las API routes nuevas tienen `export const dynamic = "force-dynamic"` si usan DB/cookies/fetch
 - [ ] Las páginas client con `useSearchParams` están dentro de `<Suspense>`
 
+### REGLA #3b — Queries SQL: checklist anti-página-en-blanco
+
+La API `/api/metrics/orders` ejecuta ~25 queries en batches. Una query
+lenta o que explota mata TODA la página (se queda en blanco).
+Antes de pushear cambios a queries SQL:
+
+- [ ] **NO hacer JOIN a tablas grandes** en queries de geography/segmentation
+      (orders tiene 60K+ rows; sumarle JOIN a customers duplica el costo).
+      Si necesitás datos de otra tabla, usar una query separada y cruzar en JS.
+- [ ] **NO usar `CAST(... AS int)`** sobre columnas que pueden tener datos mixtos
+      (ej: postalCode puede ser "1754" o "B1754BCD"). Usar comparaciones de texto.
+- [ ] **NO agregar subqueries correlacionados** dentro de queries que ya son
+      pesadas (ej: la query de profitability ya tiene un subquery por SKU, no
+      agregar más).
+- [ ] **Probar la query con rango chico** (1 día) después de pushear:
+      `fetch('/api/metrics/orders?from=HOY&to=HOY&source=VTEX')` — si no
+      responde en 15 segundos, la query está rota.
+- [ ] **Pool de conexiones = 8**. Nunca más de 3 queries en paralelo por batch.
+
+**Errores pasados:**
+- Sesión 16: Query de provincias con `LEFT JOIN customers` + `CAST(LEFT(postalCode,4) AS int)`
+  → timeout de la API → página en blanco. Fix: usar solo comparaciones de
+  texto con `LEFT(postalCode, 1)` sin JOIN.
+
 ---
 
 ## REGLA #4 — Comunicación con Tomy en lenguaje simple
