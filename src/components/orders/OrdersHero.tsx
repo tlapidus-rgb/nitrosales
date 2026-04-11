@@ -119,9 +119,11 @@ export default function OrdersHero({
                 hint={
                   (totalMarketplaceFee ?? 0) > 0
                     ? `\u2212 ${formatARS(totalMarketplaceFee ?? 0)} comisi\u00f3n ML`
-                    : "despu\u00e9s de comisiones"
+                    : Math.abs((realNetRevenue ?? 0) - netRevenue) < 1
+                      ? "sin comisi\u00f3n cargada"
+                      : "despu\u00e9s de comisiones"
                 }
-                emphasize
+                emphasize={Math.abs((realNetRevenue ?? 0) - netRevenue) >= 1}
               />
             )}
             <HeroStat

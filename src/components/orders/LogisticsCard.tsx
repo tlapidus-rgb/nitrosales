@@ -8,7 +8,7 @@
 // Gap positivo = pérdida (cobraste menos de lo que te costó).
 // ══════════════════════════════════════════════════════════════
 
-import { Truck, AlertTriangle } from "lucide-react";
+import { Truck, AlertTriangle, Info } from "lucide-react";
 import { formatARS } from "@/lib/utils/format";
 import { useAnimatedValue } from "@/lib/hooks/useAnimatedValue";
 import type { LogisticsData, LogisticsBucket, SourceCounts } from "./types";
@@ -112,6 +112,16 @@ export default function LogisticsCard({
           </div>
         </div>
       </div>
+
+      {/* Missing data note for logistics */}
+      {(data.byDeliveryType ?? []).some(b => b.bucket === "Sin dato" && b.orders > 0) && (
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-100 px-2.5 py-1">
+          <Info className="w-3 h-3 text-amber-400 flex-shrink-0" />
+          <span className="text-[10px] text-amber-600 leading-snug">
+            "Sin dato" = pedidos importados antes de activar el detalle de envío. Se puede corregir con un resync.
+          </span>
+        </div>
+      )}
 
       {/* Delivery type */}
       <div className="mb-4">

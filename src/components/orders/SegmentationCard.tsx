@@ -119,6 +119,16 @@ export default function SegmentationCard({
         </div>
       )}
 
+      {/* NitroPixel note for device tab when "Sin dato" is significant */}
+      {tab === "device" && !isMeliFilter && (data.byDevice ?? []).some(b => b.bucket === "Sin dato" && b.orders > 0) && (
+        <div className="mb-3 inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-100 px-2 py-0.5">
+          <Info className="w-3 h-3 text-amber-400" />
+          <span className="text-[10px] text-amber-600">
+            "Sin dato" = pedidos sin match de NitroPixel (teléfono, email, u otro canal sin píxel)
+          </span>
+        </div>
+      )}
+
       {/* Buckets */}
       {isVtexOnlyTab && isMeliFilter ? (
         <div className="py-6 text-center">
