@@ -190,6 +190,22 @@ export async function POST(req: NextRequest) {
     // Extract coupon code from VTEX marketingData
     const couponCode = vtexOrder.marketingData?.coupon || null;
 
+    // ── Extract delivery type + pickup store name from logisticsInfo ──
+    const allLogInfo = vtexOrder.shippingData?.logisticsInfo || [];
+    let bestCarrier: string | null = null;
+    let bestSla: string | null = null;
+    let isPickup = false;
+    let pickupName: string | null = null;
+    for (const li of allLogInfo) {
+      if (li?.pickupStoreInfo?.isPickupStore === true) {
+        isPickup = true;
+        pickupName = li.pickupStoreInfo.friendlyName || null;
+      }
+      if (li?.deliveryCompany && !bestCarrier) bestCarrier = li.deliveryCompany;
+      if (li?.selectedSla && !bestSla) bestSla = li.selectedSla;
+    }
+    const postalCode = vtexOrder.shippingData?.address?.postalCode || null;
+
     // ── Check if this order already exists (for dedup logic) ──
     const existingOrder = await prisma.order.findUnique({
       where: {
@@ -221,6 +237,11 @@ export async function POST(req: NextRequest) {
         shippingCost: shippingCost / 100,
         discountValue: discountValue / 100,
         orderDate: new Date(vtexOrder.creationDate),
+        deliveryType: isPickup ? "pickup" : "shipping",
+        pickupStoreName: isPickup ? pickupName : null,
+        shippingCarrier: bestCarrier,
+        shippingService: bestSla,
+        postalCode,
         ...(promoNames ? { promotionNames: promoNames } : {}),
         ...(couponCode ? { couponCode } : {}),
       },
@@ -231,6 +252,11 @@ export async function POST(req: NextRequest) {
         paymentMethod,
         shippingCost: shippingCost / 100,
         discountValue: discountValue / 100,
+        deliveryType: isPickup ? "pickup" : "shipping",
+        pickupStoreName: isPickup ? pickupName : null,
+        shippingCarrier: bestCarrier,
+        shippingService: bestSla,
+        postalCode,
         ...(promoNames ? { promotionNames: promoNames } : {}),
         ...(couponCode ? { couponCode } : {}),
       },
