@@ -7,7 +7,7 @@ import {
   Truck, MapPin, User, ShoppingBag, Receipt, TrendingUp,
   DollarSign, Percent, Gift, Clock, ExternalLink, Copy,
   ChevronDown, AlertTriangle, CheckCircle2, XCircle, Timer,
-  Layers, Eye, Hash, ArrowUpRight, ArrowDownRight,
+  Layers, Eye,
 } from "lucide-react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 
@@ -42,14 +42,6 @@ interface Order {
   shippingCarrier?: string | null;
 }
 
-interface BillingKpis {
-  totalRevenue: number;
-  totalOrders: number;
-  avgTicket: number;
-  totalDiscounts: number;
-  changes?: { revenue?: number; orders?: number; avgTicket?: number };
-}
-
 interface OrdersMasterDetailProps {
   orders: Order[];
   totalCount: number;
@@ -66,7 +58,6 @@ interface OrdersMasterDetailProps {
   onSourceFilterChange: (s: "ALL" | "VTEX" | "MELI") => void;
   statusBreakdown: Array<{ status: string; count: number }>;
   onImageZoom: (url: string) => void;
-  billingKpis?: BillingKpis;
 }
 
 /* ──────────────────────────────────────────────
@@ -88,23 +79,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 /* ──────────────────────────────────────────────
-   CHANGE BADGE — inline delta indicator
-   ────────────────────────────────────────────── */
-function InlineChange({ value }: { value?: number }) {
-  if (value === undefined || value === null || !isFinite(value)) return null;
-  const isPositive = value >= 0;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums ${
-      isPositive ? "text-emerald-600" : "text-rose-500"
-    }`}>
-      {isPositive ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-      {Math.abs(value).toFixed(1)}%
-    </span>
-  );
-}
-
-/* ──────────────────────────────────────────────
-   ORDER LIST ITEM (richer compact row — left panel)
+   ORDER LIST ITEM (compact row — left panel)
    ────────────────────────────────────────────── */
 function OrderListItem({
   order,
@@ -118,20 +93,12 @@ function OrderListItem({
   const isMeli = order.source === "MELI";
   const statusCfg = STATUS_CONFIG[order.status] || { label: order.status, color: "#94a3b8", bg: "bg-slate-50", icon: null };
   const firstItem = order.items?.[0];
-
-  const { dateShort, timeStr } = useMemo(() => {
+  const dateFormatted = (() => {
     try {
       const d = new Date(order.orderDate);
-      return {
-        dateShort: d.toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
-        timeStr: d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
-      };
-    } catch {
-      return { dateShort: order.orderDate, timeStr: "" };
-    }
-  }, [order.orderDate]);
-
-  const itemCountLabel = order.itemCount > 1 ? `${order.itemCount} productos` : "1 producto";
+      return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+    } catch { return order.orderDate; }
+  })();
 
   return (
     <button
@@ -152,30 +119,31 @@ function OrderListItem({
       />
 
       <div
-        className={`flex items-start gap-3 pl-4 pr-3 py-3 mx-1 rounded-xl ${
+        className={`flex items-center gap-3 pl-4 pr-3 py-3 mx-1 rounded-xl ${
           isSelected
             ? "bg-slate-900/[0.04]"
             : "hover:bg-slate-50"
         }`}
         style={{ transition: `all 180ms ${EASE}` }}
       >
-        {/* Product thumbnail */}
+        {/* Product thumbnail or source badge */}
         {firstItem?.imageUrl ? (
-          <div className="w-11 h-11 rounded-lg flex-shrink-0 overflow-hidden bg-slate-50 border border-slate-100/80 mt-0.5"
+          <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-slate-50 border border-slate-100/80"
             style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
             <img src={firstItem.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
           </div>
         ) : (
-          <div className={`w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
             isMeli ? "bg-yellow-50 border border-yellow-200/60" : "bg-indigo-50 border border-indigo-200/60"
           }`}>
-            <Package size={16} className={isMeli ? "text-yellow-500" : "text-indigo-500"} />
+            <span className={`text-[10px] font-bold ${isMeli ? "text-yellow-600" : "text-indigo-600"}`}>
+              {isMeli ? "ML" : "VTX"}
+            </span>
           </div>
         )}
 
-        {/* Content — 3 rows of info */}
+        {/* Content */}
         <div className="flex-1 min-w-0">
-          {/* Row 1: Product name + total */}
           <div className="flex items-center justify-between gap-2">
             <p className="text-[13px] font-semibold text-slate-800 truncate leading-tight tracking-tight">
               {firstItem?.name || "Sin detalle"}
@@ -184,59 +152,28 @@ function OrderListItem({
               {formatARS(order.totalValue)}
             </span>
           </div>
-
-          {/* Row 2: Source + status + item count */}
-          <div className="flex items-center gap-1.5 mt-1.5">
-            {/* Source badge */}
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold leading-none ${
-              isMeli
-                ? "bg-yellow-50 text-yellow-700 border border-yellow-200/60"
-                : "bg-indigo-50 text-indigo-600 border border-indigo-200/60"
-            }`}>
-              {isMeli ? "ML" : "VTEX"}
-            </span>
-            {/* Status */}
-            <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold leading-none"
-              style={{
-                backgroundColor: statusCfg.color + "14",
-                color: statusCfg.color,
-                border: `1px solid ${statusCfg.color}22`,
-              }}
-            >
-              <span className="w-1 h-1 rounded-full" style={{ backgroundColor: statusCfg.color }} />
-              {statusCfg.label}
-            </span>
-            {/* Item count */}
-            <span className="text-[10px] text-slate-400">
-              {itemCountLabel}
-            </span>
-          </div>
-
-          {/* Row 3: Customer + date/time + payment */}
-          <div className="flex items-center justify-between gap-2 mt-1.5">
+          <div className="flex items-center justify-between gap-2 mt-1">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-[11px] text-slate-500 truncate">
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0"
+                style={{ backgroundColor: statusCfg.color }}
+              />
+              <span className="text-[11px] text-slate-400 truncate">
                 {order.customerName !== "Cliente sin datos" && order.customerName !== "Cliente MercadoLibre"
                   ? order.customerName
-                  : order.paymentMethod}
+                  : dateFormatted}
               </span>
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className="text-[10px] text-slate-400 tabular-nums">
-                {dateShort}
-              </span>
-              <span className="text-[10px] text-slate-300 tabular-nums">
-                {timeStr}
-              </span>
-            </div>
+            <span className="text-[10px] text-slate-400 tabular-nums flex-shrink-0">
+              {dateFormatted}
+            </span>
           </div>
         </div>
 
         {/* Chevron */}
         <ChevronRight
           size={14}
-          className="text-slate-300 flex-shrink-0 mt-1"
+          className="text-slate-300 flex-shrink-0"
           style={{
             opacity: isSelected ? 1 : 0,
             transform: isSelected ? "translateX(0)" : "translateX(-4px)",
@@ -303,6 +240,7 @@ function OrderDetailPanel({
 }) {
   const isMeli = order.source === "MELI";
   const statusCfg = STATUS_CONFIG[order.status] || { label: order.status, color: "#94a3b8", bg: "bg-slate-50", icon: null };
+  const accentColor = isMeli ? "#eab308" : "#6366f1";
 
   const dateFormatted = (() => {
     try {
@@ -320,8 +258,9 @@ function OrderDetailPanel({
   const shipping = order.shippingCost || 0;
   const hasPromo = order.promotionNames && order.promotionNames.trim().length > 0;
 
+  // Estimate margin (for VTEX with cost data we'd use real COGS, for now use net)
   const netAfterIVA = order.totalValue / 1.21;
-  const meliCommission = isMeli ? order.totalValue * 0.13 : 0;
+  const meliCommission = isMeli ? order.totalValue * 0.13 : 0; // ~13% ML comisión promedio
   const estimatedNet = netAfterIVA - meliCommission - shipping;
   const estimatedMarginPct = order.totalValue > 0 ? (estimatedNet / order.totalValue) * 100 : 0;
 
@@ -431,6 +370,7 @@ function OrderDetailPanel({
               <div className="space-y-3">
                 {order.items.length > 0 ? order.items.map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
+                    {/* Product image — large and clickable */}
                     <div
                       className="w-16 h-16 rounded-xl flex-shrink-0 overflow-hidden bg-slate-50 border border-slate-100/80 cursor-pointer hover:shadow-md group"
                       style={{ transition: `all 220ms ${EASE}` }}
@@ -445,6 +385,7 @@ function OrderDetailPanel({
                         </div>
                       )}
                     </div>
+                    {/* Product info */}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 leading-tight tracking-tight">
                         {item.name || "Producto sin nombre"}
@@ -455,6 +396,7 @@ function OrderDetailPanel({
                         </span>
                       </div>
                     </div>
+                    {/* Line total */}
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold text-slate-900 tabular-nums">
                         {formatARS(item.totalPrice)}
@@ -468,6 +410,7 @@ function OrderDetailPanel({
                   </div>
                 )}
 
+                {/* Subtotal line */}
                 {order.items.length > 1 && (
                   <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                     <span className="text-xs font-medium text-slate-500">Subtotal ({order.items.length} productos)</span>
@@ -574,42 +517,50 @@ function OrderDetailPanel({
             {/* Revenue waterfall */}
             <DetailSection title="Cascada de ingresos" icon={<DollarSign size={14} />}>
               <div className="space-y-2.5">
+                {/* Subtotal */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-600">Subtotal productos</span>
                   <span className="text-sm font-semibold text-slate-900 tabular-nums">{formatARS(subtotal)}</span>
                 </div>
+                {/* Shipping */}
                 {shipping > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600">+ Envío cobrado</span>
                     <span className="text-sm font-medium text-slate-700 tabular-nums">+{formatARS(shipping)}</span>
                   </div>
                 )}
+                {/* Discount */}
                 {discount > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600">- Descuento</span>
                     <span className="text-sm font-medium text-emerald-600 tabular-nums">-{formatARS(discount)}</span>
                   </div>
                 )}
+                {/* Total line */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                   <span className="text-sm font-semibold text-slate-800">Total facturado</span>
                   <span className="text-sm font-bold text-slate-900 tabular-nums">{formatARS(order.totalValue)}</span>
                 </div>
+                {/* IVA */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">- IVA 21%</span>
                   <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(order.totalValue - netAfterIVA)}</span>
                 </div>
+                {/* ML Commission */}
                 {isMeli && meliCommission > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-500">- Comisión ML (~13%)</span>
                     <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(meliCommission)}</span>
                   </div>
                 )}
+                {/* Shipping cost */}
                 {shipping > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-500">- Costo envío</span>
                     <span className="text-sm font-medium text-red-500 tabular-nums">-{formatARS(shipping)}</span>
                   </div>
                 )}
+                {/* Net result */}
                 <div className="flex items-center justify-between pt-2 border-t border-dashed border-slate-200">
                   <span className="text-sm font-bold text-slate-900">Ingreso neto estimado</span>
                   <span className={`text-base font-bold tabular-nums ${estimatedNet >= 0 ? "text-emerald-600" : "text-red-600"}`}>
@@ -630,6 +581,7 @@ function OrderDetailPanel({
                   {estimatedMarginPct.toFixed(1)}%
                 </span>
               </div>
+              {/* Visual bar */}
               <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                 <div
                   className="h-full rounded-full"
@@ -687,9 +639,6 @@ function EmptyDetailState() {
 
 /* ──────────────────────────────────────────────
    MASTER-DETAIL LAYOUT (main export)
-
-   Everything lives inside ONE unified container:
-   billing strip + filters + split pane
    ────────────────────────────────────────────── */
 export default function OrdersMasterDetail({
   orders,
@@ -707,7 +656,6 @@ export default function OrdersMasterDetail({
   onSourceFilterChange,
   statusBreakdown,
   onImageZoom,
-  billingKpis,
 }: OrdersMasterDetailProps) {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -732,151 +680,87 @@ export default function OrdersMasterDetail({
   }, [statusBreakdown]);
 
   return (
-    <div
-      className="flex flex-col rounded-2xl bg-white overflow-hidden"
-      style={{
-        height: "calc(100vh - 180px)",
-        minHeight: "640px",
-        border: "1px solid rgba(15,23,42,0.06)",
-        boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08)",
-      }}
-    >
-      {/* ═══ TOP STRIP — Billing KPIs + Filters (all inside the block) ═══ */}
-      <div
-        className="flex-shrink-0 border-b border-slate-100/80"
-        style={{ background: "linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)" }}
-      >
-        {/* Billing KPIs row */}
-        {billingKpis && (
-          <div className="px-5 pt-4 pb-3 border-b border-slate-100/60">
-            <div className="flex items-center gap-8">
-              {/* Facturación bruta */}
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-slate-900 flex items-center justify-center flex-shrink-0">
-                  <DollarSign size={14} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Facturación bruta</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xl font-bold text-slate-900 tabular-nums tracking-tight">
-                      {formatCompact(billingKpis.totalRevenue)}
-                    </p>
-                    <InlineChange value={billingKpis.changes?.revenue} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="w-px h-8 bg-slate-100" />
-
-              {/* Total órdenes */}
-              <div>
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Órdenes</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-lg font-bold text-slate-900 tabular-nums tracking-tight">
-                    {billingKpis.totalOrders.toLocaleString("es-AR")}
-                  </p>
-                  <InlineChange value={billingKpis.changes?.orders} />
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="w-px h-8 bg-slate-100" />
-
-              {/* Ticket promedio */}
-              <div>
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Ticket promedio</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-lg font-bold text-slate-900 tabular-nums tracking-tight">
-                    {formatARS(billingKpis.avgTicket)}
-                  </p>
-                  <InlineChange value={billingKpis.changes?.avgTicket} />
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="w-px h-8 bg-slate-100" />
-
-              {/* Descuentos */}
-              <div>
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Descuentos</p>
-                <p className="text-lg font-bold text-emerald-600 tabular-nums tracking-tight">
-                  -{formatCompact(billingKpis.totalDiscounts)}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Filters row: search + source + status */}
-        <div className="px-5 py-3 flex items-center gap-3 flex-wrap">
-          {/* Search */}
-          <div className="relative w-64">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar orden, cliente..."
-              value={searchTerm}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white/80 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-              style={{ transition: `all 220ms ${EASE}` }}
-            />
-          </div>
-
-          {/* Source pills */}
-          <div className="flex items-center bg-slate-100/80 rounded-lg p-0.5">
-            {(["ALL", "VTEX", "MELI"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => onSourceFilterChange(s)}
-                className={`px-2.5 py-1.5 rounded-md text-[10px] font-semibold tracking-wide ${
-                  sourceFilter === s
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-                style={{ transition: `all 180ms ${EASE}` }}
-              >
-                {s === "ALL" ? "Todos" : s === "MELI" ? "Mercado Libre" : "VTEX"}
-              </button>
-            ))}
-          </div>
-
-          {/* Status pills */}
-          <div className="flex items-center gap-1 flex-wrap">
-            {statusOptions.slice(0, 5).map((s) => {
-              const cfg = STATUS_CONFIG[s.status];
-              if (!cfg) return null;
-              const isActive = statusFilter === s.status;
-              return (
-                <button
-                  key={s.status}
-                  onClick={() => onStatusChange(isActive ? null : s.status)}
-                  className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold border ${
-                    isActive
-                      ? "border-slate-300 bg-slate-100 text-slate-800"
-                      : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-                  }`}
-                  style={{ transition: `all 180ms ${EASE}` }}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.color }} />
-                  {cfg.label}
-                  <span className="text-slate-300 ml-0.5">{s.count.toLocaleString("es-AR")}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Order count */}
-          <div className="ml-auto text-xs text-slate-400 tabular-nums flex-shrink-0">
+    <div className="space-y-3">
+      {/* ─── Header bar ─── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Pedidos</h2>
+          <span className="text-xs text-slate-400 tabular-nums">
             {totalCount.toLocaleString("es-AR")} órdenes
-          </div>
+          </span>
         </div>
       </div>
 
-      {/* ═══ SPLIT PANE — List + Detail ═══ */}
-      <div className="flex flex-1 min-h-0">
-        {/* ═══ LEFT PANEL — Order List (wider now: ~50%) ═══ */}
-        <div className="w-[50%] min-w-[380px] flex flex-col border-r border-slate-100/80 bg-white">
+      {/* ─── Master-Detail container ─── */}
+      <div
+        className="flex rounded-2xl bg-white overflow-hidden"
+        style={{
+          height: "calc(100vh - 200px)",
+          minHeight: "600px",
+          border: "1px solid rgba(15,23,42,0.06)",
+          boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08)",
+        }}
+      >
+        {/* ═══ LEFT PANEL — Order List ═══ */}
+        <div className="w-[38%] min-w-[320px] max-w-[440px] flex flex-col border-r border-slate-100/80 bg-white">
+          {/* Filters bar */}
+          <div className="flex-shrink-0 px-3 pt-3 pb-2 space-y-2 border-b border-slate-100/80"
+            style={{ background: "linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)" }}>
+            {/* Search */}
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar orden, cliente..."
+                value={searchTerm}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white/80 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+                style={{ transition: `all 220ms ${EASE}` }}
+              />
+            </div>
+            {/* Source + Status pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Source pills */}
+              <div className="flex items-center bg-slate-100/80 rounded-lg p-0.5">
+                {(["ALL", "VTEX", "MELI"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => onSourceFilterChange(s)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-semibold tracking-wide ${
+                      sourceFilter === s
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                    style={{ transition: `all 180ms ${EASE}` }}
+                  >
+                    {s === "ALL" ? "Todos" : s}
+                  </button>
+                ))}
+              </div>
+              {/* Status pills */}
+              {statusOptions.slice(0, 4).map((s) => {
+                const cfg = STATUS_CONFIG[s.status];
+                if (!cfg) return null;
+                const isActive = statusFilter === s.status;
+                return (
+                  <button
+                    key={s.status}
+                    onClick={() => onStatusChange(isActive ? null : s.status)}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold border ${
+                      isActive
+                        ? "border-slate-300 bg-slate-100 text-slate-800"
+                        : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                    }`}
+                    style={{ transition: `all 180ms ${EASE}` }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.color }} />
+                    {cfg.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Order list — scrollable */}
           <div ref={listRef} className="flex-1 overflow-y-auto py-1"
             style={{ scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}>
@@ -884,11 +768,10 @@ export default function OrdersMasterDetail({
               // Skeleton
               Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3 px-4 py-3 mx-1">
-                  <div className="w-11 h-11 rounded-lg bg-slate-100 dash-skeleton" />
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 dash-skeleton" />
                   <div className="flex-1">
-                    <div className="h-3 w-40 bg-slate-100 rounded dash-skeleton mb-2" />
-                    <div className="h-2.5 w-28 bg-slate-100 rounded dash-skeleton mb-1.5" />
-                    <div className="h-2 w-20 bg-slate-100 rounded dash-skeleton" />
+                    <div className="h-3 w-32 bg-slate-100 rounded dash-skeleton mb-2" />
+                    <div className="h-2.5 w-20 bg-slate-100 rounded dash-skeleton" />
                   </div>
                 </div>
               ))
@@ -936,7 +819,7 @@ export default function OrdersMasterDetail({
         </div>
 
         {/* ═══ RIGHT PANEL — Order Detail ═══ */}
-        <div className="flex-1 bg-slate-50/30 min-w-0">
+        <div className="flex-1 bg-slate-50/30">
           {selectedOrder ? (
             <OrderDetailPanel
               key={selectedOrder.id}
