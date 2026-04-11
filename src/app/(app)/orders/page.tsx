@@ -420,7 +420,7 @@ export default function OrdersPage() {
           totalCount={data.pagination?.totalCount || 0}
           currentPage={currentPage}
           totalPages={data.pagination?.totalPages || 1}
-          pageSize={data.pagination?.pageSize || 20}
+          pageSize={data.pagination?.pageSize || 50}
           onPageChange={setCurrentPage}
           loading={loading}
           searchTerm={searchTerm}
@@ -431,6 +431,13 @@ export default function OrdersPage() {
           onSourceFilterChange={setTableSourceFilter}
           statusBreakdown={data.statusBreakdown}
           onImageZoom={setZoomedImage}
+          billingKpis={{
+            totalRevenue: kpis.totalRevenue,
+            totalOrders: kpis.totalOrders,
+            avgTicket: kpis.avgTicket,
+            totalDiscounts: kpis.totalDiscounts,
+            changes: kpis.changes,
+          }}
         />
       )}
 
