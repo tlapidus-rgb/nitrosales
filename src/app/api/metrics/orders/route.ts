@@ -367,19 +367,20 @@ export async function GET(request: NextRequest) {
           p.name AS product_name,
           COALESCE(p.brand, 'Sin marca') AS brand,
           COALESCE(p.category, 'Sin categoria') AS category,
-          p."imageUrl" AS image_url,
+          COALESCE(p."imageUrl", ml."thumbnailUrl") AS image_url,
           SUM(oi.quantity)::text AS units_sold,
           SUM(oi."totalPrice")::text AS revenue,
           COUNT(DISTINCT o.id)::text AS order_count
         FROM order_items oi
         JOIN orders o ON o.id = oi."orderId"
         JOIN products p ON p.id = oi."productId"
+        LEFT JOIN ml_listings ml ON ml."mlItemId" = p."externalId" AND ml."organizationId" = o."organizationId"
         WHERE o."organizationId" = '${ORG_ID}'
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhere}
-        GROUP BY p.id, p.name, p.brand, p.category, p."imageUrl"
+        GROUP BY p.id, p.name, p.brand, p.category, p."imageUrl", ml."thumbnailUrl"
         ORDER BY SUM(oi."totalPrice") DESC
         LIMIT 15
       `, dateFrom, dateTo),
@@ -473,7 +474,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN LATERAL (
           SELECT json_agg(json_build_object(
             'name', p.name,
-            'imageUrl', p."imageUrl",
+            'imageUrl', COALESCE(p."imageUrl", mll."thumbnailUrl"),
             'brand', COALESCE(p.brand,
               (SELECT p2.brand FROM products p2
                WHERE p2."organizationId" = o."organizationId"
@@ -494,6 +495,7 @@ export async function GET(request: NextRequest) {
           ))::text AS items_json
           FROM order_items oi
           LEFT JOIN products p ON p.id = oi."productId"
+          LEFT JOIN ml_listings mll ON mll."mlItemId" = p."externalId" AND mll."organizationId" = o."organizationId"
           WHERE oi."orderId" = o.id
         ) items_agg ON true
         WHERE o."organizationId" = '${ORG_ID}'
