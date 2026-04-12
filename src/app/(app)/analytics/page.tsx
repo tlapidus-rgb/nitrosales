@@ -138,6 +138,7 @@ interface PixelData {
     touchpoints: Array<{ timestamp?: string; source?: string; medium?: string; campaign?: string; page?: string }>;
     orderDate: string; orderStatus?: string;
   }>;
+  channelRoles?: Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>;
   pixelHealth: {
     attributionRate: number;
     clickCoverage: { total: number; withClickId: number; clickIdRate: number };
@@ -345,24 +346,18 @@ export default function AnalyticsPage() {
   // All unique channel sources for stacked bar
   const allSources = Array.from(new Set(dailyChannels.flatMap(d => d.channels.map(c => c.source))));
 
-  // Compute channel roles from journeys (first touch %, assist %, last touch %)
-  const channelRoles = (() => {
-    const roles: Record<string, { first: number; assist: number; last: number; total: number }> = {};
-    for (const j of journeys) {
-      if (j.touchpoints.length === 0) continue;
-      const tps = j.touchpoints;
-      for (let ti = 0; ti < tps.length; ti++) {
-        const src = tps[ti].source || "direct";
-        if (!roles[src]) roles[src] = { first: 0, assist: 0, last: 0, total: 0 };
-        roles[src].total++;
-        if (ti === 0) roles[src].first++;
-        else if (ti === tps.length - 1) roles[src].last++;
-        else roles[src].assist++;
-      }
-    }
-    return roles;
-  })();
-  const totalJourneys = journeys.length || 1;
+  // Channel roles from backend (computed over ALL journeys in period, not just recent 15)
+  const channelRolesRaw = pixelData?.channelRoles || [];
+  const channelRoles: Record<string, { first: number; assist: number; last: number; total: number }> = {};
+  for (const cr of channelRolesRaw) {
+    channelRoles[cr.source] = {
+      first: cr.firstTouch + cr.soloTouch, // solo touches count as first+last
+      assist: cr.assistTouch,
+      last: cr.lastTouch + cr.soloTouch,
+      total: cr.firstTouch + cr.assistTouch + cr.lastTouch + cr.soloTouch,
+    };
+  }
+  const totalJourneys = Object.values(channelRoles).reduce((s, r) => s + r.first, 0) || 1;
 
   return (
     <div className={`min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] ${isRefetching ? "pixel-refetching" : ""}`}>

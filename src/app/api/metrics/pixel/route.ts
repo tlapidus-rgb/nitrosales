@@ -126,6 +126,8 @@ export async function GET(request: NextRequest) {
       // ── Per-day per-source breakdown for daily trend table ──
       dailyChannelRevenueResult,
       dailyChannelSpendResult,
+      // ── Channel role breakdown (first/assist/last touch per source) ──
+      channelRolesResult,
     ] = await Promise.all([
       // 1. Live status
       prisma.$queryRaw`
@@ -618,6 +620,34 @@ export async function GET(request: NextRequest) {
           AND amd.date <= ${dateTo}::date
         GROUP BY 1, 2
       ` as Promise<Array<{ day: string; source: string; spend: number }>>,
+
+      // 22. Channel roles — first/assist/last touch counts per source across ALL journeys
+      prisma.$queryRaw`
+        SELECT
+          CASE
+            WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
+              AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
+            THEN COALESCE(tp->>'source','direct') || '_organic'
+            ELSE COALESCE(tp->>'source', 'direct')
+          END as source,
+          COUNT(*) FILTER (WHERE tp_ord = 1)::int as "firstTouch",
+          COUNT(*) FILTER (WHERE tp_ord > 1 AND tp_ord < pa."touchpointCount")::int as "assistTouch",
+          COUNT(*) FILTER (WHERE tp_ord = pa."touchpointCount" AND pa."touchpointCount" > 1)::int as "lastTouch",
+          COUNT(*) FILTER (WHERE pa."touchpointCount" = 1)::int as "soloTouch"
+        FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
+        , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+        WHERE pa."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND pa.model::text = ${selectedModel}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
+        GROUP BY 1
+        ORDER BY "firstTouch" DESC
+      ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>,
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -904,6 +934,7 @@ export async function GET(request: NextRequest) {
       dailyRevenue,
       dailyChannelBreakdown,
       recentJourneys,
+      channelRoles: channelRolesResult,
       pixelHealth,
 
       // ── Existing fields (unchanged) ──
