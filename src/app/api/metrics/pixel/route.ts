@@ -212,10 +212,11 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ type: string; count: number; uniqueVisitors: number }>>,
 
       // 7. Popular pages — group by clean path (no query params), use unique visitors
-      //    Excludes checkout (transactional, not content) and strips protocol+domain+query
+      //    Uses SPLIT_PART to strip query params (avoids regex escape issues in template literals)
+      //    Excludes checkout (transactional, not content pages)
       prisma.$queryRaw`
         SELECT
-          regexp_replace(regexp_replace(pe."pageUrl", '^https?://[^/]+', ''), '\?.*$', '') as path,
+          SPLIT_PART(pe."pageUrl", '?', 1) as url,
           COUNT(DISTINCT pe."visitorId")::int as visitors,
           COUNT(*)::int as "pageViews"
         FROM pixel_events pe
@@ -227,8 +228,8 @@ export async function GET(request: NextRequest) {
           AND pe."pageUrl" NOT LIKE '%/checkout%'
         GROUP BY 1
         ORDER BY visitors DESC
-        LIMIT 15
-      ` as Promise<Array<{ path: string; visitors: number; pageViews: number }>>,
+        LIMIT 30
+      ` as Promise<Array<{ url: string; visitors: number; pageViews: number }>>,
 
       // 8. Attribution by model
       prisma.$queryRaw`

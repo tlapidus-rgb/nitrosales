@@ -1189,7 +1189,10 @@ export default function AnalyticsPage() {
 
               const prettifyPath = (raw: string) => {
                 try {
-                  const path = decodeURIComponent(raw).replace(/^\//, "").replace(/\/$/, "");
+                  // Extract pathname from full URL or path string
+                  let path: string;
+                  try { path = new URL(raw).pathname; } catch { path = raw; }
+                  path = decodeURIComponent(path).replace(/^\//, "").replace(/\/$/, "");
                   if (!path) return "Home";
                   // Numeric-only paths are product IDs
                   if (/^\d+$/.test(path)) return `Producto #${path}`;
