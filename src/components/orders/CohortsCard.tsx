@@ -68,10 +68,10 @@ export default function CohortsCard({ data, loading, source, sourceCounts }: Coh
     },
     {
       key: "anonymous",
-      label: "Sin identificar",
-      sublabel: "No pudimos asociarlos a un cliente",
+      label: "Clientes MercadoLibre",
+      sublabel: "ML no comparte datos del comprador",
       stats: data.anonymous,
-      icon: UserX,
+      icon: ShoppingBag,
       tone: "slate",
     },
   ];
