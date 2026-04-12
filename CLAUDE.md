@@ -146,4 +146,21 @@ vez", **PARAR y preguntarle a Tomy en el chat primero**.
 
 ---
 
-_Última actualización: 2026-04-11 — Modelo main-only._
+## Modelo de sync de datos (Sesión 17+)
+
+| Plataforma | Mecanismo principal | Safety net |
+|------------|-------------------|------------|
+| **VTEX** | Webhooks (real-time) | Cron 1x/día 3am |
+| **MercadoLibre** | Webhooks (real-time) | Cron 1x/día 2am |
+| **Meta Ads** | On-demand (al abrir /campaigns/meta) | Ninguno |
+| **Google Ads** | On-demand (al abrir /campaigns/google) | Ninguno |
+| **GA4** | Cron dentro de /api/sync (1x/día 3am) | — |
+| **GSC** | Cron 1x/día 9am | — |
+
+**On-demand = useSyncStatus hook**: chequea frescura (>30min), dispara
+`/api/sync/trigger?platform=X` que usa `waitUntil` para sync de fondo.
+La página muestra "Actualizando datos..." y se refresca automáticamente.
+
+---
+
+_Última actualización: 2026-04-12 — Modelo main-only + sync on-demand._

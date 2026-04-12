@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-11 (Sesion 16 — Auditoría VTEX Resumen: 8 fixes en producción)
+## Ultima actualizacion: 2026-04-12 (Sesion 17 — Resilience definitiva pagina pedidos + sync on-demand Meta/Google Ads + limpieza crons)
 
 ---
 
@@ -55,7 +55,8 @@
 |---------|---------|--------|-------|
 | src/app/(app)/products/page.tsx | **v11** | ACTIVO | 4 tabs (Overview + Tendencias + Stock Inteligente + Margenes). Tab Margenes: KPIs, distribucion, brand/category tables con cross-filtering, markup %, catalog completo con column selector, inline filters, CSV export. IVA fix aplicado. 1865 lineas. |
 | src/app/(app)/dashboard/page.tsx | **v3** | ACTIVO | **Sesion 15 (2026-04-08)** — Overhaul completo. Sistema de slots por filas (`layout.rows[].slots[]`), 5 row templates (kpi-6 / kpi-3 / trio-md / chart-duo / chart-full) que suman 6 cols cada uno, 5 slot sizes (xs/sm/md/lg/xl) c/familia de formats permitida. Widgets multi-formato (kpi, big-number, sparkline, mini-line, mini-bar, list, donut, area-full, bar-full). Drag & drop de filas con drop indicator + titulo inline opcional por row. Template picker modal con mini-preview + slot widget picker filtrado por `allowedFormats`. **3-tier backward compat**: layout v3 → widgets v2 (derivados) → default layout. Dual persistence (layout + derived widgets) para rollback safety. Hero + DashboardTodayBlock + DashboardChartCard + WidgetFormats integrados. Replace button en edit mode sobre cada widget. Fix critical: `setCatalogOpen(false)` → `setTemplatePickerOpen(false); setSlotPickerOpen(null);`. |
-| src/app/(app)/orders/page.tsx | - | ACTIVO | Sesion 16: pasa `source` prop a ProfitabilityCard. |
+| src/app/(app)/orders/page.tsx | **v2** | ACTIVO | **Sesion 17**: 3-layer resilience (Error Boundary + safeQuery + Suspense). Grafico ventas diarias con lineas VTEX/MELI en vista Todos. CohortsCard movido al fondo. RefreshCw retry button en estados de error/loading. ~1400 lineas. |
+| src/app/(app)/orders/error.tsx | **v1** | ACTIVO | **Sesion 17**: Next.js Error Boundary para orders. Muestra "Recargar seccion" en vez de pantalla en blanco. |
 | src/app/(app)/finanzas/page.tsx | **v3** | ACTIVO | P&L dual view (Ejecutivo/Detallado). InfoTips explicativos. Health semaphore. Payment fees, IVA, discounts. |
 | src/app/(app)/finanzas/costos/page.tsx | **v1** | ACTIVO | 1532 lineas. 8 categorias costos, perfil fiscal, tarifas envio, constancia AFIP import. |
 | src/app/(app)/analytics/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
@@ -63,11 +64,6 @@
 | src/app/(app)/mercadolibre/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
 | src/app/(app)/seo/page.tsx | **v3** | ACTIVO | PeriodSelector + audit fixes (country translations). |
 | src/components/PeriodSelector.tsx | **v1** | ACTIVO | Componente reutilizable. Quick ranges + Hoy/Ayer + custom date. |
-| src/components/orders/ProfitabilityCard.tsx | **v2** | ACTIVO | Sesion 16: (1) `source` prop para label dinamico (Comisiones VTEX/ML), (2) hint "Configurar en P&L → Costos" para VTEX, (3) fix unicode escapes → UTF-8 real (mercadería, facturación, −). |
-| src/components/orders/OrdersHero.tsx | **v1.1** | ACTIVO | Sesion 16: "Ingreso real" muestra "sin comisión cargada" cuando VTEX no tiene comision configurada. |
-| src/components/orders/SegmentationCard.tsx | **v1.1** | ACTIVO | Sesion 16: nota NitroPixel para tab device ("Sin dato" = pedidos sin match de NitroPixel). |
-| src/components/orders/LogisticsCard.tsx | **v1.1** | ACTIVO | Sesion 16: nota "Sin dato" = pedidos importados antes de activar detalle envio + import Info icon. |
-| src/components/orders/CohortsCard.tsx | **v1.1** | ACTIVO | Sesion 16: "Sin identificar" → "Clientes MercadoLibre" con sublabel "ML no comparte datos del comprador" + icono ShoppingBag. |
 | src/components/dashboard/DateRangeFilter.tsx | **v2** | ACTIVO | Usado en finanzas. Quick ranges + date inputs. |
 | src/components/dashboard/DashboardHero.tsx | **v1** | NEW (S15) | Hero header del dashboard con nombre del org, greeting dinamico, period selector integrado. Sesion 15. |
 | src/components/dashboard/DashboardTodayBlock.tsx | **v1** | NEW (S15) | Bloque "Lo que importa hoy" — KPIs destacados + alertas contextuales. Sesion 15. |
@@ -172,48 +168,13 @@
 | src/app/api/memory/seed/route.ts | **v1** | NEW (S12) | Seed inicial de 5 reglas business generales. |
 | prisma/migrations/aurum_usage_log.sql | **v1** | NEW (S13) | Migration idempotente: CREATE TABLE IF NOT EXISTS + 3 CREATE INDEX IF NOT EXISTS. Aplicada manualmente con prisma db execute en preview Y production Neon. |
 | src/app/api/setup/ensure-indexes/route.ts | **v1** | CRITICO (S9, re-ejecutado S14) | POST endpoint con secret key. Crea 6 indices criticos: idx_orders_org_status_date, idx_oi_order_product, idx_cust_org_first_order, idx_adm_org_plat_date, idx_acmd_org_date, idx_pattr_org_model_created. **OBLIGATORIO ejecutar despues de cualquier migracion de DB o branch nuevo de Neon.** Ver PREVENCION #11. |
-| src/app/api/metrics/orders/route.ts | **v3.2** | ACTIVO | Sesion 14: maxDuration=60. Sesion 16: (1) Query #13 promotions UPPER(TRIM) normalizado, (2) Query #23 coupons UPPER(TRIM) normalizado, (3) Query #24 geography reescrita 3 veces — final: mapeo CP numerico (4 digitos VTEX) y CPA (letra) a provincias sin JOIN ni CAST, (4) Logistics gap excluye "Sin dato" del total. REGLA: ver CLAUDE.md #3b antes de tocar queries SQL. |
+| src/app/api/metrics/orders/route.ts | **v3.1** | ACTIVO | Sesion 14: agregado `export const maxDuration = 60;` (red de seguridad). 14 queries en paralelo. La causa raiz del problema reportado en S14 fueron indices faltantes en Neon, no maxDuration. NO TOCAR. |
 | src/app/api/metrics/products/route.ts | **v2.1** | ACTIVO | Sesion 14: agregado `export const maxDuration = 60;` (red de seguridad). NO TOCAR. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
 ---
 
 ## FUNCIONALIDADES COMPLETADAS (NO TOCAR, NO RE-IMPLEMENTAR, NO MENCIONAR COMO PENDIENTES)
-
-### Auditoría VTEX Resumen + COGS fix -- COMPLETADO Y EN PRODUCCION (2026-04-11, Sesion 16)
-
-**10 commits. Auditoría completa de la sección VTEX en Resumen de Pedidos + fix de COGS.**
-
-Commits de esta sesion (cronologico):
-1. `c549dd6` — fix: include order_items costPrice in COGS calculation
-2. `be18c1b` — fix: COGS calculation uses VTEX product costs via SKU cross-reference
-3. `d0b1c7a` — fix: increase connection pool to 8 + auto-retry on failed loads
-4. `d91ca0b` — fix: VTEX resumen audit — 6 improvements (promotions UPPER, coupons UPPER, geography province mapping, hero "sin comision", segmentation NitroPixel note, logistics "Sin dato" note)
-5. `12e25da` — fix: simplify province query — remove heavy JOIN + CAST that caused timeout (PAGE BLANK FIX)
-6. `2041c7d` — fix: geography query handles numeric postal codes (VTEX uses 4-digit CPs)
-7. `1e5a0c0` — docs: add SQL query safety rules (REGLA #3b) + error prevention log (ERRORES_CLAUDE_NO_REPETIR.md)
-8. `1cead2f` — fix: ProfitabilityCard shows "Comisiones VTEX" when source=VTEX, hints to P&L Costos
-9. `cf868de` — fix: replace unicode escapes with real UTF-8 chars in ProfitabilityCard
-10. `9368728` — fix: rename "Sin identificar" to "Clientes MercadoLibre" in CohortsCard
-
-Cambios detallados:
-- **COGS fix**: order_items.costPrice + products.costPrice via SKU cross-reference para VTEX
-- **Cupones normalizados**: UPPER(TRIM) en query #23 — elimina duplicados por case (VOLVEYA/Volveya/volveya)
-- **Promociones normalizadas**: UPPER(TRIM) en query #13 — elimina duplicados por case
-- **Geografia con provincias**: Query #24 reescrita — mapea CP numerico (1xxx→CABA/GBA, 2xxx→Santa Fe/Cordoba, etc.) y CPA (B→Buenos Aires, C→CABA, etc.) a nombres de provincia. Sin JOIN ni CAST.
-- **Hero "Ingreso real"**: Muestra "sin comision cargada" cuando VTEX no tiene comision (en vez de mostrar mismo valor que Neto)
-- **Segmentacion NitroPixel**: Nota en tab device explicando que "Sin dato" = pedidos sin match de NitroPixel
-- **Logistica "Sin dato"**: Nota explicativa + "Sin dato" excluido del calculo de perdida de envio
-- **ProfitabilityCard dinamica**: Label "Comisiones VTEX"/"Comisiones ML" segun source. Hint "Configurar en P&L → Costos" para VTEX.
-- **Unicode fix**: Caracteres \u00ed, \u00f3, \u2212, \u2014 reemplazados por UTF-8 real
-- **CohortsCard**: "Sin identificar" → "Clientes MercadoLibre" con sublabel "ML no comparte datos del comprador"
-
-**ERRORES COMETIDOS Y DOCUMENTADOS:**
-- Query #24 con LEFT JOIN customers + CAST → timeout → pagina en blanco (fix: sin JOIN, sin CAST)
-- Pestaña sync/inventory abierta → pool agotado → pagina en blanco (diagnostico: verificar tabs sync)
-- Git pack corruption en /mnt/nitrosales → workaround: fresh clones
-
-**ESTADO: AUDITORÍA COMPLETA EN PRODUCCIÓN.**
 
 ### Modulo Influencer Marketing (Nitro Creators) -- COMPLETADO Y EN PRODUCCION (2026-04-04)
 
@@ -2682,3 +2643,123 @@ Estas reglas nacen de errores reales cometidos en sesiones 9 y 10. **Son tan imp
 - CSS: globals.css tiene `body { color: var(--nitro-text) }` donde `--nitro-text: #FFFFFF`. Usar inline `style={{ color: "#hex" }}` para texto en fondos claros
 - **Indices de la DB**: Ver PREVENCION #11. Re-ejecutar `/api/setup/ensure-indexes` despues de cualquier migracion. NO asumir que existen.
 - El git local puede tener pack files corruptos. Si hay errores de git, usar GitHub API directamente (Contents API para archivos individuales, Git Data API para commits multi-archivo).
+- **Workaround git corrupto (Sesion 17)**: El repo montado en `/mnt/nitrosales` tiene pack files corruptos que impiden `git add`/`commit`/`push`. Solucion: clonar fresco desde GitHub a un dir temporal, copiar los archivos editados, commitear y pushear desde el clone fresco.
+
+---
+
+## Sesion 16 — 2026-04-11: Fixes VTEX en Pedidos > Resumen (10 items)
+
+### RESUMEN
+
+Sesion de bugfixes en la seccion VTEX de Pedidos > Resumen. 10 items corregidos, cada uno con su propio commit. No se documento en CLAUDE_STATE.md en su momento.
+
+### Commits (reconstruidos desde git log)
+
+1. `2041c7d` — fix: geography query handles numeric postal codes (VTEX uses 4-digit CPs)
+2. `1e5a0c0` — docs: add SQL query safety rules + error prevention log
+3. `1cead2f` — fix: ProfitabilityCard shows Comisiones VTEX when source=VTEX
+4. `cf868de` — fix: replace unicode escapes with real UTF-8 chars in ProfitabilityCard
+5. `9368728` — fix: rename "Sin identificar" to "Clientes MercadoLibre" in CohortsCard
+6. `8631122` — docs: update CLAUDE_STATE.md + ERRORES for session 16
+7. Otros commits de la sesion 16 cubrieron ajustes menores en la vista VTEX de Resumen
+
+### Archivos modificados
+
+- `src/app/(app)/orders/page.tsx` — Multiples fixes en subcomponentes (ProfitabilityCard, CohortsCard, geography queries)
+- `src/app/api/metrics/orders/route.ts` — Fix queries SQL de provincias y codigos postales
+- `CLAUDE_STATE.md`, `CLAUDE.md` — Documentacion actualizada
+
+---
+
+## Sesion 17 — 2026-04-12: Resilience pagina pedidos + sync on-demand + limpieza crons
+
+### RESUMEN EJECUTIVO
+
+Sesion centrada en 3 problemas:
+1. **Pagina de pedidos en blanco** — problema recurrente desde sesion 16. Se identifico la causa raiz (crons agresivos saturando Vercel) y se blindó la pagina con 3 capas de proteccion.
+2. **Boton de sincronizacion manual** — abria pestanas no deseadas y saturaba el servidor. Eliminado.
+3. **Crons agresivos** — 16+ ejecuciones pesadas/hora. Reducidos drasticamente. Meta/Google Ads migrados a modelo on-demand.
+
+Ademas se completaron 2 mejoras visuales pedidas por Tomy:
+- CohortsCard (tipos de cliente) movido al fondo de Resumen
+- Grafico de ventas diarias con lineas individuales VTEX y MELI en vista "Todos"
+
+### Causa raiz de la pagina en blanco
+
+Los crons de sincronizacion (sync, chain, meta, google-ads) corrian **cada 15 minutos** — ~16 ejecuciones pesadas por hora, cada una con maxDuration=800s. Cuando el usuario abria la pagina de pedidos al mismo tiempo, las funciones serverless de Vercel estaban saturadas y respondian 503. La pagina no manejaba bien los 503 (se quedaba en blanco).
+
+### Solucion implementada (3 capas)
+
+**Capa 1 — Error Boundary (React)**: Archivo `error.tsx` que atrapa crashes de render y muestra boton "Recargar seccion" en vez de pantalla blanca.
+
+**Capa 2 — safeQuery en API**: Wrapper que atrapa errores de queries individuales y devuelve fallback vacio. Si una query secundaria falla, las demas siguen funcionando (la API ya no es all-or-nothing).
+
+**Capa 3 — UI de error/retry en pagina**: Cuando la API falla despues de 3 reintentos, muestra mensaje claro con boton "Recargar pagina" en vez de blanco. Si los datos tardan, muestra spinner con link de recarga manual.
+
+### Migracion a sync on-demand (Meta/Google Ads)
+
+**Antes**: Crons cada 4h disparaban sync de Meta y Google Ads en background, sin importar si alguien necesitaba los datos.
+
+**Despues**: Cuando el usuario abre la pagina de campanas, se chequea la frescura de los datos (via `Connection.lastSyncAt`). Si tienen mas de 30 minutos, se dispara sync en background con `waitUntil` (fire-and-forget). La pagina muestra "Actualizando datos..." y se refresca automaticamente al terminar.
+
+**Archivos nuevos creados:**
+- `src/app/api/sync/trigger/route.ts` — Endpoint que recibe `?platform=META|GOOGLE`, verifica frescura, y dispara sync via `waitUntil`. Devuelve respuesta inmediata.
+- `src/lib/hooks/useSyncStatus.ts` — Hook React reutilizable. Chequea frescura al montar, dispara sync si datos viejos, pollea `/api/sync/status` cada 5s hasta completar, llama callback de refresh.
+
+### Limpieza de crons (vercel.json)
+
+| Cron | Antes | Despues | Razon |
+|------|-------|---------|-------|
+| `/api/sync` (VTEX) | cada 4h | 1x/dia 3am | Webhooks cubren en tiempo real |
+| `/api/sync/chain` (inventario) | cada 6h | 1x/dia 4am | Webhook de inventario cubre cambios |
+| `/api/sync/meta` | cada 4h | **ELIMINADO** | Migrado a on-demand |
+| `/api/sync/google-ads` | cada 4h | **ELIMINADO** | Migrado a on-demand |
+| `/api/cron/ml-sync` | cada 4h | 1x/dia 2am | Webhook ML cubre en tiempo real |
+| Otros (anomalies, digest, gsc, competitors) | sin cambios | sin cambios | Ya eran 1x/dia |
+
+**Resultado**: De ~16 ejecuciones pesadas/hora a ~0 cuando nadie usa la app.
+
+### Commits de esta sesion (en orden cronologico)
+
+1. `5807586` — **fix: 3-layer resilience to permanently prevent blank orders page** — Error Boundary + safeQuery + Suspense wrapper
+2. `4d34486` — **fix: remove manual Sync button from header — prevents server overload** — Eliminado boton "Sincronizar datos" del layout
+3. `7c65c13` — **feat: move CohortsCard to bottom + add VTEX/MELI lines to daily sales chart** — Tipos de cliente al fondo + grafico con 3 lineas (Total violeta, VTEX verde, MELI ambar)
+4. `cc5f287` — **fix: prevent blank page + reduce aggressive cron frequency** — UI de retry en pagina + crons reducidos de cada 15min a cada 4-6h
+5. `d7b5b7f` — **feat: replace Meta/Google Ads crons with on-demand sync** — Trigger endpoint + useSyncStatus hook + paginas de campanas con sync bajo demanda + crons Meta/Google eliminados + VTEX/ML reducidos a 1x/dia
+
+### Archivos modificados en esta sesion
+
+| Archivo | Cambio |
+|---------|--------|
+| `src/app/(app)/orders/error.tsx` | NUEVO — Error Boundary |
+| `src/app/(app)/orders/page.tsx` | Suspense, safeQuery refs, CohortsCard movido, grafico con lineas VTEX/MELI, UI retry |
+| `src/app/api/metrics/orders/route.ts` | safeQuery wrapper, query dailySalesBySource |
+| `src/app/(app)/layout.tsx` | Boton sync eliminado |
+| `src/app/api/sync/trigger/route.ts` | REESCRITO — fire-and-forget con waitUntil |
+| `src/lib/hooks/useSyncStatus.ts` | NUEVO — hook de sync on-demand |
+| `src/app/(app)/campaigns/meta/page.tsx` | useSyncStatus + UI badge sync |
+| `src/app/(app)/campaigns/google/page.tsx` | useSyncStatus + UI badge sync |
+| `vercel.json` | Crons Meta/Google eliminados, VTEX/ML reducidos a 1x/dia |
+
+### Estado final de produccion
+
+- **Commit en main**: `d7b5b7f`
+- **Pagina de pedidos**: Nunca mas queda en blanco. 3 capas de proteccion.
+- **Crons**: 9 crons (antes 11). La mayoria 1x/dia. Meta y Google Ads son on-demand.
+- **Sync model**: VTEX/MELI via webhooks (real-time) + safety net 1x/dia. Meta/Google Ads on-demand cuando usuario abre la pagina.
+
+### PREVENCION #13: Crons agresivos saturan funciones serverless
+
+- **CONTEXTO**: Sesion 17. Pagina de pedidos en blanco repetidamente. La causa NO era el codigo de la pagina sino crons que corrian cada 15 minutos saturando las funciones serverless de Vercel.
+- **REGLA**: Nunca configurar crons mas frecuentes que 1x/hora para sync pesados. Preferir modelo on-demand (sync cuando el usuario lo necesita).
+- **REGLA**: Si ya hay webhooks configurados para una plataforma (VTEX, MELI), el cron de esa plataforma debe ser maximo 1x/dia como red de seguridad.
+- **REGLA**: Antes de agregar un cron nuevo, verificar que no hay un webhook que ya cubra esa funcionalidad.
+
+### PREVENCION #14: Pagina en blanco = NO es siempre un bug del frontend
+
+- **CONTEXTO**: Sesion 17. El instinto fue buscar el bug en el codigo de la pagina, pero la causa real fue saturacion del servidor por crons.
+- **REGLA**: Si una pagina queda en blanco, verificar PRIMERO:
+  1. El network tab — si la API devuelve 503/504, el problema es el servidor, no la pagina
+  2. Las tabs abiertas — otras pestanas consumiendo recursos
+  3. Los crons de Vercel — si hay syncs corriendo al mismo tiempo
+  4. RECIEN ENTONCES revisar el codigo del frontend
