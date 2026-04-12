@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -103,7 +103,7 @@ function parseSourceParam(raw: string | null): SourceValue {
   return (VALID_SOURCES as string[]).includes(upper) ? (upper as SourceValue) : "ALL";
 }
 
-export default function OrdersPage() {
+function OrdersPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -591,7 +591,7 @@ export default function OrdersPage() {
                   → se reemplaza por MeliCatalogCard */}
       {source === "VTEX" ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ProfitabilityCard data={data.profitability} loading={loading} source={source} />
+          <ProfitabilityCard data={data.profitability} loading={loading} />
           <CohortsCard data={data.cohorts} loading={loading} source={source} sourceCounts={data.sourceCounts} />
         </div>
       ) : source === "ALL" ? (
@@ -1346,5 +1346,33 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Suspense wrapper — required by Next.js for useSearchParams
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6 dash-stagger">
+        <div className="dash-hero rounded-2xl overflow-hidden">
+          <div className="dash-hero-inner px-8 py-7">
+            <div className="dash-skeleton h-4 w-32 mb-4" />
+            <div className="dash-skeleton h-12 w-64 mb-3" />
+            <div className="dash-skeleton h-4 w-48" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="dash-card p-5">
+              <div className="dash-skeleton h-3 w-20 mb-3" />
+              <div className="dash-skeleton h-7 w-28 mb-2" />
+              <div className="dash-skeleton h-3 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
+    }>
+      <OrdersPageInner />
+    </Suspense>
   );
 }

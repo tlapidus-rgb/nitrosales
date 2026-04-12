@@ -23,6 +23,16 @@ export const revalidate = 0;
 export const maxDuration = 120; // Vercel Pro: up to 120s (250k orders + 170k items need headroom)
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// ── Resilience helper: wraps each query so a single failure doesn't kill the whole API ──
+async function safeQuery<T>(queryPromise: Promise<T>, fallback: T, label: string): Promise<T> {
+  try {
+    return await queryPromise;
+  } catch (e: any) {
+    console.error(`[Orders API] Query "${label}" failed:`, e.message);
+    return fallback;
+  }
+}
+
 // Auto-migrate: ensure columns exist (runs once per cold start)
 async function ensureColumns() {
   try {
@@ -349,10 +359,10 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
-    // ── BATCH 3b: Top products (heavy JOIN, runs alone) ──
+    // ── BATCH 3b: Top products (heavy JOIN, runs alone, resilient) ──
     const [topProducts] = await Promise.all([
       /* 8) Top products */
-      prisma.$queryRawUnsafe<Array<{
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         product_id: string;
         product_name: string;
         brand: string;
@@ -383,7 +393,7 @@ export async function GET(request: NextRequest) {
         GROUP BY p.id, p.name, p.brand, p.category, p."imageUrl", ml."thumbnailUrl"
         ORDER BY SUM(oi."totalPrice") DESC
         LIMIT 15
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "top-products"),
     ]);
 
     // ── BATCH 4: Customers + recent orders (2 queries) ──
@@ -541,17 +551,17 @@ export async function GET(request: NextRequest) {
       `, prevFrom, prevTo),
     ]);
 
-    // ── BATCH 5b: Promotions (1 query) ──
+    // ── BATCH 5b: Promotions (1 query, resilient) ──
     const [promotionBreakdown] = await Promise.all([
       /* 13) Promotion breakdown — with source for "Sin promo" distinction */
-      prisma.$queryRawUnsafe<Array<{
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         promo: string;
         source: string;
         orders: string;
         revenue: string;
       }>>(`
         SELECT
-          COALESCE(NULLIF(UPPER(TRIM("promotionNames")), ''), 'Sin promo') AS promo,
+          COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo') AS promo,
           COALESCE("source", 'VTEX') AS source,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
@@ -560,10 +570,10 @@ export async function GET(request: NextRequest) {
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
-        GROUP BY COALESCE(NULLIF(UPPER(TRIM("promotionNames")), ''), 'Sin promo'), COALESCE("source", 'VTEX')
+        GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo'), COALESCE("source", 'VTEX')
         ORDER BY SUM("totalValue") DESC
         LIMIT 15
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "promotions"),
     ]);
 
     // ── BATCH 6: Pagination count + source counts (2 queries) ──
@@ -597,14 +607,14 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
-    // ── BATCH 7a: Cohorts + profitability (2 queries) ──
+    // ── BATCH 7a: Cohorts + profitability (2 queries, resilient) ──
     const [
       cohortsRaw,
       profitabilityRaw,
     ] = await Promise.all([
 
       /* 16) Cohorts — new / returning / VIP / anonymous (split by source) */
-      prisma.$queryRawUnsafe<Array<{
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         cohort: string; customers: string; orders: string; revenue: string;
       }>>(`
         WITH customer_history AS (
@@ -645,10 +655,10 @@ export async function GET(request: NextRequest) {
           SUM(period_revenue)::text AS revenue
         FROM classified
         GROUP BY cohort
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "cohorts"),
 
       /* 17) Profitability — gross, COGS, net, margin */
-      prisma.$queryRawUnsafe<[{
+      safeQuery(prisma.$queryRawUnsafe<[{
         gross_revenue: string; gross_with_cost: string; gross_without_cost: string;
         total_cogs: string; orders_with_cost: string; orders_total: string;
       }]>(`
@@ -678,13 +688,13 @@ export async function GET(request: NextRequest) {
           COUNT(DISTINCT CASE WHEN effective_cost IS NOT NULL AND effective_cost > 0 THEN "orderId" END)::text AS orders_with_cost,
           COUNT(DISTINCT "orderId")::text AS orders_total
         FROM item_costs
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [{ gross_revenue: "0", gross_with_cost: "0", gross_without_cost: "0", total_cogs: "0", orders_with_cost: "0", orders_total: "0" }] as any, "profitability"),
     ]);
 
-    // ── BATCH 7b: Logistics by delivery (1 query) ──
+    // ── BATCH 7b: Logistics by delivery (1 query, resilient) ──
     const [logisticsByDelivery] = await Promise.all([
       /* 18) Logistics — by delivery type */
-      prisma.$queryRawUnsafe<Array<{
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string;
       }>>(`
         SELECT
@@ -700,17 +710,17 @@ export async function GET(request: NextRequest) {
           ${srcWhereSimple}
         GROUP BY "deliveryType"
         ORDER BY COUNT(*) DESC
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "logistics-delivery"),
     ]);
 
-    // ── BATCH 8a: Logistics + device (2 queries) ──
+    // ── BATCH 8a: Logistics + device (2 queries, resilient) ──
     const [
       logisticsByCarrier,
       segByDevice,
     ] = await Promise.all([
 
       /* 19) Logistics — by carrier */
-      prisma.$queryRawUnsafe<Array<{
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string; shipping_charged: string; shipping_real: string;
       }>>(`
         SELECT
@@ -727,10 +737,10 @@ export async function GET(request: NextRequest) {
         GROUP BY "shippingCarrier"
         ORDER BY COUNT(*) DESC
         LIMIT 10
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "logistics-carrier"),
 
       /* 20) Segmentation — by device (enriched from NitroPixel when order field is NULL) */
-      prisma.$queryRawUnsafe<Array<{
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string;
       }>>(`
         WITH order_device AS (
@@ -757,13 +767,13 @@ export async function GET(request: NextRequest) {
         FROM order_device
         GROUP BY device
         ORDER BY COUNT(*) DESC
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "seg-device"),
     ]);
 
-    // ── BATCH 8b: Channel segmentation (1 query) ──
+    // ── BATCH 8b: Channel segmentation (1 query, resilient) ──
     const [segByChannel] = await Promise.all([
       /* 21) Segmentation — by channel */
-      prisma.$queryRawUnsafe<Array<{
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string;
       }>>(`
         SELECT
@@ -777,17 +787,17 @@ export async function GET(request: NextRequest) {
           ${srcWhereSimple}
         GROUP BY "channel"
         ORDER BY COUNT(*) DESC
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "seg-channel"),
     ]);
 
-    // ── BATCH 9: Traffic + coupons (2 queries) ──
+    // ── BATCH 9: Traffic + coupons (2 queries, resilient) ──
     const [
       segByTraffic,
       couponsRaw,
     ] = await Promise.all([
 
       /* 22) Segmentation — by traffic source (enriched from NitroPixel touchpoints) */
-      prisma.$queryRawUnsafe<Array<{
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         bucket: string; orders: string; revenue: string;
       }>>(`
         WITH order_traffic AS (
@@ -813,14 +823,14 @@ export async function GET(request: NextRequest) {
         FROM order_traffic
         GROUP BY traffic_src
         ORDER BY COUNT(*) DESC
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "seg-traffic"),
 
       /* 23) Coupons — top coupon codes */
-      prisma.$queryRawUnsafe<Array<{
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         code: string; orders: string; revenue: string; discount: string;
       }>>(`
         SELECT
-          UPPER(TRIM("couponCode")) AS code,
+          COALESCE("couponCode", 'Sin cupon') AS code,
           COUNT(*)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue,
           COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS discount
@@ -830,85 +840,20 @@ export async function GET(request: NextRequest) {
           AND status NOT IN ('CANCELLED', 'RETURNED')
           AND "couponCode" IS NOT NULL AND "couponCode" != ''
           ${srcWhereSimple}
-        GROUP BY UPPER(TRIM("couponCode"))
+        GROUP BY "couponCode"
         ORDER BY COUNT(*) DESC
         LIMIT 15
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "coupons"),
     ]);
 
-    // ── BATCH 10: Geography (2 queries) ──
+    // ── BATCH 10: Geography (2 queries, resilient) ──
     const [
       geoProvinces,
       geoPostalCodes,
     ] = await Promise.all([
 
-      /* 24) Geography — top provinces (CPA letter or numeric CP → province) */
-      prisma.$queryRawUnsafe<Array<{
-        value: string; orders: string; revenue: string;
-      }>>(`
-        SELECT
-          CASE
-            WHEN LEFT(TRIM("postalCode"), 1) BETWEEN 'A' AND 'Z' THEN
-              CASE UPPER(LEFT(TRIM("postalCode"), 1))
-                WHEN 'B' THEN 'Buenos Aires'
-                WHEN 'C' THEN 'CABA'
-                WHEN 'D' THEN 'San Luis'
-                WHEN 'E' THEN 'Entre Ríos'
-                WHEN 'F' THEN 'La Rioja'
-                WHEN 'G' THEN 'Santiago del Estero'
-                WHEN 'H' THEN 'Chaco'
-                WHEN 'J' THEN 'San Juan'
-                WHEN 'K' THEN 'Catamarca'
-                WHEN 'L' THEN 'La Pampa'
-                WHEN 'M' THEN 'Mendoza'
-                WHEN 'N' THEN 'Misiones'
-                WHEN 'P' THEN 'Formosa'
-                WHEN 'Q' THEN 'Neuquén'
-                WHEN 'R' THEN 'Río Negro'
-                WHEN 'S' THEN 'Santa Fe'
-                WHEN 'T' THEN 'Tucumán'
-                WHEN 'U' THEN 'Chubut'
-                WHEN 'V' THEN 'Tierra del Fuego'
-                WHEN 'W' THEN 'Corrientes'
-                WHEN 'X' THEN 'Córdoba'
-                WHEN 'Y' THEN 'Jujuy'
-                WHEN 'Z' THEN 'Santa Cruz'
-                WHEN 'A' THEN 'Salta'
-                ELSE 'Otro'
-              END
-            WHEN LEFT(TRIM("postalCode"), 1) BETWEEN '0' AND '9' THEN
-              CASE LEFT(TRIM("postalCode"), 1)
-                WHEN '1' THEN
-                  CASE WHEN LEFT(TRIM("postalCode"), 2) IN ('10','11','12','13','14') THEN 'CABA / GBA'
-                       ELSE 'Buenos Aires'
-                  END
-                WHEN '2' THEN 'Santa Fe / Córdoba'
-                WHEN '3' THEN 'Entre Ríos / Misiones'
-                WHEN '4' THEN 'Tucumán / Salta / Jujuy'
-                WHEN '5' THEN 'Córdoba / San Luis / Mendoza'
-                WHEN '6' THEN 'Buenos Aires (interior)'
-                WHEN '7' THEN 'Buenos Aires (costa/sur)'
-                WHEN '8' THEN 'Patagonia Norte'
-                WHEN '9' THEN 'Patagonia Sur'
-                ELSE 'Otro'
-              END
-            ELSE 'Sin dato'
-          END AS value,
-          COUNT(*)::text AS orders,
-          COALESCE(SUM("totalValue"), 0)::text AS revenue
-        FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED')
-          AND "postalCode" IS NOT NULL AND "postalCode" != ''
-          ${srcWhereSimple}
-        GROUP BY 1
-        ORDER BY COUNT(*) DESC
-        LIMIT 20
-      `, dateFrom, dateTo),
-
-      /* 25) Geography — postal codes (same data, kept separate for type clarity) */
-      prisma.$queryRawUnsafe<Array<{
+      /* 24) Geography — top provinces (first 4 digits of postal code as proxy) */
+      safeQuery(prisma.$queryRawUnsafe<Array<{
         value: string; orders: string; revenue: string;
       }>>(`
         SELECT
@@ -924,11 +869,30 @@ export async function GET(request: NextRequest) {
         GROUP BY "postalCode"
         ORDER BY COUNT(*) DESC
         LIMIT 20
-      `, dateFrom, dateTo),
+      `, dateFrom, dateTo), [] as any[], "geo-provinces"),
+
+      /* 25) Geography — postal codes (same data, kept separate for type clarity) */
+      safeQuery(prisma.$queryRawUnsafe<Array<{
+        value: string; orders: string; revenue: string;
+      }>>(`
+        SELECT
+          COALESCE("postalCode", 'Sin dato') AS value,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1 AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "postalCode" IS NOT NULL AND "postalCode" != ''
+          ${srcWhereSimple}
+        GROUP BY "postalCode"
+        ORDER BY COUNT(*) DESC
+        LIMIT 20
+      `, dateFrom, dateTo), [] as any[], "geo-postal"),
     ]);
 
-    // ── BATCH 11: MELI catalog breakdown (only when source=MELI) ──
-    const meliCatalogRaw = sourceFilter === "MELI" ? await prisma.$queryRawUnsafe<Array<{
+    // ── BATCH 11: MELI catalog breakdown (only when source=MELI, resilient) ──
+    const meliCatalogRaw = sourceFilter === "MELI" ? await safeQuery(prisma.$queryRawUnsafe<Array<{
       catalog_type: string; orders: string; revenue: string; units: string;
     }>>(`
       SELECT
@@ -945,7 +909,7 @@ export async function GET(request: NextRequest) {
         AND o.status NOT IN ('CANCELLED', 'RETURNED')
         AND o."source" = 'MELI'
       GROUP BY CASE WHEN ml."catalogListing" = true THEN 'Catálogo' ELSE 'Fuera de catálogo' END
-    `, dateFrom, dateTo) : [];
+    `, dateFrom, dateTo), [] as any[], "meli-catalog") : [];
 
     // ── Process results ──
     const curr = currentPeriod[0];
@@ -1135,10 +1099,7 @@ export async function GET(request: NextRequest) {
         });
         const byDelivery = logisticsByDelivery.map(mapBucket);
         const byCarrier = logisticsByCarrier.map(mapBucket);
-        // Exclude "Sin dato" from gap total — missing data is not real loss
-        const shippingGapTotal = byDelivery
-          .filter(b => b.bucket !== "Sin dato")
-          .reduce((sum, b) => sum + b.shippingGap, 0);
+        const shippingGapTotal = byDelivery.reduce((sum, b) => sum + b.shippingGap, 0);
         if (byDelivery.length === 0 && byCarrier.length === 0) return undefined;
         return { byDeliveryType: byDelivery, byCarrier: byCarrier, shippingGapTotal };
       })(),
