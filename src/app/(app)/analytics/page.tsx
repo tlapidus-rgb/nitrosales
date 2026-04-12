@@ -143,7 +143,7 @@ interface PixelData {
     clickCoverage: { total: number; withClickId: number; clickIdRate: number };
     eventsInPeriod: number; pixelAgeDays?: number;
   };
-  meta: { dateFrom: string; dateTo: string; daysInPeriod: number };
+  meta: { dateFrom: string; dateTo: string; daysInPeriod: number; nitroWeights?: { first: number; middle: number; last: number } };
 }
 
 interface DiscrepancyData {
@@ -246,7 +246,6 @@ export default function AnalyticsPage() {
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<"truth" | "channels">("truth");
-  const [attrModel, setAttrModel] = useState<"NITRO" | "LAST_CLICK" | "FIRST_CLICK" | "LINEAR">("NITRO");
 
   // Refetch indicator
   const [isRefetching, setIsRefetching] = useState(false);
@@ -259,8 +258,8 @@ export default function AnalyticsPage() {
 
     try {
       const [pixelRes, discRes] = await Promise.all([
-        fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=${attrModel}`),
-        fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}&model=${attrModel}`),
+        fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=NITRO`),
+        fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}&model=NITRO`),
       ]);
 
       if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
@@ -278,7 +277,7 @@ export default function AnalyticsPage() {
       setLoading(false);
       setIsRefetching(false);
     }
-  }, [dateFrom, dateTo, attrModel]);
+  }, [dateFrom, dateTo]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -518,36 +517,45 @@ export default function AnalyticsPage() {
             )}
           </div>
 
-          {/* Attribution model selector */}
-          <div className="px-6 pb-3 border-b border-gray-50 flex items-center gap-3">
-            <span className="text-[11px] text-gray-400 uppercase tracking-wider font-medium">Modelo:</span>
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-              {([
-                { key: "NITRO" as const, label: "NitroAttribution", tip: "Multi-touch ponderado: primer toque 35%, asistencias 20%, último toque 45%. Refleja el journey completo." },
-                { key: "LAST_CLICK" as const, label: "Último Click", tip: "100% del crédito al último canal antes de comprar. Favorece canales de cierre (Google, Direct)." },
-                { key: "FIRST_CLICK" as const, label: "Primer Click", tip: "100% del crédito al canal que trajo al usuario por primera vez. Favorece canales de descubrimiento (Meta, Social)." },
-                { key: "LINEAR" as const, label: "Lineal", tip: "Crédito dividido equitativamente entre todos los touchpoints del journey." },
-              ]).map((m) => (
-                <div key={m.key} className="relative group/model">
-                  <button
-                    className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-all duration-200 ${
-                      attrModel === m.key
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                    onClick={() => setAttrModel(m.key)}
-                  >
-                    {m.label}
-                  </button>
-                  {/* Model tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/model:opacity-100 transition-opacity duration-200 z-30 shadow-lg">
-                    {m.tip}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+          {/* Attribution model indicator (read-only — configured in /pixel) */}
+          {(() => {
+            const w = pixelData?.meta?.nitroWeights ?? null;
+            const wFirst = w?.first ?? 30;
+            const wMiddle = w?.middle ?? 30;
+            const wLast = w?.last ?? 40;
+            return (
+              <div className="px-6 pb-3 border-b border-gray-50 flex items-center gap-3">
+                <span className="text-[11px] text-gray-400 uppercase tracking-wider font-medium">Atribución:</span>
+                <div className="relative group/attr">
+                  <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5 cursor-default">
+                    <span className="text-[11px] font-semibold text-gray-700">NitroAttribution</span>
+                    <div className="flex items-center gap-0.5 h-2.5 w-20 rounded-full overflow-hidden">
+                      <div className="h-full bg-cyan-400 rounded-l-full" style={{ width: `${wFirst}%` }} />
+                      <div className="h-full bg-violet-400" style={{ width: `${wMiddle}%` }} />
+                      <div className="h-full bg-orange-400 rounded-r-full" style={{ width: `${wLast}%` }} />
+                    </div>
+                    <span className="text-[10px] text-gray-400">{wFirst}/{wMiddle}/{wLast}</span>
+                  </div>
+                  {/* Tooltip explaining the model */}
+                  <div className="absolute bottom-full left-0 mb-2 w-64 px-3 py-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/attr:opacity-100 transition-opacity duration-200 z-30 shadow-lg">
+                    <div className="font-semibold mb-1">Modelo multi-touch ponderado</div>
+                    <div className="space-y-0.5 text-gray-300">
+                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-cyan-400 inline-block" /> Primer toque: {wFirst}%</div>
+                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-400 inline-block" /> Asistencias: {wMiddle}%</div>
+                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" /> Último toque: {wLast}%</div>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-gray-400">
+                      Estos pesos definen cómo se reparte el crédito de cada venta entre los canales del journey. Configuralo desde NitroPixel.
+                    </div>
+                    <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900" />
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+                <a href="/pixel" className="text-[11px] text-gray-400 hover:text-gray-600 underline decoration-dotted underline-offset-2 transition-colors">
+                  Cambiar ponderación
+                </a>
+              </div>
+            );
+          })()}
 
           {channels.length === 0 ? (
             <div className="px-6 py-12 text-center text-gray-400 text-sm">No hay datos de canales para este período</div>
