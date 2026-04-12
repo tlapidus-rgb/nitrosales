@@ -13,6 +13,18 @@ export async function GET(req: NextRequest) {
   const startTime = Date.now();
 
   try {
+    // Browser navigation guard — redirect browsers to dashboard
+    const secFetchDest = req.headers.get("sec-fetch-dest");
+    const secFetchMode = req.headers.get("sec-fetch-mode");
+    const accept = req.headers.get("accept") || "";
+    if (
+      secFetchDest === "document" ||
+      secFetchMode === "navigate" ||
+      (accept.includes("text/html") && !accept.includes("application/json"))
+    ) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
     const key = req.nextUrl.searchParams.get("key") || "";
     if (key !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });

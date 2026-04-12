@@ -81,6 +81,19 @@ async function runSync(syncKey: string) {
 // GET handler for Vercel Cron and manual triggers
 export async function GET(req: Request) {
   try {
+    // Browser navigation guard — redirect browsers to dashboard
+    const headers = new Headers(req.headers);
+    const secFetchDest = headers.get("sec-fetch-dest");
+    const secFetchMode = headers.get("sec-fetch-mode");
+    const accept = headers.get("accept") || "";
+    if (
+      secFetchDest === "document" ||
+      secFetchMode === "navigate" ||
+      (accept.includes("text/html") && !accept.includes("application/json"))
+    ) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
     const url = new URL(req.url);
     const syncKey = url.searchParams.get("key") || "";
     return await runSync(syncKey);

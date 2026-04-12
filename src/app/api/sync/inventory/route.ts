@@ -28,6 +28,34 @@ export async function GET(req: NextRequest) {
   const startTime = Date.now();
 
   try {
+    // 0. Browser navigation guard — redirect browsers to dashboard
+    // Server-side fetch (from chain route or crons) doesn't send these headers
+    const secFetchDest = req.headers.get("sec-fetch-dest");
+    const secFetchMode = req.headers.get("sec-fetch-mode");
+    const accept = req.headers.get("accept") || "";
+    if (
+      secFetchDest === "document" ||
+      secFetchMode === "navigate" ||
+      (accept.includes("text/html") && !accept.includes("application/json"))
+    ) {
+      console.warn("[Sync:Inventory] Browser navigation detected — redirecting to dashboard", {
+        userAgent: req.headers.get("user-agent")?.substring(0, 100),
+        referer: req.headers.get("referer"),
+        secFetchDest,
+        secFetchMode,
+      });
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    // Log caller info for debugging (temporary)
+    console.log("[Sync:Inventory] Called by:", {
+      userAgent: req.headers.get("user-agent")?.substring(0, 80),
+      referer: req.headers.get("referer"),
+      origin: req.headers.get("origin"),
+      secFetchSite: req.headers.get("sec-fetch-site"),
+      cronHeader: req.headers.get("x-vercel-cron"),
+    });
+
     // 1. Auth
     const key = req.nextUrl.searchParams.get("key") || "";
     if (key !== process.env.NEXTAUTH_SECRET) {
