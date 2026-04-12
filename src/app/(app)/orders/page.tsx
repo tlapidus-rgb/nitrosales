@@ -12,7 +12,7 @@ import {
   DollarSign, ShoppingCart, CreditCard, XCircle, Package, Users,
   Search, ChevronDown, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight, Clock,
   Percent, Truck, Tag, ExternalLink, MapPin, Calendar, Info,
-  LayoutDashboard, ListOrdered,
+  LayoutDashboard, ListOrdered, RefreshCw,
 } from "lucide-react";
 import {
   KpiCard, ChangeBadge, DateRangeFilter, WeeklySummary, StatusFilter,
@@ -399,18 +399,38 @@ function OrdersPageInner() {
   if (error && !data) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <XCircle size={32} className="text-red-400 mx-auto mb-2" />
-          <p className="text-red-600">Error: {error}</p>
+        <div className="text-center max-w-md mx-auto px-6">
+          <XCircle size={40} className="text-amber-400 mx-auto mb-3" />
+          <h2 className="text-base font-semibold text-slate-700 mb-2">No se pudieron cargar los pedidos</h2>
+          <p className="text-sm text-slate-500 mb-1">{error}</p>
+          <p className="text-xs text-slate-400 mb-5">Puede ser una conexion lenta o el servidor ocupado. Proba de nuevo.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+          >
+            <RefreshCw size={16} /> Recargar pagina
+          </button>
         </div>
       </div>
     );
   }
 
   if (!data) {
-    // Fallback: show loading skeleton if somehow we got past the loading check
+    // Fallback: show loading skeleton with auto-reload after 20s
     return (
       <div className="space-y-6 dash-stagger">
+        <div className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-slate-500">Cargando pedidos...</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 text-xs text-indigo-500 hover:text-indigo-400 underline"
+            >
+              Si tarda mucho, toca aca para recargar
+            </button>
+          </div>
+        </div>
         <div className="dash-hero rounded-2xl overflow-hidden">
           <div className="dash-hero-inner px-8 py-7">
             <div className="dash-skeleton h-4 w-32 mb-4" />

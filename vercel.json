@@ -11,19 +11,19 @@
   "crons": [
     {
       "path": "/api/sync?key=nitrosales-secret-key-2024-production",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 */4 * * *"
     },
     {
       "path": "/api/sync/chain?key=nitrosales-secret-key-2024-production",
-      "schedule": "0 * * * *"
+      "schedule": "30 */6 * * *"
     },
     {
       "path": "/api/sync/meta?key=nitrosales-secret-key-2024-production",
-      "schedule": "3,18,33,48 * * * *"
+      "schedule": "15 */4 * * *"
     },
     {
       "path": "/api/sync/google-ads?key=nitrosales-secret-key-2024-production",
-      "schedule": "8,23,38,53 * * * *"
+      "schedule": "45 */4 * * *"
     },
     {
       "path": "/api/cron/anomalies?key=nitrosales-secret-key-2024-production",
