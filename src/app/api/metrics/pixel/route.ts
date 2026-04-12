@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
     const toParam = searchParams.get("to");
     const fromParam = searchParams.get("from");
 
-    // Cache check
-    const cacheKey = [orgId, fromParam || "default", toParam || "default"];
+    // Cache check (v2: busted after gocuotas data cleanup 2026-04-12)
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v2"];
     const cached = getCached("pixel", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
@@ -685,9 +685,16 @@ export async function GET(request: NextRequest) {
       percentage: totalEventCount > 0 ? Math.round((e.count / totalEventCount) * 100) : 0,
     }));
 
+    // Payment gateway sources to exclude (safety net — attribution engine already filters these,
+    // but historical data may contain them before the exclusion was added)
+    const PAYMENT_GATEWAY_SOURCES = ["gocuotas", "mercadopago", "mobbex", "decidir", "payway", "todopago", "naranjax", "rapipago", "pagofacil"];
+    const filteredAttrBySource = attributionBySourceResult.filter(
+      (a) => !PAYMENT_GATEWAY_SOURCES.includes((a.source || "").toLowerCase())
+    );
+
     // Attribution source with percentages
-    const totalAttrRevenue = attributionBySourceResult.reduce((sum, a) => sum + (a.revenue || 0), 0);
-    const attributionBySource = attributionBySourceResult.map((a) => ({
+    const totalAttrRevenue = filteredAttrBySource.reduce((sum, a) => sum + (a.revenue || 0), 0);
+    const attributionBySource = filteredAttrBySource.map((a) => ({
       ...a,
       percentage: totalAttrRevenue > 0 ? Math.round(((a.revenue || 0) / totalAttrRevenue) * 100) : 0,
     }));
@@ -934,7 +941,9 @@ export async function GET(request: NextRequest) {
       dailyRevenue,
       dailyChannelBreakdown,
       recentJourneys,
-      channelRoles: channelRolesResult,
+      channelRoles: channelRolesResult.filter(
+        (r) => !PAYMENT_GATEWAY_SOURCES.includes((r.source || "").toLowerCase())
+      ),
       pixelHealth,
 
       // ── Existing fields (unchanged) ──

@@ -292,8 +292,11 @@ export async function GET(request: NextRequest) {
     // Source-level discrepancy (Meta vs NitroPixel, Google vs NitroPixel)
     const platformMap = new Map(platformBySourceResult.map(p => [p.source, p]));
 
+    // Payment gateway sources to exclude (safety net)
+    const PAYMENT_GATEWAY_SOURCES = ["gocuotas", "mercadopago", "mobbex", "decidir", "payway", "todopago", "naranjax", "rapipago", "pagofacil"];
+
     const sourceDiscrepancy = pixelBySourceResult
-      .filter(p => p.source !== 'direct') // Only compare paid/organic sources
+      .filter(p => p.source !== 'direct' && !PAYMENT_GATEWAY_SOURCES.includes((p.source || "").toLowerCase()))
       .map(pixel => {
         const platform = platformMap.get(pixel.source);
         const platformRevenue = platform?.revenue || 0;
