@@ -163,4 +163,19 @@ La página muestra "Actualizando datos..." y se refresca automáticamente.
 
 ---
 
-_Última actualización: 2026-04-12 — Modelo main-only + sync on-demand._
+## Browser navigation guard en endpoints de sync
+
+Los endpoints `/api/sync`, `/api/sync/chain` y `/api/sync/inventory`
+tienen un guard que detecta si un navegador intenta abrirlos como
+pestaña (vía headers `sec-fetch-dest: document` o `sec-fetch-mode:
+navigate`). Si es un navegador, redirige a `/` (dashboard). Las
+llamadas server-to-server (crons, chain→inventory) no envían esos
+headers y funcionan normalmente.
+
+**¿Por qué?** Se detectó que pestañas del navegador se abrían solas
+mostrando el JSON crudo de los endpoints de sync. Este guard evita
+que el usuario vea JSON aunque algo intente abrir esas URLs.
+
+---
+
+_Última actualización: 2026-04-12 — Modelo main-only + sync on-demand + browser guard._

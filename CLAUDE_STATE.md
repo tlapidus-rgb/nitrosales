@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-12 (Sesion 17 — Resilience definitiva pagina pedidos + sync on-demand Meta/Google Ads + limpieza crons)
+## Ultima actualizacion: 2026-04-12 (Sesion 17 — Resilience pedidos + sync on-demand + limpieza crons + browser guard sync endpoints)
 
 ---
 
@@ -150,7 +150,10 @@
 | src/lib/auth-guard.ts | **v1** | NEW | Org resolution from NextAuth session |
 | src/lib/db/client.ts | **v1.1** | â ESTABLE | **NO TOCAR.** Prisma client singleton. Import: @/lib/db/client. Sesion 10: removido connection_limit=5 y pool_timeout=10 (causaban pool exhaustion). Sesion 11: removed &connection_limit=1 y &pool_timeout=30 de DATABASE_URL (no eran causa raiz). NUNCA agregar connection_limit al DATABASE_URL. |
 | prisma/schema.prisma | **v6** | ACTIVO | Sesion 12: +BotMemory model (id, organizationId, type, priority, content, source, timestamps). Sesion 13: +AurumUsageLog model (15 cols, 4 indices) para telemetria de Aurum reasoning modes. Tabla SQL: bot_memories (creada manual en S12), aurum_usage_logs (creada con prisma db execute en S13 sobre preview Y production Neon). |
-| vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. Sesion 11: "regions": ["gru1"] agregado para mantener funciones en São Paulo (match con DB). |
+| vercel.json | **v2** | ACTIVO | functions maxDuration=800 para sync/** y cron/**. 9 crons configurados. Sesion 11: "regions": ["gru1"] agregado para mantener funciones en São Paulo (match con DB). Sesion 17: crons Meta/Google eliminados, VTEX/ML/chain reducidos a 1x/dia. |
+| src/app/api/sync/inventory/route.ts | **v4.1** | ACTIVO | Sesion 17: browser navigation guard (sec-fetch-dest/mode). Si un navegador intenta abrir la URL, redirige al dashboard. Logging temporal de caller info. |
+| src/app/api/sync/chain/route.ts | **v1.1** | ACTIVO | Sesion 17: browser navigation guard. Redirige a / si detecta navegador. |
+| src/app/api/sync/route.ts | **v1.1** | ACTIVO | Sesion 17: browser navigation guard. Redirige a / si detecta navegador. |
 | src/app/(app)/layout.tsx | **v6** | ACTIVO | Sesion 12: Aurum movido a HERRAMIENTAS como card gold con animaciones globales (aurumShimmer, aurumOrbit, aurumBreath, aurumFloat, aurumFadeUp, aurumPulseRing). Sub-items expandibles Chat/Sinapsis/Boveda/Memory. Fix S12: position: relative en Link del sidebar (commit 09d69e7) para que el indicador absolute no escape como rectangulo negro. Sesion 13: `<main>` condicional segun si la ruta esta en aurumRoutes — Aurum routes = full-bleed dark, resto = padding + bg claro. NO TOCAR el bloque de animaciones ni el position: relative del Link. |
 | src/lib/intelligence/tools.ts | **v1** | NEW (S12) | Definiciones de las 12 tools de Intelligence Engine v2 (Aurum). 190 lineas. NO TOCAR sin entender el flujo de tool calling de Anthropic SDK. |
 | src/lib/intelligence/handlers.ts | **v1** | NEW (S12) | Implementacion de cada tool (handlers que ejecutan las queries reales contra Prisma). 1124 lineas. Sesion 13: TS errors limpiados (Decimal vs number en spend, conversionValue, totalSpent, etc.). |
@@ -2726,6 +2729,9 @@ Los crons de sincronizacion (sync, chain, meta, google-ads) corrian **cada 15 mi
 3. `7c65c13` — **feat: move CohortsCard to bottom + add VTEX/MELI lines to daily sales chart** — Tipos de cliente al fondo + grafico con 3 lineas (Total violeta, VTEX verde, MELI ambar)
 4. `cc5f287` — **fix: prevent blank page + reduce aggressive cron frequency** — UI de retry en pagina + crons reducidos de cada 15min a cada 4-6h
 5. `d7b5b7f` — **feat: replace Meta/Google Ads crons with on-demand sync** — Trigger endpoint + useSyncStatus hook + paginas de campanas con sync bajo demanda + crons Meta/Google eliminados + VTEX/ML reducidos a 1x/dia
+6. `1662942` — **docs: update CLAUDE_STATE + CLAUDE.md for sessions 16-17** — Documentacion completa de ambas sesiones
+7. `55b494d` — **style: change VTEX line color to pink in daily sales chart** — Linea VTEX cambiada de verde (#10b981) a rosa (#ec4899) por pedido de Tomy
+8. `a9cc35f` — **fix: block browser tabs from opening sync endpoints** — Browser navigation guard en /api/sync, /api/sync/chain, /api/sync/inventory. Si detecta navegador (sec-fetch-dest: document), redirige a dashboard. Logging temporal de caller info.
 
 ### Archivos modificados en esta sesion
 
@@ -2740,13 +2746,18 @@ Los crons de sincronizacion (sync, chain, meta, google-ads) corrian **cada 15 mi
 | `src/app/(app)/campaigns/meta/page.tsx` | useSyncStatus + UI badge sync |
 | `src/app/(app)/campaigns/google/page.tsx` | useSyncStatus + UI badge sync |
 | `vercel.json` | Crons Meta/Google eliminados, VTEX/ML reducidos a 1x/dia |
+| `src/app/(app)/orders/page.tsx` | Linea VTEX cambiada de verde a rosa (#ec4899) |
+| `src/app/api/sync/inventory/route.ts` | Browser guard + caller logging |
+| `src/app/api/sync/chain/route.ts` | Browser guard |
+| `src/app/api/sync/route.ts` | Browser guard |
 
 ### Estado final de produccion
 
-- **Commit en main**: `d7b5b7f`
-- **Pagina de pedidos**: Nunca mas queda en blanco. 3 capas de proteccion.
+- **Commit en main**: `a9cc35f`
+- **Pagina de pedidos**: Nunca mas queda en blanco. 3 capas de proteccion. Grafico con lineas VTEX (rosa) y MELI (ambar).
 - **Crons**: 9 crons (antes 11). La mayoria 1x/dia. Meta y Google Ads son on-demand.
 - **Sync model**: VTEX/MELI via webhooks (real-time) + safety net 1x/dia. Meta/Google Ads on-demand cuando usuario abre la pagina.
+- **Browser guard**: Los 3 endpoints de sync (/api/sync, /api/sync/chain, /api/sync/inventory) detectan si un navegador intenta abrirlos como pestana y redirigen al dashboard. Esto evita que aparezcan pestanas con JSON crudo.
 
 ### PREVENCION #13: Crons agresivos saturan funciones serverless
 
@@ -2763,3 +2774,17 @@ Los crons de sincronizacion (sync, chain, meta, google-ads) corrian **cada 15 mi
   2. Las tabs abiertas — otras pestanas consumiendo recursos
   3. Los crons de Vercel — si hay syncs corriendo al mismo tiempo
   4. RECIEN ENTONCES revisar el codigo del frontend
+
+### PREVENCION #15: Endpoints de API NUNCA deben ser navegables como pagina
+
+- **CONTEXTO**: Sesion 17. Pestanas del navegador se abrian solas mostrando el JSON crudo de /api/sync/inventory. El usuario reporto 3 veces antes de que se resolviera.
+- **REGLA**: Todo endpoint de sync/cron que NO esta pensado para uso directo del browser debe tener un "browser navigation guard": detectar `sec-fetch-dest: document` o `sec-fetch-mode: navigate` y redirigir a `/` en vez de devolver JSON.
+- **REGLA**: Esto no afecta a llamadas server-to-server (fetch desde crons o desde chain route) porque no envian esos headers.
+- **PATRON**: Agregar al inicio del handler GET:
+  ```
+  const secFetchDest = req.headers.get("sec-fetch-dest");
+  const secFetchMode = req.headers.get("sec-fetch-mode");
+  if (secFetchDest === "document" || secFetchMode === "navigate") {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+  ```
