@@ -67,7 +67,12 @@ export async function GET(request: NextRequest) {
       (selectedModel === "NITRO"
         ? prisma.$queryRaw`
             SELECT
-              COALESCE(tp->>'source', 'direct') as source,
+              CASE
+                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
+                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
+                THEN COALESCE(tp->>'source','direct') || '_organic'
+                ELSE COALESCE(tp->>'source', 'direct')
+              END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(
                 CASE
@@ -91,7 +96,12 @@ export async function GET(request: NextRequest) {
         : selectedModel === "LAST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              COALESCE(tp->>'source', 'direct') as source,
+              CASE
+                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
+                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
+                THEN COALESCE(tp->>'source','direct') || '_organic'
+                ELSE COALESCE(tp->>'source', 'direct')
+              END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa,
@@ -106,7 +116,12 @@ export async function GET(request: NextRequest) {
         : selectedModel === "FIRST_CLICK"
         ? prisma.$queryRaw`
             SELECT
-              COALESCE(tp->>'source', 'direct') as source,
+              CASE
+                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
+                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
+                THEN COALESCE(tp->>'source','direct') || '_organic'
+                ELSE COALESCE(tp->>'source', 'direct')
+              END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = 1 THEN pa."attributedValue" ELSE 0 END)::float as revenue
             FROM pixel_attributions pa,
@@ -120,7 +135,12 @@ export async function GET(request: NextRequest) {
           `
         : prisma.$queryRaw`
             SELECT
-              COALESCE(tp->>'source', 'direct') as source,
+              CASE
+                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
+                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
+                THEN COALESCE(tp->>'source','direct') || '_organic'
+                ELSE COALESCE(tp->>'source', 'direct')
+              END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(pa."attributedValue" / GREATEST(pa."touchpointCount", 1))::float as revenue
             FROM pixel_attributions pa,
@@ -138,7 +158,12 @@ export async function GET(request: NextRequest) {
       prisma.$queryRaw`
         SELECT
           COALESCE(tp->>'campaign', '(sin campaña)') as campaign,
-          COALESCE(tp->>'source', 'direct') as source,
+          CASE
+                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
+                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
+                THEN COALESCE(tp->>'source','direct') || '_organic'
+                ELSE COALESCE(tp->>'source', 'direct')
+              END as source,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
         FROM pixel_attributions pa,
@@ -194,7 +219,12 @@ export async function GET(request: NextRequest) {
       prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
-          COALESCE(tp->>'source', 'direct') as source,
+          CASE
+                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
+                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
+                THEN COALESCE(tp->>'source','direct') || '_organic'
+                ELSE COALESCE(tp->>'source', 'direct')
+              END as source,
           SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
         FROM pixel_attributions pa
         JOIN orders o ON o.id = pa."orderId"
