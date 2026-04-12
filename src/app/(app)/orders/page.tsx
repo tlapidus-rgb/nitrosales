@@ -718,8 +718,8 @@ function OrdersPageInner() {
                 <stop offset="100%" stopColor="#94a3b8" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorVtex" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity={0.18} />
-                <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                <stop offset="0%" stopColor="#ec4899" stopOpacity={0.18} />
+                <stop offset="100%" stopColor="#ec4899" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorMeli" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.18} />
@@ -769,7 +769,7 @@ function OrdersPageInner() {
               <>
                 {dailySalesWithSources && (
                   <>
-                    <Area type="monotone" dataKey={dailyMetric === "revenue" ? "vtexRevenue" : "vtexOrders"} stroke="#10b981" strokeWidth={1.5} fill="url(#colorVtex)" name={dailyMetric === "revenue" ? "vtexRevenue" : "vtexOrders"} />
+                    <Area type="monotone" dataKey={dailyMetric === "revenue" ? "vtexRevenue" : "vtexOrders"} stroke="#ec4899" strokeWidth={1.5} fill="url(#colorVtex)" name={dailyMetric === "revenue" ? "vtexRevenue" : "vtexOrders"} />
                     <Area type="monotone" dataKey={dailyMetric === "revenue" ? "meliRevenue" : "meliOrders"} stroke="#f59e0b" strokeWidth={1.5} fill="url(#colorMeli)" name={dailyMetric === "revenue" ? "meliRevenue" : "meliOrders"} />
                   </>
                 )}
