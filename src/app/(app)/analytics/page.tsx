@@ -607,8 +607,9 @@ export default function AnalyticsPage() {
               return (
                 <div className="space-y-0">
                   {steps.map((step, i) => {
-                    // Width narrows from 100% to minimum 28%
-                    const widthPct = Math.max(28, (step.value / firstVal) * 100);
+                    // Static narrowing: each step is ~15% narrower regardless of data
+                    const STATIC_WIDTHS = [100, 84, 68, 52, 38];
+                    const widthPct = STATIC_WIDTHS[i] ?? 38;
                     const prevStepRate = i > 0 && steps[i - 1].value > 0
                       ? ((step.value / steps[i - 1].value) * 100).toFixed(1)
                       : null;
@@ -677,7 +678,7 @@ export default function AnalyticsPage() {
               <div className="text-center text-gray-400 text-sm py-8">Sin journeys en este período</div>
             ) : (
               <div className="space-y-2.5">
-                {journeys.slice(0, 5).map((j) => {
+                {journeys.slice(0, 10).map((j) => {
                   const isOpen = expandedJourney === j.orderId;
                   return (
                     <div key={j.orderId} className="group">
