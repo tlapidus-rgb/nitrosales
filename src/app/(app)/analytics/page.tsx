@@ -1012,11 +1012,16 @@ export default function AnalyticsPage() {
         {/* ZONA 5 — Conversion Speed                              */}
         {/* ═══════════════════════════════════════════════════════ */}
         {(() => {
-          const lagData = pixelData?.attribution?.conversionLag || [];
+          try {
+          const lagData = (pixelData?.attribution?.conversionLag || []).map(d => ({
+            bucket: d.bucket || "unknown",
+            orders: Number(d.orders) || 0,
+            revenue: Number(d.revenue) || 0,
+          }));
           if (lagData.length === 0) return null;
 
           const totalOrders = lagData.reduce((s, d) => s + d.orders, 0) || 1;
-          const maxOrders = Math.max(...lagData.map(d => d.orders));
+          const maxOrders = lagData.length > 0 ? Math.max(...lagData.map(d => d.orders)) : 1;
           // Find dominant bucket for insight
           const dominant = lagData.reduce((a, b) => b.orders > a.orders ? b : a, lagData[0]);
           const dominantPct = Math.round((dominant.orders / totalOrders) * 100);
@@ -1081,6 +1086,7 @@ export default function AnalyticsPage() {
               </div>
             </div>
           );
+          } catch { return null; }
         })()}
 
         {/* ═══════════════════════════════════════════════════════ */}
@@ -1091,7 +1097,14 @@ export default function AnalyticsPage() {
           <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "620ms" }}>
             <h2 className="text-sm font-semibold text-gray-900 mb-4">Dispositivos</h2>
             {(() => {
-              const devices = pixelData?.deviceBreakdown || [];
+              try {
+              // API returns "device" field, normalize to "deviceType"
+              const rawDevices = pixelData?.deviceBreakdown || [];
+              const devices = rawDevices.map((d: any) => ({
+                deviceType: d.deviceType || d.device || "unknown",
+                count: Number(d.count) || 0,
+                percentage: Number(d.percentage) || 0,
+              }));
               if (devices.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de dispositivos</div>;
 
               const totalCount = devices.reduce((s, d) => s + d.count, 0);
@@ -1155,6 +1168,7 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
               );
+              } catch { return <div className="text-center text-gray-400 text-sm py-8">Sin datos de dispositivos</div>; }
             })()}
           </div>
 
@@ -1162,10 +1176,14 @@ export default function AnalyticsPage() {
           <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "680ms" }}>
             <h2 className="text-sm font-semibold text-gray-900 mb-4">Top Páginas</h2>
             {(() => {
-              const pages = (pixelData?.popularPages || []).slice(0, 6);
+              try {
+              const pages = (pixelData?.popularPages || []).slice(0, 6).map(p => ({
+                pageUrl: p.pageUrl || "",
+                views: Number(p.views) || 0,
+              }));
               if (pages.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de páginas</div>;
 
-              const maxViews = Math.max(...pages.map(p => p.views));
+              const maxViews = pages.length > 0 ? Math.max(...pages.map(p => p.views)) : 1;
               const simplifyUrl = (url: string) => {
                 try {
                   const path = new URL(url).pathname;
@@ -1197,6 +1215,7 @@ export default function AnalyticsPage() {
                   })}
                 </div>
               );
+              } catch { return <div className="text-center text-gray-400 text-sm py-8">Sin datos de páginas</div>; }
             })()}
           </div>
         </div>
@@ -1205,7 +1224,13 @@ export default function AnalyticsPage() {
         {/* ZONA 7 — Pixel Coverage Timeline                       */}
         {/* ═══════════════════════════════════════════════════════ */}
         {(() => {
-          const coverage = pixelData?.perDayCoverage || [];
+          try {
+          const coverage = (pixelData?.perDayCoverage || []).map(d => ({
+            day: d.day || "",
+            totalOrders: Number(d.totalOrders) || 0,
+            attributedOrders: Number(d.attributedOrders) || 0,
+            coverage: Number(d.coverage) || 0,
+          }));
           if (coverage.length === 0) return null;
 
           const avgCoverage = Math.round(coverage.reduce((s, d) => s + d.coverage, 0) / coverage.length);
@@ -1271,6 +1296,7 @@ export default function AnalyticsPage() {
               </div>
             </div>
           );
+          } catch { return null; }
         })()}
 
         {/* Footer tagline */}
