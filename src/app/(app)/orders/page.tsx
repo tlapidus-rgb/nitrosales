@@ -48,6 +48,7 @@ interface OrdersData extends OrdersV4Namespaces {
     changes: { orders: number; revenue: number; avgTicket: number };
   };
   dailySales: Array<{ day: string; orders: number; revenue: number; items: number }>;
+  dailySalesBySource?: Array<{ day: string; source: string; orders: number; revenue: number }>;
   prevDailySales?: Array<{ day: string; orders: number; revenue: number }>;
   salesByDayOfWeek: Array<{ dayName: string; dayOfWeek: number; totalOrders: number; avgOrders: number; totalRevenue: number; avgRevenue: number }>;
   salesByHour: Array<{ hour: number; label: string; totalOrders: number; avgOrders: number; totalRevenue: number; avgRevenue: number }>;
@@ -332,6 +333,26 @@ function OrdersPageInner() {
     }));
   }, [data, dailyMetric]);
 
+  // -- Daily sales enriched with per-source breakdown (for "Todos" view) --
+  const dailySalesWithSources = useMemo(() => {
+    if (!data?.dailySales || !data?.dailySalesBySource || source !== "ALL") return null;
+    const byDaySource = new Map<string, Record<string, { orders: number; revenue: number }>>();
+    for (const row of data.dailySalesBySource) {
+      if (!byDaySource.has(row.day)) byDaySource.set(row.day, {});
+      byDaySource.get(row.day)![row.source] = { orders: row.orders, revenue: row.revenue };
+    }
+    return data.dailySales.map(d => {
+      const sources = byDaySource.get(d.day) || {};
+      return {
+        ...d,
+        vtexRevenue: sources["VTEX"]?.revenue ?? 0,
+        meliRevenue: sources["MELI"]?.revenue ?? 0,
+        vtexOrders: sources["VTEX"]?.orders ?? 0,
+        meliOrders: sources["MELI"]?.orders ?? 0,
+      };
+    });
+  }, [data?.dailySales, data?.dailySalesBySource, source]);
+
   // -- Status funnel data --
   const funnelData = useMemo(() => {
     if (!data?.statusBreakdown) return [];
@@ -589,16 +610,12 @@ function OrdersPageInner() {
           - Todos: solo cohorts (split VTEX/MELI)
           - MELI: ni profitability card ni cohorts (100% anónimo, inutil)
                   → se reemplaza por MeliCatalogCard */}
-      {source === "VTEX" ? (
+      {source === "VTEX" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ProfitabilityCard data={data.profitability} loading={loading} />
           <CohortsCard data={data.cohorts} loading={loading} source={source} sourceCounts={data.sourceCounts} />
         </div>
-      ) : source === "ALL" ? (
-        <div className="grid grid-cols-1 gap-4">
-          <CohortsCard data={data.cohorts} loading={loading} source={source} sourceCounts={data.sourceCounts} />
-        </div>
-      ) : null}
+      )}
 
       {/* DAILY SALES CHART + COMPARISON */}
       <div className="dash-card dash-chart-card p-6">
@@ -669,7 +686,7 @@ function OrdersPageInner() {
           )}
         </div>
         <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={showComparison ? comparisonData : data.dailySales}>
+          <AreaChart data={showComparison ? comparisonData : (dailySalesWithSources || data.dailySales)}>
             <defs>
               <linearGradient id="colorCurrent" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#6366f1" stopOpacity={0.28} />
@@ -679,6 +696,14 @@ function OrdersPageInner() {
               <linearGradient id="colorPrevious" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#94a3b8" stopOpacity={0.12} />
                 <stop offset="100%" stopColor="#94a3b8" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="colorVtex" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity={0.18} />
+                <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="colorMeli" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.18} />
+                <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" strokeOpacity={0.6} />
@@ -692,10 +717,16 @@ function OrdersPageInner() {
               tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={60}
             />
             <Tooltip
-              formatter={(value: number, name: string) => [
-                dailyMetric === "revenue" ? formatARS(value) : value.toLocaleString("es-AR"),
-                showComparison ? (name === "current" ? "Actual" : "Anterior") : (dailyMetric === "revenue" ? "Facturacion" : "Ordenes"),
-              ]}
+              formatter={(value: number, name: string) => {
+                const formatted = dailyMetric === "revenue" ? formatARS(value) : value.toLocaleString("es-AR");
+                if (showComparison) return [formatted, name === "current" ? "Actual" : "Anterior"];
+                const labelMap: Record<string, string> = {
+                  revenue: "Total", orders: "Total",
+                  vtexRevenue: "VTEX", vtexOrders: "VTEX",
+                  meliRevenue: "MELI", meliOrders: "MELI",
+                };
+                return [formatted, labelMap[name] || (dailyMetric === "revenue" ? "Facturación" : "Órdenes")];
+              }}
               labelFormatter={(d) => { try { const date = new Date(d + "T12:00:00"); return date.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "short" }); } catch { return d; } }}
               contentStyle={{
                 background: "rgba(15, 23, 42, 0.95)",
@@ -715,8 +746,16 @@ function OrdersPageInner() {
                 <Area type="monotone" dataKey="current" stroke="#6366f1" strokeWidth={2.5} fill="url(#colorCurrent)" name="current" />
               </>
             ) : (
-              <Area type="monotone" dataKey={dailyMetric} stroke="#6366f1" strokeWidth={2.5} fill="url(#colorCurrent)"
-                name={dailyMetric === "revenue" ? "Facturacion" : "Ordenes"} />
+              <>
+                {dailySalesWithSources && (
+                  <>
+                    <Area type="monotone" dataKey={dailyMetric === "revenue" ? "vtexRevenue" : "vtexOrders"} stroke="#10b981" strokeWidth={1.5} fill="url(#colorVtex)" name={dailyMetric === "revenue" ? "vtexRevenue" : "vtexOrders"} />
+                    <Area type="monotone" dataKey={dailyMetric === "revenue" ? "meliRevenue" : "meliOrders"} stroke="#f59e0b" strokeWidth={1.5} fill="url(#colorMeli)" name={dailyMetric === "revenue" ? "meliRevenue" : "meliOrders"} />
+                  </>
+                )}
+                <Area type="monotone" dataKey={dailyMetric} stroke="#6366f1" strokeWidth={2.5} fill="url(#colorCurrent)"
+                  name={dailyMetric} />
+              </>
             )}
           </AreaChart>
         </ResponsiveContainer>
@@ -904,6 +943,13 @@ function OrdersPageInner() {
         </div>
         )}
       </div>
+
+      {/* COHORTS — tipos de cliente (solo en "Todos", al final por baja relevancia) */}
+      {source === "ALL" && (
+        <div className="grid grid-cols-1 gap-4">
+          <CohortsCard data={data.cohorts} loading={loading} source={source} sourceCounts={data.sourceCounts} />
+        </div>
+      )}
 
       </>)}
 

@@ -238,6 +238,26 @@ export async function GET(request: NextRequest) {
       `, dateFrom, dateTo),
     ]);
 
+    // ── BATCH 1c: Daily sales by source (only when source=ALL, resilient) ──
+    const dailySalesBySource = !sourceFilter ? await safeQuery(
+      prisma.$queryRawUnsafe<Array<{
+        day: string; source: string; orders: string; revenue: string;
+      }>>(`
+        SELECT
+          TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
+          COALESCE("source", 'VTEX') AS source,
+          COUNT(*)::text AS orders,
+          COALESCE(SUM("totalValue"), 0)::text AS revenue
+        FROM orders
+        WHERE "organizationId" = '${ORG_ID}'
+          AND "orderDate" >= $1
+          AND "orderDate" <= $2
+          AND status NOT IN ('CANCELLED', 'RETURNED')
+        GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD'), COALESCE("source", 'VTEX')
+        ORDER BY day ASC
+      `, dateFrom, dateTo), [] as any[], "daily-by-source"
+    ) : [];
+
     // ── BATCH 2: Charts (2 queries) ──
     const [
       salesByDayOfWeek,
@@ -961,6 +981,12 @@ export async function GET(request: NextRequest) {
         revenue: Number(d.revenue),
         items: Number(d.items),
       })),
+      dailySalesBySource: dailySalesBySource.length > 0 ? dailySalesBySource.map(d => ({
+        day: d.day,
+        source: d.source,
+        orders: Number(d.orders),
+        revenue: Number(d.revenue),
+      })) : undefined,
       salesByDayOfWeek: salesByDayOfWeek.map(d => ({
         dayName: d.day_name,
         dayOfWeek: d.day_of_week,
