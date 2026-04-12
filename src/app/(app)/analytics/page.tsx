@@ -491,7 +491,7 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 2 — Channel Truth Table                           */}
         {/* ═══════════════════════════════════════════════════════ */}
-        <div className={`${cardStyle} overflow-hidden stagger-card`} style={{ ...cardShadow, animationDelay: "300ms" }}>
+        <div className={`${cardStyle} stagger-card`} style={{ ...cardShadow, animationDelay: "300ms" }}>
           {/* Header row: title + verdict */}
           <div className="px-6 pt-4 pb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -537,7 +537,8 @@ export default function AnalyticsPage() {
                     <span className="text-[10px] text-gray-400">{wFirst}/{wMiddle}/{wLast}</span>
                   </div>
                   {/* Tooltip explaining the model */}
-                  <div className="absolute bottom-full left-0 mb-2 w-64 px-3 py-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/attr:opacity-100 transition-opacity duration-200 z-30 shadow-lg">
+                  <div className="absolute top-full left-0 mt-2 w-64 px-3 py-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/attr:opacity-100 transition-opacity duration-200 z-50 shadow-lg">
+                    <div className="absolute bottom-full left-4 border-4 border-transparent border-b-gray-900" />
                     <div className="font-semibold mb-1">Modelo multi-touch ponderado</div>
                     <div className="space-y-0.5 text-gray-300">
                       <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-cyan-400 inline-block" /> Primer toque: {wFirst}%</div>
@@ -547,7 +548,6 @@ export default function AnalyticsPage() {
                     <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-gray-400">
                       Estos pesos definen cómo se reparte el crédito de cada venta entre los canales del journey. Configuralo desde NitroPixel.
                     </div>
-                    <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900" />
                   </div>
                 </div>
                 <a href="/pixel" className="text-[11px] text-gray-400 hover:text-gray-600 underline decoration-dotted underline-offset-2 transition-colors">
@@ -608,7 +608,8 @@ export default function AnalyticsPage() {
                                   <span className={`text-[10px] font-medium ${roleColor} bg-gray-50 px-1.5 py-0.5 rounded`}>
                                     {dominantRole}
                                   </span>
-                                  <div className="absolute bottom-full left-0 mb-2 w-60 px-3 py-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/role:opacity-100 transition-opacity duration-200 z-30 shadow-lg">
+                                  <div className="absolute top-full left-0 mt-2 w-60 px-3 py-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/role:opacity-100 transition-opacity duration-200 z-50 shadow-lg">
+                                    <div className="absolute bottom-full left-4 border-4 border-transparent border-b-gray-900" />
                                     <div className="font-semibold mb-1.5">Rol en los journeys</div>
                                     <div className="space-y-1">
                                       <div className="flex justify-between"><span>Primer toque:</span><span className="font-medium">{pFirst}% de journeys</span></div>
@@ -623,7 +624,6 @@ export default function AnalyticsPage() {
                                         : "Este canal participa en el journey sin ser primero ni último. Contribuye a la conversión de forma indirecta."
                                       }
                                     </div>
-                                    <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900" />
                                   </div>
                                 </div>
                               );
@@ -681,6 +681,78 @@ export default function AnalyticsPage() {
             </table>
           )}
         </div>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 2b — Channel Role Map                              */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {Object.keys(channelRoles).length > 0 && (() => {
+          const totalFirst = Object.values(channelRoles).reduce((s, r) => s + r.first, 0) || 1;
+          const totalAssist = Object.values(channelRoles).reduce((s, r) => s + r.assist, 0) || 1;
+          const totalLast = Object.values(channelRoles).reduce((s, r) => s + r.last, 0) || 1;
+
+          type RoleColumn = { key: string; title: string; subtitle: string; color: string; gradient: string; borderColor: string; getVal: (r: { first: number; assist: number; last: number }) => number; total: number };
+          const columns: RoleColumn[] = [
+            { key: "first", title: "Descubrimiento", subtitle: "Primer toque", color: "#06b6d4", gradient: "from-cyan-50 to-cyan-100/50", borderColor: "border-cyan-200", getVal: (r) => r.first, total: totalFirst },
+            { key: "assist", title: "Asistencia", subtitle: "Toques intermedios", color: "#8b5cf6", gradient: "from-violet-50 to-violet-100/50", borderColor: "border-violet-200", getVal: (r) => r.assist, total: totalAssist },
+            { key: "last", title: "Cierre", subtitle: "Último toque", color: "#f97316", gradient: "from-orange-50 to-orange-100/50", borderColor: "border-orange-200", getVal: (r) => r.last, total: totalLast },
+          ];
+
+          return (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 stagger-card" style={{ animationDelay: "340ms" }}>
+              {columns.map((col) => {
+                const entries = Object.entries(channelRoles)
+                  .map(([src, r]) => ({ src, value: col.getVal(r), pct: Math.round((col.getVal(r) / col.total) * 100) }))
+                  .filter((e) => e.value > 0)
+                  .sort((a, b) => b.value - a.value)
+                  .slice(0, 6);
+
+                return (
+                  <div key={col.key} className={`${cardStyle} p-5 relative`} style={cardShadow}>
+                    {/* Top accent line */}
+                    <div className="absolute top-0 left-6 right-6 h-0.5 rounded-full" style={{ backgroundColor: col.color }} />
+
+                    <div className="mb-4">
+                      <h3 className="text-sm font-semibold text-gray-900">{col.title}</h3>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{col.subtitle} — ¿Quién participa?</p>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {entries.map((e, ei) => {
+                        const info = getSourceInfo(e.src);
+                        return (
+                          <div key={e.src} className="flex items-center gap-3">
+                            {/* Rank */}
+                            <span className="text-[10px] font-bold text-gray-300 w-3 text-right">{ei + 1}</span>
+                            {/* Logo */}
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: info.color }}>
+                              <ChannelLogo source={e.src} size={13} />
+                            </div>
+                            {/* Name + bar */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-medium text-gray-700 truncate">{info.label}</span>
+                                <span className="text-xs font-bold tabular-nums" style={{ color: col.color }}>{e.pct}%</span>
+                              </div>
+                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all duration-700"
+                                  style={{ width: `${e.pct}%`, backgroundColor: col.color, opacity: 0.7 + (0.3 * (1 - ei / Math.max(entries.length - 1, 1))) }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {entries.length === 0 && (
+                        <div className="text-center text-gray-300 text-xs py-4">Sin datos</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 3 — Funnel + Customer Journeys                    */}
