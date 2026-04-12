@@ -1178,33 +1178,52 @@ export default function AnalyticsPage() {
             {(() => {
               try {
               // API returns {url, pageViews}, normalize to {pageUrl, views}
-              const pages = (pixelData?.popularPages || []).slice(0, 6).map((p: any) => ({
+              const rawPages = (pixelData?.popularPages || []).map((p: any) => ({
                 pageUrl: p.pageUrl || p.url || "",
                 views: Number(p.views ?? p.pageViews) || 0,
               }));
-              if (pages.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de páginas</div>;
+              if (rawPages.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de páginas</div>;
 
-              const maxViews = pages.length > 0 ? Math.max(...pages.map(p => p.views)) : 1;
               const simplifyUrl = (url: string) => {
                 try {
                   const path = new URL(url).pathname;
                   if (path === "/" || path === "") return "Home";
-                  return path.replace(/^\//, "").replace(/\/$/, "").split("/").slice(0, 2).join("/");
+                  // Keep up to 2 path segments, clean slashes
+                  const clean = path.replace(/^\//, "").replace(/\/$/, "");
+                  return clean.split("/").slice(0, 2).join("/");
                 } catch {
-                  return url.replace(/https?:\/\/[^/]+/, "").replace(/^\//, "") || "Home";
+                  const clean = url.replace(/https?:\/\/[^/]+/, "").replace(/^\//, "").replace(/\?.*$/, "");
+                  return clean || "Home";
                 }
               };
+
+              // Aggregate by simplified URL (different query params/trailing slashes → same page)
+              const grouped = new Map<string, { label: string; views: number; rawUrl: string }>();
+              for (const p of rawPages) {
+                const label = simplifyUrl(p.pageUrl);
+                const existing = grouped.get(label);
+                if (existing) {
+                  existing.views += p.views;
+                } else {
+                  grouped.set(label, { label, views: p.views, rawUrl: p.pageUrl });
+                }
+              }
+              const pages = Array.from(grouped.values())
+                .sort((a, b) => b.views - a.views)
+                .slice(0, 6);
+
+              const maxViews = pages.length > 0 ? Math.max(...pages.map(p => p.views)) : 1;
 
               return (
                 <div className="space-y-2">
                   {pages.map((p, i) => {
                     const barW = maxViews > 0 ? Math.max(8, (p.views / maxViews) * 100) : 0;
                     return (
-                      <div key={p.pageUrl} className="flex items-center gap-2.5">
+                      <div key={p.label} className="flex items-center gap-2.5">
                         <span className="text-[10px] font-bold text-gray-300 w-3 text-right">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-xs text-gray-700 truncate font-medium" title={p.pageUrl}>{simplifyUrl(p.pageUrl)}</span>
+                            <span className="text-xs text-gray-700 truncate font-medium" title={p.rawUrl}>{p.label}</span>
                             <span className="text-xs font-semibold text-gray-900 flex-shrink-0 ml-2">{fmt(p.views)}</span>
                           </div>
                           <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
