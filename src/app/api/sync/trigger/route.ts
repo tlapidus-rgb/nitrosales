@@ -1,131 +1,104 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+// ══════════════════════════════════════════════════════════════
+// On-demand sync trigger — fires background sync for a platform
+// Returns immediately; sync runs via waitUntil in background.
+// ══════════════════════════════════════════════════════════════
+import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db/client";
-import { getOrganizationId } from "@/lib/auth-guard";
+import { getOrganization } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 
-async function updateConnectionStatus(
-  platform: string,
-  success: boolean,
-  orgId: string,
-  errorMsg?: string
-) {
+const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 min
+const MIN_SYNC_GAP_MS = 2 * 60 * 1000; // 2 min — don't re-trigger if sync ran recently
+
+const PLATFORM_MAP: Record<string, { dbPlatform: string; syncPath: string }> = {
+  META: { dbPlatform: "META_ADS", syncPath: "/api/sync/meta" },
+  GOOGLE: { dbPlatform: "GOOGLE_ADS", syncPath: "/api/sync/google-ads" },
+};
+
+export async function POST(req: NextRequest) {
   try {
-    await prisma.connection.upsert({
-      where: {
-        organizationId_platform: {
-          organizationId: orgId,
-          platform: platform as any,
-        },
-      },
-      update: {
-        status: success ? "ACTIVE" : "ERROR",
-        lastSyncAt: new Date(),
-        lastSyncError: success ? null : errorMsg || "Unknown error",
-      },
-      create: {
-        organizationId: orgId,
-        platform: platform as any,
-        status: success ? "ACTIVE" : "ERROR",
-        lastSyncAt: new Date(),
-        lastSyncError: success ? null : errorMsg || "Unknown error",
-        credentials: {},
-      },
+    const org = await getOrganization();
+    const platform = req.nextUrl.searchParams.get("platform")?.toUpperCase();
+
+    if (!platform || !PLATFORM_MAP[platform]) {
+      return NextResponse.json(
+        { ok: false, error: "Platform must be META or GOOGLE" },
+        { status: 400 }
+      );
+    }
+
+    const { dbPlatform, syncPath } = PLATFORM_MAP[platform];
+
+    // Check freshness — skip if recently synced
+    const connection = await prisma.connection.findFirst({
+      where: { organizationId: org.id, platform: dbPlatform as any },
+      select: { lastSyncAt: true, lastSyncError: true },
     });
-  } catch (e) {
-    console.error(`Failed to update connection status for ${platform}:`, e);
+
+    const lastSync = connection?.lastSyncAt
+      ? Date.now() - new Date(connection.lastSyncAt).getTime()
+      : Infinity;
+
+    // If synced less than 2 min ago, skip (probably still running or just finished)
+    if (lastSync < MIN_SYNC_GAP_MS) {
+      return NextResponse.json({
+        ok: true,
+        syncStarted: false,
+        reason: "recently_synced",
+        lastSyncAgo: Math.round(lastSync / 1000),
+      });
+    }
+
+    // Check if a sync lock is active (VTEX Connection has LOCK: prefix)
+    const lockCheck = await prisma.connection.findFirst({
+      where: { organizationId: org.id, platform: "VTEX" as any },
+      select: { lastSyncError: true, lastSyncAt: true },
+    });
+    if (
+      lockCheck?.lastSyncError?.startsWith("LOCK:") &&
+      lockCheck.lastSyncAt &&
+      Date.now() - new Date(lockCheck.lastSyncAt).getTime() < 5 * 60 * 1000
+    ) {
+      return NextResponse.json({
+        ok: true,
+        syncStarted: false,
+        reason: "sync_locked",
+      });
+    }
+
+    // Fire-and-forget: trigger sync in background
+    const syncKey = process.env.NEXTAUTH_SECRET || "";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const syncUrl = `${baseUrl}${syncPath}?key=${encodeURIComponent(syncKey)}`;
+
+    waitUntil(
+      fetch(syncUrl, { method: "GET" })
+        .then((res) => {
+          console.log(`[sync/trigger] ${platform} sync completed: ${res.status}`);
+        })
+        .catch((err) => {
+          console.error(`[sync/trigger] ${platform} sync failed:`, err.message);
+        })
+    );
+
+    return NextResponse.json({
+      ok: true,
+      syncStarted: true,
+      platform,
+      lastSyncAgo: lastSync === Infinity ? null : Math.round(lastSync / 1000),
+    });
+  } catch (error: any) {
+    console.error("[sync/trigger] Error:", error.message);
+    return NextResponse.json(
+      { ok: false, error: error.message },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST() {
-  const ORG_ID = await getOrganizationId();
-  const session = await getServerSession();
-  if (!session?.user) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
-
-  const syncKey = process.env.NEXTAUTH_SECRET || "";
-  const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
-  const results: Record<string, any> = {};
-
-  // Run all syncs in parallel to stay within 60s
-  const [vtexRes, ga4Res, gadsRes, metaRes] = await Promise.allSettled([
-    fetch(baseUrl + "/api/sync/vtex", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ syncKey }),
-    }).then((r) => r.json()),
-    fetch(baseUrl + "/api/sync/ga4", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ syncKey }),
-    }).then((r) => r.json()),
-    fetch(
-      baseUrl + `/api/sync/google-ads?key=${encodeURIComponent(syncKey)}`,
-      { method: "GET" }
-    ).then((r) => r.json()),
-    fetch(
-      baseUrl + `/api/sync/meta?key=${encodeURIComponent(syncKey)}`,
-      { method: "GET" }
-    ).then((r) => r.json()),
-  ]);
-
-  results.vtex =
-    vtexRes.status === "fulfilled"
-      ? vtexRes.value
-      : { error: vtexRes.reason?.message };
-  results.ga4 =
-    ga4Res.status === "fulfilled"
-      ? ga4Res.value
-      : { error: ga4Res.reason?.message };
-  results.googleAds =
-    gadsRes.status === "fulfilled"
-      ? gadsRes.value
-      : { error: gadsRes.reason?.message };
-  results.metaAds =
-    metaRes.status === "fulfilled"
-      ? metaRes.value
-      : { error: metaRes.reason?.message };
-
-  // 5. Fetch VTEX order details (products, items, customers) for orders without items
-  try {
-    const vtexDetailsRes = await fetch(
-      baseUrl + `/api/sync/vtex-details?key=${encodeURIComponent(syncKey)}&batch=5`
-    );
-    results.vtexDetails = await vtexDetailsRes.json();
-  } catch (e: any) {
-    results.vtexDetails = { error: e.message };
-  }
-
-  // Update connection statuses in parallel
-  await Promise.allSettled([
-    updateConnectionStatus(
-      "VTEX",
-      vtexRes.status === "fulfilled" && !results.vtex.error,
-      ORG_ID,
-      results.vtex.error
-    ),
-    updateConnectionStatus(
-      "GA4",
-      ga4Res.status === "fulfilled" && !results.ga4.error,
-      ORG_ID,
-      results.ga4.error
-    ),
-    updateConnectionStatus(
-      "GOOGLE_ADS",
-      gadsRes.status === "fulfilled" && !results.googleAds.error,
-      ORG_ID,
-      results.googleAds.error
-    ),
-    updateConnectionStatus(
-      "META_ADS",
-      metaRes.status === "fulfilled" && !results.metaAds.error,
-      ORG_ID,
-      results.metaAds.error
-    ),
-  ]);
-
-  return NextResponse.json({ ok: true, results });
+// Also support GET for simplicity
+export async function GET(req: NextRequest) {
+  return POST(req);
 }

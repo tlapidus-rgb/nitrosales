@@ -9,13 +9,14 @@ import {
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import { KpiCard, DateRangeFilter } from "@/components/dashboard";
+import { useSyncStatus } from "@/lib/hooks/useSyncStatus";
 import {
   DollarSign, Eye, MousePointer, ShoppingCart, Target, Zap,
   ArrowUp, ArrowDown, Download, TrendingUp, BarChart3,
   ArrowUpRight, ArrowDownRight, AlertTriangle, Search,
   ShoppingBag, Tv, Star, GripVertical, Layers, Activity,
   Palette, Tag, Film, Sparkles, ChevronRight, ChevronDown,
-  Megaphone, LayoutGrid, Image,
+  Megaphone, LayoutGrid, Image, RefreshCw,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────── */
@@ -444,7 +445,7 @@ export default function GoogleAdsPage() {
   const [classFilter, setClassFilter] = useState<string | null>(null);
   const [draggedAdId, setDraggedAdId] = useState<string | null>(null);
   const [dragOverType, setDragOverType] = useState<string | null>(null);
-  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const { lastSyncAt, isSyncing, syncError, triggerSync: triggerGoogleSync, onSyncComplete } = useSyncStatus("GOOGLE_ADS");
   // Drill-down state
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
@@ -452,16 +453,10 @@ export default function GoogleAdsPage() {
   const [adsCache, setAdsCache] = useState<Record<string, any[]>>({});
   const [drillLoading, setDrillLoading] = useState<Record<string, boolean>>({});
 
-  /* ── Fetch sync status ─────────────────────────── */
+  /* ── On-demand sync: auto-refresh data when sync completes ── */
   useEffect(() => {
-    fetch("/api/sync/status")
-      .then((r) => r.json())
-      .then((d) => {
-        const google = d.connections?.GOOGLE_ADS;
-        if (google?.lastSyncAt) setLastSyncAt(google.lastSyncAt);
-      })
-      .catch(() => {});
-  }, [data]);
+    onSyncComplete(() => fetchData());
+  }, [onSyncComplete, fetchData]);
 
   /* ── Fetch ─────────────────────────────────────── */
   const fetchData = useCallback(() => {
@@ -655,12 +650,21 @@ export default function GoogleAdsPage() {
               <h1 className="text-2xl font-bold text-gray-900">Google Ads</h1>
               <p className="text-xs text-gray-500 mt-0.5">
                 Search, Shopping & Performance Max &middot; {dateFrom} a {dateTo}
-                {lastSyncAt && (
-                  <span className="ml-2 inline-flex items-center gap-1 text-green-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    Sync: {new Date(lastSyncAt).toLocaleString("es-AR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                {isSyncing ? (
+                  <span className="ml-2 inline-flex items-center gap-1 text-amber-600">
+                    <RefreshCw size={11} className="animate-spin" />
+                    Actualizando datos...
                   </span>
-                )}
+                ) : lastSyncAt ? (
+                  <button
+                    onClick={() => triggerGoogleSync()}
+                    className="ml-2 inline-flex items-center gap-1 text-green-600 hover:text-green-700 transition-colors"
+                    title="Click para actualizar"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    Sync: {new Date(lastSyncAt).toLocaleString("es-AR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                  </button>
+                ) : null}
               </p>
             </div>
           </div>
