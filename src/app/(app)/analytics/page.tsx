@@ -246,7 +246,7 @@ export default function AnalyticsPage() {
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<"truth" | "channels">("truth");
-  // nitroScoreExpanded removed
+  const [attrModel, setAttrModel] = useState<"NITRO" | "LAST_CLICK" | "FIRST_CLICK" | "LINEAR">("NITRO");
 
   // Refetch indicator
   const [isRefetching, setIsRefetching] = useState(false);
@@ -259,8 +259,8 @@ export default function AnalyticsPage() {
 
     try {
       const [pixelRes, discRes] = await Promise.all([
-        fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=NITRO`),
-        fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}&model=NITRO`),
+        fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=${attrModel}`),
+        fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}&model=${attrModel}`),
       ]);
 
       if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
@@ -278,7 +278,7 @@ export default function AnalyticsPage() {
       setLoading(false);
       setIsRefetching(false);
     }
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, attrModel]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -345,6 +345,25 @@ export default function AnalyticsPage() {
 
   // All unique channel sources for stacked bar
   const allSources = Array.from(new Set(dailyChannels.flatMap(d => d.channels.map(c => c.source))));
+
+  // Compute channel roles from journeys (first touch %, assist %, last touch %)
+  const channelRoles = (() => {
+    const roles: Record<string, { first: number; assist: number; last: number; total: number }> = {};
+    for (const j of journeys) {
+      if (j.touchpoints.length === 0) continue;
+      const tps = j.touchpoints;
+      for (let ti = 0; ti < tps.length; ti++) {
+        const src = tps[ti].source || "direct";
+        if (!roles[src]) roles[src] = { first: 0, assist: 0, last: 0, total: 0 };
+        roles[src].total++;
+        if (ti === 0) roles[src].first++;
+        else if (ti === tps.length - 1) roles[src].last++;
+        else roles[src].assist++;
+      }
+    }
+    return roles;
+  })();
+  const totalJourneys = journeys.length || 1;
 
   return (
     <div className={`min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] ${isRefetching ? "pixel-refetching" : ""}`}>
@@ -474,7 +493,8 @@ export default function AnalyticsPage() {
         {/* ZONA 2 — Channel Truth Table                           */}
         {/* ═══════════════════════════════════════════════════════ */}
         <div className={`${cardStyle} overflow-hidden stagger-card`} style={{ ...cardShadow, animationDelay: "300ms" }}>
-          <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+          {/* Header row: title + verdict */}
+          <div className="px-6 pt-4 pb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold text-gray-900">Canales — Truth Score</h2>
               <InfoTip text="El Truth Score compara lo que el pixel midió vs lo que la plataforma reporta. 100% = alineados. Menos de 90% = la plataforma sobre-reporta. Más de 110% = sub-reporta." />
@@ -496,6 +516,37 @@ export default function AnalyticsPage() {
                 </span>
               </div>
             )}
+          </div>
+
+          {/* Attribution model selector */}
+          <div className="px-6 pb-3 border-b border-gray-50 flex items-center gap-3">
+            <span className="text-[11px] text-gray-400 uppercase tracking-wider font-medium">Modelo:</span>
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+              {([
+                { key: "NITRO" as const, label: "NitroAttribution", tip: "Multi-touch ponderado: primer toque 35%, asistencias 20%, último toque 45%. Refleja el journey completo." },
+                { key: "LAST_CLICK" as const, label: "Último Click", tip: "100% del crédito al último canal antes de comprar. Favorece canales de cierre (Google, Direct)." },
+                { key: "FIRST_CLICK" as const, label: "Primer Click", tip: "100% del crédito al canal que trajo al usuario por primera vez. Favorece canales de descubrimiento (Meta, Social)." },
+                { key: "LINEAR" as const, label: "Lineal", tip: "Crédito dividido equitativamente entre todos los touchpoints del journey." },
+              ]).map((m) => (
+                <div key={m.key} className="relative group/model">
+                  <button
+                    className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-all duration-200 ${
+                      attrModel === m.key
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                    onClick={() => setAttrModel(m.key)}
+                  >
+                    {m.label}
+                  </button>
+                  {/* Model tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/model:opacity-100 transition-opacity duration-200 z-30 shadow-lg">
+                    {m.tip}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {channels.length === 0 ? (
@@ -533,6 +584,42 @@ export default function AnalyticsPage() {
                               <ChannelLogo source={ch.source} size={14} />
                             </div>
                             <span className="font-medium text-gray-900">{info.label}</span>
+                            {/* Channel journey role tooltip */}
+                            {channelRoles[ch.source] && (() => {
+                              const r = channelRoles[ch.source];
+                              const pFirst = Math.round((r.first / totalJourneys) * 100);
+                              const pAssist = Math.round((r.assist / totalJourneys) * 100);
+                              const pLast = Math.round((r.last / totalJourneys) * 100);
+                              const dominantRole = r.first >= r.last && r.first >= r.assist ? "Descubrimiento"
+                                : r.last >= r.first && r.last >= r.assist ? "Cierre"
+                                : "Asistencia";
+                              const roleColor = dominantRole === "Descubrimiento" ? "text-blue-500"
+                                : dominantRole === "Cierre" ? "text-emerald-500" : "text-amber-500";
+                              return (
+                                <div className="relative group/role">
+                                  <span className={`text-[10px] font-medium ${roleColor} bg-gray-50 px-1.5 py-0.5 rounded`}>
+                                    {dominantRole}
+                                  </span>
+                                  <div className="absolute bottom-full left-0 mb-2 w-60 px-3 py-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg opacity-0 pointer-events-none group-hover/role:opacity-100 transition-opacity duration-200 z-30 shadow-lg">
+                                    <div className="font-semibold mb-1.5">Rol en los journeys</div>
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between"><span>Primer toque:</span><span className="font-medium">{pFirst}% de journeys</span></div>
+                                      <div className="flex justify-between"><span>Asistencia:</span><span className="font-medium">{pAssist}% de journeys</span></div>
+                                      <div className="flex justify-between"><span>Último toque:</span><span className="font-medium">{pLast}% de journeys</span></div>
+                                    </div>
+                                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-gray-300">
+                                      {dominantRole === "Descubrimiento"
+                                        ? "Este canal trae usuarios nuevos. Si su Truth Score es bajo, puede ser porque warmea audiencias que convierten por otro canal."
+                                        : dominantRole === "Cierre"
+                                        ? "Este canal cierra ventas. Su Truth Score tiende a ser alto porque captura la última interacción."
+                                        : "Este canal participa en el journey sin ser primero ni último. Contribuye a la conversión de forma indirecta."
+                                      }
+                                    </div>
+                                    <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900" />
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             {campaignsForChannel.length > 0 && (
                               <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
