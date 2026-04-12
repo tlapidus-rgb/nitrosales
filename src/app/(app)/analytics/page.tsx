@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { DateRangeFilter } from "@/components/dashboard";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, ComposedChart, Line, Cell,
+  BarChart, Bar, ComposedChart, Line, Cell, PieChart, Pie, ReferenceLine,
 } from "recharts";
 
 // ══════════════════════════════════════════════════════════════
@@ -144,6 +144,14 @@ interface PixelData {
     clickCoverage: { total: number; withClickId: number; clickIdRate: number };
     eventsInPeriod: number; pixelAgeDays?: number;
   };
+  attribution?: {
+    byModel: Array<{ model: string; ordersAttributed: number; revenue: number }>;
+    bySource: Array<{ source: string; orders: number; revenue: number; percentage: number }>;
+    conversionLag: Array<{ bucket: string; orders: number; revenue: number }>;
+  };
+  deviceBreakdown?: Array<{ deviceType: string; count: number; percentage: number }>;
+  popularPages?: Array<{ pageUrl: string; views: number }>;
+  perDayCoverage?: Array<{ day: string; totalOrders: number; attributedOrders: number; coverage: number }>;
   meta: { dateFrom: string; dateTo: string; daysInPeriod: number; nitroWeights?: { first: number; middle: number; last: number } };
 }
 
@@ -1000,7 +1008,270 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        {/* NitroScore moved to /pixel — it's about pixel health, not analytics */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 5 — Conversion Speed                              */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {(() => {
+          const lagData = pixelData?.attribution?.conversionLag || [];
+          if (lagData.length === 0) return null;
+
+          const totalOrders = lagData.reduce((s, d) => s + d.orders, 0) || 1;
+          const maxOrders = Math.max(...lagData.map(d => d.orders));
+          // Find dominant bucket for insight
+          const dominant = lagData.reduce((a, b) => b.orders > a.orders ? b : a, lagData[0]);
+          const dominantPct = Math.round((dominant.orders / totalOrders) * 100);
+          // Cumulative: what % converts within 3 days?
+          const FAST_BUCKETS = ["Mismo día", "1-3 días"];
+          const fastOrders = lagData.filter(d => FAST_BUCKETS.includes(d.bucket)).reduce((s, d) => s + d.orders, 0);
+          const fastPct = Math.round((fastOrders / totalOrders) * 100);
+
+          const LAG_COLORS = ["#06b6d4", "#22d3ee", "#67e8f9", "#a5f3fc", "#cffafe", "#e0f2fe"];
+
+          return (
+            <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "560ms" }}>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">Velocidad de Conversión</h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">¿Cuánto tardan tus clientes en comprar después del primer contacto?</p>
+                </div>
+                <InfoTip text="El conversion lag mide los días entre el primer touchpoint del pixel y la compra. Menor lag = journey más directo." />
+              </div>
+
+              <div className="space-y-2.5">
+                {lagData.filter(d => d.bucket !== "unknown").map((d, i) => {
+                  const pct = Math.round((d.orders / totalOrders) * 100);
+                  const barWidth = maxOrders > 0 ? Math.max(4, (d.orders / maxOrders) * 100) : 0;
+                  const isDominant = d.bucket === dominant.bucket;
+                  return (
+                    <div key={d.bucket} className="flex items-center gap-3">
+                      <span className="text-xs text-gray-500 w-20 text-right flex-shrink-0">{d.bucket}</span>
+                      <div className="flex-1 h-7 bg-gray-50 rounded-lg overflow-hidden relative">
+                        <div
+                          className="h-full rounded-lg transition-all duration-700 flex items-center"
+                          style={{ width: `${barWidth}%`, backgroundColor: LAG_COLORS[i] || LAG_COLORS[5], opacity: isDominant ? 1 : 0.7 }}
+                        >
+                          {barWidth > 20 && (
+                            <span className="text-[11px] font-semibold text-gray-700 ml-2.5">{pct}%</span>
+                          )}
+                        </div>
+                        {barWidth <= 20 && (
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-gray-400" style={{ left: `calc(${barWidth}% + 8px)` }}>{pct}%</span>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0 w-28 text-right">
+                        <span className="text-xs font-medium text-gray-700">{fmt(d.orders)} ord.</span>
+                        <span className="text-[10px] text-gray-400 ml-1.5">{fmtCompact(d.revenue)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Auto-insight */}
+              <div className="mt-4 bg-gradient-to-r from-cyan-50/80 to-transparent p-3 rounded-xl">
+                <p className="text-xs text-gray-600">
+                  <span className="font-semibold text-cyan-700">Insight:</span>{" "}
+                  {fastPct >= 70
+                    ? `${fastPct}% de tus ventas ocurren dentro de 3 días. Tu ecommerce tiene un ciclo de compra rápido — optimizá remarketing para esa ventana.`
+                    : fastPct >= 40
+                    ? `${fastPct}% convierte en 3 días, pero ${100 - fastPct}% necesita más tiempo. Considerá nurturing con email flows para los que tardan más.`
+                    : `Solo ${fastPct}% convierte en 3 días — tu producto requiere decisión larga. Invertí en contenido educativo y secuencias de remarketing extendidas.`
+                  }
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 6 — Devices & Top Pages                           */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* Device Breakdown — 3 cols */}
+          <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "620ms" }}>
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Dispositivos</h2>
+            {(() => {
+              const devices = pixelData?.deviceBreakdown || [];
+              if (devices.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de dispositivos</div>;
+
+              const totalCount = devices.reduce((s, d) => s + d.count, 0);
+              const DEVICE_COLORS: Record<string, string> = { mobile: "#06b6d4", desktop: "#8b5cf6", tablet: "#f97316" };
+              const DEVICE_ICONS: Record<string, string> = { mobile: "📱", desktop: "💻", tablet: "📟" };
+              const DEVICE_LABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
+
+              const pieData = devices.map(d => ({
+                name: DEVICE_LABELS[d.deviceType] || d.deviceType,
+                value: d.count,
+                fill: DEVICE_COLORS[d.deviceType] || "#94a3b8",
+              }));
+
+              return (
+                <div className="flex items-center gap-8">
+                  {/* Ring chart */}
+                  <div className="flex-shrink-0 w-40 h-40 relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          cx="50%" cy="50%"
+                          innerRadius={45} outerRadius={70}
+                          paddingAngle={3}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          {pieData.map((entry, idx) => (
+                            <Cell key={idx} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {/* Center label */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-lg font-bold text-gray-900">{fmt(totalCount)}</span>
+                      <span className="text-[10px] text-gray-400">sesiones</span>
+                    </div>
+                  </div>
+
+                  {/* Device stats */}
+                  <div className="flex-1 space-y-3">
+                    {devices.map((d) => {
+                      const color = DEVICE_COLORS[d.deviceType] || "#94a3b8";
+                      return (
+                        <div key={d.deviceType} className="flex items-center gap-3">
+                          <span className="text-lg flex-shrink-0">{DEVICE_ICONS[d.deviceType] || "🖥️"}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-gray-700">{DEVICE_LABELS[d.deviceType] || d.deviceType}</span>
+                              <span className="text-xs font-bold" style={{ color }}>{d.percentage}%</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${d.percentage}%`, backgroundColor: color }} />
+                            </div>
+                          </div>
+                          <span className="text-[11px] text-gray-400 flex-shrink-0 w-16 text-right">{fmt(d.count)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Top Landing Pages — 2 cols */}
+          <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "680ms" }}>
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Top Páginas</h2>
+            {(() => {
+              const pages = (pixelData?.popularPages || []).slice(0, 6);
+              if (pages.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de páginas</div>;
+
+              const maxViews = Math.max(...pages.map(p => p.views));
+              const simplifyUrl = (url: string) => {
+                try {
+                  const path = new URL(url).pathname;
+                  if (path === "/" || path === "") return "Home";
+                  return path.replace(/^\//, "").replace(/\/$/, "").split("/").slice(0, 2).join("/");
+                } catch {
+                  return url.replace(/https?:\/\/[^/]+/, "").replace(/^\//, "") || "Home";
+                }
+              };
+
+              return (
+                <div className="space-y-2">
+                  {pages.map((p, i) => {
+                    const barW = maxViews > 0 ? Math.max(8, (p.views / maxViews) * 100) : 0;
+                    return (
+                      <div key={p.pageUrl} className="flex items-center gap-2.5">
+                        <span className="text-[10px] font-bold text-gray-300 w-3 text-right">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs text-gray-700 truncate font-medium" title={p.pageUrl}>{simplifyUrl(p.pageUrl)}</span>
+                            <span className="text-xs font-semibold text-gray-900 flex-shrink-0 ml-2">{fmt(p.views)}</span>
+                          </div>
+                          <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-violet-400 transition-all duration-700" style={{ width: `${barW}%`, opacity: 1 - i * 0.12 }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 7 — Pixel Coverage Timeline                       */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {(() => {
+          const coverage = pixelData?.perDayCoverage || [];
+          if (coverage.length === 0) return null;
+
+          const avgCoverage = Math.round(coverage.reduce((s, d) => s + d.coverage, 0) / coverage.length);
+          // Find drops
+          const drops = coverage.filter(d => d.coverage < 50 && d.totalOrders > 0);
+          const worstDay = drops.length > 0 ? drops.reduce((a, b) => a.coverage < b.coverage ? a : b) : null;
+
+          return (
+            <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "740ms" }}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">Cobertura del Pixel</h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">% de órdenes con atribución por día — muestra la salud del tracking</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Promedio:</span>
+                  <span className={`text-sm font-bold ${avgCoverage >= 80 ? "text-emerald-600" : avgCoverage >= 50 ? "text-amber-600" : "text-red-600"}`}>
+                    {avgCoverage}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={coverage} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="coverageGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#22c55e" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="#22c55e" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `${v}%`} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
+                      formatter={(value: number, name: string) => {
+                        if (name === "coverage") return [`${value}%`, "Cobertura"];
+                        return [value, name];
+                      }}
+                      labelFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                    />
+                    <ReferenceLine y={80} stroke="#22c55e" strokeDasharray="4 4" strokeOpacity={0.5} />
+                    <Area type="monotone" dataKey="coverage" fill="url(#coverageGrad)" stroke="#22c55e" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Coverage insight */}
+              {worstDay && (
+                <div className="mt-3 bg-gradient-to-r from-amber-50/80 to-transparent p-3 rounded-xl">
+                  <p className="text-xs text-gray-600">
+                    <span className="font-semibold text-amber-700">Alerta:</span>{" "}
+                    El {new Date(worstDay.day).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} la cobertura cayó a {worstDay.coverage}% ({worstDay.attributedOrders} de {worstDay.totalOrders} órdenes atribuidas). Posible issue técnico con el pixel ese día.
+                  </p>
+                </div>
+              )}
+
+              {/* Legend */}
+              <div className="flex items-center justify-center gap-6 mt-3">
+                <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-emerald-500" /><span className="text-[11px] text-gray-500">Cobertura real</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 border-b border-dashed border-emerald-400" style={{ width: 12 }} /><span className="text-[11px] text-gray-500">Meta 80%</span></div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Footer tagline */}
         <div className="text-center py-4">
