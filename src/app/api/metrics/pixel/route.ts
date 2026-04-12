@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const fromParam = searchParams.get("from");
 
     // Cache check (v3: busted after adding conversion rates 2026-04-12)
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v3"];
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v4"];
     const cached = getCached("pixel", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
@@ -658,37 +658,60 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>,
 
       // 23. Visitors per source from NitroPixel (for CR by channel)
-      // Uses same source derivation logic as attribution queries to ensure names match
+      // Per-visitor source: prioritize UTM params, fallback to referrer classification
+      // Uses DISTINCT ON to get ONE representative event per visitor (the one most likely to have source info)
       prisma.$queryRaw`
+        WITH visitor_source AS (
+          SELECT DISTINCT ON (pe."visitorId")
+            pe."visitorId",
+            pe."utmParams",
+            pe.referrer
+          FROM pixel_events pe
+          WHERE pe."organizationId" = ${ORG_ID}
+            AND pe.timestamp >= ${dateFrom}
+            AND pe.timestamp <= ${dateTo}
+          ORDER BY pe."visitorId",
+            CASE WHEN pe."utmParams"->>'source' IS NOT NULL AND pe."utmParams"->>'source' != '' THEN 0 ELSE 1 END,
+            pe.timestamp ASC
+        )
         SELECT
           CASE
-            WHEN COALESCE(pe."utmParams"->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(pe."utmParams"->>'source','') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(pe."utmParams"->>'source','') || '_organic'
-            WHEN pe."utmParams"->>'source' IS NOT NULL AND pe."utmParams"->>'source' != ''
-            THEN pe."utmParams"->>'source'
+            WHEN COALESCE(vs."utmParams"->>'medium','') IN ('organic','social','referral')
+              AND COALESCE(vs."utmParams"->>'source','') IN ('google','bing','yahoo','duckduckgo')
+            THEN COALESCE(vs."utmParams"->>'source','') || '_organic'
+            WHEN vs."utmParams"->>'source' IS NOT NULL AND vs."utmParams"->>'source' != ''
+            THEN vs."utmParams"->>'source'
+            WHEN vs.referrer LIKE '%google.%' THEN 'google_organic'
+            WHEN vs.referrer LIKE '%bing.%' THEN 'bing_organic'
+            WHEN vs.referrer LIKE '%instagram.%' OR vs.referrer LIKE '%l.instagram.%' THEN 'instagram'
+            WHEN vs.referrer LIKE '%facebook.%' OR vs.referrer LIKE '%m.facebook.%' OR vs.referrer LIKE '%l.facebook.%' THEN 'facebook'
+            WHEN vs.referrer LIKE '%tiktok.%' THEN 'tiktok'
+            WHEN vs.referrer LIKE '%twitter.%' OR vs.referrer LIKE '%t.co%' THEN 'twitter'
+            WHEN vs.referrer LIKE '%youtube.%' THEN 'youtube'
+            WHEN vs.referrer IS NOT NULL AND vs.referrer != '' THEN 'referral'
             ELSE 'direct'
           END as source,
-          COUNT(DISTINCT pe."visitorId")::int as visitors
-        FROM pixel_events pe
-        WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${dateFrom}
-          AND pe.timestamp <= ${dateTo}
+          COUNT(*)::int as visitors
+        FROM visitor_source vs
         GROUP BY 1
         ORDER BY visitors DESC
-        LIMIT 15
+        LIMIT 20
       ` as Promise<Array<{ source: string; visitors: number }>>,
 
-      // 24. Orders by device (for CR by device — combine with deviceBreakdown visitors from pixel)
+      // 24. Orders by device — derive device from pixel_attributions → pixel_visitors
+      // (orders.deviceType from VTEX is mostly NULL, pixel_visitors tracks actual device)
       prisma.$queryRaw`
         SELECT
-          COALESCE(o."deviceType", 'unknown') as device,
-          COUNT(*)::int as orders,
-          SUM(o."totalValue")::float as revenue
-        FROM orders o
-        WHERE o."organizationId" = ${ORG_ID}
+          COALESCE(pv."deviceTypes"[1], 'unknown') as device,
+          COUNT(DISTINCT pa."orderId")::int as orders,
+          SUM(pa."attributedValue")::float as revenue
+        FROM pixel_attributions pa
+        JOIN pixel_visitors pv ON pv."visitorId" = pa."visitorId" AND pv."organizationId" = pa."organizationId"
+        JOIN orders o ON o.id = pa."orderId"
+        WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
+          AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
@@ -699,17 +722,17 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ device: string; orders: number; revenue: number }>>,
 
       // 25. Product viewers from NitroPixel (VIEW_PRODUCT events)
-      // Groups by product externalId from event props
+      // props->>'productId' is the actual field name in pixel VIEW_PRODUCT events
       prisma.$queryRaw`
         SELECT
-          pe.props->>'item_id' as "productExternalId",
+          pe.props->>'productId' as "productExternalId",
           COUNT(DISTINCT pe."visitorId")::int as viewers
         FROM pixel_events pe
         WHERE pe."organizationId" = ${ORG_ID}
           AND pe.timestamp >= ${dateFrom}
           AND pe.timestamp <= ${dateTo}
           AND pe.type = 'VIEW_PRODUCT'
-          AND pe.props->>'item_id' IS NOT NULL
+          AND pe.props->>'productId' IS NOT NULL
         GROUP BY 1
         ORDER BY viewers DESC
         LIMIT 100
@@ -1047,23 +1070,34 @@ export async function GET(request: NextRequest) {
       // ── Conversion Rates data (100% NitroPixel + VTEX orders) ──
       conversionRates: (() => {
         // CR by Channel: pixel visitors per source + attribution orders per source
+        // Merge both directions: sources with purchases AND sources with only visitors
         const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number }>;
         const visitorMap = new Map(pixelVisitorsBySource.map(v => [v.source.toLowerCase(), v.visitors]));
-        const byChannel = attributionBySource.map(ch => {
-          const visitors = visitorMap.get(ch.source.toLowerCase()) || 0;
-          return {
-            source: ch.source,
-            visitors,
-            purchases: ch.orders,
-            revenue: ch.revenue || 0,
-            cr: visitors > 0 ? Math.round((ch.orders / visitors) * 10000) / 100 : 0,
-          };
-        }).sort((a, b) => b.cr - a.cr);
+        const attrMap = new Map(attributionBySource.map(ch => [ch.source.toLowerCase(), ch]));
 
-        // CR by Device: pixel visitors (deviceBreakdown) + VTEX orders by device
+        // Start with attribution sources (have purchases)
+        const channelMap = new Map<string, { source: string; visitors: number; purchases: number; revenue: number }>();
+        for (const ch of attributionBySource) {
+          const key = ch.source.toLowerCase();
+          const visitors = visitorMap.get(key) || 0;
+          channelMap.set(key, { source: ch.source, visitors, purchases: ch.orders, revenue: ch.revenue || 0 });
+        }
+        // Add sources that have visitors but 0 purchases (important for seeing all traffic sources)
+        for (const vs of pixelVisitorsBySource) {
+          const key = vs.source.toLowerCase();
+          if (!channelMap.has(key) && vs.visitors > 5) { // skip tiny sources
+            channelMap.set(key, { source: vs.source, visitors: vs.visitors, purchases: 0, revenue: 0 });
+          }
+        }
+        const byChannel = Array.from(channelMap.values())
+          .map(ch => ({ ...ch, cr: ch.visitors > 0 ? Math.round((ch.purchases / ch.visitors) * 10000) / 100 : 0 }))
+          .sort((a, b) => b.visitors - a.visitors);
+
+        // CR by Device: pixel visitors (deviceBreakdown from query #5) + pixel-attributed orders by device (query #24)
+        // Both use the same device naming from pixel (Mobile, Desktop, etc.)
+        const deviceVisitorMap = new Map(deviceBreakdown.map(d => [(d as any).device?.toLowerCase(), (d as any).count || 0]));
         const byDevice = (ordersByDeviceResult as Array<{ device: string; orders: number; revenue: number }>).map(d => {
-          const visitorMatch = deviceBreakdown.find(v => (v as any).device === d.device);
-          const visitors = visitorMatch ? (visitorMatch as any).count : 0;
+          const visitors = deviceVisitorMap.get(d.device?.toLowerCase()) || 0;
           return {
             device: d.device,
             visitors,
