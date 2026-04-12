@@ -211,22 +211,24 @@ export async function GET(request: NextRequest) {
         ORDER BY count DESC
       ` as Promise<Array<{ type: string; count: number; uniqueVisitors: number }>>,
 
-      // 7. Popular pages (top 50 raw — frontend groups by simplified path, so we need extra)
+      // 7. Popular pages — group by clean path (no query params), use unique visitors
+      //    Excludes checkout (transactional, not content) and strips protocol+domain+query
       prisma.$queryRaw`
         SELECT
-          pe."pageUrl" as url,
-          COUNT(*)::int as "pageViews",
-          COUNT(DISTINCT pe."visitorId")::int as "uniqueVisitors"
+          regexp_replace(regexp_replace(pe."pageUrl", '^https?://[^/]+', ''), '\?.*$', '') as path,
+          COUNT(DISTINCT pe."visitorId")::int as visitors,
+          COUNT(*)::int as "pageViews"
         FROM pixel_events pe
         WHERE pe."organizationId" = ${ORG_ID}
           AND pe.timestamp >= ${dateFrom}
           AND pe.timestamp <= ${dateTo}
           AND pe."pageUrl" IS NOT NULL
           AND pe.type = 'PAGE_VIEW'
+          AND pe."pageUrl" NOT LIKE '%/checkout%'
         GROUP BY 1
-        ORDER BY "pageViews" DESC
-        LIMIT 50
-      ` as Promise<Array<{ url: string; pageViews: number; uniqueVisitors: number }>>,
+        ORDER BY visitors DESC
+        LIMIT 15
+      ` as Promise<Array<{ path: string; visitors: number; pageViews: number }>>,
 
       // 8. Attribution by model
       prisma.$queryRaw`

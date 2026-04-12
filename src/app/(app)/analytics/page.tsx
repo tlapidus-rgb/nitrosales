@@ -1174,61 +1174,61 @@ export default function AnalyticsPage() {
 
           {/* Top Landing Pages — 2 cols */}
           <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "680ms" }}>
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Top Páginas</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-gray-900">Top Páginas</h2>
+              <span className="text-[10px] text-gray-400">visitantes únicos</span>
+            </div>
             {(() => {
               try {
-              // API returns {url, pageViews}, normalize to {pageUrl, views}
+              // API now returns {path, visitors, pageViews} grouped by clean path
               const rawPages = (pixelData?.popularPages || []).map((p: any) => ({
-                pageUrl: p.pageUrl || p.url || "",
-                views: Number(p.views ?? p.pageViews) || 0,
+                path: String(p.path || p.pageUrl || p.url || "/"),
+                visitors: Number(p.visitors ?? p.views ?? p.pageViews) || 0,
               }));
               if (rawPages.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de páginas</div>;
 
-              const simplifyUrl = (url: string) => {
+              const prettifyPath = (raw: string) => {
                 try {
-                  const parsed = new URL(url);
-                  const path = decodeURIComponent(parsed.pathname);
-                  if (path === "/" || path === "") return "Home";
-                  const clean = path.replace(/^\//, "").replace(/\/$/, "");
-                  // Keep first meaningful segment, prettify slug
-                  const segments = clean.split("/").filter(Boolean);
-                  const label = segments.slice(0, 2).join(" / ");
-                  // Convert slugs: "bebes-y-primera-infancia" → "Bebes y Primera Infancia"
-                  return label.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-                } catch {
-                  const clean = decodeURIComponent(url).replace(/https?:\/\/[^/]+/, "").replace(/^\//, "").replace(/\?.*$/, "");
-                  return clean.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || "Home";
-                }
+                  const path = decodeURIComponent(raw).replace(/^\//, "").replace(/\/$/, "");
+                  if (!path) return "Home";
+                  // Numeric-only paths are product IDs
+                  if (/^\d+$/.test(path)) return `Producto #${path}`;
+                  // Take first 2 segments, prettify slug
+                  const segments = path.split("/").filter(Boolean).slice(0, 2);
+                  return segments
+                    .map(s => s.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()))
+                    .join(" / ");
+                } catch { return raw || "Home"; }
               };
 
-              // Aggregate by simplified URL (different query params/trailing slashes → same page)
-              const grouped = new Map<string, { label: string; views: number; rawUrl: string }>();
+              // Collapse trailing-slash duplicates (/ vs empty)
+              const grouped = new Map<string, { label: string; visitors: number; path: string }>();
               for (const p of rawPages) {
-                const label = simplifyUrl(p.pageUrl);
+                const label = prettifyPath(p.path);
                 const existing = grouped.get(label);
                 if (existing) {
-                  existing.views += p.views;
+                  existing.visitors += p.visitors;
                 } else {
-                  grouped.set(label, { label, views: p.views, rawUrl: p.pageUrl });
+                  grouped.set(label, { label, visitors: p.visitors, path: p.path });
                 }
               }
               const pages = Array.from(grouped.values())
-                .sort((a, b) => b.views - a.views)
+                .sort((a, b) => b.visitors - a.visitors)
                 .slice(0, 6);
 
-              const maxViews = pages.length > 0 ? Math.max(...pages.map(p => p.views)) : 1;
+              const maxVisitors = pages.length > 0 ? Math.max(...pages.map(p => p.visitors)) : 1;
 
               return (
                 <div className="space-y-2">
                   {pages.map((p, i) => {
-                    const barW = maxViews > 0 ? Math.max(8, (p.views / maxViews) * 100) : 0;
+                    const barW = maxVisitors > 0 ? Math.max(8, (p.visitors / maxVisitors) * 100) : 0;
                     return (
                       <div key={p.label} className="flex items-center gap-2.5">
                         <span className="text-[10px] font-bold text-gray-300 w-3 text-right">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-xs text-gray-700 truncate font-medium" title={p.rawUrl}>{p.label}</span>
-                            <span className="text-xs font-semibold text-gray-900 flex-shrink-0 ml-2">{fmt(p.views)}</span>
+                            <span className="text-xs text-gray-700 truncate font-medium" title={p.path}>{p.label}</span>
+                            <span className="text-xs font-semibold text-gray-900 flex-shrink-0 ml-2">{fmt(p.visitors)}</span>
                           </div>
                           <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
                             <div className="h-full rounded-full bg-violet-400 transition-all duration-700" style={{ width: `${barW}%`, opacity: 1 - i * 0.12 }} />
