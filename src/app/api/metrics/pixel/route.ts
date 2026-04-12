@@ -129,9 +129,10 @@ export async function GET(request: NextRequest) {
       // ── Channel role breakdown (first/assist/last touch per source) ──
       channelRolesResult,
       // ── Conversion Rates queries ──
-      funnelBySourceResult,
+      visitorsBySourceResult,
       ordersByDeviceResult,
-      ordersByCategoryResult,
+      productViewersResult,
+      productPurchasesResult,
     ] = await Promise.all([
       // 1. Live status
       prisma.$queryRaw`
@@ -656,26 +657,29 @@ export async function GET(request: NextRequest) {
         ORDER BY "firstTouch" DESC
       ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>,
 
-      // 23. Funnel by source (for CR by channel)
-      // Uses GA4 FunnelDaily which already has source breakdown
+      // 23. Visitors per source from NitroPixel (for CR by channel)
+      // Uses same source derivation logic as attribution queries to ensure names match
       prisma.$queryRaw`
         SELECT
-          COALESCE(source, 'direct') as source,
-          SUM(visitors)::int as visitors,
-          SUM("productViews")::int as "productViews",
-          SUM("addToCarts")::int as "addToCarts",
-          SUM("checkoutStarts")::int as "checkoutStarts",
-          SUM(purchases)::int as purchases
-        FROM funnel_daily
-        WHERE "organizationId" = ${ORG_ID}
-          AND date >= ${dateFrom}::date
-          AND date <= ${dateTo}::date
+          CASE
+            WHEN COALESCE(pe."utmParams"->>'medium','') IN ('organic','social','referral')
+              AND COALESCE(pe."utmParams"->>'source','') IN ('google','bing','yahoo','duckduckgo')
+            THEN COALESCE(pe."utmParams"->>'source','') || '_organic'
+            WHEN pe."utmParams"->>'source' IS NOT NULL AND pe."utmParams"->>'source' != ''
+            THEN pe."utmParams"->>'source'
+            ELSE 'direct'
+          END as source,
+          COUNT(DISTINCT pe."visitorId")::int as visitors
+        FROM pixel_events pe
+        WHERE pe."organizationId" = ${ORG_ID}
+          AND pe.timestamp >= ${dateFrom}
+          AND pe.timestamp <= ${dateTo}
         GROUP BY 1
         ORDER BY visitors DESC
-        LIMIT 10
-      ` as Promise<Array<{ source: string; visitors: number; productViews: number; addToCarts: number; checkoutStarts: number; purchases: number }>>,
+        LIMIT 15
+      ` as Promise<Array<{ source: string; visitors: number }>>,
 
-      // 24. Orders by device (for CR by device — combine with deviceBreakdown visitors)
+      // 24. Orders by device (for CR by device — combine with deviceBreakdown visitors from pixel)
       prisma.$queryRaw`
         SELECT
           COALESCE(o."deviceType", 'unknown') as device,
@@ -694,13 +698,33 @@ export async function GET(request: NextRequest) {
         ORDER BY orders DESC
       ` as Promise<Array<{ device: string; orders: number; revenue: number }>>,
 
-      // 25. Orders by category (for top converting categories)
+      // 25. Product viewers from NitroPixel (VIEW_PRODUCT events)
+      // Groups by product externalId from event props
       prisma.$queryRaw`
         SELECT
+          pe.props->>'item_id' as "productExternalId",
+          COUNT(DISTINCT pe."visitorId")::int as viewers
+        FROM pixel_events pe
+        WHERE pe."organizationId" = ${ORG_ID}
+          AND pe.timestamp >= ${dateFrom}
+          AND pe.timestamp <= ${dateTo}
+          AND pe.type = 'VIEW_PRODUCT'
+          AND pe.props->>'item_id' IS NOT NULL
+        GROUP BY 1
+        ORDER BY viewers DESC
+        LIMIT 100
+      ` as Promise<Array<{ productExternalId: string; viewers: number }>>,
+
+      // 26. Product purchases with name/category/brand (for CR by product/category/brand)
+      prisma.$queryRaw`
+        SELECT
+          COALESCE(p."externalId", oi."productId") as "productExternalId",
+          COALESCE(p.name, 'Producto desconocido') as "productName",
           COALESCE(p.category, 'Sin categoría') as category,
+          COALESCE(p.brand, 'Sin marca') as brand,
           COUNT(DISTINCT oi."orderId")::int as orders,
-          SUM(oi."totalPrice")::float as revenue,
-          SUM(oi.quantity)::int as units
+          SUM(oi.quantity)::int as units,
+          SUM(oi."totalPrice")::float as revenue
         FROM order_items oi
         JOIN orders o ON o.id = oi."orderId"
         LEFT JOIN products p ON p.id = oi."productId"
@@ -712,10 +736,10 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
-        GROUP BY 1
+        GROUP BY 1, 2, 3, 4
         ORDER BY revenue DESC
-        LIMIT 8
-      ` as Promise<Array<{ category: string; orders: number; revenue: number; units: number }>>,
+        LIMIT 50
+      ` as Promise<Array<{ productExternalId: string; productName: string; category: string; brand: string; orders: number; units: number; revenue: number }>>,
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -1020,13 +1044,24 @@ export async function GET(request: NextRequest) {
       eventTypes,
       popularPages: popularPagesResult,
 
-      // ── Conversion Rates data ──
-      conversionRates: {
-        funnelBySource: (funnelBySourceResult as Array<{ source: string; visitors: number; productViews: number; addToCarts: number; checkoutStarts: number; purchases: number }>).map(s => ({
-          ...s,
-          cr: s.visitors > 0 ? Math.round((s.purchases / s.visitors) * 10000) / 100 : 0,
-        })),
-        byDevice: (ordersByDeviceResult as Array<{ device: string; orders: number; revenue: number }>).map(d => {
+      // ── Conversion Rates data (100% NitroPixel + VTEX orders) ──
+      conversionRates: (() => {
+        // CR by Channel: pixel visitors per source + attribution orders per source
+        const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number }>;
+        const visitorMap = new Map(pixelVisitorsBySource.map(v => [v.source.toLowerCase(), v.visitors]));
+        const byChannel = attributionBySource.map(ch => {
+          const visitors = visitorMap.get(ch.source.toLowerCase()) || 0;
+          return {
+            source: ch.source,
+            visitors,
+            purchases: ch.orders,
+            revenue: ch.revenue || 0,
+            cr: visitors > 0 ? Math.round((ch.orders / visitors) * 10000) / 100 : 0,
+          };
+        }).sort((a, b) => b.cr - a.cr);
+
+        // CR by Device: pixel visitors (deviceBreakdown) + VTEX orders by device
+        const byDevice = (ordersByDeviceResult as Array<{ device: string; orders: number; revenue: number }>).map(d => {
           const visitorMatch = deviceBreakdown.find(v => (v as any).device === d.device);
           const visitors = visitorMatch ? (visitorMatch as any).count : 0;
           return {
@@ -1036,9 +1071,50 @@ export async function GET(request: NextRequest) {
             revenue: d.revenue || 0,
             cr: visitors > 0 ? Math.round((d.orders / visitors) * 10000) / 100 : 0,
           };
-        }),
-        byCategory: (ordersByCategoryResult as Array<{ category: string; orders: number; revenue: number; units: number }>),
-      },
+        });
+
+        // Merge product viewers (pixel) + product purchases (VTEX) by externalId
+        const viewers = productViewersResult as Array<{ productExternalId: string; viewers: number }>;
+        const purchases = productPurchasesResult as Array<{ productExternalId: string; productName: string; category: string; brand: string; orders: number; units: number; revenue: number }>;
+        const viewerMap = new Map(viewers.map(v => [v.productExternalId, v.viewers]));
+
+        const products = purchases.map(p => {
+          const pViewers = viewerMap.get(p.productExternalId) || 0;
+          return {
+            ...p,
+            viewers: pViewers,
+            cr: pViewers > 0 ? Math.round((p.orders / pViewers) * 10000) / 100 : 0,
+          };
+        });
+
+        // Aggregate by category
+        const catMap = new Map<string, { category: string; viewers: number; buyers: number; revenue: number }>();
+        for (const p of products) {
+          const existing = catMap.get(p.category) || { category: p.category, viewers: 0, buyers: 0, revenue: 0 };
+          existing.viewers += p.viewers;
+          existing.buyers += p.orders;
+          existing.revenue += p.revenue || 0;
+          catMap.set(p.category, existing);
+        }
+        const byCategory = Array.from(catMap.values())
+          .map(c => ({ ...c, cr: c.viewers > 0 ? Math.round((c.buyers / c.viewers) * 10000) / 100 : 0 }))
+          .sort((a, b) => b.revenue - a.revenue);
+
+        // Aggregate by brand
+        const brandMap = new Map<string, { brand: string; viewers: number; buyers: number; revenue: number }>();
+        for (const p of products) {
+          const existing = brandMap.get(p.brand) || { brand: p.brand, viewers: 0, buyers: 0, revenue: 0 };
+          existing.viewers += p.viewers;
+          existing.buyers += p.orders;
+          existing.revenue += p.revenue || 0;
+          brandMap.set(p.brand, existing);
+        }
+        const byBrand = Array.from(brandMap.values())
+          .map(b => ({ ...b, cr: b.viewers > 0 ? Math.round((b.buyers / b.viewers) * 10000) / 100 : 0 }))
+          .sort((a, b) => b.revenue - a.revenue);
+
+        return { byChannel, byDevice, byCategory, byBrand, byProduct: products };
+      })(),
 
       attribution: {
         byModel: attributionByModelResult,
