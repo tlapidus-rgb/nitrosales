@@ -152,6 +152,11 @@ interface PixelData {
   deviceBreakdown?: Array<{ deviceType: string; count: number; percentage: number }>;
   popularPages?: Array<{ pageUrl: string; views: number }>;
   perDayCoverage?: Array<{ day: string; totalOrders: number; attributedOrders: number; coverage: number }>;
+  conversionRates?: {
+    funnelBySource: Array<{ source: string; visitors: number; productViews: number; addToCarts: number; checkoutStarts: number; purchases: number; cr: number }>;
+    byDevice: Array<{ device: string; visitors: number; orders: number; revenue: number; cr: number }>;
+    byCategory: Array<{ category: string; orders: number; revenue: number; units: number }>;
+  };
   meta: { dateFrom: string; dateTo: string; daysInPeriod: number; nitroWeights?: { first: number; middle: number; last: number } };
 }
 
@@ -1321,6 +1326,257 @@ export default function AnalyticsPage() {
                 <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-emerald-500" /><span className="text-[11px] text-gray-500">Cobertura real</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 border-b border-dashed border-emerald-400" style={{ width: 12 }} /><span className="text-[11px] text-gray-500">Meta 80%</span></div>
               </div>
+            </div>
+          );
+          } catch { return null; }
+        })()}
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 8 — Tasas de Conversión                            */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {(() => {
+          try {
+          const cr = pixelData?.conversionRates;
+          const funnel = pixelData?.funnel;
+          if (!funnel || !cr) return null;
+
+          // Funnel step rates
+          const steps = [
+            { label: "Visitantes", value: funnel.pageView, key: "pageView" },
+            { label: "Vieron producto", value: funnel.viewProduct, key: "viewProduct" },
+            { label: "Agregaron al carrito", value: funnel.addToCart, key: "addToCart" },
+            { label: "Iniciaron checkout", value: funnel.checkoutStart, key: "checkoutStart" },
+            { label: "Compraron", value: funnel.purchase, key: "purchase" },
+          ];
+          const stepRates = steps.slice(1).map((step, i) => {
+            const prev = steps[i].value;
+            return {
+              from: steps[i].label,
+              to: step.label,
+              rate: prev > 0 ? Math.round((step.value / prev) * 10000) / 100 : 0,
+              value: step.value,
+            };
+          });
+          const overallCR = steps[0].value > 0 ? Math.round((steps[4].value / steps[0].value) * 10000) / 100 : 0;
+          const worstStep = stepRates.length > 0 ? stepRates.reduce((a, b) => a.rate < b.rate ? a : b) : null;
+
+          // CR by source (from GA4 funnel)
+          const funnelSources = (cr.funnelBySource || [])
+            .filter(s => s.visitors > 5)
+            .sort((a, b) => b.cr - a.cr)
+            .slice(0, 8);
+
+          // CR by device
+          const deviceCR = (cr.byDevice || []).filter(d => d.visitors > 0).sort((a, b) => b.cr - a.cr);
+
+          // Top categories
+          const categories = (cr.byCategory || []).slice(0, 6);
+          const maxCatRevenue = categories.length > 0 ? Math.max(...categories.map(c => c.revenue || 0)) : 1;
+
+          return (
+            <div className="space-y-4">
+              {/* Section header */}
+              <div className="flex items-center gap-3 pt-2">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Tasas de Conversión</h2>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+              </div>
+
+              {/* Row 1: Funnel step rates (full width) */}
+              <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "800ms" }}>
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-900">Embudo de Conversión</h2>
+                    <p className="text-[11px] text-gray-400 mt-0.5">Tasa de conversión entre cada paso del funnel</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-400">CR global:</span>
+                    <span className={`text-lg font-bold tabular-nums ${overallCR >= 2 ? "text-emerald-600" : overallCR >= 1 ? "text-amber-600" : "text-red-500"}`}>{overallCR}%</span>
+                  </div>
+                </div>
+
+                {/* Funnel steps flow */}
+                <div className="flex items-stretch gap-0 overflow-x-auto pb-2">
+                  {steps.map((step, i) => (
+                    <Fragment key={step.key}>
+                      {/* Step box */}
+                      <div className="flex-shrink-0 flex flex-col items-center justify-center min-w-[100px] px-3">
+                        <span className="text-xl font-bold tabular-nums text-gray-900">{fmt(step.value)}</span>
+                        <span className="text-[10px] text-gray-500 text-center mt-1 leading-tight">{step.label}</span>
+                      </div>
+                      {/* Arrow with rate */}
+                      {i < steps.length - 1 && (() => {
+                        const rate = stepRates[i]?.rate || 0;
+                        const rateColor = rate >= 50 ? "text-emerald-600 bg-emerald-50" : rate >= 20 ? "text-amber-600 bg-amber-50" : "text-red-600 bg-red-50";
+                        return (
+                          <div className="flex-shrink-0 flex flex-col items-center justify-center px-1">
+                            <div className={`text-xs font-bold tabular-nums px-2 py-0.5 rounded-full ${rateColor}`}>
+                              {rate}%
+                            </div>
+                            <svg className="w-5 h-3 text-gray-300 mt-0.5" viewBox="0 0 20 12" fill="none">
+                              <path d="M0 6h16m0 0l-4-4m4 4l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
+                        );
+                      })()}
+                    </Fragment>
+                  ))}
+                </div>
+
+                {/* Auto-insight */}
+                {worstStep && (
+                  <div className="mt-4 bg-gradient-to-r from-gray-50 to-transparent p-3 rounded-xl">
+                    <p className="text-xs text-gray-600">
+                      <span className="font-semibold text-gray-800">Mayor drop-off:</span>{" "}
+                      De <span className="font-medium">{worstStep.from}</span> a <span className="font-medium">{worstStep.to}</span> — solo el <span className="font-bold">{worstStep.rate}%</span> avanza. {worstStep.rate < 20 ? "Este es un punto crítico para optimizar." : "Hay margen de mejora."}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Row 2: CR by Source + CR by Device */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* CR by Source — 2 cols */}
+                <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "860ms" }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900">Conversión por Canal</h2>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Datos de GA4 — visitantes a compras por fuente de tráfico</p>
+                    </div>
+                    <InfoTip text="Tasa de conversión = compras / visitantes por canal. Fuente: Google Analytics 4 (funnel ecommerce)." />
+                  </div>
+                  {funnelSources.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
+                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Visitantes</th>
+                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Compras</th>
+                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">CR</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {funnelSources.map((s) => {
+                            const info = getSourceInfo(s.source);
+                            const crColor = s.cr >= 2 ? "text-emerald-600" : s.cr >= 1 ? "text-amber-600" : "text-red-500";
+                            return (
+                              <tr key={s.source} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                                <td className="py-2.5 pr-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: info.color }}>
+                                      <ChannelLogo source={s.source} size={12} />
+                                    </div>
+                                    <span className="font-medium text-gray-700">{info.label}</span>
+                                  </div>
+                                </td>
+                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.visitors)}</td>
+                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.purchases)}</td>
+                                <td className="text-right pl-2 py-2.5">
+                                  <span className={`font-bold tabular-nums ${crColor}`}>{s.cr}%</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-400 text-sm py-8">Sin datos de funnel por canal</div>
+                  )}
+                </div>
+
+                {/* CR by Device — 1 col */}
+                <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "920ms" }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-sm font-semibold text-gray-900">CR por Dispositivo</h2>
+                    <InfoTip text="Visitantes del pixel vs órdenes VTEX por tipo de dispositivo. Muestra qué dispositivo convierte mejor." />
+                  </div>
+                  {deviceCR.length > 0 ? (
+                    <div className="space-y-4">
+                      {deviceCR.map((d) => {
+                        const DEVICE_ICONS: Record<string, string> = { mobile: "📱", desktop: "💻", tablet: "📟" };
+                        const DEVICE_LABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
+                        const DEVICE_COLORS: Record<string, string> = { mobile: "#06b6d4", desktop: "#8b5cf6", tablet: "#f97316" };
+                        const color = DEVICE_COLORS[d.device] || "#94a3b8";
+                        const crColor = d.cr >= 2 ? "text-emerald-600" : d.cr >= 1 ? "text-amber-600" : "text-red-500";
+                        return (
+                          <div key={d.device} className="bg-gray-50/50 rounded-xl p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg">{DEVICE_ICONS[d.device] || "🖥️"}</span>
+                                <span className="text-xs font-medium text-gray-700">{DEVICE_LABELS[d.device] || d.device}</span>
+                              </div>
+                              <span className={`text-lg font-bold tabular-nums ${crColor}`}>{d.cr}%</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-gray-400">
+                              <span>{fmt(d.visitors)} visitas</span>
+                              <span className="mx-1">→</span>
+                              <span>{fmt(d.orders)} órdenes</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mt-2">
+                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(d.cr * 10, 100)}%`, backgroundColor: color }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* Insight */}
+                      {deviceCR.length >= 2 && (() => {
+                        const best = deviceCR[0];
+                        const DLABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
+                        return (
+                          <div className="bg-gradient-to-r from-gray-50 to-transparent p-2.5 rounded-xl">
+                            <p className="text-[11px] text-gray-500">
+                              <span className="font-semibold text-gray-700">{DLABELS[best.device] || best.device}</span> convierte {(best.cr / (deviceCR[1]?.cr || 1)).toFixed(1)}x más que {DLABELS[deviceCR[1]?.device] || deviceCR[1]?.device || "otro"}.
+                            </p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-400 text-sm py-8">Sin datos de dispositivos</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 3: Top Categories */}
+              {categories.length > 0 && (
+                <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "980ms" }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900">Top Categorías</h2>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Categorías que más convierten — órdenes, unidades y revenue (solo VTEX, sin marketplace)</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2.5">
+                    {categories.map((cat, i) => {
+                      const barW = maxCatRevenue > 0 ? Math.max(8, ((cat.revenue || 0) / maxCatRevenue) * 100) : 0;
+                      const aov = cat.orders > 0 ? Math.round((cat.revenue || 0) / cat.orders) : 0;
+                      return (
+                        <div key={cat.category} className="group">
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-bold text-gray-300 w-4 text-right">{i + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-medium text-gray-700 truncate">{cat.category}</span>
+                                <div className="flex items-center gap-4 flex-shrink-0 ml-2">
+                                  <span className="text-[11px] text-gray-400">{fmt(cat.orders)} órd</span>
+                                  <span className="text-[11px] text-gray-400">{fmt(cat.units)} uds</span>
+                                  <span className="text-[11px] text-gray-400">AOV {fmtARS(aov)}</span>
+                                  <span className="text-xs font-bold text-gray-900 tabular-nums">{fmtCompact(cat.revenue || 0)}</span>
+                                </div>
+                              </div>
+                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-cyan-500 transition-all duration-700" style={{ width: `${barW}%`, opacity: 1 - i * 0.1 }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           );
           } catch { return null; }

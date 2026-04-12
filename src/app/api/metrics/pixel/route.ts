@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
     const toParam = searchParams.get("to");
     const fromParam = searchParams.get("from");
 
-    // Cache check (v2: busted after gocuotas data cleanup 2026-04-12)
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v2"];
+    // Cache check (v3: busted after adding conversion rates 2026-04-12)
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v3"];
     const cached = getCached("pixel", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
@@ -128,6 +128,10 @@ export async function GET(request: NextRequest) {
       dailyChannelSpendResult,
       // ── Channel role breakdown (first/assist/last touch per source) ──
       channelRolesResult,
+      // ── Conversion Rates queries ──
+      funnelBySourceResult,
+      ordersByDeviceResult,
+      ordersByCategoryResult,
     ] = await Promise.all([
       // 1. Live status
       prisma.$queryRaw`
@@ -651,6 +655,67 @@ export async function GET(request: NextRequest) {
         GROUP BY 1
         ORDER BY "firstTouch" DESC
       ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>,
+
+      // 23. Funnel by source (for CR by channel)
+      // Uses GA4 FunnelDaily which already has source breakdown
+      prisma.$queryRaw`
+        SELECT
+          COALESCE(source, 'direct') as source,
+          SUM(visitors)::int as visitors,
+          SUM("productViews")::int as "productViews",
+          SUM("addToCarts")::int as "addToCarts",
+          SUM("checkoutStarts")::int as "checkoutStarts",
+          SUM(purchases)::int as purchases
+        FROM funnel_daily
+        WHERE "organizationId" = ${ORG_ID}
+          AND date >= ${dateFrom}::date
+          AND date <= ${dateTo}::date
+        GROUP BY 1
+        ORDER BY visitors DESC
+        LIMIT 10
+      ` as Promise<Array<{ source: string; visitors: number; productViews: number; addToCarts: number; checkoutStarts: number; purchases: number }>>,
+
+      // 24. Orders by device (for CR by device — combine with deviceBreakdown visitors)
+      prisma.$queryRaw`
+        SELECT
+          COALESCE(o."deviceType", 'unknown') as device,
+          COUNT(*)::int as orders,
+          SUM(o."totalValue")::float as revenue
+        FROM orders o
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."totalValue" > 0
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
+        GROUP BY 1
+        ORDER BY orders DESC
+      ` as Promise<Array<{ device: string; orders: number; revenue: number }>>,
+
+      // 25. Orders by category (for top converting categories)
+      prisma.$queryRaw`
+        SELECT
+          COALESCE(p.category, 'Sin categoría') as category,
+          COUNT(DISTINCT oi."orderId")::int as orders,
+          SUM(oi."totalPrice")::float as revenue,
+          SUM(oi.quantity)::int as units
+        FROM order_items oi
+        JOIN orders o ON o.id = oi."orderId"
+        LEFT JOIN products p ON p.id = oi."productId"
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."totalValue" > 0
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
+        GROUP BY 1
+        ORDER BY revenue DESC
+        LIMIT 8
+      ` as Promise<Array<{ category: string; orders: number; revenue: number; units: number }>>,
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -954,6 +1019,26 @@ export async function GET(request: NextRequest) {
       deviceBreakdown,
       eventTypes,
       popularPages: popularPagesResult,
+
+      // ── Conversion Rates data ──
+      conversionRates: {
+        funnelBySource: (funnelBySourceResult as Array<{ source: string; visitors: number; productViews: number; addToCarts: number; checkoutStarts: number; purchases: number }>).map(s => ({
+          ...s,
+          cr: s.visitors > 0 ? Math.round((s.purchases / s.visitors) * 10000) / 100 : 0,
+        })),
+        byDevice: (ordersByDeviceResult as Array<{ device: string; orders: number; revenue: number }>).map(d => {
+          const visitorMatch = deviceBreakdown.find(v => (v as any).device === d.device);
+          const visitors = visitorMatch ? (visitorMatch as any).count : 0;
+          return {
+            device: d.device,
+            visitors,
+            orders: d.orders,
+            revenue: d.revenue || 0,
+            cr: visitors > 0 ? Math.round((d.orders / visitors) * 10000) / 100 : 0,
+          };
+        }),
+        byCategory: (ordersByCategoryResult as Array<{ category: string; orders: number; revenue: number; units: number }>),
+      },
 
       attribution: {
         byModel: attributionByModelResult,
