@@ -203,8 +203,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<string | null>(null);
+  // Sync button removed — syncs run automatically via cron/webhooks.
+  // Manual sync available in Settings if needed.
 
   if (status === "loading") {
     return (
@@ -220,19 +220,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!session?.user) {
     router.push("/login");
     return null;
-  }
-
-  function handleSync() {
-    setSyncing(true);
-    setSyncResult(null);
-    fetch("/api/sync/trigger", { method: "POST" })
-      .then((r) => r.json())
-      .then((data) => {
-        setSyncResult(data.ok ? "ok" : "error");
-        setTimeout(() => setSyncResult(null), 3000);
-      })
-      .catch(() => setSyncResult("error"))
-      .finally(() => setSyncing(false));
   }
 
   return (
@@ -938,27 +925,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           </div>
 
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className={`flex items-center gap-2 text-sm px-4 py-2 rounded-xl font-medium transition-all duration-300 ease-nitro ${
-              syncing
-                ? "bg-nitro-card text-nitro-muted cursor-not-allowed"
-                : syncResult === "ok"
-                ? "bg-nitro-green/10 text-nitro-green border border-nitro-green/20"
-                : syncResult === "error"
-                ? "bg-nitro-err/10 text-nitro-err border border-nitro-err/20"
-                : "bg-nitro-card text-nitro-orange border border-nitro-border hover:border-nitro-orange/30 hover:shadow-[0_0_20px_rgba(255,94,26,0.1)]"
-            }`}
-          >
-            {syncing
-              ? "Sincronizando..."
-              : syncResult === "ok"
-              ? "\u2713 Sincronizado"
-              : syncResult === "error"
-              ? "\u26A0 Error"
-              : "\u21BB Sincronizar datos"}
-          </button>
         </header>
 
         {/* Page content — Aurum + NitroPixel routes get full-bleed dark canvas, others get padded light bg */}
