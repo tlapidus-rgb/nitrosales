@@ -1,885 +1,938 @@
 "use client";
 
-import { useState, useEffect, useMemo, Fragment } from "react";
-import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  BarChart, Bar,
-} from "recharts";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { DateRangeFilter } from "@/components/dashboard";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, ComposedChart, Line, Cell,
+} from "recharts";
 
 // ══════════════════════════════════════════════════════════════
-// Analytics Dashboard — GA4 Ecommerce Intelligence
+// NitroPixel Analytics — World-Class Intelligence Dashboard
 // ══════════════════════════════════════════════════════════════
+// Powered by first-party pixel data. No intermediaries.
+// "Google mide para Google. Meta mide para Meta. NitroPixel mide para vos."
 
 const MS_PER_DAY = 86400000;
+
+// ── Helpers ──
 const fmt = (n: number) => n.toLocaleString("es-AR");
-const fmtARS = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
-const COLORS = ["#6366F1", "#06b6d4", "#a855f7", "#22c55e", "#eab308", "#ec4899", "#f97316", "#14b8a6"];
+const fmtARS = (n: number) =>
+  new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
+const fmtCompact = (n: number) => {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return fmtARS(n);
+};
+const pctBadge = (v: number) =>
+  v > 0 ? `+${v.toFixed(1)}%` : v < 0 ? `${v.toFixed(1)}%` : "0%";
+const pctColor = (v: number) =>
+  v > 0 ? "text-emerald-600" : v < 0 ? "text-red-500" : "text-gray-400";
 
-const EVENT_LABELS: Record<string, string> = {
-  PAGE_VIEW: "Vistas de Pagina", VIEW_PRODUCT: "Vista Producto",
-  ADD_TO_CART: "Agregar al Carrito", PURCHASE: "Compra",
-  IDENTIFY: "Identificacion", CUSTOM: "Custom",
+const COLORS = ["#f97316", "#06b6d4", "#a855f7", "#22c55e", "#eab308", "#ec4899", "#3b82f6", "#14b8a6"];
+
+// ── Channel Identity ──
+const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string }> = {
+  meta: { icon: "M", color: "#1877F2", label: "Meta" },
+  facebook: { icon: "M", color: "#1877F2", label: "Meta" },
+  instagram: { icon: "I", color: "#E4405F", label: "Instagram" },
+  google: { icon: "G", color: "#EA4335", label: "Google" },
+  bing: { icon: "B", color: "#008373", label: "Bing" },
+  tiktok: { icon: "T", color: "#000000", label: "TikTok" },
+  direct: { icon: "D", color: "#22C55E", label: "Directo" },
+  organic: { icon: "O", color: "#8B5CF6", label: "Orgánico" },
+  email: { icon: "E", color: "#F59E0B", label: "Email" },
+  "email-marketing": { icon: "E", color: "#F59E0B", label: "Email Marketing" },
+  "vtex-abandoned-cart": { icon: "C", color: "#E85D04", label: "Carrito Abandonado" },
+  "email-remarketing": { icon: "R", color: "#FB923C", label: "Email Remarketing" },
+  referral: { icon: "R", color: "#EC4899", label: "Referido" },
+  whatsapp: { icon: "W", color: "#25D366", label: "WhatsApp" },
 };
 
-type PixelData = {
-  kpis: { totalVisitors: number; totalSessions: number; totalPageViews: number; pagesPerSession: number; changes: { visitors: number; sessions: number; pageViews: number } };
-  funnel: { pageView: number; viewProduct: number; addToCart: number; checkoutStart: number; purchase: number };
-  dailyVisitors: Array<{ day: string; visitors: number; sessions: number; pageViews: number }>;
-  deviceBreakdown: Array<{ device: string; count: number; percentage: number }>;
-  eventTypes: Array<{ type: string; count: number; uniqueVisitors: number; percentage: number }>;
-  popularPages: Array<{ url: string; pageViews: number; uniqueVisitors: number }>;
-  businessKpis: { webOrders: number; webRevenue: number; totalOrders: number };
-};
+function getSourceInfo(source: string) {
+  const key = (source || "direct").toLowerCase();
+  return SOURCE_ICONS[key] || { icon: key.charAt(0).toUpperCase(), color: "#6B7280", label: source };
+}
 
-type GA4Data = {
-  geographic: Array<{ region: string; city: string; sessions: number; purchases: number; revenue: number; users: number }>;
-  products: Array<{ name: string; id: string; category: string; brand: string; views: number; purchases: number; revenue: number; viewToPurchaseRate: number; imageUrl: string | null }>;
-  searches: Array<{ term: string; count: number }>;
-  trafficRevenue: Array<{ source: string; medium: string; sessions: number; users: number; purchases: number; revenue: number; revenuePerSession: number; conversionRate: number }>;
-  landingPages: Array<{ path: string; sessions: number; bounceRate: number; purchases: number; revenue: number }>;
-  hourly: Array<{ hour: number; sessions: number; purchases: number }>;
-  dayOfWeek: Array<{ day: number; dayName: string; sessions: number; purchases: number }>;
-  newVsReturning: Array<{ type: string; sessions: number; users: number; purchases: number; revenue: number }>;
-  abandonment: { cartAbandonmentRate: number; checkoutAbandonmentRate: number; totalAddToCarts: number; totalCheckouts: number; totalPurchases: number };
-  categories: Array<{ category: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
-  brands: Array<{ brand: string; views: number; purchases: number; revenue: number; conversionRate: number }>;
-  salesByZone: Array<{ zone: string; orders: number; revenue: number; avgTicket: number; avgShipping: number | null; shippingPct: number | null; ordersWithShipping: number }>;
-  deliverySplit: Array<{ type: string; key: string; orders: number; revenue: number }>;
-  pickupByStore: Array<{ store: string; orders: number; revenue: number }>;
-};
+// SVG channel logos — white icons inside colored circles
+function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) {
+  const s = (source || "").toLowerCase();
+  const props = { width: size, height: size, viewBox: "0 0 24 24", fill: "white", className: "flex-shrink-0" };
+  switch (s) {
+    case "meta": case "facebook":
+      return (<svg {...props}><path d="M12 10.203c-1.047-1.45-2.183-2.403-3.64-2.403-2.16 0-4.36 2.1-4.36 5.2 0 2.1 1.1 4 3.1 4 1.6 0 2.7-.9 4.1-2.9l.8-1.2.8 1.2c1.4 2 2.5 2.9 4.1 2.9 2 0 3.1-1.9 3.1-4 0-3.1-2.2-5.2-4.36-5.2-1.457 0-2.593.953-3.64 2.403zm-1.44 2.197L9.2 14.3c-1 1.5-1.5 1.9-2.3 1.9-.9 0-1.5-.8-1.5-2.2 0-1.9 1-3.4 2.5-3.4.8 0 1.4.4 2.66 1.8zm2.88 0c1.26-1.4 1.86-1.8 2.66-1.8 1.5 0 2.5 1.5 2.5 3.4 0 1.4-.6 2.2-1.5 2.2-.8 0-1.3-.4-2.3-1.9l-1.36-1.9z"/></svg>);
+    case "instagram":
+      return (<svg {...props}><path d="M12 2.982c2.937 0 3.285.011 4.445.064a6.087 6.087 0 012.042.379 3.408 3.408 0 011.265.823c.37.37.632.803.823 1.265.234.543.362 1.16.379 2.042.053 1.16.064 1.508.064 4.445s-.011 3.285-.064 4.445a6.087 6.087 0 01-.379 2.042 3.643 3.643 0 01-2.088 2.088 6.087 6.087 0 01-2.042.379c-1.16.053-1.508.064-4.445.064s-3.285-.011-4.445-.064a6.087 6.087 0 01-2.042-.379 3.408 3.408 0 01-1.265-.823 3.408 3.408 0 01-.823-1.265 6.087 6.087 0 01-.379-2.042C2.993 15.285 2.982 14.937 2.982 12s.011-3.285.064-4.445a6.087 6.087 0 01.379-2.042c.191-.462.452-.895.823-1.265a3.408 3.408 0 011.265-.823 6.087 6.087 0 012.042-.379C8.715 2.993 9.063 2.982 12 2.982zM12 1c-2.987 0-3.362.013-4.535.066a8.074 8.074 0 00-2.67.511 5.392 5.392 0 00-1.949 1.27 5.392 5.392 0 00-1.27 1.949 8.074 8.074 0 00-.51 2.67C1.013 8.638 1 9.013 1 12s.013 3.362.066 4.535a8.074 8.074 0 00.511 2.67 5.392 5.392 0 001.27 1.949 5.392 5.392 0 001.949 1.27 8.074 8.074 0 002.67.51C8.638 22.987 9.013 23 12 23s3.362-.013 4.535-.066a8.074 8.074 0 002.67-.511 5.625 5.625 0 003.218-3.218 8.074 8.074 0 00.511-2.67C22.987 15.362 23 14.987 23 12s-.013-3.362-.066-4.535a8.074 8.074 0 00-.511-2.67 5.392 5.392 0 00-1.27-1.949 5.392 5.392 0 00-1.949-1.27 8.074 8.074 0 00-2.67-.51C15.362 1.013 14.987 1 12 1zm0 5.351A5.649 5.649 0 1017.649 12 5.649 5.649 0 0012 6.351zm0 9.316A3.667 3.667 0 1115.667 12 3.667 3.667 0 0112 15.667zM18.804 5.34a1.44 1.44 0 10-1.44 1.44 1.44 1.44 0 001.44-1.44z"/></svg>);
+    case "google":
+      return (<svg {...props}><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#fff"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="rgba(255,255,255,0.85)"/><path d="M5.84 14.09A6.68 6.68 0 015.5 12c0-.72.13-1.43.34-2.09V7.07H2.18A11 11 0 001 12c0 1.77.43 3.44 1.18 4.93l3.66-2.84z" fill="rgba(255,255,255,0.7)"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="rgba(255,255,255,0.55)"/></svg>);
+    case "tiktok":
+      return (<svg {...props}><path d="M16.6 5.82A4.278 4.278 0 0115.54 3h-3.09v12.4a2.592 2.592 0 01-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 004.3 1.38V7.3s-1.88.09-4.24-1.48z"/></svg>);
+    case "whatsapp":
+      return (<svg {...props}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 1C5.935 1 1 5.935 1 12c0 1.94.508 3.762 1.395 5.34L1 23l5.812-1.364A10.95 10.95 0 0012 23c6.065 0 11-4.935 11-11S18.065 1 12 1zm0 20.1a9.06 9.06 0 01-4.63-1.27l-.33-.197-3.442.903.92-3.357-.216-.343A9.055 9.055 0 012.9 12c0-5.014 4.086-9.1 9.1-9.1S21.1 6.986 21.1 12s-4.086 9.1-9.1 9.1z"/></svg>);
+    case "email":
+      return (<svg {...props} fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>);
+    case "referral":
+      return (<svg {...props} fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
+    case "organic":
+      return (<svg {...props} fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>);
+    case "direct":
+      return (<svg {...props} fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>);
+    default:
+      return <span className="font-bold" style={{ fontSize: size * 0.7 }}>{(source || "?").charAt(0).toUpperCase()}</span>;
+  }
+}
 
-function KpiCard({ label, value, sub, change, color }: { label: string; value: string; sub?: string; change?: number; color: string }) {
-  const cm: Record<string, string> = {
-    indigo: "from-indigo-50 to-indigo-100/50 border-indigo-200",
-    cyan: "from-cyan-50 to-cyan-100/50 border-cyan-200",
-    purple: "from-purple-50 to-purple-100/50 border-purple-200",
-    orange: "from-orange-50 to-orange-100/50 border-orange-200",
-    emerald: "from-emerald-50 to-emerald-100/50 border-emerald-200",
-    red: "from-red-50 to-red-100/50 border-red-200",
-  };
+// ── Info Tooltip ──
+function InfoTip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
   return (
-    <div className={`rounded-xl border bg-gradient-to-br ${cm[color] || cm.indigo} p-3`}>
-      <p className="text-[11px] text-gray-500 mb-1">{label}</p>
-      <p className="text-lg font-bold text-gray-800">{value}</p>
-      {sub && <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>}
-      {change !== undefined && change !== 0 && (
-        <span className={`text-[10px] font-medium ${change > 0 ? "text-emerald-600" : "text-red-500"}`}>
-          {change > 0 ? "+" : ""}{change}% vs anterior
-        </span>
+    <span className="relative inline-flex ml-1 cursor-help" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <svg className="w-3.5 h-3.5 text-gray-400 hover:text-cyan-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <circle cx="12" cy="12" r="10" /><path d="M12 16v-4m0-4h.01" />
+      </svg>
+      {show && (
+        <span className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-gray-100 text-[11px] leading-relaxed rounded-lg px-3 py-2 w-60 z-50 shadow-xl pointer-events-none">{text}</span>
       )}
-    </div>
+    </span>
   );
 }
 
-function SectionCard({ title, children, badge, maxH }: { title: string; children: React.ReactNode; badge?: string; maxH?: string }) {
-  return (
-    <div className="rounded-2xl bg-white border border-gray-200 p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-gray-800">{title}</h2>
-        {badge && <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{badge}</span>}
-      </div>
-      {maxH ? (
-        <div className="overflow-y-auto" style={{ maxHeight: maxH }}>
-          {children}
-        </div>
-      ) : children}
-    </div>
-  );
+// ── Types ──
+interface PixelData {
+  liveStatus: { status: string; lastEventAt: string | null; totalEvents: number; lastHourEvents: number };
+  kpis: {
+    totalVisitors: number; totalSessions: number; totalPageViews: number;
+    identifiedVisitors: number; cartVisitors: number; purchaseVisitors: number;
+    pagesPerSession: number; daysInPeriod: number;
+    changes: { visitors: number; sessions: number; pageViews: number };
+  };
+  businessKpis: {
+    pixelRevenue: number; pixelRoas: number; pixelRoasRaw: number;
+    ordersAttributed: number; attributionRate: number; aov: number;
+    totalAdSpend: number; totalOrders: number; webOrders: number; webRevenue: number;
+    marketplaceOrders: number; marketplaceRevenue: number;
+    changes: { pixelRevenue: number; ordersAttributed: number; pixelRoas: number };
+    projectedRevenue?: number;
+  };
+  channelRoas: Array<{
+    source: string; orders: number; pixelRevenue: number; projectedRevenue?: number;
+    platformRevenue: number; spend: number; platformConversions: number;
+    pixelRoas: number; pixelRoasRaw?: number; platformRoas: number; diffPercent: number | null;
+  }>;
+  funnel: { pageView: number; viewProduct: number; addToCart: number; checkoutStart: number; purchase: number };
+  dailyRevenue: Array<{ day: string; revenue: number; orders: number; spend: number; roas: number }>;
+  dailyChannelBreakdown: Array<{
+    day: string; totalRevenue: number; totalOrders: number; totalSpend: number;
+    totalRoas: number; visitors: number;
+    channels: Array<{ source: string; revenue: number; orders: number; spend: number; roas: number }>;
+  }>;
+  recentJourneys: Array<{
+    orderId: string; orderExternalId?: string; revenue: number;
+    touchpointCount: number; conversionLag: number;
+    touchpoints: Array<{ timestamp?: string; source?: string; medium?: string; campaign?: string; page?: string }>;
+    orderDate: string; orderStatus?: string;
+  }>;
+  pixelHealth: {
+    attributionRate: number;
+    clickCoverage: { total: number; withClickId: number; clickIdRate: number };
+    eventsInPeriod: number; pixelAgeDays?: number;
+  };
+  meta: { dateFrom: string; dateTo: string; daysInPeriod: number };
 }
 
-function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative max-w-lg max-h-[80vh] p-2" onClick={e => e.stopPropagation()}>
-        <img src={src} alt={alt} className="max-w-full max-h-[75vh] rounded-xl shadow-2xl bg-white object-contain" />
-        <button onClick={onClose}
-          className="absolute -top-2 -right-2 w-7 h-7 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-500 hover:text-gray-800 text-sm font-bold">×</button>
-        <p className="text-center text-white text-xs mt-2 truncate max-w-[400px] mx-auto">{alt}</p>
-      </div>
-    </div>
-  );
+interface DiscrepancyData {
+  summary: {
+    totalPixelRevenue: number; totalPlatformRevenue: number; totalSpend: number;
+    totalDelta: number; totalDeltaPercent: number;
+    pixelRoas: number; platformRoas: number;
+    attributionCoverage: number; totalOrders: number; attributedOrders: number;
+    verdict: string;
+  };
+  bySource: Array<{
+    source: string; pixelRevenue: number; pixelOrders: number;
+    platformRevenue: number; platformConversions: number; spend: number;
+    delta: number; deltaPercent: number;
+    pixelRoas: number; platformRoas: number;
+    verdict: string;
+  }>;
+  byCampaign: Array<{
+    campaign: string; source: string;
+    pixelRevenue: number; pixelOrders: number;
+    platformRevenue: number; spend: number;
+    delta: number; deltaPercent: number;
+    pixelRoas: number; platformRoas: number;
+  }>;
+  dailyTrend: Array<{ day: string; pixelRevenue: number; platformRevenue: number; spend: number; delta: number }>;
 }
 
-function cleanUrl(url: string) {
-  try { const u = new URL(url); return u.pathname + (u.search || ""); }
-  catch { return url.replace(/https?:\/\/[^/]+/, "").replace(/\?.*/, ""); }
+interface NitroScoreData {
+  score: number | null;
+  scoreLabel: string;
+  scoreColor: string;
+  priorScore: number | null;
+  trendDelta: number | null;
+  attributedRevenue: number;
+  leversWithData: number;
+  totalLevers: number;
+  levers: Array<{
+    key: string; name: string; description: string;
+    current: number; target: number; weight: number;
+    status: string; sampleSize: number; minSampleNeeded: number;
+    moneyAtRiskArs: number; unlockTitle: string; unlockSteps: string[];
+  }>;
+  opportunities: Array<{ id: string; title: string; description: string; action: string }>;
+  isCollectingState: boolean;
 }
 
+// ── Count-up hook ──
+function useCountUp(target: number, duration = 800): number {
+  const [current, setCurrent] = useState(0);
+  const prevTarget = useRef(0);
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    const from = prevTarget.current;
+    const to = target;
+    prevTarget.current = to;
+    if (from === to) { setCurrent(to); return; }
+
+    const start = performance.now();
+    const ease = (t: number) => 1 - Math.pow(1 - t, 4); // easeOutQuart
+
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      setCurrent(from + (to - from) * ease(progress));
+      if (progress < 1) rafRef.current = requestAnimationFrame(animate);
+    };
+
+    // Respect prefers-reduced-motion
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setCurrent(to);
+      return;
+    }
+
+    rafRef.current = requestAnimationFrame(animate);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [target, duration]);
+
+  return current;
+}
+
+// ── Truth Score color logic ──
+function truthScoreColor(pixelRev: number, platformRev: number): { color: string; bg: string; label: string } {
+  if (!platformRev || platformRev === 0) return { color: "text-gray-500", bg: "bg-gray-100", label: "N/A" };
+  const ratio = (pixelRev / platformRev) * 100;
+  if (ratio >= 90 && ratio <= 110) return { color: "text-emerald-700", bg: "bg-emerald-50", label: `${Math.round(ratio)}%` };
+  if (ratio >= 70 && ratio <= 130) return { color: "text-amber-700", bg: "bg-amber-50", label: `${Math.round(ratio)}%` };
+  return { color: "text-red-700", bg: "bg-red-50", label: `${Math.round(ratio)}%` };
+}
+
+// ══════════════════════════════════════════════════════════════
+// CARD SHELL — shared styling for all cards
+// ══════════════════════════════════════════════════════════════
+const cardStyle = "bg-white rounded-2xl border border-gray-100 transition-all duration-[280ms]";
+const cardShadow = { boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)" };
+
+// ══════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ══════════════════════════════════════════════════════════════
 export default function AnalyticsPage() {
-  const [d, setD] = useState<PixelData | null>(null);
-  const [ga4, setGa4] = useState<GA4Data | null>(null);
+  // Data states
+  const [pixelData, setPixelData] = useState<PixelData | null>(null);
+  const [discrepancy, setDiscrepancy] = useState<DiscrepancyData | null>(null);
+  const [nitroScore, setNitroScore] = useState<NitroScoreData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Date filter state (unified with DateRangeFilter) ──
-  const defaultTo = new Date();
-  const defaultFrom = new Date(Date.now() - 6 * MS_PER_DAY);
-  const toDateStr = (d: Date) => d.toISOString().split("T")[0];
-  const [dateFrom, setDateFrom] = useState(toDateStr(defaultFrom));
-  const [dateTo, setDateTo] = useState(toDateStr(defaultTo));
+  // Date range
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date(Date.now() - 7 * MS_PER_DAY);
+    return d.toISOString().slice(0, 10);
+  });
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(7);
 
-  const QUICK_RANGES = [
-    { label: "7 dias", days: 7 },
-    { label: "14 dias", days: 14 },
-    { label: "30 dias", days: 30 },
-    { label: "90 dias", days: 90 },
-  ];
+  // UI states
+  const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
+  const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
+  const [chartMode, setChartMode] = useState<"truth" | "channels">("truth");
+  const [nitroScoreExpanded, setNitroScoreExpanded] = useState(false);
 
-  const handleQuickRange = (days: number) => {
-    const to = new Date();
-    const from = new Date(Date.now() - (days - 1) * MS_PER_DAY);
-    setDateTo(toDateStr(to));
-    setDateFrom(toDateStr(from));
-    setActiveQuickRange(days);
-  };
+  // Refetch indicator
+  const [isRefetching, setIsRefetching] = useState(false);
 
-  const handleDateChange = (type: "from" | "to", value: string) => {
-    if (type === "from") setDateFrom(value);
-    else setDateTo(value);
-    setActiveQuickRange(null);
-  };
+  // ── Fetch all data in parallel ──
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setIsRefetching(true);
+    setError(null);
 
-  useEffect(() => {
-    setLoading(true); setError(null);
-    Promise.all([
-      fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=NITRO`).then(r => r.json()),
-      fetch(`/api/metrics/analytics?from=${dateFrom}&to=${dateTo}`).then(r => r.json()),
-    ]).then(([pixelData, analyticsData]) => {
-      setD(pixelData);
-      setGa4(analyticsData?.error ? null : analyticsData);
+    try {
+      const [pixelRes, discRes, scoreRes] = await Promise.all([
+        fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=NITRO`),
+        fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}&model=NITRO`),
+        fetch(`/api/nitropixel/data-quality-score?window=7d`),
+      ]);
+
+      if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
+
+      const [pixelJson, discJson, scoreJson] = await Promise.all([
+        pixelRes.json(),
+        discRes.ok ? discRes.json() : null,
+        scoreRes.ok ? scoreRes.json() : null,
+      ]);
+
+      setPixelData(pixelJson);
+      setDiscrepancy(discJson);
+      setNitroScore(scoreJson);
+    } catch (e: any) {
+      setError(e.message || "Error cargando datos");
+    } finally {
       setLoading(false);
-    }).catch(e => { setError(e.message); setLoading(false); });
+      setIsRefetching(false);
+    }
   }, [dateFrom, dateTo]);
 
-  // ── Product lightbox & pagination ──
-  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
-  const PRODUCTS_PER_PAGE = 50;
-  const [prodPage, setProdPage] = useState(1);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // ── Product filters & sorting ──
-  const [prodSearch, setProdSearch] = useState("");
-  const [prodCatFilter, setProdCatFilter] = useState("");
-  const [prodBrandFilter, setProdBrandFilter] = useState("");
-  const [prodSort, setProdSort] = useState<{ col: "views" | "purchases" | "revenue" | "viewToPurchaseRate"; dir: "asc" | "desc" }>({ col: "views", dir: "desc" });
+  // ── Count-up values ──
+  const revCountUp = useCountUp(pixelData?.businessKpis?.pixelRevenue || 0);
+  const roasCountUp = useCountUp(pixelData?.businessKpis?.pixelRoas || 0, 600);
+  const ordersCountUp = useCountUp(pixelData?.businessKpis?.ordersAttributed || 0, 600);
+  const attrRateCountUp = useCountUp(pixelData?.businessKpis?.attributionRate || 0, 600);
 
-  const filteredProducts = useMemo(() => {
-    if (!ga4?.products) return [];
-    let list = ga4.products;
-    if (prodSearch) {
-      const q = prodSearch.toLowerCase();
-      list = list.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
-    }
-    if (prodCatFilter) list = list.filter(p => p.category === prodCatFilter);
-    if (prodBrandFilter) list = list.filter(p => p.brand === prodBrandFilter);
-    return [...list].sort((a, b) => {
-      const av = a[prodSort.col], bv = b[prodSort.col];
-      return prodSort.dir === "desc" ? bv - av : av - bv;
-    });
-  }, [ga4?.products, prodSearch, prodCatFilter, prodBrandFilter, prodSort]);
-
-  // Reset page when filters change
-  useEffect(() => { setProdPage(1); }, [prodSearch, prodCatFilter, prodBrandFilter, prodSort]);
-
-  const totalProdPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
-  const paginatedProducts = filteredProducts.slice((prodPage - 1) * PRODUCTS_PER_PAGE, prodPage * PRODUCTS_PER_PAGE);
-
-  const productCategories = useMemo(() => {
-    if (!ga4?.products) return [];
-    const set = new Set(ga4.products.map(p => p.category).filter(Boolean).filter(c => c !== "(not set)"));
-    return Array.from(set).sort();
-  }, [ga4?.products]);
-
-  const productBrands = useMemo(() => {
-    if (!ga4?.products) return [];
-    const set = new Set(ga4.products.map(p => p.brand).filter(Boolean).filter(b => b !== "(not set)"));
-    return Array.from(set).sort();
-  }, [ga4?.products]);
-
-  const toggleSort = (col: typeof prodSort.col) => {
-    setProdSort(prev => prev.col === col ? { col, dir: prev.dir === "desc" ? "asc" : "desc" } : { col, dir: "desc" });
-  };
-
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-        <p className="text-sm text-gray-400">Cargando analytics...</p>
+  // ── Loading state ──
+  if (loading && !pixelData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] p-6">
+        <div className="max-w-[1440px] mx-auto space-y-6">
+          {/* Skeleton header */}
+          <div className="h-10 bg-gray-100 rounded-xl w-72 animate-pulse" />
+          {/* Skeleton KPI cards */}
+          <div className="grid grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className={`${cardStyle} p-6 h-32 animate-pulse`} style={{ ...cardShadow, animationDelay: `${i * 80}ms` }}>
+                <div className="h-4 bg-gray-100 rounded w-24 mb-4" />
+                <div className="h-8 bg-gray-100 rounded w-36" />
+              </div>
+            ))}
+          </div>
+          {/* Skeleton table */}
+          <div className={`${cardStyle} p-6 h-64 animate-pulse`} style={cardShadow}>
+            <div className="h-4 bg-gray-100 rounded w-48 mb-6" />
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-10 bg-gray-50 rounded mb-2" />
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  if (error || !d) return (
-    <div className="p-8 text-center"><p className="text-red-500 text-sm">{error || "Error cargando datos"}</p></div>
-  );
+  // ── Error state ──
+  if (error && !pixelData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] flex items-center justify-center">
+        <div className={`${cardStyle} p-8 max-w-md text-center`} style={cardShadow}>
+          <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="text-gray-900 font-medium mb-1">Error cargando analytics</p>
+          <p className="text-gray-500 text-sm mb-4">{error}</p>
+          <button onClick={() => fetchAll()} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  const conversionRate = d.funnel?.pageView > 0 ? ((d.funnel.purchase / d.funnel.pageView) * 100).toFixed(2) : "0";
+  const bk = pixelData?.businessKpis;
+  const channels = pixelData?.channelRoas || [];
+  const funnel = pixelData?.funnel;
+  const journeys = pixelData?.recentJourneys || [];
+  const dailyTrend = discrepancy?.dailyTrend || [];
+  const dailyChannels = pixelData?.dailyChannelBreakdown || [];
+
+  // All unique channel sources for stacked bar
+  const allSources = Array.from(new Set(dailyChannels.flatMap(d => d.channels.map(c => c.source))));
 
   return (
-    <div className="space-y-4 pb-12">
-      {/* ═══ HEADER + DATE SELECTOR ═══ */}
-      <div className="flex flex-col gap-3 sticky top-0 z-20 bg-gray-50/95 backdrop-blur-sm py-3 -mx-1 px-1">
+    <div className={`min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] ${isRefetching ? "pixel-refetching" : ""}`}>
+      <style>{`
+        .pixel-refetching { position: relative; }
+        .pixel-refetching::after {
+          content: ''; position: absolute; inset: 0; z-index: 50; pointer-events: none;
+          background: linear-gradient(90deg, transparent 25%, rgba(6,182,212,0.04) 50%, transparent 75%);
+          background-size: 400% 100%;
+          animation: shimmer 1.5s ease-in-out infinite;
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @media (prefers-reduced-motion: reduce) {
+          .pixel-refetching::after { animation: none; }
+          .stagger-card { animation: none !important; opacity: 1 !important; }
+        }
+        .stagger-card { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      `}</style>
+
+      <div className="max-w-[1440px] mx-auto px-6 py-6 space-y-6">
+
+        {/* ── Header ── */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
-            <p className="text-xs text-gray-500 mt-0.5">Fuente: Google Analytics 4</p>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Analytics</h1>
+              <p className="text-xs text-gray-500 mt-0.5">Powered by NitroPixel — datos propios, sin intermediarios</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Live indicator */}
+            {pixelData?.liveStatus?.status === "LIVE" && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="text-[11px] font-medium text-emerald-700">Pixel activo</span>
+              </div>
+            )}
+            <DateRangeFilter
+              dateFrom={dateFrom} dateTo={dateTo}
+              onDateChange={(type, value) => {
+                if (type === "from") setDateFrom(value);
+                else setDateTo(value);
+                setActiveQuickRange(null);
+              }}
+              quickRanges={[
+                { label: "7 días", days: 7 },
+                { label: "14 días", days: 14 },
+                { label: "30 días", days: 30 },
+              ]}
+              activeQuickRange={activeQuickRange}
+              onQuickRange={(days) => {
+                setActiveQuickRange(days);
+                const to = new Date(); const from = new Date(Date.now() - days * MS_PER_DAY);
+                setDateFrom(from.toISOString().slice(0, 10));
+                setDateTo(to.toISOString().slice(0, 10));
+              }}
+            />
           </div>
         </div>
-        <DateRangeFilter
-          dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
-          quickRanges={QUICK_RANGES} onQuickRange={handleQuickRange}
-          onDateChange={handleDateChange} loading={loading}
-        />
-      </div>
 
-      {/* ═══ TRAFFIC KPIs ═══ */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <KpiCard label="Visitantes" value={fmt(d.kpis.totalVisitors)} change={d.kpis.changes.visitors} color="indigo" />
-        <KpiCard label="Sesiones" value={fmt(d.kpis.totalSessions)} change={d.kpis.changes.sessions} color="cyan" />
-        <KpiCard label="Page Views" value={fmt(d.kpis.totalPageViews)} change={d.kpis.changes.pageViews} color="purple" />
-        <KpiCard label="Pags/Sesion" value={String(d.kpis.pagesPerSession)} color="orange" />
-        <KpiCard label="Tasa Conversion" value={`${conversionRate}%`} color="emerald" />
-      </div>
-
-      {/* ═══ FUNNEL ═══ */}
-      {d.funnel?.pageView > 0 && (() => {
-        const steps = [
-          { label: "Visitantes", value: d.funnel.pageView, color: "#6366F1", bg: "rgba(99,102,241,0.15)" },
-          { label: "Vieron Producto", value: d.funnel.viewProduct, color: "#8B5CF6", bg: "rgba(139,92,246,0.15)" },
-          { label: "Agregaron al Carrito", value: d.funnel.addToCart, color: "#A855F7", bg: "rgba(168,85,247,0.15)" },
-          { label: "Iniciaron Checkout", value: d.funnel.checkoutStart, color: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
-          { label: "Compraron", value: d.funnel.purchase, color: "#22C55E", bg: "rgba(34,197,94,0.15)" },
-        ];
-        const mx = steps[0].value || 1;
-        return (
-          <SectionCard title="Funnel de Conversión" badge="Google Analytics 4">
-            <div className="flex flex-col gap-1">
-              {steps.map((s, i) => {
-                const w = Math.max((s.value / mx) * 100, 8);
-                let prev = 0; for (let j = i - 1; j >= 0; j--) { if (steps[j].value > 0) { prev = steps[j].value; break; } }
-                const sr = i > 0 && prev > 0 && s.value > 0 ? ((s.value / prev) * 100).toFixed(1) : null;
-                const or2 = i > 0 && s.value > 0 ? ((s.value / mx) * 100).toFixed(1) : null;
-                return (
-                  <Fragment key={s.label}>
-                    {i > 0 && sr && (
-                      <div className="flex items-center gap-2 pl-2 -my-0.5">
-                        <svg width="12" height="12" viewBox="0 0 12 12" className="text-gray-500"><path d="M6 2 L6 10 M3 7 L6 10 L9 7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        <span className="text-[10px] text-gray-500">{sr}%</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 relative" style={{ minHeight: 32 }}>
-                        <div className="absolute inset-y-0 left-0 rounded-lg" style={{ width: `${w}%`, backgroundColor: s.bg, borderLeft: `3px solid ${s.color}` }} />
-                        <div className="relative flex items-center justify-between px-3 py-1.5" style={{ width: `${Math.max(w, 40)}%` }}>
-                          <span className="text-[11px] text-gray-700 font-medium truncate">{s.label}</span>
-                          <span className="text-[11px] text-gray-800 font-semibold ml-2">{fmt(s.value)}</span>
-                        </div>
-                      </div>
-                      {or2 && <span className="text-[10px] text-gray-500 w-12 text-right">{or2}%</span>}
-                    </div>
-                  </Fragment>
-                );
-              })}
-            </div>
-            <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
-              <span className="text-[10px] text-gray-500">Tasa de conversión general</span>
-              <span className="text-sm font-semibold text-emerald-500">{conversionRate}%</span>
-            </div>
-            <div className="mt-2 flex items-start gap-1.5">
-              <svg className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>
-              <p className="text-[10px] text-gray-400 leading-relaxed">
-                Datos provenientes de <b className="text-gray-500">Google Analytics 4</b>. GA4 generalmente registra menos compras que el ecommerce (VTEX) porque depende de que el navegador del usuario ejecute el evento de tracking. Bloqueadores de anuncios, conexiones lentas o cierres prematuros del navegador pueden impedir el registro.
-              </p>
-            </div>
-          </SectionCard>
-        );
-      })()}
-
-      {/* ═══ NUEVOS VS RECURRENTES + ABANDONO ═══ */}
-      {ga4 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {ga4.newVsReturning.length > 0 && (() => {
-            const total = ga4.newVsReturning.reduce((s, x) => s + x.revenue, 0);
-            return (
-              <SectionCard title="Nuevos vs Recurrentes">
-                <div className="grid grid-cols-2 gap-3">
-                  {ga4.newVsReturning.map(nv => {
-                    const pct = total > 0 ? Math.round((nv.revenue / total) * 100) : 0;
-                    const convRate = nv.sessions > 0 ? Math.round((nv.purchases / nv.sessions) * 10000) / 100 : 0;
-                    return (
-                      <div key={nv.type} className={`rounded-xl border p-3 ${nv.type === "Nuevos" ? "bg-indigo-50/50 border-indigo-200" : "bg-emerald-50/50 border-emerald-200"}`}>
-                        <p className="text-xs text-gray-500 mb-1">{nv.type}</p>
-                        <p className="text-lg font-bold text-gray-800">{fmt(nv.users)} <span className="text-[10px] font-normal text-gray-400">usuarios</span></p>
-                        <div className="mt-2 space-y-1 text-[11px] text-gray-600">
-                          <div className="flex justify-between"><span>Sesiones</span><span className="font-medium">{fmt(nv.sessions)}</span></div>
-                          <div className="flex justify-between"><span>Compras</span><span className="font-medium">{fmt(nv.purchases)}</span></div>
-                          <div className="flex justify-between"><span>Revenue</span><span className="font-medium">{fmtARS(nv.revenue)}</span></div>
-                          <div className="flex justify-between"><span>% del revenue</span><span className="font-medium">{pct}%</span></div>
-                          <div className="flex justify-between"><span>Tasa conv.</span><span className={`font-medium ${convRate > 1 ? "text-emerald-600" : "text-gray-500"}`}>{convRate}%</span></div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 pt-2 border-t border-gray-100 flex items-start gap-1.5">
-                  <svg className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>
-                  <p className="text-[10px] text-gray-400 leading-relaxed">
-                    <b className="text-gray-500">Nuevos</b> = primera visita al sitio. <b className="text-gray-500">Recurrentes</b> = ya visitaron antes. % del revenue muestra cuánto factura cada grupo. Tasa conv. = compras / sesiones.
-                  </p>
-                </div>
-              </SectionCard>
-            );
-          })()}
-
-          {ga4.abandonment && (
-            <SectionCard title="Abandono de Carrito" badge="Usuarios únicos">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-red-200 bg-red-50/50 p-3 text-center">
-                  <p className="text-[11px] text-gray-500">Abandono Carrito</p>
-                  <p className="text-2xl font-bold text-red-600">{ga4.abandonment.cartAbandonmentRate}%</p>
-                  <p className="text-[10px] text-gray-400">{fmt(ga4.abandonment.totalAddToCarts)} usuarios agregaron, {fmt(ga4.abandonment.totalPurchases)} compraron</p>
-                </div>
-                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 text-center">
-                  <p className="text-[11px] text-gray-500">Abandono Checkout</p>
-                  <p className="text-2xl font-bold text-amber-600">{ga4.abandonment.checkoutAbandonmentRate}%</p>
-                  <p className="text-[10px] text-gray-400">{fmt(ga4.abandonment.totalCheckouts)} usuarios iniciaron, {fmt(ga4.abandonment.totalPurchases)} compraron</p>
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 1 — KPI Strip                                     */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            {
+              label: "Revenue Atribuido", value: fmtCompact(revCountUp),
+              detail: bk ? `${fmt(bk.ordersAttributed)} de ${fmt(bk.totalOrders)} órdenes` : "",
+              change: bk?.changes?.pixelRevenue || 0,
+              icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>),
+              gradient: "from-cyan-500 to-blue-600",
+            },
+            {
+              label: "ROAS Real", value: `${roasCountUp.toFixed(1)}x`,
+              detail: `Spend: ${fmtCompact(bk?.totalAdSpend || 0)}`,
+              change: bk?.changes?.pixelRoas || 0,
+              icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/></svg>),
+              gradient: "from-violet-500 to-purple-600",
+            },
+            {
+              label: "Ordenes Atribuidas", value: fmt(Math.round(ordersCountUp)),
+              detail: bk ? `Ticket promedio: ${fmtCompact(bk.aov || 0)}` : "",
+              change: bk?.changes?.ordersAttributed || 0,
+              icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>),
+              gradient: "from-emerald-500 to-teal-600",
+            },
+            {
+              label: "Tasa de Atribución", value: `${attrRateCountUp.toFixed(0)}%`,
+              detail: `${fmt(pixelData?.pixelHealth?.eventsInPeriod || 0)} eventos capturados`,
+              change: 0,
+              icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z"/></svg>),
+              gradient: "from-orange-500 to-amber-600",
+            },
+          ].map((kpi, i) => (
+            <div
+              key={kpi.label}
+              className={`${cardStyle} p-5 stagger-card group hover:scale-[1.02] hover:shadow-lg`}
+              style={{ ...cardShadow, animationDelay: `${i * 70}ms` }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{kpi.label}</span>
+                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${kpi.gradient} flex items-center justify-center text-white opacity-80 group-hover:opacity-100 transition-opacity`}>
+                  {kpi.icon}
                 </div>
               </div>
-            </SectionCard>
-          )}
+              <div className="text-2xl font-bold text-gray-900 tracking-tight">{kpi.value}</div>
+              <div className="flex items-center gap-2 mt-1.5">
+                {kpi.change !== 0 && (
+                  <span className={`text-xs font-semibold ${pctColor(kpi.change)}`}>{pctBadge(kpi.change)}</span>
+                )}
+                <span className="text-[11px] text-gray-400">{kpi.detail}</span>
+              </div>
+            </div>
+          ))}
         </div>
-      )}
 
-      {/* ═══ FUENTES DE TRÁFICO + LANDING PAGES (side by side, scrollable) ═══ */}
-      {ga4 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {ga4.trafficRevenue?.length > 0 && (
-            <SectionCard title="Fuentes de Tráfico" badge="Revenue por canal" maxH="320px">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="text-gray-500 text-xs border-b border-gray-200">
-                      <th className="text-left pb-2 font-medium">Fuente / Medio</th>
-                      <th className="text-right pb-2 font-medium">Sesiones</th>
-                      <th className="text-right pb-2 font-medium">Revenue</th>
-                      <th className="text-right pb-2 font-medium">Conv. %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ga4.trafficRevenue.slice(0, 15).map((t, i) => (
-                      <tr key={i} className="border-b border-gray-100">
-                        <td className="py-1.5 text-gray-700 text-xs truncate max-w-[140px]">{t.source} / <span className="text-gray-400">{t.medium}</span></td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(t.sessions)}</td>
-                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(t.revenue)}</td>
-                        <td className="py-1.5 text-right text-xs">
-                          <span className={t.conversionRate > 1 ? "text-emerald-600 font-medium" : "text-gray-400"}>{t.conversionRate}%</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 2 — Channel Truth Table                           */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <div className={`${cardStyle} overflow-hidden stagger-card`} style={{ ...cardShadow, animationDelay: "300ms" }}>
+          <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">Canales — Truth Score</h2>
+              <InfoTip text="El Truth Score compara lo que el pixel midió vs lo que la plataforma reporta. 100% = alineados. Menos de 90% = la plataforma sobre-reporta. Más de 110% = sub-reporta." />
+            </div>
+            {discrepancy?.summary && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Veredicto global:</span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  discrepancy.summary.totalDeltaPercent < -10 ? "bg-red-50 text-red-700" :
+                  discrepancy.summary.totalDeltaPercent > 10 ? "bg-amber-50 text-amber-700" :
+                  "bg-emerald-50 text-emerald-700"
+                }`}>
+                  {discrepancy.summary.totalDeltaPercent < 0
+                    ? `Plataformas sobre-reportan ${Math.abs(Math.round(discrepancy.summary.totalDeltaPercent))}%`
+                    : discrepancy.summary.totalDeltaPercent > 10
+                    ? `Plataformas sub-reportan ${Math.round(discrepancy.summary.totalDeltaPercent)}%`
+                    : "Alineados"
+                  }
+                </span>
               </div>
-            </SectionCard>
-          )}
-
-          {ga4.landingPages?.length > 0 && (
-            <SectionCard title="Landing Pages" badge="Páginas de entrada" maxH="320px">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="text-gray-500 text-xs border-b border-gray-200">
-                      <th className="text-left pb-2 font-medium">Página</th>
-                      <th className="text-right pb-2 font-medium">Sesiones</th>
-                      <th className="text-right pb-2 font-medium">Bounce</th>
-                      <th className="text-right pb-2 font-medium">Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ga4.landingPages.map((lp, i) => (
-                      <tr key={i} className="border-b border-gray-100">
-                        <td className="py-1.5 text-gray-700 text-xs max-w-[180px] truncate">{cleanUrl(lp.path)}</td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(lp.sessions)}</td>
-                        <td className="py-1.5 text-right text-xs">
-                          <span className={lp.bounceRate > 70 ? "text-red-500" : lp.bounceRate > 50 ? "text-amber-600" : "text-emerald-600"}>{lp.bounceRate}%</span>
-                        </td>
-                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(lp.revenue)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </SectionCard>
-          )}
-        </div>
-      )}
-
-      {/* ═══ PRODUCTOS: CATÁLOGO COMPLETO ═══ */}
-      {ga4?.products && ga4.products.length > 0 && (
-        <SectionCard title="Productos: Vistos vs Vendidos" badge={`${filteredProducts.length} productos`}>
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <input type="text" value={prodSearch} onChange={e => setProdSearch(e.target.value)}
-              placeholder="Buscar por nombre o SKU..."
-              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-600 outline-none focus:border-indigo-300 w-48" />
-            <select value={prodCatFilter} onChange={e => setProdCatFilter(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 outline-none focus:border-indigo-300">
-              <option value="">Todas las categorías</option>
-              {productCategories.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select value={prodBrandFilter} onChange={e => setProdBrandFilter(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 outline-none focus:border-indigo-300">
-              <option value="">Todas las marcas</option>
-              {productBrands.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-            {(prodSearch || prodCatFilter || prodBrandFilter) && (
-              <button onClick={() => { setProdSearch(""); setProdCatFilter(""); setProdBrandFilter(""); }}
-                className="text-[10px] text-indigo-600 hover:text-indigo-800 underline">Limpiar filtros</button>
             )}
           </div>
-          {/* Table */}
-          <div className="overflow-y-auto" style={{ maxHeight: "420px" }}>
+
+          {channels.length === 0 ? (
+            <div className="px-6 py-12 text-center text-gray-400 text-sm">No hay datos de canales para este período</div>
+          ) : (
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white z-10">
-                <tr className="text-gray-500 text-xs border-b border-gray-200">
-                  <th className="text-left pb-2 font-medium pl-1">Producto</th>
-                  <th className="text-right pb-2 font-medium cursor-pointer select-none hover:text-indigo-600" onClick={() => toggleSort("views")}>
-                    Vistas {prodSort.col === "views" ? (prodSort.dir === "desc" ? "↓" : "↑") : ""}
-                  </th>
-                  <th className="text-right pb-2 font-medium cursor-pointer select-none hover:text-indigo-600" onClick={() => toggleSort("purchases")}>
-                    Ventas {prodSort.col === "purchases" ? (prodSort.dir === "desc" ? "↓" : "↑") : ""}
-                  </th>
-                  <th className="text-right pb-2 font-medium cursor-pointer select-none hover:text-indigo-600" onClick={() => toggleSort("revenue")}>
-                    Revenue {prodSort.col === "revenue" ? (prodSort.dir === "desc" ? "↓" : "↑") : ""}
-                  </th>
-                  <th className="text-right pb-2 font-medium cursor-pointer select-none hover:text-indigo-600" onClick={() => toggleSort("viewToPurchaseRate")}>
-                    Conv. % {prodSort.col === "viewToPurchaseRate" ? (prodSort.dir === "desc" ? "↓" : "↑") : ""}
-                  </th>
+              <thead>
+                <tr className="text-[11px] text-gray-400 uppercase tracking-wider border-b border-gray-50">
+                  <th className="text-left px-6 py-3 font-medium">Canal</th>
+                  <th className="text-right px-4 py-3 font-medium">Revenue Pixel</th>
+                  <th className="text-right px-4 py-3 font-medium">Revenue Plataforma</th>
+                  <th className="text-center px-4 py-3 font-medium">Truth Score</th>
+                  <th className="text-right px-4 py-3 font-medium">Spend</th>
+                  <th className="text-right px-4 py-3 font-medium">ROAS Real</th>
+                  <th className="text-right px-4 py-3 font-medium">ROAS Plat.</th>
+                  <th className="text-right px-6 py-3 font-medium">Órdenes</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedProducts.map((p, i) => (
-                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50/50">
-                    <td className="py-1.5 pl-1">
-                      <div className="flex items-center gap-2">
-                        {p.imageUrl ? (
-                          <img src={p.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 bg-gray-100 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all"
-                            loading="lazy" onClick={() => setLightbox({ src: p.imageUrl!, alt: p.name })} />
-                        ) : (
-                          <div className="w-8 h-8 rounded bg-gray-100 flex-shrink-0 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                {channels.map((ch, idx) => {
+                  const info = getSourceInfo(ch.source);
+                  const ts = truthScoreColor(ch.pixelRevenue, ch.platformRevenue);
+                  const isExpanded = expandedChannel === ch.source;
+                  const campaignsForChannel = discrepancy?.byCampaign?.filter(c => c.source === ch.source) || [];
+
+                  return (
+                    <Fragment key={ch.source}>
+                      <tr
+                        className={`border-b border-gray-50 transition-colors duration-200 cursor-pointer hover:bg-gray-50/50 ${isExpanded ? "bg-gray-50/50" : ""}`}
+                        onClick={() => setExpandedChannel(isExpanded ? null : ch.source)}
+                      >
+                        <td className="px-6 py-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: info.color }}>
+                              <ChannelLogo source={ch.source} size={14} />
+                            </div>
+                            <span className="font-medium text-gray-900">{info.label}</span>
+                            {campaignsForChannel.length > 0 && (
+                              <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            )}
                           </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-xs text-gray-700 truncate max-w-[180px]">{p.name}</p>
-                          {(p.category || p.brand) && (
-                            <p className="text-[10px] text-gray-400 truncate max-w-[180px]">
-                              {[p.category, p.brand].filter(Boolean).filter(v => v !== "(not set)").join(" · ")}
-                            </p>
+                        </td>
+                        <td className="text-right px-4 py-3.5 font-medium text-gray-900">{fmtCompact(ch.pixelRevenue)}</td>
+                        <td className="text-right px-4 py-3.5 text-gray-500">{ch.platformRevenue ? fmtCompact(ch.platformRevenue) : "—"}</td>
+                        <td className="text-center px-4 py-3.5">
+                          {ch.platformRevenue ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${ts.color} ${ts.bg}`}>
+                              {ts.label}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
                           )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(p.views)}</td>
-                    <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(p.purchases)}</td>
-                    <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(p.revenue)}</td>
-                    <td className="py-1.5 text-right text-xs">
-                      <span className={p.viewToPurchaseRate > 2 ? "text-emerald-600 font-medium" : p.viewToPurchaseRate > 0 ? "text-amber-600" : "text-gray-400"}>
-                        {p.viewToPurchaseRate}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                        </td>
+                        <td className="text-right px-4 py-3.5 text-gray-500">{ch.spend ? fmtCompact(ch.spend) : "—"}</td>
+                        <td className="text-right px-4 py-3.5 font-semibold text-gray-900">{ch.pixelRoas ? `${ch.pixelRoas.toFixed(1)}x` : "—"}</td>
+                        <td className="text-right px-4 py-3.5 text-gray-400">{ch.platformRoas ? `${ch.platformRoas.toFixed(1)}x` : "—"}</td>
+                        <td className="text-right px-6 py-3.5 text-gray-600">{fmt(ch.orders)}</td>
+                      </tr>
+
+                      {/* Expanded campaign rows */}
+                      {isExpanded && campaignsForChannel.length > 0 && campaignsForChannel.map((camp) => {
+                        const campTs = truthScoreColor(camp.pixelRevenue, camp.platformRevenue);
+                        return (
+                          <tr key={camp.campaign} className="bg-gray-50/80 border-b border-gray-100/50 text-xs">
+                            <td className="pl-16 pr-6 py-2.5 text-gray-600 truncate max-w-[200px]">{camp.campaign || "Sin campaña"}</td>
+                            <td className="text-right px-4 py-2.5 text-gray-700">{fmtCompact(camp.pixelRevenue)}</td>
+                            <td className="text-right px-4 py-2.5 text-gray-500">{camp.platformRevenue ? fmtCompact(camp.platformRevenue) : "—"}</td>
+                            <td className="text-center px-4 py-2.5">
+                              {camp.platformRevenue ? (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${campTs.color} ${campTs.bg}`}>
+                                  {campTs.label}
+                                </span>
+                              ) : <span className="text-gray-300">—</span>}
+                            </td>
+                            <td className="text-right px-4 py-2.5 text-gray-500">{camp.spend ? fmtCompact(camp.spend) : "—"}</td>
+                            <td className="text-right px-4 py-2.5 font-medium text-gray-700">{camp.pixelRoas ? `${camp.pixelRoas.toFixed(1)}x` : "—"}</td>
+                            <td className="text-right px-4 py-2.5 text-gray-400">{camp.platformRoas ? `${camp.platformRoas.toFixed(1)}x` : "—"}</td>
+                            <td className="text-right px-6 py-2.5 text-gray-500">{fmt(camp.pixelOrders)}</td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
-          </div>
-          {/* Pagination */}
-          {totalProdPages > 1 && (
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-              <span className="text-[10px] text-gray-400">
-                {((prodPage - 1) * PRODUCTS_PER_PAGE) + 1}–{Math.min(prodPage * PRODUCTS_PER_PAGE, filteredProducts.length)} de {filteredProducts.length}
-              </span>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setProdPage(p => Math.max(1, p - 1))} disabled={prodPage === 1}
-                  className="px-2 py-1 text-xs rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">←</button>
-                {Array.from({ length: Math.min(totalProdPages, 7) }, (_, i) => {
-                  let page: number;
-                  if (totalProdPages <= 7) { page = i + 1; }
-                  else if (prodPage <= 4) { page = i + 1; }
-                  else if (prodPage >= totalProdPages - 3) { page = totalProdPages - 6 + i; }
-                  else { page = prodPage - 3 + i; }
-                  return (
-                    <button key={page} onClick={() => setProdPage(page)}
-                      className={`w-7 h-7 text-xs rounded-md ${page === prodPage ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>{page}</button>
-                  );
-                })}
-                <button onClick={() => setProdPage(p => Math.min(totalProdPages, p + 1))} disabled={prodPage === totalProdPages}
-                  className="px-2 py-1 text-xs rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">→</button>
-              </div>
-            </div>
-          )}
-        </SectionCard>
-      )}
-
-      {/* Image Lightbox */}
-      {lightbox && <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />}
-
-      {/* ═══ CONVERSIÓN POR CATEGORÍA + MARCA ═══ */}
-      {ga4 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {ga4.categories?.length > 0 && (
-            <SectionCard title="Conversión por Categoría" badge="Productos vistos vs vendidos" maxH="320px">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="text-gray-500 text-xs border-b border-gray-200">
-                      <th className="text-left pb-2 font-medium">Categoría</th>
-                      <th className="text-right pb-2 font-medium">Vistas</th>
-                      <th className="text-right pb-2 font-medium">Ventas</th>
-                      <th className="text-right pb-2 font-medium">Revenue</th>
-                      <th className="text-right pb-2 font-medium">Conv. %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ga4.categories.map((c, i) => (
-                      <tr key={i} className="border-b border-gray-100">
-                        <td className="py-1.5 text-gray-700 text-xs max-w-[150px] truncate">{c.category}</td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(c.views)}</td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(c.purchases)}</td>
-                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(c.revenue)}</td>
-                        <td className="py-1.5 text-right text-xs">
-                          <span className={c.conversionRate > 2 ? "text-emerald-600 font-medium" : c.conversionRate > 0 ? "text-amber-600" : "text-gray-400"}>
-                            {c.conversionRate}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </SectionCard>
-          )}
-
-          {ga4.brands?.length > 0 && (
-            <SectionCard title="Conversión por Marca" badge="Productos vistos vs vendidos" maxH="320px">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="text-gray-500 text-xs border-b border-gray-200">
-                      <th className="text-left pb-2 font-medium">Marca</th>
-                      <th className="text-right pb-2 font-medium">Vistas</th>
-                      <th className="text-right pb-2 font-medium">Ventas</th>
-                      <th className="text-right pb-2 font-medium">Revenue</th>
-                      <th className="text-right pb-2 font-medium">Conv. %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ga4.brands.map((b, i) => (
-                      <tr key={i} className="border-b border-gray-100">
-                        <td className="py-1.5 text-gray-700 text-xs max-w-[150px] truncate">{b.brand}</td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(b.views)}</td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(b.purchases)}</td>
-                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(b.revenue)}</td>
-                        <td className="py-1.5 text-right text-xs">
-                          <span className={b.conversionRate > 2 ? "text-emerald-600 font-medium" : b.conversionRate > 0 ? "text-amber-600" : "text-gray-400"}>
-                            {b.conversionRate}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </SectionCard>
           )}
         </div>
-      )}
 
-      {/* ═══ BÚSQUEDAS INTERNAS + VENTAS POR ZONA ═══ */}
-      {ga4 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {ga4.searches?.length > 0 && (
-            <SectionCard title="Búsquedas Internas" badge="Qué buscan tus clientes" maxH="300px">
-              <div className="space-y-2">
-                {ga4.searches.map((s, i) => {
-                  const max = ga4.searches[0]?.count || 1;
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 3 — Funnel + Customer Journeys                    */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* Funnel — 3 cols */}
+          <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "380ms" }}>
+            <h2 className="text-sm font-semibold text-gray-900 mb-5">Funnel de Conversión</h2>
+            {funnel ? (
+              <div className="flex items-end gap-1">
+                {[
+                  { label: "Visitas", value: funnel.pageView, color: "#06b6d4" },
+                  { label: "Vio Producto", value: funnel.viewProduct, color: "#8b5cf6" },
+                  { label: "Carrito", value: funnel.addToCart, color: "#f97316" },
+                  { label: "Checkout", value: funnel.checkoutStart, color: "#eab308" },
+                  { label: "Compra", value: funnel.purchase, color: "#22c55e" },
+                ].map((step, i, arr) => {
+                  const maxVal = arr[0].value || 1;
+                  const height = Math.max(20, (step.value / maxVal) * 140);
+                  const convRate = i > 0 && arr[i - 1].value > 0
+                    ? ((step.value / arr[i - 1].value) * 100).toFixed(1)
+                    : null;
+
                   return (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-32 text-xs text-gray-700 truncate font-medium">{s.term}</div>
-                      <div className="flex-1 h-5 bg-gray-100 rounded-lg overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-indigo-400 to-indigo-200 rounded-lg flex items-center px-2"
-                          style={{ width: `${Math.max((s.count / max) * 100, 5)}%` }}>
-                          <span className="text-[10px] text-white font-medium">{fmt(s.count)}</span>
+                    <div key={step.label} className="flex-1 flex flex-col items-center gap-1.5">
+                      <span className="text-xs font-bold text-gray-900">{fmt(step.value)}</span>
+                      <div
+                        className="w-full rounded-lg transition-all duration-700"
+                        style={{ height, backgroundColor: step.color, opacity: 0.85 }}
+                      />
+                      <span className="text-[10px] text-gray-500 font-medium">{step.label}</span>
+                      {convRate && (
+                        <span className="text-[10px] text-gray-400">{convRate}%</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center text-gray-400 text-sm py-8">Sin datos de funnel</div>
+            )}
+          </div>
+
+          {/* Customer Journeys — 2 cols */}
+          <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card overflow-hidden`} style={{ ...cardShadow, animationDelay: "440ms" }}>
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Últimos Customer Journeys</h2>
+            {journeys.length === 0 ? (
+              <div className="text-center text-gray-400 text-sm py-8">Sin journeys en este período</div>
+            ) : (
+              <div className="space-y-2.5">
+                {journeys.slice(0, 5).map((j) => {
+                  const isOpen = expandedJourney === j.orderId;
+                  return (
+                    <div key={j.orderId} className="group">
+                      <button
+                        className="w-full flex items-center gap-3 py-2 px-3 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                        onClick={() => setExpandedJourney(isOpen ? null : j.orderId)}
+                      >
+                        {/* Touchpoint dots */}
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                          {j.touchpoints.slice(0, 6).map((tp, ti) => {
+                            const tpInfo = getSourceInfo(tp.source || "direct");
+                            return (
+                              <div key={ti} className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: tpInfo.color }}>
+                                <ChannelLogo source={tp.source} size={10} />
+                              </div>
+                            );
+                          })}
+                          {j.touchpoints.length > 6 && (
+                            <span className="text-[10px] text-gray-400 ml-1">+{j.touchpoints.length - 6}</span>
+                          )}
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-gray-700 truncate block">
+                            {j.orderExternalId || j.orderId.slice(0, 8)}
+                          </span>
+                        </div>
+                        <span className="text-xs font-semibold text-gray-900 flex-shrink-0">{fmtCompact(j.revenue)}</span>
+                        <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      {isOpen && (
+                        <div className="pl-6 pr-3 pb-3 pt-1 space-y-1.5">
+                          {j.touchpoints.map((tp, ti) => {
+                            const tpInfo = getSourceInfo(tp.source || "direct");
+                            return (
+                              <div key={ti} className="flex items-center gap-2 text-[11px]">
+                                <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: tpInfo.color }}>
+                                  <ChannelLogo source={tp.source} size={8} />
+                                </div>
+                                <span className="text-gray-600 font-medium">{tpInfo.label}</span>
+                                {tp.campaign && <span className="text-gray-400 truncate max-w-[120px]">{tp.campaign}</span>}
+                                {tp.timestamp && (
+                                  <span className="text-gray-300 ml-auto flex-shrink-0">
+                                    {new Date(tp.timestamp).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {j.conversionLag > 0 && (
+                            <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                              {j.conversionLag} día{j.conversionLag !== 1 ? "s" : ""} entre primer contacto y compra
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 4 — Revenue Intelligence                          */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "500ms" }}>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-sm font-semibold text-gray-900">Revenue Intelligence</h2>
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              {[
+                { key: "truth" as const, label: "Pixel vs Plataformas" },
+                { key: "channels" as const, label: "Por Canal" },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
+                    chartMode === tab.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                  onClick={() => setChartMode(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-72">
+            {chartMode === "truth" ? (
+              dailyTrend.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={dailyTrend} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="pixelGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="platGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
+                    <YAxis yAxisId="rev" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
+                    <YAxis yAxisId="spend" orientation="right" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
+                      formatter={(value: number, name: string) => [fmtARS(value), name === "pixelRevenue" ? "Pixel" : name === "platformRevenue" ? "Plataformas" : "Spend"]}
+                      labelFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                    />
+                    <Area yAxisId="rev" type="monotone" dataKey="pixelRevenue" fill="url(#pixelGrad)" stroke="#06b6d4" strokeWidth={2.5} name="pixelRevenue" />
+                    <Area yAxisId="rev" type="monotone" dataKey="platformRevenue" fill="url(#platGrad)" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="6 3" name="platformRevenue" />
+                    <Line yAxisId="spend" type="monotone" dataKey="spend" stroke="#f97316" strokeWidth={1.5} dot={false} name="spend" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de comparación para este período</div>
+              )
+            ) : (
+              dailyChannels.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailyChannels.map(d => {
+                    const row: any = { day: d.day };
+                    d.channels.forEach(ch => { row[ch.source] = ch.revenue; });
+                    return row;
+                  })} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} />
+                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => fmtCompact(v)} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
+                      formatter={(value: number, name: string) => [fmtARS(value), getSourceInfo(name).label]}
+                      labelFormatter={(v) => new Date(v).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                    />
+                    {allSources.map((src, i) => (
+                      <Bar key={src} dataKey={src} stackId="revenue" fill={getSourceInfo(src).color} radius={i === allSources.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de canales diarios</div>
+              )
+            )}
+          </div>
+
+          {/* Chart legend */}
+          {chartMode === "truth" && (
+            <div className="flex items-center justify-center gap-6 mt-4">
+              <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-cyan-500" /><span className="text-[11px] text-gray-500">Pixel (real)</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-violet-500" style={{ borderBottom: "1px dashed #8b5cf6" }} /><span className="text-[11px] text-gray-500">Plataformas (reportado)</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-orange-500" /><span className="text-[11px] text-gray-500">Ad Spend</span></div>
+            </div>
+          )}
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 5 — NitroScore (Pixel Health)                     */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {nitroScore && (
+          <div className={`${cardStyle} stagger-card overflow-hidden`} style={{ ...cardShadow, animationDelay: "560ms" }}>
+            <button
+              className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
+              onClick={() => setNitroScoreExpanded(!nitroScoreExpanded)}
+            >
+              <div className="flex items-center gap-4">
+                {/* Score circle */}
+                <div className="relative w-14 h-14 flex-shrink-0">
+                  <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                    <circle cx="28" cy="28" r="24" fill="none" stroke="#f1f5f9" strokeWidth="5" />
+                    <circle
+                      cx="28" cy="28" r="24" fill="none"
+                      stroke={nitroScore.scoreColor || "#06b6d4"}
+                      strokeWidth="5" strokeLinecap="round"
+                      strokeDasharray={`${((nitroScore.score || 0) / 100) * 150.8} 150.8`}
+                      className="transition-all duration-700"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-base font-bold text-gray-900">
+                      {nitroScore.score !== null ? nitroScore.score : "—"}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-gray-900">NitroScore</span>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: `${nitroScore.scoreColor}15`, color: nitroScore.scoreColor }}>
+                      {nitroScore.scoreLabel}
+                    </span>
+                    {nitroScore.trendDelta !== null && nitroScore.trendDelta !== 0 && (
+                      <span className={`text-xs font-semibold ${nitroScore.trendDelta > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                        {nitroScore.trendDelta > 0 ? "+" : ""}{nitroScore.trendDelta.toFixed(0)} pts
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {nitroScore.leversWithData} de {nitroScore.totalLevers} palancas activas
+                    {nitroScore.isCollectingState && " — recopilando datos iniciales"}
+                  </p>
+                </div>
+              </div>
+              <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${nitroScoreExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {nitroScoreExpanded && (
+              <div className="px-6 pb-6 pt-2 border-t border-gray-50 space-y-4">
+                {/* Levers */}
+                {nitroScore.levers.map((lever) => (
+                  <div key={lever.key} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-700">{lever.name}</span>
+                        <InfoTip text={lever.description} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {lever.status === "collecting" ? (
+                          <span className="text-[10px] text-gray-400">Recopilando...</span>
+                        ) : (
+                          <span className="text-xs font-semibold text-gray-900">{lever.current.toFixed(0)}%</span>
+                        )}
+                        <span className="text-[10px] text-gray-400">/ {lever.target}%</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </SectionCard>
-          )}
-
-          {ga4.salesByZone?.length > 0 && (
-            <SectionCard title="Ventas por Zona" badge="Datos VTEX" maxH="360px">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="text-gray-500 text-xs border-b border-gray-200">
-                      <th className="text-left pb-2 font-medium">Provincia</th>
-                      <th className="text-right pb-2 font-medium">Órdenes</th>
-                      <th className="text-right pb-2 font-medium">Revenue</th>
-                      <th className="text-right pb-2 font-medium">Ticket Prom.</th>
-                      <th className="text-right pb-2 font-medium">Envío Prom.</th>
-                      <th className="text-right pb-2 font-medium">Envío / Ticket</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ga4.salesByZone.map((z, i) => (
-                      <tr key={i} className="border-b border-gray-100">
-                        <td className="py-1.5 text-gray-700 text-xs truncate max-w-[140px] capitalize">{z.zone?.toLowerCase() || "(sin datos)"}</td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmt(z.orders)}</td>
-                        <td className="py-1.5 text-right text-gray-800 text-xs font-medium">{fmtARS(z.revenue)}</td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{fmtARS(z.avgTicket)}</td>
-                        <td className="py-1.5 text-right text-gray-600 text-xs">{z.avgShipping != null ? fmtARS(z.avgShipping) : <span className="text-gray-400">—</span>}</td>
-                        <td className="py-1.5 text-right text-xs font-medium">
-                          {z.shippingPct != null
-                            ? <span className={z.shippingPct > 15 ? "text-red-500" : z.shippingPct > 10 ? "text-amber-500" : "text-emerald-500"}>{z.shippingPct}%</span>
-                            : <span className="text-gray-400">—</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-2 flex items-start gap-1.5">
-                <svg className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>
-                <p className="text-[10px] text-gray-400 leading-relaxed">
-                  Datos de órdenes VTEX. Envío promedio se calcula solo con órdenes que tienen costo de envío registrado. <b className="text-gray-500">Rojo</b> {">"}15%, <b className="text-gray-500">Ámbar</b> 10-15%, <b className="text-gray-500">Verde</b> {"<"}10% del ticket.
-                </p>
-              </div>
-            </SectionCard>
-          )}
-        </div>
-      )}
-
-      {/* ═══ ENVÍO VS RETIRO EN SUCURSAL ═══ */}
-      {ga4 && (ga4.deliverySplit?.length > 0 || ga4.pickupByStore?.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {ga4.deliverySplit?.length > 0 && (() => {
-            const COLORS = ["#6366F1", "#22C55E"];
-            const totalOrders = ga4.deliverySplit.reduce((s, d) => s + d.orders, 0);
-            return (
-              <SectionCard title="Envío vs Retiro en Sucursal" badge="Datos VTEX">
-                <div className="flex items-center gap-4">
-                  <div className="w-40 h-40 flex-shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={ga4.deliverySplit} dataKey="orders" nameKey="type" cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3}>
-                          {ga4.deliverySplit.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                        </Pie>
-                        <Tooltip formatter={(v: number) => [fmt(v) + " órdenes", ""]} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    {ga4.deliverySplit.map((d, i) => {
-                      const pct = totalOrders > 0 ? Math.round((d.orders / totalOrders) * 100) : 0;
-                      return (
-                        <div key={d.key} className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-700 font-medium">{d.type}</span>
-                              <span className="text-xs text-gray-500">{pct}%</span>
-                            </div>
-                            <div className="flex items-center justify-between mt-0.5">
-                              <span className="text-[10px] text-gray-400">{fmt(d.orders)} órdenes</span>
-                              <span className="text-[10px] text-gray-500 font-medium">{fmtARS(d.revenue)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </SectionCard>
-            );
-          })()}
-
-          {ga4.pickupByStore?.length > 0 && (() => {
-            const STORE_COLORS = ["#6366F1", "#8B5CF6", "#A855F7", "#D946EF", "#EC4899", "#F43F5E", "#F97316", "#EAB308", "#22C55E", "#14B8A6", "#06B6D4", "#3B82F6", "#2563EB", "#7C3AED", "#C026D3", "#E11D48"];
-            const totalPickup = ga4.pickupByStore.reduce((s, p) => s + p.orders, 0);
-            return (
-              <SectionCard title="Ventas por Sucursal" badge="Solo retiros" maxH="320px">
-                <div className="flex items-start gap-4">
-                  <div className="w-40 h-40 flex-shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={ga4.pickupByStore} dataKey="orders" nameKey="store" cx="50%" cy="50%" innerRadius={30} outerRadius={65} paddingAngle={1}>
-                          {ga4.pickupByStore.map((_, i) => <Cell key={i} fill={STORE_COLORS[i % STORE_COLORS.length]} />)}
-                        </Pie>
-                        <Tooltip formatter={(v: number, _: any, p: any) => [fmt(v) + " retiros", p.payload.store]} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex-1 space-y-1 overflow-y-auto" style={{ maxHeight: 200 }}>
-                    {ga4.pickupByStore.map((p, i) => {
-                      const pct = totalPickup > 0 ? Math.round((p.orders / totalPickup) * 100) : 0;
-                      return (
-                        <div key={p.store} className="flex items-center gap-1.5">
-                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: STORE_COLORS[i % STORE_COLORS.length] }} />
-                          <span className="text-[11px] text-gray-600 truncate flex-1">{p.store}</span>
-                          <span className="text-[10px] text-gray-500 font-medium">{fmt(p.orders)}</span>
-                          <span className="text-[10px] text-gray-400 w-8 text-right">{pct}%</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </SectionCard>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* ═══ HORARIOS Y DÍAS PICO ═══ */}
-      {ga4 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {ga4.hourly.length > 0 && (
-            <SectionCard title="Horarios de Mayor Actividad" badge="Sesiones por hora">
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={ga4.hourly}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="hour" tickFormatter={v => `${v}h`} tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} width={35} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
-                      formatter={(v: number, name: string) => [fmt(v), name === "sessions" ? "Sesiones" : "Compras"]} />
-                    <Bar dataKey="sessions" fill="#6366F1" radius={[3, 3, 0, 0]} name="sessions" />
-                    <Bar dataKey="purchases" fill="#22C55E" radius={[3, 3, 0, 0]} name="purchases" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </SectionCard>
-          )}
-
-          {ga4.dayOfWeek.length > 0 && (
-            <SectionCard title="Días de Mayor Actividad" badge="Sesiones por día">
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={ga4.dayOfWeek}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="dayName" tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} width={35} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
-                      formatter={(v: number, name: string) => [fmt(v), name === "sessions" ? "Sesiones" : "Compras"]} />
-                    <Bar dataKey="sessions" fill="#6366F1" radius={[3, 3, 0, 0]} name="sessions" />
-                    <Bar dataKey="purchases" fill="#22C55E" radius={[3, 3, 0, 0]} name="purchases" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </SectionCard>
-          )}
-        </div>
-      )}
-
-      {/* ═══ DAILY VISITORS TREND ═══ */}
-      {d.dailyVisitors?.length > 1 && (
-        <SectionCard title="Visitantes Diarios">
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={d.dailyVisitors}>
-                <defs>
-                  <linearGradient id="gradV" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366F1" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="day" tickFormatter={v => v.slice(5)} tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} width={40} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }} />
-                <Area type="monotone" dataKey="visitors" stroke="#6366F1" fill="url(#gradV)" strokeWidth={2} name="Visitantes" />
-                <Area type="monotone" dataKey="sessions" stroke="#06b6d4" fill="none" strokeWidth={1.5} strokeDasharray="4 2" name="Sesiones" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </SectionCard>
-      )}
-
-      {/* ═══ DEVICES + EVENTS ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Dispositivos">
-          {d.deviceBreakdown.length > 0 ? (
-            <div className="flex items-center gap-6">
-              <div className="w-32 h-32">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={d.deviceBreakdown} dataKey="count" nameKey="device" cx="50%" cy="50%" outerRadius={55} strokeWidth={0}>
-                      {d.deviceBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex-1 space-y-2">
-                {d.deviceBreakdown.map((dev, i) => (
-                  <div key={dev.device} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                      <span className="text-sm text-gray-700 capitalize">{dev.device}</span>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${Math.min(100, (lever.current / lever.target) * 100)}%`,
+                          backgroundColor: lever.status === "perfect" ? "#10b981" :
+                            lever.status === "great" ? "#06b6d4" :
+                            lever.status === "good" ? "#8b5cf6" :
+                            lever.status === "collecting" ? "#d1d5db" : "#f97316",
+                        }}
+                      />
                     </div>
-                    <span className="text-sm text-gray-400">{dev.percentage}%</span>
+                    {lever.moneyAtRiskArs > 0 && lever.status !== "perfect" && lever.status !== "collecting" && (
+                      <p className="text-[10px] text-amber-600">
+                        {fmtCompact(lever.moneyAtRiskArs)} en revenue en riesgo — {lever.unlockTitle}
+                      </p>
+                    )}
                   </div>
                 ))}
-              </div>
-            </div>
-          ) : <p className="text-xs text-gray-400">Sin datos</p>}
-        </SectionCard>
 
-        <SectionCard title="Tipos de Eventos">
-          {d.eventTypes.length > 0 ? (
-            <div className="space-y-2">
-              {d.eventTypes.map(evt => (
-                <div key={evt.type} className="flex items-center gap-3">
-                  <div className="w-24 text-xs text-gray-400 truncate">{EVENT_LABELS[evt.type] || evt.type}</div>
-                  <div className="flex-1 h-5 bg-gray-100 rounded-lg overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-indigo-400 to-indigo-200 rounded-lg flex items-center px-2" style={{ width: `${Math.max(evt.percentage, 3)}%` }}>
-                      <span className="text-[10px] text-white font-medium">{fmt(evt.count)}</span>
+                {/* Opportunities */}
+                {nitroScore.opportunities.length > 0 && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-2">Oportunidades</h3>
+                    <div className="space-y-2">
+                      {nitroScore.opportunities.slice(0, 3).map((opp) => (
+                        <div key={opp.id} className="flex items-start gap-2 text-xs">
+                          <div className="w-4 h-4 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <svg className="w-2.5 h-2.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">{opp.title}</span>
+                            <p className="text-gray-500 mt-0.5">{opp.description}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div className="w-10 text-right text-xs text-gray-500">{evt.percentage}%</div>
-                </div>
-              ))}
-            </div>
-          ) : <p className="text-xs text-gray-400">Sin eventos</p>}
-        </SectionCard>
-      </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* ═══ POPULAR PAGES ═══ */}
-      {d.popularPages.length > 0 && (
-        <SectionCard title="Páginas Populares" maxH="300px">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-white">
-              <tr className="text-gray-500 text-xs border-b border-gray-200">
-                <th className="text-left pb-2 font-medium">URL</th>
-                <th className="text-right pb-2 font-medium">Views</th>
-                <th className="text-right pb-2 font-medium">Visitantes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.popularPages.map((p, i) => (
-                <tr key={i} className="border-b border-gray-100">
-                  <td className="py-1.5 text-gray-700 max-w-md truncate text-xs">{cleanUrl(p.url)}</td>
-                  <td className="py-1.5 text-right text-gray-400 text-xs">{fmt(p.pageViews)}</td>
-                  <td className="py-1.5 text-right text-gray-400 text-xs">{fmt(p.uniqueVisitors)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </SectionCard>
-      )}
+        {/* Footer tagline */}
+        <div className="text-center py-4">
+          <p className="text-[11px] text-gray-300">
+            NitroPixel Analytics — Datos propios. Sin intermediarios. La verdad de tu negocio.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
