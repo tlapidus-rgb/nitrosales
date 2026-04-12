@@ -1177,9 +1177,10 @@ export default function AnalyticsPage() {
             <h2 className="text-sm font-semibold text-gray-900 mb-4">Top Páginas</h2>
             {(() => {
               try {
-              const pages = (pixelData?.popularPages || []).slice(0, 6).map(p => ({
-                pageUrl: p.pageUrl || "",
-                views: Number(p.views) || 0,
+              // API returns {url, pageViews}, normalize to {pageUrl, views}
+              const pages = (pixelData?.popularPages || []).slice(0, 6).map((p: any) => ({
+                pageUrl: p.pageUrl || p.url || "",
+                views: Number(p.views ?? p.pageViews) || 0,
               }));
               if (pages.length === 0) return <div className="text-center text-gray-400 text-sm py-8">Sin datos de páginas</div>;
 
