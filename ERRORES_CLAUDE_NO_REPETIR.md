@@ -54,4 +54,31 @@ simplemente usar clones frescos.
 
 ---
 
+## 4. Unicode escapes en JSX text → caracteres raros en pantalla (Sesión 16, 2026-04-11)
+
+**Qué pasó:** El archivo ProfitabilityCard.tsx tenía strings con escapes tipo
+`\u00ed` (para í), `\u00f3` (para ó), `\u2212` (para −). En JSX text nodes
+y attributes, estos NO se interpretan como caracteres Unicode — se muestran
+literalmente como `\U00EDA` cuando CSS aplica `text-transform: uppercase`.
+
+**Regla:** SIEMPRE usar caracteres UTF-8 reales en archivos JSX/TSX.
+Escribir `"Costo mercadería"` en vez de `"Costo mercader\u00eda"`.
+Si al leer un archivo se ven escapes `\u00xx`, reemplazarlos por los
+caracteres reales antes de pushear.
+
+---
+
+## 5. Pestaña sync/inventory se reabre sola (Sesión 16, 2026-04-11)
+
+**Qué pasó:** La pestaña de `/api/sync/inventory` se abría repetidamente
+en el navegador de Tomy (posiblemente por el botón "Sincronizar datos").
+Cada vez que está abierta, consume conexiones del pool (pool=8), dejando
+la app en blanco.
+
+**Regla:** Al diagnosticar página en blanco, lo PRIMERO es verificar si
+hay pestañas de sync abiertas. Pedirle a Tomy que las cierre. Si se sigue
+reabriendo, investigar qué la dispara (botón de sync, bookmark, etc).
+
+---
+
 _Última actualización: 2026-04-11_

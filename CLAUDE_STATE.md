@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-08 (Sesion 15 — Dashboard overhaul: sistema de slots por filas + widgets multi-formato + filtros por card + popover via portal — MERGEADO A MAIN)
+## Ultima actualizacion: 2026-04-11 (Sesion 16 — Auditoría VTEX Resumen: 8 fixes en producción)
 
 ---
 
@@ -55,7 +55,7 @@
 |---------|---------|--------|-------|
 | src/app/(app)/products/page.tsx | **v11** | ACTIVO | 4 tabs (Overview + Tendencias + Stock Inteligente + Margenes). Tab Margenes: KPIs, distribucion, brand/category tables con cross-filtering, markup %, catalog completo con column selector, inline filters, CSV export. IVA fix aplicado. 1865 lineas. |
 | src/app/(app)/dashboard/page.tsx | **v3** | ACTIVO | **Sesion 15 (2026-04-08)** — Overhaul completo. Sistema de slots por filas (`layout.rows[].slots[]`), 5 row templates (kpi-6 / kpi-3 / trio-md / chart-duo / chart-full) que suman 6 cols cada uno, 5 slot sizes (xs/sm/md/lg/xl) c/familia de formats permitida. Widgets multi-formato (kpi, big-number, sparkline, mini-line, mini-bar, list, donut, area-full, bar-full). Drag & drop de filas con drop indicator + titulo inline opcional por row. Template picker modal con mini-preview + slot widget picker filtrado por `allowedFormats`. **3-tier backward compat**: layout v3 → widgets v2 (derivados) → default layout. Dual persistence (layout + derived widgets) para rollback safety. Hero + DashboardTodayBlock + DashboardChartCard + WidgetFormats integrados. Replace button en edit mode sobre cada widget. Fix critical: `setCatalogOpen(false)` → `setTemplatePickerOpen(false); setSlotPickerOpen(null);`. |
-| src/app/(app)/orders/page.tsx | - | Sin cambios | No modificado por Claude |
+| src/app/(app)/orders/page.tsx | - | ACTIVO | Sesion 16: pasa `source` prop a ProfitabilityCard. |
 | src/app/(app)/finanzas/page.tsx | **v3** | ACTIVO | P&L dual view (Ejecutivo/Detallado). InfoTips explicativos. Health semaphore. Payment fees, IVA, discounts. |
 | src/app/(app)/finanzas/costos/page.tsx | **v1** | ACTIVO | 1532 lineas. 8 categorias costos, perfil fiscal, tarifas envio, constancia AFIP import. |
 | src/app/(app)/analytics/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
@@ -63,6 +63,11 @@
 | src/app/(app)/mercadolibre/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
 | src/app/(app)/seo/page.tsx | **v3** | ACTIVO | PeriodSelector + audit fixes (country translations). |
 | src/components/PeriodSelector.tsx | **v1** | ACTIVO | Componente reutilizable. Quick ranges + Hoy/Ayer + custom date. |
+| src/components/orders/ProfitabilityCard.tsx | **v2** | ACTIVO | Sesion 16: (1) `source` prop para label dinamico (Comisiones VTEX/ML), (2) hint "Configurar en P&L → Costos" para VTEX, (3) fix unicode escapes → UTF-8 real (mercadería, facturación, −). |
+| src/components/orders/OrdersHero.tsx | **v1.1** | ACTIVO | Sesion 16: "Ingreso real" muestra "sin comisión cargada" cuando VTEX no tiene comision configurada. |
+| src/components/orders/SegmentationCard.tsx | **v1.1** | ACTIVO | Sesion 16: nota NitroPixel para tab device ("Sin dato" = pedidos sin match de NitroPixel). |
+| src/components/orders/LogisticsCard.tsx | **v1.1** | ACTIVO | Sesion 16: nota "Sin dato" = pedidos importados antes de activar detalle envio + import Info icon. |
+| src/components/orders/CohortsCard.tsx | **v1.1** | ACTIVO | Sesion 16: "Sin identificar" → "Clientes MercadoLibre" con sublabel "ML no comparte datos del comprador" + icono ShoppingBag. |
 | src/components/dashboard/DateRangeFilter.tsx | **v2** | ACTIVO | Usado en finanzas. Quick ranges + date inputs. |
 | src/components/dashboard/DashboardHero.tsx | **v1** | NEW (S15) | Hero header del dashboard con nombre del org, greeting dinamico, period selector integrado. Sesion 15. |
 | src/components/dashboard/DashboardTodayBlock.tsx | **v1** | NEW (S15) | Bloque "Lo que importa hoy" — KPIs destacados + alertas contextuales. Sesion 15. |
@@ -167,13 +172,48 @@
 | src/app/api/memory/seed/route.ts | **v1** | NEW (S12) | Seed inicial de 5 reglas business generales. |
 | prisma/migrations/aurum_usage_log.sql | **v1** | NEW (S13) | Migration idempotente: CREATE TABLE IF NOT EXISTS + 3 CREATE INDEX IF NOT EXISTS. Aplicada manualmente con prisma db execute en preview Y production Neon. |
 | src/app/api/setup/ensure-indexes/route.ts | **v1** | CRITICO (S9, re-ejecutado S14) | POST endpoint con secret key. Crea 6 indices criticos: idx_orders_org_status_date, idx_oi_order_product, idx_cust_org_first_order, idx_adm_org_plat_date, idx_acmd_org_date, idx_pattr_org_model_created. **OBLIGATORIO ejecutar despues de cualquier migracion de DB o branch nuevo de Neon.** Ver PREVENCION #11. |
-| src/app/api/metrics/orders/route.ts | **v3.1** | ACTIVO | Sesion 14: agregado `export const maxDuration = 60;` (red de seguridad). 14 queries en paralelo. La causa raiz del problema reportado en S14 fueron indices faltantes en Neon, no maxDuration. NO TOCAR. |
+| src/app/api/metrics/orders/route.ts | **v3.2** | ACTIVO | Sesion 14: maxDuration=60. Sesion 16: (1) Query #13 promotions UPPER(TRIM) normalizado, (2) Query #23 coupons UPPER(TRIM) normalizado, (3) Query #24 geography reescrita 3 veces — final: mapeo CP numerico (4 digitos VTEX) y CPA (letra) a provincias sin JOIN ni CAST, (4) Logistics gap excluye "Sin dato" del total. REGLA: ver CLAUDE.md #3b antes de tocar queries SQL. |
 | src/app/api/metrics/products/route.ts | **v2.1** | ACTIVO | Sesion 14: agregado `export const maxDuration = 60;` (red de seguridad). NO TOCAR. |
 | middleware.ts | â | Sin cambios | No modificado por Claude |
 
 ---
 
 ## FUNCIONALIDADES COMPLETADAS (NO TOCAR, NO RE-IMPLEMENTAR, NO MENCIONAR COMO PENDIENTES)
+
+### Auditoría VTEX Resumen + COGS fix -- COMPLETADO Y EN PRODUCCION (2026-04-11, Sesion 16)
+
+**10 commits. Auditoría completa de la sección VTEX en Resumen de Pedidos + fix de COGS.**
+
+Commits de esta sesion (cronologico):
+1. `c549dd6` — fix: include order_items costPrice in COGS calculation
+2. `be18c1b` — fix: COGS calculation uses VTEX product costs via SKU cross-reference
+3. `d0b1c7a` — fix: increase connection pool to 8 + auto-retry on failed loads
+4. `d91ca0b` — fix: VTEX resumen audit — 6 improvements (promotions UPPER, coupons UPPER, geography province mapping, hero "sin comision", segmentation NitroPixel note, logistics "Sin dato" note)
+5. `12e25da` — fix: simplify province query — remove heavy JOIN + CAST that caused timeout (PAGE BLANK FIX)
+6. `2041c7d` — fix: geography query handles numeric postal codes (VTEX uses 4-digit CPs)
+7. `1e5a0c0` — docs: add SQL query safety rules (REGLA #3b) + error prevention log (ERRORES_CLAUDE_NO_REPETIR.md)
+8. `1cead2f` — fix: ProfitabilityCard shows "Comisiones VTEX" when source=VTEX, hints to P&L Costos
+9. `cf868de` — fix: replace unicode escapes with real UTF-8 chars in ProfitabilityCard
+10. `9368728` — fix: rename "Sin identificar" to "Clientes MercadoLibre" in CohortsCard
+
+Cambios detallados:
+- **COGS fix**: order_items.costPrice + products.costPrice via SKU cross-reference para VTEX
+- **Cupones normalizados**: UPPER(TRIM) en query #23 — elimina duplicados por case (VOLVEYA/Volveya/volveya)
+- **Promociones normalizadas**: UPPER(TRIM) en query #13 — elimina duplicados por case
+- **Geografia con provincias**: Query #24 reescrita — mapea CP numerico (1xxx→CABA/GBA, 2xxx→Santa Fe/Cordoba, etc.) y CPA (B→Buenos Aires, C→CABA, etc.) a nombres de provincia. Sin JOIN ni CAST.
+- **Hero "Ingreso real"**: Muestra "sin comision cargada" cuando VTEX no tiene comision (en vez de mostrar mismo valor que Neto)
+- **Segmentacion NitroPixel**: Nota en tab device explicando que "Sin dato" = pedidos sin match de NitroPixel
+- **Logistica "Sin dato"**: Nota explicativa + "Sin dato" excluido del calculo de perdida de envio
+- **ProfitabilityCard dinamica**: Label "Comisiones VTEX"/"Comisiones ML" segun source. Hint "Configurar en P&L → Costos" para VTEX.
+- **Unicode fix**: Caracteres \u00ed, \u00f3, \u2212, \u2014 reemplazados por UTF-8 real
+- **CohortsCard**: "Sin identificar" → "Clientes MercadoLibre" con sublabel "ML no comparte datos del comprador"
+
+**ERRORES COMETIDOS Y DOCUMENTADOS:**
+- Query #24 con LEFT JOIN customers + CAST → timeout → pagina en blanco (fix: sin JOIN, sin CAST)
+- Pestaña sync/inventory abierta → pool agotado → pagina en blanco (diagnostico: verificar tabs sync)
+- Git pack corruption en /mnt/nitrosales → workaround: fresh clones
+
+**ESTADO: AUDITORÍA COMPLETA EN PRODUCCIÓN.**
 
 ### Modulo Influencer Marketing (Nitro Creators) -- COMPLETADO Y EN PRODUCCION (2026-04-04)
 
