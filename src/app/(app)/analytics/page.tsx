@@ -171,24 +171,7 @@ interface DiscrepancyData {
   dailyTrend: Array<{ day: string; pixelRevenue: number; platformRevenue: number; spend: number; delta: number }>;
 }
 
-interface NitroScoreData {
-  score: number | null;
-  scoreLabel: string;
-  scoreColor: string;
-  priorScore: number | null;
-  trendDelta: number | null;
-  attributedRevenue: number;
-  leversWithData: number;
-  totalLevers: number;
-  levers: Array<{
-    key: string; name: string; description: string;
-    current: number; target: number; weight: number;
-    status: string; sampleSize: number; minSampleNeeded: number;
-    moneyAtRiskArs: number; unlockTitle: string; unlockSteps: string[];
-  }>;
-  opportunities: Array<{ id: string; title: string; description: string; action: string }>;
-  isCollectingState: boolean;
-}
+// NitroScoreData type removed — NitroScore lives in /pixel
 
 // ── Count-up hook ──
 function useCountUp(target: number, duration = 800): number {
@@ -247,7 +230,7 @@ export default function AnalyticsPage() {
   // Data states
   const [pixelData, setPixelData] = useState<PixelData | null>(null);
   const [discrepancy, setDiscrepancy] = useState<DiscrepancyData | null>(null);
-  const [nitroScore, setNitroScore] = useState<NitroScoreData | null>(null);
+  // NitroScore removed — belongs in /pixel, not analytics
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -263,7 +246,7 @@ export default function AnalyticsPage() {
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<"truth" | "channels">("truth");
-  const [nitroScoreExpanded, setNitroScoreExpanded] = useState(false);
+  // nitroScoreExpanded removed
 
   // Refetch indicator
   const [isRefetching, setIsRefetching] = useState(false);
@@ -275,23 +258,20 @@ export default function AnalyticsPage() {
     setError(null);
 
     try {
-      const [pixelRes, discRes, scoreRes] = await Promise.all([
+      const [pixelRes, discRes] = await Promise.all([
         fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&model=NITRO`),
         fetch(`/api/metrics/pixel/discrepancy?from=${dateFrom}&to=${dateTo}&model=NITRO`),
-        fetch(`/api/nitropixel/data-quality-score?window=7d`),
       ]);
 
       if (!pixelRes.ok) throw new Error(`Pixel: HTTP ${pixelRes.status}`);
 
-      const [pixelJson, discJson, scoreJson] = await Promise.all([
+      const [pixelJson, discJson] = await Promise.all([
         pixelRes.json(),
         discRes.ok ? discRes.json() : null,
-        scoreRes.ok ? scoreRes.json() : null,
       ]);
 
       setPixelData(pixelJson);
       setDiscrepancy(discJson);
-      setNitroScore(scoreJson);
     } catch (e: any) {
       setError(e.message || "Error cargando datos");
     } finally {
@@ -816,121 +796,7 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        {/* ═══════════════════════════════════════════════════════ */}
-        {/* ZONA 5 — NitroScore (Pixel Health)                     */}
-        {/* ═══════════════════════════════════════════════════════ */}
-        {nitroScore && (
-          <div className={`${cardStyle} stagger-card overflow-hidden`} style={{ ...cardShadow, animationDelay: "560ms" }}>
-            <button
-              className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
-              onClick={() => setNitroScoreExpanded(!nitroScoreExpanded)}
-            >
-              <div className="flex items-center gap-4">
-                {/* Score circle */}
-                <div className="relative w-14 h-14 flex-shrink-0">
-                  <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
-                    <circle cx="28" cy="28" r="24" fill="none" stroke="#f1f5f9" strokeWidth="5" />
-                    <circle
-                      cx="28" cy="28" r="24" fill="none"
-                      stroke={nitroScore.scoreColor || "#06b6d4"}
-                      strokeWidth="5" strokeLinecap="round"
-                      strokeDasharray={`${((nitroScore.score || 0) / 100) * 150.8} 150.8`}
-                      className="transition-all duration-700"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-base font-bold text-gray-900">
-                      {nitroScore.score !== null ? nitroScore.score : "—"}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-900">NitroScore</span>
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: `${nitroScore.scoreColor}15`, color: nitroScore.scoreColor }}>
-                      {nitroScore.scoreLabel}
-                    </span>
-                    {nitroScore.trendDelta !== null && nitroScore.trendDelta !== 0 && (
-                      <span className={`text-xs font-semibold ${nitroScore.trendDelta > 0 ? "text-emerald-600" : "text-red-500"}`}>
-                        {nitroScore.trendDelta > 0 ? "+" : ""}{nitroScore.trendDelta.toFixed(0)} pts
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {nitroScore.leversWithData} de {nitroScore.totalLevers} palancas activas
-                    {nitroScore.isCollectingState && " — recopilando datos iniciales"}
-                  </p>
-                </div>
-              </div>
-              <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${nitroScoreExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-
-            {nitroScoreExpanded && (
-              <div className="px-6 pb-6 pt-2 border-t border-gray-50 space-y-4">
-                {/* Levers */}
-                {nitroScore.levers.map((lever) => (
-                  <div key={lever.key} className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-700">{lever.name}</span>
-                        <InfoTip text={lever.description} />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {lever.status === "collecting" ? (
-                          <span className="text-[10px] text-gray-400">Recopilando...</span>
-                        ) : (
-                          <span className="text-xs font-semibold text-gray-900">{lever.current.toFixed(0)}%</span>
-                        )}
-                        <span className="text-[10px] text-gray-400">/ {lever.target}%</span>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                          width: `${Math.min(100, (lever.current / lever.target) * 100)}%`,
-                          backgroundColor: lever.status === "perfect" ? "#10b981" :
-                            lever.status === "great" ? "#06b6d4" :
-                            lever.status === "good" ? "#8b5cf6" :
-                            lever.status === "collecting" ? "#d1d5db" : "#f97316",
-                        }}
-                      />
-                    </div>
-                    {lever.moneyAtRiskArs > 0 && lever.status !== "perfect" && lever.status !== "collecting" && (
-                      <p className="text-[10px] text-amber-600">
-                        {fmtCompact(lever.moneyAtRiskArs)} en revenue en riesgo — {lever.unlockTitle}
-                      </p>
-                    )}
-                  </div>
-                ))}
-
-                {/* Opportunities */}
-                {nitroScore.opportunities.length > 0 && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <h3 className="text-xs font-semibold text-gray-700 mb-2">Oportunidades</h3>
-                    <div className="space-y-2">
-                      {nitroScore.opportunities.slice(0, 3).map((opp) => (
-                        <div key={opp.id} className="flex items-start gap-2 text-xs">
-                          <div className="w-4 h-4 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <svg className="w-2.5 h-2.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">{opp.title}</span>
-                            <p className="text-gray-500 mt-0.5">{opp.description}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        {/* NitroScore moved to /pixel — it's about pixel health, not analytics */}
 
         {/* Footer tagline */}
         <div className="text-center py-4">
