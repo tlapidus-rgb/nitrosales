@@ -593,38 +593,79 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Funnel — 3 cols */}
           <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "380ms" }}>
-            <h2 className="text-sm font-semibold text-gray-900 mb-5">Funnel de Conversión</h2>
-            {funnel ? (
-              <div className="flex items-end gap-1">
-                {[
-                  { label: "Visitas", value: funnel.pageView, color: "#06b6d4" },
-                  { label: "Vio Producto", value: funnel.viewProduct, color: "#8b5cf6" },
-                  { label: "Carrito", value: funnel.addToCart, color: "#f97316" },
-                  { label: "Checkout", value: funnel.checkoutStart, color: "#eab308" },
-                  { label: "Compra", value: funnel.purchase, color: "#22c55e" },
-                ].map((step, i, arr) => {
-                  const maxVal = arr[0].value || 1;
-                  const height = Math.max(20, (step.value / maxVal) * 140);
-                  const convRate = i > 0 && arr[i - 1].value > 0
-                    ? ((step.value / arr[i - 1].value) * 100).toFixed(1)
-                    : null;
+            <h2 className="text-sm font-semibold text-gray-900 mb-6">Funnel de Conversión</h2>
+            {funnel ? (() => {
+              const steps = [
+                { label: "Visitas", value: funnel.pageView, color: "#06b6d4", gradient: "from-cyan-400 to-cyan-600" },
+                { label: "Vio Producto", value: funnel.viewProduct, color: "#8b5cf6", gradient: "from-violet-400 to-violet-600" },
+                { label: "Carrito", value: funnel.addToCart, color: "#f97316", gradient: "from-orange-400 to-orange-600" },
+                { label: "Checkout", value: funnel.checkoutStart, color: "#eab308", gradient: "from-yellow-400 to-yellow-600" },
+                { label: "Compra", value: funnel.purchase, color: "#22c55e", gradient: "from-emerald-400 to-emerald-600" },
+              ];
+              const firstVal = steps[0].value || 1;
 
-                  return (
-                    <div key={step.label} className="flex-1 flex flex-col items-center gap-1.5">
-                      <span className="text-xs font-bold text-gray-900">{fmt(step.value)}</span>
-                      <div
-                        className="w-full rounded-lg transition-all duration-700"
-                        style={{ height, backgroundColor: step.color, opacity: 0.85 }}
-                      />
-                      <span className="text-[10px] text-gray-500 font-medium">{step.label}</span>
-                      {convRate && (
-                        <span className="text-[10px] text-gray-400">{convRate}%</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
+              return (
+                <div className="space-y-0">
+                  {steps.map((step, i) => {
+                    // Width narrows from 100% to minimum 28%
+                    const widthPct = Math.max(28, (step.value / firstVal) * 100);
+                    const prevStepRate = i > 0 && steps[i - 1].value > 0
+                      ? ((step.value / steps[i - 1].value) * 100).toFixed(1)
+                      : null;
+                    const globalRate = i > 0
+                      ? ((step.value / firstVal) * 100).toFixed(2)
+                      : null;
+
+                    return (
+                      <div key={step.label}>
+                        {/* Conversion arrow between steps */}
+                        {i > 0 && (
+                          <div className="flex items-center justify-center h-6 relative">
+                            <div className="flex items-center gap-3">
+                              <span className="text-[11px] font-semibold" style={{ color: step.color }}>
+                                {prevStepRate}%
+                              </span>
+                              <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Funnel bar — centered trapezoid shape */}
+                        <div className="flex justify-center">
+                          <div
+                            className="relative rounded-xl overflow-hidden transition-all duration-700 group/step cursor-default"
+                            style={{
+                              width: `${widthPct}%`,
+                              height: 52,
+                            }}
+                          >
+                            {/* Gradient background */}
+                            <div className={`absolute inset-0 bg-gradient-to-r ${step.gradient} opacity-90 group-hover/step:opacity-100 transition-opacity`} />
+
+                            {/* Content overlay */}
+                            <div className="relative h-full flex items-center justify-between px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-white text-sm font-semibold">{step.label}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-white text-lg font-bold tracking-tight">{fmt(step.value)}</span>
+                                {globalRate && (
+                                  <span className="text-white/60 text-[11px] font-medium">
+                                    {globalRate}% del total
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })() : (
               <div className="text-center text-gray-400 text-sm py-8">Sin datos de funnel</div>
             )}
           </div>
