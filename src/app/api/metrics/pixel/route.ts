@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
         ORDER BY count DESC
       ` as Promise<Array<{ type: string; count: number; uniqueVisitors: number }>>,
 
-      // 7. Popular pages (top 10)
+      // 7. Popular pages (top 50 raw — frontend groups by simplified path, so we need extra)
       prisma.$queryRaw`
         SELECT
           pe."pageUrl" as url,
@@ -225,7 +225,7 @@ export async function GET(request: NextRequest) {
           AND pe.type = 'PAGE_VIEW'
         GROUP BY 1
         ORDER BY "pageViews" DESC
-        LIMIT 10
+        LIMIT 50
       ` as Promise<Array<{ url: string; pageViews: number; uniqueVisitors: number }>>,
 
       // 8. Attribution by model

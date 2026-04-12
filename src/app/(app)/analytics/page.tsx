@@ -1186,14 +1186,18 @@ export default function AnalyticsPage() {
 
               const simplifyUrl = (url: string) => {
                 try {
-                  const path = new URL(url).pathname;
+                  const parsed = new URL(url);
+                  const path = decodeURIComponent(parsed.pathname);
                   if (path === "/" || path === "") return "Home";
-                  // Keep up to 2 path segments, clean slashes
                   const clean = path.replace(/^\//, "").replace(/\/$/, "");
-                  return clean.split("/").slice(0, 2).join("/");
+                  // Keep first meaningful segment, prettify slug
+                  const segments = clean.split("/").filter(Boolean);
+                  const label = segments.slice(0, 2).join(" / ");
+                  // Convert slugs: "bebes-y-primera-infancia" → "Bebes y Primera Infancia"
+                  return label.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
                 } catch {
-                  const clean = url.replace(/https?:\/\/[^/]+/, "").replace(/^\//, "").replace(/\?.*$/, "");
-                  return clean || "Home";
+                  const clean = decodeURIComponent(url).replace(/https?:\/\/[^/]+/, "").replace(/^\//, "").replace(/\?.*$/, "");
+                  return clean.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || "Home";
                 }
               };
 
