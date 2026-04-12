@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-12 (Sesion 17 — Resilience pedidos + sync on-demand + limpieza crons + browser guard sync endpoints)
+## Ultima actualizacion: 2026-04-12 (Sesion 18 — NitroPixel Analytics Fase 1+2: world-class analytics dashboard con first-party pixel data)
 
 ---
 
@@ -59,7 +59,7 @@
 | src/app/(app)/orders/error.tsx | **v1** | ACTIVO | **Sesion 17**: Next.js Error Boundary para orders. Muestra "Recargar seccion" en vez de pantalla en blanco. |
 | src/app/(app)/finanzas/page.tsx | **v3** | ACTIVO | P&L dual view (Ejecutivo/Detallado). InfoTips explicativos. Health semaphore. Payment fees, IVA, discounts. |
 | src/app/(app)/finanzas/costos/page.tsx | **v1** | ACTIVO | 1532 lineas. 8 categorias costos, perfil fiscal, tarifas envio, constancia AFIP import. |
-| src/app/(app)/analytics/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
+| src/app/(app)/analytics/page.tsx | **v3** | ACTIVO | **Sesion 18**: Rewrite completo. 7 zonas: KPI Strip, Channel Truth Table + ROAS, Attribution Indicator (read-only, respeta config NitroPixel), Channel Role Map (descubrimiento/asistencia/cierre), Funnel + Journeys (10, static widths), Revenue Intelligence (truth vs channels toggle), Conversion Speed (lag buckets), Devices (PieChart) + Top Paginas (visitantes unicos, sin checkout, slugs prettified), Pixel Coverage Timeline (AreaChart + ReferenceLine 80%). ~1300 lineas. Payment gateway filter (gocuotas etc). Try-catch por zona. |
 | src/app/(app)/pixel/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
 | src/app/(app)/mercadolibre/page.tsx | **v2** | ACTIVO | PeriodSelector integrado (2026-04-01). |
 | src/app/(app)/seo/page.tsx | **v3** | ACTIVO | PeriodSelector + audit fixes (country translations). |
@@ -363,6 +363,59 @@
 - Pospuesto hasta que se configure
 
 ## HISTORIAL DE CAMBIOS
+
+### 2026-04-12 — Sesion 18 (NitroPixel Analytics Fase 1+2: world-class first-party analytics dashboard)
+
+**Commits**: `fadc25b`, `4be6b3a`, `8a33e22`, `b115345`, `349e445`, `b226cd7`, `05bfbda`, `3a1b89b`, `244dca5`, `a8860a1`, `ca4bbbd`, `6a7102a`, `364e978`
+**Deploy**: Todo directo en main, Vercel auto-deploy.
+
+#### OBJETIVO
+Reemplazar analytics basado en GA4 con dashboard de NitroPixel first-party data. "Google mide para Google. Meta mide para Meta. NitroPixel mide para vos."
+
+#### FASE 1 — 4 zonas implementadas
+1. **KPI Strip**: Visitantes, Sesiones, PageViews, Identificados, Carrito, Compradores, con cambios % vs periodo anterior
+2. **Channel Truth Table**: ROAS real (pixel) vs ROAS plataforma, Truth Score (pixelRevenue/platformRevenue), spend, con tooltips de rol de canal (Descubrimiento/Asistencia/Cierre). Attribution Indicator read-only que muestra modelo activo desde config NitroPixel (no seleccionable por usuario).
+3. **Funnel + Journeys**: Funnel con anchos estaticos [100,84,68,52,38] (no proporcional a datos). 10 journeys recientes con touchpoints visuales.
+4. **Revenue Intelligence**: Toggle truth/channels. Truth = AreaChart pixel vs plataforma + ad spend. Channels = BarChart stacked por canal.
+
+#### FASE 2 — 3 zonas nuevas
+5. **Velocidad de Conversion**: Barras horizontales de conversion lag (Mismo dia, 1-3 dias, etc.) con auto-insight textual.
+6. **Dispositivos + Top Paginas**: PieChart ring mobile/desktop/tablet + Top 6 paginas por visitantes unicos (sin checkout, slugs prettified, URLs decoded, productos numericos como "Producto #726").
+7. **Pixel Coverage Timeline**: AreaChart de cobertura % por dia con ReferenceLine 80% y alerta automatica si hay drops.
+
+#### CHANNEL ROLES — Backend computation
+- Query SQL dedicada sobre TODAS las atribuciones del periodo (no solo 15 journeys recientes)
+- Computa first_touch, assist_touch, last_touch, solo_touch por source
+- Frontend muestra 3 columnas: Descubrimiento, Asistencia, Cierre con logos de canal y porcentajes
+
+#### GOCUOTAS CLEANUP — Datos historicos corruptos
+- gocuotas (medio de pago) aparecia como canal de trafico en attribution data
+- El attribution engine ya tenia PAYMENT_GATEWAY_PATTERNS pero habia 1,375 atribuciones historicas con gocuotas
+- Limpieza en 3 pasos: solo-gocuotas→direct (725), all-gocuotas-multi→direct (85), mixed-multi→removido touchpoint (565)
+- Aun despues de limpieza DB, Vercel edge cache servia data vieja → bust cache key a v2
+- Agregado PAYMENT_GATEWAY_SOURCES blacklist filter en respuesta de pixel route Y discrepancy route
+
+#### BUGS ENCONTRADOS Y CORREGIDOS
+1. **Client-side exception post-Fase 2**: Faltaban try-catch en zonas nuevas + device field mismatch (API devuelve `device`, frontend esperaba `deviceType`). Fix: try-catch por zona + normalizacion defensiva.
+2. **Top Paginas vacias (Home x6, 0 views)**: API devuelve `url` y `pageViews`, frontend buscaba `pageUrl` y `views`. Fix: normalizacion con fallback a ambos nombres.
+3. **Top Paginas duplicadas (Home x2, checkout x3)**: Query SQL agrupaba por URL completa, frontend simplificaba despues. Fix: agrupar por label simplificado y sumar views.
+4. **URLs encoded (`1%20a%203%20a%C3%B1os`)**: Faltaba `decodeURIComponent`. Fix: decode en prettifyPath.
+5. **Checkout > Home (imposible)**: Query usaba `COUNT(*)` (eventos crudos) en vez de visitantes unicos. Checkout genera muchos eventos por usuario (cada step). Fix: `COUNT(DISTINCT visitorId)` + exclusion de checkout paths.
+6. **"726" como pagina**: Paths numericos eran IDs de producto sin slug. Fix: detectar regex `/^\d+$/` y mostrar "Producto #726".
+7. **HTTP 500 (API crash)**: `regexp_replace` con `'\?'` en template literal — JS consume el backslash antes de que llegue a PostgreSQL. Fix: reemplazar por `SPLIT_PART(url, '?', 1)`.
+
+#### DECISION DE USUARIO — Roadmap Fase 3+
+Tomy decidio que en analytics solo agregaria:
+- **Tasas de conversion** (por fuente, categoria, marca, producto, dispositivo, dia/hora)
+- **Journey Intelligence** (combinaciones ganadoras, largo optimo, canales catalizadores)
+El resto del roadmap propuesto (rentabilidad real, inteligencia de clientes, creative intelligence, alertas) encaja mejor en otros features/secciones de NitroSales.
+
+#### ARCHIVOS MODIFICADOS
+- `src/app/(app)/analytics/page.tsx` (v2 → v3, ~1300 lineas, rewrite completo)
+- `src/app/api/metrics/pixel/route.ts` (v1 → v2, 26 queries, nuevos campos)
+- `src/app/api/metrics/pixel/discrepancy/route.ts` (v1 → v1.1, payment gateway filter)
+
+---
 
 ### 2026-04-08 — Sesion 15 (Dashboard overhaul: sistema de slots por filas + widgets multi-formato + filtros por card + popover via portal)
 
@@ -1383,8 +1436,8 @@ Antes de CUALQUIER modificacion a codigo de NitroSales:
 | src/lib/pixel/attribution.ts | ACTIVO | Motor de atribucion session-based v2. 4 modelos: LAST_CLICK, FIRST_CLICK, LINEAR, NITRO. |
 | src/app/api/pixel/script/route.ts | ACTIVO | Script JS servido a tiendas via GTM. Fresh/stale signal detection. |
 | src/app/api/pixel/event/route.ts | ACTIVO | Receptor de eventos. Bot filter, CAPI integration. |
-| src/app/api/metrics/pixel/route.ts | ACTIVO | Dashboard API con 18+ queries paralelas. |
-| src/app/api/metrics/pixel/discrepancy/route.ts | NUEVO | Revenue discrepancy report (pixel vs plataforma). |
+| src/app/api/metrics/pixel/route.ts | **v2** | ACTIVO | **Sesion 18**: 26 queries paralelas. Nuevas: conversionLag (buckets), deviceBreakdown, popularPages (SPLIT_PART, uniqueVisitors, sin checkout), perDayCoverage, channelRoles (first/assist/last/solo touch), nitroWeights en meta. PAYMENT_GATEWAY_SOURCES blacklist filter. Cache key v2 (bust post-gocuotas cleanup). |
+| src/app/api/metrics/pixel/discrepancy/route.ts | **v1.1** | ACTIVO | Revenue discrepancy report (pixel vs plataforma). Sesion 18: PAYMENT_GATEWAY_SOURCES filter aplicado. |
 | src/lib/pixel/capi.ts | ACTIVO | Meta Conversions API integration. |
 | src/lib/pixel/identity.ts | ACTIVO | Identity resolution, cross-device merge. |
 
