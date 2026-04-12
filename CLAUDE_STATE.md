@@ -2751,13 +2751,26 @@ Los crons de sincronizacion (sync, chain, meta, google-ads) corrian **cada 15 mi
 | `src/app/api/sync/chain/route.ts` | Browser guard |
 | `src/app/api/sync/route.ts` | Browser guard |
 
+### Pestanas de sync/inventory abriendose solas (RESUELTO)
+
+El usuario reporto 3 veces que pestanas del navegador se abrian solas mostrando el JSON crudo de `/api/sync/inventory`. Se investigo el codigo de la app completo (sin encontrar `window.open`, links, redirects — nada).
+
+**Causa raiz: una tarea programada de Claude Desktop ("Inventory sync runner")**. Esta tarea habia sido creada en una sesion anterior para completar el sync inicial del catalogo VTEX (29K+ SKUs). Estaba configurada con `*/5 * * * *` (cada 5 minutos) y nunca se desactivo despues de cumplir su proposito. Claude Desktop abria el endpoint como una pestana del navegador cada vez que la ejecutaba.
+
+**Solucion:**
+1. Se desactivo la tarea programada "Inventory sync runner" (via `update_scheduled_task`, `enabled: false`)
+2. Se agrego browser navigation guard como prevencion extra en los 3 endpoints de sync — si un navegador intenta abrirlos, redirige al dashboard en vez de mostrar JSON
+
+**Leccion clave: antes de buscar bugs en el codigo de la app, verificar las tareas programadas de Claude Desktop** (seccion "Programado" en el sidebar izquierdo de Cowork).
+
 ### Estado final de produccion
 
-- **Commit en main**: `a9cc35f`
+- **Commit en main**: `a918590`
 - **Pagina de pedidos**: Nunca mas queda en blanco. 3 capas de proteccion. Grafico con lineas VTEX (rosa) y MELI (ambar).
 - **Crons**: 9 crons (antes 11). La mayoria 1x/dia. Meta y Google Ads son on-demand.
 - **Sync model**: VTEX/MELI via webhooks (real-time) + safety net 1x/dia. Meta/Google Ads on-demand cuando usuario abre la pagina.
-- **Browser guard**: Los 3 endpoints de sync (/api/sync, /api/sync/chain, /api/sync/inventory) detectan si un navegador intenta abrirlos como pestana y redirigen al dashboard. Esto evita que aparezcan pestanas con JSON crudo.
+- **Browser guard**: Los 3 endpoints de sync (/api/sync, /api/sync/chain, /api/sync/inventory) detectan si un navegador intenta abrirlos como pestana y redirigen al dashboard. Prevencion extra.
+- **Tareas programadas Claude Desktop**: "Inventory sync runner" DESACTIVADA. "Nitrosales brain sync" activa (1x/dia 8am).
 
 ### PREVENCION #13: Crons agresivos saturan funciones serverless
 
@@ -2775,10 +2788,17 @@ Los crons de sincronizacion (sync, chain, meta, google-ads) corrian **cada 15 mi
   3. Los crons de Vercel — si hay syncs corriendo al mismo tiempo
   4. RECIEN ENTONCES revisar el codigo del frontend
 
-### PREVENCION #15: Endpoints de API NUNCA deben ser navegables como pagina
+### PREVENCION #15: Tareas programadas de Claude Desktop pueden causar efectos secundarios
 
-- **CONTEXTO**: Sesion 17. Pestanas del navegador se abrian solas mostrando el JSON crudo de /api/sync/inventory. El usuario reporto 3 veces antes de que se resolviera.
-- **REGLA**: Todo endpoint de sync/cron que NO esta pensado para uso directo del browser debe tener un "browser navigation guard": detectar `sec-fetch-dest: document` o `sec-fetch-mode: navigate` y redirigir a `/` en vez de devolver JSON.
+- **CONTEXTO**: Sesion 17. Pestanas del navegador se abrian solas cada 5 minutos mostrando JSON de /api/sync/inventory. Se investigo el codigo de la app SIN encontrar nada. La causa real era una tarea programada de Claude Desktop ("Inventory sync runner") creada en una sesion anterior y nunca desactivada.
+- **REGLA**: Cuando algo inexplicable sucede en el navegador del usuario (pestanas que se abren solas, requests que aparecen sin trigger), ANTES de investigar el codigo de la app, **verificar las tareas programadas de Claude Desktop** con `list_scheduled_tasks`.
+- **REGLA**: Toda tarea programada de Claude Desktop que se cree para un proposito temporal (sync inicial, backfill, etc.) debe desactivarse INMEDIATAMENTE despues de cumplir su objetivo. No dejarla corriendo indefinidamente.
+- **REGLA**: Las tareas programadas de Claude Desktop aparecen en el sidebar izquierdo de Cowork bajo "Programado".
+
+### PREVENCION #16: Endpoints de API deben tener browser navigation guard
+
+- **CONTEXTO**: Sesion 17. Como prevencion extra, se agrego un guard a los endpoints de sync.
+- **REGLA**: Todo endpoint de sync/cron que NO esta pensado para uso directo del browser debe detectar `sec-fetch-dest: document` o `sec-fetch-mode: navigate` y redirigir a `/` en vez de devolver JSON.
 - **REGLA**: Esto no afecta a llamadas server-to-server (fetch desde crons o desde chain route) porque no envian esos headers.
 - **PATRON**: Agregar al inicio del handler GET:
   ```

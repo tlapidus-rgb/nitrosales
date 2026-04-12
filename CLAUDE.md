@@ -176,6 +176,17 @@ headers y funcionan normalmente.
 mostrando el JSON crudo de los endpoints de sync. Este guard evita
 que el usuario vea JSON aunque algo intente abrir esas URLs.
 
+**Causa raíz encontrada:** Era una tarea programada de Claude Desktop
+("Inventory sync runner", cron `*/5 * * * *`) que se había creado en
+una sesión anterior para completar el sync inicial del catálogo VTEX
+y nunca se desactivó. Se desactivó la tarea y se dejó el guard como
+prevención extra.
+
+**Lección:** Cuando aparezcan comportamientos inexplicables en el
+navegador (pestañas que se abren solas, requests sin trigger visible),
+verificar PRIMERO las tareas programadas de Claude Desktop
+(`list_scheduled_tasks`) antes de buscar bugs en el código de la app.
+
 ---
 
 _Última actualización: 2026-04-12 — Modelo main-only + sync on-demand + browser guard._
