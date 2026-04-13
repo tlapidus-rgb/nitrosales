@@ -567,6 +567,134 @@ function ProductCRTable({ products }: { products: ProductRow[] }) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// STICKY SECTION NAV — Floating pill bar with scroll spy
+// ══════════════════════════════════════════════════════════════
+const SECTIONS = [
+  { id: "sec-kpis", label: "KPIs" },
+  { id: "sec-verdad", label: "Verdad" },
+  { id: "sec-funnel", label: "Funnel" },
+  { id: "sec-revenue", label: "Revenue" },
+  { id: "sec-velocidad", label: "Velocidad" },
+  { id: "sec-dispositivos", label: "Dispositivos" },
+  { id: "sec-cobertura", label: "Cobertura" },
+  { id: "sec-journeys", label: "Journeys" },
+  { id: "sec-conversion", label: "Conversión" },
+] as const;
+
+function SectionNav() {
+  const [activeSection, setActiveSection] = useState<string>("");
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    // Show nav after scrolling past the header area
+    const onScroll = () => {
+      setIsVisible(window.scrollY > 200);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    // IntersectionObserver scroll spy — detects which section is in view
+    const observers: IntersectionObserver[] = [];
+    const visibleSections = new Map<string, number>();
+
+    SECTIONS.forEach((sec) => {
+      const el = document.getElementById(sec.id);
+      if (!el) return;
+      const obs = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            visibleSections.set(sec.id, entry.intersectionRatio);
+          } else {
+            visibleSections.delete(sec.id);
+          }
+          // Pick the section with highest visibility
+          let best = "";
+          let bestRatio = 0;
+          visibleSections.forEach((ratio, id) => {
+            if (ratio >= bestRatio) { bestRatio = ratio; best = id; }
+          });
+          // Fallback: if nothing visible, find closest section above viewport
+          if (!best) {
+            let closestAbove = "";
+            let closestDist = Infinity;
+            SECTIONS.forEach(s => {
+              const sEl = document.getElementById(s.id);
+              if (!sEl) return;
+              const rect = sEl.getBoundingClientRect();
+              if (rect.top < 120 && Math.abs(rect.top) < closestDist) {
+                closestDist = Math.abs(rect.top);
+                closestAbove = s.id;
+              }
+            });
+            best = closestAbove;
+          }
+          if (best) setActiveSection(best);
+        },
+        { threshold: [0, 0.1, 0.3, 0.5], rootMargin: "-80px 0px -40% 0px" }
+      );
+      obs.observe(el);
+      observers.push(obs);
+    });
+
+    return () => observers.forEach(o => o.disconnect());
+  }, []);
+
+  const scrollTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return (
+    <div
+      className="sticky top-0 z-30 transition-all duration-500"
+      style={{
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? "translateY(0)" : "translateY(-12px)",
+        pointerEvents: isVisible ? "auto" : "none",
+      }}
+    >
+      <div
+        className="mx-auto max-w-fit rounded-2xl px-1.5 py-1.5 flex items-center gap-0.5 overflow-x-auto scrollbar-hide"
+        style={{
+          background: "rgba(255,255,255,0.82)",
+          backdropFilter: "blur(16px) saturate(1.8)",
+          WebkitBackdropFilter: "blur(16px) saturate(1.8)",
+          boxShadow: "0 2px 20px rgba(15,23,42,0.08), 0 1px 3px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.6)",
+          border: "1px solid rgba(15,23,42,0.06)",
+        }}
+      >
+        {SECTIONS.map((sec) => {
+          const isActive = activeSection === sec.id;
+          return (
+            <button
+              key={sec.id}
+              onClick={() => scrollTo(sec.id)}
+              className={`relative whitespace-nowrap px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all duration-300 ${
+                isActive
+                  ? "text-white"
+                  : "text-gray-500 hover:text-gray-800 hover:bg-gray-100/60"
+              }`}
+              style={isActive ? {
+                background: "linear-gradient(135deg, #f97316, #fb923c)",
+                boxShadow: "0 2px 8px rgba(249,115,22,0.3)",
+              } : undefined}
+            >
+              {isActive && (
+                <span className="absolute top-0.5 right-1 w-1 h-1 rounded-full bg-white/80 animate-pulse" />
+              )}
+              {sec.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════
 export default function AnalyticsPage() {
@@ -770,9 +898,18 @@ export default function AnalyticsPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════ */}
+        {/* STICKY SECTION NAVIGATOR                                */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <SectionNav />
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* BLOQUE 1 — RESUMEN                                      */}
+        {/* ═══════════════════════════════════════════════════════ */}
+
+        {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 1 — KPI Strip                                     */}
         {/* ═══════════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div id="sec-kpis" className="grid grid-cols-2 lg:grid-cols-4 gap-4 scroll-mt-20">
           {[
             {
               label: "Revenue Atribuido", value: fmtCompact(revCountUp),
@@ -828,7 +965,7 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 2 — Channel Truth Table                           */}
         {/* ═══════════════════════════════════════════════════════ */}
-        <div className={`${cardStyle} stagger-card`} style={{ ...cardShadow, animationDelay: "300ms" }}>
+        <div id="sec-verdad" className={`${cardStyle} stagger-card scroll-mt-20`} style={{ ...cardShadow, animationDelay: "300ms" }}>
           {/* Header row: title + verdict */}
           <div className="px-6 pt-4 pb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1092,9 +1229,18 @@ export default function AnalyticsPage() {
         })()}
 
         {/* ═══════════════════════════════════════════════════════ */}
+        {/* BLOQUE 2 — COMPORTAMIENTO                               */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <div className="flex items-center gap-3 pt-2">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-[0.2em]">Comportamiento</span>
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 3 — Funnel + Customer Journeys                    */}
         {/* ═══════════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div id="sec-funnel" className="grid grid-cols-1 lg:grid-cols-5 gap-4 scroll-mt-20">
           {/* Funnel — 3 cols */}
           <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "380ms" }}>
             <h2 className="text-sm font-semibold text-gray-900 mb-6">Funnel de Conversión</h2>
@@ -1252,7 +1398,7 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 4 — Revenue Intelligence                          */}
         {/* ═══════════════════════════════════════════════════════ */}
-        <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "500ms" }}>
+        <div id="sec-revenue" className={`${cardStyle} p-6 stagger-card scroll-mt-20`} style={{ ...cardShadow, animationDelay: "500ms" }}>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-semibold text-gray-900">Revenue Intelligence</h2>
             <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
@@ -1345,6 +1491,7 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 5 — Conversion Speed                              */}
         {/* ═══════════════════════════════════════════════════════ */}
+        <div id="sec-velocidad" className="scroll-mt-20" />
         {(() => {
           try {
           const lagData = (pixelData?.attribution?.conversionLag || []).map(d => ({
@@ -1426,7 +1573,7 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 6 — Devices & Top Pages                           */}
         {/* ═══════════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div id="sec-dispositivos" className="grid grid-cols-1 lg:grid-cols-5 gap-4 scroll-mt-20">
           {/* Device Breakdown — 3 cols */}
           <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "620ms" }}>
             <h2 className="text-sm font-semibold text-gray-900 mb-4">Dispositivos</h2>
@@ -1584,6 +1731,7 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 7 — Pixel Coverage Timeline                       */}
         {/* ═══════════════════════════════════════════════════════ */}
+        <div id="sec-cobertura" className="scroll-mt-20" />
         {(() => {
           try {
           const coverage = (pixelData?.perDayCoverage || []).map(d => ({
@@ -1661,8 +1809,18 @@ export default function AnalyticsPage() {
         })()}
 
         {/* ═══════════════════════════════════════════════════════ */}
+        {/* BLOQUE 3 — INTELLIGENCE                                 */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        <div className="flex items-center gap-3 pt-2">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-[0.2em]">Intelligence</span>
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 9 — Journey Intelligence                          */}
         {/* ═══════════════════════════════════════════════════════ */}
+        <div id="sec-journeys" className="scroll-mt-20" />
         {(() => {
           try {
           const ji = pixelData?.journeyIntelligence;
@@ -1885,6 +2043,7 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 8 — Tasas de Conversión (100% NitroPixel)          */}
         {/* ═══════════════════════════════════════════════════════ */}
+        <div id="sec-conversion" className="scroll-mt-20" />
         {(() => {
           try {
           const cr = pixelData?.conversionRates;
