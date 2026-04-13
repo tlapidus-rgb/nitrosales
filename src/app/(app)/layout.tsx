@@ -3,7 +3,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 type NavItem = {
   href: string;
@@ -192,6 +192,52 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+
+// ── PixelBrain animated icon for sidebar ──
+function PixelBrainSidebar({ active, size = 20 }: { active: boolean; size?: number }) {
+  const color = active ? "#06b6d4" : "#64748b";
+  return (
+    <svg width={size} height={size} viewBox="0 0 300 300" className="flex-shrink-0">
+      <defs>
+        <radialGradient id="sidebarCore" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#a5f3fc" stopOpacity={active ? 1 : 0.4} />
+          <stop offset="50%" stopColor={color} stopOpacity={active ? 0.9 : 0.3} />
+          <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+        </radialGradient>
+        <style>{`
+          @keyframes sidebarOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes sidebarOrbitR { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+          @keyframes sidebarPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+          @keyframes sidebarBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+        `}</style>
+      </defs>
+      {/* Orbits */}
+      <g style={{ transformOrigin: "150px 150px", animation: active ? "sidebarOrbitR 20s linear infinite" : "none" }}>
+        <circle cx="150" cy="150" r="120" fill="none" stroke={color} strokeOpacity={active ? 0.2 : 0.1} strokeWidth="1" strokeDasharray="4 8" />
+        {active && <circle cx="270" cy="150" r="3" fill={color} opacity="0.7" />}
+      </g>
+      <g style={{ transformOrigin: "150px 150px", animation: active ? "sidebarOrbit 14s linear infinite" : "none" }}>
+        <circle cx="150" cy="150" r="95" fill="none" stroke="#8b5cf6" strokeOpacity={active ? 0.2 : 0.08} strokeWidth="1" strokeDasharray="3 6" />
+        {active && <circle cx="55" cy="150" r="2.5" fill="#a855f7" opacity="0.6" />}
+      </g>
+      {/* Neurons */}
+      {[0,1,2,3,4,5].map(i => {
+        const angle = (i / 6) * Math.PI * 2;
+        const r = 85;
+        const x = 150 + Math.cos(angle) * r;
+        const y = 150 + Math.sin(angle) * r;
+        return <circle key={i} cx={x} cy={y} r="3" fill={color} opacity={active ? 0.8 : 0.25} style={active ? { animation: `sidebarPulse 2s ease-in-out infinite ${i * 300}ms` } : {}} />;
+      })}
+      {/* Core */}
+      <g style={active ? { transformOrigin: "150px 150px", animation: "sidebarBreath 3s ease-in-out infinite" } : {}}>
+        <circle cx="150" cy="150" r="50" fill="url(#sidebarCore)" />
+        <circle cx="150" cy="150" r="28" fill={active ? "#a5f3fc" : "#94a3b8"} opacity={active ? 0.85 : 0.2} />
+        <circle cx="150" cy="150" r="16" fill="white" opacity={active ? 0.9 : 0.15} />
+      </g>
+    </svg>
+  );
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();

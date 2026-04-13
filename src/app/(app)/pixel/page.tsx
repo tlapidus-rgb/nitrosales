@@ -205,7 +205,7 @@ function DarkStyles() {
       @keyframes pixelNeuronPulse { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.6); } }
       @keyframes pixelSynapseFlow { 0% { stroke-dashoffset: 100; } 50% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
       @keyframes pixelBreath { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.05); filter: brightness(1.2); } }
-      .attr-refetching { position: relative; }
+      .attr-refetching { position: relative; transition: opacity 0.4s ease; }
       .attr-refetching::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 20; pointer-events: none; background: linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.06) 30%, rgba(6,182,212,0.12) 50%, rgba(6,182,212,0.06) 70%, transparent 100%); background-size: 200% 100%; animation: attrShimmer 1.8s ease-in-out infinite; }
       .attr-stagger > * { animation: attrFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
       .attr-stagger > *:nth-child(1) { animation-delay: 0ms; }
@@ -219,6 +219,8 @@ function DarkStyles() {
       .attr-glass { background: linear-gradient(160deg, rgba(15,23,42,0.85), rgba(8,12,24,0.95)); border: 1px solid rgba(6,182,212,0.12); }
       .attr-glass:hover { border-color: rgba(6,182,212,0.25); }
       .attr-grid-bg { background-image: linear-gradient(rgba(6,182,212,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.08) 1px, transparent 1px); background-size: 40px 40px; animation: attrGridDrift 60s linear infinite; }
+      input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; }
+      input[type="range"]::-moz-range-thumb { appearance: none; border: none; background: transparent; }
       .scrollbar-dark::-webkit-scrollbar { width: 4px; }
       .scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
       .scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.2); border-radius: 2px; }
@@ -320,7 +322,22 @@ export default function PixelPage() {
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
-  const isRefetching = loading && !!data;
+  // Debounced refetching state — minimum 800ms to avoid flash/glitch
+  const [showRefetching, setShowRefetching] = useState(false);
+  const refetchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    const isActuallyRefetching = loading && !!data;
+    if (isActuallyRefetching) {
+      setShowRefetching(true);
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+      refetchTimerRef.current = null;
+    } else if (showRefetching) {
+      // Keep showing for at least 800ms total
+      refetchTimerRef.current = setTimeout(() => setShowRefetching(false), 600);
+    }
+    return () => { if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current); };
+  }, [loading, data]);
+  const isRefetching = showRefetching;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const scrollRef = useRef<HTMLElement | null>(null);
 
@@ -445,12 +462,16 @@ export default function PixelPage() {
       <DarkStyles />
 
       {/* ── Refetching overlay ── */}
-      {isRefetching && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full flex items-center gap-2" style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.25)", backdropFilter: "blur(12px)" }}>
-          <div className="w-2 h-2 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1s ease-in-out infinite" }} />
-          <span className="text-[11px] font-medium text-cyan-300">Recalculando atribuciones...</span>
+      {/* Recalculando pill with smooth fade */}
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full flex items-center gap-2.5 pointer-events-none" style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.25)", backdropFilter: "blur(16px)", opacity: isRefetching ? 1 : 0, transform: isRefetching ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(-8px)", transition: "opacity 0.4s cubic-bezier(0.16,1,0.3,1), transform 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
+        <div className="w-2 h-2 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1s ease-in-out infinite" }} />
+        <span className="text-[11px] font-semibold text-cyan-300 tracking-wide">Recalculando atribuciones</span>
+        <div className="flex gap-0.5">
+          <div className="w-1 h-1 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1.2s ease-in-out infinite 0ms" }} />
+          <div className="w-1 h-1 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1.2s ease-in-out infinite 200ms" }} />
+          <div className="w-1 h-1 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1.2s ease-in-out infinite 400ms" }} />
         </div>
-      )}
+      </div>
 
       {/* ── Background ambient ── */}
       <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
@@ -493,21 +514,100 @@ export default function PixelPage() {
             ))}
           </div>
 
-          {/* Precision weights editor — inline in header */}
-          {selectedModel === "CUSTOM" && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.15)" }}>
-              {(["first", "middle", "last"] as const).map(k => (
-                <div key={k} className="flex items-center gap-1">
-                  <span className="text-[9px] text-violet-400/60 uppercase">{k === "first" ? "1ro" : k === "last" ? "Últ" : "Med"}</span>
-                  <input type="number" min={0} max={100} value={editingWeights[k]} onChange={e => setEditingWeights({ ...editingWeights, [k]: Number(e.target.value) })} className="w-10 px-1 py-0.5 rounded text-[11px] text-white font-mono text-center" style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(139,92,246,0.2)" }} />
+          {/* Precision weights — Premium visual sliders */}
+          {selectedModel === "CUSTOM" && (() => {
+            const total = editingWeights.first + editingWeights.middle + editingWeights.last;
+            const isValid = total === 100;
+            const sliders: Array<{ key: "first" | "middle" | "last"; label: string; emoji: string; color: string; gradient: string }> = [
+              { key: "first", label: "Primer clic", emoji: "🎯", color: "#06b6d4", gradient: "linear-gradient(90deg, #06b6d4, #22d3ee)" },
+              { key: "middle", label: "Intermedios", emoji: "🔗", color: "#8b5cf6", gradient: "linear-gradient(90deg, #8b5cf6, #a78bfa)" },
+              { key: "last", label: "Último clic", emoji: "💰", color: "#f97316", gradient: "linear-gradient(90deg, #f97316, #fb923c)" },
+            ];
+            const handleSlider = (key: "first" | "middle" | "last", val: number) => {
+              const newW = { ...editingWeights, [key]: val };
+              const others = (["first", "middle", "last"] as const).filter(k => k !== key);
+              const remaining = 100 - val;
+              const otherSum = newW[others[0]] + newW[others[1]];
+              if (otherSum > 0) {
+                newW[others[0]] = Math.round((newW[others[0]] / otherSum) * remaining);
+                newW[others[1]] = remaining - newW[others[0]];
+              } else {
+                newW[others[0]] = Math.round(remaining / 2);
+                newW[others[1]] = remaining - newW[others[0]];
+              }
+              setEditingWeights(newW);
+            };
+            return (
+              <div className="mt-1 rounded-2xl overflow-hidden" style={{ background: "rgba(15,23,42,0.7)", border: "1px solid rgba(139,92,246,0.15)", backdropFilter: "blur(12px)" }}>
+                {/* Visual proportion bar */}
+                <div className="flex h-2">
+                  {sliders.map(s => (
+                    <div key={s.key} className="transition-all duration-300" style={{ width: `${editingWeights[s.key]}%`, background: s.gradient, minWidth: editingWeights[s.key] > 0 ? "4px" : "0" }} />
+                  ))}
                 </div>
-              ))}
-              <button onClick={saveNitroWeights} disabled={savingWeights} className="px-2 py-0.5 rounded text-[10px] font-bold text-white" style={{ background: "linear-gradient(135deg, #8b5cf6, #a855f7)", opacity: savingWeights ? 0.5 : 1 }}>
-                {savingWeights ? "..." : "Aplicar"}
-              </button>
-              {weightsError && <span className="text-[9px] text-red-400">{weightsError}</span>}
-            </div>
-          )}
+                {/* Sliders */}
+                <div className="p-4 space-y-3">
+                  {sliders.map(s => (
+                    <div key={s.key} className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
+                        <span className="text-sm">{s.emoji}</span>
+                        <span className="text-[11px] font-medium text-white/70">{s.label}</span>
+                      </div>
+                      <div className="flex-1 relative group">
+                        <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(30,41,59,0.8)" }}>
+                          <div className="h-full rounded-full transition-all duration-200" style={{ width: `${editingWeights[s.key]}%`, background: s.gradient, boxShadow: `0 0 8px ${s.color}40` }} />
+                        </div>
+                        <input
+                          type="range" min="0" max="100" value={editingWeights[s.key]}
+                          onChange={e => handleSlider(s.key, Number(e.target.value))}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          style={{ margin: 0 }}
+                        />
+                        {/* Thumb indicator */}
+                        <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 pointer-events-none transition-all duration-200 group-hover:scale-125" style={{ left: `calc(${editingWeights[s.key]}% - 8px)`, background: s.color, borderColor: "white", boxShadow: `0 0 12px ${s.color}60, 0 2px 4px rgba(0,0,0,0.3)` }} />
+                      </div>
+                      <span className="w-10 text-right text-sm font-bold font-mono transition-colors duration-200" style={{ color: s.color }}>{editingWeights[s.key]}%</span>
+                    </div>
+                  ))}
+                  {/* Total + Apply */}
+                  <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid rgba(139,92,246,0.1)" }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Total</span>
+                      <span className={`text-sm font-bold font-mono transition-colors duration-200 ${isValid ? "text-emerald-400" : "text-red-400"}`}>
+                        {total}%
+                      </span>
+                      {!isValid && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 font-medium" style={{ animation: "attrPulse 1.5s ease-in-out infinite" }}>
+                          Debe ser 100%
+                        </span>
+                      )}
+                      {isValid && (
+                        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      )}
+                    </div>
+                    <button
+                      onClick={saveNitroWeights}
+                      disabled={savingWeights || !isValid}
+                      className="px-4 py-1.5 rounded-lg text-[11px] font-bold text-white transition-all duration-300"
+                      style={{
+                        background: isValid ? "linear-gradient(135deg, #8b5cf6, #a855f7)" : "rgba(30,41,59,0.5)",
+                        opacity: savingWeights ? 0.5 : 1,
+                        boxShadow: isValid ? "0 0 16px rgba(139,92,246,0.3)" : "none",
+                        cursor: isValid ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {savingWeights ? "Guardando..." : "Aplicar pesos"}
+                    </button>
+                  </div>
+                  {weightsError && (
+                    <div className="text-[11px] text-red-400 px-2 py-1.5 rounded-lg" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                      {weightsError}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Right — Date + Live */}
           <div className="flex items-center gap-3">
