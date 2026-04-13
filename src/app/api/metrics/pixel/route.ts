@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const fromParam = searchParams.get("from");
 
     // Cache check (v3: busted after adding conversion rates 2026-04-12)
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v5"];
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v6"];
     const cached = getCached("pixel", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
@@ -97,6 +97,23 @@ export async function GET(request: NextRequest) {
     const wFirst = nitroWeights.first;
     const wLast = nitroWeights.last;
     const wMiddle = nitroWeights.middle;
+
+    // ── Pixel install date: first event ever for this org ──
+    // Used as floor for CR queries (pixel visitors vs orders).
+    // Without this, orgs with orders pre-pixel would show 0 visitors for old sales.
+    const pixelInstallResult = await prisma.$queryRaw`
+      SELECT MIN(timestamp) as "installedAt"
+      FROM pixel_events
+      WHERE "organizationId" = ${ORG_ID}
+    ` as Array<{ installedAt: Date | null }>;
+    const pixelInstalledAt = pixelInstallResult[0]?.installedAt || null;
+
+    // crDateFrom = effective start for Conversion Rate queries
+    // MAX(user-selected dateFrom, pixel install date) — so we never compare
+    // pixel visitors against orders from before the pixel existed
+    const crDateFrom = pixelInstalledAt && pixelInstalledAt.getTime() > dateFrom.getTime()
+      ? pixelInstalledAt
+      : dateFrom;
 
     // ══════════════════════════════════════════════════════════
     // ALL QUERIES IN PARALLEL (10-second Vercel timeout)
@@ -659,7 +676,7 @@ export async function GET(request: NextRequest) {
 
       // 23. Visitors per source from NitroPixel (for CR by channel)
       // Per-visitor source: prioritize UTM params, fallback to referrer classification
-      // Uses DISTINCT ON to get ONE representative event per visitor (the one most likely to have source info)
+      // Uses crDateFrom (pixel install date floor) to avoid comparing against pre-pixel orders
       prisma.$queryRaw`
         WITH visitor_source AS (
           SELECT DISTINCT ON (pe."visitorId")
@@ -668,7 +685,7 @@ export async function GET(request: NextRequest) {
             pe.referrer
           FROM pixel_events pe
           WHERE pe."organizationId" = ${ORG_ID}
-            AND pe.timestamp >= ${dateFrom}
+            AND pe.timestamp >= ${crDateFrom}
             AND pe.timestamp <= ${dateTo}
           ORDER BY pe."visitorId",
             CASE WHEN pe."utmParams"->>'source' IS NOT NULL AND pe."utmParams"->>'source' != '' THEN 0 ELSE 1 END,
@@ -699,7 +716,7 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ source: string; visitors: number }>>,
 
       // 24. Orders by device — derive device from pixel_attributions → pixel_visitors
-      // (orders.deviceType from VTEX is mostly NULL, pixel_visitors tracks actual device)
+      // Uses crDateFrom to only count orders from when pixel was active
       prisma.$queryRaw`
         SELECT
           COALESCE(pv."deviceTypes"[1], 'unknown') as device,
@@ -709,7 +726,7 @@ export async function GET(request: NextRequest) {
         JOIN pixel_visitors pv ON pv."visitorId" = pa."visitorId" AND pv."organizationId" = pa."organizationId"
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
@@ -722,14 +739,14 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ device: string; orders: number; revenue: number }>>,
 
       // 25. Product viewers from NitroPixel (VIEW_PRODUCT events)
-      // props->>'productId' is the actual field name in pixel VIEW_PRODUCT events
+      // Uses crDateFrom to align viewer data with pixel coverage period
       prisma.$queryRaw`
         SELECT
           pe.props->>'productId' as "productExternalId",
           COUNT(DISTINCT pe."visitorId")::int as viewers
         FROM pixel_events pe
         WHERE pe."organizationId" = ${ORG_ID}
-          AND pe.timestamp >= ${dateFrom}
+          AND pe.timestamp >= ${crDateFrom}
           AND pe.timestamp <= ${dateTo}
           AND pe.type = 'VIEW_PRODUCT'
           AND pe.props->>'productId' IS NOT NULL
@@ -739,6 +756,7 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ productExternalId: string; viewers: number }>>,
 
       // 26. Product purchases with name/category/brand (for CR by product/category/brand)
+      // Uses crDateFrom so purchases align with pixel visitor coverage period
       prisma.$queryRaw`
         SELECT
           COALESCE(p."externalId", oi."productId") as "productExternalId",
@@ -752,7 +770,7 @@ export async function GET(request: NextRequest) {
         JOIN orders o ON o.id = oi."orderId"
         LEFT JOIN products p ON p.id = oi."productId"
         WHERE o."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
           AND o.status NOT IN ('CANCELLED', 'PENDING')
           AND o."totalValue" > 0
@@ -1176,6 +1194,10 @@ export async function GET(request: NextRequest) {
         attributionModel: selectedModel,
         attributionWindowDays,
         nitroWeights,
+        // Pixel coverage: when the pixel was first installed + effective CR date range
+        pixelInstalledAt: pixelInstalledAt ? pixelInstalledAt.toISOString() : null,
+        crDateFrom: crDateFrom.toISOString(),
+        crDateAdjusted: pixelInstalledAt ? pixelInstalledAt.getTime() > dateFrom.getTime() : false,
       },
     };
 

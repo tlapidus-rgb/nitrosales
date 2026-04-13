@@ -159,7 +159,7 @@ interface PixelData {
     byBrand: Array<{ brand: string; viewers: number; buyers: number; revenue: number; cr: number }>;
     byProduct: Array<{ productExternalId: string; productName: string; category: string; brand: string; viewers: number; orders: number; units: number; revenue: number; cr: number }>;
   };
-  meta: { dateFrom: string; dateTo: string; daysInPeriod: number; nitroWeights?: { first: number; middle: number; last: number } };
+  meta: { dateFrom: string; dateTo: string; daysInPeriod: number; nitroWeights?: { first: number; middle: number; last: number }; pixelInstalledAt?: string | null; crDateFrom?: string; crDateAdjusted?: boolean };
 }
 
 interface DiscrepancyData {
@@ -1657,6 +1657,12 @@ export default function AnalyticsPage() {
           const cr = pixelData?.conversionRates;
           if (!cr) return null;
 
+          // Pixel coverage metadata
+          const meta = pixelData?.meta;
+          const crDateAdjusted = meta?.crDateAdjusted || false;
+          const crDateFrom = meta?.crDateFrom ? new Date(meta.crDateFrom) : null;
+          const pixelInstallDate = meta?.pixelInstalledAt ? new Date(meta.pixelInstalledAt) : null;
+
           // CR by channel (pixel visitors + pixel attributions)
           const channels = (cr.byChannel || []).filter(s => s.visitors > 0 || s.purchases > 0).slice(0, 10);
 
@@ -1678,6 +1684,17 @@ export default function AnalyticsPage() {
                 <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Tasas de Conversión</h2>
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
               </div>
+
+              {/* Pixel coverage notice — shows when date range was auto-adjusted */}
+              {crDateAdjusted && crDateFrom && (
+                <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200/60 rounded-xl px-4 py-3">
+                  <span className="text-amber-500 text-sm mt-0.5">&#9432;</span>
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
+                    El NitroPixel se instaló el <span className="font-semibold">{crDateFrom.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}</span>.
+                    Las tasas de conversión solo muestran datos desde esa fecha para evitar comparar ventas anteriores contra visitantes que no estaban siendo registrados.
+                  </p>
+                </div>
+              )}
 
               {/* Row 1: CR by Channel + CR by Device */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
