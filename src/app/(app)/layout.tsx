@@ -195,36 +195,51 @@ const NAV_GROUPS: NavGroup[] = [
 
 
 // ── PixelBrain animated icon for sidebar ──
-function PixelBrainSidebar({ size = 20 }: { size?: number }) {
+function PixelBrainSidebar({ size = 28 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 300 300" className="flex-shrink-0">
-      <defs>
-        <radialGradient id="sbCore" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#a5f3fc" stopOpacity="1" />
-          <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="transparent" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbitReverse 20s linear infinite" }}>
-        <circle cx="150" cy="150" r="120" fill="none" stroke="#06b6d4" strokeOpacity="0.2" strokeWidth="1" strokeDasharray="4 8" />
-        <circle cx="270" cy="150" r="3.5" fill="#06b6d4" opacity="0.7" />
-      </g>
-      <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbit 14s linear infinite" }}>
-        <circle cx="150" cy="150" r="95" fill="none" stroke="#8b5cf6" strokeOpacity="0.18" strokeWidth="1" strokeDasharray="3 6" />
-        <circle cx="55" cy="150" r="2.5" fill="#a855f7" opacity="0.6" />
-      </g>
-      {[0,1,2,3,4,5].map((i: number) => {
-        const angle = (i / 6) * Math.PI * 2;
-        const x = 150 + Math.cos(angle) * 85;
-        const y = 150 + Math.sin(angle) * 85;
-        return <circle key={i} cx={x} cy={y} r="3" fill="#06b6d4" opacity="0.7" style={{ animation: `pixelNeuronPulse 2s ease-in-out infinite ${i * 300}ms` }} />;
-      })}
-      <g style={{ transformOrigin: "150px 150px", animation: "pixelBreath 3s ease-in-out infinite" }}>
-        <circle cx="150" cy="150" r="50" fill="url(#sbCore)" />
-        <circle cx="150" cy="150" r="28" fill="#a5f3fc" opacity="0.85" />
-        <circle cx="150" cy="150" r="16" fill="white" opacity="0.9" />
-      </g>
-    </svg>
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      {/* Glow background */}
+      <div className="absolute inset-[-4px] rounded-full" style={{ background: "radial-gradient(circle, rgba(6,182,212,0.25) 0%, transparent 70%)", animation: "pixelBreath 3s ease-in-out infinite" }} />
+      <svg width={size} height={size} viewBox="0 0 200 200" className="relative" style={{ filter: "drop-shadow(0 0 4px rgba(6,182,212,0.4))" }}>
+        <defs>
+          <radialGradient id="sbCore" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#e0f7fa" stopOpacity="1" />
+            <stop offset="40%" stopColor="#06b6d4" stopOpacity="0.95" />
+            <stop offset="80%" stopColor="#0e7490" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        {/* Outer orbit */}
+        <g style={{ transformOrigin: "100px 100px", animation: "pixelOrbitReverse 18s linear infinite" }}>
+          <circle cx="100" cy="100" r="88" fill="none" stroke="#06b6d4" strokeOpacity="0.3" strokeWidth="1.5" strokeDasharray="5 8" />
+          <circle cx="188" cy="100" r="4" fill="#22d3ee" opacity="0.9" style={{ filter: "drop-shadow(0 0 3px #06b6d4)" }} />
+        </g>
+        {/* Inner orbit */}
+        <g style={{ transformOrigin: "100px 100px", animation: "pixelOrbit 12s linear infinite" }}>
+          <circle cx="100" cy="100" r="68" fill="none" stroke="#8b5cf6" strokeOpacity="0.25" strokeWidth="1.5" strokeDasharray="4 6" />
+          <circle cx="32" cy="100" r="3.5" fill="#a855f7" opacity="0.8" style={{ filter: "drop-shadow(0 0 3px #8b5cf6)" }} />
+        </g>
+        {/* Neurons — larger, brighter */}
+        {[0,1,2,3,4,5].map((i: number) => {
+          const angle = (i / 6) * Math.PI * 2;
+          const x = 100 + Math.cos(angle) * 58;
+          const y = 100 + Math.sin(angle) * 58;
+          return <circle key={i} cx={x} cy={y} r="4" fill="#22d3ee" opacity="0.8" style={{ animation: `pixelNeuronPulse 2s ease-in-out infinite ${i * 280}ms`, filter: "drop-shadow(0 0 2px #06b6d4)" }} />;
+        })}
+        {/* Synapses connecting neurons */}
+        {[0,1,2,3,4,5].map((i: number) => {
+          const a1 = (i / 6) * Math.PI * 2;
+          const a2 = ((i + 2) % 6 / 6) * Math.PI * 2;
+          return <line key={`s${i}`} x1={100 + Math.cos(a1) * 58} y1={100 + Math.sin(a1) * 58} x2={100 + Math.cos(a2) * 58} y2={100 + Math.sin(a2) * 58} stroke="#06b6d4" strokeOpacity="0.2" strokeWidth="0.8" strokeDasharray="80" style={{ animation: `pixelSynapseFlow 3s ease-in-out infinite ${i * 200}ms` }} />;
+        })}
+        {/* Core — bigger, brighter */}
+        <g style={{ transformOrigin: "100px 100px", animation: "pixelBreath 2.8s ease-in-out infinite" }}>
+          <circle cx="100" cy="100" r="38" fill="url(#sbCore)" />
+          <circle cx="100" cy="100" r="22" fill="#a5f3fc" opacity="0.9" />
+          <circle cx="100" cy="100" r="12" fill="#ffffff" opacity="0.95" />
+        </g>
+      </svg>
+    </div>
   );
 }
 
@@ -577,7 +592,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                               boxShadow: isActive ? `0 0 12px ${item.premium.glowColor}` : "none",
                             }}
                           >
-                            {isPixel ? <PixelBrainSidebar size={20} /> : <svg
+                            {isPixel ? <PixelBrainSidebar size={28} /> : <svg
                               className="w-4 h-4 transition-colors duration-300"
                               style={{ color: item.premium.badgeColor }}
                               fill="none"
@@ -830,7 +845,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           style={{ background: "var(--nitro-gradient)" }}
                         />
                       )}
-                      {item.label === "NitroPixel" ? <PixelBrainSidebar size={20} /> : <svg
+                      {item.label === "NitroPixel" ? <PixelBrainSidebar size={28} /> : <svg
                         className={`w-5 h-5 flex-shrink-0 transition-colors duration-300 ${
                           isActive ? "text-nitro-orange" : "text-nitro-muted group-hover:text-nitro-text2"
                         }`}
