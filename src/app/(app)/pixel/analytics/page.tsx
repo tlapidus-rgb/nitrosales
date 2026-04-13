@@ -581,22 +581,42 @@ const SECTIONS = [
   { id: "sec-conversion", label: "Conversión" },
 ] as const;
 
+/** Find the nearest scrollable ancestor (the <main> with overflow-y-auto) */
+function getScrollParent(el: HTMLElement | null): HTMLElement | Window {
+  while (el && el !== document.body) {
+    const style = getComputedStyle(el);
+    if (/(auto|scroll)/.test(style.overflowY)) return el;
+    el = el.parentElement;
+  }
+  return window;
+}
+
 function SectionNav() {
-  const [activeSection, setActiveSection] = useState<string>("");
+  const [activeSection, setActiveSection] = useState<string>("sec-kpis");
   const [isVisible, setIsVisible] = useState(false);
+  const navRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Show nav after scrolling past the header area
+    // Find the actual scroll container (<main overflow-y-auto>)
+    const scrollContainer = getScrollParent(navRef.current);
+    const getScrollTop = () =>
+      scrollContainer instanceof Window
+        ? window.scrollY
+        : (scrollContainer as HTMLElement).scrollTop;
+
     const onScroll = () => {
-      setIsVisible(window.scrollY > 200);
+      setIsVisible(getScrollTop() > 200);
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
+    scrollContainer.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => scrollContainer.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
     // IntersectionObserver scroll spy — detects which section is in view
+    // Use the scroll container as root so observations work inside overflow-y-auto
+    const scrollContainer = getScrollParent(navRef.current);
+    const root = scrollContainer instanceof Window ? null : (scrollContainer as HTMLElement);
     const observers: IntersectionObserver[] = [];
     const visibleSections = new Map<string, number>();
 
@@ -633,7 +653,7 @@ function SectionNav() {
           }
           if (best) setActiveSection(best);
         },
-        { threshold: [0, 0.1, 0.3, 0.5], rootMargin: "-80px 0px -40% 0px" }
+        { root, threshold: [0, 0.1, 0.3, 0.5], rootMargin: "-80px 0px -40% 0px" }
       );
       obs.observe(el);
       observers.push(obs);
@@ -649,7 +669,8 @@ function SectionNav() {
 
   return (
     <div
-      className="sticky top-0 z-30 transition-all duration-500"
+      ref={navRef}
+      className="sticky top-0 z-30 transition-all duration-500 pt-1 pb-2"
       style={{
         opacity: isVisible ? 1 : 0,
         transform: isVisible ? "translateY(0)" : "translateY(-12px)",
