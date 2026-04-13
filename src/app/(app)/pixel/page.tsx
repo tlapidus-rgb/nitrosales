@@ -515,7 +515,90 @@ export default function PixelPage() {
             ))}
           </div>
 
-          {/* Precision weights — Premium visual sliders */}
+          {/* Precision — Horizontal sliders with lock */}
+          {selectedModel === "CUSTOM" && (() => {
+            const total = editingWeights.first + editingWeights.middle + editingWeights.last;
+            const isValid = total === 100;
+            const keys: Array<{ key: "first" | "middle" | "last"; label: string; color: string; gradient: string }> = [
+              { key: "first", label: "Primer clic", color: "#06b6d4", gradient: "linear-gradient(90deg, #06b6d4, #22d3ee)" },
+              { key: "middle", label: "Intermedios", color: "#8b5cf6", gradient: "linear-gradient(90deg, #8b5cf6, #a78bfa)" },
+              { key: "last", label: "Último clic", color: "#f97316", gradient: "linear-gradient(90deg, #f97316, #fb923c)" },
+            ];
+            const handleSlider = (key: "first" | "middle" | "last", val: number) => {
+              const newW = { ...editingWeights, [key]: val };
+              const unlocked = (["first", "middle", "last"] as const).filter(k => k !== key && !lockedWeights[k]);
+              const lockedSum = (["first", "middle", "last"] as const).filter(k => k !== key && lockedWeights[k]).reduce((s, k) => s + newW[k], 0);
+              const remaining = 100 - val - lockedSum;
+              if (unlocked.length > 0 && remaining >= 0) {
+                const uSum = unlocked.reduce((s, k) => s + newW[k], 0);
+                if (uSum > 0) {
+                  let dist = 0;
+                  unlocked.forEach((k, i) => { if (i === unlocked.length - 1) { newW[k] = remaining - dist; } else { newW[k] = Math.round((newW[k] / uSum) * remaining); dist += newW[k]; } });
+                } else {
+                  const share = Math.round(remaining / unlocked.length);
+                  unlocked.forEach((k, i) => { newW[k] = i === unlocked.length - 1 ? remaining - share * (unlocked.length - 1) : share; });
+                }
+              }
+              setEditingWeights(newW);
+            };
+            return (
+              <div className="w-full rounded-2xl overflow-hidden" style={{ background: "rgba(15,23,42,0.7)", border: "1px solid rgba(139,92,246,0.15)", backdropFilter: "blur(12px)" }}>
+                {/* Proportion bar */}
+                <div className="flex h-1.5">
+                  {keys.map(s => (<div key={s.key} className="transition-all duration-300" style={{ width: `${editingWeights[s.key]}%`, background: s.gradient, minWidth: editingWeights[s.key] > 0 ? "3px" : "0" }} />))}
+                </div>
+                <div className="p-4">
+                  {/* Horizontal sliders */}
+                  <div className="flex gap-5">
+                    {keys.map(s => (
+                      <div key={s.key} className="flex-1 min-w-0">
+                        {/* Label + Lock */}
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: s.color }} />
+                            <span className="text-[11px] font-medium text-white/60">{s.label}</span>
+                          </div>
+                          <button onClick={() => setLockedWeights((p: Record<string, boolean>) => ({ ...p, [s.key]: !p[s.key] }))} className="p-1 rounded-md transition-all" style={{ background: lockedWeights[s.key] ? "rgba(139,92,246,0.15)" : "transparent", border: lockedWeights[s.key] ? "1px solid rgba(139,92,246,0.3)" : "1px solid transparent" }} title={lockedWeights[s.key] ? "Desbloquear" : "Bloquear"}>
+                            {lockedWeights[s.key] ? (
+                              <svg className="w-3 h-3 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                            ) : (
+                              <svg className="w-3 h-3 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>
+                            )}
+                          </button>
+                        </div>
+                        {/* Big number */}
+                        <div className="text-center mb-2">
+                          <span className="text-2xl font-bold font-mono" style={{ color: s.color }}>{editingWeights[s.key]}</span>
+                          <span className="text-sm text-white/30">%</span>
+                        </div>
+                        {/* Slider */}
+                        <div className="relative h-8 flex items-center group">
+                          <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: "rgba(30,41,59,0.8)" }}>
+                            <div className="h-full rounded-full transition-all duration-200" style={{ width: `${editingWeights[s.key]}%`, background: lockedWeights[s.key] ? "rgba(100,116,139,0.4)" : s.gradient, boxShadow: lockedWeights[s.key] ? "none" : `0 0 10px ${s.color}40` }} />
+                          </div>
+                          <input type="range" min="0" max="100" value={editingWeights[s.key]} onChange={e => handleSlider(s.key, Number(e.target.value))} disabled={lockedWeights[s.key]} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed" style={{ margin: 0 }} />
+                          <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 pointer-events-none transition-all duration-200 group-hover:scale-110" style={{ left: `calc(${editingWeights[s.key]}% - 10px)`, background: lockedWeights[s.key] ? "#334155" : s.color, borderColor: lockedWeights[s.key] ? "#64748b" : "white", boxShadow: lockedWeights[s.key] ? "none" : `0 0 12px ${s.color}50`, opacity: lockedWeights[s.key] ? 0.5 : 1 }} />
+                          {lockedWeights[s.key] && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><svg className="w-3.5 h-3.5 text-violet-400/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Footer */}
+                  <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: "1px solid rgba(139,92,246,0.1)" }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Total</span>
+                      <span className={`text-sm font-bold font-mono ${isValid ? "text-emerald-400" : "text-red-400"}`}>{total}%</span>
+                      {isValid ? <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg> : <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20" style={{ animation: "attrPulse 1.5s ease-in-out infinite" }}>Debe ser 100%</span>}
+                    </div>
+                    <button onClick={saveNitroWeights} disabled={savingWeights || !isValid} className="px-5 py-2 rounded-xl text-[11px] font-bold text-white transition-all" style={{ background: isValid ? "linear-gradient(135deg, #8b5cf6, #a855f7)" : "rgba(30,41,59,0.5)", opacity: savingWeights ? 0.5 : 1, boxShadow: isValid ? "0 0 20px rgba(139,92,246,0.3)" : "none", cursor: isValid ? "pointer" : "not-allowed" }}>
+                      {savingWeights ? "Guardando..." : "Aplicar pesos"}
+                    </button>
+                  </div>
+                  {weightsError && <div className="mt-2 text-[11px] text-red-400 px-2 py-1.5 rounded-lg" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)" }}>{weightsError}</div>}
+                </div>
+              </div>
+            );
+          })()}
           {selectedModel === "CUSTOM" && (() => {
             const total = editingWeights.first + editingWeights.middle + editingWeights.last;
             const isValid = total === 100;

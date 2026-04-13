@@ -134,7 +134,7 @@ const NAV_GROUPS: NavGroup[] = [
       {
         href: "/nitropixel",
         label: "NitroPixel",
-        icon: "M13 10V3L4 14h7v7l9-11h-7z",
+        icon: "PIXEL_BRAIN",
         premium: { badge: "ASSET", badgeColor: "#06b6d4", glowColor: "rgba(6,182,212,0.22)", description: "Tu activo digital vivo" },
       },
       {
@@ -198,7 +198,7 @@ const NAV_GROUPS: NavGroup[] = [
 function PixelBrainSidebar({ active, size = 20 }: { active: boolean; size?: number }) {
   const color = active ? "#06b6d4" : "#64748b";
   return (
-    <svg width={size} height={size} viewBox="0 0 300 300" className="flex-shrink-0">
+    {item.icon === "PIXEL_BRAIN" ? <PixelBrainSidebar active={isActive} size={8} /> : <svg width={size} height={size} viewBox="0 0 300 300" className="flex-shrink-0">
       <defs>
         <radialGradient id="sidebarCore" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="#a5f3fc" stopOpacity={active ? 1 : 0.4} />
@@ -597,7 +597,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                               strokeWidth={1.8}
                             >
                               <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-                            </svg>
+                            </svg>}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -683,7 +683,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                         transform: "translateY(-0.5px)",
                                       }}
                                     />
-                                    <svg
+                                    {item.icon === "PIXEL_BRAIN" ? <PixelBrainSidebar active={isActive} size={12} /> : <svg
                                       className="w-3 h-3 flex-shrink-0"
                                       style={{
                                         color: subActive ? "#fbbf24" : "rgba(251,191,36,0.55)",
@@ -851,7 +851,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         strokeWidth={1.5}
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-                      </svg>
+                      </svg>}
                       {item.label}
                       {hasChildren && (
                         <svg
