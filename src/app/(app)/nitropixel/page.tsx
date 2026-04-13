@@ -234,7 +234,7 @@ export default function NitroPixelPage() {
               <span>→</span>
             </Link>
             <Link
-              href="/pixel"
+              href="/pixel/analytics"
               className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300/60 hover:text-cyan-200 transition flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyan-500/20 hover:border-cyan-400/40"
             >
               Analytics detallado

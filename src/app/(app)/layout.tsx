@@ -32,11 +32,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Pedidos",
         icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01",
       },
-      {
-        href: "/analytics",
-        label: "Analytics",
-        icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-      },
     ],
   },
   {
@@ -447,11 +442,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   const pixelSubItems = isPixel
                     ? [
                         {
-                          href: "/pixel",
+                          href: "/pixel/analytics",
                           label: "Analytics",
-                          sublabel: "Atribución detallada",
+                          sublabel: "Intelligence dashboard",
                           iconPath:
                             "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+                        },
+                        {
+                          href: "/pixel",
+                          label: "Atribución",
+                          sublabel: "Modelo y canales",
+                          iconPath:
+                            "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
                         },
                         {
                           href: "/pixel/journeys",
@@ -702,8 +704,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                               />
                               {pixelSubItems.map((sub, si) => {
                                 const subActive =
-                                  pathname === sub.href ||
-                                  (sub.href === "/pixel" && pathname.startsWith("/pixel") && !pathname.startsWith("/pixel/journeys")) ||
+                                  (sub.href === "/pixel/analytics" && pathname.startsWith("/pixel/analytics")) ||
+                                  (sub.href === "/pixel" && pathname === "/pixel") ||
                                   (sub.href === "/pixel/journeys" && pathname.startsWith("/pixel/journeys"));
                                 return (
                                   <Link
