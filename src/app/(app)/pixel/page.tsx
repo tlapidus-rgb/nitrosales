@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { DateRangeFilter } from "@/components/dashboard";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
@@ -28,14 +28,16 @@ const MODEL_LABELS: Record<string, string> = {
   FIRST_CLICK: "First Click",
   LINEAR: "Linear",
   NITRO: "Nitro",
+  CUSTOM: "Precision",
 };
 const MODEL_DESCRIPTIONS: Record<string, string> = {
   LAST_CLICK: "100% del crédito al último canal antes de la compra",
   FIRST_CLICK: "100% del crédito al primer canal que trajo al cliente",
   LINEAR: "El crédito se reparte en partes iguales entre todos los canales",
   NITRO: "El modelo Nitro pondera el crédito según el rol de cada canal. El último contacto recibe la mayor parte, el primero la segunda, y los intermedios comparten el resto.",
+  CUSTOM: "Definí tus propios pesos de atribución. Control total sobre cómo se distribuye el crédito entre canales.",
 };
-const MODEL_ORDER = ["NITRO", "LAST_CLICK", "FIRST_CLICK", "LINEAR"];
+const MODEL_ORDER = ["NITRO", "LAST_CLICK", "FIRST_CLICK", "LINEAR", "CUSTOM"];
 const DEFAULT_NITRO_WEIGHTS = { first: 30, last: 40, middle: 30 };
 
 const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string; svg?: string }> = {
@@ -198,6 +200,13 @@ function DarkStyles() {
       @keyframes attrCountUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes attrGridDrift { 0% { background-position: 0 0; } 100% { background-position: 40px 40px; } }
       @keyframes attrJourneyDot { 0%, 100% { box-shadow: 0 0 0 0 currentColor; } 50% { box-shadow: 0 0 0 6px transparent; } }
+      @keyframes pixelOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      @keyframes pixelOrbitReverse { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+      @keyframes pixelNeuronPulse { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.6); } }
+      @keyframes pixelSynapseFlow { 0% { stroke-dashoffset: 100; } 50% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
+      @keyframes pixelBreath { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.05); filter: brightness(1.2); } }
+      .attr-refetching { position: relative; }
+      .attr-refetching::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 20; pointer-events: none; background: linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.06) 30%, rgba(6,182,212,0.12) 50%, rgba(6,182,212,0.06) 70%, transparent 100%); background-size: 200% 100%; animation: attrShimmer 1.8s ease-in-out infinite; }
       .attr-stagger > * { animation: attrFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
       .attr-stagger > *:nth-child(1) { animation-delay: 0ms; }
       .attr-stagger > *:nth-child(2) { animation-delay: 60ms; }
@@ -214,6 +223,69 @@ function DarkStyles() {
       .scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
       .scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.2); border-radius: 2px; }
     `}</style>
+  );
+}
+
+// ── PixelBrain Mini — Animated logo from NitroPixel hero ──
+function PixelBrainMini({ size = 32, color = "#06b6d4" }: { size?: number; color?: string }) {
+  const neurons = useMemo(() => {
+    const count = 8;
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const radius = 90 + (i % 3) * 10;
+      arr.push({ id: i, x: 150 + Math.cos(angle) * radius, y: 150 + Math.sin(angle) * radius, delay: (i * 120) % 2000 });
+    }
+    return arr;
+  }, []);
+  const synapses = useMemo(() => {
+    const arr: Array<{ x1: number; y1: number; x2: number; y2: number; delay: number }> = [];
+    for (let i = 0; i < neurons.length; i++) {
+      const a = neurons[i];
+      const b = neurons[(i + 2) % neurons.length];
+      arr.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: i * 200 });
+    }
+    return arr;
+  }, [neurons]);
+  return (
+    <div style={{ width: size, height: size }}>
+      <svg viewBox="0 0 300 300" className="w-full h-full">
+        <defs>
+          <radialGradient id="coreMini" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#a5f3fc" stopOpacity="1" />
+            <stop offset="35%" stopColor={color} stopOpacity="0.95" />
+            <stop offset="70%" stopColor="#0891b2" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#0c1424" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="haloMini" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={color} stopOpacity="0" />
+            <stop offset="60%" stopColor={color} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </radialGradient>
+          <filter id="blurMini"><feGaussianBlur stdDeviation="2" /></filter>
+        </defs>
+        <circle cx="150" cy="150" r="140" fill="url(#haloMini)" />
+        <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbitReverse 28s linear infinite" }}>
+          <circle cx="150" cy="150" r="120" fill="none" stroke={color} strokeOpacity="0.18" strokeWidth="0.8" strokeDasharray="3 6" />
+          <circle cx="270" cy="150" r="3" fill={color} style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
+        </g>
+        <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbit 18s linear infinite" }}>
+          <circle cx="150" cy="150" r="100" fill="none" stroke="#8b5cf6" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="2 5" />
+          <circle cx="50" cy="150" r="3" fill="#a855f7" style={{ filter: `drop-shadow(0 0 4px #a855f7)` }} />
+        </g>
+        {synapses.map((s, i) => (
+          <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke={color} strokeOpacity="0.35" strokeWidth="0.6" strokeDasharray="100" style={{ animation: `pixelSynapseFlow 3s ease-in-out infinite ${s.delay}ms` }} />
+        ))}
+        {neurons.map((n) => (
+          <circle key={n.id} cx={n.x} cy={n.y} r="2.5" fill={color} style={{ transformOrigin: `${n.x}px ${n.y}px`, animation: `pixelNeuronPulse 2.4s ease-in-out infinite ${n.delay}ms`, filter: `drop-shadow(0 0 4px ${color})` }} />
+        ))}
+        <g style={{ transformOrigin: "150px 150px", animation: "pixelBreath 2.8s ease-in-out infinite" }}>
+          <circle cx="150" cy="150" r="55" fill="url(#coreMini)" filter="url(#blurMini)" />
+          <circle cx="150" cy="150" r="32" fill="#a5f3fc" opacity="0.85" />
+          <circle cx="150" cy="150" r="20" fill="#ffffff" opacity="0.9" />
+        </g>
+      </svg>
+    </div>
   );
 }
 
@@ -248,6 +320,7 @@ export default function PixelPage() {
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
+  const isRefetching = loading && !!data;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const scrollRef = useRef<HTMLElement | null>(null);
 
@@ -255,7 +328,8 @@ export default function PixelPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&page=${currentPage}&pageSize=20&model=${selectedModel}`);
+      const apiModel = selectedModel === "CUSTOM" ? "NITRO" : selectedModel;
+      const res = await fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&page=${currentPage}&pageSize=20&model=${apiModel}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json());
     } catch (e) { setError(String(e)); } finally { setLoading(false); }
@@ -340,12 +414,7 @@ export default function PixelPage() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#05060a" }}>
         <DarkStyles />
         <div className="flex flex-col items-center gap-5">
-          <div className="relative">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center relative overflow-hidden" style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)", boxShadow: "0 0 40px rgba(6,182,212,0.3)", animation: "attrPulse 2s ease-in-out infinite" }}>
-              <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            </div>
-            <div className="absolute -inset-4 rounded-full" style={{ border: "1px dashed rgba(6,182,212,0.25)", animation: "pixelSpin 12s linear infinite" }} />
-          </div>
+          <PixelBrainMini size={80} />
           <div className="text-center">
             <p className="text-sm font-semibold text-white tracking-tight">NitroPixel</p>
             <p className="text-xs text-cyan-400/60 mt-1">Cargando atribuciones...</p>
@@ -372,8 +441,16 @@ export default function PixelPage() {
   const maxChannelRevenue = Math.max(...channels.map(c => Math.max(c.pixelRevenue, c.platformRevenue)), 1);
 
   return (
-    <div className="min-h-screen relative" style={{ background: "#05060a", color: "#e2e8f0" }}>
+    <div className={`min-h-screen relative ${isRefetching ? "attr-refetching" : ""}`} style={{ background: "#05060a", color: "#e2e8f0" }}>
       <DarkStyles />
+
+      {/* ── Refetching overlay ── */}
+      {isRefetching && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full flex items-center gap-2" style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.25)", backdropFilter: "blur(12px)" }}>
+          <div className="w-2 h-2 rounded-full bg-cyan-400" style={{ animation: "attrPulse 1s ease-in-out infinite" }} />
+          <span className="text-[11px] font-medium text-cyan-300">Recalculando atribuciones...</span>
+        </div>
+      )}
 
       {/* ── Background ambient ── */}
       <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
@@ -389,9 +466,7 @@ export default function PixelPage() {
         <div className="max-w-[1440px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
           {/* Left — Logo + Title */}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)", boxShadow: "0 0 20px rgba(6,182,212,0.25)" }}>
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            </div>
+            <PixelBrainMini size={32} />
             <div>
               <h1 className="text-sm font-semibold text-white tracking-tight">Atribución</h1>
               <p className="text-[10px] text-cyan-400/50 font-mono uppercase tracking-widest">NitroPixel</p>
@@ -403,12 +478,12 @@ export default function PixelPage() {
             {MODEL_ORDER.map(m => (
               <button
                 key={m}
-                onClick={() => { setSelectedModel(m); setCurrentPage(1); }}
+                onClick={() => { setSelectedModel(m); setCurrentPage(1); if (m === "CUSTOM") setWeightsOpen(true); }}
                 className="px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-300"
                 style={selectedModel === m ? {
-                  background: "linear-gradient(135deg, #f97316, #fb923c)",
+                  background: m === "CUSTOM" ? "linear-gradient(135deg, #8b5cf6, #a855f7)" : "linear-gradient(135deg, #f97316, #fb923c)",
                   color: "white",
-                  boxShadow: "0 0 16px rgba(249,115,22,0.3)",
+                  boxShadow: m === "CUSTOM" ? "0 0 16px rgba(139,92,246,0.3)" : "0 0 16px rgba(249,115,22,0.3)",
                 } : {
                   color: "rgba(148,163,184,0.7)",
                 }}
@@ -417,6 +492,22 @@ export default function PixelPage() {
               </button>
             ))}
           </div>
+
+          {/* Precision weights editor — inline in header */}
+          {selectedModel === "CUSTOM" && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.15)" }}>
+              {(["first", "middle", "last"] as const).map(k => (
+                <div key={k} className="flex items-center gap-1">
+                  <span className="text-[9px] text-violet-400/60 uppercase">{k === "first" ? "1ro" : k === "last" ? "Últ" : "Med"}</span>
+                  <input type="number" min={0} max={100} value={editingWeights[k]} onChange={e => setEditingWeights({ ...editingWeights, [k]: Number(e.target.value) })} className="w-10 px-1 py-0.5 rounded text-[11px] text-white font-mono text-center" style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(139,92,246,0.2)" }} />
+                </div>
+              ))}
+              <button onClick={saveNitroWeights} disabled={savingWeights} className="px-2 py-0.5 rounded text-[10px] font-bold text-white" style={{ background: "linear-gradient(135deg, #8b5cf6, #a855f7)", opacity: savingWeights ? 0.5 : 1 }}>
+                {savingWeights ? "..." : "Aplicar"}
+              </button>
+              {weightsError && <span className="text-[9px] text-red-400">{weightsError}</span>}
+            </div>
+          )}
 
           {/* Right — Date + Live */}
           <div className="flex items-center gap-3">
