@@ -134,7 +134,7 @@ const NAV_GROUPS: NavGroup[] = [
       {
         href: "/nitropixel",
         label: "NitroPixel",
-        icon: "PIXEL_BRAIN",
+        icon: "M13 10V3L4 14h7v7l9-11h-7z",
         premium: { badge: "ASSET", badgeColor: "#06b6d4", glowColor: "rgba(6,182,212,0.22)", description: "Tu activo digital vivo" },
       },
       {
@@ -195,45 +195,34 @@ const NAV_GROUPS: NavGroup[] = [
 
 
 // ── PixelBrain animated icon for sidebar ──
-function PixelBrainSidebar({ active, size = 20 }: { active: boolean; size?: number }) {
-  const color = active ? "#06b6d4" : "#64748b";
+function PixelBrainSidebar({ size = 20 }: { size?: number }) {
   return (
-    {item.icon === "PIXEL_BRAIN" ? <PixelBrainSidebar active={isActive} size={8} /> : <svg width={size} height={size} viewBox="0 0 300 300" className="flex-shrink-0">
+    <svg width={size} height={size} viewBox="0 0 300 300" className="flex-shrink-0">
       <defs>
-        <radialGradient id="sidebarCore" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#a5f3fc" stopOpacity={active ? 1 : 0.4} />
-          <stop offset="50%" stopColor={color} stopOpacity={active ? 0.9 : 0.3} />
+        <radialGradient id="sbCore" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#a5f3fc" stopOpacity="1" />
+          <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.9" />
           <stop offset="100%" stopColor="transparent" stopOpacity="0" />
         </radialGradient>
-        <style>{`
-          @keyframes sidebarOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-          @keyframes sidebarOrbitR { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-          @keyframes sidebarPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
-          @keyframes sidebarBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
-        `}</style>
       </defs>
-      {/* Orbits */}
-      <g style={{ transformOrigin: "150px 150px", animation: active ? "sidebarOrbitR 20s linear infinite" : "none" }}>
-        <circle cx="150" cy="150" r="120" fill="none" stroke={color} strokeOpacity={active ? 0.2 : 0.1} strokeWidth="1" strokeDasharray="4 8" />
-        {active && <circle cx="270" cy="150" r="3" fill={color} opacity="0.7" />}
+      <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbitReverse 20s linear infinite" }}>
+        <circle cx="150" cy="150" r="120" fill="none" stroke="#06b6d4" strokeOpacity="0.2" strokeWidth="1" strokeDasharray="4 8" />
+        <circle cx="270" cy="150" r="3.5" fill="#06b6d4" opacity="0.7" />
       </g>
-      <g style={{ transformOrigin: "150px 150px", animation: active ? "sidebarOrbit 14s linear infinite" : "none" }}>
-        <circle cx="150" cy="150" r="95" fill="none" stroke="#8b5cf6" strokeOpacity={active ? 0.2 : 0.08} strokeWidth="1" strokeDasharray="3 6" />
-        {active && <circle cx="55" cy="150" r="2.5" fill="#a855f7" opacity="0.6" />}
+      <g style={{ transformOrigin: "150px 150px", animation: "pixelOrbit 14s linear infinite" }}>
+        <circle cx="150" cy="150" r="95" fill="none" stroke="#8b5cf6" strokeOpacity="0.18" strokeWidth="1" strokeDasharray="3 6" />
+        <circle cx="55" cy="150" r="2.5" fill="#a855f7" opacity="0.6" />
       </g>
-      {/* Neurons */}
-      {[0,1,2,3,4,5].map(i => {
+      {[0,1,2,3,4,5].map((i: number) => {
         const angle = (i / 6) * Math.PI * 2;
-        const r = 85;
-        const x = 150 + Math.cos(angle) * r;
-        const y = 150 + Math.sin(angle) * r;
-        return <circle key={i} cx={x} cy={y} r="3" fill={color} opacity={active ? 0.8 : 0.25} style={active ? { animation: `sidebarPulse 2s ease-in-out infinite ${i * 300}ms` } : {}} />;
+        const x = 150 + Math.cos(angle) * 85;
+        const y = 150 + Math.sin(angle) * 85;
+        return <circle key={i} cx={x} cy={y} r="3" fill="#06b6d4" opacity="0.7" style={{ animation: `pixelNeuronPulse 2s ease-in-out infinite ${i * 300}ms` }} />;
       })}
-      {/* Core */}
-      <g style={active ? { transformOrigin: "150px 150px", animation: "sidebarBreath 3s ease-in-out infinite" } : {}}>
-        <circle cx="150" cy="150" r="50" fill="url(#sidebarCore)" />
-        <circle cx="150" cy="150" r="28" fill={active ? "#a5f3fc" : "#94a3b8"} opacity={active ? 0.85 : 0.2} />
-        <circle cx="150" cy="150" r="16" fill="white" opacity={active ? 0.9 : 0.15} />
+      <g style={{ transformOrigin: "150px 150px", animation: "pixelBreath 3s ease-in-out infinite" }}>
+        <circle cx="150" cy="150" r="50" fill="url(#sbCore)" />
+        <circle cx="150" cy="150" r="28" fill="#a5f3fc" opacity="0.85" />
+        <circle cx="150" cy="150" r="16" fill="white" opacity="0.9" />
       </g>
     </svg>
   );
@@ -588,7 +577,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                               boxShadow: isActive ? `0 0 12px ${item.premium.glowColor}` : "none",
                             }}
                           >
-                            <svg
+                            {isPixel ? <PixelBrainSidebar size={20} /> : <svg
                               className="w-4 h-4 transition-colors duration-300"
                               style={{ color: item.premium.badgeColor }}
                               fill="none"
@@ -683,7 +672,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                         transform: "translateY(-0.5px)",
                                       }}
                                     />
-                                    {item.icon === "PIXEL_BRAIN" ? <PixelBrainSidebar active={isActive} size={12} /> : <svg
+                                    <svg
                                       className="w-3 h-3 flex-shrink-0"
                                       style={{
                                         color: subActive ? "#fbbf24" : "rgba(251,191,36,0.55)",
@@ -841,7 +830,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           style={{ background: "var(--nitro-gradient)" }}
                         />
                       )}
-                      <svg
+                      {item.label === "NitroPixel" ? <PixelBrainSidebar size={20} /> : <svg
                         className={`w-5 h-5 flex-shrink-0 transition-colors duration-300 ${
                           isActive ? "text-nitro-orange" : "text-nitro-muted group-hover:text-nitro-text2"
                         }`}
