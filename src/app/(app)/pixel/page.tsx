@@ -309,6 +309,7 @@ export default function PixelPage() {
   const [selectedModel, setSelectedModel] = useState<string>("NITRO");
   const [nitroWeights, setNitroWeights] = useState(DEFAULT_NITRO_WEIGHTS);
   const [editingWeights, setEditingWeights] = useState(DEFAULT_NITRO_WEIGHTS);
+  const [lockedWeights, setLockedWeights] = useState<Record<string, boolean>>({ first: false, middle: false, last: false });
   const [weightsOpen, setWeightsOpen] = useState(false);
   const [savingWeights, setSavingWeights] = useState(false);
   const [weightsError, setWeightsError] = useState<string | null>(null);
