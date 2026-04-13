@@ -593,24 +593,7 @@ function getScrollParent(el: HTMLElement | null): HTMLElement | Window {
 
 function SectionNav() {
   const [activeSection, setActiveSection] = useState<string>("sec-kpis");
-  const [isVisible, setIsVisible] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Find the actual scroll container (<main overflow-y-auto>)
-    const scrollContainer = getScrollParent(navRef.current);
-    const getScrollTop = () =>
-      scrollContainer instanceof Window
-        ? window.scrollY
-        : (scrollContainer as HTMLElement).scrollTop;
-
-    const onScroll = () => {
-      setIsVisible(getScrollTop() > 200);
-    };
-    scrollContainer.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => scrollContainer.removeEventListener("scroll", onScroll);
-  }, []);
 
   useEffect(() => {
     // IntersectionObserver scroll spy — detects which section is in view
@@ -670,12 +653,7 @@ function SectionNav() {
   return (
     <div
       ref={navRef}
-      className="sticky top-0 z-30 transition-all duration-500 pt-1 pb-2"
-      style={{
-        opacity: isVisible ? 1 : 0,
-        transform: isVisible ? "translateY(0)" : "translateY(-12px)",
-        pointerEvents: isVisible ? "auto" : "none",
-      }}
+      className="sticky top-0 z-30 pt-1 pb-2"
     >
       <div
         className="mx-auto max-w-fit rounded-2xl px-1.5 py-1.5 flex items-center gap-0.5 overflow-x-auto scrollbar-hide"
