@@ -159,6 +159,17 @@ interface PixelData {
     byBrand: Array<{ brand: string; viewers: number; buyers: number; revenue: number; cr: number }>;
     byProduct: Array<{ productExternalId: string; productName: string; category: string; brand: string; viewers: number; orders: number; units: number; revenue: number; cr: number }>;
   };
+  journeyIntelligence?: {
+    complexity: Array<{ label: string; bucket: number; journeys: number; revenue: number; aov: number }>;
+    totalJourneys: number;
+    multiTouchPercent: number;
+    multiTouchRevenue: number; singleTouchRevenue: number;
+    multiTouchAOV: number; singleTouchAOV: number;
+    aovLift: number;
+    channelPairs: Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>;
+    conversionLag: Array<{ bucket: string; orders: number; revenue: number }>;
+    channelRoles: Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>;
+  };
   meta: { dateFrom: string; dateTo: string; daysInPeriod: number; nitroWeights?: { first: number; middle: number; last: number }; pixelInstalledAt?: string | null; crDateFrom?: string; crDateAdjusted?: boolean };
 }
 
@@ -1810,6 +1821,228 @@ export default function AnalyticsPage() {
 
               {/* Row 3: CR by Product — scrollable, sortable, filterable, paginated */}
               {products.length > 0 && <ProductCRTable products={products} />}
+            </div>
+          );
+          } catch { return null; }
+        })()}
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 9 — Journey Intelligence                          */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {(() => {
+          try {
+          const ji = pixelData?.journeyIntelligence;
+          if (!ji || ji.totalJourneys === 0) return null;
+
+          const maxComplexityJourneys = Math.max(...ji.complexity.map(c => c.journeys), 1);
+
+          // Channel badge component
+          const ChannelBadge = ({ source, size = "sm" }: { source: string; size?: "sm" | "md" }) => {
+            const info = getSourceInfo(source);
+            const s = size === "md" ? 28 : 22;
+            const iconS = size === "md" ? 13 : 10;
+            return (
+              <div className="inline-flex items-center gap-1.5">
+                <div className="rounded-full flex items-center justify-center flex-shrink-0" style={{ width: s, height: s, backgroundColor: info.color }}>
+                  <ChannelLogo source={source} size={iconS} />
+                </div>
+                <span className={`font-medium text-gray-700 ${size === "md" ? "text-xs" : "text-[11px]"}`}>{info.label}</span>
+              </div>
+            );
+          };
+
+          // Flow arrow SVG
+          const FlowArrow = () => (
+            <svg className="flex-shrink-0 mx-1" width="20" height="12" viewBox="0 0 20 12" fill="none">
+              <path d="M0 6h16m0 0l-4-4m4 4l-4 4" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          );
+
+          return (
+            <div className="space-y-4">
+              {/* Section header */}
+              <div className="flex items-center gap-3 pt-2">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Journey Intelligence</h2>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+              </div>
+
+              {/* Row 1: KPI strip — 4 mini cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  { label: "Journeys Atribuidos", value: fmt(ji.totalJourneys), sub: "recorridos completos" },
+                  { label: "Multi-Touch", value: `${ji.multiTouchPercent}%`, sub: `de las conversiones (${fmt(ji.totalJourneys - Math.round(ji.totalJourneys * (1 - ji.multiTouchPercent / 100)))} journeys)` },
+                  { label: "AOV Multi-Touch", value: fmtCompact(ji.multiTouchAOV), sub: ji.aovLift > 0 ? `+${ji.aovLift}% vs single-touch` : "vs single-touch" },
+                  { label: "Revenue Multi-Touch", value: fmtCompact(ji.multiTouchRevenue), sub: `${Math.round(ji.multiTouchRevenue / (ji.multiTouchRevenue + ji.singleTouchRevenue + 1) * 100)}% del total atribuido` },
+                ].map((kpi, i) => (
+                  <div key={i} className={`${cardStyle} p-4 stagger-card`} style={{ ...cardShadow, animationDelay: `${1100 + i * 60}ms` }}>
+                    <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{kpi.label}</p>
+                    <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{kpi.value}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{kpi.sub}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Row 2: Journey Complexity + Winning Combos */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+                {/* Journey Complexity — visual bar chart */}
+                <div className={`${cardStyle} p-5 stagger-card`} style={{ ...cardShadow, animationDelay: "1340ms" }}>
+                  <div className="mb-4">
+                    <h2 className="text-sm font-semibold text-gray-900">Complejidad del Journey</h2>
+                    <p className="text-[11px] text-gray-400 mt-0.5">¿Cuántos puntos de contacto necesita un comprador?</p>
+                  </div>
+                  <div className="space-y-3">
+                    {ji.complexity.map((c, i) => {
+                      const pct = Math.round((c.journeys / maxComplexityJourneys) * 100);
+                      const colors = ["#06b6d4", "#8b5cf6", "#f97316", "#ec4899", "#6366f1"];
+                      return (
+                        <div key={c.bucket}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-700">{c.label}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[10px] text-gray-400 tabular-nums">{fmt(c.journeys)} journeys</span>
+                              <span className="text-[10px] font-semibold text-gray-600 tabular-nums w-14 text-right">{fmtCompact(c.revenue)}</span>
+                            </div>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${pct}%`, backgroundColor: colors[i % colors.length] }}
+                            />
+                          </div>
+                          <div className="flex justify-between mt-0.5">
+                            <span className="text-[9px] text-gray-400">{Math.round((c.journeys / ji.totalJourneys) * 100)}% de journeys</span>
+                            <span className="text-[9px] text-gray-400">AOV {fmtCompact(c.aov)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Auto-insight */}
+                  {ji.aovLift > 0 && (
+                    <div className="mt-4 bg-gradient-to-r from-cyan-50 to-transparent p-3 rounded-xl border border-cyan-100/50">
+                      <p className="text-[11px] text-cyan-800 leading-relaxed">
+                        <span className="font-bold">Insight:</span> Los compradores que interactúan con <span className="font-semibold">múltiples canales</span> gastan <span className="font-bold text-cyan-600">+{ji.aovLift}%</span> más que los de un solo toque. El retargeting multi-canal está generando valor.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Winning Channel Combos — visual flow pairs */}
+                <div className={`${cardStyle} p-5 stagger-card`} style={{ ...cardShadow, animationDelay: "1400ms" }}>
+                  <div className="mb-4">
+                    <h2 className="text-sm font-semibold text-gray-900">Combinaciones Ganadoras</h2>
+                    <p className="text-[11px] text-gray-400 mt-0.5">Las rutas primer canal → último canal que más facturan</p>
+                  </div>
+                  {ji.channelPairs.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {ji.channelPairs.slice(0, 7).map((pair, i) => {
+                        const maxPairRevenue = ji.channelPairs[0]?.revenue || 1;
+                        const barPct = Math.round((pair.revenue / maxPairRevenue) * 100);
+                        return (
+                          <div key={i} className="group">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] font-bold text-gray-300 w-4 tabular-nums">{i + 1}</span>
+                              <ChannelBadge source={pair.first_channel} />
+                              <FlowArrow />
+                              <ChannelBadge source={pair.last_channel} />
+                              <div className="flex-1" />
+                              <span className="text-[10px] text-gray-400 tabular-nums">{pair.journeys} journeys</span>
+                            </div>
+                            <div className="flex items-center gap-2 ml-4">
+                              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400 transition-all duration-500" style={{ width: `${barPct}%` }} />
+                              </div>
+                              <span className="text-[11px] font-semibold text-gray-700 tabular-nums min-w-[50px] text-right">{fmtCompact(pair.revenue)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-400 text-sm py-8">Aún no hay suficientes journeys multi-touch</div>
+                  )}
+                  {/* Auto-insight */}
+                  {ji.channelPairs.length >= 2 && (() => {
+                    const top = ji.channelPairs[0];
+                    const topFirst = getSourceInfo(top.first_channel);
+                    const topLast = getSourceInfo(top.last_channel);
+                    return (
+                      <div className="mt-4 bg-gradient-to-r from-violet-50 to-transparent p-3 rounded-xl border border-violet-100/50">
+                        <p className="text-[11px] text-violet-800 leading-relaxed">
+                          <span className="font-bold">Insight:</span> La ruta <span className="font-semibold">{topFirst.label} → {topLast.label}</span> es la combinación más rentable con <span className="font-bold text-violet-600">{fmtCompact(top.revenue)}</span> en revenue y AOV de {fmtCompact(top.aov)}.
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Row 3: Channel Roles — full width premium table */}
+              {ji.channelRoles.length > 0 && (
+                <div className={`${cardStyle} p-5 stagger-card`} style={{ ...cardShadow, animationDelay: "1460ms" }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900">Roles de cada Canal</h2>
+                      <p className="text-[11px] text-gray-400 mt-0.5">¿Cada canal descubre, asiste o cierra la venta?</p>
+                    </div>
+                    <InfoTip text="Descubrimiento = primer contacto. Asistencia = touchpoint intermedio. Cierre = último contacto antes de comprar. Solo = journey de un solo toque." />
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-3">Canal</th>
+                          <th className="text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Descubrimiento</th>
+                          <th className="text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Asistencia</th>
+                          <th className="text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Cierre</th>
+                          <th className="text-center text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Solo</th>
+                          <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">Rol Principal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ji.channelRoles.map((ch) => {
+                          const total = ch.firstTouch + ch.assistTouch + ch.lastTouch + ch.soloTouch;
+                          if (total === 0) return null;
+                          const roles = [
+                            { key: "first", val: ch.firstTouch, label: "Descubrimiento", color: "#06b6d4" },
+                            { key: "assist", val: ch.assistTouch, label: "Asistencia", color: "#8b5cf6" },
+                            { key: "last", val: ch.lastTouch, label: "Cierre", color: "#f97316" },
+                            { key: "solo", val: ch.soloTouch, label: "Solo", color: "#22c55e" },
+                          ];
+                          const primary = [...roles].sort((a, b) => b.val - a.val)[0];
+                          return (
+                            <tr key={ch.source} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                              <td className="py-2.5 pr-3">
+                                <ChannelBadge source={ch.source} size="md" />
+                              </td>
+                              {roles.map(r => (
+                                <td key={r.key} className="text-center py-2.5 px-2">
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span className="font-semibold text-gray-700 tabular-nums">{fmt(r.val)}</span>
+                                    {total > 0 && (
+                                      <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
+                                        <div className="h-full rounded-full" style={{ width: `${Math.round((r.val / total) * 100)}%`, backgroundColor: r.color }} />
+                                      </div>
+                                    )}
+                                    <span className="text-[9px] text-gray-400">{Math.round((r.val / total) * 100)}%</span>
+                                  </div>
+                                </td>
+                              ))}
+                              <td className="text-right py-2.5 pl-2">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-2 py-0.5" style={{ backgroundColor: `${primary.color}15`, color: primary.color }}>
+                                  {primary.label}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           );
           } catch { return null; }

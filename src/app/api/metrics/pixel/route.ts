@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const fromParam = searchParams.get("from");
 
     // Cache check (v3: busted after adding conversion rates 2026-04-12)
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v6"];
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v7"];
     const cached = getCached("pixel", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
@@ -150,6 +150,9 @@ export async function GET(request: NextRequest) {
       ordersByDeviceResult,
       productViewersResult,
       productPurchasesResult,
+      // ── Journey Intelligence queries ──
+      journeyComplexityResult,
+      channelPairsResult,
     ] = await Promise.all([
       // 1. Live status
       prisma.$queryRaw`
@@ -781,6 +784,67 @@ export async function GET(request: NextRequest) {
         ORDER BY revenue DESC
         LIMIT 500
       ` as Promise<Array<{ productExternalId: string; productName: string; category: string; brand: string; orders: number; units: number; revenue: number }>>,
+
+      // ── Journey Intelligence queries (use crDateFrom for pixel coverage) ──
+
+      // 27. Journey complexity distribution (touchpoint count → journeys, revenue, AOV)
+      prisma.$queryRaw`
+        SELECT
+          CASE
+            WHEN pa."touchpointCount" = 1 THEN 1
+            WHEN pa."touchpointCount" = 2 THEN 2
+            WHEN pa."touchpointCount" = 3 THEN 3
+            WHEN pa."touchpointCount" BETWEEN 4 AND 6 THEN 4
+            ELSE 5
+          END as bucket,
+          COUNT(*)::int as journeys,
+          SUM(pa."attributedValue")::float as revenue,
+          AVG(pa."attributedValue")::float as aov
+        FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
+        WHERE pa."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${crDateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND pa.model::text = ${selectedModel}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+        GROUP BY 1
+        ORDER BY 1
+      ` as Promise<Array<{ bucket: number; journeys: number; revenue: number; aov: number }>>,
+
+      // 28. Top channel pairs (first touch → last touch for multi-touch journeys)
+      prisma.$queryRaw`
+        SELECT
+          CASE
+            WHEN COALESCE(pa.touchpoints::jsonb->0->>'medium','') IN ('organic','social','referral')
+              AND COALESCE(pa.touchpoints::jsonb->0->>'source','') IN ('google','bing','yahoo','duckduckgo')
+            THEN COALESCE(pa.touchpoints::jsonb->0->>'source','') || '_organic'
+            ELSE COALESCE(pa.touchpoints::jsonb->0->>'source', 'direct')
+          END as first_channel,
+          CASE
+            WHEN COALESCE(pa.touchpoints::jsonb->(-1)->>'medium','') IN ('organic','social','referral')
+              AND COALESCE(pa.touchpoints::jsonb->(-1)->>'source','') IN ('google','bing','yahoo','duckduckgo')
+            THEN COALESCE(pa.touchpoints::jsonb->(-1)->>'source','') || '_organic'
+            ELSE COALESCE(pa.touchpoints::jsonb->(-1)->>'source', 'direct')
+          END as last_channel,
+          COUNT(*)::int as journeys,
+          SUM(pa."attributedValue")::float as revenue,
+          AVG(pa."attributedValue")::float as aov
+        FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
+        WHERE pa."organizationId" = ${ORG_ID}
+          AND o."orderDate" >= ${crDateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND pa.model::text = ${selectedModel}
+          AND pa."touchpointCount" >= 2
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+        GROUP BY 1, 2
+        ORDER BY revenue DESC
+        LIMIT 10
+      ` as Promise<Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>>,
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -1173,6 +1237,45 @@ export async function GET(request: NextRequest) {
         bySource: attributionBySource,
         conversionLag: conversionLagResult,
       },
+
+      // ── Journey Intelligence ──
+      journeyIntelligence: (() => {
+        const BUCKET_LABELS: Record<number, string> = { 1: "1 toque", 2: "2 toques", 3: "3 toques", 4: "4-6 toques", 5: "7+ toques" };
+        const complexity = (journeyComplexityResult as Array<{ bucket: number; journeys: number; revenue: number; aov: number }>)
+          .map(b => ({ label: BUCKET_LABELS[b.bucket] || `${b.bucket}`, ...b }));
+
+        const totalJourneys = complexity.reduce((s, c) => s + c.journeys, 0);
+        const singleTouch = complexity.find(c => c.bucket === 1);
+        const multiTouch = complexity.filter(c => c.bucket > 1);
+        const multiTouchJourneys = multiTouch.reduce((s, c) => s + c.journeys, 0);
+        const multiTouchRevenue = multiTouch.reduce((s, c) => s + c.revenue, 0);
+        const singleTouchRevenue = singleTouch?.revenue || 0;
+        const multiTouchAOV = multiTouchJourneys > 0 ? Math.round(multiTouchRevenue / multiTouchJourneys) : 0;
+        const singleTouchAOV = singleTouch ? Math.round(singleTouch.revenue / singleTouch.journeys) : 0;
+
+        // Channel pairs: filter out payment gateways
+        const pairs = (channelPairsResult as Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>)
+          .filter(p => !PAYMENT_GATEWAY_SOURCES.includes(p.first_channel.toLowerCase()) && !PAYMENT_GATEWAY_SOURCES.includes(p.last_channel.toLowerCase()));
+
+        // Conversion lag (already have conversionLagResult)
+        const lag = conversionLagResult as Array<{ bucket: string; orders: number; revenue: number }>;
+
+        return {
+          complexity,
+          totalJourneys,
+          multiTouchPercent: totalJourneys > 0 ? Math.round((multiTouchJourneys / totalJourneys) * 100) : 0,
+          multiTouchRevenue: Math.round(multiTouchRevenue),
+          singleTouchRevenue: Math.round(singleTouchRevenue),
+          multiTouchAOV,
+          singleTouchAOV,
+          aovLift: singleTouchAOV > 0 ? Math.round(((multiTouchAOV - singleTouchAOV) / singleTouchAOV) * 100) : 0,
+          channelPairs: pairs,
+          conversionLag: lag,
+          channelRoles: (channelRolesResult as Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>)
+            .filter(r => !PAYMENT_GATEWAY_SOURCES.includes((r.source || "").toLowerCase()))
+            .slice(0, 8),
+        };
+      })(),
 
       recentEvents: recentEventsResult.map((e) => ({
         ...e,
