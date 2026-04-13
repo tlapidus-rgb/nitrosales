@@ -1661,172 +1661,6 @@ export default function AnalyticsPage() {
         })()}
 
         {/* ═══════════════════════════════════════════════════════ */}
-        {/* ZONA 8 — Tasas de Conversión (100% NitroPixel)          */}
-        {/* ═══════════════════════════════════════════════════════ */}
-        {(() => {
-          try {
-          const cr = pixelData?.conversionRates;
-          if (!cr) return null;
-
-          // Pixel coverage metadata
-          const meta = pixelData?.meta;
-          const crDateAdjusted = meta?.crDateAdjusted || false;
-          const crDateFrom = meta?.crDateFrom ? new Date(meta.crDateFrom) : null;
-          const pixelInstallDate = meta?.pixelInstalledAt ? new Date(meta.pixelInstalledAt) : null;
-
-          // CR by channel (pixel visitors + pixel attributions)
-          const channels = (cr.byChannel || []).filter(s => s.visitors > 0 || s.purchases > 0).slice(0, 10);
-
-          // CR by device (pixel visitors + VTEX orders)
-          const deviceCR = (cr.byDevice || []).filter(d => d.visitors > 0).sort((a, b) => b.cr - a.cr);
-
-          // Categories & brands — show ALL (tables are scrollable now)
-          const categories = (cr.byCategory || []);
-          const brands = (cr.byBrand || []).filter(b => b.brand !== "Sin marca");
-
-          // Products (for sortable table)
-          const products = (cr.byProduct || []).filter(p => p.productName !== "Producto desconocido");
-
-          return (
-            <div className="space-y-4">
-              {/* Section header */}
-              <div className="flex items-center gap-3 pt-2">
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Tasas de Conversión</h2>
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-              </div>
-
-              {/* Pixel coverage notice — shows when date range was auto-adjusted */}
-              {crDateAdjusted && crDateFrom && (
-                <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200/60 rounded-xl px-4 py-3">
-                  <span className="text-amber-500 text-sm mt-0.5">&#9432;</span>
-                  <p className="text-[11px] text-amber-700 leading-relaxed">
-                    El NitroPixel se instaló el <span className="font-semibold">{crDateFrom.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}</span>.
-                    Las tasas de conversión solo muestran datos desde esa fecha para evitar comparar ventas anteriores contra visitantes que no estaban siendo registrados.
-                  </p>
-                </div>
-              )}
-
-              {/* Row 1: CR by Channel + CR by Device */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* CR by Channel — 2 cols */}
-                <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "800ms" }}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-sm font-semibold text-gray-900">Conversión por Canal</h2>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Visitantes (NitroPixel) → Compras (atribución pixel) por fuente</p>
-                    </div>
-                    <InfoTip text="Visitantes: rastreados por NitroPixel vía UTM source. Compras: atribuidas por el modelo de atribución del pixel. CR = compras / visitantes." />
-                  </div>
-                  {channels.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b border-gray-100">
-                            <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
-                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Visitantes</th>
-                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Compras</th>
-                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Revenue</th>
-                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">CR</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {channels.map((s) => {
-                            const info = getSourceInfo(s.source);
-                            const crColor = s.cr >= 2 ? "text-emerald-600" : s.cr >= 1 ? "text-amber-600" : "text-red-500";
-                            return (
-                              <tr key={s.source} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                                <td className="py-2.5 pr-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: info.color }}>
-                                      <ChannelLogo source={s.source} size={12} />
-                                    </div>
-                                    <span className="font-medium text-gray-700">{info.label}</span>
-                                  </div>
-                                </td>
-                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.visitors)}</td>
-                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.purchases)}</td>
-                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmtCompact(s.revenue)}</td>
-                                <td className="text-right pl-2 py-2.5">
-                                  <span className={`font-bold tabular-nums ${crColor}`}>{s.cr}%</span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-center text-gray-400 text-sm py-8">Sin datos de conversión por canal</div>
-                  )}
-                </div>
-
-                {/* CR by Device — 1 col */}
-                <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "860ms" }}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold text-gray-900">CR por Dispositivo</h2>
-                    <InfoTip text="Visitantes: NitroPixel por tipo de dispositivo. Órdenes: VTEX por dispositivo. CR = órdenes / visitantes." />
-                  </div>
-                  {deviceCR.length > 0 ? (
-                    <div className="space-y-4">
-                      {deviceCR.map((d) => {
-                        const DEVICE_ICONS: Record<string, string> = { mobile: "📱", desktop: "💻", tablet: "📟" };
-                        const DEVICE_LABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
-                        const DEVICE_COLORS: Record<string, string> = { mobile: "#06b6d4", desktop: "#8b5cf6", tablet: "#f97316" };
-                        const color = DEVICE_COLORS[d.device] || "#94a3b8";
-                        const crColor = d.cr >= 2 ? "text-emerald-600" : d.cr >= 1 ? "text-amber-600" : "text-red-500";
-                        return (
-                          <div key={d.device} className="bg-gray-50/50 rounded-xl p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">{DEVICE_ICONS[d.device] || "🖥️"}</span>
-                                <span className="text-xs font-medium text-gray-700">{DEVICE_LABELS[d.device] || d.device}</span>
-                              </div>
-                              <span className={`text-lg font-bold tabular-nums ${crColor}`}>{d.cr}%</span>
-                            </div>
-                            <div className="flex items-center justify-between text-[11px] text-gray-400">
-                              <span>{fmt(d.visitors)} visitas</span>
-                              <span className="mx-1">→</span>
-                              <span>{fmt(d.orders)} órdenes</span>
-                            </div>
-                            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mt-2">
-                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(d.cr * 10, 100)}%`, backgroundColor: color }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {deviceCR.length >= 2 && (() => {
-                        const best = deviceCR[0];
-                        const DLABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
-                        return (
-                          <div className="bg-gradient-to-r from-gray-50 to-transparent p-2.5 rounded-xl">
-                            <p className="text-[11px] text-gray-500">
-                              <span className="font-semibold text-gray-700">{DLABELS[best.device] || best.device}</span> convierte {(best.cr / (deviceCR[1]?.cr || 1)).toFixed(1)}x más que {DLABELS[deviceCR[1]?.device] || deviceCR[1]?.device || "otro"}.
-                            </p>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  ) : (
-                    <div className="text-center text-gray-400 text-sm py-8">Sin datos de dispositivos</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Row 2: CR by Category + CR by Brand — scrollable, sortable, searchable */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {categories.length > 0 && <CategoryCRTable categories={categories} />}
-                {brands.length > 0 && <BrandCRTable brands={brands} />}
-              </div>
-
-              {/* Row 3: CR by Product — scrollable, sortable, filterable, paginated */}
-              {products.length > 0 && <ProductCRTable products={products} />}
-            </div>
-          );
-          } catch { return null; }
-        })()}
-
-        {/* ═══════════════════════════════════════════════════════ */}
         {/* ZONA 9 — Journey Intelligence                          */}
         {/* ═══════════════════════════════════════════════════════ */}
         {(() => {
@@ -2043,6 +1877,172 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          );
+          } catch { return null; }
+        })()}
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* ZONA 8 — Tasas de Conversión (100% NitroPixel)          */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {(() => {
+          try {
+          const cr = pixelData?.conversionRates;
+          if (!cr) return null;
+
+          // Pixel coverage metadata
+          const meta = pixelData?.meta;
+          const crDateAdjusted = meta?.crDateAdjusted || false;
+          const crDateFrom = meta?.crDateFrom ? new Date(meta.crDateFrom) : null;
+          const pixelInstallDate = meta?.pixelInstalledAt ? new Date(meta.pixelInstalledAt) : null;
+
+          // CR by channel (pixel visitors + pixel attributions)
+          const channels = (cr.byChannel || []).filter(s => s.visitors > 0 || s.purchases > 0).slice(0, 10);
+
+          // CR by device (pixel visitors + VTEX orders)
+          const deviceCR = (cr.byDevice || []).filter(d => d.visitors > 0).sort((a, b) => b.cr - a.cr);
+
+          // Categories & brands — show ALL (tables are scrollable now)
+          const categories = (cr.byCategory || []);
+          const brands = (cr.byBrand || []).filter(b => b.brand !== "Sin marca");
+
+          // Products (for sortable table)
+          const products = (cr.byProduct || []).filter(p => p.productName !== "Producto desconocido");
+
+          return (
+            <div className="space-y-4">
+              {/* Section header */}
+              <div className="flex items-center gap-3 pt-2">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Tasas de Conversión</h2>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+              </div>
+
+              {/* Pixel coverage notice — shows when date range was auto-adjusted */}
+              {crDateAdjusted && crDateFrom && (
+                <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200/60 rounded-xl px-4 py-3">
+                  <span className="text-amber-500 text-sm mt-0.5">&#9432;</span>
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
+                    El NitroPixel se instaló el <span className="font-semibold">{crDateFrom.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}</span>.
+                    Las tasas de conversión solo muestran datos desde esa fecha para evitar comparar ventas anteriores contra visitantes que no estaban siendo registrados.
+                  </p>
+                </div>
+              )}
+
+              {/* Row 1: CR by Channel + CR by Device */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* CR by Channel — 2 cols */}
+                <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "800ms" }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900">Conversión por Canal</h2>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Visitantes (NitroPixel) → Compras (atribución pixel) por fuente</p>
+                    </div>
+                    <InfoTip text="Visitantes: rastreados por NitroPixel vía UTM source. Compras: atribuidas por el modelo de atribución del pixel. CR = compras / visitantes." />
+                  </div>
+                  {channels.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pr-2">Canal</th>
+                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Visitantes</th>
+                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Compras</th>
+                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 px-2">Revenue</th>
+                            <th className="text-right text-[10px] font-medium text-gray-400 uppercase tracking-wider pb-2 pl-2">CR</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {channels.map((s) => {
+                            const info = getSourceInfo(s.source);
+                            const crColor = s.cr >= 2 ? "text-emerald-600" : s.cr >= 1 ? "text-amber-600" : "text-red-500";
+                            return (
+                              <tr key={s.source} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                                <td className="py-2.5 pr-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: info.color }}>
+                                      <ChannelLogo source={s.source} size={12} />
+                                    </div>
+                                    <span className="font-medium text-gray-700">{info.label}</span>
+                                  </div>
+                                </td>
+                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.visitors)}</td>
+                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmt(s.purchases)}</td>
+                                <td className="text-right text-gray-600 tabular-nums px-2 py-2.5">{fmtCompact(s.revenue)}</td>
+                                <td className="text-right pl-2 py-2.5">
+                                  <span className={`font-bold tabular-nums ${crColor}`}>{s.cr}%</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-400 text-sm py-8">Sin datos de conversión por canal</div>
+                  )}
+                </div>
+
+                {/* CR by Device — 1 col */}
+                <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "860ms" }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-sm font-semibold text-gray-900">CR por Dispositivo</h2>
+                    <InfoTip text="Visitantes: NitroPixel por tipo de dispositivo. Órdenes: VTEX por dispositivo. CR = órdenes / visitantes." />
+                  </div>
+                  {deviceCR.length > 0 ? (
+                    <div className="space-y-4">
+                      {deviceCR.map((d) => {
+                        const DEVICE_ICONS: Record<string, string> = { mobile: "📱", desktop: "💻", tablet: "📟" };
+                        const DEVICE_LABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
+                        const DEVICE_COLORS: Record<string, string> = { mobile: "#06b6d4", desktop: "#8b5cf6", tablet: "#f97316" };
+                        const color = DEVICE_COLORS[d.device] || "#94a3b8";
+                        const crColor = d.cr >= 2 ? "text-emerald-600" : d.cr >= 1 ? "text-amber-600" : "text-red-500";
+                        return (
+                          <div key={d.device} className="bg-gray-50/50 rounded-xl p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg">{DEVICE_ICONS[d.device] || "🖥️"}</span>
+                                <span className="text-xs font-medium text-gray-700">{DEVICE_LABELS[d.device] || d.device}</span>
+                              </div>
+                              <span className={`text-lg font-bold tabular-nums ${crColor}`}>{d.cr}%</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-gray-400">
+                              <span>{fmt(d.visitors)} visitas</span>
+                              <span className="mx-1">→</span>
+                              <span>{fmt(d.orders)} órdenes</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mt-2">
+                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(d.cr * 10, 100)}%`, backgroundColor: color }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {deviceCR.length >= 2 && (() => {
+                        const best = deviceCR[0];
+                        const DLABELS: Record<string, string> = { mobile: "Mobile", desktop: "Desktop", tablet: "Tablet" };
+                        return (
+                          <div className="bg-gradient-to-r from-gray-50 to-transparent p-2.5 rounded-xl">
+                            <p className="text-[11px] text-gray-500">
+                              <span className="font-semibold text-gray-700">{DLABELS[best.device] || best.device}</span> convierte {(best.cr / (deviceCR[1]?.cr || 1)).toFixed(1)}x más que {DLABELS[deviceCR[1]?.device] || deviceCR[1]?.device || "otro"}.
+                            </p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-400 text-sm py-8">Sin datos de dispositivos</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 2: CR by Category + CR by Brand — scrollable, sortable, searchable */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {categories.length > 0 && <CategoryCRTable categories={categories} />}
+                {brands.length > 0 && <BrandCRTable brands={brands} />}
+              </div>
+
+              {/* Row 3: CR by Product — scrollable, sortable, filterable, paginated */}
+              {products.length > 0 && <ProductCRTable products={products} />}
             </div>
           );
           } catch { return null; }
