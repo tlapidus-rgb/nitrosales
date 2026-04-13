@@ -935,6 +935,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const isAurum = aurumRoutes.some((r) => pathname.startsWith(r));
           const isNitropixel = pathname.startsWith("/nitropixel");
           const isJourneys = pathname.startsWith("/pixel/journeys");
+          const isPixelAttribution = pathname === "/pixel";
           return (
             <main
               className={
@@ -942,7 +943,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   ? "flex-1 p-0 overflow-hidden bg-[#0a0a0f]"
                   : isNitropixel
                   ? "flex-1 p-0 overflow-hidden bg-[#05060a]"
-                  : isJourneys
+                  : (isJourneys || isPixelAttribution)
                   ? "flex-1 p-0 overflow-y-auto bg-[#05060a]"
                   : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
               }

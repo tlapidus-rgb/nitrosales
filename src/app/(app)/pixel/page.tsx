@@ -5,8 +5,9 @@ import { DateRangeFilter } from "@/components/dashboard";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
 // ══════════════════════════════════════════════════════════════
-// NitroPixel Dashboard — Revenue Attribution Analytics
+// NitroPixel — Atribución · Dark Premium
 // ══════════════════════════════════════════════════════════════
+// "Google mide para Google. Meta mide para Meta. NitroPixel mide para vos."
 
 const MS_PER_DAY = 86400000;
 
@@ -21,18 +22,7 @@ const fmtCompact = (n: number) => {
 };
 const pctBadge = (v: number) =>
   v > 0 ? `+${v}%` : v < 0 ? `${v}%` : "0%";
-const pctColor = (v: number) =>
-  v > 0 ? "text-emerald-600" : v < 0 ? "text-red-600" : "text-gray-400";
 
-const COLORS = ["#f97316", "#06b6d4", "#a855f7", "#22c55e", "#eab308", "#ec4899"];
-const EVENT_LABELS: Record<string, string> = {
-  PAGE_VIEW: "Vistas de Pagina",
-  VIEW_PRODUCT: "Vista Producto",
-  ADD_TO_CART: "Agregar al Carrito",
-  PURCHASE: "Compra",
-  IDENTIFY: "Identificacion",
-  CUSTOM: "Custom",
-};
 const MODEL_LABELS: Record<string, string> = {
   LAST_CLICK: "Last Click",
   FIRST_CLICK: "First Click",
@@ -40,10 +30,10 @@ const MODEL_LABELS: Record<string, string> = {
   NITRO: "Nitro",
 };
 const MODEL_DESCRIPTIONS: Record<string, string> = {
-  LAST_CLICK: "100% del credito al ultimo canal antes de la compra",
-  FIRST_CLICK: "100% del credito al primer canal que trajo al cliente",
-  LINEAR: "El credito se reparte en partes iguales entre todos los canales",
-  NITRO: "El modelo Nitro pondera el credito segun el rol de cada canal. El ultimo contacto (cerro la venta) recibe la mayor parte, el primero (descubrio tu marca) la segunda, y los intermedios comparten el resto.",
+  LAST_CLICK: "100% del crédito al último canal antes de la compra",
+  FIRST_CLICK: "100% del crédito al primer canal que trajo al cliente",
+  LINEAR: "El crédito se reparte en partes iguales entre todos los canales",
+  NITRO: "El modelo Nitro pondera el crédito según el rol de cada canal. El último contacto recibe la mayor parte, el primero la segunda, y los intermedios comparten el resto.",
 };
 const MODEL_ORDER = ["NITRO", "LAST_CLICK", "FIRST_CLICK", "LINEAR"];
 const DEFAULT_NITRO_WEIGHTS = { first: 30, last: 40, middle: 30 };
@@ -54,9 +44,9 @@ const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string;
   instagram: { icon: "I", color: "#E4405F", label: "Instagram", svg: "instagram" },
   google: { icon: "G", color: "#EA4335", label: "Google", svg: "google" },
   bing: { icon: "B", color: "#008373", label: "Bing", svg: "bing" },
-  tiktok: { icon: "T", color: "#000000", label: "TikTok", svg: "tiktok" },
+  tiktok: { icon: "T", color: "#69C9D0", label: "TikTok", svg: "tiktok" },
   direct: { icon: "D", color: "#22C55E", label: "Directo", svg: "direct" },
-  organic: { icon: "O", color: "#8B5CF6", label: "Organico", svg: "organic" },
+  organic: { icon: "O", color: "#8B5CF6", label: "Orgánico", svg: "organic" },
   email: { icon: "E", color: "#F59E0B", label: "Email", svg: "email" },
   "email-marketing": { icon: "E", color: "#F59E0B", label: "Email Marketing", svg: "email" },
   "vtex-abandoned-cart": { icon: "C", color: "#E85D04", label: "Carrito Abandonado", svg: "email" },
@@ -72,7 +62,6 @@ function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) 
   switch (s) {
     case "meta":
     case "facebook":
-      // Meta "infinity" logo
       return (<svg {...props}><path d="M12 10.203c-1.047-1.45-2.183-2.403-3.64-2.403-2.16 0-4.36 2.1-4.36 5.2 0 2.1 1.1 4 3.1 4 1.6 0 2.7-.9 4.1-2.9l.8-1.2.8 1.2c1.4 2 2.5 2.9 4.1 2.9 2 0 3.1-1.9 3.1-4 0-3.1-2.2-5.2-4.36-5.2-1.457 0-2.593.953-3.64 2.403zm-1.44 2.197L9.2 14.3c-1 1.5-1.5 1.9-2.3 1.9-.9 0-1.5-.8-1.5-2.2 0-1.9 1-3.4 2.5-3.4.8 0 1.4.4 2.66 1.8zm2.88 0c1.26-1.4 1.86-1.8 2.66-1.8 1.5 0 2.5 1.5 2.5 3.4 0 1.4-.6 2.2-1.5 2.2-.8 0-1.3-.4-2.3-1.9l-1.36-1.9z"/></svg>);
     case "instagram":
       return (<svg {...props}><path d="M12 2.982c2.937 0 3.285.011 4.445.064a6.087 6.087 0 012.042.379 3.408 3.408 0 011.265.823c.37.37.632.803.823 1.265.234.543.362 1.16.379 2.042.053 1.16.064 1.508.064 4.445s-.011 3.285-.064 4.445a6.087 6.087 0 01-.379 2.042 3.643 3.643 0 01-2.088 2.088 6.087 6.087 0 01-2.042.379c-1.16.053-1.508.064-4.445.064s-3.285-.011-4.445-.064a6.087 6.087 0 01-2.042-.379 3.408 3.408 0 01-1.265-.823 3.408 3.408 0 01-.823-1.265 6.087 6.087 0 01-.379-2.042C2.993 15.285 2.982 14.937 2.982 12s.011-3.285.064-4.445a6.087 6.087 0 01.379-2.042c.191-.462.452-.895.823-1.265a3.408 3.408 0 011.265-.823 6.087 6.087 0 012.042-.379C8.715 2.993 9.063 2.982 12 2.982zM12 1c-2.987 0-3.362.013-4.535.066a8.074 8.074 0 00-2.67.511 5.392 5.392 0 00-1.949 1.27 5.392 5.392 0 00-1.27 1.949 8.074 8.074 0 00-.51 2.67C1.013 8.638 1 9.013 1 12s.013 3.362.066 4.535a8.074 8.074 0 00.511 2.67 5.392 5.392 0 001.27 1.949 5.392 5.392 0 001.949 1.27 8.074 8.074 0 002.67.51C8.638 22.987 9.013 23 12 23s3.362-.013 4.535-.066a8.074 8.074 0 002.67-.511 5.625 5.625 0 003.218-3.218 8.074 8.074 0 00.511-2.67C22.987 15.362 23 14.987 23 12s-.013-3.362-.066-4.535a8.074 8.074 0 00-.511-2.67 5.392 5.392 0 00-1.27-1.949 5.392 5.392 0 00-1.949-1.27 8.074 8.074 0 00-2.67-.51C15.362 1.013 14.987 1 12 1zm0 5.351A5.649 5.649 0 1017.649 12 5.649 5.649 0 0012 6.351zm0 9.316A3.667 3.667 0 1115.667 12 3.667 3.667 0 0112 15.667zM18.804 5.34a1.44 1.44 0 10-1.44 1.44 1.44 1.44 0 001.44-1.44z"/></svg>);
@@ -93,7 +82,7 @@ function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) 
     case "direct":
       return (<svg {...props} fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>);
     default:
-      return <span className="font-bold" style={{ fontSize: size * 0.7 }}>{(source || "?").charAt(0).toUpperCase()}</span>;
+      return <span className="font-bold text-white" style={{ fontSize: size * 0.7 }}>{(source || "?").charAt(0).toUpperCase()}</span>;
   }
 }
 
@@ -111,13 +100,10 @@ function getCreditsForModel(
   if (!touchpoints?.length) return [];
   const credits: Record<string, number> = {};
   const count = touchpoints.length;
-
   if (model === "LAST_CLICK") {
-    const src = touchpoints[count - 1]?.source || "direct";
-    credits[src] = 100;
+    credits[touchpoints[count - 1]?.source || "direct"] = 100;
   } else if (model === "FIRST_CLICK") {
-    const src = touchpoints[0]?.source || "direct";
-    credits[src] = 100;
+    credits[touchpoints[0]?.source || "direct"] = 100;
   } else if (model === "LINEAR") {
     const share = Math.round(100 / count);
     touchpoints.forEach((tp, i) => {
@@ -125,135 +111,112 @@ function getCreditsForModel(
       credits[src] = (credits[src] || 0) + (i === count - 1 ? 100 - share * (count - 1) : share);
     });
   } else {
-    // NITRO — weighted model
-    // When there are no middle touchpoints (count=2), redistribute middle weight
-    // proportionally to first and last so total always sums to 100%.
     touchpoints.forEach((tp, i) => {
       const src = tp?.source || "direct";
       let pct: number;
-      if (count === 1) {
-        pct = 100;
-      } else if (count === 2) {
-        // No middle touchpoints — redistribute middle weight proportionally
+      if (count === 1) { pct = 100; }
+      else if (count === 2) {
         const total = weights.first + weights.last;
-        if (i === 0) {
-          pct = Math.round((weights.first / total) * 100);
-        } else {
-          pct = 100 - Math.round((weights.first / total) * 100);
-        }
-      } else if (i === 0) {
-        pct = weights.first;
-      } else if (i === count - 1) {
-        pct = weights.last;
-      } else {
-        pct = Math.round(weights.middle / Math.max(count - 2, 1));
-      }
+        pct = i === 0 ? Math.round((weights.first / total) * 100) : 100 - Math.round((weights.first / total) * 100);
+      } else if (i === 0) { pct = weights.first; }
+      else if (i === count - 1) { pct = weights.last; }
+      else { pct = Math.round(weights.middle / Math.max(count - 2, 1)); }
       credits[src] = (credits[src] || 0) + pct;
     });
   }
-
   return Object.entries(credits).map(([source, pct]) => {
     const info = getSourceInfo(source);
     return { source, pct, label: info.label, color: info.color };
   });
 }
 
-// ── InfoIcon tooltip ──
-function InfoTip({ text }: { text: string }) {
-  const [show, setShow] = useState(false);
-  return (
-    <span
-      className="relative inline-flex ml-1 cursor-help"
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      <svg className="w-3.5 h-3.5 text-gray-500 hover:text-orange-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <circle cx="12" cy="12" r="10" />
-        <path d="M12 16v-4m0-4h.01" />
-      </svg>
-      {show && (
-        <span className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-gray-100 text-[11px] leading-relaxed rounded-lg px-3 py-2 w-56 z-50 shadow-xl border border-gray-200 pointer-events-none">
-          {text}
-        </span>
-      )}
-    </span>
-  );
+// ── Count-up animation hook ──
+function useCountUp(target: number, duration = 900) {
+  const [value, setValue] = useState(0);
+  const prevTarget = useRef(0);
+  useEffect(() => {
+    const start = prevTarget.current;
+    prevTarget.current = target;
+    if (start === target) { setValue(target); return; }
+    const startTime = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(start + (target - start) * eased);
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [target, duration]);
+  return value;
+}
+
+// ── Clean URL for display ──
+function cleanUrl(url?: string) {
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    const short = u.pathname + (u.search ? u.search.slice(0, 20) : "");
+    return short.length > 60 ? short.slice(0, 57) + "…" : short;
+  } catch { return url.slice(0, 60); }
 }
 
 // ── Types ──
 interface PixelData {
-  liveStatus: {
-    status: "LIVE" | "ACTIVE" | "INACTIVE";
-    lastEventAt: string | null;
-    totalEvents: number;
-    lastHourEvents: number;
-  };
-  kpis: {
-    totalVisitors: number;
-    totalSessions: number;
-    totalPageViews: number;
-    identifiedVisitors: number;
-    cartVisitors: number;
-    purchaseVisitors: number;
-    pagesPerSession: number;
-    daysInPeriod: number;
-    changes: { visitors: number; sessions: number; pageViews: number };
-  };
-  businessKpis: {
-    pixelRevenue: number;
-    pixelRoas: number;
-    ordersAttributed: number;
-    attributionRate: number;
-    aov: number;
-    totalAdSpend: number;
-    totalOrders: number;
-    webOrders: number;
-    webRevenue: number;
-    marketplaceOrders: number;
-    marketplaceRevenue: number;
-    changes: { pixelRevenue: number; ordersAttributed: number; pixelRoas: number };
-  };
-  channelRoas: Array<{
-    source: string; orders: number; pixelRevenue: number; platformRevenue: number;
-    spend: number; platformConversions: number; pixelRoas: number; platformRoas: number;
-    diffPercent: number | null;
-  }>;
+  liveStatus: { status: "LIVE" | "ACTIVE" | "INACTIVE"; lastEventAt: string | null; totalEvents: number; lastHourEvents: number };
+  kpis: { totalVisitors: number; totalSessions: number; totalPageViews: number; identifiedVisitors: number; cartVisitors: number; purchaseVisitors: number; pagesPerSession: number; daysInPeriod: number; changes: { visitors: number; sessions: number; pageViews: number } };
+  businessKpis: { pixelRevenue: number; pixelRoas: number; ordersAttributed: number; attributionRate: number; aov: number; totalAdSpend: number; totalOrders: number; webOrders: number; webRevenue: number; marketplaceOrders: number; marketplaceRevenue: number; changes: { pixelRevenue: number; ordersAttributed: number; pixelRoas: number } };
+  channelRoas: Array<{ source: string; orders: number; pixelRevenue: number; platformRevenue: number; spend: number; platformConversions: number; pixelRoas: number; platformRoas: number; diffPercent: number | null }>;
   funnel: { pageView: number; viewProduct: number; addToCart: number; checkoutStart: number; purchase: number };
   dailyVisitors: Array<{ day: string; visitors: number; sessions: number; pageViews: number }>;
   dailyRevenue: Array<{ day: string; revenue: number; orders: number; spend: number; roas: number }>;
-  dailyChannelBreakdown: Array<{
-    day: string; totalRevenue: number; totalOrders: number; totalSpend: number;
-    totalRoas: number; visitors: number;
-    channels: Array<{ source: string; revenue: number; orders: number; spend: number; roas: number }>;
-  }>;
-  recentJourneys: Array<{
-    orderId: string; orderExternalId: string; revenue: number;
-    touchpointCount: number; conversionLag: number;
-    touchpoints: Array<{ timestamp: string; source?: string; medium?: string; campaign?: string; clickType?: string; page?: string }>;
-    orderDate: string; orderStatus: string;
-    isAttributed?: boolean;
-  }>;
-  pixelHealth: {
-    attributionRate: number;
-    clickCoverage: { total: number; withClickId: number; clickIdRate: number };
-    eventsInPeriod: number;
-    pixelAgeDays?: number;
-  };
+  dailyChannelBreakdown: Array<{ day: string; totalRevenue: number; totalOrders: number; totalSpend: number; totalRoas: number; visitors: number; channels: Array<{ source: string; revenue: number; orders: number; spend: number; roas: number }> }>;
+  recentJourneys: Array<{ orderId: string; orderExternalId: string; revenue: number; touchpointCount: number; conversionLag: number; touchpoints: Array<{ timestamp: string; source?: string; medium?: string; campaign?: string; clickType?: string; page?: string }>; orderDate: string; orderStatus: string; isAttributed?: boolean }>;
+  pixelHealth: { attributionRate: number; clickCoverage: { total: number; withClickId: number; clickIdRate: number }; eventsInPeriod: number; pixelAgeDays?: number };
   deviceBreakdown: Array<{ device: string; count: number; percentage: number }>;
   eventTypes: Array<{ type: string; count: number; uniqueVisitors: number; percentage: number }>;
   popularPages: Array<{ url: string; pageViews: number; uniqueVisitors: number }>;
-  attribution: {
-    byModel: Array<{ model: string; ordersAttributed: number; revenue: number; avgValue: number; avgTouchpoints: number }>;
-    bySource: Array<{ source: string; orders: number; revenue: number; percentage: number }>;
-    conversionLag: Array<{ bucket: string; orders: number; revenue: number }>;
-  };
-  recentEvents: Array<{
-    id: string; type: string; visitorId: string; pageUrl: string | null;
-    deviceType: string | null; timestamp: string; sessionId: string;
-  }>;
+  attribution: { byModel: Array<{ model: string; ordersAttributed: number; revenue: number; avgValue: number; avgTouchpoints: number }>; bySource: Array<{ source: string; orders: number; revenue: number; percentage: number }>; conversionLag: Array<{ bucket: string; orders: number; revenue: number }> };
+  recentEvents: Array<{ id: string; type: string; visitorId: string; pageUrl: string | null; deviceType: string | null; timestamp: string; sessionId: string }>;
   pagination: { page: number; pageSize: number; totalCount: number; totalPages: number };
   meta: { dateFrom: string; dateTo: string; daysInPeriod: number; attributionModel?: string; nitroWeights?: { first: number; last: number; middle: number } };
 }
+
+
+// ══════════════════════════════════════════════════════════════
+// DARK STYLES
+// ══════════════════════════════════════════════════════════════
+function DarkStyles() {
+  return (
+    <style>{`
+      @keyframes attrBarGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+      @keyframes attrFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes attrPulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+      @keyframes attrGlow { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+      @keyframes attrShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+      @keyframes attrHeartbeat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+      @keyframes attrCountUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes attrGridDrift { 0% { background-position: 0 0; } 100% { background-position: 40px 40px; } }
+      @keyframes attrJourneyDot { 0%, 100% { box-shadow: 0 0 0 0 currentColor; } 50% { box-shadow: 0 0 0 6px transparent; } }
+      .attr-stagger > * { animation: attrFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      .attr-stagger > *:nth-child(1) { animation-delay: 0ms; }
+      .attr-stagger > *:nth-child(2) { animation-delay: 60ms; }
+      .attr-stagger > *:nth-child(3) { animation-delay: 120ms; }
+      .attr-stagger > *:nth-child(4) { animation-delay: 180ms; }
+      .attr-stagger > *:nth-child(5) { animation-delay: 240ms; }
+      .attr-stagger > *:nth-child(6) { animation-delay: 300ms; }
+      .attr-stagger > *:nth-child(7) { animation-delay: 360ms; }
+      .attr-stagger > *:nth-child(8) { animation-delay: 420ms; }
+      .attr-glass { background: linear-gradient(160deg, rgba(15,23,42,0.85), rgba(8,12,24,0.95)); border: 1px solid rgba(6,182,212,0.12); }
+      .attr-glass:hover { border-color: rgba(6,182,212,0.25); }
+      .attr-grid-bg { background-image: linear-gradient(rgba(6,182,212,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.08) 1px, transparent 1px); background-size: 40px 40px; animation: attrGridDrift 60s linear infinite; }
+      .scrollbar-dark::-webkit-scrollbar { width: 4px; }
+      .scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
+      .scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.2); border-radius: 2px; }
+    `}</style>
+  );
+}
+
 
 // ══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -263,29 +226,18 @@ export default function PixelPage() {
   const [data, setData] = useState<PixelData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Date state
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(Date.now() - 7 * MS_PER_DAY);
     return d.toISOString().slice(0, 10);
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(7);
-
-  // Chart toggle
-  // dailyMetric state removed — chart now shows all three metrics simultaneously
-
-  // Attribution model selector — Nitro is the default
   const [selectedModel, setSelectedModel] = useState<string>("NITRO");
-
-  // Nitro custom weights
   const [nitroWeights, setNitroWeights] = useState(DEFAULT_NITRO_WEIGHTS);
   const [editingWeights, setEditingWeights] = useState(DEFAULT_NITRO_WEIGHTS);
   const [weightsOpen, setWeightsOpen] = useState(false);
   const [savingWeights, setSavingWeights] = useState(false);
   const [weightsError, setWeightsError] = useState<string | null>(null);
-
-  // Attribution window settings
   const [windowOpen, setWindowOpen] = useState(false);
   const [globalWindow, setGlobalWindow] = useState(30);
   const [editingGlobalWindow, setEditingGlobalWindow] = useState(30);
@@ -293,168 +245,72 @@ export default function PixelPage() {
   const [editingChannelWindows, setEditingChannelWindows] = useState<Record<string, number | null>>({});
   const [savingWindow, setSavingWindow] = useState(false);
   const [windowError, setWindowError] = useState<string | null>(null);
-
-  // Tabs + sections
-  const [activeTab, setActiveTab] = useState<"resumen" | "ordenes" | "canales">("resumen");
-
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
-
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-
-  // Sticky header collapse on scroll
-  const [headerCompact, setHeaderCompact] = useState(false);
-  // Cmd+K command palette
+  const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-
+  const scrollRef = useRef<HTMLElement | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&page=${currentPage}&pageSize=20&model=${selectedModel}`
-      );
+      const res = await fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&page=${currentPage}&pageSize=20&model=${selectedModel}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setData(json);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
+      setData(await res.json());
+    } catch (e) { setError(String(e)); } finally { setLoading(false); }
   }, [dateFrom, dateTo, currentPage, selectedModel]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Scroll listener — collapse header after a soft threshold
-  useEffect(() => {
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = window.requestAnimationFrame(() => {
-        raf = 0;
-        const compact = window.scrollY > 96;
-        setHeaderCompact((prev) => (prev === compact ? prev : compact));
-      });
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-
   // Cmd+K listener
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPaletteOpen((p) => !p);
-      } else if (e.key === "Escape") {
-        setPaletteOpen(false);
-      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen(p => !p); }
+      else if (e.key === "Escape") setPaletteOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Fetch attribution settings on mount (weights + windows)
+  // Fetch attribution settings
   useEffect(() => {
-    fetch("/api/settings/attribution")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.weights) {
-          setNitroWeights(d.weights);
-          setEditingWeights(d.weights);
-        }
-        if (d.attributionWindowDays) {
-          setGlobalWindow(d.attributionWindowDays);
-          setEditingGlobalWindow(d.attributionWindowDays);
-        }
-        if (d.channelWindows) {
-          setChannelWindows(d.channelWindows);
-          setEditingChannelWindows(d.channelWindows);
-        }
-      })
-      .catch(() => {});
+    fetch("/api/settings/attribution").then(r => r.json()).then(d => {
+      if (d.weights) { setNitroWeights(d.weights); setEditingWeights(d.weights); }
+      if (d.attributionWindowDays) { setGlobalWindow(d.attributionWindowDays); setEditingGlobalWindow(d.attributionWindowDays); }
+      if (d.channelWindows) { setChannelWindows(d.channelWindows); setEditingChannelWindows(d.channelWindows); }
+    }).catch(() => {});
   }, []);
 
-  // Update weights when data comes back with meta.nitroWeights
   useEffect(() => {
-    if (data?.meta?.nitroWeights) {
-      const w = data.meta.nitroWeights;
-      setNitroWeights(w);
-      setEditingWeights(w);
-    }
+    if (data?.meta?.nitroWeights) { const w = data.meta.nitroWeights; setNitroWeights(w); setEditingWeights(w); }
   }, [data]);
 
   const saveNitroWeights = async () => {
     const sum = editingWeights.first + editingWeights.last + editingWeights.middle;
-    if (sum !== 100) {
-      setWeightsError(`Los pesos deben sumar 100% (actual: ${sum}%)`);
-      return;
-    }
-    setSavingWeights(true);
-    setWeightsError(null);
+    if (sum !== 100) { setWeightsError(`Los pesos deben sumar 100% (actual: ${sum}%)`); return; }
+    setSavingWeights(true); setWeightsError(null);
     try {
-      const res = await fetch("/api/settings/attribution", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingWeights),
-      });
+      const res = await fetch("/api/settings/attribution", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editingWeights) });
       if (!res.ok) throw new Error("Error al guardar");
-      setNitroWeights(editingWeights);
-      setWeightsOpen(false);
+      setNitroWeights(editingWeights); setWeightsOpen(false);
       if (selectedModel === "NITRO") fetchData();
-    } catch {
-      setWeightsError("Error al guardar la configuracion");
-    } finally {
-      setSavingWeights(false);
-    }
+    } catch { setWeightsError("Error al guardar la configuración"); } finally { setSavingWeights(false); }
   };
 
   const saveWindowSettings = async () => {
-    setSavingWindow(true);
-    setWindowError(null);
+    setSavingWindow(true); setWindowError(null);
     try {
-      // Clean channel windows: remove null entries (means "use global")
       const cleanCW: Record<string, number | null> = {};
       for (const [ch, val] of Object.entries(editingChannelWindows)) {
-        if (val !== null && val !== editingGlobalWindow) {
-          cleanCW[ch] = val;
-        } else {
-          cleanCW[ch] = null; // will be removed by API
-        }
+        cleanCW[ch] = val !== null && val !== editingGlobalWindow ? val : null;
       }
-      const res = await fetch("/api/settings/attribution", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          attributionWindowDays: editingGlobalWindow,
-          channelWindows: cleanCW,
-        }),
-      });
+      const res = await fetch("/api/settings/attribution", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attributionWindowDays: editingGlobalWindow, channelWindows: cleanCW }) });
       if (!res.ok) throw new Error("Error al guardar");
-      const data = await res.json();
-      setGlobalWindow(data.attributionWindowDays);
-      setChannelWindows(data.channelWindows);
-      setEditingChannelWindows(data.channelWindows);
-      setWindowOpen(false);
-      fetchData(); // Refresh data with new windows
-    } catch {
-      setWindowError("Error al guardar la configuracion");
-    } finally {
-      setSavingWindow(false);
-    }
+      const d = await res.json();
+      setGlobalWindow(d.attributionWindowDays); setChannelWindows(d.channelWindows); setEditingChannelWindows(d.channelWindows); setWindowOpen(false); fetchData();
+    } catch { setWindowError("Error al guardar la configuración"); } finally { setSavingWindow(false); }
   };
-
-  const PIXEL_QUICK_RANGES = [
-    { label: "7 dias", days: 7 },
-    { label: "30 dias", days: 30 },
-    { label: "90 dias", days: 90 },
-  ];
 
   const setQuickRange = (days: number) => {
     const to = new Date();
@@ -465,56 +321,34 @@ export default function PixelPage() {
     setCurrentPage(1);
   };
 
-  const handlePixelDateChange = (type: "from" | "to", value: string) => {
-    if (type === "from") setDateFrom(value);
-    else setDateTo(value);
-    setActiveQuickRange(null);
-    setCurrentPage(1);
-  };
+  // ── Derived data ──
+  const bk = data?.businessKpis || { pixelRevenue: 0, pixelRoas: 0, ordersAttributed: 0, attributionRate: 0, aov: 0, totalAdSpend: 0, totalOrders: 0, webOrders: 0, webRevenue: 0, marketplaceOrders: 0, marketplaceRevenue: 0, changes: { pixelRevenue: 0, ordersAttributed: 0, pixelRoas: 0 } };
+  const channels = data?.channelRoas || [];
+  const journeys = data?.recentJourneys || [];
+  const health = data?.pixelHealth;
+  const totalPixelRevenue = channels.reduce((s, c) => s + c.pixelRevenue, 0);
+  const totalPlatformRevenue = channels.reduce((s, c) => s + c.platformRevenue, 0);
+  const overReportPct = totalPixelRevenue > 0 ? Math.round(((totalPlatformRevenue - totalPixelRevenue) / totalPixelRevenue) * 100) : 0;
 
-  // ── Loading state ──
+  // Count-up values
+  const revCountUp = useCountUp(bk.pixelRevenue);
+  const roasCountUp = useCountUp(bk.pixelRoas, 600);
+
+  // ── LOADING STATE (dark) ──
   if (loading && !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#fafafa" }}>
-        <PixelStyles />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#05060a" }}>
+        <DarkStyles />
         <div className="flex flex-col items-center gap-5">
           <div className="relative">
-            {/* Outer ring */}
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center relative overflow-hidden"
-              style={{
-                background: "linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%)",
-                boxShadow: "0 8px 24px rgba(249,115,22,0.30), inset 0 1px 0 rgba(255,255,255,0.30)",
-                animation: "pixelLogoPulse 2.4s ease-in-out infinite",
-              }}
-            >
-              <svg className="w-7 h-7 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              {/* Shine sweep */}
-              <div
-                className="absolute inset-0 opacity-50"
-                style={{
-                  background: "linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.4) 50%, transparent 65%)",
-                  animation: "pixelShine 2.8s ease-in-out infinite",
-                }}
-              />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center relative overflow-hidden" style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)", boxShadow: "0 0 40px rgba(6,182,212,0.3)", animation: "attrPulse 2s ease-in-out infinite" }}>
+              <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             </div>
-            {/* Orbit dot */}
-            <div
-              className="absolute -inset-3 rounded-full"
-              style={{
-                border: "1.5px dashed rgba(249,115,22,0.30)",
-                animation: "pixelSpin 8s linear infinite",
-              }}
-            />
+            <div className="absolute -inset-4 rounded-full" style={{ border: "1px dashed rgba(6,182,212,0.25)", animation: "pixelSpin 12s linear infinite" }} />
           </div>
           <div className="text-center">
-            <p className="text-[13px] font-semibold text-gray-900 tracking-[-0.01em]">NitroPixel</p>
-            <p className="text-[11px] font-medium text-gray-500 mt-0.5 tabular-nums">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-500 mr-1.5 align-middle" style={{ animation: "pixelDotFade 1.4s ease-in-out infinite" }} />
-              Sincronizando atribuciones
-            </p>
+            <p className="text-sm font-semibold text-white tracking-tight">NitroPixel</p>
+            <p className="text-xs text-cyan-400/60 mt-1">Cargando atribuciones...</p>
           </div>
         </div>
       </div>
@@ -523,1415 +357,518 @@ export default function PixelPage() {
 
   if (error && !data) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-        <div className="text-red-600 text-center">
-          <p className="text-lg font-semibold mb-2">Error al cargar datos</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#05060a" }}>
+        <div className="text-center">
+          <p className="text-lg font-semibold text-red-400 mb-2">Error al cargar datos</p>
           <p className="text-sm text-gray-500">{error}</p>
-          <button onClick={fetchData} className="mt-4 px-4 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200 text-gray-700">
-            Reintentar
-          </button>
+          <button onClick={fetchData} className="mt-4 px-4 py-2 rounded-lg text-sm text-white" style={{ background: "rgba(6,182,212,0.15)", border: "1px solid rgba(6,182,212,0.3)" }}>Reintentar</button>
         </div>
       </div>
     );
   }
 
-  const d = data!;
-  const hasData = d.liveStatus.totalEvents > 0;
-  const hasAttribution = d.attribution?.byModel?.length > 0;
-  const bk = d.businessKpis || { pixelRevenue: 0, pixelRoas: 0, ordersAttributed: 0, attributionRate: 0, aov: 0, totalAdSpend: 0, totalOrders: 0, webOrders: 0, webRevenue: 0, marketplaceOrders: 0, marketplaceRevenue: 0, changes: { pixelRevenue: 0, ordersAttributed: 0, pixelRoas: 0 } };
-
-  // Compute header sparkline data + asset stats
-  const sortedDays = (d.dailyChannelBreakdown || []).slice().sort((a: any, b: any) => a.day.localeCompare(b.day));
-  const headerSparkData = sortedDays.map((day: any) => ({ day: day.day, value: day.totalRevenue || 0 }));
-  const totalEventsTracked = d.liveStatus.totalEvents || 0;
-  const periodRevenue = bk.pixelRevenue || 0;
-  const periodGrowth = bk.changes?.pixelRevenue || 0;
-  const pixelAgeDays = d.pixelHealth?.pixelAgeDays;
+  // Sort channels by revenue desc for the hero bar
+  const sortedChannels = [...channels].sort((a, b) => b.pixelRevenue - a.pixelRevenue);
+  const maxChannelRevenue = Math.max(...channels.map(c => Math.max(c.pixelRevenue, c.platformRevenue)), 1);
 
   return (
-    <div className="min-h-screen relative" style={{ background: "#fafafa" }}>
-      <PixelStyles />
-      {/* ══════════════════════════════════════════════════════════ */}
-      {/* STICKY HEADER — Digital Asset Vivo                       */}
-      {/* ══════════════════════════════════════════════════════════ */}
-      <div
-        className={`sticky top-0 z-40 relative overflow-hidden ${headerCompact ? "pixel-header-compact" : ""}`}
-        style={{
-          background: "linear-gradient(180deg, #ffffff 0%, #fbfbfd 55%, #f4f5f8 100%)",
-          backdropFilter: "saturate(140%) blur(20px)",
-          WebkitBackdropFilter: "saturate(140%) blur(20px)",
-          boxShadow:
-            "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.18), 0 22px 40px -28px rgba(15,23,42,0.16)",
-        }}
-      >
-        {/* Animated grid background */}
-        <div
-          className="absolute inset-0 pixel-grid-bg pointer-events-none opacity-60"
-          style={{ animation: "pixelGridShift 60s linear infinite" }}
-        />
-        {/* Asset glow */}
-        <div className="absolute inset-0 pixel-asset-glow pointer-events-none" />
-        {/* Aurora prism — modern accent (top-left orange + top-right indigo) */}
-        <div
-          className="absolute -top-32 -left-24 w-[420px] h-[420px] pointer-events-none rounded-full"
-          style={{
-            background: "radial-gradient(circle at center, rgba(249,115,22,0.16) 0%, rgba(249,115,22,0.04) 40%, transparent 70%)",
-            filter: "blur(40px)",
-          }}
-        />
-        <div
-          className="absolute -top-40 -right-20 w-[460px] h-[460px] pointer-events-none rounded-full"
-          style={{
-            background: "radial-gradient(circle at center, rgba(99,102,241,0.12) 0%, rgba(99,102,241,0.03) 40%, transparent 70%)",
-            filter: "blur(50px)",
-          }}
-        />
-        {/* Bottom prism delimiter — gradient line that locks the boundary */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-[2px] pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, rgba(249,115,22,0.55) 18%, rgba(236,72,153,0.55) 35%, rgba(168,85,247,0.55) 50%, rgba(99,102,241,0.55) 65%, rgba(16,185,129,0.55) 82%, transparent 100%)",
-            opacity: 0.85,
-          }}
-        />
+    <div className="min-h-screen relative" style={{ background: "#05060a", color: "#e2e8f0" }}>
+      <DarkStyles />
 
-        <div className="max-w-7xl mx-auto px-5 py-3 relative">
-          {/* Top bar: Brand + Asset value + Live indicator */}
-          <div className="flex items-center justify-between mb-3 gap-4">
-            <div className="flex items-center gap-3.5 min-w-0">
-              {/* Logo with pulse + orbit */}
-              <div className="relative shrink-0">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden"
-                  style={{
-                    background: "linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%)",
-                    boxShadow: "0 6px 18px rgba(249,115,22,0.30), inset 0 1px 0 rgba(255,255,255,0.30)",
-                    animation: d.liveStatus.status === "LIVE" ? "pixelLogoPulse 3.2s ease-in-out infinite" : undefined,
-                  }}
-                >
-                  <svg className="w-5 h-5 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                  <div
-                    className="absolute inset-0 opacity-40 pointer-events-none"
-                    style={{
-                      background: "linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.35) 50%, transparent 65%)",
-                      animation: "pixelShine 4s ease-in-out infinite",
-                    }}
-                  />
-                </div>
-              </div>
-              {/* Title + meta */}
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h1
-                    className="text-[18px] font-bold text-gray-900 leading-tight"
-                    style={{ letterSpacing: "-0.025em" }}
-                  >
-                    NitroPixel
-                  </h1>
-                  <span
-                    className="text-[9px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded uppercase tracking-[0.1em]"
-                    style={{ letterSpacing: "0.08em" }}
-                  >
-                    Analytics
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-[10px] text-gray-500 font-medium tabular-nums flex items-center gap-1">
-                    <svg className="w-2.5 h-2.5 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>
-                    {fmt(totalEventsTracked)} eventos
-                  </p>
-                  {pixelAgeDays !== undefined && (
-                    <>
-                      <span className="text-gray-300 text-[10px]">·</span>
-                      <p className="text-[10px] text-gray-500 font-medium tabular-nums">
-                        {pixelAgeDays}d activo
-                      </p>
-                    </>
-                  )}
-                  <span className="text-gray-300 text-[10px]">·</span>
-                  <p className="text-[10px] text-gray-500 font-medium">Revenue attribution</p>
-                </div>
-              </div>
+      {/* ── Background ambient ── */}
+      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+        <div className="absolute inset-0 attr-grid-bg opacity-[0.03]" />
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full" style={{ background: "radial-gradient(circle, rgba(6,182,212,0.08) 0%, transparent 70%)", filter: "blur(80px)" }} />
+        <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)", filter: "blur(80px)" }} />
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* BLOQUE 0 — STICKY HEADER                                 */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      <div className="sticky top-0 z-40" style={{ background: "rgba(5,6,10,0.85)", backdropFilter: "blur(20px) saturate(1.5)", WebkitBackdropFilter: "blur(20px) saturate(1.5)", borderBottom: "1px solid rgba(6,182,212,0.08)" }}>
+        <div className="max-w-[1440px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
+          {/* Left — Logo + Title */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)", boxShadow: "0 0 20px rgba(6,182,212,0.25)" }}>
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             </div>
+            <div>
+              <h1 className="text-sm font-semibold text-white tracking-tight">Atribución</h1>
+              <p className="text-[10px] text-cyan-400/50 font-mono uppercase tracking-widest">NitroPixel</p>
+            </div>
+          </div>
 
-            {/* Asset value + Sparkline + Live */}
-            <div className="hidden md:flex items-center gap-5">
-              {/* Asset value with growth */}
-              <div className="text-right">
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em]">
-                  Revenue Trackeado
-                </p>
-                <div className="flex items-baseline gap-2 justify-end">
-                  <span
-                    className="text-[20px] leading-none font-bold text-gray-900 tabular-nums"
-                    style={{ letterSpacing: "-0.025em" }}
-                  >
-                    {fmtCompact(periodRevenue)}
-                  </span>
-                  {periodGrowth !== 0 && (
-                    <span className={`text-[10px] font-bold tabular-nums flex items-center gap-0.5 ${pctColor(periodGrowth)}`}>
-                      {periodGrowth > 0 && <span>↑</span>}
-                      {periodGrowth < 0 && <span>↓</span>}
-                      {pctBadge(periodGrowth)}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Sparkline */}
-              {headerSparkData.length > 1 && (
-                <div className="w-28 h-10 -mb-1">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={headerSparkData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="headerSpark" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f97316" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        stroke="#f97316"
-                        strokeWidth={1.75}
-                        fill="url(#headerSpark)"
-                        dot={false}
-                        isAnimationActive
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-
-              {/* Live indicator with EKG bars */}
-              <div
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.12em]"
-                style={{
-                  background: d.liveStatus.status === "LIVE"
-                    ? "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(16,185,129,0.04))"
-                    : d.liveStatus.status === "ACTIVE"
-                    ? "linear-gradient(135deg, rgba(245,158,11,0.10), rgba(245,158,11,0.04))"
-                    : "linear-gradient(135deg, rgba(100,116,139,0.10), rgba(100,116,139,0.04))",
-                  color: d.liveStatus.status === "LIVE" ? "#059669" : d.liveStatus.status === "ACTIVE" ? "#b45309" : "#64748b",
-                  border: `1px solid ${d.liveStatus.status === "LIVE" ? "rgba(16,185,129,0.25)" : d.liveStatus.status === "ACTIVE" ? "rgba(245,158,11,0.25)" : "rgba(100,116,139,0.20)"}`,
-                  boxShadow: d.liveStatus.status === "LIVE" ? "0 0 0 4px rgba(16,185,129,0.05)" : undefined,
+          {/* Center — Model selector pills */}
+          <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(6,182,212,0.08)" }}>
+            {MODEL_ORDER.map(m => (
+              <button
+                key={m}
+                onClick={() => { setSelectedModel(m); setCurrentPage(1); }}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-300"
+                style={selectedModel === m ? {
+                  background: "linear-gradient(135deg, #f97316, #fb923c)",
+                  color: "white",
+                  boxShadow: "0 0 16px rgba(249,115,22,0.3)",
+                } : {
+                  color: "rgba(148,163,184,0.7)",
                 }}
               >
-                {/* Signal bars */}
-                <span className="flex items-end gap-[2px] h-3">
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={i}
-                      className="w-[2px] rounded-full"
-                      style={{
-                        height: "100%",
-                        background: d.liveStatus.status === "LIVE" ? "#10b981" : d.liveStatus.status === "ACTIVE" ? "#f59e0b" : "#94a3b8",
-                        animation: d.liveStatus.status === "LIVE" ? `pixelSignal 1.2s ease-in-out infinite ${i * 0.18}s` : undefined,
-                        transformOrigin: "bottom",
-                      }}
-                    />
-                  ))}
-                </span>
-                {d.liveStatus.status === "LIVE" ? "En Vivo" : d.liveStatus.status === "ACTIVE" ? "Activo" : "Inactivo"}
-              </div>
-            </div>
-          </div>
-          <div className="pixel-header-collapse mb-3">
-            <DateRangeFilter
-              dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}
-              quickRanges={PIXEL_QUICK_RANGES} onQuickRange={setQuickRange}
-              onDateChange={handlePixelDateChange} loading={loading}
-            />
+                {MODEL_LABELS[m]}
+              </button>
+            ))}
           </div>
 
-          {/* ═══ ATTRIBUTION MODEL SELECTOR ═══ */}
-          <div className="flex items-center gap-2 pb-3">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mr-1">Modelo</span>
-            <InfoTip text="El modelo de atribucion define como se reparte el credito de una venta entre los distintos canales que toco el cliente antes de comprar. Cambia de modelo y vas a ver como cambian todos los numeros." />
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 ml-2">
-              {MODEL_ORDER.map((model) => {
-                const tooltip = MODEL_DESCRIPTIONS[model];
-                const Icon = () => {
-                  if (model === "NITRO") {
-                    return (
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                      </svg>
-                    );
-                  }
-                  if (model === "LAST_CLICK") {
-                    return (
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <circle cx="12" cy="12" r="9" />
-                        <circle cx="12" cy="12" r="4" />
-                        <circle cx="12" cy="12" r="0.8" fill="currentColor" />
-                      </svg>
-                    );
-                  }
-                  if (model === "FIRST_CLICK") {
-                    return (
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path d="M5 21V4" />
-                        <path d="M5 4h11l-2 4 2 4H5" />
-                      </svg>
-                    );
-                  }
-                  if (model === "LINEAR") {
-                    return (
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <rect x="3" y="6" width="18" height="3" rx="1.5" />
-                        <rect x="3" y="15" width="18" height="3" rx="1.5" />
-                      </svg>
-                    );
-                  }
-                  return null;
-                };
+          {/* Right — Date + Live */}
+          <div className="flex items-center gap-3">
+            {data?.liveStatus?.status === "LIVE" && (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                </span>
+                <span className="text-[10px] font-medium text-emerald-400">LIVE</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              {[7, 30, 90].map(d => (
+                <button key={d} onClick={() => setQuickRange(d)} className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all" style={activeQuickRange === d ? { background: "rgba(6,182,212,0.15)", color: "#67e8f9", border: "1px solid rgba(6,182,212,0.3)" } : { color: "rgba(148,163,184,0.5)" }}>
+                  {d}d
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {/* Rainbow line */}
+        <div className="h-[1px]" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.4) 20%, rgba(139,92,246,0.4) 50%, rgba(249,115,22,0.4) 80%, transparent)" }} />
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* CONTENT                                                   */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      <div className="relative z-10 max-w-[1440px] mx-auto px-6 py-8 space-y-10">
+
+        {/* ════════════════════════════════════════════════════════ */}
+        {/* BLOQUE 1 — HERO: Revenue Attribution Map               */}
+        {/* ════════════════════════════════════════════════════════ */}
+        <section style={{ animation: "attrFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) both" }}>
+          {/* Title */}
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-cyan-400/50 mb-1">Revenue Attribution Map</p>
+              <div className="flex items-baseline gap-4">
+                <span className="text-4xl font-bold tracking-tight" style={{ background: "linear-gradient(135deg, #e2e8f0, #06b6d4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                  {fmtCompact(Math.round(revCountUp))}
+                </span>
+                <span className="text-lg font-semibold text-white/40">
+                  ROAS <span className="text-cyan-400">{roasCountUp.toFixed(1)}x</span>
+                </span>
+              </div>
+            </div>
+            {totalPlatformRevenue > totalPixelRevenue && (
+              <div className="text-right">
+                <p className="text-[10px] font-mono uppercase tracking-wider text-red-400/60">Plataformas reportan</p>
+                <p className="text-sm text-red-400/80">
+                  {fmtCompact(totalPlatformRevenue)}
+                  <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}>
+                    +{overReportPct}% inflado
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* ── The Hero Bar ── */}
+          <div className="relative rounded-2xl overflow-hidden" style={{ background: "rgba(15,23,42,0.4)", border: "1px solid rgba(6,182,212,0.1)", padding: "3px" }}>
+            <div className="flex rounded-[13px] overflow-hidden" style={{ height: "72px" }}>
+              {sortedChannels.filter(c => c.pixelRevenue > 0).map((ch, i) => {
+                const info = getSourceInfo(ch.source);
+                const pct = totalPixelRevenue > 0 ? (ch.pixelRevenue / totalPixelRevenue) * 100 : 0;
+                const isHovered = hoveredChannel === ch.source;
                 return (
-                  <button
-                    key={model}
-                    onClick={() => setSelectedModel(model)}
-                    title={tooltip}
-                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                      selectedModel === model
-                        ? model === "NITRO"
-                          ? "bg-orange-500 text-white shadow-sm"
-                          : "bg-white text-gray-700 shadow-sm border border-gray-200"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
+                  <div
+                    key={ch.source}
+                    className="relative flex items-center justify-center gap-2 transition-all duration-500 cursor-pointer overflow-hidden"
+                    style={{
+                      width: `${pct}%`,
+                      minWidth: pct > 3 ? "60px" : "24px",
+                      background: `linear-gradient(180deg, ${info.color}dd, ${info.color}99)`,
+                      boxShadow: isHovered ? `0 0 30px ${info.color}40, inset 0 1px 0 rgba(255,255,255,0.2)` : `inset 0 1px 0 rgba(255,255,255,0.1)`,
+                      transform: isHovered ? "scaleY(1.08)" : "scaleY(1)",
+                      zIndex: isHovered ? 10 : 1,
+                      animation: `attrBarGrow 0.8s cubic-bezier(0.16,1,0.3,1) ${i * 80}ms both`,
+                      transformOrigin: "left center",
+                    }}
+                    onMouseEnter={() => setHoveredChannel(ch.source)}
+                    onMouseLeave={() => setHoveredChannel(null)}
                   >
-                    <Icon />
-                    {MODEL_LABELS[model]}
-                  </button>
+                    {/* Channel logo */}
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.25)" }}>
+                      <ChannelLogo source={ch.source} size={14} />
+                    </div>
+                    {/* Label + amount — only show if segment wide enough */}
+                    {pct > 8 && (
+                      <div className="flex flex-col items-start min-w-0">
+                        <span className="text-[10px] font-bold text-white/90 truncate">{info.label}</span>
+                        <span className="text-[11px] font-mono font-bold text-white">{fmtCompact(ch.pixelRevenue)}</span>
+                      </div>
+                    )}
+                    {/* Hover tooltip */}
+                    {isHovered && (
+                      <div className="absolute -top-[88px] left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-center z-50 whitespace-nowrap" style={{ background: "rgba(15,23,42,0.95)", border: `1px solid ${info.color}40`, boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 20px ${info.color}15` }}>
+                        <p className="text-[10px] font-semibold text-white/60 mb-1">{info.label}</p>
+                        <p className="text-sm font-bold text-white">{fmtCompact(ch.pixelRevenue)} · ROAS {ch.pixelRoas.toFixed(1)}x</p>
+                        <p className="text-[10px] text-white/40 mt-0.5">{fmt(ch.orders)} órdenes · CPA {ch.spend > 0 && ch.orders > 0 ? fmtCompact(ch.spend / ch.orders) : "—"}</p>
+                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45" style={{ background: "rgba(15,23,42,0.95)", borderRight: `1px solid ${info.color}40`, borderBottom: `1px solid ${info.color}40` }} />
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
           </div>
 
-          {/* ═══ MODEL DESCRIPTION BAR ═══ */}
-          <div className={`pixel-header-collapse rounded-lg px-4 py-2.5 mb-2 flex items-start gap-3 ${
-            selectedModel === "NITRO" ? "bg-orange-500/5 border border-orange-500/20" : "bg-white border border-gray-200"
-          }`}>
-            <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 ${
-              selectedModel === "NITRO" ? "bg-orange-500/20" : "bg-gray-200"
-            }`}>
-              {selectedModel === "LAST_CLICK" && <span className="text-xs font-bold text-gray-400">L</span>}
-              {selectedModel === "FIRST_CLICK" && <span className="text-xs font-bold text-gray-400">F</span>}
-              {selectedModel === "LINEAR" && <span className="text-xs font-bold text-gray-400">=</span>}
-              {selectedModel === "NITRO" && (
-                <svg className="w-3.5 h-3.5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
-                </svg>
-              )}
-            </div>
-            <div className="flex-1">
-              <p className="text-xs text-gray-400 leading-relaxed">{MODEL_DESCRIPTIONS[selectedModel]}</p>
+          {/* Channel legend below bar */}
+          <div className="flex flex-wrap gap-3 mt-4">
+            {sortedChannels.filter(c => c.pixelRevenue > 0).map(ch => {
+              const info = getSourceInfo(ch.source);
+              const pct = totalPixelRevenue > 0 ? ((ch.pixelRevenue / totalPixelRevenue) * 100).toFixed(1) : "0";
+              return (
+                <div key={ch.source} className="flex items-center gap-1.5 text-[11px] text-white/50">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: info.color }} />
+                  <span className="font-medium text-white/70">{info.label}</span>
+                  <span className="font-mono">{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
-              {/* ═══ NITRO WEIGHTS DISPLAY + EDITOR ═══ */}
-              {selectedModel === "NITRO" && (
-                <div className="mt-3">
-                  {/* Weight indicators */}
-                  <div className="flex items-center gap-5 mb-2 flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-cyan-500"/>
-                      <span className="text-xs text-gray-500">Ultimo contacto: <span className="text-cyan-400 font-bold">{nitroWeights.last}%</span></span>
-                      <InfoTip text="El canal que cerro la venta. Es el ultimo que toco el cliente antes de comprar. Recibe el mayor credito porque 'sello el deal'." />
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-orange-500"/>
-                      <span className="text-xs text-gray-500">Primer contacto: <span className="text-orange-400 font-bold">{nitroWeights.first}%</span></span>
-                      <InfoTip text="El canal que descubrio tu marca. Es el primero que trajo al cliente. Tiene merito porque sin el, el cliente nunca hubiera llegado." />
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-purple-500"/>
-                      <span className="text-xs text-gray-500">Intermedios: <span className="text-purple-400 font-bold">{nitroWeights.middle}%</span></span>
-                      <InfoTip text="Todos los canales que ayudaron entre medio (retargeting, emails, organico). Comparten este porcentaje en partes iguales." />
-                    </div>
+        {/* ── Section divider ── */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
+          <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-cyan-400/30">La Verdad</span>
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
+        </div>
+
+        {/* ════════════════════════════════════════════════════════ */}
+        {/* BLOQUE 2 — TRUTH GAP · Pixel vs Plataforma             */}
+        {/* ════════════════════════════════════════════════════════ */}
+        <section className="space-y-3 attr-stagger">
+          {sortedChannels.filter(c => c.pixelRevenue > 0 || c.platformRevenue > 0).map(ch => {
+            const info = getSourceInfo(ch.source);
+            const diff = ch.diffPercent;
+            const pixelPct = maxChannelRevenue > 0 ? (ch.pixelRevenue / maxChannelRevenue) * 100 : 0;
+            const platPct = maxChannelRevenue > 0 ? (ch.platformRevenue / maxChannelRevenue) * 100 : 0;
+            const isOverReporting = diff !== null && diff > 5;
+            return (
+              <div key={ch.source} className="attr-glass rounded-xl p-4 transition-all duration-300 hover:border-opacity-30" style={{ borderTop: `2px solid ${info.color}60` }}>
+                <div className="flex items-center gap-4">
+                  {/* Channel logo */}
+                  <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${info.color}20`, boxShadow: `0 0 20px ${info.color}10` }}>
+                    <ChannelLogo source={ch.source} size={20} />
                   </div>
 
-                  {/* Weight bar */}
-                  <div className="h-2.5 rounded-full overflow-hidden flex bg-gray-200">
-                    <div className="bg-cyan-500 transition-all duration-300" style={{ width: `${nitroWeights.last}%` }} />
-                    <div className="bg-orange-500 transition-all duration-300" style={{ width: `${nitroWeights.first}%` }} />
-                    <div className="bg-purple-500 transition-all duration-300" style={{ width: `${nitroWeights.middle}%` }} />
-                  </div>
-
-                  {/* Customize button */}
-                  <button
-                    onClick={() => { setWeightsOpen(!weightsOpen); setEditingWeights({ ...nitroWeights }); }}
-                    className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-400 transition-colors"
-                  >
-                    <svg className={`w-3 h-3 transition-transform ${weightsOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7"/></svg>
-                    Personalizar ponderacion
-                  </button>
-
-                  {/* Weight Editor Panel */}
-                  {weightsOpen && (
-                    <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl p-4">
-                      <p className="text-xs text-gray-500 mb-4">Ajusta los pesos y los otros se redistribuyen automaticamente. Deben sumar 100%.</p>
-                      <div className="grid grid-cols-3 gap-6">
-                        {[
-                          { key: "last", label: "Ultimo contacto", color: "cyan" },
-                          { key: "first", label: "Primer contacto", color: "orange" },
-                          { key: "middle", label: "Intermedios", color: "purple" },
-                        ].map(({ key, label, color }) => (
-                          <div key={key}>
-                            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-2">{label}</label>
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="range" min={0} max={100}
-                                value={(editingWeights as any)[key]}
-                                onChange={(e) => {
-                                  const v = Number(e.target.value);
-                                  const otherKeys = ["first", "last", "middle"].filter(k => k !== key);
-                                  const otherTotal = (editingWeights as any)[otherKeys[0]] + (editingWeights as any)[otherKeys[1]];
-                                  const remaining = 100 - v;
-                                  const ratio = otherTotal > 0 ? (editingWeights as any)[otherKeys[0]] / otherTotal : 0.5;
-                                  setEditingWeights({
-                                    ...editingWeights,
-                                    [key]: v,
-                                    [otherKeys[0]]: Math.round(remaining * ratio),
-                                    [otherKeys[1]]: remaining - Math.round(remaining * ratio),
-                                  } as any);
-                                }}
-                                className="flex-1 h-2 bg-gray-200 rounded-full appearance-none cursor-pointer"
-                                style={{ accentColor: color === "cyan" ? "#06b6d4" : color === "orange" ? "#f97316" : "#a855f7" }}
-                              />
-                              <span className="text-lg font-bold w-12 text-right" style={{ color: color === "cyan" ? "#06b6d4" : color === "orange" ? "#f97316" : "#a855f7" }}>
-                                {(editingWeights as any)[key]}%
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      {/* Preview bar */}
-                      <div className="h-2 rounded-full overflow-hidden flex mt-4 bg-gray-200">
-                        <div className="bg-cyan-500 transition-all" style={{ width: `${editingWeights.last}%` }}/>
-                        <div className="bg-orange-500 transition-all" style={{ width: `${editingWeights.first}%` }}/>
-                        <div className="bg-purple-500 transition-all" style={{ width: `${editingWeights.middle}%` }}/>
-                      </div>
-                      {weightsError && <p className="text-xs text-red-500 mt-2">{weightsError}</p>}
-                      <div className="flex items-center justify-between mt-4">
-                        <button onClick={() => setEditingWeights({ ...DEFAULT_NITRO_WEIGHTS })} className="text-xs text-gray-500 hover:text-gray-700 underline">
-                          Restaurar default (40/30/30)
-                        </button>
-                        <div className="flex gap-2">
-                          <button onClick={() => { setEditingWeights(nitroWeights); setWeightsOpen(false); setWeightsError(null); }} className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100">Cancelar</button>
-                          <button
-                            onClick={saveNitroWeights}
-                            disabled={savingWeights || (editingWeights.first + editingWeights.last + editingWeights.middle !== 100)}
-                            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-                          >
-                            {savingWeights ? "Guardando..." : "Guardar pesos"}
-                          </button>
+                  {/* Bars */}
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Pixel truth bar */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-cyan-400/50 w-16 flex-shrink-0">Pixel</span>
+                      <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(15,23,42,0.5)" }}>
+                        <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(pixelPct, 2)}%`, background: `linear-gradient(90deg, ${info.color}cc, ${info.color}88)`, boxShadow: `0 0 12px ${info.color}30` }}>
+                          <span className="text-[10px] font-bold text-white whitespace-nowrap">{fmtCompact(ch.pixelRevenue)}</span>
                         </div>
                       </div>
-                      {editingWeights.first + editingWeights.last + editingWeights.middle !== 100 && (
-                        <p className="text-xs text-red-500 mt-2">Los pesos deben sumar 100% (actual: {editingWeights.first + editingWeights.last + editingWeights.middle}%)</p>
-                      )}
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+                    {/* Platform bar */}
+                    {ch.platformRevenue > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-white/25 w-16 flex-shrink-0">{info.label}</span>
+                        <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(15,23,42,0.5)" }}>
+                          <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(platPct, 2)}%`, background: "repeating-linear-gradient(135deg, rgba(148,163,184,0.12), rgba(148,163,184,0.12) 4px, rgba(148,163,184,0.06) 4px, rgba(148,163,184,0.06) 8px)" }}>
+                            <span className="text-[10px] font-medium text-white/40 whitespace-nowrap">{fmtCompact(ch.platformRevenue)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
-          {/* ═══ ATTRIBUTION WINDOW CONFIG ═══ */}
-          <div className="pixel-header-collapse mt-3">
-            <button
-              onClick={() => { setWindowOpen(!windowOpen); setEditingGlobalWindow(globalWindow); setEditingChannelWindows({...channelWindows}); setWindowError(null); }}
-              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-400 transition-colors"
-            >
-              <svg className={`w-3 h-3 transition-transform ${windowOpen ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7"/></svg>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-              Configurar ventana de atribucion
-              <span className="text-gray-400 font-normal ml-1">({globalWindow}d global{Object.keys(channelWindows).length > 0 ? ` + ${Object.keys(channelWindows).length} override${Object.keys(channelWindows).length > 1 ? 's' : ''}` : ''})</span>
-            </button>
-
-            {windowOpen && (
-              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <p className="text-xs text-gray-500 mb-4">Define cuantos dias hacia atras se consideran los touchpoints para la atribucion. Podes usar una ventana global o personalizarla por canal.</p>
-
-                {/* Global window selector */}
-                <div className="mb-4">
-                  <label className="text-xs font-medium text-gray-600 mb-2 block">Ventana global</label>
-                  <div className="flex gap-2">
-                    {[7, 14, 30, 60].map(d => (
-                      <button
-                        key={d}
-                        onClick={() => setEditingGlobalWindow(d)}
-                        className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                          editingGlobalWindow === d
-                            ? "bg-blue-500 text-white shadow-sm"
-                            : "bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-500"
-                        }`}
-                      >
-                        {d}d
-                      </button>
-                    ))}
+                  {/* ROAS comparison */}
+                  <div className="flex-shrink-0 text-right w-28">
+                    <div className="text-sm font-bold text-white">{ch.pixelRoas.toFixed(1)}x <span className="text-[9px] font-normal text-cyan-400/50">ROAS</span></div>
+                    {ch.platformRoas > 0 && (
+                      <div className="text-xs text-white/25 line-through">{ch.platformRoas.toFixed(1)}x plat.</div>
+                    )}
+                    {isOverReporting && (
+                      <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
+                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        +{Math.round(diff!)}%
+                      </div>
+                    )}
                   </div>
                 </div>
+              </div>
+            );
+          })}
+        </section>
 
-                {/* Per-channel overrides */}
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-2 block">Overrides por canal <span className="text-gray-400 font-normal">(opcional)</span></label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {["meta", "google", "instagram", "tiktok", "direct", "email", "whatsapp", "referral"].map(ch => {
-                      const info = getSourceInfo(ch);
-                      const val = editingChannelWindows[ch];
-                      const isOverridden = val !== null && val !== undefined;
+        {/* ── Section divider ── */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
+          <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-cyan-400/30">Métricas</span>
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
+        </div>
+
+        {/* ════════════════════════════════════════════════════════ */}
+        {/* BLOQUE 3 — KPIs Strip                                   */}
+        {/* ════════════════════════════════════════════════════════ */}
+        <section className="attr-glass rounded-2xl p-5" style={{ animation: "attrFadeUp 0.6s 0.3s both" }}>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
+            {[
+              { label: "Revenue Atribuido", value: fmtCompact(bk.pixelRevenue), change: bk.changes?.pixelRevenue, gradient: "from-cyan-400 to-blue-400" },
+              { label: "ROAS Blended", value: `${bk.pixelRoas.toFixed(1)}x`, change: bk.changes?.pixelRoas, gradient: "from-emerald-400 to-cyan-400" },
+              { label: "Órdenes Atribuidas", value: fmt(bk.ordersAttributed), change: bk.changes?.ordersAttributed, gradient: "from-violet-400 to-purple-400" },
+              { label: "Tasa de Atribución", value: `${bk.attributionRate}%`, change: null, gradient: "from-orange-400 to-amber-400" },
+              { label: "Inversión Total", value: fmtCompact(bk.totalAdSpend), change: null, gradient: "from-pink-400 to-rose-400" },
+            ].map((kpi, i) => (
+              <div key={i} className="text-center lg:text-left">
+                <p className="text-[10px] font-mono uppercase tracking-wider text-white/30 mb-1">{kpi.label}</p>
+                <p className="text-xl font-bold tracking-tight" style={{ background: `linear-gradient(135deg, var(--tw-gradient-stops))`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                  <span className={`bg-gradient-to-r ${kpi.gradient} bg-clip-text text-transparent`}>{kpi.value}</span>
+                </p>
+                {kpi.change !== null && kpi.change !== undefined && (
+                  <span className={`text-[11px] font-semibold ${kpi.change > 0 ? "text-emerald-400" : kpi.change < 0 ? "text-red-400" : "text-white/20"}`}>
+                    {pctBadge(kpi.change)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Section divider ── */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
+          <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-cyan-400/30">Órdenes en Vivo</span>
+          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
+        </div>
+
+        {/* ════════════════════════════════════════════════════════ */}
+        {/* BLOQUE 4 — Live Orders with Journey Dots                */}
+        {/* ════════════════════════════════════════════════════════ */}
+        <section className="space-y-3 attr-stagger">
+          {journeys.slice(0, 8).map(j => {
+            const credits = getCreditsForModel(j.touchpoints, selectedModel, nitroWeights);
+            const isExpanded = expandedJourney === j.orderId;
+            return (
+              <div key={j.orderId} className="attr-glass rounded-xl overflow-hidden transition-all duration-300">
+                {/* Order header */}
+                <div className="p-4 flex items-center gap-4 cursor-pointer" onClick={() => setExpandedJourney(isExpanded ? null : j.orderId)}>
+                  {/* Revenue */}
+                  <div className="flex-shrink-0">
+                    <span className="text-lg font-bold text-white">{fmtCompact(j.revenue)}</span>
+                  </div>
+
+                  {/* Journey dots */}
+                  <div className="flex-1 flex items-center gap-0 min-w-0">
+                    {j.touchpoints.map((tp, i) => {
+                      const info = getSourceInfo(tp.source || "direct");
+                      const isLast = i === j.touchpoints.length - 1;
                       return (
-                        <div key={ch} className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${isOverridden ? "border-blue-300 bg-white" : "border-gray-200 bg-gray-50"}`}>
-                          <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: info.color }}>
-                            <ChannelLogo source={ch} size={11} />
-                          </span>
-                          <span className="text-xs text-gray-700 flex-1 truncate">{info.label}</span>
-                          <select
-                            value={isOverridden ? String(val) : "global"}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setEditingChannelWindows(prev => ({
-                                ...prev,
-                                [ch]: v === "global" ? null : Number(v),
-                              }));
+                        <div key={i} className="flex items-center">
+                          {i > 0 && (
+                            <div className="w-4 lg:w-8 h-px flex-shrink-0" style={{ background: `linear-gradient(90deg, ${getSourceInfo(j.touchpoints[i-1]?.source || "direct").color}60, ${info.color}60)` }} />
+                          )}
+                          <div
+                            className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center relative"
+                            title={`${info.label}${tp.campaign ? ` · ${tp.campaign}` : ""}`}
+                            style={{
+                              background: `${info.color}25`,
+                              border: `1.5px solid ${info.color}60`,
+                              boxShadow: isLast ? `0 0 12px ${info.color}40` : undefined,
                             }}
-                            className="text-xs bg-transparent border-none text-right font-semibold text-blue-600 cursor-pointer focus:outline-none w-16"
                           >
-                            <option value="global">Global</option>
-                            <option value="1">1d</option>
-                            <option value="7">7d</option>
-                            <option value="14">14d</option>
-                            <option value="30">30d</option>
-                            <option value="60">60d</option>
-                            <option value="90">90d</option>
-                          </select>
+                            <ChannelLogo source={tp.source} size={12} />
+                            {isLast && (
+                              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400" style={{ animation: "attrHeartbeat 2s ease-in-out infinite", boxShadow: "0 0 8px rgba(34,197,94,0.5)" }} />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* Purchase icon */}
+                    <div className="flex items-center">
+                      <div className="w-4 lg:w-6 h-px flex-shrink-0" style={{ background: "linear-gradient(90deg, rgba(34,197,94,0.3), rgba(34,197,94,0.6))" }} />
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center" style={{ border: "1.5px solid rgba(34,197,94,0.5)" }}>
+                        <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Meta */}
+                  <div className="flex-shrink-0 text-right">
+                    <p className="text-[10px] text-white/30 font-mono">#{(j.orderExternalId || j.orderId).slice(-6)}</p>
+                    <p className="text-[10px] text-white/20">{j.touchpointCount} touchpoints · {j.conversionLag}d</p>
+                  </div>
+
+                  {/* Expand arrow */}
+                  <svg className={`w-4 h-4 text-white/20 transition-transform duration-300 flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+
+                {/* Credit bar (mini version of hero) */}
+                {credits.length > 0 && (
+                  <div className="px-4 pb-3">
+                    <div className="flex rounded-full overflow-hidden h-1.5">
+                      {credits.map((c, i) => (
+                        <div key={i} className="transition-all duration-500" style={{ width: `${c.pct}%`, background: c.color, minWidth: "3px" }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Expanded detail */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-1 space-y-2" style={{ borderTop: "1px solid rgba(6,182,212,0.06)" }}>
+                    {j.touchpoints.map((tp, i) => {
+                      const info = getSourceInfo(tp.source || "direct");
+                      const credit = credits.find(c => c.source === (tp.source || "direct"));
+                      return (
+                        <div key={i} className="flex items-center gap-3 text-[11px]">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${info.color}20` }}>
+                            <ChannelLogo source={tp.source} size={10} />
+                          </div>
+                          <span className="font-medium text-white/70 w-20 flex-shrink-0">{info.label}</span>
+                          <span className="text-white/30 flex-1 truncate font-mono text-[10px]">{tp.campaign || cleanUrl(tp.page) || "—"}</span>
+                          {tp.clickType && <span className="text-cyan-400/40 text-[9px] font-mono">{tp.clickType}</span>}
+                          <span className="text-white/20 text-[10px] font-mono flex-shrink-0">{new Date(tp.timestamp).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                          {credit && <span className="text-white/50 font-bold text-[10px] flex-shrink-0 w-10 text-right">{credit.pct}%</span>}
                         </div>
                       );
                     })}
                   </div>
-                </div>
+                )}
+              </div>
+            );
+          })}
 
-                {windowError && <p className="text-xs text-red-500 mt-3">{windowError}</p>}
+          {/* Pagination */}
+          {data && data.pagination.totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              {currentPage > 1 && (
+                <button onClick={() => setCurrentPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Anterior</button>
+              )}
+              <span className="text-xs text-white/20 font-mono">{currentPage} / {data.pagination.totalPages}</span>
+              {currentPage < data.pagination.totalPages && (
+                <button onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Siguiente</button>
+              )}
+            </div>
+          )}
+        </section>
 
-                <div className="flex items-center justify-between mt-4">
-                  <button
-                    onClick={() => { setEditingGlobalWindow(30); setEditingChannelWindows({}); }}
-                    className="text-xs text-gray-500 hover:text-gray-700 underline"
-                  >
-                    Restaurar default (30d, sin overrides)
-                  </button>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setWindowOpen(false); setWindowError(null); }} className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100">Cancelar</button>
-                    <button
-                      onClick={saveWindowSettings}
-                      disabled={savingWindow}
-                      className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-                    >
-                      {savingWindow ? "Guardando..." : "Guardar ventana"}
-                    </button>
-                  </div>
+        {/* ════════════════════════════════════════════════════════ */}
+        {/* BLOQUE 5 — Pixel Health Footer                          */}
+        {/* ════════════════════════════════════════════════════════ */}
+        {health && (
+          <section className="attr-glass rounded-2xl p-4" style={{ animation: "attrFadeUp 0.6s 0.5s both" }}>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              {/* Status */}
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ background: data?.liveStatus?.status === "LIVE" ? "#4ade80" : data?.liveStatus?.status === "ACTIVE" ? "#fbbf24" : "#ef4444", animation: data?.liveStatus?.status === "LIVE" ? "attrPulse 2s infinite" : undefined }} />
+                <span className="text-[11px] font-semibold text-white/60">{data?.liveStatus?.status || "—"}</span>
+              </div>
+
+              {/* Attribution Rate */}
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" viewBox="0 0 36 36">
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(6,182,212,0.1)" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="#06b6d4" strokeWidth="3" strokeDasharray={`${(health.attributionRate / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
+                </svg>
+                <div>
+                  <p className="text-xs font-bold text-cyan-400">{health.attributionRate}%</p>
+                  <p className="text-[9px] text-white/25 font-mono uppercase">Atribución</p>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* ═══ NAV TABS ═══ */}
-          <div className="flex gap-1 -mb-px mt-1">
-            {([
-              { id: "resumen" as const, label: "Resumen" },
-              { id: "ordenes" as const, label: "Órdenes en Vivo" },
-              { id: "canales" as const, label: "Canales" },
-            ]).map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative px-4 py-2 text-[13px] font-semibold transition-all ${
-                  activeTab === tab.id ? "text-orange-600" : "text-gray-500 hover:text-gray-800"
-                }`}
-                style={{ letterSpacing: "-0.01em" }}
-              >
-                {tab.label}
-                {activeTab === tab.id && (
-                  <span
-                    className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full"
-                    style={{ background: "linear-gradient(90deg, #f97316, #fb923c)" }}
-                  />
-                )}
+              {/* Click coverage */}
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" viewBox="0 0 36 36">
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(139,92,246,0.1)" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="#8b5cf6" strokeWidth="3" strokeDasharray={`${((health.clickCoverage?.clickIdRate || 0) / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
+                </svg>
+                <div>
+                  <p className="text-xs font-bold text-violet-400">{Math.round(health.clickCoverage?.clickIdRate || 0)}%</p>
+                  <p className="text-[9px] text-white/25 font-mono uppercase">Click IDs</p>
+                </div>
+              </div>
+
+              {/* Events */}
+              <div>
+                <p className="text-xs font-bold text-white/60">{fmt(health.eventsInPeriod)}</p>
+                <p className="text-[9px] text-white/25 font-mono uppercase">Eventos</p>
+              </div>
+
+              {/* Model active */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.2)" }}>
+                <span className="text-[10px] font-bold text-orange-400">Modelo: {MODEL_LABELS[selectedModel]}</span>
+              </div>
+
+              {/* Settings gear */}
+              <button onClick={() => setWeightsOpen(!weightsOpen)} className="p-1.5 rounded-lg transition-colors" style={{ background: "rgba(15,23,42,0.4)" }}>
+                <svg className="w-4 h-4 text-white/30 hover:text-cyan-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
               </button>
-            ))}
-          </div>
-        </div>
-      </div>
+            </div>
 
-      {/* ══════════════════════════════════════════════════════════ */}
-      {/* PAGE CONTENT                                              */}
-      {/* ══════════════════════════════════════════════════════════ */}
-      <div className={`max-w-7xl mx-auto px-4 py-6 space-y-6 pixel-stagger ${loading && data ? "pixel-refetching" : ""}`}>
-
-        {/* ═══ PIXEL HEALTH BAR — System Vitals Cockpit ═══ */}
-        {(() => {
-          const isLive = d.liveStatus.status === "LIVE";
-          const isActive = d.liveStatus.status === "ACTIVE";
-          const statusColor = isLive ? "#10b981" : isActive ? "#f59e0b" : "#ef4444";
-          const statusLabel = isLive ? "EN VIVO" : isActive ? "ACTIVO" : "INACTIVO";
-          const attrRate = d.pixelHealth?.attributionRate || 0;
-          const clickRate = d.pixelHealth?.clickCoverage?.clickIdRate || 0;
-          const lastHourEv = d.liveStatus.lastHourEvents || 0;
-
-          return (
-            <div
-              className="relative rounded-2xl bg-white border border-gray-200/80 overflow-hidden"
-              style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
-            >
-              {/* Top accent bar */}
-              <div
-                className="absolute top-0 left-0 right-0 h-[2px]"
-                style={{ background: `linear-gradient(90deg, ${statusColor}, ${statusColor}80, transparent 80%)` }}
-              />
-              {/* Subtle grid bg */}
-              <div className="absolute inset-0 pixel-grid-bg pointer-events-none opacity-50" />
-
-              <div className="relative grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 divide-x divide-gray-100">
-                {/* CELL 1: Status */}
-                <div className="px-5 py-4 col-span-2 sm:col-span-1">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="relative flex h-2 w-2">
-                      {isLive && <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-70" style={{ background: statusColor }} />}
-                      <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: statusColor, boxShadow: `0 0 8px ${statusColor}80` }} />
-                    </span>
-                    <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">System</span>
-                  </div>
-                  <p className="text-[14px] font-bold tabular-nums leading-none" style={{ color: statusColor, letterSpacing: "-0.01em" }}>
-                    {statusLabel}
-                  </p>
-                  {d.liveStatus.lastEventAt && (
-                    <p className="text-[10px] text-gray-500 font-medium mt-1.5 tabular-nums">
-                      {new Date(d.liveStatus.lastEventAt).toLocaleString("es-AR", {
-                        timeZone: "America/Argentina/Buenos_Aires",
-                        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                      })}
-                    </p>
-                  )}
-                </div>
-
-                {/* CELL 2: Attribution Rate with progress bar */}
-                <div className="px-5 py-4">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center">
-                    Atribución<InfoTip text="Porcentaje de ordenes que NitroPixel pudo atribuir a un canal." />
-                  </p>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className={`text-[18px] font-bold tabular-nums leading-none ${attrRate >= 50 ? "text-emerald-600" : attrRate >= 25 ? "text-amber-600" : "text-red-500"}`} style={{ letterSpacing: "-0.02em" }}>
-                      {attrRate}
-                    </span>
-                    <span className="text-[10px] font-semibold text-gray-400">%</span>
-                  </div>
-                  <div className="mt-2 h-1 rounded-full bg-gray-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{
-                        width: `${Math.min(100, attrRate)}%`,
-                        background: attrRate >= 50
-                          ? "linear-gradient(90deg, #10b981, #34d399)"
-                          : attrRate >= 25
-                          ? "linear-gradient(90deg, #f59e0b, #fbbf24)"
-                          : "linear-gradient(90deg, #ef4444, #f87171)",
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* CELL 3: Click IDs */}
-                <div className="px-5 py-4">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center">
-                    Click IDs<InfoTip text="Porcentaje de visitantes con click ID (fbclid, gclid). Mas alto = mejor atribucion." />
-                  </p>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-[18px] font-bold tabular-nums text-gray-900 leading-none" style={{ letterSpacing: "-0.02em" }}>
-                      {clickRate}
-                    </span>
-                    <span className="text-[10px] font-semibold text-gray-400">%</span>
-                  </div>
-                  <div className="mt-2 h-1 rounded-full bg-gray-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{
-                        width: `${Math.min(100, clickRate)}%`,
-                        background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* CELL 4: Eventos / hora con signal bars */}
-                <div className="px-5 py-4">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center">
-                    Eventos/h<InfoTip text="Eventos que el pixel recibe por hora ahora mismo." />
-                  </p>
-                  <div className="flex items-end gap-2">
-                    <span className="text-[18px] font-bold tabular-nums text-gray-900 leading-none" style={{ letterSpacing: "-0.02em" }}>
-                      {fmt(lastHourEv)}
-                    </span>
-                    <span className="flex items-end gap-[2px] h-4 mb-0.5">
-                      {[0, 1, 2, 3].map((i) => (
-                        <span
-                          key={i}
-                          className="w-[2px] rounded-full bg-cyan-500"
-                          style={{
-                            height: `${30 + i * 18}%`,
-                            opacity: lastHourEv > 0 ? 1 : 0.3,
-                            animation: lastHourEv > 0 ? `pixelBarPulse 1.6s ease-in-out infinite ${i * 0.15}s` : undefined,
-                          }}
-                        />
-                      ))}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-gray-500 font-medium mt-1.5 tabular-nums">
-                    Total: {fmt(d.liveStatus.totalEvents)}
-                  </p>
-                </div>
-
-                {/* CELL 5: Mini sparkline (revenue trend) */}
-                <div className="px-5 py-4 hidden lg:block col-span-1">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5">
-                    Tendencia
-                  </p>
-                  {headerSparkData.length > 1 ? (
-                    <div className="h-9 -mb-1">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={headerSparkData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="vitalsSpark" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#10b981" stopOpacity={0.30} />
-                              <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-                            </linearGradient>
-                          </defs>
-                          <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={1.5} fill="url(#vitalsSpark)" dot={false} />
-                        </AreaChart>
-                      </ResponsiveContainer>
+            {/* Weights editor panel */}
+            {weightsOpen && selectedModel === "NITRO" && (
+              <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(6,182,212,0.08)" }}>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-cyan-400/40 mb-3">Pesos del modelo Nitro</p>
+                <div className="flex items-center gap-4">
+                  {(["first", "middle", "last"] as const).map(k => (
+                    <div key={k} className="flex-1">
+                      <label className="text-[10px] text-white/30 uppercase mb-1 block">{k === "first" ? "Primero" : k === "last" ? "Último" : "Medio"}</label>
+                      <input
+                        type="number" min={0} max={100}
+                        value={editingWeights[k]}
+                        onChange={e => setEditingWeights({ ...editingWeights, [k]: Number(e.target.value) })}
+                        className="w-full px-2 py-1.5 rounded-lg text-sm text-white font-mono text-center"
+                        style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(6,182,212,0.15)" }}
+                      />
                     </div>
-                  ) : (
-                    <p className="text-[10px] text-gray-400 italic">Sin datos suficientes</p>
-                  )}
+                  ))}
+                  <button onClick={saveNitroWeights} disabled={savingWeights} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white transition-all" style={{ background: "linear-gradient(135deg, #f97316, #fb923c)", opacity: savingWeights ? 0.5 : 1 }}>
+                    {savingWeights ? "..." : "Guardar"}
+                  </button>
                 </div>
+                {weightsError && <p className="text-xs text-red-400 mt-2">{weightsError}</p>}
               </div>
-            </div>
-          );
-        })()}
-
-        {/* ═══ EMPTY STATE ═══ */}
-        {!hasData && (
-          <div className="rounded-2xl bg-white border border-gray-200 p-12 text-center">
-            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-amber-500/10 flex items-center justify-center">
-              <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-1">Pixel activado</h3>
-            <p className="text-sm text-gray-400 max-w-md mx-auto">
-              NitroPixel esta instalado y funcionando. Los primeros eventos apareceran cuando los visitantes
-              naveguen la tienda.
-            </p>
-          </div>
+            )}
+          </section>
         )}
 
-        {hasData && (
-          <>
-            {/* ══════════════════════════════════════════════════════════ */}
-            {/* KPI CARDS (Resumen + Ordenes tabs)                       */}
-            {/* ══════════════════════════════════════════════════════════ */}
-            {(activeTab === "resumen" || activeTab === "ordenes") && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                <KpiCard
-                  label="Revenue Atribuido"
-                  value={fmtCompact(bk.pixelRevenue)}
-                  change={bk.changes.pixelRevenue}
-                  color="orange"
-                  info="Ingresos que NitroPixel atribuyo segun el modelo seleccionado. Cambia de modelo y vas a ver como cambian los numeros."
-                  sub={`Modelo: ${MODEL_LABELS[selectedModel]}`}
-                />
-                <KpiCard
-                  label="ROAS Blended"
-                  value={bk.pixelRoas > 0 ? `${bk.pixelRoas}x` : "-"}
-                  change={bk.changes.pixelRoas}
-                  color="cyan"
-                  info="Por cada $1 que gastas en ads, NitroPixel detecto que volvieron esta cantidad en ventas reales."
-                />
-                <KpiCard
-                  label="Ordenes Web"
-                  value={fmt(bk.ordersAttributed)}
-                  change={bk.changes.ordersAttributed}
-                  color="indigo"
-                  info="Ordenes del sitio web atribuidas a un canal. Excluye MercadoLibre (se trackea aparte)."
-                  sub={bk.marketplaceOrders > 0 ? `${fmt(bk.webOrders)} web + ${fmt(bk.marketplaceOrders)} ML` : `De ${fmt(bk.totalOrders)} totales`}
-                />
-                <KpiCard
-                  label="Tasa Conversion"
-                  value={d.funnel && d.funnel.pageView > 0 ? `${((d.funnel.purchase / d.funnel.pageView) * 100).toFixed(2)}%` : `${bk.attributionRate}%`}
-                  color={bk.attributionRate >= 50 ? "green" : bk.attributionRate >= 25 ? "orange" : "pink"}
-                  info="De cada 100 visitantes, este porcentaje compro."
-                />
-                <KpiCard
-                  label="Inversion Ads"
-                  value={bk.totalAdSpend > 0 ? fmtCompact(bk.totalAdSpend) : "-"}
-                  color="pink"
-                  info="Lo que gastaste en Meta + Google este periodo."
-                />
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════════════════════ */}
-            {/* LIVE ORDERS WITH JOURNEY (Resumen + Ordenes tabs)        */}
-            {/* ══════════════════════════════════════════════════════════ */}
-            {(activeTab === "resumen" || activeTab === "ordenes") && d.recentJourneys && d.recentJourneys.length > 0 && (
-              <div
-                className="relative rounded-2xl bg-white border border-gray-200/80 overflow-hidden"
-                style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
-              >
-                <div
-                  className="absolute top-0 left-5 right-5 h-[2px] rounded-full opacity-90"
-                  style={{ background: "linear-gradient(90deg, #10b981, #34d399)" }}
-                />
-                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"/>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" style={{ boxShadow: "0 0 8px rgba(16,185,129,0.6)" }}/>
-                    </span>
-                    <h2 className="text-[15px] font-bold text-gray-900" style={{ letterSpacing: "-0.01em" }}>Órdenes en Vivo</h2>
-                    <InfoTip text="Cada orden muestra su recorrido completo y como el modelo de atribucion seleccionado reparte el credito entre los canales." />
-                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full ml-1 uppercase tracking-wide">
-                      Modelo: {MODEL_LABELS[selectedModel]}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="divide-y divide-gray-100">
-                  {d.recentJourneys.slice(0, activeTab === "ordenes" ? 15 : 5).map((journey) => {
-                    const isExpanded = expandedJourney === journey.orderId;
-                    const touchpoints = Array.isArray(journey.touchpoints) ? journey.touchpoints : [];
-                    const creditSummary = getCreditsForModel(touchpoints, selectedModel, nitroWeights);
-
-                    return (
-                      <div key={journey.orderId} className="hover:bg-gray-50 transition-colors">
-                        {/* Order row */}
-                        <div className="px-5 py-3 flex items-center gap-4 cursor-pointer" onClick={() => setExpandedJourney(isExpanded ? null : journey.orderId)}>
-                          <svg className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M9 5l7 7-7 7"/></svg>
-                          <span className="text-sm font-mono font-medium text-gray-400 w-28">#{journey.orderExternalId?.slice(-8) || "?"}</span>
-                          <span className="text-xs text-gray-500 w-24">
-                            {new Date(journey.orderDate).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                          <span className="text-sm font-bold text-gray-800 w-24">{fmtARS(journey.revenue)}</span>
-                          <span className="text-xs text-gray-500 w-20">{journey.touchpointCount} touchpoints</span>
-                          {/* Credit mini-bar or unattributed badge */}
-                          {journey.isAttributed === false ? (
-                            <div className="flex-1 flex items-center gap-2">
-                              <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Sin atribuir</span>
-                            </div>
-                          ) : (
-                            <div className="flex-1 flex items-center gap-2">
-                              <div className="flex-1 h-3 rounded-full overflow-hidden flex bg-gray-200">
-                                {creditSummary.map((c, ci) => (
-                                  <div key={ci} className="h-full transition-all" style={{ width: `${c.pct}%`, backgroundColor: c.color }} title={`${c.label}: ${c.pct}%`} />
-                                ))}
-                              </div>
-                              <span className="text-xs text-gray-500 w-16 text-right">{creditSummary[0]?.label}</span>
-                            </div>
-                          )}
-                          {journey.conversionLag !== null && (
-                            <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{journey.conversionLag}d</span>
-                          )}
-                        </div>
-
-                        {/* Expanded Journey — smooth grid expand */}
-                        <div className={`pixel-expand ${isExpanded ? "open" : ""}`}>
-                          <div className="pixel-expand-inner">
-                            <div className="px-5 pb-5 ml-10 pt-1">
-                              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
-                              {/* Unattributed order message */}
-                              {journey.isAttributed === false && (
-                                <div className="mb-4 bg-amber-50 rounded-lg p-3 border border-amber-200">
-                                  <span className="text-xs text-amber-800">El pixel no pudo vincular esta orden con una sesion de navegacion. La venta fue registrada por el webhook de VTEX pero no se encontro el recorrido del comprador en el browser.</span>
-                                </div>
-                              )}
-                              {/* Credit Distribution */}
-                              {creditSummary.length > 0 && (
-                                <div className="mb-4 bg-white rounded-lg p-3 border border-gray-200">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-xs font-semibold text-gray-400">Distribucion del credito</span>
-                                    <InfoTip text={`Asi reparte el modelo ${MODEL_LABELS[selectedModel]} el credito de esta venta (${fmtARS(journey.revenue)}) entre los canales que participaron.`} />
-                                  </div>
-                                  <div className="h-4 rounded-full overflow-hidden flex bg-gray-200 mb-2">
-                                    {creditSummary.map((c, ci) => (
-                                      <div key={ci} className="h-full flex items-center justify-center transition-all"
-                                        style={{ width: `${c.pct}%`, backgroundColor: c.color }}>
-                                        {c.pct >= 15 && <span className="text-[9px] font-bold text-white">{c.pct}%</span>}
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="flex flex-wrap gap-3">
-                                    {creditSummary.map((c, ci) => (
-                                      <div key={ci} className="flex items-center gap-1.5">
-                                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }}/>
-                                        <span className="text-xs text-gray-400">{c.label}: <strong className="text-gray-800">{c.pct}%</strong></span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Timeline */}
-                              <div className="relative">
-                                {touchpoints.map((tp: any, j: number) => {
-                                  const isLast = j === touchpoints.length - 1;
-                                  const info = getSourceInfo(tp.source || tp.clickType || "direct");
-                                  return (
-                                    <div key={j} className="flex items-start gap-3 relative">
-                                      <div className="flex flex-col items-center">
-                                        <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-2" style={{ borderColor: info.color, backgroundColor: info.color }}>
-                                          <ChannelLogo source={tp.source || tp.clickType || "direct"} size={14} />
-                                        </div>
-                                        {!isLast && <div className="w-0.5 h-6 bg-gray-200"/>}
-                                      </div>
-                                      <div className="pt-1 pb-1">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="text-xs font-medium text-gray-700">{info.label}</span>
-                                          {tp.campaign && <span className="text-[10px] text-gray-500">{tp.campaign}</span>}
-                                          {tp.clickType && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{tp.clickType}</span>}
-                                          <span className="text-[10px] text-gray-600">
-                                            {new Date(tp.timestamp).toLocaleString("es-AR", {
-                                              timeZone: "America/Argentina/Buenos_Aires",
-                                              day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                                            })}
-                                          </span>
-                                        </div>
-                                        {tp.page && <p className="text-[10px] text-gray-600 mt-0.5 truncate max-w-[300px]">{cleanUrl(tp.page)}</p>}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                                {/* Purchase marker */}
-                                <div className="flex items-start gap-3 relative">
-                                  <div className="flex flex-col items-center">
-                                    <div className="w-7 h-7 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center flex-shrink-0">
-                                      <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>
-                                    </div>
-                                  </div>
-                                  <div className="pt-1">
-                                    <span className="text-xs font-semibold text-emerald-600">Compra — {fmtARS(journey.revenue)}</span>
-                                    <p className="text-[10px] text-gray-600">
-                                      {new Date(journey.orderDate).toLocaleString("es-AR", {
-                                        timeZone: "America/Argentina/Buenos_Aires",
-                                        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                                      })}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Attribution Summary */}
-                              <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-4 text-xs text-gray-500 flex-wrap">
-                                <span>Modelo: <strong className="text-gray-700">{MODEL_LABELS[selectedModel]}</strong></span>
-                                <span>Fuente principal: <strong className="text-gray-700">{creditSummary[0]?.label} ({creditSummary[0]?.pct}%)</strong></span>
-                                <span>Touchpoints: <strong className="text-gray-700">{journey.touchpointCount}</strong></span>
-                              </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════════════════════ */}
-            {/* CHANNEL TABLE (Resumen + Canales tabs)                   */}
-            {/* ══════════════════════════════════════════════════════════ */}
-            {(activeTab === "resumen" || activeTab === "canales") && (d.channelRoas?.length > 0 || hasAttribution) && (
-              <div
-                className="relative rounded-2xl bg-white border border-gray-200/80 overflow-hidden"
-                style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)" }}
-              >
-                <div
-                  className="absolute top-0 left-5 right-5 h-[2px] rounded-full opacity-90"
-                  style={{ background: "linear-gradient(90deg, #f97316, #fb923c)" }}
-                />
-                <div className="px-5 py-4 border-b border-gray-100">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                    <h2 className="text-[15px] font-bold text-gray-900" style={{ letterSpacing: "-0.01em" }}>Rendimiento por Canal</h2>
-                    <span className="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full uppercase tracking-wide">
-                      Modelo: {MODEL_LABELS[selectedModel]}
-                    </span>
-                    <InfoTip text="Los numeros de esta tabla cambian segun el modelo de atribucion seleccionado. Proba cambiar entre Nitro, Last Click, First Click y Linear para ver como se redistribuye el credito." />
-                  </div>
-                </div>
-                {d.channelRoas && d.channelRoas.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50/70 border-b border-gray-200/80">
-                          <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Canal</th>
-                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Inversión</th>
-                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Rev. Pixel<InfoTip text="Revenue atribuido por NitroPixel segun el modelo seleccionado. Es TU verdad." /></th>
-                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Rev. Plat.<InfoTip text="Lo que Meta/Google dicen en sus dashboards. Suelen inflar 20-40%." /></th>
-                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">Órdenes</th>
-                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">ROAS Pixel<InfoTip text="Retorno real. Si es 3x, por cada $1 invertido volvieron $3." /></th>
-                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">ROAS Plat.<InfoTip text="ROAS que dice la plataforma. Suele ser mas alto porque se auto-atribuyen." /></th>
-                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">CPA<InfoTip text="Costo por orden. Cuanto te costo cada venta en este canal." /></th>
-                          <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em]">AOV<InfoTip text="Ticket promedio de las ordenes de este canal." /></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {d.channelRoas.map((ch) => {
-                          const info = getSourceInfo(ch.source);
-                          const cpa = ch.spend > 0 && ch.orders > 0 ? Math.round(ch.spend / ch.orders) : 0;
-                          const aov = ch.orders > 0 ? Math.round(ch.pixelRevenue / ch.orders) : 0;
-                          return (
-                            <tr key={ch.source} className="group hover:bg-orange-50/30 transition-colors">
-                              <td className="px-3 py-3">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-6 h-6 rounded-md flex items-center justify-center text-white shadow-sm" style={{ backgroundColor: info.color }}>
-                                    <ChannelLogo source={ch.source} size={13} />
-                                  </div>
-                                  <span className="text-gray-800 font-medium capitalize">{info.label}</span>
-                                </div>
-                              </td>
-                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{ch.spend > 0 ? fmtARS(ch.spend) : "—"}</td>
-                              <td className="px-3 py-3 text-right text-gray-900 font-bold tabular-nums">{fmtARS(ch.pixelRevenue)}</td>
-                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{ch.platformRevenue > 0 ? fmtARS(ch.platformRevenue) : "—"}</td>
-                              <td className="px-3 py-3 text-right text-gray-600 tabular-nums">{ch.orders}</td>
-                              <td className="px-3 py-3 text-right font-bold text-orange-600 tabular-nums">{ch.pixelRoas > 0 ? `${ch.pixelRoas}x` : "—"}</td>
-                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{ch.platformRoas > 0 ? `${ch.platformRoas}x` : "—"}</td>
-                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{cpa > 0 ? fmtARS(cpa) : "—"}</td>
-                              <td className="px-3 py-3 text-right text-gray-500 tabular-nums">{aov > 0 ? fmtARS(aov) : "—"}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <EmptySection text="Sin datos de canales. Cuando NitroPixel atribuya ordenes a canales de ads, la tabla de ROAS aparecera aca." />
-                )}
-                {/* Over-reporting alert */}
-                {d.channelRoas && d.channelRoas.some((ch) => ch.platformRevenue > 0 && ch.pixelRevenue > 0 && ch.platformRevenue > ch.pixelRevenue) && (
-                  <div className="px-5 py-3 bg-amber-500/5 border-t border-amber-500/20 flex items-center gap-3">
-                    <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    <p className="text-xs text-amber-700">
-                      <strong>Las plataformas sobre-reportan.</strong> Usa los numeros de NitroPixel ({MODEL_LABELS[selectedModel]}) para tus decisiones de presupuesto.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-          </>
-        )}
-
+        {/* Bottom spacer */}
+        <div className="h-8" />
       </div>
 
-      {/* ══════════════════════════════════════════════════════════ */}
-      {/* CMD+K COMMAND PALETTE                                    */}
-      {/* ══════════════════════════════════════════════════════════ */}
+      {/* ── Command palette (Cmd+K) ── */}
       {paletteOpen && (
-        <div
-          className="pixel-palette-backdrop fixed inset-0 z-[100] flex items-start justify-center pt-[18vh] px-4"
-          style={{ background: "rgba(15,23,42,0.32)" }}
-          onClick={() => setPaletteOpen(false)}
-        >
-          <div
-            className="pixel-palette w-full max-w-lg rounded-2xl bg-white border border-gray-200 overflow-hidden"
-            style={{ boxShadow: "0 20px 60px rgba(15,23,42,0.18), 0 4px 16px rgba(15,23,42,0.08)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
-              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <circle cx="11" cy="11" r="7" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-              <span className="text-sm text-gray-400 flex-1">Comandos rápidos…</span>
-              <kbd className="text-[10px] font-mono bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 text-gray-500">ESC</kbd>
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPaletteOpen(false)} />
+          <div className="relative w-full max-w-md rounded-2xl p-4 space-y-3" style={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(6,182,212,0.2)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+            <div className="flex items-center gap-2 text-sm text-white/50">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <span>Acciones rápidas</span>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto py-2">
-              <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">Vistas</div>
-              {([
-                { id: "resumen", label: "Resumen" },
-                { id: "ordenes", label: "Órdenes" },
-                { id: "canales", label: "Canales" },
-              ] as const).map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => { setActiveTab(tab.id); setPaletteOpen(false); }}
-                  className="w-full text-left px-3 py-2 mx-1 rounded-lg flex items-center gap-3 hover:bg-orange-50 transition-colors group"
-                >
-                  <span className="w-7 h-7 rounded-md bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
-                    <svg className="w-3.5 h-3.5 text-gray-500 group-hover:text-orange-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-                  </span>
-                  <span className="text-sm text-gray-700 flex-1">Ir a {tab.label}</span>
-                  {activeTab === tab.id && <span className="text-[10px] text-orange-600 font-bold">ACTIVO</span>}
-                </button>
-              ))}
-              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">Modelo de Atribución</div>
-              {MODEL_ORDER.map((model) => (
-                <button
-                  key={model}
-                  onClick={() => { setSelectedModel(model); setPaletteOpen(false); }}
-                  className="w-full text-left px-3 py-2 mx-1 rounded-lg flex items-center gap-3 hover:bg-orange-50 transition-colors group"
-                >
-                  <span className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                    model === "NITRO" ? "bg-orange-100" : "bg-gray-100 group-hover:bg-orange-100"
-                  }`}>
-                    {model === "NITRO" ? (
-                      <svg className="w-3.5 h-3.5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
-                      </svg>
-                    ) : (
-                      <span className="text-[10px] font-bold text-gray-500">{model[0]}</span>
-                    )}
-                  </span>
-                  <span className="text-sm text-gray-700 flex-1">{MODEL_LABELS[model]}</span>
-                  {selectedModel === model && <span className="text-[10px] text-orange-600 font-bold">ACTIVO</span>}
-                </button>
-              ))}
-              <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">Acciones</div>
-              <button
-                onClick={() => { fetchData(); setPaletteOpen(false); }}
-                className="w-full text-left px-3 py-2 mx-1 rounded-lg flex items-center gap-3 hover:bg-orange-50 transition-colors group"
-              >
-                <span className="w-7 h-7 rounded-md bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
-                  <svg className="w-3.5 h-3.5 text-gray-500 group-hover:text-orange-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path d="M4 4v6h6M20 20v-6h-6M4 10a8 8 0 0114-4M20 14a8 8 0 01-14 4"/>
-                  </svg>
-                </span>
-                <span className="text-sm text-gray-700 flex-1">Refrescar datos</span>
-              </button>
-            </div>
+            <button onClick={() => { fetchData(); setPaletteOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-white/70 hover:bg-white/5 transition-colors">
+              Actualizar datos
+            </button>
+            <button onClick={() => { setWeightsOpen(true); setPaletteOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-white/70 hover:bg-white/5 transition-colors">
+              Configurar modelo Nitro
+            </button>
           </div>
         </div>
       )}
     </div>
   );
-}
-
-// ══════════════════════════════════════════════════════════════
-// SUB-COMPONENTS
-// ══════════════════════════════════════════════════════════════
-
-function KpiCard({
-  label,
-  value,
-  change,
-  color = "gray",
-  info,
-  sub,
-}: {
-  label: string;
-  value: string;
-  change?: number;
-  color?: string;
-  info?: string;
-  sub?: string;
-}) {
-  // Premium accent color per kpi (top hairline + label color)
-  const accentMap: Record<string, { bar: string; label: string; ring: string }> = {
-    indigo: { bar: "linear-gradient(90deg, #6366f1, #8b5cf6)", label: "text-indigo-500", ring: "rgba(99,102,241,0.10)" },
-    cyan:   { bar: "linear-gradient(90deg, #06b6d4, #0ea5e9)", label: "text-cyan-600",   ring: "rgba(6,182,212,0.10)" },
-    purple: { bar: "linear-gradient(90deg, #a855f7, #d946ef)", label: "text-purple-500", ring: "rgba(168,85,247,0.10)" },
-    orange: { bar: "linear-gradient(90deg, #f97316, #fb923c)", label: "text-orange-500", ring: "rgba(249,115,22,0.10)" },
-    green:  { bar: "linear-gradient(90deg, #10b981, #34d399)", label: "text-emerald-600",ring: "rgba(16,185,129,0.10)" },
-    pink:   { bar: "linear-gradient(90deg, #ec4899, #f472b6)", label: "text-pink-500",   ring: "rgba(236,72,153,0.10)" },
-    gray:   { bar: "linear-gradient(90deg, #64748b, #94a3b8)", label: "text-gray-500",   ring: "rgba(100,116,139,0.10)" },
-  };
-  const a = accentMap[color] || accentMap.gray;
-  const displayValue = useAnimatedValue(value);
-
-  return (
-    <div
-      className="group relative rounded-xl bg-white border border-gray-200/80 p-4 transition-all duration-200 hover:-translate-y-0.5 overflow-hidden"
-      style={{
-        boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)",
-      }}
-    >
-      {/* Top hairline accent */}
-      <div
-        className="absolute top-0 left-3 right-3 h-[2px] rounded-full opacity-90"
-        style={{ background: a.bar }}
-      />
-      {/* Hover glow ring */}
-      <div
-        className="pointer-events-none absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-        style={{ boxShadow: `0 0 0 4px ${a.ring}` }}
-      />
-      <div className="flex items-center justify-between mb-1.5">
-        <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${a.label}`}>
-          {label}{info && <InfoTip text={info} />}
-        </span>
-      </div>
-      <div className="flex items-baseline gap-2">
-        <span
-          className="text-[26px] leading-none font-bold text-gray-900 tabular-nums"
-          style={{ letterSpacing: "-0.02em" }}
-        >
-          {displayValue}
-        </span>
-        {change !== undefined && (
-          <span
-            className={`text-[11px] font-semibold tabular-nums ${pctColor(change)} flex items-center gap-0.5`}
-          >
-            {change > 0 && <span>↑</span>}
-            {change < 0 && <span>↓</span>}
-            {pctBadge(change)}
-          </span>
-        )}
-      </div>
-      {sub && <p className="text-[11px] text-gray-500 mt-1.5 font-medium">{sub}</p>}
-    </div>
-  );
-}
-
-function EmptySection({ text }: { text: string }) {
-  return (
-    <div className="py-8 text-center">
-      <p className="text-sm text-gray-500">{text}</p>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
-// PIXEL STYLES — keyframes premium tech-grade
-// ══════════════════════════════════════════════════════════════
-function PixelStyles() {
-  return (
-    <style>{`
-      @keyframes pixelHeartbeat {
-        0%, 100% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.18); opacity: 0.85; }
-      }
-      @keyframes pixelLogoPulse {
-        0%, 100% { transform: scale(1); box-shadow: 0 8px 24px rgba(249,115,22,0.30), inset 0 1px 0 rgba(255,255,255,0.30); }
-        50% { transform: scale(1.04); box-shadow: 0 12px 32px rgba(249,115,22,0.45), inset 0 1px 0 rgba(255,255,255,0.30); }
-      }
-      @keyframes pixelShine {
-        0% { transform: translateX(-100%); }
-        50%, 100% { transform: translateX(100%); }
-      }
-      @keyframes pixelSpin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      @keyframes pixelDotFade {
-        0%, 100% { opacity: 0.4; transform: scale(0.9); }
-        50% { opacity: 1; transform: scale(1.2); }
-      }
-      @keyframes pixelFadeUp {
-        from { opacity: 0; transform: translateY(8px) scale(0.985); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
-      }
-      @keyframes pixelGridShift {
-        0% { background-position: 0 0; }
-        100% { background-position: 32px 32px; }
-      }
-      @keyframes pixelBarPulse {
-        0%, 100% { opacity: 0.6; }
-        50% { opacity: 1; }
-      }
-      @keyframes pixelSignal {
-        0%, 100% { transform: scaleY(0.4); }
-        50% { transform: scaleY(1); }
-      }
-      .pixel-fade-up {
-        animation: pixelFadeUp 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
-      }
-      .pixel-stagger > * {
-        animation: pixelFadeUp 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
-      }
-      .pixel-stagger > *:nth-child(1) { animation-delay: 0ms; }
-      .pixel-stagger > *:nth-child(2) { animation-delay: 60ms; }
-      .pixel-stagger > *:nth-child(3) { animation-delay: 120ms; }
-      .pixel-stagger > *:nth-child(4) { animation-delay: 180ms; }
-      .pixel-stagger > *:nth-child(5) { animation-delay: 240ms; }
-      .pixel-stagger > *:nth-child(6) { animation-delay: 300ms; }
-      .pixel-stagger > *:nth-child(7) { animation-delay: 360ms; }
-      .pixel-stagger > *:nth-child(8) { animation-delay: 420ms; }
-      .pixel-stagger > *:nth-child(9) { animation-delay: 480ms; }
-      .pixel-stagger > *:nth-child(10) { animation-delay: 540ms; }
-      .pixel-stagger > *:nth-child(n+11) { animation-delay: 600ms; }
-      .pixel-grid-bg {
-        background-image:
-          linear-gradient(rgba(15,23,42,0.04) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(15,23,42,0.04) 1px, transparent 1px);
-        background-size: 32px 32px;
-      }
-      .pixel-asset-glow {
-        background:
-          radial-gradient(ellipse 600px 200px at 20% 0%, rgba(249,115,22,0.06), transparent 60%),
-          radial-gradient(ellipse 500px 180px at 80% 100%, rgba(99,102,241,0.05), transparent 60%);
-      }
-      /* Smooth expand using grid-template-rows trick (Linear/Stripe-grade) */
-      .pixel-expand {
-        display: grid;
-        grid-template-rows: 0fr;
-        opacity: 0;
-        transition:
-          grid-template-rows 520ms cubic-bezier(0.16, 1, 0.3, 1),
-          opacity 360ms cubic-bezier(0.16, 1, 0.3, 1);
-        will-change: grid-template-rows, opacity;
-      }
-      .pixel-expand.open {
-        grid-template-rows: 1fr;
-        opacity: 1;
-      }
-      .pixel-expand-inner {
-        overflow: hidden;
-        min-height: 0;
-      }
-      .pixel-expand.open .pixel-expand-inner > * {
-        animation: pixelFadeUp 540ms cubic-bezier(0.16, 1, 0.3, 1) both;
-        animation-delay: 80ms;
-      }
-      /* Skeleton shimmer */
-      @keyframes pixelShimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-      }
-      .pixel-skeleton {
-        background: linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.08) 50%, rgba(15,23,42,0.04) 100%);
-        background-size: 200% 100%;
-        animation: pixelShimmer 1.6s ease-in-out infinite;
-        border-radius: 8px;
-      }
-      /* Refetch overlay */
-      .pixel-refetching {
-        position: relative;
-        opacity: 0.7;
-        transition: opacity 280ms ease-out;
-      }
-      .pixel-refetching::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
-        background-size: 200% 100%;
-        animation: pixelShimmer 1.4s ease-in-out infinite;
-        pointer-events: none;
-        border-radius: inherit;
-      }
-      /* Compact sticky header on scroll */
-      .pixel-header-collapse {
-        max-height: 800px;
-        opacity: 1;
-        overflow: hidden;
-        transition:
-          max-height 420ms cubic-bezier(0.16, 1, 0.3, 1),
-          opacity 280ms cubic-bezier(0.16, 1, 0.3, 1),
-          margin 420ms cubic-bezier(0.16, 1, 0.3, 1),
-          padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
-      }
-      .pixel-header-compact .pixel-header-collapse {
-        max-height: 0 !important;
-        opacity: 0 !important;
-        margin-top: 0 !important;
-        margin-bottom: 0 !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        pointer-events: none;
-      }
-      /* Cmd+K palette */
-      @keyframes pixelPaletteIn {
-        from { opacity: 0; transform: translateY(-10px) scale(0.97); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
-      }
-      @keyframes pixelBackdropIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-      .pixel-palette-backdrop {
-        animation: pixelBackdropIn 200ms ease-out both;
-        backdrop-filter: blur(6px);
-      }
-      .pixel-palette {
-        animation: pixelPaletteIn 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
-      }
-      /* Reduce motion */
-      @media (prefers-reduced-motion: reduce) {
-        .pixel-fade-up, .pixel-stagger > *, .pixel-expand, .pixel-expand.open .pixel-expand-inner > *, .pixel-palette, .pixel-skeleton {
-          animation: none !important;
-          transition: none !important;
-        }
-      }
-    `}</style>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
-// HOOKS — count-up animation premium
-// ══════════════════════════════════════════════════════════════
-function useCountUp(target: number, duration = 900): number {
-  const [value, setValue] = useState(target);
-  const prevTargetRef = useRef(target);
-  const rafRef = useRef<number | null>(null);
-  useEffect(() => {
-    const from = prevTargetRef.current;
-    const to = target;
-    if (from === to || !Number.isFinite(to)) {
-      setValue(to);
-      return;
-    }
-    const start = performance.now();
-    const ease = (t: number) => 1 - Math.pow(1 - t, 4);
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const progress = Math.min(1, elapsed / duration);
-      const eased = ease(progress);
-      setValue(from + (to - from) * eased);
-      if (progress < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      } else {
-        prevTargetRef.current = to;
-      }
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [target, duration]);
-  return value;
-}
-
-// Animate any string that contains a numeric portion (e.g. "$12,345", "12.5%", "$1.2M")
-// Falls back gracefully when no number is detected.
-function useAnimatedValue(value: string, duration = 900): string {
-  // Match the FIRST numeric run (handles 1,234.56)
-  const match = value?.match?.(/-?\d+(?:[.,]\d+)*(?:\.\d+)?/);
-  const raw = match?.[0] ?? "";
-  const cleaned = raw.replace(/,/g, "");
-  const numeric = parseFloat(cleaned);
-  const animated = useCountUp(Number.isFinite(numeric) ? numeric : 0, duration);
-  if (!match || !Number.isFinite(numeric)) return value;
-
-  // Preserve original formatting style (commas + decimals)
-  const hasComma = raw.includes(",");
-  const decimals = (() => {
-    const dot = raw.lastIndexOf(".");
-    if (dot === -1) return 0;
-    const tail = raw.slice(dot + 1);
-    return /^\d+$/.test(tail) ? tail.length : 0;
-  })();
-  const formatted = animated.toLocaleString("es-AR", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-    useGrouping: hasComma || Math.abs(numeric) >= 1000,
-  });
-  return value.replace(raw, formatted);
-}
-
-function cleanUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.pathname + (u.search ? u.search.slice(0, 30) : "");
-  } catch {
-    return url.replace(/https?:\/\/[^/]+/, "").slice(0, 60);
-  }
 }
