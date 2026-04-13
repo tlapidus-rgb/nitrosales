@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const fromParam = searchParams.get("from");
 
     // Cache check (v3: busted after adding conversion rates 2026-04-12)
-    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v4"];
+    const cacheKey = [orgId, fromParam || "default", toParam || "default", "v5"];
     const cached = getCached("pixel", ...cacheKey);
     if (cached) return NextResponse.json(cached);
 
@@ -735,7 +735,7 @@ export async function GET(request: NextRequest) {
           AND pe.props->>'productId' IS NOT NULL
         GROUP BY 1
         ORDER BY viewers DESC
-        LIMIT 100
+        LIMIT 500
       ` as Promise<Array<{ productExternalId: string; viewers: number }>>,
 
       // 26. Product purchases with name/category/brand (for CR by product/category/brand)
@@ -761,7 +761,7 @@ export async function GET(request: NextRequest) {
           AND o.channel IS DISTINCT FROM 'marketplace'
         GROUP BY 1, 2, 3, 4
         ORDER BY revenue DESC
-        LIMIT 50
+        LIMIT 500
       ` as Promise<Array<{ productExternalId: string; productName: string; category: string; brand: string; orders: number; units: number; revenue: number }>>,
     ]);
 
