@@ -101,11 +101,14 @@ interface SortState { column: string | null; direction: "asc" | "desc" | null; }
 
 function toDateInputValue(d: Date) { return d.toISOString().split("T")[0]; }
 
-function ProductImage({ src, name }: { src: string | null; name: string }) {
+function ProductImage({ src, name, onClick, size = 40 }: { src: string | null; name: string; onClick?: () => void; size?: number }) {
   const [failed, setFailed] = useState(false);
+  const dim = `${size}px`;
+  const style = { width: dim, height: dim } as React.CSSProperties;
+  const clickable = onClick && src && !failed;
   if (!src || failed) {
     return (
-      <div className="w-10 h-10 rounded bg-gray-100 border border-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400 text-[10px] font-medium">
+      <div style={style} className="rounded bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center text-slate-400 text-[10px] font-medium">
         {name.slice(0, 2).toUpperCase()}
       </div>
     );
@@ -114,10 +117,12 @@ function ProductImage({ src, name }: { src: string | null; name: string }) {
     <img
       src={src}
       alt={name}
-      className="w-10 h-10 rounded object-cover bg-white border border-gray-200 flex-shrink-0"
+      style={style}
+      className={`rounded object-cover bg-white border border-slate-200 flex-shrink-0 ${clickable ? "cursor-pointer transition-all duration-200 hover:opacity-80 hover:ring-2 hover:ring-amber-400/50" : ""}`}
       referrerPolicy="no-referrer"
       loading="lazy"
       onError={() => setFailed(true)}
+      onClick={clickable ? onClick : undefined}
     />
   );
 }
@@ -740,6 +745,10 @@ export default function ProductsPage() {
   const [sortState, setSortState] = useState<SortState>({ column: "revenue", direction: "desc" });
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
   const [stockAlertsPage, setStockAlertsPage] = useState(1);
+  const [stockAlertsSearch, setStockAlertsSearch] = useState("");
+  const [stockAlertsBrand, setStockAlertsBrand] = useState<string>("all");
+  const [stockAlertsCategory, setStockAlertsCategory] = useState<string>("all");
+  const [stockAlertsSort, setStockAlertsSort] = useState<{ column: string; direction: "asc" | "desc" }>({ column: "dias", direction: "asc" });
   const [deadStockPage, setDeadStockPage] = useState(1);
   const [deadStockSearch, setDeadStockSearch] = useState("");
   const [deadStockBrand, setDeadStockBrand] = useState<string>("all");
@@ -1078,9 +1087,69 @@ export default function ProductsPage() {
   const topDeclining = useMemo(() => filtered.filter((p) => p.trendData.wowRevenuePct < 0).sort((a, b) => a.trendData.wowRevenuePct - b.trendData.wowRevenuePct).slice(0, 10), [filtered]);
 
   /* ── Stock tab data ────────────────────────────────── */
-  const stockAlerts = useMemo(() => filtered.filter((p) => p.stockData.stockHealth === "critical" || p.stockData.stockHealth === "low").sort((a, b) => (a.stockData.daysOfStock ?? 999) - (b.stockData.daysOfStock ?? 999)), [filtered]);
+  // Base: productos que se venden bien (velocity >= 0.2 uds/dia = ≥1 venta cada 5 días)
+  // Y están quebrados recientemente O por quebrarse (stock=0 con venta en últimos 30d, o daysOfStock < 14)
+  const stockAlertsBase = useMemo(() => filtered.filter((p) => {
+    const velocity = p.stockData.dailySalesRate ?? 0;
+    if (velocity < 0.2) return false;
+    const stock = p.stock ?? 0;
+    const daysOfStock = p.stockData.daysOfStock;
+    const lastSale = p.stockData.lastSaleDate ? new Date(p.stockData.lastSaleDate).getTime() : 0;
+    const daysSinceSale = lastSale ? (Date.now() - lastSale) / 86400000 : Infinity;
+    // Quebrado recientemente: stock=0 y con venta en los últimos 30 días
+    if (stock <= 0 && daysSinceSale <= 30) return true;
+    // Por quebrarse: tiene stock pero duraría < 14 días a este ritmo
+    if (stock > 0 && daysOfStock != null && daysOfStock < 14) return true;
+    return false;
+  }), [filtered]);
+  const stockAlertsBrandOptions = useMemo(() => {
+    const s = new Set<string>();
+    stockAlertsBase.forEach((p) => { if (p.brand) s.add(p.brand); });
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [stockAlertsBase]);
+  const stockAlertsCategoryOptions = useMemo(() => {
+    const s = new Set<string>();
+    stockAlertsBase.forEach((p) => { if (p.category) s.add(p.category); });
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [stockAlertsBase]);
+  const stockAlerts = useMemo(() => {
+    const q = stockAlertsSearch.trim().toLowerCase();
+    let out = stockAlertsBase.filter((p) => {
+      if (stockAlertsBrand !== "all" && (p.brand || "") !== stockAlertsBrand) return false;
+      if (stockAlertsCategory !== "all" && (p.category || "") !== stockAlertsCategory) return false;
+      if (q && !(p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q))) return false;
+      return true;
+    });
+    const dir = stockAlertsSort.direction === "asc" ? 1 : -1;
+    out = [...out].sort((a, b) => {
+      let av: any = 0, bv: any = 0;
+      switch (stockAlertsSort.column) {
+        case "producto": av = a.name.toLowerCase(); bv = b.name.toLowerCase(); return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+        case "stock": av = a.stock ?? 0; bv = b.stock ?? 0; break;
+        case "velocidad": av = a.stockData.dailySalesRate ?? 0; bv = b.stockData.dailySalesRate ?? 0; break;
+        case "dias": av = a.stockData.daysOfStock ?? 999; bv = b.stockData.daysOfStock ?? 999; break;
+        case "quiebre": av = a.stockData.stockoutDate ? new Date(a.stockData.stockoutDate).getTime() : Infinity; bv = b.stockData.stockoutDate ? new Date(b.stockData.stockoutDate).getTime() : Infinity; break;
+        case "valor": av = (a.stock ?? 0) * a.avgPrice; bv = (b.stock ?? 0) * b.avgPrice; break;
+        default: av = a.stockData.daysOfStock ?? 999; bv = b.stockData.daysOfStock ?? 999;
+      }
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+    return out;
+  }, [stockAlertsBase, stockAlertsSearch, stockAlertsBrand, stockAlertsCategory, stockAlertsSort]);
   const stockAlertsPaginated = useMemo(() => { const s = (stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE; return stockAlerts.slice(s, s + STOCK_ITEMS_PER_PAGE); }, [stockAlerts, stockAlertsPage]);
-  const stockAlertsTotalPages = Math.ceil(stockAlerts.length / STOCK_ITEMS_PER_PAGE);
+  const stockAlertsTotalPages = Math.max(1, Math.ceil(stockAlerts.length / STOCK_ITEMS_PER_PAGE));
+  const toggleStockAlertsSort = (col: string) => {
+    setStockAlertsSort((prev) => prev.column === col
+      ? { column: col, direction: prev.direction === "asc" ? "desc" : "asc" }
+      : { column: col, direction: col === "producto" ? "asc" : "desc" });
+    setStockAlertsPage(1);
+  };
+  const stockAlertsSortIcon = (col: string) => {
+    if (stockAlertsSort.column !== col) return null;
+    return stockAlertsSort.direction === "asc"
+      ? <ArrowUp className="w-3 h-3 inline ml-0.5" />
+      : <ArrowDown className="w-3 h-3 inline ml-0.5" />;
+  };
 
   const deadStockBase = useMemo(() => filtered.filter((p) => p.stockData.isDead), [filtered]);
   const deadStockBrandOptions = useMemo(() => {
@@ -1116,13 +1185,14 @@ export default function ProductsPage() {
       switch (deadStockSort.column) {
         case "producto": av = a.name.toLowerCase(); bv = b.name.toLowerCase(); return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
         case "stock": av = a.stock ?? 0; bv = b.stock ?? 0; break;
-        case "valor": av = (a.stock ?? 0) * a.avgPrice; bv = (b.stock ?? 0) * b.avgPrice; break;
+        case "valor": av = (a.stock ?? 0) * (a.listPrice ?? a.avgPrice); bv = (b.stock ?? 0) * (b.listPrice ?? b.avgPrice); break;
+        case "costo": av = a.costPrice ?? -Infinity; bv = b.costPrice ?? -Infinity; break;
         case "margen": av = a.marginPct ?? -Infinity; bv = b.marginPct ?? -Infinity; break;
         case "markup": av = markup(a); bv = markup(b); break;
         case "visitas": av = a.viewers; bv = b.viewers; break;
         case "ultimaVenta": av = a.stockData.lastSaleDate ? new Date(a.stockData.lastSaleDate).getTime() : 0; bv = b.stockData.lastSaleDate ? new Date(b.stockData.lastSaleDate).getTime() : 0; break;
         case "diasSinVenta": av = daysNoSale(a); bv = daysNoSale(b); break;
-        default: av = (a.stock ?? 0) * a.avgPrice; bv = (b.stock ?? 0) * b.avgPrice;
+        default: av = (a.stock ?? 0) * (a.listPrice ?? a.avgPrice); bv = (b.stock ?? 0) * (b.listPrice ?? b.avgPrice);
       }
       return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
     });
@@ -1130,7 +1200,7 @@ export default function ProductsPage() {
   }, [deadStockBase, deadStockSearch, deadStockBrand, deadStockCategory, deadStockSort]);
   const deadStockPaginated = useMemo(() => { const s = (deadStockPage - 1) * STOCK_ITEMS_PER_PAGE; return deadStock.slice(s, s + STOCK_ITEMS_PER_PAGE); }, [deadStock, deadStockPage]);
   const deadStockTotalPages = Math.max(1, Math.ceil(deadStock.length / STOCK_ITEMS_PER_PAGE));
-  const deadStockCapital = useMemo(() => deadStock.reduce((s, p) => s + (p.stock ?? 0) * p.avgPrice, 0), [deadStock]);
+  const deadStockCapital = useMemo(() => deadStock.reduce((s, p) => s + (p.stock ?? 0) * (p.listPrice ?? p.avgPrice), 0), [deadStock]);
   const toggleDeadStockSort = (col: string) => {
     setDeadStockSort((prev) => prev.column === col
       ? { column: col, direction: prev.direction === "asc" ? "desc" : "asc" }
@@ -2027,163 +2097,238 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          {/* Stock Alerts */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-600" /> Alertas de Quiebre de Stock
-            </h3>
-            <p className="text-sm text-gray-600 mb-4">
-              {stockAlerts.length} producto{stockAlerts.length !== 1 ? "s" : ""} en alerta
-            </p>
-            {stockAlerts.length === 0 ? (
-              <p className="text-gray-500 py-8 text-center">No hay productos con alertas de quiebre.</p>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-6 py-3 text-left font-semibold text-gray-700">Producto</th>
-                        <th className="px-6 py-3 text-right font-semibold text-gray-700">Stock</th>
-                        <th className="px-6 py-3 text-right font-semibold text-gray-700">Velocidad</th>
-                        <th className="px-6 py-3 text-center font-semibold text-gray-700">Dias</th>
-                        <th className="px-6 py-3 text-left font-semibold text-gray-700">Fecha Quiebre</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {stockAlertsPaginated.map((p) => (
-                        <tr key={p.id} className={p.stockData.stockHealth === "critical" ? "bg-red-50" : "bg-amber-50"}>
-                          <td className="px-6 py-4 flex items-center gap-3">
-                            {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover" />}
-                            <div>
-                              <div className="font-medium text-gray-900">{p.name}</div>
-                              <div className="text-xs text-gray-500">{p.sku || "--"}</div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-right font-medium text-gray-900">{p.stock ?? 0}</td>
-                          <td className="px-6 py-4 text-right text-gray-700">{p.stockData.dailySalesRate.toFixed(1)} uds/dia</td>
-                          <td className="px-6 py-4 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>
-                          <td className="px-6 py-4 text-gray-700">{p.stockData.stockoutDate ? new Date(p.stockData.stockoutDate).toLocaleDateString("es-AR") : "--"}</td>
+          {/* Stock Alerts — Premium look (slate + amber/gold accent) */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl shadow-xl border border-slate-700/50">
+            <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 20% 10%, rgba(251,191,36,0.25) 0, transparent 40%)" }} />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                <h3 className="font-semibold text-slate-100 flex items-center gap-2 text-lg tracking-tight">
+                  <span className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  </span>
+                  Alerta de Quiebre de Stock
+                </h3>
+                <span className="text-[11px] uppercase tracking-widest text-amber-400/80 font-semibold px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
+                  Productos en demanda • Por quebrar
+                </span>
+              </div>
+              <p className="text-sm text-slate-400 mb-5">
+                {stockAlerts.length} producto{stockAlerts.length !== 1 ? "s" : ""} con buena rotación que se quedó o está por quedarse sin stock
+              </p>
+
+              {/* Filters */}
+              <div className="flex flex-col md:flex-row gap-3 mb-4">
+                <input
+                  type="text"
+                  value={stockAlertsSearch}
+                  onChange={(e) => { setStockAlertsSearch(e.target.value); setStockAlertsPage(1); }}
+                  placeholder="Buscar por nombre o SKU..."
+                  className="flex-1 px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400/40"
+                />
+                <select
+                  value={stockAlertsBrand}
+                  onChange={(e) => { setStockAlertsBrand(e.target.value); setStockAlertsPage(1); }}
+                  className="px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                >
+                  <option value="all">Todas las marcas</option>
+                  {stockAlertsBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <select
+                  value={stockAlertsCategory}
+                  onChange={(e) => { setStockAlertsCategory(e.target.value); setStockAlertsPage(1); }}
+                  className="px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                >
+                  <option value="all">Todas las categorías</option>
+                  {stockAlertsCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {stockAlerts.length === 0 ? (
+                <p className="text-slate-400 py-8 text-center">No hay productos con buena rotación en riesgo de quiebre.</p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto rounded-xl border border-slate-700/60">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-800/80 border-b border-slate-700">
+                        <tr>
+                          <th onClick={() => toggleStockAlertsSort("producto")} className="px-5 py-3 text-left font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Producto{stockAlertsSortIcon("producto")}</th>
+                          <th onClick={() => toggleStockAlertsSort("stock")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Stock{stockAlertsSortIcon("stock")}</th>
+                          <th onClick={() => toggleStockAlertsSort("velocidad")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Velocidad{stockAlertsSortIcon("velocidad")}</th>
+                          <th onClick={() => toggleStockAlertsSort("dias")} className="px-5 py-3 text-center font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Días{stockAlertsSortIcon("dias")}</th>
+                          <th onClick={() => toggleStockAlertsSort("quiebre")} className="px-5 py-3 text-left font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Fecha Quiebre{stockAlertsSortIcon("quiebre")}</th>
+                          <th onClick={() => toggleStockAlertsSort("valor")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Valor en riesgo{stockAlertsSortIcon("valor")}</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {stockAlertsTotalPages > 1 && (
-                  <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between text-sm mt-4">
-                    <span className="text-gray-600">Mostrando {Math.min((stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE + 1, stockAlerts.length)}-{Math.min(stockAlertsPage * STOCK_ITEMS_PER_PAGE, stockAlerts.length)} de {stockAlerts.length}</span>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setStockAlertsPage(Math.max(1, stockAlertsPage - 1))} disabled={stockAlertsPage === 1} className="px-3 py-1 border rounded-md bg-white disabled:opacity-50">Anterior</button>
-                      <span className="px-4 py-1 font-medium">Pag {stockAlertsPage}/{stockAlertsTotalPages}</span>
-                      <button onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))} disabled={stockAlertsPage === stockAlertsTotalPages} className="px-3 py-1 border rounded-md bg-white disabled:opacity-50">Siguiente</button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Dead Stock */}
-          <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-xl shadow-sm border border-red-200">
-            <h3 className="font-semibold text-red-900 mb-2 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" /> Stock Muerto - Capital Inmovilizado
-            </h3>
-            <p className="text-sm text-red-800 mb-4">Capital total inmovilizado: {formatARS(deadStockCapital)}</p>
-
-            {/* Filters: search + brand + category */}
-            <div className="flex flex-col md:flex-row gap-3 mb-4">
-              <input
-                type="text"
-                value={deadStockSearch}
-                onChange={(e) => { setDeadStockSearch(e.target.value); setDeadStockPage(1); }}
-                placeholder="Buscar por nombre o SKU..."
-                className="flex-1 px-3 py-2 text-sm border border-red-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-red-400 text-red-900 placeholder-red-400"
-              />
-              <select
-                value={deadStockBrand}
-                onChange={(e) => { setDeadStockBrand(e.target.value); setDeadStockPage(1); }}
-                className="px-3 py-2 text-sm border border-red-200 rounded-md bg-white text-red-900 focus:outline-none focus:ring-2 focus:ring-red-400"
-              >
-                <option value="all">Todas las marcas</option>
-                {deadStockBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <select
-                value={deadStockCategory}
-                onChange={(e) => { setDeadStockCategory(e.target.value); setDeadStockPage(1); }}
-                className="px-3 py-2 text-sm border border-red-200 rounded-md bg-white text-red-900 focus:outline-none focus:ring-2 focus:ring-red-400"
-              >
-                <option value="all">Todas las categorías</option>
-                {deadStockCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-
-            {deadStock.length === 0 ? (
-              <p className="text-red-700 py-8 text-center">No hay productos con stock muerto.</p>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-red-100 border-b border-red-300">
-                      <tr>
-                        <th onClick={() => toggleDeadStockSort("producto")} className="px-6 py-3 text-left font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Producto{deadStockSortIcon("producto")}</th>
-                        <th onClick={() => toggleDeadStockSort("stock")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Stock{deadStockSortIcon("stock")}</th>
-                        <th onClick={() => toggleDeadStockSort("valor")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Valor{deadStockSortIcon("valor")}</th>
-                        <th onClick={() => toggleDeadStockSort("margen")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Margen{deadStockSortIcon("margen")}</th>
-                        <th onClick={() => toggleDeadStockSort("markup")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Markup{deadStockSortIcon("markup")}</th>
-                        <th onClick={() => toggleDeadStockSort("visitas")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Visitas{deadStockSortIcon("visitas")}</th>
-                        <th onClick={() => toggleDeadStockSort("ultimaVenta")} className="px-6 py-3 text-left font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Última Venta{deadStockSortIcon("ultimaVenta")}</th>
-                        <th onClick={() => toggleDeadStockSort("diasSinVenta")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Días sin Venta{deadStockSortIcon("diasSinVenta")}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-red-200">
-                      {deadStockPaginated.map((p) => {
-                        const lastSale = p.stockData.lastSaleDate ? new Date(p.stockData.lastSaleDate) : null;
-                        const daysNoSale = lastSale ? Math.floor((Date.now() - lastSale.getTime()) / 86400000) : null;
-                        // Markup = (PrecioNeto - Costo) / Costo * 100. Precio incluye IVA 21%.
-                        const listPriceNeto = p.listPrice != null ? p.listPrice / 1.21 : null;
-                        const markupPct = (p.costPrice != null && p.costPrice > 0 && listPriceNeto != null)
-                          ? ((listPriceNeto - p.costPrice) / p.costPrice) * 100
-                          : null;
-                        return (
-                          <tr key={p.id} className="hover:bg-red-100/50">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <ProductImage src={p.imageUrl} name={p.name} />
-                                <div className="min-w-0">
-                                  <div className="font-medium text-red-900 truncate">{p.name}</div>
-                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                    <span className="text-xs text-red-700 font-mono">{p.sku || "--"}</span>
-                                    {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-200 text-red-900 font-medium">{p.brand}</span>}
-                                    {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-medium">{p.category}</span>}
+                      </thead>
+                      <tbody className="divide-y divide-slate-700/60">
+                        {stockAlertsPaginated.map((p) => {
+                          const stock = p.stock ?? 0;
+                          const velocity = p.stockData.dailySalesRate ?? 0;
+                          // Valor en riesgo: ventas perdidas estimadas a 30 días a precio promedio
+                          const valorRiesgo = stock <= 0
+                            ? velocity * 30 * p.avgPrice
+                            : Math.max(0, velocity * 30 - stock) * p.avgPrice;
+                          return (
+                            <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-3">
+                                  <ProductImage src={p.imageUrl} name={p.name} onClick={p.imageUrl ? () => setEnlargedImage({ url: p.imageUrl!, name: p.name }) : undefined} />
+                                  <div className="min-w-0 max-w-[280px]">
+                                    <div className="font-medium text-slate-100 text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      <span className="text-[11px] text-slate-400 font-mono">{p.sku || "--"}</span>
+                                      {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20 font-medium">{p.brand}</span>}
+                                      {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700/60 text-slate-300 border border-slate-600/60 font-medium">{p.category}</span>}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-right font-medium text-red-900">{p.stock ?? 0}</td>
-                            <td className="px-6 py-4 text-right font-bold text-red-600">{formatARS((p.stock ?? 0) * p.avgPrice)}</td>
-                            <td className="px-6 py-4 text-right text-red-900">{p.marginPct != null ? `${p.marginPct.toFixed(1)}%` : "--"}</td>
-                            <td className="px-6 py-4 text-right text-red-900">{markupPct != null ? `${markupPct.toFixed(1)}%` : "--"}</td>
-                            <td className="px-6 py-4 text-right text-red-900 font-medium">{p.viewers ?? 0}</td>
-                            <td className="px-6 py-4 text-red-700">{lastSale ? lastSale.toLocaleDateString("es-AR") : "--"}</td>
-                            <td className="px-6 py-4 text-right text-red-900 font-semibold">{daysNoSale ?? "--"}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                {deadStockTotalPages > 1 && (
-                  <div className="border-t border-red-200 px-6 py-4 bg-red-50 flex items-center justify-between text-sm mt-4">
-                    <span className="text-red-700">Mostrando {Math.min((deadStockPage - 1) * STOCK_ITEMS_PER_PAGE + 1, deadStock.length)}-{Math.min(deadStockPage * STOCK_ITEMS_PER_PAGE, deadStock.length)} de {deadStock.length}</span>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setDeadStockPage(Math.max(1, deadStockPage - 1))} disabled={deadStockPage === 1} className="px-3 py-1 border border-red-300 rounded-md bg-white disabled:opacity-50 text-red-700">Anterior</button>
-                      <span className="px-4 py-1 text-red-700 font-medium">Pag {deadStockPage}/{deadStockTotalPages}</span>
-                      <button onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))} disabled={deadStockPage === deadStockTotalPages} className="px-3 py-1 border border-red-300 rounded-md bg-white disabled:opacity-50 text-red-700">Siguiente</button>
-                    </div>
+                              </td>
+                              <td className={`px-5 py-3.5 text-right font-semibold ${stock <= 0 ? "text-red-400" : "text-slate-100"}`}>{stock}</td>
+                              <td className="px-5 py-3.5 text-right text-slate-300">{velocity.toFixed(1)} <span className="text-[10px] text-slate-500">uds/día</span></td>
+                              <td className="px-5 py-3.5 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>
+                              <td className="px-5 py-3.5 text-slate-300">{p.stockData.stockoutDate ? new Date(p.stockData.stockoutDate).toLocaleDateString("es-AR") : (stock <= 0 ? <span className="text-red-400 font-medium">Sin stock</span> : "--")}</td>
+                              <td className="px-5 py-3.5 text-right font-bold text-amber-300">{formatARS(valorRiesgo)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                )}
-              </>
-            )}
+                  {stockAlertsTotalPages > 1 && (
+                    <div className="flex items-center justify-between text-sm mt-4 px-1">
+                      <span className="text-slate-400">Mostrando {Math.min((stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE + 1, stockAlerts.length)}-{Math.min(stockAlertsPage * STOCK_ITEMS_PER_PAGE, stockAlerts.length)} de {stockAlerts.length}</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setStockAlertsPage(Math.max(1, stockAlertsPage - 1))} disabled={stockAlertsPage === 1} className="px-3 py-1 border border-slate-600 rounded-md bg-slate-800/60 text-slate-200 disabled:opacity-40 hover:bg-slate-700/60">Anterior</button>
+                        <span className="px-4 py-1 text-slate-200 font-medium">Pag {stockAlertsPage}/{stockAlertsTotalPages}</span>
+                        <button onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))} disabled={stockAlertsPage === stockAlertsTotalPages} className="px-3 py-1 border border-slate-600 rounded-md bg-slate-800/60 text-slate-200 disabled:opacity-40 hover:bg-slate-700/60">Siguiente</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Dead Stock — Premium look (slate + gold accent) */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl shadow-xl border border-slate-700/50">
+            <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 80% 10%, rgba(217,119,6,0.3) 0, transparent 45%)" }} />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                <h3 className="font-semibold text-slate-100 flex items-center gap-2 text-lg tracking-tight">
+                  <span className="w-8 h-8 rounded-lg bg-amber-600/15 border border-amber-600/30 flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  </span>
+                  Stock Muerto
+                </h3>
+                <span className="text-[11px] uppercase tracking-widest text-amber-400/80 font-semibold px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
+                  Capital Inmovilizado
+                </span>
+              </div>
+              <p className="text-sm text-slate-400 mb-5">
+                Capital total inmovilizado: <span className="text-amber-300 font-bold">{formatARS(deadStockCapital)}</span>
+              </p>
+
+              {/* Filters */}
+              <div className="flex flex-col md:flex-row gap-3 mb-4">
+                <input
+                  type="text"
+                  value={deadStockSearch}
+                  onChange={(e) => { setDeadStockSearch(e.target.value); setDeadStockPage(1); }}
+                  placeholder="Buscar por nombre o SKU..."
+                  className="flex-1 px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400/40"
+                />
+                <select
+                  value={deadStockBrand}
+                  onChange={(e) => { setDeadStockBrand(e.target.value); setDeadStockPage(1); }}
+                  className="px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                >
+                  <option value="all">Todas las marcas</option>
+                  {deadStockBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <select
+                  value={deadStockCategory}
+                  onChange={(e) => { setDeadStockCategory(e.target.value); setDeadStockPage(1); }}
+                  className="px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                >
+                  <option value="all">Todas las categorías</option>
+                  {deadStockCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {deadStock.length === 0 ? (
+                <p className="text-slate-400 py-8 text-center">No hay productos con stock muerto.</p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto rounded-xl border border-slate-700/60">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-800/80 border-b border-slate-700">
+                        <tr>
+                          <th onClick={() => toggleDeadStockSort("producto")} className="px-5 py-3 text-left font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Producto{deadStockSortIcon("producto")}</th>
+                          <th onClick={() => toggleDeadStockSort("stock")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Stock{deadStockSortIcon("stock")}</th>
+                          <th onClick={() => toggleDeadStockSort("valor")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Valor{deadStockSortIcon("valor")}</th>
+                          <th onClick={() => toggleDeadStockSort("costo")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Costo{deadStockSortIcon("costo")}</th>
+                          <th onClick={() => toggleDeadStockSort("margen")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Margen{deadStockSortIcon("margen")}</th>
+                          <th onClick={() => toggleDeadStockSort("markup")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Markup{deadStockSortIcon("markup")}</th>
+                          <th onClick={() => toggleDeadStockSort("visitas")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Visitas{deadStockSortIcon("visitas")}</th>
+                          <th onClick={() => toggleDeadStockSort("ultimaVenta")} className="px-5 py-3 text-left font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Últ. Venta{deadStockSortIcon("ultimaVenta")}</th>
+                          <th onClick={() => toggleDeadStockSort("diasSinVenta")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Días s/Venta{deadStockSortIcon("diasSinVenta")}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-700/60">
+                        {deadStockPaginated.map((p) => {
+                          const lastSale = p.stockData.lastSaleDate ? new Date(p.stockData.lastSaleDate) : null;
+                          const daysNoSale = lastSale ? Math.floor((Date.now() - lastSale.getTime()) / 86400000) : null;
+                          const listPriceNeto = p.listPrice != null ? p.listPrice / 1.21 : null;
+                          const markupPct = (p.costPrice != null && p.costPrice > 0 && listPriceNeto != null)
+                            ? ((listPriceNeto - p.costPrice) / p.costPrice) * 100
+                            : null;
+                          const stock = p.stock ?? 0;
+                          const unitPrice = p.listPrice ?? p.avgPrice;
+                          const valorTotal = stock * unitPrice;
+                          return (
+                            <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-3">
+                                  <ProductImage src={p.imageUrl} name={p.name} onClick={p.imageUrl ? () => setEnlargedImage({ url: p.imageUrl!, name: p.name }) : undefined} />
+                                  <div className="min-w-0 max-w-[280px]">
+                                    <div className="font-medium text-slate-100 text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      <span className="text-[11px] text-slate-400 font-mono">{p.sku || "--"}</span>
+                                      {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20 font-medium">{p.brand}</span>}
+                                      {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700/60 text-slate-300 border border-slate-600/60 font-medium">{p.category}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-5 py-3.5 text-right font-semibold text-slate-100">{stock}</td>
+                              <td className="px-5 py-3.5 text-right">
+                                <div className="font-bold text-amber-300">{formatARS(valorTotal)}</div>
+                                <div className="text-[10px] text-slate-500 mt-0.5">{formatARS(unitPrice)} c/u</div>
+                              </td>
+                              <td className="px-5 py-3.5 text-right text-slate-300">{p.costPrice != null ? formatARS(p.costPrice) : "--"}</td>
+                              <td className="px-5 py-3.5 text-right text-slate-200">{p.marginPct != null ? `${p.marginPct.toFixed(1)}%` : "--"}</td>
+                              <td className="px-5 py-3.5 text-right text-slate-200">{markupPct != null ? `${markupPct.toFixed(1)}%` : "--"}</td>
+                              <td className="px-5 py-3.5 text-right text-slate-200 font-medium">{p.viewers ?? 0}</td>
+                              <td className="px-5 py-3.5 text-slate-400 text-[12px]">{lastSale ? lastSale.toLocaleDateString("es-AR") : "--"}</td>
+                              <td className="px-5 py-3.5 text-right text-slate-100 font-semibold">{daysNoSale ?? "--"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {deadStockTotalPages > 1 && (
+                    <div className="flex items-center justify-between text-sm mt-4 px-1">
+                      <span className="text-slate-400">Mostrando {Math.min((deadStockPage - 1) * STOCK_ITEMS_PER_PAGE + 1, deadStock.length)}-{Math.min(deadStockPage * STOCK_ITEMS_PER_PAGE, deadStock.length)} de {deadStock.length}</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setDeadStockPage(Math.max(1, deadStockPage - 1))} disabled={deadStockPage === 1} className="px-3 py-1 border border-slate-600 rounded-md bg-slate-800/60 text-slate-200 disabled:opacity-40 hover:bg-slate-700/60">Anterior</button>
+                        <span className="px-4 py-1 text-slate-200 font-medium">Pag {deadStockPage}/{deadStockTotalPages}</span>
+                        <button onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))} disabled={deadStockPage === deadStockTotalPages} className="px-3 py-1 border border-slate-600 rounded-md bg-slate-800/60 text-slate-200 disabled:opacity-40 hover:bg-slate-700/60">Siguiente</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -3,7 +3,17 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-14 (Sesion 20 — categoryPath + consolidacion multi-canal por SKU + tablas compactas en /rentabilidad)
+## Ultima actualizacion: 2026-04-14 (Sesion 21 — Resumen cockpit + Break-even ROAS en /campaigns, Meta y Google)
+
+**Ultimo cambio:** `/campaigns` redisenado como "Resumen · Marketing & Adquisicion" con banner de salud (Blended ROAS VTEX vs Break-even), 8 KPIs, bloque "Plataformas vs Realidad", chart diario con linea BE. Meta y Google Overview tienen chip de salud + subtitle BE en el KPI "ROAS". Scope VTEX-only: MELI queda aparte como organico no atribuible.
+
+Archivos nuevos: `src/lib/hooks/useBreakeven.ts`, `src/components/campaigns/BreakevenChip.tsx`. Ver **`NOTA_SESION_21_CAMPAIGNS_PHASE1.md`** para detalles.
+
+Fase 2 pausada a pedido del usuario (demo cliente). Tracks pendientes: (A) Creativos Lab, (B) Google split por tipo, (C) Meta Placements+Audiencias.
+
+---
+
+## Ultima actualizacion previa: 2026-04-14 (Sesion 20 — categoryPath + consolidacion multi-canal por SKU + tablas compactas en /rentabilidad)
 
 ---
 
