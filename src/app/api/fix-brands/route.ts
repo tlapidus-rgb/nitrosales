@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 
@@ -823,20 +825,28 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Paso 6: update batch
-    const UPDATE_CHUNK = 100;
+    // Paso 6: update masivo agrupado por path.
+    // Mucho mas rapido que 1 update por producto: 1 SQL por path unico.
+    const idsByPath = new Map<string, string[]>();
+    for (const u of updates) {
+      const arr = idsByPath.get(u.path) || [];
+      arr.push(u.id);
+      idsByPath.set(u.path, arr);
+    }
+
     let updated = 0;
-    for (let i = 0; i < updates.length; i += UPDATE_CHUNK) {
-      const chunk = updates.slice(i, i + UPDATE_CHUNK);
-      await prisma.$transaction(
-        chunk.map((u) =>
-          prisma.product.update({
-            where: { id: u.id },
-            data: { categoryPath: u.path },
-          })
-        )
-      );
-      updated += chunk.length;
+    const ID_CHUNK = 1000; // tope de IDs por UPDATE WHERE IN (...)
+    for (const [path, ids] of Array.from(idsByPath.entries())) {
+      for (let i = 0; i < ids.length; i += ID_CHUNK) {
+        const chunk = ids.slice(i, i + ID_CHUNK);
+        const affected = await prisma.$executeRaw`
+          UPDATE "products"
+          SET "categoryPath" = ${path}
+          WHERE "id" IN (${Prisma.join(chunk)})
+            AND ("categoryPath" IS NULL OR "categoryPath" = '')
+        `;
+        updated += Number(affected) || 0;
+      }
     }
 
     const durationMs = Date.now() - startedAt;
