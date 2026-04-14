@@ -377,6 +377,97 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // --- ACTION: uncategorized-breakdown (Sesion 20) ---
+  // Diagnostico de los productos sin categoria/brand/categoryPath.
+  // Devuelve: cuantos estan activos, con stock, y con ventas en los ultimos 90 dias.
+  if (action === "uncategorized-breakdown") {
+    const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+    // Universo: sin categoryPath (incluye los sin category + los con category rara)
+    const totalSinPath = await prisma.product.count({
+      where: {
+        organizationId: ORG_ID,
+        OR: [{ categoryPath: null }, { categoryPath: "" }],
+      },
+    });
+
+    const activos = await prisma.product.count({
+      where: {
+        organizationId: ORG_ID,
+        isActive: true,
+        OR: [{ categoryPath: null }, { categoryPath: "" }],
+      },
+    });
+
+    const conStock = await prisma.product.count({
+      where: {
+        organizationId: ORG_ID,
+        stock: { gt: 0 },
+        OR: [{ categoryPath: null }, { categoryPath: "" }],
+      },
+    });
+
+    // Productos sin path que tuvieron al menos 1 venta en los ultimos 90 dias
+    const conVentas = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(DISTINCT p.id)::bigint AS count
+      FROM "products" p
+      JOIN "order_items" oi ON oi."productId" = p.id
+      JOIN "orders" o ON oi."orderId" = o.id
+      WHERE p."organizationId" = ${ORG_ID}
+        AND (p."categoryPath" IS NULL OR p."categoryPath" = '')
+        AND o."orderDate" >= ${ninetyDaysAgo}
+        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+    `;
+
+    // Muestra de 10 productos sin categoria con ventas recientes
+    const samples = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        externalId: string;
+        name: string;
+        isActive: boolean;
+        stock: number | null;
+        units: bigint;
+      }>
+    >`
+      SELECT p.id, p."externalId", p.name, p."isActive", p.stock,
+        SUM(oi.quantity)::bigint AS units
+      FROM "products" p
+      JOIN "order_items" oi ON oi."productId" = p.id
+      JOIN "orders" o ON oi."orderId" = o.id
+      WHERE p."organizationId" = ${ORG_ID}
+        AND (p."categoryPath" IS NULL OR p."categoryPath" = '')
+        AND o."orderDate" >= ${ninetyDaysAgo}
+        AND o.status NOT IN ('CANCELLED', 'RETURNED')
+      GROUP BY p.id
+      ORDER BY units DESC
+      LIMIT 10
+    `;
+
+    return NextResponse.json({
+      totalSinPath,
+      activos,
+      inactivos: totalSinPath - activos,
+      conStock,
+      sinStock: totalSinPath - conStock,
+      conVentasUlt90Dias: Number(conVentas[0]?.count || 0),
+      samples: samples.map((s) => ({
+        ...s,
+        stock: s.stock,
+        units: Number(s.units),
+      })),
+      interpretacion: {
+        "conVentasUlt90Dias > 0":
+          "Son productos vendiendose que no tienen categoria. Prioridad para resolver.",
+        "inactivos = totalSinPath":
+          "Son solo productos dados de baja. Se pueden ignorar.",
+        "conStock > 0 y ventas = 0":
+          "Productos con stock pero sin ventas. Probablemente slow movers o dead stock.",
+      },
+    });
+  }
+
   // --- ACTION: debug ---
   if (action === "debug") {
     return NextResponse.json({
@@ -977,6 +1068,7 @@ export async function GET(request: NextRequest) {
       "fix-categories": "Fix categories only for products that already have brands",
       "fix-category-paths": "Backfill Product.categoryPath via VTEX tree walk (?limit=50&offset=0)",
       "bulk-category-paths": "Bulk backfill categoryPath usando el arbol completo VTEX (1 sola llamada). Matching por nombre de categoria.",
+      "uncategorized-breakdown": "Diagnostico de productos sin categoryPath: cuantos activos, con stock, con ventas recientes, sample.",
       deduplicate: "Find duplicate products",
     },
   });

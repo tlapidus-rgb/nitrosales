@@ -264,4 +264,17 @@ La documentación no es opcional. Es parte del trabajo.
 
 ---
 
+## Error #18 — Bajar `maxDuration` sin razón concreta
+
+**Cuándo pasó**: Sesión 20. Después de optimizar el bulk backfill para correr en 277ms, propuse revertir `maxDuration = 300` a default (60s) "porque ya no se necesita". Tomy lo cuestionó.
+**Síntoma potencial**: Otras acciones del mismo endpoint (fix-vtex, fix-categories, fix-category-paths) SÍ pueden pasar los 60s porque hacen llamadas a VTEX por producto. Bajarle el techo las habría matado.
+**Causa raíz**: Confundí `maxDuration` con un costo. No es un costo, es un techo. La función no consume más recursos si termina rápido — solo le da aire si alguna vez lo necesita.
+
+### Regla
+**`maxDuration` es un techo, no un target.** Subirlo no cuesta nada si las funciones terminan rápido. Bajarlo sí puede romper acciones que ocasionalmente tardan más. Nunca bajar `maxDuration` "por prolijidad" o "por las dudas" — solo bajarlo si hay una razón concreta (ej: forzar que una función no loopee infinitamente por un bug).
+
+**Pregunta previa antes de bajar maxDuration**: "¿Existe ALGUNA acción/branch de código que podría tardar más de X segundos?" Si la respuesta no es un NO rotundo, no bajarlo.
+
+---
+
 _Fin del archivo. Claude: si estás por cometer algo que se parece a uno de estos errores, PARÁ y releé la regla._
