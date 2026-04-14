@@ -10,6 +10,8 @@ import {
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import { KpiCard, DateRangeFilter } from "@/components/dashboard";
 import { useSyncStatus } from "@/lib/hooks/useSyncStatus";
+import { useBreakeven } from "@/lib/hooks/useBreakeven";
+import { BreakevenChip } from "@/components/campaigns/BreakevenChip";
 import {
   DollarSign, Eye, MousePointer, ShoppingCart, Target, Zap,
   ArrowUp, ArrowDown, Download, TrendingUp, BarChart3,
@@ -446,6 +448,7 @@ export default function GoogleAdsPage() {
   const [draggedAdId, setDraggedAdId] = useState<string | null>(null);
   const [dragOverType, setDragOverType] = useState<string | null>(null);
   const { lastSyncAt, isSyncing, syncError, triggerSync: triggerGoogleSync, onSyncComplete } = useSyncStatus("GOOGLE_ADS");
+  const { breakevenRoas, contributionMargin } = useBreakeven(dateFrom, dateTo);
   // Drill-down state
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
@@ -700,12 +703,19 @@ export default function GoogleAdsPage() {
         )}
       </div>
 
+      {/* Break-even health chip */}
+      <BreakevenChip
+        currentRoas={Number(globalRoas) || 0}
+        breakevenRoas={breakevenRoas}
+        contributionMargin={contributionMargin}
+      />
+
       {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <KpiCard icon={<DollarSign size={14} className="text-red-600" />} iconBg="bg-red-50" label="Inversion" value={formatARS(totals.spend || 0)} change={changes.spend} />
         <KpiCard icon={<Eye size={14} className="text-blue-600" />} iconBg="bg-blue-50" label="Impresiones" value={formatCompact(totals.impressions || 0)} change={changes.impressions} />
         <KpiCard icon={<MousePointer size={14} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Clicks" value={formatCompact(totals.clicks || 0)} change={changes.clicks} />
-        <KpiCard icon={<Target size={14} className="text-green-600" />} iconBg="bg-green-50" label="ROAS" value={`${globalRoas}x`} change={changes.roas} />
+        <KpiCard icon={<Target size={14} className="text-green-600" />} iconBg="bg-green-50" label="ROAS" value={`${globalRoas}x`} subtitle={breakevenRoas > 0 ? `BE ${breakevenRoas.toFixed(2)}x · CM ${(contributionMargin * 100).toFixed(0)}%` : undefined} change={breakevenRoas > 0 ? undefined : changes.roas} />
         <KpiCard icon={<ShoppingCart size={14} className="text-purple-600" />} iconBg="bg-purple-50" label="Conversiones" value={String(totals.conversions || 0)} change={changes.conversions} />
         <KpiCard icon={<Zap size={14} className="text-amber-600" />} iconBg="bg-amber-50" label="CTR" value={`${globalCtr}%`} subtitle={`CPC: ${formatARS(Number(globalCpc))}`} />
         <KpiCard icon={<DollarSign size={14} className="text-cyan-600" />} iconBg="bg-cyan-50" label="CPA" value={formatARS(Number(globalCostPerConv))} subtitle={`Conv Rate: ${globalConvRate}%`} />

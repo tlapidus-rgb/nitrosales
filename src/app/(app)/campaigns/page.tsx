@@ -5,13 +5,15 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, LineChart, Line,
+  ReferenceLine, ComposedChart,
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import { KpiCard, DateRangeFilter } from "@/components/dashboard";
 import {
   DollarSign, Eye, MousePointer, ShoppingCart, TrendingUp,
   TrendingDown, ArrowUp, ArrowDown, Download, Target, Zap,
-  BarChart3, ArrowUpRight, ArrowDownRight,
+  BarChart3, ArrowUpRight, ArrowDownRight, AlertTriangle,
+  ShieldCheck, Activity, Gauge, Scale, Info,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────── */
@@ -54,19 +56,144 @@ function PlatformBadge({ platform }: { platform: string }) {
   );
 }
 
-function RoasBadge({ value }: { value: number }) {
-  const color = value >= 3 ? "text-green-600 bg-green-50" : value >= 1.5 ? "text-amber-600 bg-amber-50" : "text-red-600 bg-red-50";
+function RoasBadge({ value, breakeven }: { value: number; breakeven?: number | null }) {
+  let color = "text-gray-600 bg-gray-50";
+  if (breakeven && breakeven > 0) {
+    if (value >= breakeven * 1.5) color = "text-green-600 bg-green-50";
+    else if (value >= breakeven) color = "text-amber-600 bg-amber-50";
+    else if (value > 0) color = "text-red-600 bg-red-50";
+  } else {
+    color = value >= 3 ? "text-green-600 bg-green-50" : value >= 1.5 ? "text-amber-600 bg-amber-50" : value > 0 ? "text-red-600 bg-red-50" : "text-gray-600 bg-gray-50";
+  }
   return <span className={`px-2 py-1 rounded-md text-xs font-bold ${color}`}>{value}x</span>;
 }
 
-function ChangeBadge({ value }: { value: number }) {
-  if (value === 0) return <span className="text-xs text-gray-400">--</span>;
-  const pos = value > 0;
+/* ── Break-even Health Banner ──────────────────────── */
+
+function BreakevenBanner({
+  blendedRoas,
+  breakevenRoas,
+  contributionMargin,
+  adSpend,
+  realRevenue,
+}: {
+  blendedRoas: number;
+  breakevenRoas: number;
+  contributionMargin: number;
+  adSpend: number;
+  realRevenue: number;
+}) {
+  const hasData = breakevenRoas > 0 && adSpend > 0;
+
+  let status: "green" | "amber" | "red" | "gray" = "gray";
+  let statusLabel = "Sin datos suficientes";
+  let statusSub = "Cargá COGS y fees para calcular el break-even.";
+  let Icon: any = Info;
+  let bg = "from-slate-50 to-slate-100";
+  let ring = "ring-slate-200";
+  let chipBg = "bg-slate-100 text-slate-700";
+
+  if (hasData) {
+    if (blendedRoas >= breakevenRoas * 1.5) {
+      status = "green";
+      statusLabel = "Rentable con margen";
+      statusSub = `Estas ganando ${(blendedRoas / breakevenRoas).toFixed(1)}x sobre el punto de equilibrio.`;
+      Icon = ShieldCheck;
+      bg = "from-emerald-50 to-green-50";
+      ring = "ring-emerald-200";
+      chipBg = "bg-emerald-100 text-emerald-800";
+    } else if (blendedRoas >= breakevenRoas) {
+      status = "amber";
+      statusLabel = "En zona de equilibrio";
+      statusSub = "Cubris costos pero hay poco margen. Optimizar creativos o bajar CPC.";
+      Icon = Activity;
+      bg = "from-amber-50 to-yellow-50";
+      ring = "ring-amber-200";
+      chipBg = "bg-amber-100 text-amber-800";
+    } else {
+      status = "red";
+      const gap = ((breakevenRoas - blendedRoas) / breakevenRoas) * 100;
+      statusLabel = "Perdiendo plata";
+      statusSub = `Estas ${gap.toFixed(0)}% por debajo del break-even. Revisar ASAP.`;
+      Icon = AlertTriangle;
+      bg = "from-red-50 to-rose-50";
+      ring = "ring-red-200";
+      chipBg = "bg-red-100 text-red-800";
+    }
+  }
+
+  const target = breakevenRoas || 3;
+  const filledPct = Math.min(100, Math.max(0, (blendedRoas / (target * 2)) * 100));
+  const breakevenPct = Math.min(100, (breakevenRoas / (target * 2)) * 100);
+
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${pos ? "text-emerald-600" : "text-red-500"}`}>
-      {pos ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-      {Math.abs(value).toFixed(1)}%
-    </span>
+    <div className={`bg-gradient-to-br ${bg} rounded-2xl ring-1 ${ring} p-6 shadow-sm`}>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3">
+          <div className={`p-2.5 rounded-xl ${chipBg}`}>
+            <Icon size={22} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${chipBg}`}>
+                {statusLabel}
+              </span>
+              <span className="text-xs text-slate-500">Salud publicitaria</span>
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 mt-1">
+              {hasData ? (
+                <>Blended ROAS <span className="tabular-nums">{blendedRoas.toFixed(2)}x</span> vs Break-even <span className="tabular-nums">{breakevenRoas.toFixed(2)}x</span></>
+              ) : (
+                "Break-even ROAS"
+              )}
+            </h2>
+            <p className="text-sm text-slate-600 mt-0.5 max-w-xl">{statusSub}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4 text-right">
+          <div>
+            <p className="text-[10px] uppercase text-slate-500 font-semibold">Margen contrib.</p>
+            <p className="text-lg font-bold text-slate-900 tabular-nums">
+              {contributionMargin > 0 ? `${(contributionMargin * 100).toFixed(1)}%` : "--"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase text-slate-500 font-semibold">Inversion</p>
+            <p className="text-lg font-bold text-slate-900 tabular-nums">{formatCompact(adSpend)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase text-slate-500 font-semibold">Revenue real</p>
+            <p className="text-lg font-bold text-slate-900 tabular-nums">{formatCompact(realRevenue)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Break-even gauge */}
+      <div className="mt-5">
+        <div className="relative h-3 bg-white/60 rounded-full overflow-hidden ring-1 ring-slate-200">
+          <div
+            className={`absolute inset-y-0 left-0 rounded-full transition-all ${
+              status === "green" ? "bg-emerald-500" :
+              status === "amber" ? "bg-amber-500" :
+              status === "red" ? "bg-red-500" : "bg-slate-300"
+            }`}
+            style={{ width: `${filledPct}%` }}
+          />
+          {hasData && (
+            <div
+              className="absolute inset-y-0 w-0.5 bg-slate-900"
+              style={{ left: `${breakevenPct}%` }}
+              title={`Break-even: ${breakevenRoas.toFixed(2)}x`}
+            />
+          )}
+        </div>
+        <div className="flex justify-between mt-1.5 text-[10px] text-slate-500">
+          <span>0x</span>
+          <span>Break-even {hasData ? breakevenRoas.toFixed(2) : "--"}x</span>
+          <span>{(target * 2).toFixed(1)}x</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -109,15 +236,67 @@ function ConversionFunnel({ impressions, clicks, conversions }: { impressions: n
   );
 }
 
+/* ── Discrepancy Block ─────────────────────────────── */
+
+function DiscrepancyBlock({
+  attributedRevenue,
+  realRevenue,
+  adSpend,
+}: {
+  attributedRevenue: number;
+  realRevenue: number;
+  adSpend: number;
+}) {
+  if (attributedRevenue <= 0 && realRevenue <= 0) return null;
+  const diff = realRevenue - attributedRevenue;
+  const diffPct = attributedRevenue > 0 ? (diff / attributedRevenue) * 100 : 0;
+  const attributedRoas = adSpend > 0 ? attributedRevenue / adSpend : 0;
+  const blendedRoas = adSpend > 0 ? realRevenue / adSpend : 0;
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Scale size={16} className="text-indigo-600" />
+        <h3 className="font-semibold text-gray-900">Plataformas vs Realidad</h3>
+        <span className="text-xs text-gray-400 ml-auto">Brecha de atribucion</span>
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-lg bg-purple-50 p-3">
+          <p className="text-[10px] uppercase text-purple-700 font-semibold">Plataformas dicen</p>
+          <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">{formatCompact(attributedRevenue)}</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">ROAS reportado: <span className="font-medium">{attributedRoas.toFixed(2)}x</span></p>
+        </div>
+        <div className="rounded-lg bg-emerald-50 p-3">
+          <p className="text-[10px] uppercase text-emerald-700 font-semibold">Realidad (ventas)</p>
+          <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">{formatCompact(realRevenue)}</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">Blended ROAS: <span className="font-medium">{blendedRoas.toFixed(2)}x</span></p>
+        </div>
+        <div className={`rounded-lg p-3 ${diff >= 0 ? "bg-blue-50" : "bg-red-50"}`}>
+          <p className={`text-[10px] uppercase font-semibold ${diff >= 0 ? "text-blue-700" : "text-red-700"}`}>Diferencia</p>
+          <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">
+            {diff >= 0 ? "+" : ""}{formatCompact(diff)}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            {diff >= 0
+              ? `Orgánico + efecto halo (+${diffPct.toFixed(0)}%)`
+              : `Sobre-atribución (${diffPct.toFixed(0)}%)`}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Component ────────────────────────────────── */
 
 export default function CampaignsPage() {
   const [data, setData] = useState<any>(null);
+  const [pnl, setPnl] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("ALL");
   const [sortField, setSortField] = useState("spend");
   const [sortAsc, setSortAsc] = useState(false);
-  const [chartMode, setChartMode] = useState<"spend" | "roas">("spend");
+  const [chartMode, setChartMode] = useState<"spend" | "roas">("roas");
 
   // Date range
   const [dateFrom, setDateFrom] = useState(toDateInputValue(new Date(Date.now() - 30 * 86400000)));
@@ -127,10 +306,14 @@ export default function CampaignsPage() {
   /* ── Fetch ─────────────────────────────────────── */
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/metrics/campaigns?from=${dateFrom}&to=${dateTo}`)
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => {})
+    Promise.all([
+      fetch(`/api/metrics/campaigns?from=${dateFrom}&to=${dateTo}`).then((r) => r.json()).catch(() => null),
+      fetch(`/api/metrics/pnl?from=${dateFrom}&to=${dateTo}`).then((r) => r.json()).catch(() => null),
+    ])
+      .then(([campaigns, pnlData]) => {
+        setData(campaigns);
+        setPnl(pnlData);
+      })
       .finally(() => setLoading(false));
   }, [dateFrom, dateTo]);
 
@@ -152,6 +335,32 @@ export default function CampaignsPage() {
   const dailyTrend = data?.dailyTrend || [];
   const platformSummary = data?.platformSummary || [];
 
+  // ── Break-even calculation from P&L ──
+  const pnlSummary = pnl?.summary || {};
+  const realRevenue = Number(pnlSummary.revenue || 0);
+  const realCogs = Number(pnlSummary.cogs || 0);
+  const realShipping = Number(pnlSummary.shipping || 0);
+  const realPlatformFees = Number(pnlSummary.platformFees || 0);
+  const realPaymentFees = Number(pnlSummary.paymentFees || 0);
+
+  // Contribution margin pre-ads = (Revenue - COGS - Shipping - PlatformFees - PaymentFees) / Revenue
+  const contributionProfit = realRevenue - realCogs - realShipping - realPlatformFees - realPaymentFees;
+  const contributionMargin = realRevenue > 0 ? contributionProfit / realRevenue : 0;
+  const breakevenRoas = contributionMargin > 0 ? 1 / contributionMargin : 0;
+
+  // Blended ROAS = Revenue real / Ad spend
+  const adSpendTotal = Number(totals.spend || 0);
+  const blendedRoas = adSpendTotal > 0 ? realRevenue / adSpendTotal : 0;
+  const attributedRevenue = Number(totals.conversionValue || 0);
+  const attributedRoas = adSpendTotal > 0 ? attributedRevenue / adSpendTotal : 0;
+
+  // MER (Marketing Efficiency Ratio) = Real revenue / Ad spend (same as Blended ROAS here)
+  const mer = blendedRoas;
+
+  // nCAC estimate = Ad spend / New customers (approx. = conversions)
+  const totalConv = Number(totals.conversions || 0);
+  const nCAC = totalConv > 0 ? adSpendTotal / totalConv : 0;
+
   const filtered = useMemo(() => {
     if (platformFilter === "ALL") return campaigns;
     return campaigns.filter((c: any) => c.platform === platformFilter);
@@ -165,13 +374,24 @@ export default function CampaignsPage() {
     });
   }, [filtered, sortField, sortAsc]);
 
-  const globalRoas = totals.spend > 0 ? (totals.conversionValue / totals.spend).toFixed(2) : "0";
   const globalCtr = totals.impressions > 0 ? ((totals.clicks / totals.impressions) * 100).toFixed(2) : "0";
   const globalCpc = totals.clicks > 0 ? (totals.spend / totals.clicks).toFixed(0) : "0";
   const globalConvRate = totals.clicks > 0 ? ((totals.conversions / totals.clicks) * 100).toFixed(2) : "0";
 
   const googleCount = campaigns.filter((c: any) => c.platform === "GOOGLE").length;
   const metaCount = campaigns.filter((c: any) => c.platform === "META").length;
+
+  // Daily ROAS with break-even reference
+  const dailyRoasSeries = useMemo(() => {
+    return dailyTrend.map((d: any) => {
+      const totalSpend = d.META + d.GOOGLE + (d.TIKTOK || 0);
+      return {
+        date: d.date,
+        roas: totalSpend > 0 ? Math.round((d.conversionValue / totalSpend) * 100) / 100 : 0,
+        breakeven: breakevenRoas > 0 ? Math.round(breakevenRoas * 100) / 100 : null,
+      };
+    });
+  }, [dailyTrend, breakevenRoas]);
 
   /* ── Sort helpers ──────────────────────────────── */
   const handleSort = (field: string) => {
@@ -203,7 +423,7 @@ export default function CampaignsPage() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3" />
-        <span className="text-gray-500">Cargando campanas...</span>
+        <span className="text-gray-500">Cargando Resumen...</span>
       </div>
     );
   }
@@ -214,9 +434,10 @@ export default function CampaignsPage() {
       {/* Header + Date Range */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Campanas</h1>
+          <p className="text-xs uppercase tracking-wider text-indigo-600 font-semibold">Marketing & Adquisicion</p>
+          <h1 className="text-3xl font-bold text-gray-900">Resumen</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Performance de Meta Ads y Google Ads &middot; {dateFrom} a {dateTo}
+            Cockpit cross-platform &middot; {dateFrom} a {dateTo}
           </p>
         </div>
         <DateRangeFilter
@@ -228,6 +449,15 @@ export default function CampaignsPage() {
           loading={loading}
         />
       </div>
+
+      {/* Break-even Health Banner */}
+      <BreakevenBanner
+        blendedRoas={blendedRoas}
+        breakevenRoas={breakevenRoas}
+        contributionMargin={contributionMargin}
+        adSpend={adSpendTotal}
+        realRevenue={realRevenue}
+      />
 
       {/* Platform Filter Chips */}
       <div className="flex items-center gap-2">
@@ -259,15 +489,24 @@ export default function CampaignsPage() {
         })}
       </div>
 
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KpiCard icon={<DollarSign size={16} className="text-red-600" />} iconBg="bg-red-50" label="Inversion Total" value={formatARS(totals.spend || 0)} change={changes.spend} />
-        <KpiCard icon={<Eye size={16} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Impresiones" value={formatCompact(totals.impressions || 0)} change={changes.impressions} />
-        <KpiCard icon={<MousePointer size={16} className="text-blue-600" />} iconBg="bg-blue-50" label="Clicks" value={formatCompact(totals.clicks || 0)} change={changes.clicks} />
-        <KpiCard icon={<ShoppingCart size={16} className="text-green-600" />} iconBg="bg-green-50" label="Conversiones" value={String(totals.conversions || 0)} change={changes.conversions} />
-        <KpiCard icon={<Target size={16} className="text-purple-600" />} iconBg="bg-purple-50" label="ROAS Global" value={`${globalRoas}x`} change={changes.roas} />
-        <KpiCard icon={<Zap size={16} className="text-amber-600" />} iconBg="bg-amber-50" label="CTR Promedio" value={`${globalCtr}%`} subtitle={`CPC: ${formatARS(Number(globalCpc))}`} />
+      {/* Hero KPI Row — 8 cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+        <KpiCard icon={<DollarSign size={16} className="text-red-600" />} iconBg="bg-red-50" label="Inversion" value={formatCompact(adSpendTotal)} change={changes.spend} />
+        <KpiCard icon={<ShoppingCart size={16} className="text-emerald-600" />} iconBg="bg-emerald-50" label="Revenue real" value={formatCompact(realRevenue)} subtitle="Ventas totales" />
+        <KpiCard icon={<Target size={16} className="text-purple-600" />} iconBg="bg-purple-50" label="Rev. atribuido" value={formatCompact(attributedRevenue)} subtitle={`ROAS rep: ${attributedRoas.toFixed(2)}x`} />
+        <KpiCard icon={<TrendingUp size={16} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Blended ROAS" value={`${blendedRoas.toFixed(2)}x`} subtitle="Rev. real / Inv." />
+        <KpiCard icon={<Gauge size={16} className="text-amber-600" />} iconBg="bg-amber-50" label="Break-even" value={breakevenRoas > 0 ? `${breakevenRoas.toFixed(2)}x` : "--"} subtitle={contributionMargin > 0 ? `CM ${(contributionMargin * 100).toFixed(1)}%` : "Sin margen"} />
+        <KpiCard icon={<Activity size={16} className="text-cyan-600" />} iconBg="bg-cyan-50" label="MER" value={mer > 0 ? `${mer.toFixed(2)}x` : "--"} subtitle="Efficiency ratio" />
+        <KpiCard icon={<ShoppingCart size={16} className="text-green-600" />} iconBg="bg-green-50" label="Conversiones" value={String(totalConv)} change={changes.conversions} />
+        <KpiCard icon={<Zap size={16} className="text-orange-600" />} iconBg="bg-orange-50" label="nCAC" value={nCAC > 0 ? formatARS(nCAC) : "--"} subtitle={`CTR ${globalCtr}%`} />
       </div>
+
+      {/* Discrepancy Block */}
+      <DiscrepancyBlock
+        attributedRevenue={attributedRevenue}
+        realRevenue={realRevenue}
+        adSpend={adSpendTotal}
+      />
 
       {/* Platform Comparison */}
       {platformFilter === "ALL" && platformSummary.length > 1 && (
@@ -275,6 +514,7 @@ export default function CampaignsPage() {
           {platformSummary.map((p: any) => {
             const color = PLATFORM_COLORS[p.platform] || "#6b7280";
             const label = PLATFORM_LABELS[p.platform] || p.platform;
+            const roasVsBreakeven = breakevenRoas > 0 ? p.roas / breakevenRoas : 0;
             return (
               <div key={p.platform} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <div className="flex items-center gap-2 mb-4">
@@ -289,7 +529,12 @@ export default function CampaignsPage() {
                   </div>
                   <div>
                     <p className="text-[10px] text-gray-500 uppercase">ROAS</p>
-                    <p className={`text-lg font-bold ${p.roas >= 2 ? "text-green-600" : p.roas >= 1 ? "text-amber-600" : "text-red-600"}`}>{p.roas}x</p>
+                    <p className={`text-lg font-bold ${breakevenRoas > 0 ? (p.roas >= breakevenRoas * 1.5 ? "text-green-600" : p.roas >= breakevenRoas ? "text-amber-600" : "text-red-600") : (p.roas >= 2 ? "text-green-600" : p.roas >= 1 ? "text-amber-600" : "text-red-600")}`}>
+                      {p.roas}x
+                    </p>
+                    {breakevenRoas > 0 && (
+                      <p className="text-[10px] text-gray-400 mt-0.5">vs {breakevenRoas.toFixed(2)}x BE</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-[10px] text-gray-500 uppercase">Conversiones</p>
@@ -325,17 +570,24 @@ export default function CampaignsPage() {
         {/* Spend/ROAS Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">
-              {chartMode === "spend" ? "Inversion Diaria por Plataforma" : "ROAS Diario"}
-            </h3>
+            <div>
+              <h3 className="font-semibold text-gray-900">
+                {chartMode === "spend" ? "Inversion Diaria por Plataforma" : "ROAS Diario vs Break-even"}
+              </h3>
+              {chartMode === "roas" && breakevenRoas > 0 && (
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  Linea punteada = Break-even {breakevenRoas.toFixed(2)}x
+                </p>
+              )}
+            </div>
             <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
-              <button onClick={() => setChartMode("spend")}
-                className={`px-3 py-1 rounded-md text-xs font-medium ${chartMode === "spend" ? "bg-white shadow-sm text-indigo-600" : "text-gray-600"}`}>
-                Inversion
-              </button>
               <button onClick={() => setChartMode("roas")}
                 className={`px-3 py-1 rounded-md text-xs font-medium ${chartMode === "roas" ? "bg-white shadow-sm text-indigo-600" : "text-gray-600"}`}>
                 ROAS
+              </button>
+              <button onClick={() => setChartMode("spend")}
+                className={`px-3 py-1 rounded-md text-xs font-medium ${chartMode === "spend" ? "bg-white shadow-sm text-indigo-600" : "text-gray-600"}`}>
+                Inversion
               </button>
             </div>
           </div>
@@ -351,15 +603,15 @@ export default function CampaignsPage() {
                   <Area type="monotone" dataKey="GOOGLE" stackId="1" fill={PLATFORM_COLORS.GOOGLE} stroke={PLATFORM_COLORS.GOOGLE} fillOpacity={0.6} />
                 </AreaChart>
               ) : (
-                <LineChart data={dailyTrend.map((d: any) => {
-                  const totalSpend = d.META + d.GOOGLE + (d.TIKTOK || 0);
-                  return { date: d.date, roas: totalSpend > 0 ? Math.round((d.conversionValue / totalSpend) * 100) / 100 : 0 };
-                })}>
+                <LineChart data={dailyRoasSeries}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}x`} />
-                  <Tooltip formatter={(v: number) => [`${v}x`, "ROAS"]} />
+                  <Tooltip formatter={(v: number, n: string) => [`${v}x`, n === "roas" ? "ROAS" : "Break-even"]} />
                   <Line type="monotone" dataKey="roas" stroke="#10b981" strokeWidth={2} dot={false} />
+                  {breakevenRoas > 0 && (
+                    <ReferenceLine y={breakevenRoas} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: `BE ${breakevenRoas.toFixed(2)}x`, fill: "#ef4444", fontSize: 11, position: "insideTopRight" }} />
+                  )}
                 </LineChart>
               )}
             </ResponsiveContainer>
@@ -455,7 +707,7 @@ export default function CampaignsPage() {
                     <td className="px-4 py-3 text-right text-gray-700">{formatARS(c.cpc)}</td>
                     <td className="px-4 py-3 text-right text-gray-700">{c.conversions}</td>
                     <td className="px-4 py-3 text-right text-gray-700 font-medium">{formatARS(c.conversionValue)}</td>
-                    <td className="px-4 py-3 text-center"><RoasBadge value={c.roas} /></td>
+                    <td className="px-4 py-3 text-center"><RoasBadge value={c.roas} breakeven={breakevenRoas} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -471,7 +723,7 @@ export default function CampaignsPage() {
                   <td className="px-4 py-3 text-right text-gray-900">{formatARS(Number(globalCpc))}</td>
                   <td className="px-4 py-3 text-right text-gray-900">{filtered.reduce((s: number, c: any) => s + c.conversions, 0)}</td>
                   <td className="px-4 py-3 text-right text-gray-900">{formatARS(filtered.reduce((s: number, c: any) => s + c.conversionValue, 0))}</td>
-                  <td className="px-4 py-3 text-center"><RoasBadge value={Number(globalRoas)} /></td>
+                  <td className="px-4 py-3 text-center"><RoasBadge value={Number(attributedRoas.toFixed(2))} breakeven={breakevenRoas} /></td>
                 </tr>
               </tfoot>
             </table>
