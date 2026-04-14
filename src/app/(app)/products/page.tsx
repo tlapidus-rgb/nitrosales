@@ -2097,238 +2097,231 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          {/* Stock Alerts — Premium look (slate + amber/gold accent) */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl shadow-xl border border-slate-700/50">
-            <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 20% 10%, rgba(251,191,36,0.25) 0, transparent 40%)" }} />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-                <h3 className="font-semibold text-slate-100 flex items-center gap-2 text-lg tracking-tight">
-                  <span className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-                    <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  </span>
-                  Alerta de Quiebre de Stock
-                </h3>
-                <span className="text-[11px] uppercase tracking-widest text-amber-400/80 font-semibold px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
-                  Productos en demanda • Por quebrar
+          {/* Stock Alerts — Light premium, animated alert icon, internal scroll */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2.5 text-lg tracking-tight">
+                <span className="relative inline-flex w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 items-center justify-center shadow-sm">
+                  <span className="absolute inline-flex w-full h-full rounded-lg bg-amber-400/30 animate-ping" />
+                  <AlertTriangle className="relative w-[18px] h-[18px] text-amber-600" />
                 </span>
-              </div>
-              <p className="text-sm text-slate-400 mb-5">
-                {stockAlerts.length} producto{stockAlerts.length !== 1 ? "s" : ""} con buena rotación que se quedó o está por quedarse sin stock
-              </p>
+                Alerta de Quiebre de Stock
+              </h3>
+              <span className="text-[11px] uppercase tracking-widest text-amber-700 font-semibold px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200">
+                Productos en demanda • Por quebrar
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {stockAlerts.length} producto{stockAlerts.length !== 1 ? "s" : ""} con buena rotación que se quedó o está por quedarse sin stock
+            </p>
 
-              {/* Filters */}
-              <div className="flex flex-col md:flex-row gap-3 mb-4">
-                <input
-                  type="text"
-                  value={stockAlertsSearch}
-                  onChange={(e) => { setStockAlertsSearch(e.target.value); setStockAlertsPage(1); }}
-                  placeholder="Buscar por nombre o SKU..."
-                  className="flex-1 px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400/40"
-                />
-                <select
-                  value={stockAlertsBrand}
-                  onChange={(e) => { setStockAlertsBrand(e.target.value); setStockAlertsPage(1); }}
-                  className="px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
-                >
-                  <option value="all">Todas las marcas</option>
-                  {stockAlertsBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
-                </select>
-                <select
-                  value={stockAlertsCategory}
-                  onChange={(e) => { setStockAlertsCategory(e.target.value); setStockAlertsPage(1); }}
-                  className="px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
-                >
-                  <option value="all">Todas las categorías</option>
-                  {stockAlertsCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
+            <div className="flex flex-col md:flex-row gap-3 mb-4">
+              <input
+                type="text"
+                value={stockAlertsSearch}
+                onChange={(e) => { setStockAlertsSearch(e.target.value); setStockAlertsPage(1); }}
+                placeholder="Buscar por nombre o SKU..."
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 placeholder-gray-400"
+              />
+              <select
+                value={stockAlertsBrand}
+                onChange={(e) => { setStockAlertsBrand(e.target.value); setStockAlertsPage(1); }}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                <option value="all">Todas las marcas</option>
+                {stockAlertsBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <select
+                value={stockAlertsCategory}
+                onChange={(e) => { setStockAlertsCategory(e.target.value); setStockAlertsPage(1); }}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                <option value="all">Todas las categorías</option>
+                {stockAlertsCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
 
-              {stockAlerts.length === 0 ? (
-                <p className="text-slate-400 py-8 text-center">No hay productos con buena rotación en riesgo de quiebre.</p>
-              ) : (
-                <>
-                  <div className="overflow-x-auto rounded-xl border border-slate-700/60">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-800/80 border-b border-slate-700">
-                        <tr>
-                          <th onClick={() => toggleStockAlertsSort("producto")} className="px-5 py-3 text-left font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Producto{stockAlertsSortIcon("producto")}</th>
-                          <th onClick={() => toggleStockAlertsSort("stock")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Stock{stockAlertsSortIcon("stock")}</th>
-                          <th onClick={() => toggleStockAlertsSort("velocidad")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Velocidad{stockAlertsSortIcon("velocidad")}</th>
-                          <th onClick={() => toggleStockAlertsSort("dias")} className="px-5 py-3 text-center font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Días{stockAlertsSortIcon("dias")}</th>
-                          <th onClick={() => toggleStockAlertsSort("quiebre")} className="px-5 py-3 text-left font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Fecha Quiebre{stockAlertsSortIcon("quiebre")}</th>
-                          <th onClick={() => toggleStockAlertsSort("valor")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Valor en riesgo{stockAlertsSortIcon("valor")}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-700/60">
-                        {stockAlertsPaginated.map((p) => {
-                          const stock = p.stock ?? 0;
-                          const velocity = p.stockData.dailySalesRate ?? 0;
-                          // Valor en riesgo: ventas perdidas estimadas a 30 días a precio promedio
-                          const valorRiesgo = stock <= 0
-                            ? velocity * 30 * p.avgPrice
-                            : Math.max(0, velocity * 30 - stock) * p.avgPrice;
-                          return (
-                            <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
-                              <td className="px-5 py-3.5">
-                                <div className="flex items-center gap-3">
-                                  <ProductImage src={p.imageUrl} name={p.name} onClick={p.imageUrl ? () => setEnlargedImage({ url: p.imageUrl!, name: p.name }) : undefined} />
-                                  <div className="min-w-0 max-w-[280px]">
-                                    <div className="font-medium text-slate-100 text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
-                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                      <span className="text-[11px] text-slate-400 font-mono">{p.sku || "--"}</span>
-                                      {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20 font-medium">{p.brand}</span>}
-                                      {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700/60 text-slate-300 border border-slate-600/60 font-medium">{p.category}</span>}
-                                    </div>
+            {stockAlerts.length === 0 ? (
+              <p className="text-gray-500 py-8 text-center">No hay productos con buena rotación en riesgo de quiebre.</p>
+            ) : (
+              <>
+                <div className="overflow-auto rounded-lg border border-gray-200 max-h-[420px]">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                      <tr>
+                        <th onClick={() => toggleStockAlertsSort("producto")} className="px-5 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Producto{stockAlertsSortIcon("producto")}</th>
+                        <th onClick={() => toggleStockAlertsSort("stock")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Stock{stockAlertsSortIcon("stock")}</th>
+                        <th onClick={() => toggleStockAlertsSort("velocidad")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Velocidad{stockAlertsSortIcon("velocidad")}</th>
+                        <th onClick={() => toggleStockAlertsSort("dias")} className="px-5 py-3 text-center font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Días{stockAlertsSortIcon("dias")}</th>
+                        <th onClick={() => toggleStockAlertsSort("quiebre")} className="px-5 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Fecha Quiebre{stockAlertsSortIcon("quiebre")}</th>
+                        <th onClick={() => toggleStockAlertsSort("valor")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Valor en riesgo{stockAlertsSortIcon("valor")}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {stockAlertsPaginated.map((p) => {
+                        const stock = p.stock ?? 0;
+                        const velocity = p.stockData.dailySalesRate ?? 0;
+                        const valorRiesgo = stock <= 0
+                          ? velocity * 30 * p.avgPrice
+                          : Math.max(0, velocity * 30 - stock) * p.avgPrice;
+                        return (
+                          <tr key={p.id} className="hover:bg-amber-50/40 transition-colors">
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-3">
+                                <ProductImage src={p.imageUrl} name={p.name} size={36} onClick={p.imageUrl ? () => setEnlargedImage({ url: p.imageUrl!, name: p.name }) : undefined} />
+                                <div className="min-w-0 max-w-[260px]">
+                                  <div className="font-medium text-gray-900 text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
+                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                    <span className="text-[11px] text-gray-500 font-mono">{p.sku || "--"}</span>
+                                    {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-medium">{p.brand}</span>}
+                                    {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200 font-medium">{p.category}</span>}
                                   </div>
                                 </div>
-                              </td>
-                              <td className={`px-5 py-3.5 text-right font-semibold ${stock <= 0 ? "text-red-400" : "text-slate-100"}`}>{stock}</td>
-                              <td className="px-5 py-3.5 text-right text-slate-300">{velocity.toFixed(1)} <span className="text-[10px] text-slate-500">uds/día</span></td>
-                              <td className="px-5 py-3.5 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>
-                              <td className="px-5 py-3.5 text-slate-300">{p.stockData.stockoutDate ? new Date(p.stockData.stockoutDate).toLocaleDateString("es-AR") : (stock <= 0 ? <span className="text-red-400 font-medium">Sin stock</span> : "--")}</td>
-                              <td className="px-5 py-3.5 text-right font-bold text-amber-300">{formatARS(valorRiesgo)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  {stockAlertsTotalPages > 1 && (
-                    <div className="flex items-center justify-between text-sm mt-4 px-1">
-                      <span className="text-slate-400">Mostrando {Math.min((stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE + 1, stockAlerts.length)}-{Math.min(stockAlertsPage * STOCK_ITEMS_PER_PAGE, stockAlerts.length)} de {stockAlerts.length}</span>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setStockAlertsPage(Math.max(1, stockAlertsPage - 1))} disabled={stockAlertsPage === 1} className="px-3 py-1 border border-slate-600 rounded-md bg-slate-800/60 text-slate-200 disabled:opacity-40 hover:bg-slate-700/60">Anterior</button>
-                        <span className="px-4 py-1 text-slate-200 font-medium">Pag {stockAlertsPage}/{stockAlertsTotalPages}</span>
-                        <button onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))} disabled={stockAlertsPage === stockAlertsTotalPages} className="px-3 py-1 border border-slate-600 rounded-md bg-slate-800/60 text-slate-200 disabled:opacity-40 hover:bg-slate-700/60">Siguiente</button>
-                      </div>
+                              </div>
+                            </td>
+                            <td className={`px-5 py-3 text-right font-semibold ${stock <= 0 ? "text-red-600" : "text-gray-900"}`}>{stock}</td>
+                            <td className="px-5 py-3 text-right text-gray-700">{velocity.toFixed(1)} <span className="text-[10px] text-gray-500">uds/día</span></td>
+                            <td className="px-5 py-3 text-center"><StockBadge daysOfStock={p.stockData.daysOfStock} stockHealth={p.stockData.stockHealth} stock={p.stock} /></td>
+                            <td className="px-5 py-3 text-gray-700">{p.stockData.stockoutDate ? new Date(p.stockData.stockoutDate).toLocaleDateString("es-AR") : (stock <= 0 ? <span className="text-red-600 font-medium">Sin stock</span> : "--")}</td>
+                            <td className="px-5 py-3 text-right font-bold text-amber-700">{formatARS(valorRiesgo)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {stockAlertsTotalPages > 1 && (
+                  <div className="flex items-center justify-between text-sm mt-4 px-1">
+                    <span className="text-gray-600">Mostrando {Math.min((stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE + 1, stockAlerts.length)}-{Math.min(stockAlertsPage * STOCK_ITEMS_PER_PAGE, stockAlerts.length)} de {stockAlerts.length}</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setStockAlertsPage(Math.max(1, stockAlertsPage - 1))} disabled={stockAlertsPage === 1} className="px-3 py-1 border border-gray-300 rounded-md bg-white text-gray-700 disabled:opacity-50 hover:bg-gray-50">Anterior</button>
+                      <span className="px-4 py-1 text-gray-700 font-medium">Pag {stockAlertsPage}/{stockAlertsTotalPages}</span>
+                      <button onClick={() => setStockAlertsPage(Math.min(stockAlertsTotalPages, stockAlertsPage + 1))} disabled={stockAlertsPage === stockAlertsTotalPages} className="px-3 py-1 border border-gray-300 rounded-md bg-white text-gray-700 disabled:opacity-50 hover:bg-gray-50">Siguiente</button>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* Dead Stock — Premium look (slate + gold accent) */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl shadow-xl border border-slate-700/50">
-            <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 80% 10%, rgba(217,119,6,0.3) 0, transparent 45%)" }} />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-                <h3 className="font-semibold text-slate-100 flex items-center gap-2 text-lg tracking-tight">
-                  <span className="w-8 h-8 rounded-lg bg-amber-600/15 border border-amber-600/30 flex items-center justify-center">
-                    <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  </span>
-                  Stock Muerto
-                </h3>
-                <span className="text-[11px] uppercase tracking-widest text-amber-400/80 font-semibold px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
-                  Capital Inmovilizado
+          {/* Dead Stock — Light premium, animated alert icon, internal scroll */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2.5 text-lg tracking-tight">
+                <span className="relative inline-flex w-9 h-9 rounded-lg bg-rose-50 border border-rose-200 items-center justify-center shadow-sm">
+                  <span className="absolute inline-flex w-full h-full rounded-lg bg-rose-400/25 animate-ping" />
+                  <AlertTriangle className="relative w-[18px] h-[18px] text-rose-600" />
                 </span>
-              </div>
-              <p className="text-sm text-slate-400 mb-5">
-                Capital total inmovilizado: <span className="text-amber-300 font-bold">{formatARS(deadStockCapital)}</span>
-              </p>
+                Stock Muerto
+              </h3>
+              <span className="text-[11px] uppercase tracking-widest text-rose-700 font-semibold px-2.5 py-1 rounded-md bg-rose-50 border border-rose-200">
+                Capital Inmovilizado
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Capital total inmovilizado: <span className="text-rose-700 font-bold">{formatARS(deadStockCapital)}</span>
+            </p>
 
-              {/* Filters */}
-              <div className="flex flex-col md:flex-row gap-3 mb-4">
-                <input
-                  type="text"
-                  value={deadStockSearch}
-                  onChange={(e) => { setDeadStockSearch(e.target.value); setDeadStockPage(1); }}
-                  placeholder="Buscar por nombre o SKU..."
-                  className="flex-1 px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400/40"
-                />
-                <select
-                  value={deadStockBrand}
-                  onChange={(e) => { setDeadStockBrand(e.target.value); setDeadStockPage(1); }}
-                  className="px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
-                >
-                  <option value="all">Todas las marcas</option>
-                  {deadStockBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
-                </select>
-                <select
-                  value={deadStockCategory}
-                  onChange={(e) => { setDeadStockCategory(e.target.value); setDeadStockPage(1); }}
-                  className="px-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800/60 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
-                >
-                  <option value="all">Todas las categorías</option>
-                  {deadStockCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
+            <div className="flex flex-col md:flex-row gap-3 mb-4">
+              <input
+                type="text"
+                value={deadStockSearch}
+                onChange={(e) => { setDeadStockSearch(e.target.value); setDeadStockPage(1); }}
+                placeholder="Buscar por nombre o SKU..."
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-rose-400 text-gray-900 placeholder-gray-400"
+              />
+              <select
+                value={deadStockBrand}
+                onChange={(e) => { setDeadStockBrand(e.target.value); setDeadStockPage(1); }}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-rose-400"
+              >
+                <option value="all">Todas las marcas</option>
+                {deadStockBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <select
+                value={deadStockCategory}
+                onChange={(e) => { setDeadStockCategory(e.target.value); setDeadStockPage(1); }}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-rose-400"
+              >
+                <option value="all">Todas las categorías</option>
+                {deadStockCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
 
-              {deadStock.length === 0 ? (
-                <p className="text-slate-400 py-8 text-center">No hay productos con stock muerto.</p>
-              ) : (
-                <>
-                  <div className="overflow-x-auto rounded-xl border border-slate-700/60">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-800/80 border-b border-slate-700">
-                        <tr>
-                          <th onClick={() => toggleDeadStockSort("producto")} className="px-5 py-3 text-left font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Producto{deadStockSortIcon("producto")}</th>
-                          <th onClick={() => toggleDeadStockSort("stock")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Stock{deadStockSortIcon("stock")}</th>
-                          <th onClick={() => toggleDeadStockSort("valor")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Valor{deadStockSortIcon("valor")}</th>
-                          <th onClick={() => toggleDeadStockSort("costo")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Costo{deadStockSortIcon("costo")}</th>
-                          <th onClick={() => toggleDeadStockSort("margen")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Margen{deadStockSortIcon("margen")}</th>
-                          <th onClick={() => toggleDeadStockSort("markup")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Markup{deadStockSortIcon("markup")}</th>
-                          <th onClick={() => toggleDeadStockSort("visitas")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Visitas{deadStockSortIcon("visitas")}</th>
-                          <th onClick={() => toggleDeadStockSort("ultimaVenta")} className="px-5 py-3 text-left font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Últ. Venta{deadStockSortIcon("ultimaVenta")}</th>
-                          <th onClick={() => toggleDeadStockSort("diasSinVenta")} className="px-5 py-3 text-right font-semibold text-amber-200/90 cursor-pointer select-none hover:bg-slate-700/50 uppercase text-[11px] tracking-wider">Días s/Venta{deadStockSortIcon("diasSinVenta")}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-700/60">
-                        {deadStockPaginated.map((p) => {
-                          const lastSale = p.stockData.lastSaleDate ? new Date(p.stockData.lastSaleDate) : null;
-                          const daysNoSale = lastSale ? Math.floor((Date.now() - lastSale.getTime()) / 86400000) : null;
-                          const listPriceNeto = p.listPrice != null ? p.listPrice / 1.21 : null;
-                          const markupPct = (p.costPrice != null && p.costPrice > 0 && listPriceNeto != null)
-                            ? ((listPriceNeto - p.costPrice) / p.costPrice) * 100
-                            : null;
-                          const stock = p.stock ?? 0;
-                          const unitPrice = p.listPrice ?? p.avgPrice;
-                          const valorTotal = stock * unitPrice;
-                          return (
-                            <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
-                              <td className="px-5 py-3.5">
-                                <div className="flex items-center gap-3">
-                                  <ProductImage src={p.imageUrl} name={p.name} onClick={p.imageUrl ? () => setEnlargedImage({ url: p.imageUrl!, name: p.name }) : undefined} />
-                                  <div className="min-w-0 max-w-[280px]">
-                                    <div className="font-medium text-slate-100 text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
-                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                      <span className="text-[11px] text-slate-400 font-mono">{p.sku || "--"}</span>
-                                      {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20 font-medium">{p.brand}</span>}
-                                      {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700/60 text-slate-300 border border-slate-600/60 font-medium">{p.category}</span>}
-                                    </div>
+            {deadStock.length === 0 ? (
+              <p className="text-gray-500 py-8 text-center">No hay productos con stock muerto.</p>
+            ) : (
+              <>
+                <div className="overflow-auto rounded-lg border border-gray-200 max-h-[480px]">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                      <tr>
+                        <th onClick={() => toggleDeadStockSort("producto")} className="px-5 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Producto{deadStockSortIcon("producto")}</th>
+                        <th onClick={() => toggleDeadStockSort("stock")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Stock{deadStockSortIcon("stock")}</th>
+                        <th onClick={() => toggleDeadStockSort("valor")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Valor{deadStockSortIcon("valor")}</th>
+                        <th onClick={() => toggleDeadStockSort("costo")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Costo{deadStockSortIcon("costo")}</th>
+                        <th onClick={() => toggleDeadStockSort("margen")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Margen{deadStockSortIcon("margen")}</th>
+                        <th onClick={() => toggleDeadStockSort("markup")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Markup{deadStockSortIcon("markup")}</th>
+                        <th onClick={() => toggleDeadStockSort("visitas")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Visitas{deadStockSortIcon("visitas")}</th>
+                        <th onClick={() => toggleDeadStockSort("ultimaVenta")} className="px-5 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Últ. Venta{deadStockSortIcon("ultimaVenta")}</th>
+                        <th onClick={() => toggleDeadStockSort("diasSinVenta")} className="px-5 py-3 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 uppercase text-[11px] tracking-wider">Días s/Venta{deadStockSortIcon("diasSinVenta")}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {deadStockPaginated.map((p) => {
+                        const lastSale = p.stockData.lastSaleDate ? new Date(p.stockData.lastSaleDate) : null;
+                        const daysNoSale = lastSale ? Math.floor((Date.now() - lastSale.getTime()) / 86400000) : null;
+                        const listPriceNeto = p.listPrice != null ? p.listPrice / 1.21 : null;
+                        const markupPct = (p.costPrice != null && p.costPrice > 0 && listPriceNeto != null)
+                          ? ((listPriceNeto - p.costPrice) / p.costPrice) * 100
+                          : null;
+                        const stock = p.stock ?? 0;
+                        const unitPrice = p.listPrice ?? p.avgPrice;
+                        const valorTotal = stock * unitPrice;
+                        return (
+                          <tr key={p.id} className="hover:bg-rose-50/40 transition-colors">
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-3">
+                                <ProductImage src={p.imageUrl} name={p.name} size={36} onClick={p.imageUrl ? () => setEnlargedImage({ url: p.imageUrl!, name: p.name }) : undefined} />
+                                <div className="min-w-0 max-w-[260px]">
+                                  <div className="font-medium text-gray-900 text-[13px] leading-snug line-clamp-2" title={p.name}>{p.name}</div>
+                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                    <span className="text-[11px] text-gray-500 font-mono">{p.sku || "--"}</span>
+                                    {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 font-medium">{p.brand}</span>}
+                                    {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200 font-medium">{p.category}</span>}
                                   </div>
                                 </div>
-                              </td>
-                              <td className="px-5 py-3.5 text-right font-semibold text-slate-100">{stock}</td>
-                              <td className="px-5 py-3.5 text-right">
-                                <div className="font-bold text-amber-300">{formatARS(valorTotal)}</div>
-                                <div className="text-[10px] text-slate-500 mt-0.5">{formatARS(unitPrice)} c/u</div>
-                              </td>
-                              <td className="px-5 py-3.5 text-right text-slate-300">{p.costPrice != null ? formatARS(p.costPrice) : "--"}</td>
-                              <td className="px-5 py-3.5 text-right text-slate-200">{p.marginPct != null ? `${p.marginPct.toFixed(1)}%` : "--"}</td>
-                              <td className="px-5 py-3.5 text-right text-slate-200">{markupPct != null ? `${markupPct.toFixed(1)}%` : "--"}</td>
-                              <td className="px-5 py-3.5 text-right text-slate-200 font-medium">{p.viewers ?? 0}</td>
-                              <td className="px-5 py-3.5 text-slate-400 text-[12px]">{lastSale ? lastSale.toLocaleDateString("es-AR") : "--"}</td>
-                              <td className="px-5 py-3.5 text-right text-slate-100 font-semibold">{daysNoSale ?? "--"}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  {deadStockTotalPages > 1 && (
-                    <div className="flex items-center justify-between text-sm mt-4 px-1">
-                      <span className="text-slate-400">Mostrando {Math.min((deadStockPage - 1) * STOCK_ITEMS_PER_PAGE + 1, deadStock.length)}-{Math.min(deadStockPage * STOCK_ITEMS_PER_PAGE, deadStock.length)} de {deadStock.length}</span>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setDeadStockPage(Math.max(1, deadStockPage - 1))} disabled={deadStockPage === 1} className="px-3 py-1 border border-slate-600 rounded-md bg-slate-800/60 text-slate-200 disabled:opacity-40 hover:bg-slate-700/60">Anterior</button>
-                        <span className="px-4 py-1 text-slate-200 font-medium">Pag {deadStockPage}/{deadStockTotalPages}</span>
-                        <button onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))} disabled={deadStockPage === deadStockTotalPages} className="px-3 py-1 border border-slate-600 rounded-md bg-slate-800/60 text-slate-200 disabled:opacity-40 hover:bg-slate-700/60">Siguiente</button>
-                      </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3 text-right font-semibold text-gray-900">{stock}</td>
+                            <td className="px-5 py-3 text-right">
+                              <div className="font-bold text-rose-700">{formatARS(valorTotal)}</div>
+                              <div className="text-[10px] text-gray-500 mt-0.5">{formatARS(unitPrice)} c/u</div>
+                            </td>
+                            <td className="px-5 py-3 text-right text-gray-700">{p.costPrice != null ? formatARS(p.costPrice) : "--"}</td>
+                            <td className="px-5 py-3 text-right text-gray-800">{p.marginPct != null ? `${p.marginPct.toFixed(1)}%` : "--"}</td>
+                            <td className="px-5 py-3 text-right text-gray-800">{markupPct != null ? `${markupPct.toFixed(1)}%` : "--"}</td>
+                            <td className="px-5 py-3 text-right text-gray-800 font-medium">{p.viewers ?? 0}</td>
+                            <td className="px-5 py-3 text-gray-600 text-[12px]">{lastSale ? lastSale.toLocaleDateString("es-AR") : "--"}</td>
+                            <td className="px-5 py-3 text-right text-gray-900 font-semibold">{daysNoSale ?? "--"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {deadStockTotalPages > 1 && (
+                  <div className="flex items-center justify-between text-sm mt-4 px-1">
+                    <span className="text-gray-600">Mostrando {Math.min((deadStockPage - 1) * STOCK_ITEMS_PER_PAGE + 1, deadStock.length)}-{Math.min(deadStockPage * STOCK_ITEMS_PER_PAGE, deadStock.length)} de {deadStock.length}</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setDeadStockPage(Math.max(1, deadStockPage - 1))} disabled={deadStockPage === 1} className="px-3 py-1 border border-gray-300 rounded-md bg-white text-gray-700 disabled:opacity-50 hover:bg-gray-50">Anterior</button>
+                      <span className="px-4 py-1 text-gray-700 font-medium">Pag {deadStockPage}/{deadStockTotalPages}</span>
+                      <button onClick={() => setDeadStockPage(Math.min(deadStockTotalPages, deadStockPage + 1))} disabled={deadStockPage === deadStockTotalPages} className="px-3 py-1 border border-gray-300 rounded-md bg-white text-gray-700 disabled:opacity-50 hover:bg-gray-50">Siguiente</button>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
