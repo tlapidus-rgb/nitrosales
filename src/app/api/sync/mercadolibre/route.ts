@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSellerToken, fetchSellerListings, fetchSellerReputation, fetchSellerOrders, fetchSellerQuestions } from "@/lib/connectors/mercadolibre-seller";
+import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
 
 export const dynamic = "force-dynamic"; // Prevent static generation at build time
 export const maxDuration = 300; // Vercel timeout: 5 min (Pro plan)
@@ -204,17 +205,18 @@ export async function GET(req: NextRequest) {
             const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
             const quantity = mlItem.quantity || 1;
             const thumbnailUrl = mlItem.item?.thumbnail || null;
+            // Sesion 21: usar seller_sku real, NO el MLA listing id.
+            const sellerSku = (mlItem.item?.seller_sku || "").trim() || null;
+            const externalId = mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}`;
 
-            // Upsert Product
-            const product = await prisma.product.upsert({
-              where: {
-                organizationId_externalId: { organizationId: orgId, externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}` },
-              },
+            // Upsert Product (SKU-first; evita duplicados cuando el mismo SKU
+            // entra desde VTEX y ML a la vez)
+            const product = await upsertProductBySku({
+              organizationId: orgId,
+              externalId,
+              sku: sellerSku,
               create: {
-                organizationId: orgId,
-                externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}`,
                 name: itemTitle,
-                sku: mlItemId,
                 price: unitPrice,
                 imageUrl: thumbnailUrl,
                 isActive: true,

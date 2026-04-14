@@ -11,6 +11,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { getSellerToken } from "./mercadolibre-seller";
+import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
 
 const ML_API = "https://api.mercadolibre.com";
 
@@ -150,16 +151,16 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
       const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
       const quantity = mlItem.quantity || 1;
       const thumbnailUrl = mlItem.item?.thumbnail || null;
+      // Sesion 21: usar seller_sku real, NO el MLA listing id.
+      const sellerSku = (mlItem.item?.seller_sku || "").trim() || null;
+      const externalId = mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}`;
 
-      const product = await prisma.product.upsert({
-        where: {
-          organizationId_externalId: { organizationId: orgId, externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}` },
-        },
+      const product = await upsertProductBySku({
+        organizationId: orgId,
+        externalId,
+        sku: sellerSku,
         create: {
-          organizationId: orgId,
-          externalId: mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}`,
           name: itemTitle,
-          sku: mlItemId,
           price: unitPrice,
           imageUrl: thumbnailUrl,
           isActive: true,

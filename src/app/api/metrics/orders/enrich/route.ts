@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { getSellerToken } from "@/lib/connectors/mercadolibre-seller";
+import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
 
 const ML_API_BASE = "https://api.mercadolibre.com";
 
@@ -228,20 +229,19 @@ export async function POST(req: NextRequest) {
           imageUrl = imageUrl.replace("http://", "https://");
         }
 
-        // Save to DB (best-effort)
+        // Save to DB (best-effort) — Sesion 21: SKU-first upsert
         try {
-          const product = await prisma.product.upsert({
-            where: {
-              organizationId_externalId: {
-                organizationId: ORG_ID,
-                externalId: item.mlItemId || `meli-${item.extId}-0`,
-              },
-            },
+          // Solo usar sellerSku real, no el MLA listing id como fallback
+          const realSku =
+            item.sellerSku && item.sellerSku !== item.mlItemId
+              ? item.sellerSku
+              : null;
+          const product = await upsertProductBySku({
+            organizationId: ORG_ID,
+            externalId: item.mlItemId || `meli-${item.extId}-0`,
+            sku: realSku,
             create: {
-              organizationId: ORG_ID,
-              externalId: item.mlItemId || `meli-${item.extId}-0`,
               name: item.title,
-              sku: item.sellerSku,
               price: item.unitPrice,
               imageUrl,
               isActive: true,

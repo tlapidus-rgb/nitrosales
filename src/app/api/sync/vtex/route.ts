@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client";
 import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 import { getOrganization } from "@/lib/auth-guard";
+import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
 
 // -- Helper: Extract real email from VTEX masked format --
 function extractRealEmail(vtexEmail: string): string {
@@ -88,15 +89,15 @@ async function enrichOrderFromVtex(
       if (existingItems === 0) {
         for (const item of items) {
           const productExtId = String(item.id || item.productId);
-          const product = await prisma.product.upsert({
-            where: {
-              organizationId_externalId: { organizationId: orgId, externalId: productExtId },
-            },
+          // Sesion 21: SKU-first. refId o sellerSku es el SKU real;
+          // productExtId es fallback solo cuando VTEX no provee SKU real.
+          const realSku = (item.refId || item.sellerSku || "").trim() || null;
+          const product = await upsertProductBySku({
+            organizationId: orgId,
+            externalId: productExtId,
+            sku: realSku,
             create: {
-              organizationId: orgId,
-              externalId: productExtId,
               name: item.name || `SKU ${productExtId}`,
-              sku: item.refId || item.sellerSku || productExtId,
               brand: item.additionalInfo?.brandName || null,
               category: item.additionalInfo?.categoriesIds || null,
               price: (item.sellingPrice || item.price) / 100,
