@@ -3,7 +3,7 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-12 (Sesion 18 — NitroPixel Analytics Fase 1+2: world-class analytics dashboard con first-party pixel data)
+## Ultima actualizacion: 2026-04-14 (Sesion 20 — categoryPath + consolidacion multi-canal por SKU + tablas compactas en /rentabilidad)
 
 ---
 
@@ -2861,3 +2861,116 @@ El usuario reporto 3 veces que pestanas del navegador se abrian solas mostrando 
     return NextResponse.redirect(new URL("/", req.url));
   }
   ```
+
+---
+
+## Sesion 20 — 2026-04-14: categoryPath VTEX + consolidacion multi-canal por SKU + tablas compactas
+
+### RESUMEN EJECUTIVO
+
+Sesion centrada en 3 bloques de trabajo sobre la pagina `/products` (Comercial > Rentabilidad):
+
+1. **categoryPath VTEX (tree categoria)**: Agregado el path jerarquico completo de VTEX (ej. `"Juguetes > Bebes > Sonajeros"`) a la tabla de productos. Nueva columna `categoryPath` en DB + backfill desde VTEX Category API + UI tree expandible (root → subcategorias) en la tabla "Margen por Categoria".
+2. **Nueva tabla "Margen por Marca"**: Tabla full-width agregada despues de "Margen por Categoria" con el mismo look & feel.
+3. **Consolidacion multi-canal por SKU**: Refactor arquitectural de `/api/metrics/products` para usar VTEX como catalogo maestro y sumar ventas VTEX + MELI por SKU. Antes: mismo SKU aparecia 2 veces en la tabla (una por canal), la fila MELI sin imagen. Despues: una fila por SKU, con metadata del master (VTEX priority) y ventas sumadas de todos los canales.
+4. **Tablas compactas**: Reducidos paddings y tamano de fuente en 4 tablas (Categoria, Marca, Top 10 mas rentables, Top 10 menos rentables) + max-height + sticky headers para evitar scroll excesivo de la pagina.
+
+### STAGE 1 — Migracion DB (EJECUTADA)
+
+Se creo un endpoint admin idempotente con auth-key para correr el ALTER:
+
+- `prisma/migrations/add_category_path.sql` — `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "categoryPath" TEXT;`
+- `src/app/api/admin/migrate-category-path/route.ts` — ejecuta el ALTER verificando `NEXTAUTH_SECRET` via query param `?key=`. Respuesta: `{ok, alreadyExisted, columnExistsNow}`.
+
+**Resultado del run**: `{"ok":true,"alreadyExisted":false,"columnExistsNow":true}`. La columna quedo creada en produccion ANTES de modificar el schema.prisma (evita que Prisma genere SELECTs contra una columna inexistente).
+
+### STAGE 2 — Codigo (APLICADO AL REPO, PENDIENTE DE PUSH)
+
+**2a. Schema Prisma** (`prisma/schema.prisma`):
+- Agregado `categoryPath String?` al modelo `Product`.
+
+**2b. Sync VTEX** (`src/app/api/sync/vtex-details/route.ts`):
+- `extractBrandCategory` devuelve `{ brand, category, categoryPath }` donde `categoryPath = names.join(" > ")`.
+- Los callers (2 sitios) destructuran y escriben `categoryPath` tanto en `create` como en `update` del upsert.
+
+**2c. Backfill endpoint** (`src/app/api/fix-brands/route.ts`):
+- Nuevo cache `_categoryCache: Map<number, {name, fatherId}>` + helpers `getVtexCategoryInfo()` y `getVtexCategoryPath()` que suben por `FatherCategoryId` hasta la raiz (MAX_DEPTH=8).
+- Nueva action `fix-category-paths`: pagina `limit/offset`, `BATCH_SIZE=50`, `DELAY_MS=200`. Para cada producto con VTEX productId, llama a la API de VTEX, construye el path, y upserta.
+- Action `stats` extendida con `withCategoryPath / withoutCategoryPath / pctWithCategoryPath`.
+
+**2d. Metrics endpoint** (`src/app/api/metrics/products/route.ts`) — REFACTOR POR SKU:
+- Query 3 (productAggregation) reescrita con dos CTEs:
+  - `master_products`: `DISTINCT ON (sku)` con prioridad de seleccion: (1) tiene imageUrl, (2) tiene categoryPath, (3) tiene costPrice, (4) mas antiguo. En la practica selecciona el row VTEX cuando existe.
+  - `sales_by_sku`: agrega `units / revenue / orders` por `p.sku` joineando `order_items → orders → products`.
+  - El SELECT final join-ea master + sales por SKU. `cogs` = `units * master.costPrice`.
+- Query 5 (weeklySalesByProduct) reescrita: `GROUP BY p.sku` en vez de `productId`.
+- Query 6 (lastSaleDateByProduct) reescrita: `GROUP BY p.sku` en vez de `productId`.
+- Maps `weeklyTrendMap` y `lastSaleDateMap` ahora usan `sku` como key.
+- Map function del response usa `weeklyTrendMap.get(prod.sku)` y `lastSaleDateMap.get(prod.sku)`.
+- Agregado `categoryPath: string | null` al type `ProductMetrics` y al inner type de la query.
+
+**2e. UI /products** (`src/app/(app)/products/page.tsx`):
+- `ProductItem` extendido con `categoryPath: string | null`.
+- Nuevo state `expandedCats: Record<string, boolean>` + useMemo `computedByCategoryTree` que parsea `categoryPath` por `" > "`, agrupa por root y acumula metricas por leaf. Fallback a categoria flat si no hay path.
+- Tabla "Margen por Categoria" convertida en tree: row root con chevron ▶/▼ (click para expandir), rows hijas con `pl-10` de indent.
+- Nueva tabla "Margen por Marca" agregada debajo, full-width, mismo look & feel.
+- 4 tablas compactadas:
+  - Categoria y Marca: `px-6 py-3 text-sm → px-4 py-1.5 text-xs`, wrapper `overflow-y-auto max-h-[440px]`, thead `sticky top-0 z-10`.
+  - Top 10 y Bottom 10: header `p-4 → px-4 py-2.5`, celdas `px-4 py-2 → px-3 py-1`, `text-sm → text-xs`, nombre producto `text-xs → text-[11px] leading-tight`.
+
+### Arquitectura post-consolidacion
+
+```
+products (DB)                              orders + order_items (DB)
+  ├── row VTEX sku=ABC123 (imagen OK)         ├── item VTEX → productId=row_vtex
+  └── row MELI sku=ABC123 (imagen null)       └── item MELI → productId=row_meli
+
+            ↓ CTE master_products                          ↓ CTE sales_by_sku
+            (DISTINCT ON sku,                               (SUM por p.sku
+             prio VTEX)                                      joineando products)
+
+              1 master row por SKU ←─────JOIN POR SKU─────→ ventas consolidadas
+                                             ↓
+                                    ProductMetrics (1 row por SKU fisico)
+```
+
+### Pendiente post-deploy
+
+1. `git push origin main` de los cambios 2b-2e (el endpoint admin 2a ya esta en prod).
+2. Correr la action `fix-category-paths` en loop via curl para backfillear el path VTEX de todos los productos. Pattern:
+   ```
+   curl -X POST 'https://nitrosales.vercel.app/api/fix-brands?action=fix-category-paths&limit=50&offset=0'
+   curl -X POST 'https://nitrosales.vercel.app/api/fix-brands?action=fix-category-paths&limit=50&offset=50'
+   ...
+   ```
+   Chequear progreso con `?action=stats`.
+3. Validar en UI que:
+   - Productos vendidos solo por MELI ahora muestran imagen VTEX (via master por SKU).
+   - La tabla tree de categoria muestra root con chevron + hijos al expandir.
+   - Las 4 tablas no hacen scroll desmesurado.
+
+### Commits de esta sesion
+
+Pendiente de push. Cambios locales agrupados en 2 commits:
+1. `feat(productos): categoryPath VTEX + tree en Margen por Categoria + tabla Margen por Marca` — Stage 2a-2c + UI tree + tabla Marca
+2. `feat(productos): consolidacion multi-canal por SKU + tablas compactas` — Stage 2d + compactacion
+
+### Archivos modificados en esta sesion
+
+| Archivo | Cambio |
+|---------|--------|
+| `prisma/schema.prisma` | `+ categoryPath String?` en Product |
+| `prisma/migrations/add_category_path.sql` | NUEVO — ALTER idempotente |
+| `src/app/api/admin/migrate-category-path/route.ts` | NUEVO — endpoint para correr la migracion |
+| `src/app/api/sync/vtex-details/route.ts` | `extractBrandCategory` devuelve categoryPath, 2 callers escriben el campo |
+| `src/app/api/fix-brands/route.ts` | Nueva action `fix-category-paths`, cache + walk de FatherCategoryId, stats extendido |
+| `src/app/api/metrics/products/route.ts` | Queries 3/5/6 reescritas por SKU con CTE master_products + sales_by_sku, Maps por SKU, categoryPath en response |
+| `src/app/(app)/products/page.tsx` | ProductItem.categoryPath, useMemo tree, tabla tree, tabla Marca nueva, 4 tablas compactadas |
+
+### Estado final de produccion
+
+- **Commit en main**: `a918590` (pre-sesion 20, sin los cambios de esta sesion todavia).
+- **DB produccion**: Columna `categoryPath` ya existe (stage 1 ejecutado).
+- **Codigo en main**: todavia no tiene los cambios stage 2 — pendiente de push.
+- **URL produccion real**: `https://nitrosales.vercel.app` (CLAUDE.md tenia `app.nitrosales.io` — CORREGIDO en esta sesion).
+

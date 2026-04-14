@@ -6,8 +6,9 @@
 > sesión nueva, **tratá estas reglas como inmutables** salvo que Tomy
 > explícitamente las cambie en el chat.
 
-> **Última actualización: 2026-04-11 — Modelo simplificado: todo directo
-> en `main`. Sin staging. Sin branches extra.**
+> **Última actualización: 2026-04-14 — URL de producción corregida a
+> `nitrosales.vercel.app`. Modelo simplificado: todo directo en `main`.
+> Sin staging. Sin branches extra.**
 
 ---
 
@@ -17,7 +18,7 @@ Este repo opera con **una sola branch: `main`**.
 
 | Branch | Qué es | URL |
 |---|---|---|
-| `main` | Producción. Todo va acá directo. | `app.nitrosales.io` |
+| `main` | Producción. Todo va acá directo. | `nitrosales.vercel.app` |
 
 **No existen branches `staging`, `feat/*`, `hotfix/*`, ni nada más.**
 Si Claude crea una branch nueva sin que Tomy la pida explícitamente,
@@ -47,7 +48,7 @@ git pull origin main
 git add <archivos>
 git commit -m "..."
 git push origin main
-# → Vercel deploya automáticamente a app.nitrosales.io
+# → Vercel deploya automáticamente a nitrosales.vercel.app
 # → Le aviso a Tomy: "listo, ya está en producción"
 ```
 
@@ -125,7 +126,7 @@ Antes de pushear cambios a queries SQL:
 Tomy no es técnico. Cuando pasa algo de git/deploy, explicación en
 lenguaje simple, sin jerga. Analogías:
 
-- `main` / `app.nitrosales.io` = "la app en vivo"
+- `main` / `nitrosales.vercel.app` = "la app en vivo"
 - Commit + push = "subí los cambios, ya están en la app"
 - Build fail = "los cambios no se pudieron publicar, lo arreglo"
 
