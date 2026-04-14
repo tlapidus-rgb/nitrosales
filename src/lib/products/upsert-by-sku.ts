@@ -16,7 +16,7 @@
  * Esta es la UNICA forma valida de crear/actualizar productos desde sync.
  * Nunca llamar a prisma.product.upsert directo en codigo de sync nuevo.
  */
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db/client";
 import type { Prisma, Product } from "@prisma/client";
 
 export type UpsertBySkuArgs = {
