@@ -324,6 +324,37 @@ export async function POST(req: NextRequest) {
     for (const item of items) {
       const productExtId = String(item.id || item.productId);
 
+      // ── Imagen: VTEX a veces NO la incluye en el payload de la orden.
+      // Si falta, la pedimos al endpoint de detalle del SKU (misma API que
+      // usa el webhook de inventario). Asi capturamos la imagen en la
+      // fuente y no dependemos de backfills.
+      let itemImage: string | null = item.imageUrl || null;
+
+      // Chequeo previo: ¿el producto ya existe con imagen? Si si, no pedimos
+      // nada a VTEX (ahorra latencia por item).
+      const existing = await prisma.product.findUnique({
+        where: {
+          organizationId_externalId: {
+            organizationId: org.id,
+            externalId: productExtId,
+          },
+        },
+        select: { imageUrl: true },
+      });
+
+      if (!itemImage && (!existing || !existing.imageUrl)) {
+        try {
+          const detailUrl = `${vtexBaseUrl}/api/catalog_system/pvt/sku/stockkeepingunitbyid/${productExtId}`;
+          const detailRes = await fetch(detailUrl, { headers: vtexHeaders });
+          if (detailRes.ok) {
+            const detail = await detailRes.json();
+            itemImage = detail?.Images?.[0]?.ImageUrl || null;
+          }
+        } catch (e: any) {
+          console.warn(`[VTEX Webhook] No pude traer imagen de SKU ${productExtId}: ${e.message}`);
+        }
+      }
+
       const product = await prisma.product.upsert({
         where: {
           organizationId_externalId: {
@@ -339,13 +370,14 @@ export async function POST(req: NextRequest) {
           brand: item.additionalInfo?.brandName || null,
           category: item.additionalInfo?.categoriesIds || null,
           price: (item.sellingPrice || item.price) / 100,
-          imageUrl: item.imageUrl || null,
+          imageUrl: itemImage,
           isActive: true,
         },
         update: {
           name: item.name || undefined,
           price: (item.sellingPrice || item.price) / 100,
-          imageUrl: item.imageUrl || undefined,
+          // Solo sobreescribir imagen si la capturamos y el producto no la tenia
+          ...(itemImage && (!existing || !existing.imageUrl) ? { imageUrl: itemImage } : {}),
         },
       });
       productsCreated++;
