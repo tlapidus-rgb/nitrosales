@@ -3,6 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { usePathname } from "next/navigation";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -10,11 +11,13 @@ import {
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import { KpiCard, DateRangeFilter } from "@/components/dashboard";
+import DashboardStyles from "@/components/dashboard/DashboardStyles";
+import { useCountUp } from "@/lib/hooks/useAnimatedValue";
 import {
   TrendingUp, TrendingDown, AlertTriangle, DollarSign,
   Package, Zap, ArrowUp, ArrowDown, X, Search, Download,
   ShoppingBag, BarChart3, Layers, Clock, Percent, PiggyBank,
-  SlidersHorizontal, Eye, EyeOff,
+  SlidersHorizontal, Eye, EyeOff, Sparkles, LineChart as LineChartIcon,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────────── */
@@ -551,13 +554,145 @@ function ProductCRTable({ products }: { products: ProductCRRow[] }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════
+   ProductsHero — Premium header (auroras + prism delimiter + count-up)
+   Reutilizable para modo "productos" y modo "rentabilidad".
+═══════════════════════════════════════════════════════════ */
+
+function ProductsHero({
+  mode, title, subtitle, tagIcon: TagIcon, tagColor,
+  dateFrom, dateTo,
+  totalRevenue, totalUnits, productosActivos, valorStock, marginPct,
+  rightSlot,
+}: {
+  mode: "productos" | "rentabilidad";
+  title: string;
+  subtitle: string;
+  tagIcon: React.ElementType;
+  tagColor: string;
+  dateFrom: string;
+  dateTo: string;
+  totalRevenue: number;
+  totalUnits: number;
+  productosActivos: number;
+  valorStock: number;
+  marginPct: number | null;
+  rightSlot?: React.ReactNode;
+}) {
+  // Count-up — número principal
+  const mainTarget = mode === "rentabilidad" ? valorStock : totalRevenue;
+  const mainValue = useCountUp(mainTarget, 1100);
+  const mainLabel = mode === "rentabilidad" ? "Valor de stock" : "Facturación total";
+  const mainFormatted = Number.isFinite(mainValue)
+    ? new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(mainValue)
+    : "—";
+
+  return (
+    <section className="dash-hero dash-fade-up mb-2">
+      <div className="dash-hero-inner px-6 py-6 sm:px-8 sm:py-8">
+        {/* Top row — tag + contexto */}
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 backdrop-blur-sm border border-slate-200/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+              <TagIcon className={`w-3 h-3 ${tagColor}`} />
+              {title}
+            </span>
+            <span className="text-xs text-slate-500">{subtitle}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium tabular-nums">
+              {dateFrom} · {dateTo}
+            </span>
+          </div>
+        </div>
+
+        {/* Main row — número hero con count-up + secundarios + slot derecho */}
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">
+              {mainLabel}
+            </p>
+            <p className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tabular-nums tracking-tight text-slate-900 leading-none">
+              {mainFormatted}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-4">
+              {mode === "rentabilidad" ? (
+                <>
+                  <HeroStat label="Margen ponderado" value={marginPct != null ? `${marginPct.toFixed(1)}%` : "—"} hint="sobre items con costo" />
+                  <HeroStat label="Productos activos" value={productosActivos.toLocaleString("es-AR")} />
+                  <HeroStat label="Facturación período" value={new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(totalRevenue)} />
+                </>
+              ) : (
+                <>
+                  <HeroStat label="Unidades vendidas" value={totalUnits.toLocaleString("es-AR")} />
+                  <HeroStat label="Productos activos" value={productosActivos.toLocaleString("es-AR")} />
+                  <HeroStat label="Valor de stock" value={new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(valorStock)} />
+                </>
+              )}
+            </div>
+          </div>
+          {rightSlot && (
+            <div className="lg:border-l lg:border-slate-200/60 lg:pl-8">{rightSlot}</div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HeroStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] mb-0.5 text-slate-500">
+        {label}
+      </span>
+      <span className="text-lg font-bold tabular-nums tracking-tight text-slate-900">
+        {value}
+      </span>
+      {hint && <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">{hint}</span>}
+    </div>
+  );
+}
+
 /* ── Main Component ────────────────────────────────────── */
 
 export default function ProductsPage() {
+  const pathname = usePathname();
+  const mode: "productos" | "rentabilidad" =
+    pathname === "/rentabilidad" ? "rentabilidad" : "productos";
+  const availableTabs = useMemo(
+    () =>
+      mode === "rentabilidad"
+        ? (["stock", "margins"] as const)
+        : (["overview", "trends", "conversion"] as const),
+    [mode],
+  );
+  const pageTitle = mode === "rentabilidad" ? "Rentabilidad" : "Productos";
+  const pageSubtitle =
+    mode === "rentabilidad"
+      ? "Salud de inventario y márgenes por producto"
+      : "Catálogo, performance y conversión";
+  const pageTagIcon = mode === "rentabilidad" ? PiggyBank : ShoppingBag;
+  const pageTagColor = mode === "rentabilidad" ? "text-emerald-600" : "text-indigo-600";
+
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "trends" | "stock" | "margins" | "conversion">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "trends" | "stock" | "margins" | "conversion">(
+    mode === "rentabilidad" ? "stock" : "overview",
+  );
+
+  // Si cambia el modo (navegar entre /products y /rentabilidad), auto-fix del tab activo
+  useEffect(() => {
+    if (!(availableTabs as readonly string[]).includes(activeTab)) {
+      setActiveTab(availableTabs[0] as any);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // Conversion tab — lazy-loaded from /api/metrics/pixel
   const [pixelConversionData, setPixelConversionData] = useState<{
@@ -1145,16 +1280,34 @@ export default function ProductsPage() {
   /* ── Loading state ─────────────────────────────────── */
   if (loading && products.length === 0) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3" />
-        <span className="text-gray-500">Cargando productos...</span>
+      <div className="p-6 space-y-6 bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] min-h-screen">
+        <DashboardStyles />
+        {/* Hero skeleton */}
+        <section className="dash-hero dash-fade-up mb-5">
+          <div className="dash-hero-inner px-6 py-8 sm:px-8 sm:py-10">
+            <div className="dash-skeleton h-5 w-52 mb-5" />
+            <div className="dash-skeleton h-14 w-80 mb-3" />
+            <div className="dash-skeleton h-4 w-56" />
+          </div>
+        </section>
+        {/* KPI skeleton row */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 dash-stagger">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="dash-card p-5">
+              <div className="dash-skeleton h-3 w-20 mb-3" />
+              <div className="dash-skeleton h-7 w-28" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   /* ── Render ────────────────────────────────────────── */
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+    <div className="p-6 space-y-6 bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8] min-h-screen">
+      <DashboardStyles />
+
       {/* Image modal */}
       {enlargedImage && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center" onClick={() => setEnlargedImage(null)}>
@@ -1167,27 +1320,35 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Header + Date Range */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Productos</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Rendimiento de productos &middot; {dateFrom} a {dateTo}
-          </p>
-        </div>
-        <DateRangeFilter
-          dateFrom={dateFrom} dateTo={dateTo}
-          activeQuickRange={activeQuickRange}
-          quickRanges={QUICK_RANGES}
-          onQuickRange={handleQuickRange}
-          onDateChange={handleDateChange}
-          loading={loading}
-        />
-      </div>
+      {/* ══════════ Premium Hero ══════════ */}
+      <ProductsHero
+        mode={mode}
+        title={pageTitle}
+        subtitle={pageSubtitle}
+        tagIcon={pageTagIcon}
+        tagColor={pageTagColor}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        totalRevenue={kpiStats.totalRevenue}
+        totalUnits={kpiStats.totalUnits}
+        productosActivos={kpiStats.productosActivos}
+        valorStock={kpiStats.valorStock}
+        marginPct={marginAnalysis?.weightedMarginPct ?? null}
+        rightSlot={
+          <DateRangeFilter
+            dateFrom={dateFrom} dateTo={dateTo}
+            activeQuickRange={activeQuickRange}
+            quickRanges={QUICK_RANGES}
+            onQuickRange={handleQuickRange}
+            onDateChange={handleDateChange}
+            loading={loading}
+          />
+        }
+      />
 
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KpiCard icon={<DollarSign size={16} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Facturacion Total" value={formatCompact(kpiStats.totalRevenue)} />
+      {/* KPI Row — stagger entrance */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 dash-stagger">
+        <KpiCard icon={<DollarSign size={16} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Facturación Total" value={formatCompact(kpiStats.totalRevenue)} />
         <KpiCard icon={<Package size={16} className="text-green-600" />} iconBg="bg-green-50" label="Unidades Vendidas" value={kpiStats.totalUnits.toLocaleString("es-AR")} />
         <KpiCard icon={<DollarSign size={16} className="text-amber-600" />} iconBg="bg-amber-50" label="Ticket Promedio" value={formatARS(kpiStats.ticketPromedio)} />
         <KpiCard icon={<Zap size={16} className="text-cyan-600" />} iconBg="bg-cyan-50" label="Productos Activos" value={kpiStats.productosActivos.toLocaleString("es-AR")} />
@@ -1195,39 +1356,39 @@ export default function ProductsPage() {
         <KpiCard icon={<Layers size={16} className="text-orange-600" />} iconBg="bg-orange-50" label="Valor de Stock" value={formatCompact(kpiStats.valorStock)} />
       </div>
 
-      {/* Stock Health Alerts Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStockDaysFilter(stockDaysFilter === "agotado" ? "" : "agotado")}>
+      {/* Stock Health Alerts Row — stagger entrance */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 dash-stagger">
+        <div className="bg-white rounded-2xl border border-red-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(239,68,68,0.14), 0 22px 40px -28px rgba(239,68,68,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "agotado" ? "" : "agotado")}>
           <div className="flex items-center gap-2 mb-1">
             <X className="w-4 h-4 text-red-500" />
-            <span className="text-xs text-gray-500 font-medium">Sin Stock</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sin Stock</span>
           </div>
-          <p className={`text-xl font-bold ${stockHealthAlerts.sinStock > 0 ? "text-red-600" : "text-gray-900"}`}>{stockHealthAlerts.sinStock}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">productos con stock = 0</p>
+          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.sinStock > 0 ? "text-red-600" : "text-slate-900"}`}>{stockHealthAlerts.sinStock}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">productos con stock = 0</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStockDaysFilter(stockDaysFilter === "critical" ? "" : "critical")}>
+        <div className="bg-white rounded-2xl border border-amber-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(245,158,11,0.14), 0 22px 40px -28px rgba(245,158,11,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "critical" ? "" : "critical")}>
           <div className="flex items-center gap-2 mb-1">
             <AlertTriangle className="w-4 h-4 text-amber-500" />
-            <span className="text-xs text-gray-500 font-medium">Stock Critico</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Stock Crítico</span>
           </div>
-          <p className={`text-xl font-bold ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-gray-900"}`}>{stockHealthAlerts.critico}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">menos de 7 dias de stock</p>
+          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.critico > 0 ? "text-amber-600" : "text-slate-900"}`}>{stockHealthAlerts.critico}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">menos de 7 días de stock</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStockDaysFilter(stockDaysFilter === "high" ? "" : "high")}>
+        <div className="bg-white rounded-2xl border border-blue-100 p-4 cursor-pointer transition-all duration-[280ms] hover:-translate-y-0.5" style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(59,130,246,0.14), 0 22px 40px -28px rgba(59,130,246,0.10)" }} onClick={() => setStockDaysFilter(stockDaysFilter === "high" ? "" : "high")}>
           <div className="flex items-center gap-2 mb-1">
             <Package className="w-4 h-4 text-blue-500" />
-            <span className="text-xs text-gray-500 font-medium">Sobrestock</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sobrestock</span>
           </div>
-          <p className={`text-xl font-bold ${stockHealthAlerts.sobrestock > 0 ? "text-blue-600" : "text-gray-900"}`}>{stockHealthAlerts.sobrestock}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">mas de 90 dias de stock</p>
+          <p className={`text-2xl font-bold tabular-nums tracking-tight ${stockHealthAlerts.sobrestock > 0 ? "text-blue-600" : "text-slate-900"}`}>{stockHealthAlerts.sobrestock}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">más de 90 días de stock</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="dash-card p-4">
           <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 text-gray-500" />
-            <span className="text-xs text-gray-500 font-medium">Dias Stock Promedio</span>
+            <Clock className="w-4 h-4 text-slate-500" />
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Días Stock Promedio</span>
           </div>
-          <p className="text-xl font-bold text-gray-900">{Math.round(stockHealthAlerts.diasPromedio)}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">promedio ponderado</p>
+          <p className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">{Math.round(stockHealthAlerts.diasPromedio)}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">promedio ponderado</p>
         </div>
       </div>
 
@@ -1263,14 +1424,27 @@ export default function ProductsPage() {
       {/* Stock Health Chips */}
       <StockChips active={stockDaysFilter} onChange={(k) => { setStockDaysFilter(k); setCurrentPage(1); }} counts={stockChipCounts} />
 
-      {/* Tab Navigation */}
-      <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1 w-full">
-        {(["overview", "trends", "stock", "margins", "conversion"] as const).map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${activeTab === tab ? "bg-white shadow-sm text-indigo-600" : "text-gray-600 hover:text-gray-900"}`}>
-            {tab === "overview" ? "Overview" : tab === "trends" ? "Tendencias" : tab === "stock" ? "Stock" : tab === "margins" ? "Margenes" : "Conversión"}
-          </button>
-        ))}
+      {/* Tab Navigation — filtrado por modo (Productos vs Rentabilidad) */}
+      <div className="dash-filter-segmented" style={{ width: "100%" }}>
+        {availableTabs.map((tab) => {
+          const isActive = activeTab === tab;
+          const label =
+            tab === "overview" ? "Overview"
+            : tab === "trends" ? "Tendencias"
+            : tab === "stock" ? "Stock"
+            : tab === "margins" ? "Márgenes"
+            : "Conversión";
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab as any)}
+              className={`dash-filter-pill ${isActive ? "is-active" : ""}`}
+              style={{ flex: 1, padding: "10px 14px", fontSize: 13, fontWeight: 600 }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ──────────────── TAB: OVERVIEW ──────────────── */}
