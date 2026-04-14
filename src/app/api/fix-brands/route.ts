@@ -450,11 +450,12 @@ export async function GET(request: NextRequest) {
     >();
     for (const oi of orderItemsRecent) {
       if (!oi.product) continue;
-      const existing = unitsByProduct.get(oi.productId);
+      const pid = oi.product.id;
+      const existing = unitsByProduct.get(pid);
       if (existing) {
         existing.units += oi.quantity;
       } else {
-        unitsByProduct.set(oi.productId, {
+        unitsByProduct.set(pid, {
           id: oi.product.id,
           externalId: oi.product.externalId,
           name: oi.product.name,
