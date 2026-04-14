@@ -3,7 +3,28 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-14 (Sesion 21 — Resumen cockpit + Break-even ROAS en /campaigns, Meta y Google)
+## Ultima actualizacion: 2026-04-14 (Sesion 22 — Stock Muerto + Alerta Quiebre premium light + fix imageUrl en webhook VTEX)
+
+**Ultimo cambio:**
+1. En `/rentabilidad` (products/page.tsx), rediseño de las tablas "Alerta de Quiebre de Stock" y "Stock Muerto":
+   - Tema **LIGHT** (blanco/gris) — Tomy rechazó la primera iteración oscura: "para analizar datos me gusta siempre claro".
+   - Iconos de alerta animados tipo premium (`animate-ping`): ámbar para Quiebre, rose para Muerto.
+   - **Scroll interno** con sticky header (`max-h-[420px]` Quiebre, `max-h-[480px]` Muerto) para evitar tablas infinitas.
+   - Titulo truncado (`line-clamp-2`), columna **Costo** nueva, **Valor** muestra precio unitario + total, **imágenes clickeables** (abren modal de zoom).
+   - Filtros matching: search, brand, category, sort (incluye costo), pagination.
+   - **Alerta de Quiebre nueva lógica**: velocity ≥ 0.2 uds/día + (stock=0 vendido en últimos 30 días O stock>0 con <14 días de cobertura). Antes era "stock=0" a secas.
+
+2. **Fix de imageUrl en webhook de órdenes VTEX** (`src/app/api/webhooks/vtex/orders/route.ts`):
+   - **Root cause**: VTEX a veces NO incluye `imageUrl` en el payload de órdenes. El código creaba productos con `imageUrl: null` que quedaban así para siempre.
+   - **Fix**: antes del upsert, chequea si el producto existe y tiene imagen. Si no, llama al catalog API (`/api/catalog_system/pvt/sku/stockkeepingunitbyid/{id}`) para traer la imagen real. Así capturamos la imagen en la fuente, sin backfills.
+   - Deploy: commit `96c5b6e` en main.
+   - **Decisión arquitectónica de Tomy**: "No quiero resolverlo con syncs, me parece inescalable. Las imágenes tienen que tomarse bien de la plataforma." → rechazó endpoint de backfill; el fix debe estar en la ingesta.
+
+Archivos tocados: `src/app/(app)/products/page.tsx`, `src/app/api/webhooks/vtex/orders/route.ts`, `src/app/api/metrics/products/route.ts` (Query 8 y 9 de Sesion 22 ya existentes), ProductImage component.
+
+---
+
+## Ultima actualizacion previa: 2026-04-14 (Sesion 21 — Resumen cockpit + Break-even ROAS en /campaigns, Meta y Google)
 
 **Ultimo cambio:** `/campaigns` redisenado como "Resumen · Marketing & Adquisicion" con banner de salud (Blended ROAS VTEX vs Break-even), 8 KPIs, bloque "Plataformas vs Realidad", chart diario con linea BE. Meta y Google Overview tienen chip de salud + subtitle BE en el KPI "ROAS". Scope VTEX-only: MELI queda aparte como organico no atribuible.
 

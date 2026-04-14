@@ -4,7 +4,86 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-14 — Sesión 20**
+> **Última actualización: 2026-04-14 — Sesión 22**
+
+---
+
+## Error #NUEVO-S22-A — Proponer backfill cuando el problema está en la ingesta
+
+**Cuándo pasó**: Sesión 22. Tomy notó que productos en Stock Muerto mostraban el placeholder "MO" (iniciales) en vez de foto. Armé un endpoint `/api/backfill/product-images` que iba a VTEX/MELI a traer imágenes para productos con `imageUrl=NULL`.
+
+**Reacción de Tomy (verbatim)**: _"No quiero resolverlo con syncs, me parece inescalable los syncs. Las imagenes tienen que tomarse bien de la plataforma"_.
+
+**Causa raíz de mi error**: Tomé el camino fácil (backfill reactivo) en vez de arreglar el bug de ingesta. El webhook de órdenes VTEX creaba productos con `imageUrl: null` cuando el payload no la traía, y eso quedaba así para siempre.
+
+### Regla
+**Si un dato está mal o falta en la DB, primero investigar DÓNDE se está capturando en la ingesta y arreglarlo ahí.** Los backfills son un parche reactivo que hay que correr de por vida. El fix correcto va en webhooks y syncs — que tomen el dato completo de la fuente en el momento en que entra al sistema.
+
+**Antipatrón**: `/api/backfill/X` para completar datos que deberían haber entrado bien desde el principio.
+**Patrón correcto**: modificar el webhook/sync para que, si un campo crítico viene vacío, lo pida a la API de la plataforma en el mismo flujo de ingesta.
+
+**Ejemplo aplicado**: webhook VTEX orders ahora llama a `/api/catalog_system/pvt/sku/stockkeepingunitbyid/{id}` si el payload no trae imageUrl → captura la imagen en la fuente.
+
+---
+
+## Error #NUEVO-S22-B — Tablas oscuras para analizar datos
+
+**Cuándo pasó**: Sesión 22. Para dar "look premium" a las tablas de Stock Muerto y Alerta de Quiebre, las diseñé con tema oscuro (slate-900 gradiente, amber/gold accents).
+
+**Reacción de Tomy (verbatim)**: _"No me gustó que hayas hecho las tablas en oscuro. Para analizar datos me gusta siempre claro. Yo me refería a poner algun icono de alerta animado que luzca bien premium. Y mantener la tabla clara."_
+
+### Regla
+**Las tablas de análisis de datos (números, precios, stocks, KPIs) SIEMPRE van en tema LIGHT** (blanco/gris). Oscuro es para dashboards de monitoreo o contenido de bajo análisis.
+**El "premium feel" en tablas claras se logra con:**
+- Iconos animados (`animate-ping` sobre un badge de color)
+- Tipografía cuidada (tracking, tamaños)
+- Micro-interacciones (hover, ring, shadow)
+- NO con fondos oscuros.
+
+---
+
+## Error #NUEVO-S22-C — Tablas infinitas sin scroll interno
+
+**Cuándo pasó**: Sesión 22. Tablas con 5000+ rows paginadas a 15 por página seguían siendo "muy largas" porque la página scrolleaba mucho.
+
+**Reacción de Tomy (verbatim)**: _"achicarlas un poco y ponerles scroll interno. Sino siento que se hacen muy largas."_
+
+### Regla
+**Tablas de detalle en secciones que comparten página con otras tablas DEBEN tener `max-h-[Npx] overflow-auto` + `sticky top-0 z-10` en el `<thead>`.** Esto mantiene filtros, header y otros bloques accesibles sin scroll gigante.
+
+Valores de referencia NitroSales: `max-h-[420px]` para tablas secundarias (Alerta de Quiebre), `max-h-[480px]` para tablas primarias (Stock Muerto).
+
+---
+
+## Error #NUEVO-S22-D — Alerta de Quiebre mostraba todos los stock=0
+
+**Cuándo pasó**: Sesión 22. La "Alerta de Quiebre de Stock" listaba todos los productos con stock=0, incluidos los que nunca se vendían. Tomy: _"Ahí me gustaría que aparezcan productos que se estan vendiendo bien los ultimos días"_.
+
+### Regla
+**Alertas de quiebre deben filtrar por velocidad de venta, no solo por stock=0.** Sin velocity, la alerta se llena de ruido (productos descontinuados, errores de catálogo).
+
+**Criterio correcto aplicado**:
+```ts
+velocity >= 0.2 uds/dia && (
+  (stock === 0 && daysSinceSale <= 30) ||  // quiebre reciente con demanda
+  (stock > 0 && daysOfStock < 14)          // inminente quiebre
+)
+```
+
+---
+
+## Error #NUEVO-S22-E — `npx tsc --noEmit` sin typescript local ⇒ instala paquete equivocado
+
+**Cuándo pasó**: Sesión 22. Le pasé a Tomy el comando `npx tsc --noEmit`. `npx` no encontró `tsc` en node_modules y ofreció instalar `tsc@2.0.4` (legacy compiler, NO es TypeScript). Tomy: "Me apareció esto" (con prompt "Ok to proceed? (y)").
+
+### Regla
+**Nunca sugerir `npx tsc` sin ser explícito sobre el binario correcto.** Opciones seguras:
+- `npx --no-install tsc --noEmit` (falla si no está instalado, pero no instala basura)
+- `./node_modules/.bin/tsc --noEmit`
+- `npx typescript --noEmit`
+- `npm exec -- tsc --noEmit`
+
+Si aparece el prompt "Ok to proceed? (y)" sugiriendo `tsc@2.0.4`, avisar INMEDIATAMENTE que hay que decir **n** — ese paquete es un compilador viejo de CoffeeScript-ish, no es TypeScript.
 
 ---
 
