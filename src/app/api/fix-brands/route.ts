@@ -408,42 +408,66 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Productos sin path que tuvieron al menos 1 venta en los ultimos 90 dias
-    const conVentas = await prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(DISTINCT p.id)::bigint AS count
-      FROM "products" p
-      JOIN "order_items" oi ON oi."productId" = p.id
-      JOIN "orders" o ON oi."orderId" = o.id
-      WHERE p."organizationId" = ${ORG_ID}
-        AND (p."categoryPath" IS NULL OR p."categoryPath" = '')
-        AND o."orderDate" >= ${ninetyDaysAgo}
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
-    `;
+    // Productos con ventas recientes via ORM (evita BigInt issues)
+    const orderItemsRecent = await prisma.orderItem.findMany({
+      where: {
+        order: {
+          organizationId: ORG_ID,
+          orderDate: { gte: ninetyDaysAgo },
+          status: { notIn: ["CANCELLED", "RETURNED"] },
+        },
+        product: {
+          organizationId: ORG_ID,
+          OR: [{ categoryPath: null }, { categoryPath: "" }],
+        },
+      },
+      select: {
+        productId: true,
+        quantity: true,
+        product: {
+          select: {
+            id: true,
+            externalId: true,
+            name: true,
+            isActive: true,
+            stock: true,
+          },
+        },
+      },
+    });
 
-    // Muestra de 10 productos sin categoria con ventas recientes
-    const samples = await prisma.$queryRaw<
-      Array<{
+    // Agregar por producto
+    const unitsByProduct = new Map<
+      string,
+      {
         id: string;
         externalId: string;
         name: string;
         isActive: boolean;
         stock: number | null;
-        units: bigint;
-      }>
-    >`
-      SELECT p.id, p."externalId", p.name, p."isActive", p.stock,
-        SUM(oi.quantity)::bigint AS units
-      FROM "products" p
-      JOIN "order_items" oi ON oi."productId" = p.id
-      JOIN "orders" o ON oi."orderId" = o.id
-      WHERE p."organizationId" = ${ORG_ID}
-        AND (p."categoryPath" IS NULL OR p."categoryPath" = '')
-        AND o."orderDate" >= ${ninetyDaysAgo}
-        AND o.status NOT IN ('CANCELLED', 'RETURNED')
-      GROUP BY p.id
-      ORDER BY units DESC
-      LIMIT 10
-    `;
+        units: number;
+      }
+    >();
+    for (const oi of orderItemsRecent) {
+      if (!oi.product) continue;
+      const existing = unitsByProduct.get(oi.productId);
+      if (existing) {
+        existing.units += oi.quantity;
+      } else {
+        unitsByProduct.set(oi.productId, {
+          id: oi.product.id,
+          externalId: oi.product.externalId,
+          name: oi.product.name,
+          isActive: oi.product.isActive,
+          stock: oi.product.stock,
+          units: oi.quantity,
+        });
+      }
+    }
+
+    const samples = Array.from(unitsByProduct.values())
+      .sort((a, b) => b.units - a.units)
+      .slice(0, 10);
 
     return NextResponse.json({
       totalSinPath,
@@ -451,15 +475,11 @@ export async function GET(request: NextRequest) {
       inactivos: totalSinPath - activos,
       conStock,
       sinStock: totalSinPath - conStock,
-      conVentasUlt90Dias: Number(conVentas[0]?.count || 0),
-      samples: samples.map((s) => ({
-        ...s,
-        stock: s.stock,
-        units: Number(s.units),
-      })),
+      conVentasUlt90Dias: unitsByProduct.size,
+      samples,
       interpretacion: {
         "conVentasUlt90Dias > 0":
-          "Son productos vendiendose que no tienen categoria. Prioridad para resolver.",
+          "Productos vendiendose sin categoria. Prioridad para resolver.",
         "inactivos = totalSinPath":
           "Son solo productos dados de baja. Se pueden ignorar.",
         "conStock > 0 y ventas = 0":
