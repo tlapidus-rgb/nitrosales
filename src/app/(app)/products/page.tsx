@@ -68,6 +68,7 @@ interface ProductItem {
   stock: number | null; unitsSold: number; revenue: number; revenueNeto: number;
   orders: number; avgPrice: number; avgPriceNeto: number;
   costPrice: number | null; marginPct: number | null; marginAbs: number | null; cogs: number | null;
+  listPrice: number | null; viewers: number;
   trendData: {
     weeklyTrend: Array<{ weekStart: string; units: number; revenue: number }>;
     wowUnitsPct: number; wowRevenuePct: number;
@@ -2017,6 +2018,9 @@ export default function ProductsPage() {
                         <th className="px-6 py-3 text-left font-semibold text-red-900">Producto</th>
                         <th className="px-6 py-3 text-right font-semibold text-red-900">Stock</th>
                         <th className="px-6 py-3 text-right font-semibold text-red-900">Valor</th>
+                        <th className="px-6 py-3 text-right font-semibold text-red-900">Margen</th>
+                        <th className="px-6 py-3 text-right font-semibold text-red-900">Markup</th>
+                        <th className="px-6 py-3 text-right font-semibold text-red-900">Visitas</th>
                         <th className="px-6 py-3 text-left font-semibold text-red-900">Ultima Venta</th>
                         <th className="px-6 py-3 text-right font-semibold text-red-900">Dias sin Venta</th>
                       </tr>
@@ -2025,10 +2029,24 @@ export default function ProductsPage() {
                       {deadStockPaginated.map((p) => {
                         const lastSale = p.stockData.lastSaleDate ? new Date(p.stockData.lastSaleDate) : null;
                         const daysNoSale = lastSale ? Math.floor((Date.now() - lastSale.getTime()) / 86400000) : null;
+                        // Markup = (PrecioNeto - Costo) / Costo * 100. Precio incluye IVA 21%.
+                        const listPriceNeto = p.listPrice != null ? p.listPrice / 1.21 : null;
+                        const markupPct = (p.costPrice != null && p.costPrice > 0 && listPriceNeto != null)
+                          ? ((listPriceNeto - p.costPrice) / p.costPrice) * 100
+                          : null;
                         return (
                           <tr key={p.id} className="hover:bg-red-100/50">
                             <td className="px-6 py-4 flex items-center gap-3">
-                              {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover" />}
+                              {p.imageUrl ? (
+                                <img
+                                  src={p.imageUrl}
+                                  alt={p.name}
+                                  className="w-10 h-10 rounded object-cover bg-white border border-red-200 flex-shrink-0"
+                                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded bg-red-100 border border-red-200 flex-shrink-0 flex items-center justify-center text-red-400 text-xs">—</div>
+                              )}
                               <div>
                                 <div className="font-medium text-red-900">{p.name}</div>
                                 <div className="text-xs text-red-700">{p.sku || "--"}</div>
@@ -2036,6 +2054,9 @@ export default function ProductsPage() {
                             </td>
                             <td className="px-6 py-4 text-right font-medium text-red-900">{p.stock ?? 0}</td>
                             <td className="px-6 py-4 text-right font-bold text-red-600">{formatARS((p.stock ?? 0) * p.avgPrice)}</td>
+                            <td className="px-6 py-4 text-right text-red-900">{p.marginPct != null ? `${p.marginPct.toFixed(1)}%` : "--"}</td>
+                            <td className="px-6 py-4 text-right text-red-900">{markupPct != null ? `${markupPct.toFixed(1)}%` : "--"}</td>
+                            <td className="px-6 py-4 text-right text-red-900 font-medium">{p.viewers ?? 0}</td>
                             <td className="px-6 py-4 text-red-700">{lastSale ? lastSale.toLocaleDateString("es-AR") : "--"}</td>
                             <td className="px-6 py-4 text-right text-red-900 font-semibold">{daysNoSale ?? "--"}</td>
                           </tr>

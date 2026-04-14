@@ -27,6 +27,8 @@ type ProductMetrics = {
   marginPct: number | null;
   marginAbs: number | null;
   cogs: number | null;
+  listPrice: number | null;
+  viewers: number;
   trendData: {
     weeklyTrend: Array<{ weekStart: string; units: number; revenue: number }>;
     wowUnitsPct: number;
@@ -135,6 +137,7 @@ export async function GET(request: Request) {
       stockSyncMetadata,
       weeklySalesByProduct,
       lastSaleDateByProduct,
+      viewersBySku,
     ] = await Promise.all([
       // Query 1: Order totals (30 days)
       prisma.$queryRaw<
@@ -309,6 +312,32 @@ export async function GET(request: Request) {
           AND p.sku IS NOT NULL AND p.sku != ''
         GROUP BY p.sku
       `,
+
+      // Query 7 (Sesion 22): Pixel viewers per SKU en el periodo
+      // Consolidamos vistas por SKU (un SKU puede existir como producto
+      // VTEX y MELI con distinto externalId, asi que matcheamos pe.productId
+      // -> products.externalId y agrupamos por products.sku).
+      prisma.$queryRaw<
+        Array<{
+          sku: string;
+          viewers: bigint;
+        }>
+      >`
+        SELECT
+          p.sku AS sku,
+          COUNT(DISTINCT pe."visitorId")::bigint AS viewers
+        FROM pixel_events pe
+        JOIN products p
+          ON p."externalId" = pe.props->>'productId'
+          AND p."organizationId" = pe."organizationId"
+        WHERE pe."organizationId" = ${ORG_ID}
+          AND pe.timestamp >= ${thirtyDaysAgo}
+          AND pe.timestamp <= ${dateTo}
+          AND pe.type = 'VIEW_PRODUCT'
+          AND pe.props->>'productId' IS NOT NULL
+          AND p.sku IS NOT NULL AND p.sku != ''
+        GROUP BY p.sku
+      `,
     ]);
 
     // Extract summary data
@@ -339,6 +368,12 @@ export async function GET(request: Request) {
     const lastSaleDateMap = new Map<string, Date>();
     lastSaleDateByProduct.forEach((row) => {
       if (row.sku) lastSaleDateMap.set(row.sku, row.lastSaleDate);
+    });
+
+    // Sesion 22: viewers por SKU desde pixel_events
+    const viewersBySkuMap = new Map<string, number>();
+    viewersBySku.forEach((row) => {
+      if (row.sku) viewersBySkuMap.set(row.sku, Number(row.viewers));
     });
 
     // Helper function: linear regression for trend slope
@@ -434,7 +469,14 @@ export async function GET(request: Request) {
       const cogs = prod.cogs != null ? Number(prod.cogs) : null;
       const revenueNeto = prod.revenue / IVA_RATE; // Revenue sin IVA
       const marginAbs = (costPrice != null && cogs != null && revenueNeto > 0) ? revenueNeto - cogs : null;
-      const marginPct = (marginAbs != null && revenueNeto > 0) ? (marginAbs / revenueNeto) * 100 : null;
+      // Sesion 22: si hay costo + precio de lista pero no hubo ventas,
+      // calcular margen teorico a partir del precio de lista (sin IVA).
+      // Sirve para la tabla de Stock Muerto (productos sin venta).
+      let marginPct = (marginAbs != null && revenueNeto > 0) ? (marginAbs / revenueNeto) * 100 : null;
+      if (marginPct == null && costPrice != null && listPrice != null && listPrice > 0) {
+        const listNeto = listPrice / IVA_RATE;
+        if (listNeto > 0) marginPct = ((listNeto - costPrice) / listNeto) * 100;
+      }
       // Sesion 22: para productos sin ventas en el periodo, usar el listPrice
       // del catalogo como avgPrice — asi el capital inmovilizado del stock
       // muerto (stock * avgPrice) no se subestima.
@@ -460,6 +502,8 @@ export async function GET(request: Request) {
         marginPct: marginPct != null ? Math.round(marginPct * 10) / 10 : null,
         marginAbs,
         cogs,
+        listPrice,
+        viewers: viewersBySkuMap.get(prod.sku) || 0,
         trendData: {
           weeklyTrend,
           wowUnitsPct: calculateWoWPct(weeklyData, "units"),
