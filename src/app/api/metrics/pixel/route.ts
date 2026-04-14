@@ -1194,14 +1194,21 @@ export async function GET(request: NextRequest) {
         const purchases = productPurchasesResult as Array<{ productExternalId: string; productName: string; category: string; brand: string; orders: number; units: number; revenue: number }>;
         const viewerMap = new Map(viewers.map(v => [v.productExternalId, v.viewers]));
 
-        const products = purchases.map(p => {
-          const pViewers = viewerMap.get(p.productExternalId) || 0;
-          return {
-            ...p,
-            viewers: pViewers,
-            cr: pViewers > 0 ? Math.round((p.orders / pViewers) * 10000) / 100 : 0,
-          };
-        });
+        // Sesion 22: excluir productos con 0 visitantes del pixel.
+        // Si un producto tiene ventas pero 0 vistas del pixel, significa
+        // que la compra vino de un canal no trackeado (directo al checkout,
+        // link externo, etc.) — el ratio 0 visits / 1 sale es incoherente
+        // como CR y distorsiona el promedio por categoria/marca.
+        const products = purchases
+          .map(p => {
+            const pViewers = viewerMap.get(p.productExternalId) || 0;
+            return {
+              ...p,
+              viewers: pViewers,
+              cr: pViewers > 0 ? Math.round((p.orders / pViewers) * 10000) / 100 : 0,
+            };
+          })
+          .filter(p => p.viewers > 0);
 
         // Aggregate by category
         const catMap = new Map<string, { category: string; viewers: number; buyers: number; revenue: number }>();
