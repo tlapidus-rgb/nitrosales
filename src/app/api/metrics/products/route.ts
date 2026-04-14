@@ -14,6 +14,7 @@ type ProductMetrics = {
   sku: string;
   imageUrl: string | null;
   category: string | null;
+  categoryPath: string | null;
   brand: string | null;
   stock: number | null;
   unitsSold: number;
@@ -179,6 +180,7 @@ export async function GET(request: Request) {
           sku: string;
           imageUrl: string | null;
           category: string | null;
+          categoryPath: string | null;
           brand: string | null;
           stock: number | null;
           costPrice: number | null;
@@ -194,6 +196,7 @@ export async function GET(request: Request) {
           p.sku,
           p."imageUrl",
           p.category,
+          p."categoryPath",
           p.brand,
           p.stock,
           p."costPrice"::numeric AS "costPrice",
@@ -210,7 +213,7 @@ export async function GET(request: Request) {
           AND o."orderDate" >= ${thirtyDaysAgo}
           AND o."orderDate" <= ${dateTo}
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
-        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p.brand, p.stock, p."costPrice"
+        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p."categoryPath", p.brand, p.stock, p."costPrice"
       `,
 
       // Query 4: Stock sync metadata
@@ -402,6 +405,7 @@ export async function GET(request: Request) {
         sku: prod.sku,
         imageUrl: prod.imageUrl,
         category: prod.category,
+        categoryPath: prod.categoryPath,
         brand: prod.brand,
         stock: prod.stock,
         unitsSold,

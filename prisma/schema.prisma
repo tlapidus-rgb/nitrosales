@@ -233,7 +233,8 @@ model Product {
   name          String
   sku           String?
   ean           String?                            // EAN/GTIN-13 barcode
-  category      String?
+  category      String?                          // Categoria hoja (leaf) - retrocompat
+  categoryPath  String?                          // Path completo VTEX "Juguetes > Bebes > Sonajeros" (Sesion 20)
   brand         String?
   price         Decimal  @db.Decimal(12, 2)
   costPrice     Decimal? @db.Decimal(12, 2)      // Costo de compra al proveedor (COGS)

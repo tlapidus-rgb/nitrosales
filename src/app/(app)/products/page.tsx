@@ -64,7 +64,7 @@ interface MarginAnalysis {
 
 interface ProductItem {
   id: string; name: string; sku: string | null;
-  imageUrl: string | null; category: string | null; brand: string | null;
+  imageUrl: string | null; category: string | null; categoryPath: string | null; brand: string | null;
   stock: number | null; unitsSold: number; revenue: number; revenueNeto: number;
   orders: number; avgPrice: number; avgPriceNeto: number;
   costPrice: number | null; marginPct: number | null; marginAbs: number | null; cogs: number | null;
@@ -710,6 +710,7 @@ export default function ProductsPage() {
   const [marginRangeFilter, setMarginRangeFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [stockDaysFilter, setStockDaysFilter] = useState("");
   const [chartMetric, setChartMetric] = useState<"revenue" | "units">("revenue");
@@ -1156,7 +1157,7 @@ export default function ProductsPage() {
     };
   }, [filtered]);
 
-  // Computed byCategory/byBrand from filtered products (supports cross-filtering)
+  // Computed byCategory (FLAT - retrocompat for charts)
   const computedByCategory = useMemo(() => {
     const withCost = filtered.filter((p) => p.costPrice != null && p.costPrice > 0);
     const map: Record<string, { revenue: number; cogs: number; productCount: number }> = {};
@@ -1177,6 +1178,67 @@ export default function ProductsPage() {
         productCount: d.productCount,
       }))
       .sort((a, b) => b.revenue - a.revenue);
+  }, [filtered]);
+
+  // Computed TREE: parent category (root of categoryPath) -> leaf subcategories.
+  // Fallback: si el producto no tiene categoryPath, se agrupa bajo su `category` plano.
+  const computedByCategoryTree = useMemo(() => {
+    try {
+      const withCost = filtered.filter((p) => p.costPrice != null && p.costPrice > 0);
+      type Agg = { revenue: number; cogs: number; productCount: number };
+      const parentMap: Record<string, Agg & { children: Record<string, Agg> }> = {};
+      withCost.forEach((p) => {
+        // Parse path "A > B > C": root="A", leaf="C"
+        let root = "";
+        let leaf = "";
+        const path = (p as any).categoryPath as string | null;
+        if (path && typeof path === "string" && path.includes(">")) {
+          const parts = path.split(">").map((s) => s.trim()).filter(Boolean);
+          if (parts.length > 0) {
+            root = parts[0];
+            leaf = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+          }
+        }
+        if (!root) {
+          // Fallback: treat flat category as its own parent + leaf
+          root = p.category || "Sin categoria";
+          leaf = p.category || "Sin categoria";
+        }
+        if (!parentMap[root]) parentMap[root] = { revenue: 0, cogs: 0, productCount: 0, children: {} };
+        parentMap[root].revenue += p.revenueNeto;
+        parentMap[root].cogs += (p.cogs ?? 0);
+        parentMap[root].productCount += 1;
+        // Only add child if distinct from root
+        if (leaf !== root) {
+          if (!parentMap[root].children[leaf]) parentMap[root].children[leaf] = { revenue: 0, cogs: 0, productCount: 0 };
+          parentMap[root].children[leaf].revenue += p.revenueNeto;
+          parentMap[root].children[leaf].cogs += (p.cogs ?? 0);
+          parentMap[root].children[leaf].productCount += 1;
+        }
+      });
+      return Object.entries(parentMap)
+        .map(([name, d]) => ({
+          name,
+          revenue: d.revenue,
+          cogs: d.cogs,
+          marginPct: d.revenue > 0 ? ((d.revenue - d.cogs) / d.revenue) * 100 : 0,
+          markupPct: d.cogs > 0 ? ((d.revenue - d.cogs) / d.cogs) * 100 : 0,
+          productCount: d.productCount,
+          children: Object.entries(d.children)
+            .map(([cname, c]) => ({
+              name: cname,
+              revenue: c.revenue,
+              cogs: c.cogs,
+              marginPct: c.revenue > 0 ? ((c.revenue - c.cogs) / c.revenue) * 100 : 0,
+              markupPct: c.cogs > 0 ? ((c.revenue - c.cogs) / c.cogs) * 100 : 0,
+              productCount: c.productCount,
+            }))
+            .sort((a, b) => b.revenue - a.revenue),
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+    } catch (e) {
+      return [] as Array<any>;
+    }
   }, [filtered]);
 
   const computedByBrand = useMemo(() => {
@@ -2113,33 +2175,150 @@ export default function ProductsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {computedByCategory.map((cat) => (
-                    <tr key={cat.name} className="hover:bg-gray-50">
-                      <td className="px-6 py-3 font-medium text-gray-900">{cat.name}</td>
-                      <td className="px-6 py-3 text-right text-gray-700">{formatARS(cat.revenue)}</td>
-                      <td className="px-6 py-3 text-right text-gray-500">{formatARS(cat.cogs)}</td>
-                      <td className="px-6 py-3 text-center">
-                        <span className={`px-2 py-1 text-xs font-bold rounded-md ${
-                          cat.marginPct >= 50 ? "bg-green-100 text-green-700" :
-                          cat.marginPct >= 30 ? "bg-amber-100 text-amber-700" :
-                          "bg-red-100 text-red-700"
-                        }`}>{cat.marginPct.toFixed(1)}%</span>
-                      </td>
-                      <td className="px-6 py-3 text-center">
-                        <span className={`px-2 py-1 text-xs font-bold rounded-md ${
-                          cat.markupPct >= 100 ? "bg-green-100 text-green-700" :
-                          cat.markupPct >= 50 ? "bg-amber-100 text-amber-700" :
-                          "bg-red-100 text-red-700"
-                        }`}>{cat.markupPct.toFixed(1)}%</span>
-                      </td>
-                      <td className="px-6 py-3 text-right font-medium text-green-700">{formatARS(cat.revenue - cat.cogs)}</td>
-                      <td className="px-6 py-3 text-right text-gray-500">{cat.productCount}</td>
-                    </tr>
-                  ))}
+                  {(() => {
+                    try {
+                      return computedByCategoryTree.map((cat: any) => {
+                        const hasChildren = cat.children && cat.children.length > 0;
+                        const isOpen = !!expandedCats[cat.name];
+                        return (
+                          <React.Fragment key={cat.name}>
+                            <tr
+                              className={`hover:bg-gray-50 ${hasChildren ? "cursor-pointer" : ""}`}
+                              onClick={() => {
+                                if (hasChildren) setExpandedCats((s) => ({ ...s, [cat.name]: !s[cat.name] }));
+                              }}
+                            >
+                              <td className="px-6 py-3 font-medium text-gray-900">
+                                <span className="inline-flex items-center gap-2">
+                                  {hasChildren ? (
+                                    <span className={`text-gray-400 text-xs transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
+                                  ) : (
+                                    <span className="w-2.5" />
+                                  )}
+                                  <span>{cat.name}</span>
+                                  {hasChildren && (
+                                    <span className="text-[10px] text-gray-400 font-normal">({cat.children.length})</span>
+                                  )}
+                                </span>
+                              </td>
+                              <td className="px-6 py-3 text-right text-gray-700">{formatARS(cat.revenue)}</td>
+                              <td className="px-6 py-3 text-right text-gray-500">{formatARS(cat.cogs)}</td>
+                              <td className="px-6 py-3 text-center">
+                                <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                                  cat.marginPct >= 50 ? "bg-green-100 text-green-700" :
+                                  cat.marginPct >= 30 ? "bg-amber-100 text-amber-700" :
+                                  "bg-red-100 text-red-700"
+                                }`}>{cat.marginPct.toFixed(1)}%</span>
+                              </td>
+                              <td className="px-6 py-3 text-center">
+                                <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                                  cat.markupPct >= 100 ? "bg-green-100 text-green-700" :
+                                  cat.markupPct >= 50 ? "bg-amber-100 text-amber-700" :
+                                  "bg-red-100 text-red-700"
+                                }`}>{cat.markupPct.toFixed(1)}%</span>
+                              </td>
+                              <td className="px-6 py-3 text-right font-medium text-green-700">{formatARS(cat.revenue - cat.cogs)}</td>
+                              <td className="px-6 py-3 text-right text-gray-500">{cat.productCount}</td>
+                            </tr>
+                            {isOpen && hasChildren && cat.children.map((sub: any) => (
+                              <tr key={cat.name + "::" + sub.name} className="bg-gray-50/40 hover:bg-gray-100/60">
+                                <td className="px-6 py-2 pl-14 text-sm text-gray-700">
+                                  <span className="text-gray-300 mr-2">└</span>{sub.name}
+                                </td>
+                                <td className="px-6 py-2 text-right text-gray-700">{formatARS(sub.revenue)}</td>
+                                <td className="px-6 py-2 text-right text-gray-500">{formatARS(sub.cogs)}</td>
+                                <td className="px-6 py-2 text-center">
+                                  <span className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                                    sub.marginPct >= 50 ? "bg-green-50 text-green-700" :
+                                    sub.marginPct >= 30 ? "bg-amber-50 text-amber-700" :
+                                    "bg-red-50 text-red-700"
+                                  }`}>{sub.marginPct.toFixed(1)}%</span>
+                                </td>
+                                <td className="px-6 py-2 text-center">
+                                  <span className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                                    sub.markupPct >= 100 ? "bg-green-50 text-green-700" :
+                                    sub.markupPct >= 50 ? "bg-amber-50 text-amber-700" :
+                                    "bg-red-50 text-red-700"
+                                  }`}>{sub.markupPct.toFixed(1)}%</span>
+                                </td>
+                                <td className="px-6 py-2 text-right text-green-700">{formatARS(sub.revenue - sub.cogs)}</td>
+                                <td className="px-6 py-2 text-right text-gray-500">{sub.productCount}</td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
+                        );
+                      });
+                    } catch (e) {
+                      return (
+                        <tr><td colSpan={7} className="px-6 py-6 text-center text-sm text-gray-500">
+                          No se pudo construir el arbol de categorias.
+                        </td></tr>
+                      );
+                    }
+                  })()}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Margen por Marca - Tabla completa (Sesion 20) */}
+          {(() => {
+            try {
+              return (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Margen por Marca</h3>
+                      {categoryFilter && <p className="text-xs text-indigo-600 mt-1">Filtrado por categoria: {categoryFilter}</p>}
+                    </div>
+                    <span className="text-xs text-gray-500">{computedByBrand.length} marcas</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="px-6 py-3 text-left font-semibold text-gray-700">Marca</th>
+                          <th className="px-6 py-3 text-right font-semibold text-gray-700">Revenue</th>
+                          <th className="px-6 py-3 text-right font-semibold text-gray-700">COGS</th>
+                          <th className="px-6 py-3 text-center font-semibold text-gray-700">Margen %</th>
+                          <th className="px-6 py-3 text-center font-semibold text-gray-700">Markup %</th>
+                          <th className="px-6 py-3 text-right font-semibold text-gray-700">Ganancia</th>
+                          <th className="px-6 py-3 text-right font-semibold text-gray-700">Productos</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {computedByBrand.map((br: any) => (
+                          <tr key={br.name} className="hover:bg-gray-50">
+                            <td className="px-6 py-3 font-medium text-gray-900">{br.name}</td>
+                            <td className="px-6 py-3 text-right text-gray-700">{formatARS(br.revenue)}</td>
+                            <td className="px-6 py-3 text-right text-gray-500">{formatARS(br.cogs)}</td>
+                            <td className="px-6 py-3 text-center">
+                              <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                                br.marginPct >= 50 ? "bg-green-100 text-green-700" :
+                                br.marginPct >= 30 ? "bg-amber-100 text-amber-700" :
+                                "bg-red-100 text-red-700"
+                              }`}>{br.marginPct.toFixed(1)}%</span>
+                            </td>
+                            <td className="px-6 py-3 text-center">
+                              <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                                br.markupPct >= 100 ? "bg-green-100 text-green-700" :
+                                br.markupPct >= 50 ? "bg-amber-100 text-amber-700" :
+                                "bg-red-100 text-red-700"
+                              }`}>{br.markupPct.toFixed(1)}%</span>
+                            </td>
+                            <td className="px-6 py-3 text-right font-medium text-green-700">{formatARS(br.revenue - br.cogs)}</td>
+                            <td className="px-6 py-3 text-right text-gray-500">{br.productCount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            } catch (e) {
+              return null;
+            }
+          })()}
 
           {/* Top & Bottom Products */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

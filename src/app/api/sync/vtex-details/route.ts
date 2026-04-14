@@ -89,14 +89,16 @@ export async function GET(req: Request) {
           );
 
           if (matchingItem) {
-            const { brand, category } = extractBrandCategory(matchingItem);
+            const { brand, category, categoryPath } =
+              extractBrandCategory(matchingItem);
 
-            if (brand || category) {
+            if (brand || category || categoryPath) {
               await prisma.product.update({
                 where: { id: product.id },
                 data: {
                   ...(brand ? { brand } : {}),
                   ...(category ? { category } : {}),
+                  ...(categoryPath ? { categoryPath } : {}),
                 },
               });
               updated++;
@@ -466,7 +468,7 @@ export async function GET(req: Request) {
         const items = detail.items || [];
         for (const item of items) {
           try {
-            const { brand, category } = extractBrandCategory(item);
+            const { brand, category, categoryPath } = extractBrandCategory(item);
             // Usar SKU ID (item.id) como externalId para alinear con inventory sync.
             // VTEX item.id = SKU ID, item.productId = Product ID (nivel padre).
             const productExtId = String(item.id || item.productId);
@@ -487,6 +489,7 @@ export async function GET(req: Request) {
                   isActive: true,
                   brand,
                   category,
+                  categoryPath,
                 },
                 create: {
                   externalId: productExtId,
@@ -497,6 +500,7 @@ export async function GET(req: Request) {
                   isActive: true,
                   brand,
                   category,
+                  categoryPath,
                   organizationId: org.id,
                 },
               });
@@ -607,6 +611,7 @@ export async function GET(req: Request) {
 function extractBrandCategory(item: any): {
   brand: string | null;
   category: string | null;
+  categoryPath: string | null;
 } {
   const brand =
     item.additionalInfo?.brandName ||
@@ -614,6 +619,7 @@ function extractBrandCategory(item: any): {
     null;
 
   let category: string | null = null;
+  let categoryPath: string | null = null;
 
   const catSource =
     item.additionalInfo?.categories ||
@@ -621,17 +627,27 @@ function extractBrandCategory(item: any): {
     null;
 
   if (catSource && typeof catSource === "object") {
+    // VTEX devuelve categorias como objeto keyed por level
+    // (ej: {"1": "Juguetes", "2": "Bebes", "3": "Sonajeros"}).
+    // Armamos el path completo joined con " > " y guardamos la hoja
+    // (ultima) en `category` para retrocompat. Sesion 20.
     const values = Object.values(catSource).filter(Boolean);
     if (values.length > 0) {
-      const last: any = values[values.length - 1];
-      // VTEX may return plain strings OR objects like {id, name}
-      if (typeof last === "string") {
-        category = last;
-      } else if (last && typeof last === "object" && last.name) {
-        category = last.name;
+      const names: string[] = values
+        .map((v: any) => {
+          if (typeof v === "string") return v.trim();
+          if (v && typeof v === "object" && v.name)
+            return String(v.name).trim();
+          return "";
+        })
+        .filter((s) => s.length > 0);
+
+      if (names.length > 0) {
+        category = names[names.length - 1];
+        categoryPath = names.join(" > ");
       }
     }
   }
 
-  return { brand, category };
+  return { brand, category, categoryPath };
 }

@@ -161,6 +161,113 @@ async function getVtexBrand(
   return null;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// CATEGORY PATH RESOLUTION (Sesion 20)
+// ═══════════════════════════════════════════════════════════════════
+// Cache in-memory por request: categoryId -> {name, fatherId}
+// Evita hacer la misma llamada a VTEX varias veces para categorias
+// padres comunes (ej: "Juguetes" aparece en cientos de productos).
+const _categoryCache: Map<number, { name: string; fatherId: number | null }> =
+  new Map();
+
+async function getVtexCategoryInfo(
+  categoryId: number
+): Promise<{ name: string; fatherId: number | null } | null> {
+  if (_categoryCache.has(categoryId)) {
+    return _categoryCache.get(categoryId)!;
+  }
+  const baseUrl = `${_cachedBaseUrl}`;
+  try {
+    const catRes = await fetch(
+      `${baseUrl}/api/catalog/pvt/category/${categoryId}`,
+      { headers: vtexHeaders() }
+    );
+    if (catRes.ok) {
+      const catData = await catRes.json();
+      const info = {
+        name: catData.Name || "",
+        fatherId:
+          catData.FatherCategoryId && catData.FatherCategoryId > 0
+            ? Number(catData.FatherCategoryId)
+            : null,
+      };
+      _categoryCache.set(categoryId, info);
+      return info;
+    }
+  } catch (e) {}
+  return null;
+}
+
+/**
+ * Resolver el path completo de categorias de un producto.
+ * Returns e.g. "Juguetes > Bebes > Sonajeros" (hoja a la derecha).
+ * Usa walking-up via FatherCategoryId + cache por request.
+ * Max depth 8 para evitar loops.
+ */
+async function getVtexCategoryPath(
+  externalId: string
+): Promise<string | null> {
+  const baseUrl = `${_cachedBaseUrl}`;
+  let leafCategoryId: number | null = null;
+
+  try {
+    const productRes = await fetch(
+      `${baseUrl}/api/catalog/pvt/product/${externalId}`,
+      { headers: vtexHeaders() }
+    );
+    if (productRes.ok) {
+      const product = await productRes.json();
+      leafCategoryId = product.CategoryId || product.DepartmentId || null;
+    }
+  } catch (e) {}
+
+  if (!leafCategoryId) {
+    await sleep(DELAY_MS);
+    try {
+      const skuRes = await fetch(
+        `${baseUrl}/api/catalog/pvt/stockkeepingunit/${externalId}`,
+        { headers: vtexHeaders() }
+      );
+      if (skuRes.ok) {
+        const sku = await skuRes.json();
+        if (sku.ProductId) {
+          await sleep(DELAY_MS);
+          const productRes = await fetch(
+            `${baseUrl}/api/catalog/pvt/product/${sku.ProductId}`,
+            { headers: vtexHeaders() }
+          );
+          if (productRes.ok) {
+            const product = await productRes.json();
+            leafCategoryId =
+              product.CategoryId || product.DepartmentId || null;
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (!leafCategoryId) return null;
+
+  // Walk up the tree: leaf -> parent -> grandparent -> ...
+  const chain: string[] = [];
+  let currentId: number | null = leafCategoryId;
+  let depth = 0;
+  const MAX_DEPTH = 8;
+
+  while (currentId && depth < MAX_DEPTH) {
+    const wasCached = _categoryCache.has(currentId);
+    if (!wasCached) await sleep(DELAY_MS);
+    const info = await getVtexCategoryInfo(currentId);
+    if (!info || !info.name) break;
+    chain.unshift(info.name.trim()); // prepend -> leaf queda al final
+    currentId = info.fatherId;
+    depth++;
+  }
+
+  if (chain.length === 0) return null;
+  return chain.join(" > ");
+}
+
 /**
  * Resolve category for a single product by externalId.
  * Used by fix-categories action.
@@ -244,8 +351,16 @@ export async function GET(request: NextRequest) {
         NOT: [{ category: "" }, { category: "Sin categor\u00eda" }],
       },
     });
+    const withCategoryPath = await prisma.product.count({
+      where: {
+        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        categoryPath: { not: null },
+        NOT: [{ categoryPath: "" }],
+      },
+    });
     const withoutBrand = total - withBrand;
     const withoutCategory = total - withCategory;
+    const withoutCategoryPath = total - withCategoryPath;
     return NextResponse.json({
       total,
       withBrand,
@@ -254,6 +369,9 @@ export async function GET(request: NextRequest) {
       withCategory,
       withoutCategory,
       pctWithCategory: ((withCategory / total) * 100).toFixed(1) + "%",
+      withCategoryPath,
+      withoutCategoryPath,
+      pctWithCategoryPath: ((withCategoryPath / total) * 100).toFixed(1) + "%",
     });
   }
 
@@ -520,6 +638,85 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // --- ACTION: fix-category-paths (Sesion 20) ---
+  // Backfill Product.categoryPath para productos existentes.
+  // Walking up VTEX category tree via FatherCategoryId con cache por request.
+  if (action === "fix-category-paths") {
+    const limit = parseInt(searchParams.get("limit") || String(BATCH_SIZE));
+    const offset = parseInt(searchParams.get("offset") || "0");
+
+    const products = await prisma.product.findMany({
+      where: {
+        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        OR: [{ categoryPath: null }, { categoryPath: "" }],
+      },
+      select: { id: true, externalId: true, name: true, category: true },
+      take: limit,
+      skip: offset,
+      orderBy: { externalId: "asc" },
+    });
+
+    if (products.length === 0) {
+      return NextResponse.json({
+        message: "No more products to fix (categoryPath)",
+        offset,
+      });
+    }
+
+    const results = {
+      total: products.length,
+      fixed: 0,
+      failed: 0,
+      notFound: 0,
+      details: [] as Array<{
+        id: string;
+        externalId: string;
+        status: string;
+        newCategoryPath?: string;
+      }>,
+    };
+
+    for (const product of products) {
+      try {
+        const path = await getVtexCategoryPath(product.externalId);
+        if (path) {
+          await prisma.product.update({
+            where: { id: product.id },
+            data: { categoryPath: path },
+          });
+          results.fixed++;
+          results.details.push({
+            id: product.id,
+            externalId: product.externalId,
+            status: "fixed",
+            newCategoryPath: path,
+          });
+        } else {
+          results.notFound++;
+          results.details.push({
+            id: product.id,
+            externalId: product.externalId,
+            status: "path_not_found",
+          });
+        }
+      } catch (error: any) {
+        results.failed++;
+        results.details.push({
+          id: product.id,
+          externalId: product.externalId,
+          status: `error: ${error.message}`,
+        });
+      }
+      await sleep(DELAY_MS);
+    }
+
+    return NextResponse.json({
+      ...results,
+      nextOffset: offset + limit,
+      nextUrl: `/api/fix-brands?key=${BACKFILL_KEY}&action=fix-category-paths&limit=${limit}&offset=${offset + limit}`,
+    });
+  }
+
   // --- ACTION: deduplicate ---
   if (action === "deduplicate") {
     const duplicates = await prisma.$queryRaw<
@@ -622,6 +819,7 @@ export async function GET(request: NextRequest) {
       "test-category": "Test category resolution for a single ID (?id=28649)",
       "fix-vtex": "Fix brands + categories from VTEX API (?limit=50&offset=0)",
       "fix-categories": "Fix categories only for products that already have brands",
+      "fix-category-paths": "Backfill Product.categoryPath via VTEX tree walk (?limit=50&offset=0)",
       deduplicate: "Find duplicate products",
     },
   });
