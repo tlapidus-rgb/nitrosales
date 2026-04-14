@@ -138,6 +138,7 @@ export async function GET(request: Request) {
       weeklySalesByProduct,
       lastSaleDateByProduct,
       viewersBySku,
+      imagesBySku,
     ] = await Promise.all([
       // Query 1: Order totals (30 days)
       prisma.$queryRaw<
@@ -338,6 +339,28 @@ export async function GET(request: Request) {
           AND p.sku IS NOT NULL AND p.sku != ''
         GROUP BY p.sku
       `,
+
+      // Query 8 (Sesion 22): Mejor imagen por SKU priorizando VTEX.
+      // El master_products CTE ya prioriza rows con imageUrl, pero si el row
+      // VTEX con imagen no esta en el top del DISTINCT ON por otro motivo,
+      // este mapa fuerza el fallback cross-source.
+      prisma.$queryRaw<
+        Array<{
+          sku: string;
+          imageUrl: string;
+        }>
+      >`
+        SELECT DISTINCT ON (sku)
+          sku,
+          "imageUrl"
+        FROM products
+        WHERE "organizationId" = ${ORG_ID}
+          AND sku IS NOT NULL AND sku != ''
+          AND "imageUrl" IS NOT NULL AND "imageUrl" != ''
+        ORDER BY sku,
+          CASE WHEN source = 'VTEX' THEN 0 ELSE 1 END,
+          "createdAt" ASC
+      `,
     ]);
 
     // Extract summary data
@@ -374,6 +397,12 @@ export async function GET(request: Request) {
     const viewersBySkuMap = new Map<string, number>();
     viewersBySku.forEach((row) => {
       if (row.sku) viewersBySkuMap.set(row.sku, Number(row.viewers));
+    });
+
+    // Sesion 22: fallback de imagen por SKU (prioriza VTEX).
+    const imageBySkuMap = new Map<string, string>();
+    imagesBySku.forEach((row) => {
+      if (row.sku && row.imageUrl) imageBySkuMap.set(row.sku, row.imageUrl);
     });
 
     // Helper function: linear regression for trend slope
@@ -487,7 +516,9 @@ export async function GET(request: Request) {
         id: prod.productId,
         name: prod.productName,
         sku: prod.sku,
-        imageUrl: prod.imageUrl,
+        // Sesion 22: si el master_products row no tiene imagen, cruzar por SKU
+        // con cualquier producto hermano que si tenga (priorizando VTEX).
+        imageUrl: prod.imageUrl || imageBySkuMap.get(prod.sku) || null,
         category: prod.category,
         categoryPath: prod.categoryPath,
         brand: prod.brand,
