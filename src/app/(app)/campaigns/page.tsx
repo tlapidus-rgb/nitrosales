@@ -142,7 +142,7 @@ function BreakevenBanner({
             </div>
             <h2 className="text-xl font-bold text-slate-900 mt-1">
               {hasData ? (
-                <>Blended ROAS <span className="tabular-nums">{blendedRoas.toFixed(2)}x</span> vs Break-even <span className="tabular-nums">{breakevenRoas.toFixed(2)}x</span></>
+                <>Blended ROAS VTEX <span className="tabular-nums">{blendedRoas.toFixed(2)}x</span> vs Break-even <span className="tabular-nums">{breakevenRoas.toFixed(2)}x</span></>
               ) : (
                 "Break-even ROAS"
               )}
@@ -152,7 +152,7 @@ function BreakevenBanner({
         </div>
         <div className="grid grid-cols-3 gap-4 text-right">
           <div>
-            <p className="text-[10px] uppercase text-slate-500 font-semibold">Margen contrib.</p>
+            <p className="text-[10px] uppercase text-slate-500 font-semibold">CM (VTEX)</p>
             <p className="text-lg font-bold text-slate-900 tabular-nums">
               {contributionMargin > 0 ? `${(contributionMargin * 100).toFixed(1)}%` : "--"}
             </p>
@@ -162,7 +162,7 @@ function BreakevenBanner({
             <p className="text-lg font-bold text-slate-900 tabular-nums">{formatCompact(adSpend)}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase text-slate-500 font-semibold">Revenue real</p>
+            <p className="text-[10px] uppercase text-slate-500 font-semibold">Revenue VTEX</p>
             <p className="text-lg font-bold text-slate-900 tabular-nums">{formatCompact(realRevenue)}</p>
           </div>
         </div>
@@ -240,25 +240,25 @@ function ConversionFunnel({ impressions, clicks, conversions }: { impressions: n
 
 function DiscrepancyBlock({
   attributedRevenue,
-  realRevenue,
+  vtexRevenue,
   adSpend,
 }: {
   attributedRevenue: number;
-  realRevenue: number;
+  vtexRevenue: number;
   adSpend: number;
 }) {
-  if (attributedRevenue <= 0 && realRevenue <= 0) return null;
-  const diff = realRevenue - attributedRevenue;
+  if (attributedRevenue <= 0 && vtexRevenue <= 0) return null;
+  const diff = vtexRevenue - attributedRevenue;
   const diffPct = attributedRevenue > 0 ? (diff / attributedRevenue) * 100 : 0;
   const attributedRoas = adSpend > 0 ? attributedRevenue / adSpend : 0;
-  const blendedRoas = adSpend > 0 ? realRevenue / adSpend : 0;
+  const blendedRoas = adSpend > 0 ? vtexRevenue / adSpend : 0;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
       <div className="flex items-center gap-2 mb-4">
         <Scale size={16} className="text-indigo-600" />
-        <h3 className="font-semibold text-gray-900">Plataformas vs Realidad</h3>
-        <span className="text-xs text-gray-400 ml-auto">Brecha de atribucion</span>
+        <h3 className="font-semibold text-gray-900">Plataformas vs Realidad (VTEX)</h3>
+        <span className="text-xs text-gray-400 ml-auto">Brecha de atribucion · solo tienda directa</span>
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-lg bg-purple-50 p-3">
@@ -267,8 +267,8 @@ function DiscrepancyBlock({
           <p className="text-[11px] text-slate-500 mt-0.5">ROAS reportado: <span className="font-medium">{attributedRoas.toFixed(2)}x</span></p>
         </div>
         <div className="rounded-lg bg-emerald-50 p-3">
-          <p className="text-[10px] uppercase text-emerald-700 font-semibold">Realidad (ventas)</p>
-          <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">{formatCompact(realRevenue)}</p>
+          <p className="text-[10px] uppercase text-emerald-700 font-semibold">Realidad VTEX</p>
+          <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">{formatCompact(vtexRevenue)}</p>
           <p className="text-[11px] text-slate-500 mt-0.5">Blended ROAS: <span className="font-medium">{blendedRoas.toFixed(2)}x</span></p>
         </div>
         <div className={`rounded-lg p-3 ${diff >= 0 ? "bg-blue-50" : "bg-red-50"}`}>
@@ -278,8 +278,8 @@ function DiscrepancyBlock({
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
             {diff >= 0
-              ? `Orgánico + efecto halo (+${diffPct.toFixed(0)}%)`
-              : `Sobre-atribución (${diffPct.toFixed(0)}%)`}
+              ? `Organico directo + halo (+${diffPct.toFixed(0)}%)`
+              : `Sobre-atribucion (${diffPct.toFixed(0)}%)`}
           </p>
         </div>
       </div>
@@ -335,18 +335,31 @@ export default function CampaignsPage() {
   const dailyTrend = data?.dailyTrend || [];
   const platformSummary = data?.platformSummary || [];
 
-  // ── Break-even calculation from P&L ──
+  // ── Break-even calculation from P&L (solo VTEX, tienda directa) ──
+  // Motivo: los ads mandan trafico a VTEX. MELI es marketplace organico aparte.
   const pnlSummary = pnl?.summary || {};
-  const realRevenue = Number(pnlSummary.revenue || 0);
-  const realCogs = Number(pnlSummary.cogs || 0);
-  const realShipping = Number(pnlSummary.shipping || 0);
-  const realPlatformFees = Number(pnlSummary.platformFees || 0);
-  const realPaymentFees = Number(pnlSummary.paymentFees || 0);
+  const pnlBySource: any[] = Array.isArray(pnl?.bySource) ? pnl.bySource : [];
+  const vtexSource = pnlBySource.find((x) => x.source === "VTEX");
+  const totalRevenueAllSources = Number(pnlSummary.revenue || 0);
+
+  const useVtex = Number(vtexSource?.revenue || 0) > 0;
+  const realRevenue = useVtex ? Number(vtexSource.revenue) : totalRevenueAllSources;
+  const realCogs = useVtex ? Number(vtexSource.cogs || 0) : Number(pnlSummary.cogs || 0);
+  const realShipping = useVtex ? Number(vtexSource.shipping || 0) : Number(pnlSummary.shipping || 0);
+  const realPlatformFees = useVtex ? Number(vtexSource.platformFee || 0) : Number(pnlSummary.platformFees || 0);
+  const totalPaymentFees = Number(pnlSummary.paymentFees || 0);
+  const realPaymentFees = useVtex && totalRevenueAllSources > 0
+    ? totalPaymentFees * (Number(vtexSource.revenue) / totalRevenueAllSources)
+    : totalPaymentFees;
 
   // Contribution margin pre-ads = (Revenue - COGS - Shipping - PlatformFees - PaymentFees) / Revenue
   const contributionProfit = realRevenue - realCogs - realShipping - realPlatformFees - realPaymentFees;
   const contributionMargin = realRevenue > 0 ? contributionProfit / realRevenue : 0;
   const breakevenRoas = contributionMargin > 0 ? 1 / contributionMargin : 0;
+
+  // Revenue MELI (para mostrar aparte como "no atribuible a ads")
+  const meliSource = pnlBySource.find((x) => x.source === "MELI");
+  const meliRevenue = Number(meliSource?.revenue || 0);
 
   // Blended ROAS = Revenue real / Ad spend
   const adSpendTotal = Number(totals.spend || 0);
@@ -491,12 +504,12 @@ export default function CampaignsPage() {
 
       {/* Hero KPI Row — 8 cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-        <KpiCard icon={<DollarSign size={16} className="text-red-600" />} iconBg="bg-red-50" label="Inversion" value={formatCompact(adSpendTotal)} change={changes.spend} />
-        <KpiCard icon={<ShoppingCart size={16} className="text-emerald-600" />} iconBg="bg-emerald-50" label="Revenue real" value={formatCompact(realRevenue)} subtitle="Ventas totales" />
+        <KpiCard icon={<DollarSign size={16} className="text-red-600" />} iconBg="bg-red-50" label="Inversion ads" value={formatCompact(adSpendTotal)} change={changes.spend} />
+        <KpiCard icon={<ShoppingCart size={16} className="text-emerald-600" />} iconBg="bg-emerald-50" label="Revenue VTEX" value={formatCompact(realRevenue)} subtitle="Atribuible a ads" />
         <KpiCard icon={<Target size={16} className="text-purple-600" />} iconBg="bg-purple-50" label="Rev. atribuido" value={formatCompact(attributedRevenue)} subtitle={`ROAS rep: ${attributedRoas.toFixed(2)}x`} />
-        <KpiCard icon={<TrendingUp size={16} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Blended ROAS" value={`${blendedRoas.toFixed(2)}x`} subtitle="Rev. real / Inv." />
+        <KpiCard icon={<TrendingUp size={16} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Blended ROAS" value={`${blendedRoas.toFixed(2)}x`} subtitle="VTEX / Inv." />
         <KpiCard icon={<Gauge size={16} className="text-amber-600" />} iconBg="bg-amber-50" label="Break-even" value={breakevenRoas > 0 ? `${breakevenRoas.toFixed(2)}x` : "--"} subtitle={contributionMargin > 0 ? `CM ${(contributionMargin * 100).toFixed(1)}%` : "Sin margen"} />
-        <KpiCard icon={<Activity size={16} className="text-cyan-600" />} iconBg="bg-cyan-50" label="MER" value={mer > 0 ? `${mer.toFixed(2)}x` : "--"} subtitle="Efficiency ratio" />
+        <KpiCard icon={<Activity size={16} className="text-cyan-600" />} iconBg="bg-cyan-50" label="MELI (organico)" value={formatCompact(meliRevenue)} subtitle="No atribuible" />
         <KpiCard icon={<ShoppingCart size={16} className="text-green-600" />} iconBg="bg-green-50" label="Conversiones" value={String(totalConv)} change={changes.conversions} />
         <KpiCard icon={<Zap size={16} className="text-orange-600" />} iconBg="bg-orange-50" label="nCAC" value={nCAC > 0 ? formatARS(nCAC) : "--"} subtitle={`CTR ${globalCtr}%`} />
       </div>
@@ -504,7 +517,7 @@ export default function CampaignsPage() {
       {/* Discrepancy Block */}
       <DiscrepancyBlock
         attributedRevenue={attributedRevenue}
-        realRevenue={realRevenue}
+        vtexRevenue={realRevenue}
         adSpend={adSpendTotal}
       />
 
