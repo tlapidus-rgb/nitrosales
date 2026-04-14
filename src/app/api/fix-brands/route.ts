@@ -717,6 +717,152 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // --- ACTION: bulk-category-paths (Sesion 20) ---
+  // Bulk backfill de Product.categoryPath usando el arbol completo de VTEX.
+  // Estrategia: 1 sola llamada a /api/catalog_system/pub/category/tree/10 y
+  // match por nombre de categoria hoja. Evita 35K llamadas a VTEX.
+  if (action === "bulk-category-paths") {
+    const startedAt = Date.now();
+
+    // Paso 1: traer arbol completo VTEX (1 sola llamada)
+    const baseUrl = `${_cachedBaseUrl}`;
+    let tree: any[] = [];
+    try {
+      const treeRes = await fetch(
+        `${baseUrl}/api/catalog_system/pub/category/tree/10`,
+        { headers: vtexHeaders() }
+      );
+      if (!treeRes.ok) {
+        return NextResponse.json(
+          {
+            error: "VTEX tree fetch failed",
+            status: treeRes.status,
+            statusText: treeRes.statusText,
+          },
+          { status: 502 }
+        );
+      }
+      tree = await treeRes.json();
+    } catch (err: any) {
+      return NextResponse.json(
+        { error: "VTEX tree fetch error", message: err.message },
+        { status: 502 }
+      );
+    }
+
+    // Paso 2: recorrer el arbol y armar map nameLower -> paths[]
+    // Si un nombre aparece una sola vez, lo podemos usar directo.
+    const nameToPaths = new Map<string, string[]>();
+    const pathToRoot: string[] = []; // Para debug
+
+    function walk(nodes: any[], ancestors: string[]) {
+      for (const node of nodes) {
+        const name = String(node.name || "").trim();
+        if (!name) continue;
+        const fullPath = [...ancestors, name].join(" > ");
+        const key = name.toLowerCase();
+        const existing = nameToPaths.get(key) || [];
+        existing.push(fullPath);
+        nameToPaths.set(key, existing);
+        pathToRoot.push(fullPath);
+        if (Array.isArray(node.children) && node.children.length > 0) {
+          walk(node.children, [...ancestors, name]);
+        }
+      }
+    }
+    walk(tree, []);
+
+    // Paso 3: contar cuantos son unicos vs ambiguos
+    let uniqueNames = 0;
+    let ambiguousNames = 0;
+    for (const paths of Array.from(nameToPaths.values())) {
+      if (paths.length === 1) uniqueNames++;
+      else ambiguousNames++;
+    }
+
+    // Paso 4: levantar productos que necesitan categoryPath
+    const products = await prisma.product.findMany({
+      where: {
+        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        OR: [{ categoryPath: null }, { categoryPath: "" }],
+        category: { not: null },
+      },
+      select: { id: true, category: true },
+    });
+
+    // Paso 5: resolver path por matching de nombre
+    const updates: Array<{ id: string; path: string }> = [];
+    let matchedUnique = 0;
+    let matchedByFirst = 0;
+    let unmatched = 0;
+    const unmatchedSample: string[] = [];
+    const ambiguousSample: Array<{ category: string; paths: string[] }> = [];
+
+    for (const p of products) {
+      if (!p.category) {
+        unmatched++;
+        continue;
+      }
+      const key = p.category.trim().toLowerCase();
+      const paths = nameToPaths.get(key);
+      if (!paths || paths.length === 0) {
+        unmatched++;
+        if (unmatchedSample.length < 20) unmatchedSample.push(p.category);
+        continue;
+      }
+      if (paths.length === 1) {
+        updates.push({ id: p.id, path: paths[0] });
+        matchedUnique++;
+      } else {
+        // Ambiguo: por ahora tomamos el primero pero dejamos sample para revisar
+        updates.push({ id: p.id, path: paths[0] });
+        matchedByFirst++;
+        if (ambiguousSample.length < 10) {
+          ambiguousSample.push({ category: p.category, paths });
+        }
+      }
+    }
+
+    // Paso 6: update batch
+    const UPDATE_CHUNK = 100;
+    let updated = 0;
+    for (let i = 0; i < updates.length; i += UPDATE_CHUNK) {
+      const chunk = updates.slice(i, i + UPDATE_CHUNK);
+      await prisma.$transaction(
+        chunk.map((u) =>
+          prisma.product.update({
+            where: { id: u.id },
+            data: { categoryPath: u.path },
+          })
+        )
+      );
+      updated += chunk.length;
+    }
+
+    const durationMs = Date.now() - startedAt;
+
+    return NextResponse.json({
+      ok: true,
+      durationMs,
+      tree: {
+        totalNodes: pathToRoot.length,
+        uniqueLeafNames: uniqueNames,
+        ambiguousLeafNames: ambiguousNames,
+      },
+      products: {
+        candidates: products.length,
+        matchedUnique,
+        matchedByFirstAmbiguous: matchedByFirst,
+        unmatched,
+        updated,
+      },
+      samples: {
+        unmatched: unmatchedSample,
+        ambiguous: ambiguousSample,
+      },
+    });
+  }
+
   // --- ACTION: deduplicate ---
   if (action === "deduplicate") {
     const duplicates = await prisma.$queryRaw<
@@ -820,6 +966,7 @@ export async function GET(request: NextRequest) {
       "fix-vtex": "Fix brands + categories from VTEX API (?limit=50&offset=0)",
       "fix-categories": "Fix categories only for products that already have brands",
       "fix-category-paths": "Backfill Product.categoryPath via VTEX tree walk (?limit=50&offset=0)",
+      "bulk-category-paths": "Bulk backfill categoryPath usando el arbol completo VTEX (1 sola llamada). Matching por nombre de categoria.",
       deduplicate: "Find duplicate products",
     },
   });
