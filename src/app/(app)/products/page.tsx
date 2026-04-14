@@ -2161,17 +2161,17 @@ export default function ProductsPage() {
                 </select>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+            <div className="overflow-x-auto overflow-y-auto max-h-[440px]">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
-                    <th className="px-6 py-3 text-left font-semibold text-gray-700">Categoria</th>
-                    <th className="px-6 py-3 text-right font-semibold text-gray-700">Revenue</th>
-                    <th className="px-6 py-3 text-right font-semibold text-gray-700">COGS</th>
-                    <th className="px-6 py-3 text-center font-semibold text-gray-700">Margen %</th>
-                    <th className="px-6 py-3 text-center font-semibold text-gray-700">Markup %</th>
-                    <th className="px-6 py-3 text-right font-semibold text-gray-700">Ganancia</th>
-                    <th className="px-6 py-3 text-right font-semibold text-gray-700">Productos</th>
+                    <th className="px-4 py-2 text-left font-semibold text-gray-700">Categoria</th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-700">Revenue</th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-700">COGS</th>
+                    <th className="px-4 py-2 text-center font-semibold text-gray-700">Margen %</th>
+                    <th className="px-4 py-2 text-center font-semibold text-gray-700">Markup %</th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-700">Ganancia</th>
+                    <th className="px-4 py-2 text-right font-semibold text-gray-700">Productos</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -2188,12 +2188,12 @@ export default function ProductsPage() {
                                 if (hasChildren) setExpandedCats((s) => ({ ...s, [cat.name]: !s[cat.name] }));
                               }}
                             >
-                              <td className="px-6 py-3 font-medium text-gray-900">
+                              <td className="px-4 py-1.5 font-medium text-gray-900">
                                 <span className="inline-flex items-center gap-2">
                                   {hasChildren ? (
-                                    <span className={`text-gray-400 text-xs transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
+                                    <span className={`text-gray-400 text-[10px] transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
                                   ) : (
-                                    <span className="w-2.5" />
+                                    <span className="w-2" />
                                   )}
                                   <span>{cat.name}</span>
                                   {hasChildren && (
@@ -2201,48 +2201,48 @@ export default function ProductsPage() {
                                   )}
                                 </span>
                               </td>
-                              <td className="px-6 py-3 text-right text-gray-700">{formatARS(cat.revenue)}</td>
-                              <td className="px-6 py-3 text-right text-gray-500">{formatARS(cat.cogs)}</td>
-                              <td className="px-6 py-3 text-center">
-                                <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                              <td className="px-4 py-1.5 text-right text-gray-700">{formatARS(cat.revenue)}</td>
+                              <td className="px-4 py-1.5 text-right text-gray-500">{formatARS(cat.cogs)}</td>
+                              <td className="px-4 py-1.5 text-center">
+                                <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${
                                   cat.marginPct >= 50 ? "bg-green-100 text-green-700" :
                                   cat.marginPct >= 30 ? "bg-amber-100 text-amber-700" :
                                   "bg-red-100 text-red-700"
                                 }`}>{cat.marginPct.toFixed(1)}%</span>
                               </td>
-                              <td className="px-6 py-3 text-center">
-                                <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                              <td className="px-4 py-1.5 text-center">
+                                <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${
                                   cat.markupPct >= 100 ? "bg-green-100 text-green-700" :
                                   cat.markupPct >= 50 ? "bg-amber-100 text-amber-700" :
                                   "bg-red-100 text-red-700"
                                 }`}>{cat.markupPct.toFixed(1)}%</span>
                               </td>
-                              <td className="px-6 py-3 text-right font-medium text-green-700">{formatARS(cat.revenue - cat.cogs)}</td>
-                              <td className="px-6 py-3 text-right text-gray-500">{cat.productCount}</td>
+                              <td className="px-4 py-1.5 text-right font-medium text-green-700">{formatARS(cat.revenue - cat.cogs)}</td>
+                              <td className="px-4 py-1.5 text-right text-gray-500">{cat.productCount}</td>
                             </tr>
                             {isOpen && hasChildren && cat.children.map((sub: any) => (
                               <tr key={cat.name + "::" + sub.name} className="bg-gray-50/40 hover:bg-gray-100/60">
-                                <td className="px-6 py-2 pl-14 text-sm text-gray-700">
+                                <td className="px-4 py-1 pl-10 text-gray-700">
                                   <span className="text-gray-300 mr-2">└</span>{sub.name}
                                 </td>
-                                <td className="px-6 py-2 text-right text-gray-700">{formatARS(sub.revenue)}</td>
-                                <td className="px-6 py-2 text-right text-gray-500">{formatARS(sub.cogs)}</td>
-                                <td className="px-6 py-2 text-center">
-                                  <span className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                                <td className="px-4 py-1 text-right text-gray-700">{formatARS(sub.revenue)}</td>
+                                <td className="px-4 py-1 text-right text-gray-500">{formatARS(sub.cogs)}</td>
+                                <td className="px-4 py-1 text-center">
+                                  <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${
                                     sub.marginPct >= 50 ? "bg-green-50 text-green-700" :
                                     sub.marginPct >= 30 ? "bg-amber-50 text-amber-700" :
                                     "bg-red-50 text-red-700"
                                   }`}>{sub.marginPct.toFixed(1)}%</span>
                                 </td>
-                                <td className="px-6 py-2 text-center">
-                                  <span className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                                <td className="px-4 py-1 text-center">
+                                  <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${
                                     sub.markupPct >= 100 ? "bg-green-50 text-green-700" :
                                     sub.markupPct >= 50 ? "bg-amber-50 text-amber-700" :
                                     "bg-red-50 text-red-700"
                                   }`}>{sub.markupPct.toFixed(1)}%</span>
                                 </td>
-                                <td className="px-6 py-2 text-right text-green-700">{formatARS(sub.revenue - sub.cogs)}</td>
-                                <td className="px-6 py-2 text-right text-gray-500">{sub.productCount}</td>
+                                <td className="px-4 py-1 text-right text-green-700">{formatARS(sub.revenue - sub.cogs)}</td>
+                                <td className="px-4 py-1 text-right text-gray-500">{sub.productCount}</td>
                               </tr>
                             ))}
                           </React.Fragment>
@@ -2250,7 +2250,7 @@ export default function ProductsPage() {
                       });
                     } catch (e) {
                       return (
-                        <tr><td colSpan={7} className="px-6 py-6 text-center text-sm text-gray-500">
+                        <tr><td colSpan={7} className="px-4 py-4 text-center text-xs text-gray-500">
                           No se pudo construir el arbol de categorias.
                         </td></tr>
                       );
@@ -2273,41 +2273,41 @@ export default function ProductsPage() {
                     </div>
                     <span className="text-xs text-gray-500">{computedByBrand.length} marcas</span>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
+                  <div className="overflow-x-auto overflow-y-auto max-h-[440px]">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                         <tr>
-                          <th className="px-6 py-3 text-left font-semibold text-gray-700">Marca</th>
-                          <th className="px-6 py-3 text-right font-semibold text-gray-700">Revenue</th>
-                          <th className="px-6 py-3 text-right font-semibold text-gray-700">COGS</th>
-                          <th className="px-6 py-3 text-center font-semibold text-gray-700">Margen %</th>
-                          <th className="px-6 py-3 text-center font-semibold text-gray-700">Markup %</th>
-                          <th className="px-6 py-3 text-right font-semibold text-gray-700">Ganancia</th>
-                          <th className="px-6 py-3 text-right font-semibold text-gray-700">Productos</th>
+                          <th className="px-4 py-2 text-left font-semibold text-gray-700">Marca</th>
+                          <th className="px-4 py-2 text-right font-semibold text-gray-700">Revenue</th>
+                          <th className="px-4 py-2 text-right font-semibold text-gray-700">COGS</th>
+                          <th className="px-4 py-2 text-center font-semibold text-gray-700">Margen %</th>
+                          <th className="px-4 py-2 text-center font-semibold text-gray-700">Markup %</th>
+                          <th className="px-4 py-2 text-right font-semibold text-gray-700">Ganancia</th>
+                          <th className="px-4 py-2 text-right font-semibold text-gray-700">Productos</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {computedByBrand.map((br: any) => (
                           <tr key={br.name} className="hover:bg-gray-50">
-                            <td className="px-6 py-3 font-medium text-gray-900">{br.name}</td>
-                            <td className="px-6 py-3 text-right text-gray-700">{formatARS(br.revenue)}</td>
-                            <td className="px-6 py-3 text-right text-gray-500">{formatARS(br.cogs)}</td>
-                            <td className="px-6 py-3 text-center">
-                              <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                            <td className="px-4 py-1.5 font-medium text-gray-900">{br.name}</td>
+                            <td className="px-4 py-1.5 text-right text-gray-700">{formatARS(br.revenue)}</td>
+                            <td className="px-4 py-1.5 text-right text-gray-500">{formatARS(br.cogs)}</td>
+                            <td className="px-4 py-1.5 text-center">
+                              <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${
                                 br.marginPct >= 50 ? "bg-green-100 text-green-700" :
                                 br.marginPct >= 30 ? "bg-amber-100 text-amber-700" :
                                 "bg-red-100 text-red-700"
                               }`}>{br.marginPct.toFixed(1)}%</span>
                             </td>
-                            <td className="px-6 py-3 text-center">
-                              <span className={`px-2 py-1 text-xs font-bold rounded-md ${
+                            <td className="px-4 py-1.5 text-center">
+                              <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${
                                 br.markupPct >= 100 ? "bg-green-100 text-green-700" :
                                 br.markupPct >= 50 ? "bg-amber-100 text-amber-700" :
                                 "bg-red-100 text-red-700"
                               }`}>{br.markupPct.toFixed(1)}%</span>
                             </td>
-                            <td className="px-6 py-3 text-right font-medium text-green-700">{formatARS(br.revenue - br.cogs)}</td>
-                            <td className="px-6 py-3 text-right text-gray-500">{br.productCount}</td>
+                            <td className="px-4 py-1.5 text-right font-medium text-green-700">{formatARS(br.revenue - br.cogs)}</td>
+                            <td className="px-4 py-1.5 text-right text-gray-500">{br.productCount}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2324,30 +2324,30 @@ export default function ProductsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top Margin */}
             <div className="bg-white rounded-xl shadow-sm border border-green-200 overflow-hidden">
-              <div className="p-4 border-b border-green-200 bg-green-50">
-                <h3 className="font-semibold text-green-800 flex items-center gap-2">
+              <div className="px-4 py-2.5 border-b border-green-200 bg-green-50">
+                <h3 className="font-semibold text-green-800 flex items-center gap-2 text-sm">
                   <TrendingUp className="w-4 h-4" /> Top 10 Mas Rentables
                 </h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead className="bg-green-50/50">
                     <tr>
-                      <th className="px-4 py-2 text-left font-medium text-green-800">Producto</th>
-                      <th className="px-4 py-2 text-right font-medium text-green-800">Revenue</th>
-                      <th className="px-4 py-2 text-center font-medium text-green-800">Margen</th>
+                      <th className="px-3 py-1.5 text-left font-medium text-green-800">Producto</th>
+                      <th className="px-3 py-1.5 text-right font-medium text-green-800">Revenue</th>
+                      <th className="px-3 py-1.5 text-center font-medium text-green-800">Margen</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-green-100">
                     {marginAnalysis.topMargin.map((p) => (
                       <tr key={p.id} className="hover:bg-green-50/50">
-                        <td className="px-4 py-2">
-                          <div className="font-medium text-gray-900 text-xs">{p.name.substring(0, 45)}</div>
+                        <td className="px-3 py-1">
+                          <div className="font-medium text-gray-900 text-[11px] leading-tight">{p.name.substring(0, 45)}</div>
                           <div className="text-[10px] text-gray-500">{p.sku}</div>
                         </td>
-                        <td className="px-4 py-2 text-right text-gray-700 text-xs">{formatCompact(p.revenue)}</td>
-                        <td className="px-4 py-2 text-center">
-                          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded">{p.marginPct?.toFixed(1)}%</span>
+                        <td className="px-3 py-1 text-right text-gray-700">{formatCompact(p.revenue)}</td>
+                        <td className="px-3 py-1 text-center">
+                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[11px] font-bold rounded">{p.marginPct?.toFixed(1)}%</span>
                         </td>
                       </tr>
                     ))}
@@ -2358,30 +2358,30 @@ export default function ProductsPage() {
 
             {/* Bottom Margin */}
             <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
-              <div className="p-4 border-b border-red-200 bg-red-50">
-                <h3 className="font-semibold text-red-800 flex items-center gap-2">
+              <div className="px-4 py-2.5 border-b border-red-200 bg-red-50">
+                <h3 className="font-semibold text-red-800 flex items-center gap-2 text-sm">
                   <TrendingDown className="w-4 h-4" /> Top 10 Menos Rentables
                 </h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead className="bg-red-50/50">
                     <tr>
-                      <th className="px-4 py-2 text-left font-medium text-red-800">Producto</th>
-                      <th className="px-4 py-2 text-right font-medium text-red-800">Revenue</th>
-                      <th className="px-4 py-2 text-center font-medium text-red-800">Margen</th>
+                      <th className="px-3 py-1.5 text-left font-medium text-red-800">Producto</th>
+                      <th className="px-3 py-1.5 text-right font-medium text-red-800">Revenue</th>
+                      <th className="px-3 py-1.5 text-center font-medium text-red-800">Margen</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-red-100">
                     {marginAnalysis.bottomMargin.map((p) => (
                       <tr key={p.id} className="hover:bg-red-50/50">
-                        <td className="px-4 py-2">
-                          <div className="font-medium text-gray-900 text-xs">{p.name.substring(0, 45)}</div>
+                        <td className="px-3 py-1">
+                          <div className="font-medium text-gray-900 text-[11px] leading-tight">{p.name.substring(0, 45)}</div>
                           <div className="text-[10px] text-gray-500">{p.sku}</div>
                         </td>
-                        <td className="px-4 py-2 text-right text-gray-700 text-xs">{formatCompact(p.revenue)}</td>
-                        <td className="px-4 py-2 text-center">
-                          <span className={`px-2 py-0.5 text-xs font-bold rounded ${
+                        <td className="px-3 py-1 text-right text-gray-700">{formatCompact(p.revenue)}</td>
+                        <td className="px-3 py-1 text-center">
+                          <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${
                             (p.marginPct ?? 0) < 0 ? "bg-red-200 text-red-800" :
                             (p.marginPct ?? 0) < 30 ? "bg-red-100 text-red-700" :
                             "bg-amber-100 text-amber-700"

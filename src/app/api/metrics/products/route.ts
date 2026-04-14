@@ -172,7 +172,11 @@ export async function GET(request: Request) {
           AND status NOT IN ('CANCELLED', 'RETURNED')
       `,
 
-      // Query 3: Product aggregation (30 days) — includes costPrice for margin calc
+      // Query 3: Product aggregation (30 days) CONSOLIDATED BY SKU (Sesion 20).
+      // 1. master_products: 1 fila por SKU, priorizando el producto VTEX (tiene imagen,
+      //    categoryPath y costPrice) sobre el MELI (no tiene imagen).
+      // 2. sales_by_sku: agrega ventas por SKU (consolida MELI + VTEX + otros canales).
+      // 3. Join final: trae metadata del producto maestro + datos de ventas.
       prisma.$queryRaw<
         Array<{
           productId: string;
@@ -190,30 +194,52 @@ export async function GET(request: Request) {
           orders: bigint;
         }>
       >`
+        WITH master_products AS (
+          SELECT DISTINCT ON (sku)
+            id, sku, name, "imageUrl", category, "categoryPath", brand, stock, "costPrice"
+          FROM products
+          WHERE "organizationId" = ${ORG_ID}
+            AND sku IS NOT NULL AND sku != ''
+          ORDER BY sku,
+            CASE WHEN "imageUrl" IS NOT NULL AND "imageUrl" != '' THEN 0 ELSE 1 END,
+            CASE WHEN "categoryPath" IS NOT NULL AND "categoryPath" != '' THEN 0 ELSE 1 END,
+            CASE WHEN "costPrice" IS NOT NULL THEN 0 ELSE 1 END,
+            "createdAt" ASC
+        ),
+        sales_by_sku AS (
+          SELECT
+            p.sku AS sku,
+            SUM(oi.quantity)::bigint AS units,
+            ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
+            COUNT(DISTINCT oi."orderId")::bigint AS orders
+          FROM order_items oi
+          JOIN orders o ON oi."orderId" = o.id
+          JOIN products p ON oi."productId" = p.id
+          WHERE o."organizationId" = ${ORG_ID}
+            AND o."orderDate" >= ${thirtyDaysAgo}
+            AND o."orderDate" <= ${dateTo}
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND p.sku IS NOT NULL AND p.sku != ''
+          GROUP BY p.sku
+        )
         SELECT
-          oi."productId" AS "productId",
-          p.name AS "productName",
-          p.sku,
-          p."imageUrl",
-          p.category,
-          p."categoryPath",
-          p.brand,
-          p.stock,
-          p."costPrice"::numeric AS "costPrice",
-          SUM(oi.quantity)::bigint AS units,
-          ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
-          CASE WHEN p."costPrice" IS NOT NULL
-            THEN ROUND(SUM(oi.quantity * p."costPrice")::numeric)
+          m.id AS "productId",
+          m.name AS "productName",
+          m.sku,
+          m."imageUrl",
+          m.category,
+          m."categoryPath",
+          m.brand,
+          m.stock,
+          m."costPrice"::numeric AS "costPrice",
+          s.units,
+          s.revenue,
+          CASE WHEN m."costPrice" IS NOT NULL
+            THEN ROUND((s.units * m."costPrice")::numeric)
             ELSE NULL END AS cogs,
-          COUNT(DISTINCT oi."orderId")::bigint AS orders
-        FROM order_items oi
-        JOIN orders o ON oi."orderId" = o.id
-        JOIN products p ON oi."productId" = p.id
-        WHERE o."organizationId" = ${ORG_ID}
-          AND o."orderDate" >= ${thirtyDaysAgo}
-          AND o."orderDate" <= ${dateTo}
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
-        GROUP BY oi."productId", p.name, p.sku, p."imageUrl", p.category, p."categoryPath", p.brand, p.stock, p."costPrice"
+          s.orders
+        FROM sales_by_sku s
+        JOIN master_products m ON m.sku = s.sku
       `,
 
       // Query 4: Stock sync metadata
@@ -232,10 +258,10 @@ export async function GET(request: Request) {
           AND stock >= 0
       `,
 
-      // Query 5: Weekly sales by product (last 60 days)
+      // Query 5: Weekly sales by SKU (last 60 days) - consolidado MELI+VTEX
       prisma.$queryRaw<
         Array<{
-          productId: string;
+          sku: string;
           weekStart: Date;
           units: bigint;
           revenue: number;
@@ -243,36 +269,40 @@ export async function GET(request: Request) {
         }>
       >`
         SELECT
-          oi."productId" AS "productId",
+          p.sku AS sku,
           date_trunc('week', o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')::date AS "weekStart",
           SUM(oi.quantity)::bigint AS units,
           ROUND(SUM(oi."totalPrice")::numeric) AS revenue,
           COUNT(DISTINCT oi."orderId")::bigint AS orders
         FROM order_items oi
         JOIN orders o ON oi."orderId" = o.id
+        JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${sixtyDaysAgo}
           AND o."orderDate" <= ${dateTo}
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
-        GROUP BY oi."productId", date_trunc('week', o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')
+          AND p.sku IS NOT NULL AND p.sku != ''
+        GROUP BY p.sku, date_trunc('week', o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')
         ORDER BY date_trunc('week', o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')
       `,
 
-      // Query 6: Last sale date per product
+      // Query 6: Last sale date per SKU - consolidado MELI+VTEX
       prisma.$queryRaw<
         Array<{
-          productId: string;
+          sku: string;
           lastSaleDate: Date;
         }>
       >`
         SELECT
-          oi."productId" AS "productId",
+          p.sku AS sku,
           MAX(o."orderDate") AS "lastSaleDate"
         FROM order_items oi
         JOIN orders o ON oi."orderId" = o.id
+        JOIN products p ON oi."productId" = p.id
         WHERE o."organizationId" = ${ORG_ID}
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
-        GROUP BY oi."productId"
+          AND p.sku IS NOT NULL AND p.sku != ''
+        GROUP BY p.sku
       `,
     ]);
 
@@ -286,10 +316,11 @@ export async function GET(request: Request) {
     const stockSyncedAt = stockSyncMetadata[0]?.stockUpdatedAt?.toISOString() || new Date().toISOString();
     const totalActiveProducts = Number(stockSyncMetadata[0]?.activeProducts || 0);
 
-    // Build lookup maps for fast access
+    // Build lookup maps keyed by SKU (Sesion 20: consolidacion multi-canal)
     const weeklyTrendMap = new Map<string, Array<{ weekStart: Date; units: bigint; revenue: number }>>();
     weeklySalesByProduct.forEach((row) => {
-      const key = row.productId;
+      const key = row.sku;
+      if (!key) return;
       if (!weeklyTrendMap.has(key)) {
         weeklyTrendMap.set(key, []);
       }
@@ -302,7 +333,7 @@ export async function GET(request: Request) {
 
     const lastSaleDateMap = new Map<string, Date>();
     lastSaleDateByProduct.forEach((row) => {
-      lastSaleDateMap.set(row.productId, row.lastSaleDate);
+      if (row.sku) lastSaleDateMap.set(row.sku, row.lastSaleDate);
     });
 
     // Helper function: linear regression for trend slope
@@ -349,10 +380,10 @@ export async function GET(request: Request) {
 
     // Map products with trend and stock data
     let products = productAggregation.map((prod): ProductMetrics => {
-      const weeklyData = weeklyTrendMap.get(prod.productId) || [];
+      const weeklyData = weeklyTrendMap.get(prod.sku) || [];
       const unitsSold = Number(prod.units);
       const dailySalesRate = unitsSold / daysDiff;
-      const lastSaleDate = lastSaleDateMap.get(prod.productId);
+      const lastSaleDate = lastSaleDateMap.get(prod.sku);
 
       // Calculate daysOfStock
       let daysOfStock: number | null = null;
