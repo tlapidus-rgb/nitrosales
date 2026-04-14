@@ -116,17 +116,129 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ enriched: {}, error: "ML token failed" }, { status: 200 });
     }
 
-    // Find earliest order date to narrow search
-    const sortedDates = orders
+    // ══════════════════════════════════════════════════════════════
+    // FAST PATH (Sesión 22): Si la orden ya tiene order_items con
+    // products.externalId, traer thumbnails directo desde ML Items API
+    // y actualizar products.imageUrl. Evita el costoso orders/search
+    // que solo alcanza a las ~150 órdenes más recientes.
+    // ══════════════════════════════════════════════════════════════
+    const fastEnriched: Record<string, any[]> = {};
+    const orderIdsNeedingSearch: string[] = [];
+    try {
+      const existingItems = await prisma.orderItem.findMany({
+        where: { orderId: { in: orders.map(o => o.id) } },
+        select: {
+          orderId: true,
+          quantity: true,
+          unitPrice: true,
+          totalPrice: true,
+          product: {
+            select: { id: true, name: true, externalId: true, imageUrl: true },
+          },
+        },
+      });
+
+      // Agrupar items por orderId
+      const itemsByOrder = new Map<string, typeof existingItems>();
+      for (const it of existingItems) {
+        const list = itemsByOrder.get(it.orderId) || [];
+        list.push(it);
+        itemsByOrder.set(it.orderId, list);
+      }
+
+      // Coleccionar externalIds (MLA...) que necesitan thumbnail
+      const missingMlItemIds = new Set<string>();
+      for (const o of orders) {
+        const items = itemsByOrder.get(o.id);
+        if (!items || items.length === 0) {
+          orderIdsNeedingSearch.push(o.id);
+          continue;
+        }
+        const anyMissing = items.some(i => !i.product?.imageUrl);
+        if (!anyMissing) continue;
+        for (const it of items) {
+          const extId = it.product?.externalId;
+          if (extId && !it.product?.imageUrl) missingMlItemIds.add(extId);
+        }
+      }
+
+      if (missingMlItemIds.size > 0) {
+        const fastThumbs = await fetchThumbnails(Array.from(missingMlItemIds), token);
+        if (fastThumbs.size > 0) {
+          // Persistir thumbnails en products.imageUrl (batch)
+          const updates: Promise<any>[] = [];
+          for (const [mlItemId, imgUrl] of fastThumbs.entries()) {
+            updates.push(
+              prisma.product.updateMany({
+                where: { organizationId: ORG_ID, externalId: mlItemId, imageUrl: null },
+                data: { imageUrl: imgUrl },
+              }).catch(() => {})
+            );
+          }
+          await Promise.all(updates);
+        }
+
+        // Construir response con imagen (thumbs frescos + los que ya tenían)
+        for (const o of orders) {
+          const items = itemsByOrder.get(o.id);
+          if (!items || items.length === 0) continue;
+          const enriched = items.map(it => ({
+            name: it.product?.name || "Producto",
+            imageUrl:
+              it.product?.imageUrl ||
+              (it.product?.externalId ? fastThumbs.get(it.product.externalId) : null) ||
+              null,
+            quantity: it.quantity,
+            unitPrice: Number(it.unitPrice),
+            totalPrice: Number(it.totalPrice),
+          }));
+          // Solo devolver si al menos uno tiene imagen (sino dejar para search fallback)
+          if (enriched.some(e => e.imageUrl)) {
+            fastEnriched[o.id] = enriched;
+          } else {
+            orderIdsNeedingSearch.push(o.id);
+          }
+        }
+      } else {
+        // Todos los items tienen imagen (o no hay MLA id) — devolver lo que tenemos
+        for (const o of orders) {
+          const items = itemsByOrder.get(o.id);
+          if (!items || items.length === 0) continue;
+          const enriched = items.map(it => ({
+            name: it.product?.name || "Producto",
+            imageUrl: it.product?.imageUrl || null,
+            quantity: it.quantity,
+            unitPrice: Number(it.unitPrice),
+            totalPrice: Number(it.totalPrice),
+          }));
+          if (enriched.some(e => e.imageUrl)) {
+            fastEnriched[o.id] = enriched;
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("[Enrich API] Fast path failed:", err.message);
+      // Silent fallback — continúa con search path
+    }
+
+    // Si el fast path resolvió todo, devolver directo
+    const unresolvedOrders = orders.filter(o => !fastEnriched[o.id]);
+    if (unresolvedOrders.length === 0) {
+      console.log(`[Enrich API] Fast path resolved ${Object.keys(fastEnriched).length} orders`);
+      return NextResponse.json({ enriched: fastEnriched });
+    }
+
+    // Find earliest order date to narrow search — solo sobre las no resueltas
+    const sortedDates = unresolvedOrders
       .map(o => o.orderDate)
       .filter(Boolean)
       .sort((a, b) => a!.getTime() - b!.getTime());
     const earliestDate = sortedDates[0] || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const searchFrom = earliestDate.toISOString().slice(0, 10) + "T00:00:00.000-03:00";
 
-    // Build lookup map: externalId → DB order
-    const neededIds = new Set(orders.map(o => o.externalId).filter(Boolean));
-    const orderByExtId = new Map(orders.map(o => [o.externalId, o]));
+    // Build lookup map: externalId → DB order (solo las no resueltas por fast path)
+    const neededIds = new Set(unresolvedOrders.map(o => o.externalId).filter(Boolean));
+    const orderByExtId = new Map(unresolvedOrders.map(o => [o.externalId, o]));
 
     // Fetch via ML Search API
     const enrichedMap: Record<string, any[]> = {};
@@ -278,9 +390,14 @@ export async function POST(req: NextRequest) {
       enrichedMap[dbOrderId] = enrichedItems;
     }
 
-    console.log(`[Enrich API] Enriched ${Object.keys(enrichedMap).length}/${neededIds.size} orders`);
+    // Merge fast path + search path results
+    const merged = { ...fastEnriched, ...enrichedMap };
+    console.log(
+      `[Enrich API] Enriched ${Object.keys(merged).length}/${orders.length} orders ` +
+      `(fast: ${Object.keys(fastEnriched).length}, search: ${Object.keys(enrichedMap).length})`
+    );
 
-    return NextResponse.json({ enriched: enrichedMap });
+    return NextResponse.json({ enriched: merged });
   } catch (error: any) {
     console.error("[Enrich API] Error:", error.message);
     return NextResponse.json({ enriched: {}, error: error.message }, { status: 200 });
