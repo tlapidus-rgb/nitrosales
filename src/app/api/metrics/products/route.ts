@@ -139,6 +139,7 @@ export async function GET(request: Request) {
       lastSaleDateByProduct,
       viewersBySku,
       imagesBySku,
+      historicalPriceBySku,
     ] = await Promise.all([
       // Query 1: Order totals (30 days)
       prisma.$queryRaw<
@@ -363,6 +364,30 @@ export async function GET(request: Request) {
           AND sku IS NOT NULL AND sku != ''
         GROUP BY sku
       `,
+
+      // Query 9 (Sesion 22): Ultimo precio de venta historico por SKU.
+      // Fallback final cuando el producto no tiene price cargado en la tabla
+      // products (puede pasar con items creados via webhook MELI sin precio).
+      // Usamos el precio unitario de la venta mas reciente.
+      prisma.$queryRaw<
+        Array<{
+          sku: string;
+          lastUnitPrice: number;
+        }>
+      >`
+        SELECT DISTINCT ON (p.sku)
+          p.sku AS sku,
+          (oi."totalPrice" / NULLIF(oi.quantity, 0))::numeric AS "lastUnitPrice"
+        FROM order_items oi
+        JOIN orders o ON oi."orderId" = o.id
+        JOIN products p ON oi."productId" = p.id
+        WHERE o."organizationId" = ${ORG_ID}
+          AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND p.sku IS NOT NULL AND p.sku != ''
+          AND oi.quantity > 0
+          AND oi."totalPrice" > 0
+        ORDER BY p.sku, o."orderDate" DESC
+      `,
     ]);
 
     // Extract summary data
@@ -410,6 +435,15 @@ export async function GET(request: Request) {
       if (row.imageUrl) imageBySkuMap.set(row.sku, row.imageUrl);
       if (row.costPrice != null) costBySkuMap.set(row.sku, Number(row.costPrice));
       if (row.listPrice != null) priceBySkuMap.set(row.sku, Number(row.listPrice));
+    });
+    // Sesion 22: fallback final de precio por SKU usando el ultimo precio
+    // de venta historico (desde order_items). Sirve para productos sin
+    // price en la tabla products pero que alguna vez se vendieron.
+    const historicalPriceMap = new Map<string, number>();
+    historicalPriceBySku.forEach((row) => {
+      if (row.sku && row.lastUnitPrice != null) {
+        historicalPriceMap.set(row.sku, Number(row.lastUnitPrice));
+      }
     });
 
     // Helper function: linear regression for trend slope
@@ -506,9 +540,12 @@ export async function GET(request: Request) {
       const costPrice = prod.costPrice != null
         ? Number(prod.costPrice)
         : (costBySkuMap.get(prod.sku) ?? null);
-      const listPriceRaw = prod.listPrice != null
+      // Chain de fallbacks: row elegido → cross-source products → ultimo precio de venta historico.
+      const listPriceRaw = (prod.listPrice != null && Number(prod.listPrice) > 0)
         ? Number(prod.listPrice)
-        : (priceBySkuMap.get(prod.sku) ?? null);
+        : (priceBySkuMap.get(prod.sku)
+          ?? historicalPriceMap.get(prod.sku)
+          ?? null);
       const listPrice = (listPriceRaw != null && listPriceRaw > 0) ? listPriceRaw : null;
       // Recalcular cogs si el costPrice vino del fallback (no del row elegido).
       const cogs = (prod.cogs != null)
