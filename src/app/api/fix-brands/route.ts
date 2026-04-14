@@ -646,6 +646,69 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // --- ACTION: heal-orphans-by-sku (Sesion 20) ---
+  // Copia categoryPath/category/brand desde productos "buenos" (con path) hacia
+  // los huerfanos con el mismo SKU. Un solo UPDATE atomico.
+  if (action === "heal-orphans-by-sku") {
+    const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
+    const dryRun = searchParams.get("dryRun") === "true";
+
+    // Antes: contar cuantos huerfanos hay con gemelo "curable"
+    const beforeCurable = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(DISTINCT p.id)::text::int AS count
+      FROM "products" p
+      INNER JOIN "products" good
+        ON good."organizationId" = p."organizationId"
+        AND good.sku = p.sku
+        AND good.id <> p.id
+      WHERE p."organizationId" = ${ORG_ID}
+        AND p.sku IS NOT NULL AND p.sku <> ''
+        AND (p."categoryPath" IS NULL OR p."categoryPath" = '')
+        AND good."categoryPath" IS NOT NULL AND good."categoryPath" <> ''
+    `;
+    const curableCount = Number(beforeCurable[0]?.count ?? 0);
+
+    if (dryRun) {
+      return NextResponse.json({
+        dryRun: true,
+        curableCount,
+        message: "Ejecutar sin dryRun=true para aplicar el UPDATE.",
+      });
+    }
+
+    // Aplicar el fix
+    const affected = await prisma.$executeRaw`
+      UPDATE "products" AS p
+      SET "categoryPath" = good."categoryPath",
+          "category"     = COALESCE(p."category", good."category"),
+          "brand"        = COALESCE(p."brand", good."brand")
+      FROM "products" AS good
+      WHERE p."organizationId" = ${ORG_ID}
+        AND good."organizationId" = p."organizationId"
+        AND p.sku = good.sku
+        AND p.sku IS NOT NULL AND p.sku <> ''
+        AND (p."categoryPath" IS NULL OR p."categoryPath" = '')
+        AND good."categoryPath" IS NOT NULL AND good."categoryPath" <> ''
+        AND p.id <> good.id
+    `;
+
+    // Despues: contar cuantos quedan sin path
+    const remaining = await prisma.product.count({
+      where: {
+        organizationId: ORG_ID,
+        OR: [{ categoryPath: null }, { categoryPath: "" }],
+      },
+    });
+
+    return NextResponse.json({
+      curableAntes: curableCount,
+      filasActualizadas: Number(affected),
+      huerfanosRestantes: remaining,
+      message:
+        "Fix aplicado. Los huerfanosRestantes son los que no tienen SKU o cuyo SKU no tiene gemelo con path.",
+    });
+  }
+
   // --- ACTION: debug ---
   if (action === "debug") {
     return NextResponse.json({
@@ -1248,6 +1311,7 @@ export async function GET(request: NextRequest) {
       "bulk-category-paths": "Bulk backfill categoryPath usando el arbol completo VTEX (1 sola llamada). Matching por nombre de categoria.",
       "uncategorized-breakdown": "Diagnostico de productos sin categoryPath: cuantos activos, con stock, con ventas recientes, sample.",
       "sku-orphan-check": "Para los top 20 huerfanos con ventas, chequea si hay gemelo por SKU que tenga categoryPath.",
+      "heal-orphans-by-sku": "Copia categoryPath/category/brand desde el gemelo por SKU hacia los huerfanos. Usar ?dryRun=true para preview.",
       deduplicate: "Find duplicate products",
     },
   });
