@@ -358,7 +358,9 @@ export async function GET(request: Request) {
           AND sku IS NOT NULL AND sku != ''
           AND "imageUrl" IS NOT NULL AND "imageUrl" != ''
         ORDER BY sku,
-          CASE WHEN source = 'VTEX' THEN 0 ELSE 1 END,
+          -- Priorizar VTEX (externalId numerico) sobre MELI (MLA*) via patron.
+          -- La tabla products no tiene columna "source", asi que inferimos.
+          CASE WHEN "externalId" ~ '^[0-9]+$' THEN 0 ELSE 1 END,
           "createdAt" ASC
       `,
     ]);
