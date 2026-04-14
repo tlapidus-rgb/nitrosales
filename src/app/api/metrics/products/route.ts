@@ -340,28 +340,28 @@ export async function GET(request: Request) {
         GROUP BY p.sku
       `,
 
-      // Query 8 (Sesion 22): Mejor imagen por SKU priorizando VTEX.
-      // El master_products CTE ya prioriza rows con imageUrl, pero si el row
-      // VTEX con imagen no esta en el top del DISTINCT ON por otro motivo,
-      // este mapa fuerza el fallback cross-source.
+      // Query 8 (Sesion 22): Mejor imagen + costPrice + listPrice por SKU.
+      // El master_products CTE elige UN row por SKU (prioriza el que tiene
+      // imagen), pero ese row puede no tener costPrice ni price cargados.
+      // Agregamos por SKU tomando el mejor valor non-null de CUALQUIER row
+      // hermano (VTEX o MELI). En JS aplicamos como fallback.
       prisma.$queryRaw<
         Array<{
           sku: string;
-          imageUrl: string;
+          imageUrl: string | null;
+          costPrice: number | null;
+          listPrice: number | null;
         }>
       >`
-        SELECT DISTINCT ON (sku)
+        SELECT
           sku,
-          "imageUrl"
+          MAX("imageUrl") FILTER (WHERE "imageUrl" IS NOT NULL AND "imageUrl" != '') AS "imageUrl",
+          (MAX("costPrice") FILTER (WHERE "costPrice" IS NOT NULL AND "costPrice" > 0))::numeric AS "costPrice",
+          (MAX(price) FILTER (WHERE price IS NOT NULL AND price > 0))::numeric AS "listPrice"
         FROM products
         WHERE "organizationId" = ${ORG_ID}
           AND sku IS NOT NULL AND sku != ''
-          AND "imageUrl" IS NOT NULL AND "imageUrl" != ''
-        ORDER BY sku,
-          -- Priorizar VTEX (externalId numerico) sobre MELI (MLA*) via patron.
-          -- La tabla products no tiene columna "source", asi que inferimos.
-          CASE WHEN "externalId" ~ '^[0-9]+$' THEN 0 ELSE 1 END,
-          "createdAt" ASC
+        GROUP BY sku
       `,
     ]);
 
@@ -401,10 +401,15 @@ export async function GET(request: Request) {
       if (row.sku) viewersBySkuMap.set(row.sku, Number(row.viewers));
     });
 
-    // Sesion 22: fallback de imagen por SKU (prioriza VTEX).
+    // Sesion 22: fallback cross-source por SKU para imagen, costPrice y listPrice.
     const imageBySkuMap = new Map<string, string>();
+    const costBySkuMap = new Map<string, number>();
+    const priceBySkuMap = new Map<string, number>();
     imagesBySku.forEach((row) => {
-      if (row.sku && row.imageUrl) imageBySkuMap.set(row.sku, row.imageUrl);
+      if (!row.sku) return;
+      if (row.imageUrl) imageBySkuMap.set(row.sku, row.imageUrl);
+      if (row.costPrice != null) costBySkuMap.set(row.sku, Number(row.costPrice));
+      if (row.listPrice != null) priceBySkuMap.set(row.sku, Number(row.listPrice));
     });
 
     // Helper function: linear regression for trend slope
@@ -495,9 +500,20 @@ export async function GET(request: Request) {
 
       // Margin calculations — prices include 21% IVA, costs do NOT
       const IVA_RATE = 1.21;
-      const costPrice = prod.costPrice != null ? Number(prod.costPrice) : null;
-      const listPrice = prod.listPrice != null ? Number(prod.listPrice) : null;
-      const cogs = prod.cogs != null ? Number(prod.cogs) : null;
+      // Sesion 22: si el master_products row no tiene costPrice/price (porque
+      // fue elegido por tener imagen pero era el row MELI sin costos), cruzar
+      // por SKU con cualquier hermano (VTEX) que si los tenga.
+      const costPrice = prod.costPrice != null
+        ? Number(prod.costPrice)
+        : (costBySkuMap.get(prod.sku) ?? null);
+      const listPriceRaw = prod.listPrice != null
+        ? Number(prod.listPrice)
+        : (priceBySkuMap.get(prod.sku) ?? null);
+      const listPrice = (listPriceRaw != null && listPriceRaw > 0) ? listPriceRaw : null;
+      // Recalcular cogs si el costPrice vino del fallback (no del row elegido).
+      const cogs = (prod.cogs != null)
+        ? Number(prod.cogs)
+        : (costPrice != null && unitsSold > 0 ? Math.round(unitsSold * costPrice) : null);
       const revenueNeto = prod.revenue / IVA_RATE; // Revenue sin IVA
       const marginAbs = (costPrice != null && cogs != null && revenueNeto > 0) ? revenueNeto - cogs : null;
       // Sesion 22: si hay costo + precio de lista pero no hubo ventas,
