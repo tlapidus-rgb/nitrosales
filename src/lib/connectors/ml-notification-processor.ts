@@ -150,9 +150,40 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
       const itemTitle = mlItem.item?.title || mlItem.title || `ML Item ${mlItemId}`;
       const unitPrice = mlItem.unit_price || mlItem.full_unit_price || 0;
       const quantity = mlItem.quantity || 1;
-      const thumbnailUrl = mlItem.item?.thumbnail || null;
+      let thumbnailUrl: string | null = mlItem.item?.thumbnail || null;
       // Sesion 21: usar seller_sku real, NO el MLA listing id.
-      const sellerSku = (mlItem.item?.seller_sku || "").trim() || null;
+      let sellerSku: string | null = (mlItem.item?.seller_sku || "").trim() || null;
+
+      // Sesion 22: el payload de orders API normalmente NO trae seller_sku
+      // en order_items[].item. Lo pedimos a /items/{id} si falta.
+      if (mlItemId && (!sellerSku || !thumbnailUrl)) {
+        try {
+          const itemDetail = await mlGet(
+            `/items/${mlItemId}?attributes=id,seller_sku,attributes,pictures,thumbnail`,
+            token
+          );
+          if (!sellerSku) {
+            let s = (itemDetail.seller_sku || "").trim() || null;
+            if (!s && Array.isArray(itemDetail.attributes)) {
+              const a = itemDetail.attributes.find(
+                (x: any) => x.id === "SELLER_SKU" || x.name === "SKU"
+              );
+              s = (a?.value_name || a?.values?.[0]?.name || "").trim() || null;
+            }
+            sellerSku = s;
+          }
+          if (!thumbnailUrl) {
+            const pic = Array.isArray(itemDetail.pictures) && itemDetail.pictures[0];
+            thumbnailUrl = pic?.secure_url || pic?.url || itemDetail.thumbnail || null;
+            if (thumbnailUrl && thumbnailUrl.startsWith("http://")) {
+              thumbnailUrl = thumbnailUrl.replace("http://", "https://");
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[ML Processor] could not fetch /items/${mlItemId}: ${err.message}`);
+        }
+      }
+
       const externalId = mlItemId || `meli-${order.id}-${mlItem.item?.id || 0}`;
 
       const product = await upsertProductBySku({
