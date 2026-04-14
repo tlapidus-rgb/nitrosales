@@ -185,7 +185,26 @@ function OrdersPageInner() {
             if (res.status >= 500 && attempt < MAX_RETRIES) continue;
             throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
           }
-          setData(await res.json());
+          const raw = await res.json();
+          // Sesion 22: normalizar http:// -> https:// en imageUrls para evitar
+          // mixed content block del browser (imagenes rotas).
+          const toHttps = (u?: string | null) =>
+            u && /^http:\/\//i.test(u) ? u.replace(/^http:\/\//i, "https://") : u || undefined;
+          if (raw?.recentOrders) {
+            raw.recentOrders = raw.recentOrders.map((o: any) => ({
+              ...o,
+              items: Array.isArray(o.items)
+                ? o.items.map((it: any) => ({ ...it, imageUrl: toHttps(it?.imageUrl) }))
+                : o.items,
+            }));
+          }
+          if (raw?.topProducts) {
+            raw.topProducts = raw.topProducts.map((p: any) => ({
+              ...p,
+              imageUrl: toHttps(p?.imageUrl),
+            }));
+          }
+          setData(raw);
           return; // success
         } catch (e: any) {
           if (cancelled) return;
@@ -217,7 +236,11 @@ function OrdersPageInner() {
     const meliNeedsEnrich = data.recentOrders.filter((o) => {
       if (o.source !== "MELI") return false;
       if (!o.items || o.items.length === 0) return true;
-      return o.items.some((item: any) => !item.imageUrl);
+      // Sesion 22: tambien considerar http:// como "falta" porque el browser
+      // bloquea mixed content y la imagen se rompe visualmente.
+      return o.items.some((item: any) =>
+        !item.imageUrl || /^http:\/\//i.test(item.imageUrl)
+      );
     });
     if (meliNeedsEnrich.length === 0) return;
 
