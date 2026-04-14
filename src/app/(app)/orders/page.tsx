@@ -104,6 +104,62 @@ function parseSourceParam(raw: string | null): SourceValue {
   return (VALID_SOURCES as string[]).includes(upper) ? (upper as SourceValue) : "ALL";
 }
 
+// Sesion 22: Thumbnail con fallback visual robusto. Si la URL falla (mixed
+// content, 403, 404, hotlink bloqueado), muestra el badge de la source
+// (ML amarillo / VTX indigo) en lugar del icono roto del browser.
+function ProductThumb({
+  src,
+  source,
+  size = 48,
+  rounded = "rounded-xl",
+  onClickZoom,
+}: {
+  src?: string | null;
+  source?: "MELI" | "VTEX" | string;
+  size?: number;
+  rounded?: string;
+  onClickZoom?: (src: string) => void;
+}) {
+  const [errored, setErrored] = useState(false);
+  const isMeli = source === "MELI";
+  const normalized =
+    src && /^http:\/\//i.test(src) ? src.replace(/^http:\/\//i, "https://") : src;
+
+  if (!normalized || errored) {
+    return (
+      <div
+        className={`${rounded} flex items-center justify-center flex-shrink-0 ${
+          isMeli ? "bg-yellow-50 border border-yellow-200/60" : "bg-indigo-50 border border-indigo-200/60"
+        }`}
+        style={{ width: size, height: size }}
+      >
+        <span className={`text-[10px] font-bold ${isMeli ? "text-yellow-600" : "text-indigo-600"}`}>
+          {isMeli ? "ML" : "VTX"}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`${rounded} flex-shrink-0 overflow-hidden bg-slate-50 border border-slate-100 ${
+        onClickZoom ? "cursor-pointer" : ""
+      }`}
+      style={{ width: size, height: size, boxShadow: "0 1px 4px rgba(15,23,42,0.06)" }}
+      onClick={onClickZoom ? (e) => { e.stopPropagation(); onClickZoom(normalized); } : undefined}
+    >
+      <img
+        src={normalized}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        className="w-full h-full object-cover"
+        onError={() => setErrored(true)}
+      />
+    </div>
+  );
+}
+
 function OrdersPageInner() {
   const router = useRouter();
   const pathname = usePathname();
@@ -940,9 +996,13 @@ function OrdersPageInner() {
             {data.topProducts.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3 py-1.5">
                 <span className="text-xs font-bold text-slate-400 w-5 text-right">{i + 1}</span>
-                <div className="w-8 h-8 rounded flex-shrink-0 cursor-pointer overflow-hidden bg-slate-100" onClick={() => p.imageUrl && setZoomedImage(p.imageUrl)}>
-                  {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-slate-400 m-auto mt-2" />}
-                </div>
+                <ProductThumb
+                  src={p.imageUrl}
+                  source="VTEX"
+                  size={32}
+                  rounded="rounded"
+                  onClickZoom={(s) => setZoomedImage(s)}
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-slate-800 truncate">{p.name}</p>
                   <p className="text-[10px] text-slate-400">{p.brand} - {p.category}</p>
@@ -1078,21 +1138,12 @@ function OrdersPageInner() {
 
                 {/* ─── Main card row — PRODUCT-FIRST layout ─── */}
                 <div className="flex items-center gap-4 pl-5 pr-5 py-4">
-                  {/* Product image (hero) — first product or source badge */}
-                  {order.items && order.items.length > 0 && order.items[0].imageUrl ? (
-                    <div className="w-12 h-12 rounded-xl flex-shrink-0 overflow-hidden bg-slate-50 border border-slate-100"
-                      style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.06)" }}>
-                      <img src={order.items[0].imageUrl} alt="" className="w-full h-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${isMeli ? "bg-yellow-50 border border-yellow-200/60" : "bg-indigo-50 border border-indigo-200/60"}`}>
-                      {isMeli ? (
-                        <span className="text-xs font-bold text-yellow-600">ML</span>
-                      ) : (
-                        <span className="text-xs font-bold text-indigo-600">VTX</span>
-                      )}
-                    </div>
-                  )}
+                  {/* Product image (hero) — first product or source badge (con fallback robusto) */}
+                  <ProductThumb
+                    src={order.items && order.items.length > 0 ? order.items[0].imageUrl : null}
+                    source={order.source}
+                    size={48}
+                  />
 
                   {/* Product name + sale details (hero info) */}
                   <div className="flex-1 min-w-0">
@@ -1163,15 +1214,9 @@ function OrdersPageInner() {
                   <div className="flex items-center gap-1.5 pl-5 pb-3 -mt-1">
                     <div className="flex -space-x-1.5">
                       {order.items.slice(1, 6).map((item: any, idx: number) => (
-                        <div key={idx} className="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 border-2 border-white flex-shrink-0"
+                        <div key={idx} className="border-2 border-white rounded-lg flex-shrink-0"
                           style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}>
-                          {item.imageUrl ? (
-                            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Package size={10} className="text-slate-300" />
-                            </div>
-                          )}
+                          <ProductThumb src={item.imageUrl} source={order.source} size={24} rounded="rounded-md" />
                         </div>
                       ))}
                       {order.items.length > 6 && (
@@ -1208,10 +1253,12 @@ function OrdersPageInner() {
                             {order.items.map((item: any, idx: number) => (
                               <div key={idx} className="flex items-center gap-3 bg-white rounded-xl px-3.5 py-3 border border-slate-200/60 hover:border-slate-300/80 group/item"
                                 style={{ boxShadow: "0 1px 4px rgba(15,23,42,0.04)", transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
-                                <div className="w-14 h-14 rounded-xl flex-shrink-0 overflow-hidden bg-slate-50 cursor-pointer border border-slate-100"
-                                  onClick={(e) => { e.stopPropagation(); item.imageUrl && setZoomedImage(item.imageUrl); }}>
-                                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package size={20} className="text-slate-300 m-auto mt-4" />}
-                                </div>
+                                <ProductThumb
+                                  src={item.imageUrl}
+                                  source={order.source}
+                                  size={56}
+                                  onClickZoom={(s) => setZoomedImage(s)}
+                                />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs text-slate-800 font-semibold truncate leading-tight">{item.name || "Producto sin nombre"}</p>
                                   <div className="flex items-center gap-2 mt-1.5">
