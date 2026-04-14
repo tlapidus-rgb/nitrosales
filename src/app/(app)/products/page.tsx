@@ -101,6 +101,27 @@ interface SortState { column: string | null; direction: "asc" | "desc" | null; }
 
 function toDateInputValue(d: Date) { return d.toISOString().split("T")[0]; }
 
+function ProductImage({ src, name }: { src: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div className="w-10 h-10 rounded bg-gray-100 border border-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400 text-[10px] font-medium">
+        {name.slice(0, 2).toUpperCase()}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={name}
+      className="w-10 h-10 rounded object-cover bg-white border border-gray-200 flex-shrink-0"
+      referrerPolicy="no-referrer"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function Sparkline({ data, color }: { data: number[]; color: string }) {
   if (!data || data.length === 0) return <div className="w-[60px] h-[24px]" />;
   return (
@@ -720,6 +741,10 @@ export default function ProductsPage() {
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; name: string } | null>(null);
   const [stockAlertsPage, setStockAlertsPage] = useState(1);
   const [deadStockPage, setDeadStockPage] = useState(1);
+  const [deadStockSearch, setDeadStockSearch] = useState("");
+  const [deadStockBrand, setDeadStockBrand] = useState<string>("all");
+  const [deadStockCategory, setDeadStockCategory] = useState<string>("all");
+  const [deadStockSort, setDeadStockSort] = useState<{ column: string; direction: "asc" | "desc" }>({ column: "valor", direction: "desc" });
   const [bagsAnalytics, setBagsAnalytics] = useState<BagsAnalytics | null>(null);
   const [summary, setSummary] = useState<{ totalOrders30d: number; totalItems30d: number; totalRevenue30d: number } | null>(null);
 
@@ -1057,10 +1082,67 @@ export default function ProductsPage() {
   const stockAlertsPaginated = useMemo(() => { const s = (stockAlertsPage - 1) * STOCK_ITEMS_PER_PAGE; return stockAlerts.slice(s, s + STOCK_ITEMS_PER_PAGE); }, [stockAlerts, stockAlertsPage]);
   const stockAlertsTotalPages = Math.ceil(stockAlerts.length / STOCK_ITEMS_PER_PAGE);
 
-  const deadStock = useMemo(() => filtered.filter((p) => p.stockData.isDead).sort((a, b) => (b.stock ?? 0) * b.avgPrice - (a.stock ?? 0) * a.avgPrice), [filtered]);
+  const deadStockBase = useMemo(() => filtered.filter((p) => p.stockData.isDead), [filtered]);
+  const deadStockBrandOptions = useMemo(() => {
+    const s = new Set<string>();
+    deadStockBase.forEach((p) => { if (p.brand) s.add(p.brand); });
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [deadStockBase]);
+  const deadStockCategoryOptions = useMemo(() => {
+    const s = new Set<string>();
+    deadStockBase.forEach((p) => { if (p.category) s.add(p.category); });
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [deadStockBase]);
+  const deadStock = useMemo(() => {
+    const q = deadStockSearch.trim().toLowerCase();
+    let out = deadStockBase.filter((p) => {
+      if (deadStockBrand !== "all" && (p.brand || "") !== deadStockBrand) return false;
+      if (deadStockCategory !== "all" && (p.category || "") !== deadStockCategory) return false;
+      if (q && !(p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q))) return false;
+      return true;
+    });
+    const dir = deadStockSort.direction === "asc" ? 1 : -1;
+    const markup = (p: ProductMetrics) => {
+      if (p.costPrice == null || p.costPrice <= 0 || p.listPrice == null) return -Infinity;
+      const listNeto = p.listPrice / 1.21;
+      return ((listNeto - p.costPrice) / p.costPrice) * 100;
+    };
+    const daysNoSale = (p: ProductMetrics) => {
+      if (!p.stockData.lastSaleDate) return Number.POSITIVE_INFINITY;
+      return (Date.now() - new Date(p.stockData.lastSaleDate).getTime()) / 86400000;
+    };
+    out = [...out].sort((a, b) => {
+      let av: any = 0, bv: any = 0;
+      switch (deadStockSort.column) {
+        case "producto": av = a.name.toLowerCase(); bv = b.name.toLowerCase(); return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+        case "stock": av = a.stock ?? 0; bv = b.stock ?? 0; break;
+        case "valor": av = (a.stock ?? 0) * a.avgPrice; bv = (b.stock ?? 0) * b.avgPrice; break;
+        case "margen": av = a.marginPct ?? -Infinity; bv = b.marginPct ?? -Infinity; break;
+        case "markup": av = markup(a); bv = markup(b); break;
+        case "visitas": av = a.viewers; bv = b.viewers; break;
+        case "ultimaVenta": av = a.stockData.lastSaleDate ? new Date(a.stockData.lastSaleDate).getTime() : 0; bv = b.stockData.lastSaleDate ? new Date(b.stockData.lastSaleDate).getTime() : 0; break;
+        case "diasSinVenta": av = daysNoSale(a); bv = daysNoSale(b); break;
+        default: av = (a.stock ?? 0) * a.avgPrice; bv = (b.stock ?? 0) * b.avgPrice;
+      }
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+    return out;
+  }, [deadStockBase, deadStockSearch, deadStockBrand, deadStockCategory, deadStockSort]);
   const deadStockPaginated = useMemo(() => { const s = (deadStockPage - 1) * STOCK_ITEMS_PER_PAGE; return deadStock.slice(s, s + STOCK_ITEMS_PER_PAGE); }, [deadStock, deadStockPage]);
-  const deadStockTotalPages = Math.ceil(deadStock.length / STOCK_ITEMS_PER_PAGE);
+  const deadStockTotalPages = Math.max(1, Math.ceil(deadStock.length / STOCK_ITEMS_PER_PAGE));
   const deadStockCapital = useMemo(() => deadStock.reduce((s, p) => s + (p.stock ?? 0) * p.avgPrice, 0), [deadStock]);
+  const toggleDeadStockSort = (col: string) => {
+    setDeadStockSort((prev) => prev.column === col
+      ? { column: col, direction: prev.direction === "asc" ? "desc" : "asc" }
+      : { column: col, direction: "desc" });
+    setDeadStockPage(1);
+  };
+  const deadStockSortIcon = (col: string) => {
+    if (deadStockSort.column !== col) return null;
+    return deadStockSort.direction === "asc"
+      ? <ArrowUp className="w-3 h-3 inline ml-0.5" />
+      : <ArrowDown className="w-3 h-3 inline ml-0.5" />;
+  };
 
   const stockByBrandData = useMemo(() => {
     const m = new Map<string, number>();
@@ -2007,6 +2089,34 @@ export default function ProductsPage() {
               <AlertTriangle className="w-5 h-5" /> Stock Muerto - Capital Inmovilizado
             </h3>
             <p className="text-sm text-red-800 mb-4">Capital total inmovilizado: {formatARS(deadStockCapital)}</p>
+
+            {/* Filters: search + brand + category */}
+            <div className="flex flex-col md:flex-row gap-3 mb-4">
+              <input
+                type="text"
+                value={deadStockSearch}
+                onChange={(e) => { setDeadStockSearch(e.target.value); setDeadStockPage(1); }}
+                placeholder="Buscar por nombre o SKU..."
+                className="flex-1 px-3 py-2 text-sm border border-red-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-red-400 text-red-900 placeholder-red-400"
+              />
+              <select
+                value={deadStockBrand}
+                onChange={(e) => { setDeadStockBrand(e.target.value); setDeadStockPage(1); }}
+                className="px-3 py-2 text-sm border border-red-200 rounded-md bg-white text-red-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+              >
+                <option value="all">Todas las marcas</option>
+                {deadStockBrandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <select
+                value={deadStockCategory}
+                onChange={(e) => { setDeadStockCategory(e.target.value); setDeadStockPage(1); }}
+                className="px-3 py-2 text-sm border border-red-200 rounded-md bg-white text-red-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+              >
+                <option value="all">Todas las categorías</option>
+                {deadStockCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
             {deadStock.length === 0 ? (
               <p className="text-red-700 py-8 text-center">No hay productos con stock muerto.</p>
             ) : (
@@ -2015,14 +2125,14 @@ export default function ProductsPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-red-100 border-b border-red-300">
                       <tr>
-                        <th className="px-6 py-3 text-left font-semibold text-red-900">Producto</th>
-                        <th className="px-6 py-3 text-right font-semibold text-red-900">Stock</th>
-                        <th className="px-6 py-3 text-right font-semibold text-red-900">Valor</th>
-                        <th className="px-6 py-3 text-right font-semibold text-red-900">Margen</th>
-                        <th className="px-6 py-3 text-right font-semibold text-red-900">Markup</th>
-                        <th className="px-6 py-3 text-right font-semibold text-red-900">Visitas</th>
-                        <th className="px-6 py-3 text-left font-semibold text-red-900">Ultima Venta</th>
-                        <th className="px-6 py-3 text-right font-semibold text-red-900">Dias sin Venta</th>
+                        <th onClick={() => toggleDeadStockSort("producto")} className="px-6 py-3 text-left font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Producto{deadStockSortIcon("producto")}</th>
+                        <th onClick={() => toggleDeadStockSort("stock")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Stock{deadStockSortIcon("stock")}</th>
+                        <th onClick={() => toggleDeadStockSort("valor")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Valor{deadStockSortIcon("valor")}</th>
+                        <th onClick={() => toggleDeadStockSort("margen")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Margen{deadStockSortIcon("margen")}</th>
+                        <th onClick={() => toggleDeadStockSort("markup")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Markup{deadStockSortIcon("markup")}</th>
+                        <th onClick={() => toggleDeadStockSort("visitas")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Visitas{deadStockSortIcon("visitas")}</th>
+                        <th onClick={() => toggleDeadStockSort("ultimaVenta")} className="px-6 py-3 text-left font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Última Venta{deadStockSortIcon("ultimaVenta")}</th>
+                        <th onClick={() => toggleDeadStockSort("diasSinVenta")} className="px-6 py-3 text-right font-semibold text-red-900 cursor-pointer select-none hover:bg-red-200/60">Días sin Venta{deadStockSortIcon("diasSinVenta")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-red-200">
@@ -2036,20 +2146,17 @@ export default function ProductsPage() {
                           : null;
                         return (
                           <tr key={p.id} className="hover:bg-red-100/50">
-                            <td className="px-6 py-4 flex items-center gap-3">
-                              {p.imageUrl ? (
-                                <img
-                                  src={p.imageUrl}
-                                  alt={p.name}
-                                  className="w-10 h-10 rounded object-cover bg-white border border-red-200 flex-shrink-0"
-                                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded bg-red-100 border border-red-200 flex-shrink-0 flex items-center justify-center text-red-400 text-xs">—</div>
-                              )}
-                              <div>
-                                <div className="font-medium text-red-900">{p.name}</div>
-                                <div className="text-xs text-red-700">{p.sku || "--"}</div>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <ProductImage src={p.imageUrl} name={p.name} />
+                                <div className="min-w-0">
+                                  <div className="font-medium text-red-900 truncate">{p.name}</div>
+                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                    <span className="text-xs text-red-700 font-mono">{p.sku || "--"}</span>
+                                    {p.brand && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-200 text-red-900 font-medium">{p.brand}</span>}
+                                    {p.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-medium">{p.category}</span>}
+                                  </div>
+                                </div>
                               </div>
                             </td>
                             <td className="px-6 py-4 text-right font-medium text-red-900">{p.stock ?? 0}</td>
