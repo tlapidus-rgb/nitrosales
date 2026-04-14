@@ -188,6 +188,7 @@ export async function GET(request: Request) {
           brand: string | null;
           stock: number | null;
           costPrice: number | null;
+          listPrice: number | null;
           units: bigint;
           revenue: number;
           cogs: number | null;
@@ -196,7 +197,7 @@ export async function GET(request: Request) {
       >`
         WITH master_products AS (
           SELECT DISTINCT ON (sku)
-            id, sku, name, "imageUrl", category, "categoryPath", brand, stock, "costPrice"
+            id, sku, name, "imageUrl", category, "categoryPath", brand, stock, "costPrice", price
           FROM products
           WHERE "organizationId" = ${ORG_ID}
             AND sku IS NOT NULL AND sku != ''
@@ -232,14 +233,18 @@ export async function GET(request: Request) {
           m.brand,
           m.stock,
           m."costPrice"::numeric AS "costPrice",
-          s.units,
-          s.revenue,
-          CASE WHEN m."costPrice" IS NOT NULL
+          m.price::numeric AS "listPrice",
+          -- Sesion 22: LEFT JOIN + COALESCE para incluir todo el catalogo
+          -- (antes era INNER JOIN y escondiamos los productos sin venta,
+          -- lo que rompia la deteccion de stock muerto).
+          COALESCE(s.units, 0)::bigint AS units,
+          COALESCE(s.revenue, 0) AS revenue,
+          CASE WHEN m."costPrice" IS NOT NULL AND s.units IS NOT NULL
             THEN ROUND((s.units * m."costPrice")::numeric)
             ELSE NULL END AS cogs,
-          s.orders
-        FROM sales_by_sku s
-        JOIN master_products m ON m.sku = s.sku
+          COALESCE(s.orders, 0)::bigint AS orders
+        FROM master_products m
+        LEFT JOIN sales_by_sku s ON m.sku = s.sku
       `,
 
       // Query 4: Stock sync metadata
@@ -425,10 +430,16 @@ export async function GET(request: Request) {
       // Margin calculations — prices include 21% IVA, costs do NOT
       const IVA_RATE = 1.21;
       const costPrice = prod.costPrice != null ? Number(prod.costPrice) : null;
+      const listPrice = prod.listPrice != null ? Number(prod.listPrice) : null;
       const cogs = prod.cogs != null ? Number(prod.cogs) : null;
       const revenueNeto = prod.revenue / IVA_RATE; // Revenue sin IVA
       const marginAbs = (costPrice != null && cogs != null && revenueNeto > 0) ? revenueNeto - cogs : null;
       const marginPct = (marginAbs != null && revenueNeto > 0) ? (marginAbs / revenueNeto) * 100 : null;
+      // Sesion 22: para productos sin ventas en el periodo, usar el listPrice
+      // del catalogo como avgPrice — asi el capital inmovilizado del stock
+      // muerto (stock * avgPrice) no se subestima.
+      const avgPriceFallback =
+        unitsSold > 0 ? prod.revenue / unitsSold : (listPrice ?? 0);
 
       return {
         id: prod.productId,
@@ -443,8 +454,8 @@ export async function GET(request: Request) {
         revenue: prod.revenue,
         revenueNeto,
         orders: Number(prod.orders),
-        avgPrice: unitsSold > 0 ? prod.revenue / unitsSold : 0,
-        avgPriceNeto: unitsSold > 0 ? revenueNeto / unitsSold : 0,
+        avgPrice: avgPriceFallback,
+        avgPriceNeto: unitsSold > 0 ? revenueNeto / unitsSold : (listPrice ? listPrice / IVA_RATE : 0),
         costPrice,
         marginPct: marginPct != null ? Math.round(marginPct * 10) / 10 : null,
         marginAbs,
