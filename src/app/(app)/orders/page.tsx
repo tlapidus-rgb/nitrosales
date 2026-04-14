@@ -60,7 +60,7 @@ interface OrdersData extends OrdersV4Namespaces {
   recentOrders: Array<{
     id: string; externalId: string; status: string; totalValue: number; itemCount: number;
     paymentMethod: string; source: string; orderDate: string; customerName: string;
-    customerEmail: string; items: Array<{ name: string | null; imageUrl?: string; quantity: number; unitPrice: number; totalPrice: number }>;
+    customerEmail: string; items: Array<{ name: string | null; sku?: string | null; imageUrl?: string; quantity: number; unitPrice: number; totalPrice: number }>;
     promotionNames: string | null;
     discountValue?: number; shippingCost?: number; channel?: string | null;
     deliveryType?: string | null; shippingCarrier?: string | null;
@@ -1152,10 +1152,18 @@ function OrdersPageInner() {
                         <p className="text-sm font-semibold text-slate-800 truncate leading-tight tracking-tight">
                           {order.items[0].name || "Producto sin nombre"}
                         </p>
-                        <div className="flex items-center gap-1.5 mt-1">
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span className="text-xs text-slate-500 tabular-nums">
                             {order.items[0].quantity} × {formatARS(order.items[0].unitPrice)}
                           </span>
+                          {order.items[0].sku && (
+                            <>
+                              <span className="text-slate-300">·</span>
+                              <span className="text-[10px] font-mono font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
+                                SKU {order.items[0].sku}
+                              </span>
+                            </>
+                          )}
                           {order.items.length > 1 && (
                             <>
                               <span className="text-slate-300">·</span>
@@ -1261,6 +1269,9 @@ function OrdersPageInner() {
                                 />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs text-slate-800 font-semibold truncate leading-tight">{item.name || "Producto sin nombre"}</p>
+                                  {item.sku && (
+                                    <p className="text-[10px] font-mono text-slate-400 mt-0.5 truncate">SKU {item.sku}</p>
+                                  )}
                                   <div className="flex items-center gap-2 mt-1.5">
                                     <span className="text-[11px] text-slate-500 tabular-nums">{item.quantity} × {formatARS(item.unitPrice)}</span>
                                   </div>

@@ -504,7 +504,20 @@ export async function GET(request: NextRequest) {
         LEFT JOIN LATERAL (
           SELECT json_agg(json_build_object(
             'name', p.name,
-            'imageUrl', COALESCE(p."imageUrl", mll."thumbnailUrl"),
+            'sku', p.sku,
+            'imageUrl', COALESCE(
+              p."imageUrl",
+              mll."thumbnailUrl",
+              -- Sesion 22: cuando la orden MELI no tiene imagen propia,
+              -- buscar un producto hermano con el mismo SKU (tipicamente
+              -- el del catalogo VTEX, que siempre tiene imagen).
+              (SELECT p2."imageUrl" FROM products p2
+               WHERE p2."organizationId" = o."organizationId"
+                 AND p2.sku IS NOT NULL AND p2.sku != ''
+                 AND p2.sku = p.sku AND p2.id != p.id
+                 AND p2."imageUrl" IS NOT NULL AND p2."imageUrl" != ''
+               LIMIT 1)
+            ),
             'brand', COALESCE(p.brand,
               (SELECT p2.brand FROM products p2
                WHERE p2."organizationId" = o."organizationId"
