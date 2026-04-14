@@ -489,6 +489,163 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // --- ACTION: sku-orphan-check (Sesion 20) ---
+  // Diagnostica si los productos ML sin categoryPath tienen un SKU coincidente
+  // en un producto VTEX (el canonico) para entender por que no heredan categoria.
+  if (action === "sku-orphan-check") {
+    const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+    // 1. Buscar los top huerfanos por ventas recientes
+    const orderItemsRecent = await prisma.orderItem.findMany({
+      where: {
+        order: {
+          organizationId: ORG_ID,
+          orderDate: { gte: ninetyDaysAgo },
+          status: { notIn: ["CANCELLED", "RETURNED"] },
+        },
+        product: {
+          organizationId: ORG_ID,
+          OR: [{ categoryPath: null }, { categoryPath: "" }],
+        },
+      },
+      select: {
+        quantity: true,
+        product: {
+          select: {
+            id: true,
+            externalId: true,
+            sku: true,
+            name: true,
+            category: true,
+            categoryPath: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    // Agregar por producto
+    const unitsByProduct = new Map<
+      string,
+      {
+        id: string;
+        externalId: string;
+        sku: string | null;
+        name: string;
+        category: string | null;
+        categoryPath: string | null;
+        isActive: boolean;
+        units: number;
+      }
+    >();
+    for (const oi of orderItemsRecent) {
+      if (!oi.product) continue;
+      const pid = oi.product.id;
+      const existing = unitsByProduct.get(pid);
+      if (existing) {
+        existing.units += oi.quantity;
+      } else {
+        unitsByProduct.set(pid, {
+          id: oi.product.id,
+          externalId: oi.product.externalId,
+          sku: oi.product.sku,
+          name: oi.product.name,
+          category: oi.product.category,
+          categoryPath: oi.product.categoryPath,
+          isActive: oi.product.isActive,
+          units: oi.quantity,
+        });
+      }
+    }
+
+    const topOrphans = Array.from(unitsByProduct.values())
+      .sort((a, b) => b.units - a.units)
+      .slice(0, 20);
+
+    // 2. Para cada uno, buscar matches por SKU entre productos con categoryPath
+    const results = await Promise.all(
+      topOrphans.map(async (orphan) => {
+        let matches: Array<{
+          id: string;
+          externalId: string;
+          sku: string | null;
+          name: string;
+          categoryPath: string | null;
+          isActive: boolean;
+        }> = [];
+
+        if (orphan.sku && orphan.sku.trim()) {
+          matches = await prisma.product.findMany({
+            where: {
+              organizationId: ORG_ID,
+              sku: orphan.sku,
+              NOT: { id: orphan.id },
+            },
+            select: {
+              id: true,
+              externalId: true,
+              sku: true,
+              name: true,
+              categoryPath: true,
+              isActive: true,
+            },
+            take: 5,
+          });
+        }
+
+        // Verdict
+        let verdict: string;
+        if (!orphan.sku || !orphan.sku.trim()) {
+          verdict = "SIN_SKU";
+        } else if (matches.length === 0) {
+          verdict = "SKU_SIN_GEMELO";
+        } else {
+          const withPath = matches.filter((m) => m.categoryPath && m.categoryPath.trim());
+          if (withPath.length > 0) {
+            verdict = "GEMELO_CON_PATH"; // Se podria heredar
+          } else {
+            verdict = "GEMELO_SIN_PATH"; // Ambos huerfanos
+          }
+        }
+
+        return {
+          orphan: {
+            id: orphan.id,
+            externalId: orphan.externalId,
+            sku: orphan.sku,
+            name: orphan.name,
+            category: orphan.category,
+            isActive: orphan.isActive,
+            units: orphan.units,
+          },
+          matches,
+          verdict,
+        };
+      })
+    );
+
+    // Contadores para resumen
+    const summary = {
+      total: results.length,
+      SIN_SKU: results.filter((r) => r.verdict === "SIN_SKU").length,
+      SKU_SIN_GEMELO: results.filter((r) => r.verdict === "SKU_SIN_GEMELO").length,
+      GEMELO_CON_PATH: results.filter((r) => r.verdict === "GEMELO_CON_PATH").length,
+      GEMELO_SIN_PATH: results.filter((r) => r.verdict === "GEMELO_SIN_PATH").length,
+    };
+
+    return NextResponse.json({
+      summary,
+      interpretacion: {
+        SIN_SKU: "El producto huerfano no tiene SKU cargado -> no se puede matchear.",
+        SKU_SIN_GEMELO: "Tiene SKU pero no existe otro producto con el mismo SKU. Contradice la hipotesis de Tomy.",
+        GEMELO_CON_PATH: "Existe gemelo con categoryPath. Se puede heredar en bulk.",
+        GEMELO_SIN_PATH: "Existe gemelo pero tampoco tiene categoryPath. Ambos huerfanos.",
+      },
+      results,
+    });
+  }
+
   // --- ACTION: debug ---
   if (action === "debug") {
     return NextResponse.json({
@@ -1090,6 +1247,7 @@ export async function GET(request: NextRequest) {
       "fix-category-paths": "Backfill Product.categoryPath via VTEX tree walk (?limit=50&offset=0)",
       "bulk-category-paths": "Bulk backfill categoryPath usando el arbol completo VTEX (1 sola llamada). Matching por nombre de categoria.",
       "uncategorized-breakdown": "Diagnostico de productos sin categoryPath: cuantos activos, con stock, con ventas recientes, sample.",
+      "sku-orphan-check": "Para los top 20 huerfanos con ventas, chequea si hay gemelo por SKU que tenga categoryPath.",
       deduplicate: "Find duplicate products",
     },
   });
