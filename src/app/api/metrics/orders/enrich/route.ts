@@ -228,25 +228,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ enriched: fastEnriched });
     }
 
-    // Find earliest order date to narrow search — solo sobre las no resueltas
-    const sortedDates = unresolvedOrders
-      .map(o => o.orderDate)
-      .filter(Boolean)
-      .sort((a, b) => a!.getTime() - b!.getTime());
-    const earliestDate = sortedDates[0] || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const searchFrom = earliestDate.toISOString().slice(0, 10) + "T00:00:00.000-03:00";
-
     // Build lookup map: externalId → DB order (solo las no resueltas por fast path)
     const neededIds = new Set(unresolvedOrders.map(o => o.externalId).filter(Boolean));
     const orderByExtId = new Map(unresolvedOrders.map(o => [o.externalId, o]));
 
-    // Fetch via ML Search API
+    // Fetch via ML direct-by-id API
     const enrichedMap: Record<string, any[]> = {};
     const allItemIds = new Set<string>(); // Collect item IDs for thumbnail fetch
-    let offset = 0;
-    const batchSize = 50;
-    const maxPages = 3;
-    let pagesScanned = 0;
     const startTime = Date.now();
     const TIMEOUT_MS = 25_000;
 
@@ -262,45 +250,33 @@ export async function POST(req: NextRequest) {
       extId: string;
     }>> = {};
 
-    while (Object.keys(rawItemsMap).length < neededIds.size && pagesScanned < maxPages) {
-      if (Date.now() - startTime > TIMEOUT_MS) break;
+    // Sesión 22: En vez de paginar orders/search (limitado a 150 recientes),
+    // pegarle directo a GET /orders/{id} por cada order no resuelta.
+    // Funciona para órdenes de CUALQUIER fecha.
+    const CONCURRENCY = 5;
+    const orderExtIds = Array.from(neededIds);
 
-      const searchUrl = `${ML_API_BASE}/orders/search?seller=${mlUserId}&sort=date_desc&limit=${batchSize}&offset=${offset}&order.date_created.from=${encodeURIComponent(searchFrom)}`;
-
-      let res: Response;
+    async function fetchOneOrder(extId: string) {
+      if (Date.now() - startTime > TIMEOUT_MS) return;
       try {
-        res = await fetch(searchUrl, {
+        const res = await fetch(`${ML_API_BASE}/orders/${extId}`, {
           headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(8000),
         });
-      } catch {
-        break;
-      }
-
-      if (!res.ok) {
-        console.error(`[Enrich API] ML search ${res.status}`);
-        break;
-      }
-
-      const data = await res.json();
-      const results = data.results || [];
-      if (results.length === 0) break;
-
-      for (const mlOrder of results) {
-        const extId = String(mlOrder.id);
-        if (!neededIds.has(extId)) continue;
-
+        if (!res.ok) {
+          console.error(`[Enrich API] ML order ${extId} -> ${res.status}`);
+          return;
+        }
+        const mlOrder = await res.json();
         const mlItems = mlOrder.order_items || [];
-        if (mlItems.length === 0) continue;
-
+        if (mlItems.length === 0) return;
         const dbOrder = orderByExtId.get(extId);
-        if (!dbOrder) continue;
+        if (!dbOrder) return;
 
         const items: typeof rawItemsMap[string] = [];
         for (const mlItem of mlItems) {
           const mlItemId = String(mlItem.item?.id || "");
           if (mlItemId) allItemIds.add(mlItemId);
-
           items.push({
             mlItemId,
             title: mlItem.item?.title || "ML Item",
@@ -312,15 +288,19 @@ export async function POST(req: NextRequest) {
             extId,
           });
         }
-
         rawItemsMap[dbOrder.id] = items;
+      } catch (err: any) {
+        console.error(`[Enrich API] fetchOne ${extId} err:`, err.message);
       }
-
-      const total = data.paging?.total || 0;
-      offset += batchSize;
-      pagesScanned++;
-      if (offset >= total) break;
     }
+
+    // Procesar en chunks concurrentes
+    for (let i = 0; i < orderExtIds.length; i += CONCURRENCY) {
+      if (Date.now() - startTime > TIMEOUT_MS) break;
+      const chunk = orderExtIds.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(fetchOneOrder));
+    }
+
 
     // Step 2: Fetch thumbnails from ML Items API (batch)
     const thumbnailMap = await fetchThumbnails(
@@ -330,9 +310,20 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Enrich API] Fetched ${thumbnailMap.size} thumbnails for ${allItemIds.size} items`);
 
+    // Pre-contar items existentes para decidir si crear o no (evitar duplicados)
+    const existingItemCount = await prisma.orderItem.groupBy({
+      by: ["orderId"],
+      where: { orderId: { in: Object.keys(rawItemsMap) } },
+      _count: { _all: true },
+    }).catch(() => [] as Array<{ orderId: string; _count: { _all: number } }>);
+    const existingCountMap = new Map(
+      (existingItemCount as any[]).map(x => [x.orderId, x._count._all])
+    );
+
     // Step 3: Save to DB and build response with thumbnails
     for (const [dbOrderId, items] of Object.entries(rawItemsMap)) {
       const enrichedItems: any[] = [];
+      const orderAlreadyHasItems = (existingCountMap.get(dbOrderId) || 0) > 0;
 
       for (const item of items) {
         // Best image: Items API > order API thumbnail
@@ -365,15 +356,20 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          await prisma.orderItem.create({
-            data: {
-              orderId: dbOrderId,
-              productId: product.id,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              totalPrice: item.unitPrice * item.quantity,
-            } as any,
-          }).catch(() => {}); // duplicate
+          // Solo crear order_item si la orden NO tenía items (evitar duplicar).
+          // Si ya tiene items, solo actualizamos el producto (que es lo que importa
+          // para la imagen, ya que order_items usa COALESCE(p.imageUrl, ml.thumbnailUrl)).
+          if (!orderAlreadyHasItems) {
+            await prisma.orderItem.create({
+              data: {
+                orderId: dbOrderId,
+                productId: product.id,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalPrice: item.unitPrice * item.quantity,
+              } as any,
+            }).catch(() => {});
+          }
         } catch {
           // DB save failed, still show inline
         }
