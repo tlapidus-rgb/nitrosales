@@ -841,7 +841,9 @@ export default function ProductsPage() {
       setPixelConversionLoading(true);
       setPixelConversionError(null);
       try {
-        const res = await fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}`);
+        // Sesion 22: endpoint liviano dedicado a Conversion Rate (6 queries)
+        // en vez del endpoint pesado /api/metrics/pixel (25 queries).
+        const res = await fetch(`/api/metrics/conversion?from=${dateFrom}&to=${dateTo}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
