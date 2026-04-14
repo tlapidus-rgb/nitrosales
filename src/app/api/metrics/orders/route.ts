@@ -504,7 +504,13 @@ export async function GET(request: NextRequest) {
         LEFT JOIN LATERAL (
           SELECT json_agg(json_build_object(
             'name', p.name,
-            'sku', p.sku,
+            -- Sesion 22: si p.sku esta vacio, para VTEX usamos externalId
+            -- (que es el SKU id numerico de VTEX, valido como identificador).
+            -- Para MELI no, porque externalId es MLA listing id (no util).
+            'sku', COALESCE(
+              NULLIF(p.sku, ''),
+              CASE WHEN o.source = 'VTEX' THEN NULLIF(p."externalId", '') ELSE NULL END
+            ),
             'imageUrl', COALESCE(
               p."imageUrl",
               mll."thumbnailUrl",
