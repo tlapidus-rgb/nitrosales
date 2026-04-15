@@ -44,14 +44,6 @@
     {
       "path": "/api/cron/ads-utm-audit?key=nitrosales-secret-key-2024-production",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/ads-sync-hourly?key=nitrosales-secret-key-2024-production",
-      "schedule": "5 * * * *"
-    },
-    {
-      "path": "/api/cron/ads-sync-daily?key=nitrosales-secret-key-2024-production",
-      "schedule": "0 4 * * *"
     }
   ]
 }

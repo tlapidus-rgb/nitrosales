@@ -122,12 +122,29 @@ export function useSyncStatus(platform: Platform): SyncStatus {
     }
   }, [platform, isSyncing, lastSyncAt, startPolling]);
 
-  // On mount: solo chequear lastSyncAt (NO auto-disparar sync).
-  // Los datos los refrescan los crons (hourly + daily). El usuario
-  // tiene un boton manual disponible via triggerSync() si necesita
-  // forzar refresh.
+  // On mount: check freshness and auto-trigger if stale
   useEffect(() => {
-    checkStatus();
+    let cancelled = false;
+
+    (async () => {
+      const syncAt = await checkStatus();
+      if (cancelled) return;
+
+      if (!syncAt) {
+        // Never synced — trigger
+        triggerSync();
+        return;
+      }
+
+      const age = Date.now() - new Date(syncAt).getTime();
+      if (age > STALE_MS) {
+        triggerSync();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
