@@ -4,14 +4,14 @@
 // asi siempre devuelve algo si el adSet tiene creativos asignados.
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/db/client";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
-const ORG_ID = "org_demo_nitrosales";
-
 export async function GET(req: NextRequest) {
   try {
+    const ORG_ID = await getOrganizationId();
     const { searchParams } = new URL(req.url);
     const adSetId = searchParams.get("adSet");
     const fromParam = searchParams.get("from");
