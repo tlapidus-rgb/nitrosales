@@ -1374,9 +1374,9 @@ export default function CreativosLabPage() {
     (async () => {
       setAdSetCreativesLoading(true);
       try {
+        // Endpoint dedicado: trae todos los AdCreative del adSet sin filtros
         const params = new URLSearchParams({ from: dateFrom, to: dateTo, adSet: selectedAdSetId });
-        if (platformView !== "ALL") params.set("platform", platformView);
-        const res = await fetch(`/api/metrics/ads?${params.toString()}`);
+        const res = await fetch(`/api/metrics/ads/by-adset?${params.toString()}`);
         const j = await res.json();
         if (!cancelled) setAdSetCreatives(j?.creatives || []);
       } catch (e) {
