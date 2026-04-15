@@ -286,7 +286,11 @@ export async function GET(request: Request) {
         const videoP75 = c.dailyMetrics.reduce((s, m) => s + ((m as any).videoP75Watched || 0), 0) || null;
         const videoP100 = c.dailyMetrics.reduce((s, m) => s + ((m as any).videoP100Watched || 0), 0) || null;
 
-        const isVideo = videoPlays !== null && videoPlays > 0;
+        // Source of truth: c.type (sincronizado desde Meta/Google: IMAGE/VIDEO/CAROUSEL/etc).
+        // Solo caemos a heuristica de videoPlays cuando el type no esta seteado (UNKNOWN),
+        // para no marcar como video los carouseles, imagenes ni responsive ads.
+        const isVideo = c.type === "VIDEO"
+          || (c.type === "UNKNOWN" && videoPlays !== null && videoPlays > 0);
         const roas = spend > 0 ? Math.round((conversionValue / spend) * 100) / 100 : 0;
 
         // ── Video metrics ──
