@@ -1325,6 +1325,28 @@ function SEOPageInner() {
             }
           />
           <KeywordsTable keywords={filteredKeywords} loading={loading} />
+          {!loading && filteredKeywords.length > 0 && (
+            <AurumSectionCard
+              section="seo.keywords"
+              contextLabel="Todas tus keywords"
+              contextData={{
+                totalKeywords: filteredKeywords.length,
+                top15: filteredKeywords.slice(0, 15).map((k: any) => ({
+                  keyword: k.keyword,
+                  clicks: k.clicks,
+                  impressions: k.impressions,
+                  ctr: k.ctr,
+                  position: k.position,
+                  positionChange: k.positionChange ?? null,
+                })),
+              }}
+              suggestions={[
+                "¿Cuáles son las ganadoras obvias?",
+                "¿Cuál tiene más upside si la trabajo?",
+                "¿Hay alguna que me esté sorprendiendo?",
+              ]}
+            />
+          )}
         </section>
 
         {/* ═══ 8. TOP PÁGINAS ═══ */}
@@ -1341,6 +1363,28 @@ function SEOPageInner() {
             }
           />
           <PagesTable pages={filteredPages} loading={loading} />
+          {!loading && filteredPages.length > 0 && (
+            <AurumSectionCard
+              section="seo.pages"
+              contextLabel="Páginas con más tráfico orgánico"
+              contextData={{
+                totalPages: filteredPages.length,
+                top10: filteredPages.slice(0, 10).map((p: any) => ({
+                  url: p.url,
+                  clicks: p.clicks,
+                  impressions: p.impressions,
+                  ctr: p.ctr,
+                  avgPosition: p.avgPosition,
+                  keywordCount: p.keywordCount,
+                })),
+              }}
+              suggestions={[
+                "¿Qué página tengo que reforzar primero?",
+                "¿Alguna está rindiendo menos de lo que debería?",
+                "¿Qué patrones veo en las top?",
+              ]}
+            />
+          )}
         </section>
 
         {/* ═══ 9. CANIBALIZACIÓN ═══ */}

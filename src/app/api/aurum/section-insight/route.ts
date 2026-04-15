@@ -56,6 +56,8 @@ function buildSectionPrompt(section: string, contextLabel: string, contextData: 
     "seo.movers.lost": "Enfocate en qué keywords perdidas vale la pena recuperar vs cuáles dejar ir.",
     "seo.cannibalization": "Enfocate en qué par/terna de páginas resolver primero por impacto.",
     "seo.device": "Enfocate en el mix mobile/desktop y qué acción concreta tomar según el dominante.",
+    "seo.keywords": "Enfocate en la lista de keywords: cuáles son las ganadoras obvias, cuáles sorprenden (alto CTR o alta impresión con buena posición) y sobre cuáles accionar primero. No enumeres todas — destacá 2-3 patrones o keywords clave.",
+    "seo.pages": "Enfocate en las páginas que más tráfico orgánico traen: cuáles son las estrella, cuáles deberían traer más de lo que traen (muchas keywords pero pocos clicks) y qué página priorizar para trabajar.",
   };
 
   const focus = sectionFocus[section] || "Enfocate solo en la data de esta tab.";
