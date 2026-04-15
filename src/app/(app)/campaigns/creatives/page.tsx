@@ -1014,6 +1014,7 @@ function DrilldownView({
   selectedAdSetId,
   setSelectedCampaignId,
   setSelectedAdSetId,
+  galleryCreatives,
   adSetCreatives,
   adSetCreativesLoading,
   onSelectCreative,
@@ -1029,10 +1030,18 @@ function DrilldownView({
     return selectedCampaign.adSets?.find((s: any) => s.id === selectedAdSetId) || null;
   }, [selectedCampaign, selectedAdSetId]);
 
+  // L2: combinar 3 fuentes para no quedar nunca vacios cuando el adset
+  // tiene creativos en realidad:
+  // 1. Filtro client-side de la galeria (tiene clasificacion/funnel)
+  // 2. Fetch dedicado a /by-adset (trae todos los AdCreative de la DB)
+  // Preferimos by-adset (mas completo). Si esta vacio, caemos al filtro de galeria.
   const sortedAdSetCreatives = useMemo(() => {
-    if (!adSetCreatives) return [];
-    return [...adSetCreatives].sort((a: any, b: any) => b.spend - a.spend);
-  }, [adSetCreatives]);
+    if (!selectedAdSet) return [];
+    const fromBy = adSetCreatives && adSetCreatives.length > 0 ? adSetCreatives : null;
+    const fromGallery = (galleryCreatives || []).filter((c: any) => c.adSetId === selectedAdSet.id);
+    const list = fromBy || fromGallery;
+    return [...list].sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0));
+  }, [adSetCreatives, galleryCreatives, selectedAdSet]);
 
   const googleTypeCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: 0 };
@@ -1741,6 +1750,7 @@ export default function CreativosLabPage() {
             selectedAdSetId={selectedAdSetId}
             setSelectedCampaignId={setSelectedCampaignId}
             setSelectedAdSetId={setSelectedAdSetId}
+            galleryCreatives={data?.creatives || []}
             adSetCreatives={adSetCreatives}
             adSetCreativesLoading={adSetCreativesLoading}
             onSelectCreative={setSelectedCreative}
