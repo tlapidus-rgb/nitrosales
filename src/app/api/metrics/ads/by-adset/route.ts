@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
         by: ["adSetId"],
         where: adSetExists ? { organizationId: adSetExists.organizationId, adSetId: { not: null } } as any : {},
         _count: { _all: true },
+        orderBy: { adSetId: "asc" },
         take: 5,
       });
       return NextResponse.json({
