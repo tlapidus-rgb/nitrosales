@@ -270,6 +270,12 @@ export async function GET(
     // por ahora (no hay campo en schema); el front muestra el botón solo si existe.
     const whatsapp: string | null = null;
 
+    // Links: tracking (al store) + dashboard público del creador (en la app)
+    const storeUrl = process.env.STORE_URL || "https://elmundodeljuguete.com.ar";
+    const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const trackingLink = `${storeUrl}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
+    const dashboardUrl = `${appUrl}/i/${org.slug}/${influencer.code}`;
+
     return NextResponse.json({
       creator: {
         id: influencer.id,
@@ -283,6 +289,8 @@ export async function GET(
         isPublicDashboardEnabled: influencer.isPublicDashboardEnabled,
         createdAt: influencer.createdAt.toISOString(),
         whatsapp,
+        trackingLink,
+        dashboardUrl,
         coupons: coupons.map((c: any) => ({
           id: c.id,
           code: c.code,

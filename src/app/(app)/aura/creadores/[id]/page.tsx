@@ -129,6 +129,8 @@ type CreatorInfo = {
   isPublicDashboardEnabled: boolean;
   createdAt: string;
   whatsapp: string | null;
+  trackingLink?: string;
+  dashboardUrl?: string;
   coupons: { id: string; code: string; discountPercent: number | null; discountFixed: number | null }[];
 };
 type Kpis = {
@@ -279,6 +281,7 @@ export default function CreatorProfilePage() {
   const [editOpen, setEditOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedDashboard, setCopiedDashboard] = useState(false);
 
   const load = useMemo(
     () => async () => {
@@ -315,11 +318,22 @@ export default function CreatorProfilePage() {
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 1800);
   };
-  const handleCopyLink = (code: string) => {
-    const url = `${window.location.origin}/?utm_source=influencer&utm_medium=social&utm_campaign=${code}`;
+  const handleCopyLink = (trackingLink: string | undefined, code: string) => {
+    // Fallback si el API no devolvió trackingLink: usar el dominio del store
+    const url =
+      trackingLink ||
+      `https://elmundodeljuguete.com.ar/?utm_source=inf_${code}&utm_medium=influencer`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 1800);
+  };
+  const handleCopyDashboard = (dashboardUrl: string | undefined, code: string) => {
+    const url =
+      dashboardUrl ||
+      `${window.location.origin}/i/elmundodeljuguete/${code}`;
+    navigator.clipboard.writeText(url);
+    setCopiedDashboard(true);
+    setTimeout(() => setCopiedDashboard(false), 1800);
   };
 
   if (state.status === "loading") {
@@ -405,13 +419,18 @@ export default function CreatorProfilePage() {
             animation: `cardIn 520ms ${ES} both`,
           }}
         >
-          {/* Halo decorativo */}
+          {/* Halo decorativo (más grande y suave para que no se vea cortado) */}
           <div
             aria-hidden
-            className="absolute -top-20 -right-20 w-64 h-64 pointer-events-none"
+            className="absolute pointer-events-none"
             style={{
+              top: "-40%",
+              right: "-20%",
+              width: "70%",
+              height: "220%",
               background:
-                "radial-gradient(circle at 30% 30%, rgba(255, 0, 128, 0.18) 0%, rgba(121, 40, 202, 0.10) 35%, transparent 70%)",
+                "radial-gradient(ellipse at 70% 50%, rgba(255, 0, 128, 0.14) 0%, rgba(168, 85, 247, 0.08) 30%, rgba(0, 212, 255, 0.04) 55%, transparent 75%)",
+              filter: "blur(24px)",
             }}
           />
 
@@ -492,24 +511,52 @@ export default function CreatorProfilePage() {
             {/* Action buttons */}
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => handleCopyLink(creator.code)}
+                onClick={() => handleCopyLink(creator.trackingLink, creator.code)}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] font-medium tracking-tight transition"
                 style={{
                   background: THEME.bgCard,
                   border: `1px solid ${THEME.border}`,
                   color: THEME.textPrimary,
                 }}
-                title="Copiar link de afiliado"
+                title={
+                  creator.trackingLink ||
+                  `Copiar link de afiliado al store (UTM: inf_${creator.code})`
+                }
               >
                 {copiedLink ? (
                   <>
                     <Check size={13} strokeWidth={2.4} style={{ color: THEME.green }} />
-                    Copiado
+                    Link copiado
                   </>
                 ) : (
                   <>
                     <Copy size={13} strokeWidth={2} />
-                    Copiar link
+                    Link de venta
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => handleCopyDashboard(creator.dashboardUrl, creator.code)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] font-medium tracking-tight transition"
+                style={{
+                  background: THEME.bgCard,
+                  border: `1px solid ${THEME.border}`,
+                  color: THEME.textPrimary,
+                }}
+                title={
+                  creator.dashboardUrl ||
+                  "Copiar link al dashboard privado del creador"
+                }
+              >
+                {copiedDashboard ? (
+                  <>
+                    <Check size={13} strokeWidth={2.4} style={{ color: THEME.green }} />
+                    Dashboard copiado
+                  </>
+                ) : (
+                  <>
+                    <Copy size={13} strokeWidth={2} />
+                    Dashboard del creador
                   </>
                 )}
               </button>
