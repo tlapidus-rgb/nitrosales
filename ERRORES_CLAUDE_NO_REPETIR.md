@@ -4,7 +4,106 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-14 — Sesión 22**
+> **Última actualización: 2026-04-15 — Sesiones 23-30**
+
+---
+
+## Error #S30-AURUM-HALO — Asumir que entendi el feedback visual sin verificar con el usuario
+
+**Cuándo pasó**: Sesión 30. Tomy comparte screenshot del orb Aurum con anillo Saturno y dice _"la aurora alrededor de la bola está mal diseñada porque se ve la parte que no se debería ver"_. Yo interpreto que habla del halo EXTERIOR de la burbuja y arreglo eso (reemplazo blur div por box-shadow + overflow:hidden). Tomy vuelve con el MISMO screenshot: _"no es que el halo está por fuera de la parte oscura, sino que el halo no da el efecto de que está alrededor del círculo, porque la parte de atrás del halo está por delante del círculo dorado. Fijate bien profundamente"_. Recién ahí entendí que hablaba del anillo Saturno y su oclusión 3D (la mitad de atrás del anillo tenía que pasar detrás de la esfera, no en frente).
+
+### Causa raíz
+- Palabra ambigua ("aurora" / "halo") tiene varios candidatos visuales en la UI (halo exterior de la burbuja, anillo del orb, glow interno). Elegí el primero que se me ocurrió sin preguntar.
+- No le pedí a Tomy que señalara o describiera más específico antes de hacer el cambio.
+
+### Regla
+**Cuando el feedback visual es ambiguo y hay múltiples candidatos en la imagen, NO asumir: pedir clarificación.** Preguntas válidas: "¿te referís al halo exterior de la burbuja, al anillo alrededor del orb, o al glow interno?". O mandar una anotación pidiendo que marque en el screenshot.
+
+**Señal de alarma**: si Tomy comparte el MISMO screenshot dos veces, casi siempre es porque no entendí el feedback la primera vez.
+
+---
+
+## Error #S27-REBUILD — Rediseñar seccion entera sin pedido explicito
+
+**Cuándo pasó**: Sesión 27. En el marco de rebuilding `/campaigns/google` (que SÍ estaba pedido), tambien reescribi el **Overview** de `/campaigns` desde cero con una estructura nueva (cards + jerarquia distinta). Tomy reaccionó: _"restauralo tal cual estaba"_ → commit `4e43d4f` de revert.
+
+### Causa raíz
+- Scope creep: estaba "en zona" tocando `/campaigns` y decidí que el Overview "tambien podía mejorar". Tomy no lo pidió.
+- Confundí "rebuild de /campaigns/google" (pedido explícito) con "rebuild de /campaigns entero" (no pedido).
+
+### Regla
+**Cambios estructurales / rewrites de secciones existentes requieren pedido EXPLICITO.** Si estoy tocando una seccion y veo algo "que se podría mejorar" afuera del scope pedido, **primero preguntar** antes de tocarlo. Un commit revertido es peor que un commit no escrito.
+
+**Antipatrón**: "ya que estoy acá, aprovecho y mejoro también X". Casi siempre termina en revert.
+
+---
+
+## Error #S25-CRONS-PREMATUROS — Agregar crons multi-tenant cuando no hace falta
+
+**Cuándo pasó**: Sesión 25. Agregué crons horarios/diarios multi-tenant para syncar Meta y Google Ads de todas las orgs activas. A la hora volví a revertir a on-demand porque:
+- Hay 1 org activa (no es multi-tenant real todavía).
+- Los crons consumían API quota de Meta y Google sin beneficio (el usuario abre `/campaigns/*` y el sync on-demand dispara con `waitUntil` via `useSyncStatus`).
+- CLAUDE.md ya indicaba sync on-demand para ads (modelo decidido en S17+).
+
+### Causa raíz
+- No consulté CLAUDE.md antes de meter mano en la arquitectura de sync (la tabla del modelo de sync ya decía "on-demand" para Meta/Google).
+- Asumí que "mejor fresco" era universalmente bueno, sin evaluar costo (API quota) ni beneficio real (¿quién necesita datos frescos a las 3am si nadie está mirando?).
+
+### Regla
+**Antes de cambiar la arquitectura de sync, leer la tabla en CLAUDE.md ("Modelo de sync de datos").** Si ya hay una decisión documentada y quiero cambiarla, preguntarle a Tomy PRIMERO con la justificación.
+
+**Criterio para crons vs on-demand**:
+- Usuario abre la pagina y necesita datos → on-demand.
+- Hay multi-tenant real y los datos tienen que estar frescos aunque nadie mire → crons.
+- Hoy (1 org): on-demand gana siempre.
+
+---
+
+## Error #S23-META-VIDEO-FIELDS — Pedir fields en el endpoint equivocado de Meta
+
+**Cuándo pasó**: Sesión 23. Para resolver el video de un creative Meta, pedí `effective_object_story_id` como campo del `/ads` endpoint de Meta Marketing API. Meta devolvía error: ese campo solo vive en `/adcreatives`, no en `/ads`. Además intentaba leer `video_source.source_url` con el user access token, que Meta rechaza — solo `META_PAGE_ACCESS_TOKEN` (el token de la page owner del video) tiene permiso para ese campo.
+
+### Causa raíz
+- Mezclé fields de entidades distintas en Meta (Ad vs AdCreative vs Video). Cada entidad tiene su propio set de fields válidos.
+- Usé el token por default (user token) sin chequear qué token requiere cada campo específico.
+
+### Regla
+**Cuando un call a Meta Marketing API falla por campo inválido**:
+1. Primero confirmar en qué entidad vive ese campo (`/ads`, `/adcreatives`, `/videos`, `/adsets`, `/adaccounts`).
+2. Chequear qué token-scope requiere el campo (user token vs page token vs system user).
+3. `video_source.source_url` en particular: SIEMPRE requiere `META_PAGE_ACCESS_TOKEN` de la page que posee el video.
+
+**Patron de fallback util**: permalink embed de Facebook (`https://www.facebook.com/.../videos/{id}`) funciona siempre sin requerir source_url → siempre tenerlo como backup confiable cuando el source_url es opcional.
+
+---
+
+## Error #S24-L2-METASYNC — Debuggear en UI lo que en realidad era bug en la ingesta
+
+**Cuándo pasó**: Sesión 24. El drilldown L2 (AdSet detail) del Creativos Lab venía vacío para muchos adsets. Invertí 8+ commits intentando fixes en la UI / query / fallbacks:
+- Fetch dedicado por adSet (`165bfbd`)
+- Endpoint `/by-adset` (`4ff2d51`)
+- Fallback a galleryCreatives filtrado (`abdd9d2`)
+- Debug logging (`6697e57`)
+- Fallback a campaña padre (`e694d0b`)
+- No duplicar con multi-adsets (`50c97d9`)
+
+Recién en el commit `188749a` identifiqué el **root cause real**: el sync de Meta **no estaba linkeando** `AdCreative -> AdSet` al upsertear. Sin ese link, cualquier query "creativos por adSet" iba a devolver vacío, no importa qué fallback tuviera.
+
+### Causa raíz
+- Cuando algo viene vacío de la DB, mi primer instinto fue "hagamos más fallbacks en el read path" en vez de "verifiquemos que la ingesta esté guardando el link correctamente".
+- No corrí una query directa a Prisma tipo `AdCreative.findMany({ where: { adSetId: { not: null } } })` para ver si el campo estaba poblado. Si lo hubiera hecho, hubiera visto en 30 segundos que `adSetId` estaba null en casi todos los records.
+
+### Regla
+**Cuando un drilldown / filtro / relación venga vacío, el paso #1 es verificar que el DATO EXISTE en la DB con la relación esperada.** Query directa:
+```ts
+await prisma.adCreative.findMany({ where: { adSetId: { not: null } }, take: 5 })
+```
+
+**Si la relación no existe en la DB, arreglar la INGESTA primero. Después pensar en fallbacks del read-path.**
+
+**Antipatrón**: agregar capas de fallback en el read-path para compensar un bug de la ingesta. Se vuelve código zombi imposible de mantener.
+
+**Conexion con Error #S22-A**: misma regla. Siempre arreglar en la fuente de los datos primero.
 
 ---
 

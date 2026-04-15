@@ -3,7 +3,127 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-14 (Sesion 22 — Stock Muerto + Alerta Quiebre premium light + fix imageUrl en webhook VTEX)
+## Ultima actualizacion: 2026-04-15 (Sesiones 23-30 — Creativos Lab + Google/Meta rebuild + SEO premium + Aurum flotante global)
+
+> Este bloque consolida TODOS los deploys desde el 14-abr tarde hasta el 15-abr (recien). 47 commits a `main` agrupados por sesion/alcance. Documentacion escrita en Sesion 30.
+
+### Sesion 23 — 2026-04-14 tarde/noche — Creativos Lab Phase B1 (endpoints + video fix)
+
+**Objetivo**: arreglar que los videos de Meta no se veian ni reproducian en `/campaigns/creatives` + capa de endpoints para alimentar el Lab jerarquico.
+
+| Commit | Qué |
+|---|---|
+| `88c91c3` | Endpoints nuevos: `/api/media/proxy` (thumbnails anti-CORS), `/api/media/video/[creativeId]` (streaming lazy), `/api/metrics/ads/structure` (jerarquia Meta Campaign->AdSet->Ad + Google por tipo). Filtro `adSet` en `/api/metrics/ads`. |
+| `42e0c02` | Fix videos no se reproducian: UI intentaba reproducir sin `videoUrl` resuelto. |
+| `b508d45` | Video resolver con permalink fallback + HD poster via `thumbnails{}` + diag cuando Meta niega `source_url`. |
+| `62ad20d` | Permalink fallback SIEMPRE disponible (no solo cuando falla source) → embed de video de Facebook como backup confiable. |
+| `14daa52` | Video resolver usa `META_PAGE_ACCESS_TOKEN` (no user token) para leer `video_source.source_url` — es el unico token que Meta acepta para ese campo. |
+| `2d0c288` | Fix: `effective_object_story_id` NO se puede pedir en fields del `/ads` endpoint; solo vive en `/adcreatives`. Movido al sub-request correcto. |
+| `ae72069` | Poster HD via `thumbnails{uri,is_preferred}` en vez de `thumbnail_url` single. UI de error state mejor (placeholder con mensaje). |
+| `df1a28c` | `isVideo` ahora usa `c.type === 'VIDEO'` en vez de inferir desde `videoPlays > 0` (ads nuevos pueden ser video sin plays todavia). |
+| `d6b683f` | Null-check de `videoPlays` en metricas — `isVideo=true` no implica `videoPlays` numerico. |
+| `bd34efb` | Resolver de imagen on-demand + UI "Catalogo Dinamico" como vista por default para creatives con assets sin thumbnails cacheados. |
+
+### Sesion 24 — 2026-04-14 noche — Creativos Lab Phase B2 (drilldown Campaign->AdSet->Ad)
+
+**Objetivo**: agregar drilldown jerarquico al Lab + Google split por tipo de campaña.
+
+| Commit | Qué |
+|---|---|
+| `615aee4` | **Phase B2**: toggle "Galeria / Drilldown" + navegacion Campaign → AdSet → Ad (L1 → L2 → L3) en Meta. Google queda split por tipo (Search / Shopping / PMax / Display / Video). |
+| `1108c6d` | Fix Postgres strict: `mediaUrls`, `type` y `name` debian ir en el `GROUP BY` del structure endpoint. |
+| `8d4eb54` | Fix crash del drilldown: import `ChevronRight` de `lucide-react` faltaba. |
+| `165bfbd` | L2 (AdSet detail) con fetch dedicado de creativos por `adSetId` — no depender de filtros de la galeria general. |
+| `84a625a` | L2 muestra TODOS los creativos del adSet (incluso sin spend). Antes filtraba por spend > 0 y dejaba adsets vacios. |
+| `4ff2d51` | Endpoint dedicado `/api/metrics/ads/by-adset` que devuelve todos los creatives de un adset sin filtros. |
+| `f5609b1` | Fix build: import correcto de `prisma` y `getOrganizationId` en `/by-adset` (habian quedado mal). |
+| `abdd9d2` | Fallback: L2 usa `galleryCreatives.filter(adSetId)` si `/by-adset` devuelve vacio — nunca quedar sin nada. |
+| `6697e57` | Debug: fallback via `AdSet` lookup por `id` o `externalId` + logging detallado cuando L2 venga vacio. |
+| `470ce10` | Fix: Prisma `groupBy` requiere `orderBy` si se usa `_count` — agregado. |
+| `e694d0b` | L2 fallback: si `adSetId` no matchea (PMax / null en Google), usar creativos de la **campana padre**. |
+| `50c97d9` | Fix duplicacion: no usar fallback de campaña cuando hay multiples adsets — duplicaba creativos entre adsets. |
+| `188749a` | **ROOT CAUSE L2 vacio**: el sync de Meta no linkeaba `AdCreative -> AdSet`. Fix en `/api/sync/meta`: resolver `adSetId` desde `ad.adset_id` al upsertear el AdCreative. |
+
+### Sesion 25 — 2026-04-14 noche — Intento de crons para ads-sync (REVERTIDO)
+
+| Commit | Qué |
+|---|---|
+| `ea230cc` | Feat: crons multi-tenant (horario para Meta, diario para Google) que llamaban `/api/sync/meta` y `/api/sync/google` para todas las orgs activas. |
+| `743ab9d` | **Revert**: volver al modelo on-demand. Razon: con la escala actual (1 org activa) los crons eran overkill y consumian API quota sin beneficio. On-demand al abrir `/campaigns/*` + `useSyncStatus` sigue siendo mejor. |
+
+> **Decision arquitectonica**: Meta/Google Ads se syncan on-demand por ahora. Volver a crons solo cuando haya multi-tenant real o el usuario necesite datos frescos sin abrir la pagina.
+
+### Sesion 26 — 2026-04-15 mañana — Google Creativos rediseño premium + datos rich
+
+| Commit | Qué |
+|---|---|
+| `3aa9309` | Panel izquierdo rico para Google Search y PMax en Creativos Lab (headlines, descriptions, extensions, final URL, paths). |
+| `3f018ca` | Self-heal de la columna `metadata` en google-sync: si la migracion no corrio, el sync crea la columna idempotentemente (evita fallas silenciosas). |
+| `4b313f8` | Capa de datos rich para creativos Google: `metadata` JSONB con `headlines[]`, `descriptions[]`, `paths[]`, `finalUrl`, `extensions{}` persistidos por creative. |
+| `6366884` | Rediseño premium del tab "Creativos" por tipo de campaña: Search SERP-style mock, Shopping cards, PMax asset groups, Display/Video placeholders. |
+| `48f7ba1` | Fix TDZ: `useEffect` referenciaba `fetchData` antes de su declaracion → `ReferenceError` en mount. Reordenado. |
+| `fda03f8` | Fix UI: los KPIs de PMax hacian wrap del valor cuando era grande → `whitespace-nowrap` + `font-size: 15px`. |
+
+### Sesion 27 — 2026-04-15 mañana — Meta subsection + Overview rebuild + revert
+
+| Commit | Qué |
+|---|---|
+| `011e7dd` | Rebuild premium `/campaigns/google` con arquitectura por tipo (mismo approach del Lab). |
+| `e347936` | Rebuild de la subsection Meta y del Overview de `/campaigns` desde cero — version nueva con cards y jerarquia distinta. |
+| `4e43d4f` | **Revert overview**: Tomy rechazo la nueva version del Overview: _"restauralo tal cual estaba"_. Meta subsection se mantuvo; overview vuelve al diseño previo. |
+
+> **Leccion**: no reescribir secciones enteras sin pedido explicito, aunque "parezca una mejora". Ver ERRORES_CLAUDE_NO_REPETIR #S27-REBUILD.
+
+### Sesion 28 — 2026-04-15 — Fix scroll /sinapsis
+
+| Commit | Qué |
+|---|---|
+| `e5be3a7` | `/sinapsis` no permitia scroll — `overflow: hidden` heredado del layout. Fix puntual. |
+
+### Sesion 29 — 2026-04-15 — SEO rebuild premium + AurumSectionCard in-page
+
+| Commit | Qué |
+|---|---|
+| `e371f60` | `/seo` rebuild premium: headers educativos explicando que significa cada metrica, tipografia y spacing mas generoso, breakdown del health score visible. |
+| `79ae0cc` | Coaches accionables en cada seccion (Health, Opportunities, Movers, Keywords, Pages, Cannibalization, Device) + breakdown de los 4 componentes del health score. |
+| `c3e568f` | Reemplazar los `CoachCards` estaticos por `AurumSectionCard` — card embebida que llama a `/api/aurum/section-insight` con el contexto de esa tab y renderiza la respuesta de Aurum. |
+| `b7e965b` | `AurumSectionCard` con chat contenido adentro + header explicativo (no todo inline en la card, mejor UX). |
+| `9359f88` | `AurumSectionCard` minimizable — pill dorada premium colapsada, expand al click. |
+| `4d8b6fd` | Tablas de Keywords y Pages: compactas con scroll interno + sticky header. |
+| `4dc6bc4` | Aurum tambien en las tablas Keywords y Pages (coach para listas, no solo para overview). |
+
+### Sesion 30 — 2026-04-15 (hoy) — Aurum flotante global + orb Saturno + fallback pathname
+
+**Objetivo**: reemplazar las 7 `AurumSectionCard` inline del `/seo` por una unica burbuja flotante contextual disponible en toda la app.
+
+| Commit | Qué |
+|---|---|
+| `fde10e1` | **Burbuja flotante premium global**: `FloatingAurum` component + `AurumContext` (provider + hook `useAurumPageContext`). Bubble bottom-right en todas las rutas de `(app)` (excepto `/chat` y `/login`). Panel con insight inicial auto-generado + chat contextual. `/seo` migrado: 7 secciones ahora publican contextData unico via `useAurumPageContext`. AurumSectionCard y AurumOrbMini quedan como dead code (no removido todavia). |
+| `fdb56e9` | **Orb dorado con anillo Saturno** en todos los tamaños (tiny 16px y completo 64px). Variante elegida de 4 (Saturno / Atomo / Ondas / Arco) presentadas en `aurum-orb-variants.html`. Intensidad: sutil pero siempre presente. |
+| `af396ff` | Fix halo de la burbuja: reemplazar div blur por `box-shadow` (siempre circular, sin artifacts rectangulares) + `overflow: hidden` para contener el glow interno del orb. Sidebar actualizado con el nuevo `<AurumOrb size={26} />`. |
+| `51765d3` | **Fix 3D del anillo Saturno**: el anillo se dividio en 2 mitades via `clip-path`. Back half (`z=0`, detras del orb), orb (`z=1`), front half (`z=2`, delante del orb). Ahora el anillo PASA por detras de la esfera en la mitad de atras — oclusion 3D correcta. |
+| `6e45d53` | **Fallback de contexto por pathname**: mapa de ~30 rutas en `FloatingAurum` que sintetiza `{section, contextLabel, suggestions}` cuando la pagina no publica nada via `useAurumPageContext`. Ahora Aurum se puede usar en toda la app (Dashboard, Orders, Products, Rentabilidad, Finanzas, Campaigns, Customers, ML, Competitors, Influencers, Pixel, Alertas, Sinapsis, Memory, Boveda, Settings). Paginas con datos ricos (SEO) siguen publicando contextData especifico que pisa el fallback. |
+
+### Estado final en produccion al cierre de Sesion 30
+
+- **Ultimo commit en main**: `6e45d53`.
+- **URL prod**: `https://nitrosales.vercel.app`.
+- **Deploys Vercel**: todos verdes.
+- **Feature flagship nuevo**: FloatingAurum disponible en toda la app con fallback + contexto rico en SEO.
+- **Dead code pendiente de cleanup** (opcional, no urgente):
+  - `AurumSectionCard` y `AurumOrbMini` en `src/app/(app)/seo/page.tsx` — ya no se usan, quedaron como funciones sin invocacion.
+
+### Decisiones arquitectonicas tomadas en estas sesiones
+
+1. **Ads-sync: on-demand > crons** (S25 revert). Volver a crons solo si hay multi-tenant real o necesidad de data fresca sin abrir la pagina.
+2. **Overview /campaigns: no reescribir** (S27 revert). Cambios estructurales no pedidos requieren aprobacion explicita antes.
+3. **Imagenes: fix en ingesta, no backfills** (S22 precedente, ratificado). Cualquier dato faltante se arregla en el webhook/sync, no con endpoints de backfill.
+4. **Aurum ubiquity**: burbuja global con fallback por pathname, upgrade progresivo con `useAurumPageContext` cuando la pagina tenga datos analizables.
+5. **Ring 3D via clip-path**: patron visual para elementos que deben "abrazar" otros elementos en 2D CSS (back half z=0, objeto z=1, front half z=2).
+
+---
+
+## Ultima actualizacion previa: 2026-04-14 (Sesion 22 — Stock Muerto + Alerta Quiebre premium light + fix imageUrl en webhook VTEX)
 
 **Ultimo cambio:**
 1. En `/rentabilidad` (products/page.tsx), rediseño de las tablas "Alerta de Quiebre de Stock" y "Stock Muerto":
