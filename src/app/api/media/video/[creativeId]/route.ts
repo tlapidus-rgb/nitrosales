@@ -39,10 +39,14 @@ interface MetaResolveResult {
 }
 
 async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult> {
-  const token = process.env.META_ADS_ACCESS_TOKEN || "";
-  const debug: any = { externalAdId, steps: [] };
+  // Token para metadata del ad (ads_read alcanza)
+  const adsToken = process.env.META_ADS_ACCESS_TOKEN || "";
+  // Token de System User con Page asignada → unico que puede leer video.source.
+  // Si no esta seteado, caemos al ads token (va a fallar con #10 igual que antes).
+  const pageToken = process.env.META_PAGE_ACCESS_TOKEN || adsToken;
+  const debug: any = { externalAdId, steps: [], hasPageToken: !!process.env.META_PAGE_ACCESS_TOKEN };
 
-  if (!token) {
+  if (!adsToken) {
     return { videoUrl: null, posterUrl: null, videoId: null, permalinkUrl: null, error: "Falta META_ADS_ACCESS_TOKEN", debug };
   }
 
@@ -53,7 +57,7 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
   let posterUrl: string | null = null;
   let permalinkFallback: string | null = null;
   try {
-    const adUrl = `https://graph.facebook.com/v19.0/${externalAdId}?fields=preview_shareable_link,effective_object_story_id,adcreatives{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec},creative{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec}&access_token=${token}`;
+    const adUrl = `https://graph.facebook.com/v19.0/${externalAdId}?fields=preview_shareable_link,effective_object_story_id,adcreatives{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec},creative{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec}&access_token=${adsToken}`;
     const adRes = await fetch(adUrl, { cache: "no-store" });
     const ad = await adRes.json();
     debug.steps.push({ step: "ad_fetch", status: adRes.status, hasError: !!ad.error, err: ad.error?.message });
@@ -95,7 +99,9 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
 
   // ── Step 2: video → source + picture (HD) + permalink_url
   try {
-    const vidUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=source,picture,permalink_url,format&access_token=${token}`;
+    // Video source requiere Page token (System User con Page asignada). Si no esta
+    // seteado el page token, caemos al ads token (va a tirar #10 como antes).
+    const vidUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=source,picture,permalink_url,format&access_token=${pageToken}`;
     const vidRes = await fetch(vidUrl, { cache: "no-store" });
     const vid = await vidRes.json();
     debug.steps.push({ step: "video_fetch", status: vidRes.status, hasSource: !!vid.source, hasError: !!vid.error, err: vid.error?.message });
