@@ -1030,18 +1030,34 @@ function DrilldownView({
     return selectedCampaign.adSets?.find((s: any) => s.id === selectedAdSetId) || null;
   }, [selectedCampaign, selectedAdSetId]);
 
-  // L2: combinar 3 fuentes para no quedar nunca vacios cuando el adset
-  // tiene creativos en realidad:
-  // 1. Filtro client-side de la galeria (tiene clasificacion/funnel)
-  // 2. Fetch dedicado a /by-adset (trae todos los AdCreative de la DB)
-  // Preferimos by-adset (mas completo). Si esta vacio, caemos al filtro de galeria.
+  // L2: estrategia robusta. Muchos creativos tienen adSetId=null en la DB
+  // (Google PMax no usa ad sets, y a veces el sync no popula el FK).
+  // Buscamos en este orden:
+  //   1) Match por adSetId desde la galeria (Meta tipico)
+  //   2) Fetch dedicado /by-adset (trae mas que la galeria)
+  //   3) Fallback: TODOS los creativos de la campana padre. Asi nunca vemos
+  //      vacio cuando hay creativos en la campana, aunque adSetId sea null.
   const sortedAdSetCreatives = useMemo(() => {
-    if (!selectedAdSet) return [];
-    const fromBy = adSetCreatives && adSetCreatives.length > 0 ? adSetCreatives : null;
-    const fromGallery = (galleryCreatives || []).filter((c: any) => c.adSetId === selectedAdSet.id);
-    const list = fromBy || fromGallery;
-    return [...list].sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0));
-  }, [adSetCreatives, galleryCreatives, selectedAdSet]);
+    if (!selectedAdSet || !selectedCampaign) return [];
+    const all = galleryCreatives || [];
+    const byAdSetGallery = all.filter((c: any) => c.adSetId === selectedAdSet.id);
+    if (byAdSetGallery.length > 0) {
+      return [...byAdSetGallery].sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0));
+    }
+    if (adSetCreatives && adSetCreatives.length > 0) {
+      return [...adSetCreatives].sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0));
+    }
+    // Fallback: todos los creativos de la campana padre
+    const byCampaign = all.filter((c: any) => c.campaignId === selectedCampaign.id);
+    return [...byCampaign].sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0));
+  }, [adSetCreatives, galleryCreatives, selectedAdSet, selectedCampaign]);
+
+  const usingCampaignFallback = useMemo(() => {
+    if (!selectedAdSet || !galleryCreatives) return false;
+    const byAdSetGallery = galleryCreatives.filter((c: any) => c.adSetId === selectedAdSet.id);
+    const byBy = adSetCreatives && adSetCreatives.length > 0;
+    return byAdSetGallery.length === 0 && !byBy && sortedAdSetCreatives.length > 0;
+  }, [galleryCreatives, adSetCreatives, selectedAdSet, sortedAdSetCreatives]);
 
   const googleTypeCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: 0 };
@@ -1223,8 +1239,15 @@ function DrilldownView({
             ]}
           />
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">
-              Creativos · {sortedAdSetCreatives.length}
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+                Creativos · {sortedAdSetCreatives.length}
+              </div>
+              {usingCampaignFallback && (
+                <div className="text-[10px] uppercase tracking-wider font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
+                  Mostrando todos los creativos de la campaña (sin asignación a ad set)
+                </div>
+              )}
             </div>
             {adSetCreativesLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
