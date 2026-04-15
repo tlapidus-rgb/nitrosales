@@ -28,6 +28,7 @@ import {
   LineChart, Line, ReferenceLine,
 } from "recharts";
 import { useSyncStatus } from "@/lib/hooks/useSyncStatus";
+import { useAurumPageContext } from "@/components/aurum/AurumContext";
 import {
   Search, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Eye, MousePointer, Target, Trophy, Flame, AlertTriangle, Sparkles,
@@ -1113,6 +1114,79 @@ function SEOPageInner() {
   const tabletClicks = deviceSplit.find((d) => (d.device || "").toUpperCase() === "TABLET")?.clicks || 0;
   const pctMobile = totalDeviceClicks > 0 ? (mobileClicks / totalDeviceClicks) * 100 : 0;
 
+  /* ── Publicar contexto para el FloatingAurum ──── */
+  useAurumPageContext(
+    loading || !data
+      ? null
+      : {
+          section: "seo.overview",
+          contextLabel: "Panorama SEO",
+          contextData: {
+            rango: { from: dateFrom, to: dateTo },
+            salud: {
+              score: healthScore,
+              label: healthLabel,
+              breakdown: healthBreakdown,
+              componenteDebil: weakestComponent.label,
+            },
+            totales: {
+              clicks: totalClicks,
+              impresiones: totalImpressions,
+              ctr: Number(avgCtr.toFixed(2)),
+              posicionPromedio: Number(avgPosition.toFixed(1)),
+              totalKeywords: totalKws,
+              pctTop3: Number(pctTop3.toFixed(1)),
+              pctTop10: Number(pctTop10.toFixed(1)),
+            },
+            oportunidades: {
+              total: sortedOpps.length,
+              top5: sortedOpps.slice(0, 5).map((o: any) => ({
+                keyword: o.keyword,
+                position: Number((o.position || 0).toFixed(1)),
+                impressions: o.impressions,
+                ctr: Number(((o.ctr || 0) * 100).toFixed(2)),
+                potentialClicks: o.potentialClicks,
+              })),
+            },
+            movimientos: {
+              subieron: (movers.up || []).slice(0, 5).map((k: any) => ({ keyword: k.keyword, position: k.position, change: k.change })),
+              bajaron: (movers.down || []).slice(0, 5).map((k: any) => ({ keyword: k.keyword, position: k.position, change: k.change })),
+              nuevas: (movers.new || []).slice(0, 5).map((k: any) => ({ keyword: k.keyword, position: k.position })),
+              perdidas: (movers.lost || []).slice(0, 5).map((k: any) => ({ keyword: k.keyword })),
+            },
+            topKeywords: filteredKeywords.slice(0, 10).map((k: any) => ({
+              keyword: k.keyword,
+              clicks: k.clicks,
+              impressions: k.impressions,
+              ctr: k.ctr,
+              position: k.position,
+            })),
+            topPages: filteredPages.slice(0, 8).map((p: any) => ({
+              url: p.url,
+              clicks: p.clicks,
+              impressions: p.impressions,
+              ctr: p.ctr,
+              avgPosition: p.avgPosition,
+              keywordCount: p.keywordCount,
+            })),
+            canibalizacion: cannibalization.slice(0, 5).map((c: any) => ({
+              keyword: c.keyword,
+              pages: (c.pages || []).slice(0, 3),
+            })),
+            dispositivos: {
+              pctMobile: Number(pctMobile.toFixed(1)),
+              split: (deviceSplit || []).map((d: any) => ({ device: d.device, clicks: d.clicks, ctr: d.ctr })),
+            },
+          },
+          suggestions: [
+            "¿Cómo subo mi score SEO?",
+            "¿Qué oportunidad trabajo primero?",
+            "¿Hay algo urgente que atender?",
+          ],
+        },
+    [loading, data, dateFrom, dateTo]
+  );
+
   /* ════════════════════════════════════════════════
      RENDER
      ════════════════════════════════════════════════ */
@@ -1220,28 +1294,6 @@ function SEOPageInner() {
             />
           </div>
 
-          {totalKws > 0 && (
-            <AurumSectionCard
-              section="seo.health"
-              contextLabel="Salud SEO"
-              contextData={{
-                score: healthScore,
-                label: healthLabel,
-                breakdown: healthBreakdown,
-                weakestComponent: weakestComponent.label,
-                totalKeywords: totalKws,
-                pctTop3: Number(pctTop3.toFixed(1)),
-                pctTop10: Number(pctTop10.toFixed(1)),
-                avgCtr: Number(avgCtr.toFixed(2)),
-                avgPosition: Number(avgPosition.toFixed(1)),
-              }}
-              suggestions={[
-                "¿Cómo subo +10 puntos rápido?",
-                "¿Por qué mi score es ese?",
-                "¿Qué componente ataco primero?",
-              ]}
-            />
-          )}
         </section>
 
         {/* ═══ 4. EVOLUCIÓN TEMPORAL ═══ */}
@@ -1277,29 +1329,6 @@ function SEOPageInner() {
             accent="amber"
           />
           <OpportunitiesCard opportunities={sortedOpps} loading={loading} />
-
-          {sortedOpps.length > 0 && (
-            <AurumSectionCard
-              section="seo.opportunities"
-              contextLabel="Oportunidades de oro"
-              contextData={{
-                totalOpportunities: sortedOpps.length,
-                totalPotentialClicks: sortedOpps.reduce((a: number, o: any) => a + (o.potentialClicks || 0), 0),
-                top10: sortedOpps.slice(0, 10).map((o: any) => ({
-                  keyword: o.keyword,
-                  position: Number((o.position || 0).toFixed(1)),
-                  impressions: o.impressions,
-                  ctr: Number(((o.ctr || 0) * 100).toFixed(2)),
-                  potentialClicks: o.potentialClicks,
-                })),
-              }}
-              suggestions={[
-                "¿Por cuál empiezo?",
-                "¿Cuánto tarda en verse resultado?",
-                "¿Qué página trabajo primero?",
-              ]}
-            />
-          )}
         </section>
 
         {/* ═══ 6. MOVIMIENTOS ═══ */}
@@ -1325,28 +1354,6 @@ function SEOPageInner() {
             }
           />
           <KeywordsTable keywords={filteredKeywords} loading={loading} />
-          {!loading && filteredKeywords.length > 0 && (
-            <AurumSectionCard
-              section="seo.keywords"
-              contextLabel="Todas tus keywords"
-              contextData={{
-                totalKeywords: filteredKeywords.length,
-                top15: filteredKeywords.slice(0, 15).map((k: any) => ({
-                  keyword: k.keyword,
-                  clicks: k.clicks,
-                  impressions: k.impressions,
-                  ctr: k.ctr,
-                  position: k.position,
-                  positionChange: k.positionChange ?? null,
-                })),
-              }}
-              suggestions={[
-                "¿Cuáles son las ganadoras obvias?",
-                "¿Cuál tiene más upside si la trabajo?",
-                "¿Hay alguna que me esté sorprendiendo?",
-              ]}
-            />
-          )}
         </section>
 
         {/* ═══ 8. TOP PÁGINAS ═══ */}
@@ -1363,28 +1370,6 @@ function SEOPageInner() {
             }
           />
           <PagesTable pages={filteredPages} loading={loading} />
-          {!loading && filteredPages.length > 0 && (
-            <AurumSectionCard
-              section="seo.pages"
-              contextLabel="Páginas con más tráfico orgánico"
-              contextData={{
-                totalPages: filteredPages.length,
-                top10: filteredPages.slice(0, 10).map((p: any) => ({
-                  url: p.url,
-                  clicks: p.clicks,
-                  impressions: p.impressions,
-                  ctr: p.ctr,
-                  avgPosition: p.avgPosition,
-                  keywordCount: p.keywordCount,
-                })),
-              }}
-              suggestions={[
-                "¿Qué página tengo que reforzar primero?",
-                "¿Alguna está rindiendo menos de lo que debería?",
-                "¿Qué patrones veo en las top?",
-              ]}
-            />
-          )}
         </section>
 
         {/* ═══ 9. CANIBALIZACIÓN ═══ */}
@@ -1397,22 +1382,6 @@ function SEOPageInner() {
               accent="amber"
             />
             <CannibalizationCard items={cannibalization} loading={loading} />
-            <AurumSectionCard
-              section="seo.cannibalization"
-              contextLabel="Canibalización detectada"
-              contextData={{
-                totalCases: cannibalization.length,
-                cases: cannibalization.slice(0, 8).map((c: any) => ({
-                  keyword: c.keyword,
-                  pages: (c.pages || []).slice(0, 3),
-                })),
-              }}
-              suggestions={[
-                "¿Cuál resuelvo primero?",
-                "¿Cómo sé cuál es la página ganadora?",
-                "¿Mejor redirect o diferenciar?",
-              ]}
-            />
           </section>
         )}
 
@@ -1426,35 +1395,6 @@ function SEOPageInner() {
           />
           <CountrySplitCard countries={countrySplit} loading={loading} />
         </section>
-
-        {totalDeviceClicks > 0 && (
-          <AurumSectionCard
-            section="seo.device"
-            contextLabel="Dispositivos y países"
-            contextData={{
-              totalClicks: totalDeviceClicks,
-              pctMobile,
-              deviceSplit: (deviceSplit || []).map((d: any) => ({
-                device: d.device,
-                clicks: d.clicks,
-                impressions: d.impressions,
-                ctr: d.ctr,
-                position: d.position,
-              })),
-              topCountries: (countrySplit || []).slice(0, 5).map((c: any) => ({
-                country: c.country,
-                clicks: c.clicks,
-                impressions: c.impressions,
-                ctr: c.ctr,
-              })),
-            }}
-            suggestions={[
-              "¿Qué dispositivo priorizo?",
-              "¿Cómo mejoro la experiencia mobile?",
-              "¿Qué me dice el split por país?",
-            ]}
-          />
-        )}
 
         {/* ═══ FOOTER ═══ */}
         <div className="mt-10 mb-4 text-center text-[11px] text-slate-400">
@@ -2268,60 +2208,6 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
         )}
       </div>
 
-      {list.length > 0 && (
-        <div className="px-4 pb-4 -mt-1">
-          <AurumSectionCard
-            key={`movers-${activeTab}`}
-            section={`seo.movers.${activeTab}`}
-            contextLabel={
-              activeTab === "up"
-                ? "Keywords subiendo"
-                : activeTab === "down"
-                ? "Keywords bajando"
-                : activeTab === "new"
-                ? "Keywords nuevas"
-                : "Keywords perdidas"
-            }
-            contextData={{
-              tab: activeTab,
-              total: list.length,
-              keywords: list.slice(0, 12).map((k: any) => ({
-                keyword: k.keyword,
-                position: k.position,
-                prevPosition: k.prevPosition ?? null,
-                change: k.change ?? null,
-                clicks: k.clicks,
-                impressions: k.impressions,
-              })),
-            }}
-            suggestions={
-              activeTab === "up"
-                ? [
-                    "¿Qué patrón tienen las que subieron?",
-                    "¿Cuál conviene reforzar primero?",
-                    "¿Cómo capitalizo este avance?",
-                  ]
-                : activeTab === "down"
-                ? [
-                    "¿Cuál recupero primero?",
-                    "¿Qué puede estar pasando?",
-                    "¿Cuáles dejo ir?",
-                  ]
-                : activeTab === "new"
-                ? [
-                    "¿Cuál vale la pena consolidar?",
-                    "¿Cómo aseguro que se queden?",
-                    "¿Qué tienen en común?",
-                  ]
-                : [
-                    "¿Cuál recupero y cuál dejo ir?",
-                    "¿Por qué las puedo haber perdido?",
-                    "¿Qué chequeo primero?",
-                  ]
-            }
-          />
-        </div>
-      )}
     </div>
   );
 }

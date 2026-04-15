@@ -4,6 +4,8 @@ import { useSession, signOut } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useMemo } from "react";
+import { AurumProvider } from "@/components/aurum/AurumContext";
+import FloatingAurum from "@/components/aurum/FloatingAurum";
 
 type NavItem = {
   href: string;
@@ -273,7 +275,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <AurumProvider>
     <div className="h-screen bg-nitro-bg flex overflow-hidden">
+      <FloatingAurum />
       {/* Aurum global animations */}
       <style jsx global>{`
         @keyframes aurumShimmer {
@@ -1013,5 +1017,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         })()}
       </div>
     </div>
+    </AurumProvider>
   );
 }
