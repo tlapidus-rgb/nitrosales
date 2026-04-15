@@ -383,6 +383,14 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
 
+  // Image preview on-demand (solo para creativos NO-video)
+  // /api/media/image/[creativeId] devuelve URL fresca + flag isDynamic (DPA)
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [imageIsDynamic, setImageIsDynamic] = useState(false);
+  const [imagePermalink, setImagePermalink] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!creative?.isVideo || !creative?.id) return;
     let cancelled = false;
@@ -409,6 +417,38 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
       })
       .finally(() => {
         if (!cancelled) setVideoLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [creative?.id, creative?.isVideo]);
+
+  useEffect(() => {
+    // Solo para creativos de imagen (no video). Las URLs de imagen de Meta
+    // caducan rapido, asi que las refrescamos on-demand.
+    if (creative?.isVideo || !creative?.id) return;
+    let cancelled = false;
+    setImageLoading(true);
+    setImageError(null);
+    setImageSrc(null);
+    setImageIsDynamic(false);
+    setImagePermalink(null);
+    fetch(`/api/media/image/${creative.id}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.permalinkUrl) setImagePermalink(data.permalinkUrl);
+        if (data?.isDynamic) {
+          setImageIsDynamic(true);
+        } else if (data?.imageUrl) {
+          setImageSrc(proxied(data.imageUrl) || data.imageUrl);
+        } else {
+          setImageError(data?.error || "No pudimos obtener la imagen");
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setImageError(e?.message || "Error cargando imagen");
+      })
+      .finally(() => {
+        if (!cancelled) setImageLoading(false);
       });
     return () => { cancelled = true; };
   }, [creative?.id, creative?.isVideo]);
@@ -492,12 +532,79 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                   )}
                 </div>
               )
-            ) : thumbUrl ? (
-              <img src={proxied(thumbUrl)} alt={creative.name} className="w-full h-full max-h-[600px] object-contain" />
             ) : (
-              <div className="text-white/50 flex flex-col items-center gap-3">
-                <ImageIcon size={64} />
-                <span className="text-sm">Preview no disponible</span>
+              // IMAGEN: refrescada on-demand via /api/media/image/[creativeId].
+              // 3 estados: loading (spinner sobre thumb cacheado), dynamic (catalogo
+              // dinamico - no hay imagen unica), fresh image (URL fresca de Meta).
+              <div className="relative w-full h-full max-h-[600px] flex items-center justify-center bg-black">
+                {/* Imagen fresca o thumb cacheado de fallback */}
+                {(imageSrc || thumbUrl) && !imageIsDynamic && (
+                  <img
+                    src={imageSrc || proxied(thumbUrl)}
+                    alt={creative.name}
+                    className="w-full h-full max-h-[600px] object-contain"
+                    onError={(e) => {
+                      // Si la imagen fresca falla, caemos al thumb cacheado
+                      const img = e.currentTarget;
+                      if (img.src !== proxied(thumbUrl) && thumbUrl) {
+                        img.src = proxied(thumbUrl) || "";
+                      }
+                    }}
+                  />
+                )}
+
+                {/* Loading state */}
+                {imageLoading && !imageSrc && !imageIsDynamic && (
+                  <div className="relative z-10 flex flex-col items-center gap-3 text-white px-6">
+                    <div className="flex flex-col items-center gap-3 px-6 py-4 rounded-2xl bg-black/60 backdrop-blur-sm">
+                      <RefreshCw size={36} className="animate-spin text-white/90" />
+                      <span className="text-xs text-white/80 uppercase tracking-[0.2em]">Cargando imagen…</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Catalogo Dinamico: no hay imagen unica */}
+                {imageIsDynamic && (
+                  <div className="relative z-10 flex flex-col items-center gap-4 text-white px-8 text-center max-w-[420px]">
+                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 backdrop-blur-md border border-white/15 flex items-center justify-center">
+                      <Package size={40} className="text-white" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-sm font-semibold uppercase tracking-[0.2em] text-white/90">Catálogo Dinámico</div>
+                      <div className="text-xs text-white/70 leading-relaxed">
+                        Meta arma una imagen distinta para cada usuario según el producto del feed que más le interesa. No hay un creativo único para previsualizar.
+                      </div>
+                    </div>
+                    {imagePermalink && (
+                      <a
+                        href={imagePermalink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-slate-900 text-xs font-semibold uppercase tracking-[0.15em] hover:bg-white/90 transition"
+                      >
+                        <ExternalLink size={14} /> Ver previews en Facebook
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Error state (no es dinamico, no hay imagen, falla el fetch) */}
+                {!imageLoading && !imageSrc && !imageIsDynamic && !thumbUrl && (
+                  <div className="text-white/50 flex flex-col items-center gap-3">
+                    <ImageIcon size={64} />
+                    <span className="text-xs text-white/60 max-w-[280px] text-center">{imageError || "Preview no disponible"}</span>
+                    {imagePermalink && (
+                      <a
+                        href={imagePermalink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-slate-900 text-xs font-medium uppercase tracking-[0.15em] hover:bg-white/90 transition"
+                      >
+                        <ExternalLink size={14} /> Ver en Facebook
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
