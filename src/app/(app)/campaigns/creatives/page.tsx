@@ -457,38 +457,39 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                   preload="metadata"
                 />
               ) : (
-                <div className="relative w-full h-full max-h-[600px] flex items-center justify-center">
+                <div className="relative w-full h-full max-h-[600px] flex items-center justify-center bg-black">
                   {(videoPoster || thumbUrl) && (
                     <img
                       src={proxied(videoPoster || thumbUrl)}
                       alt={creative.name}
-                      className="absolute inset-0 w-full h-full object-contain opacity-40"
+                      className="absolute inset-0 w-full h-full object-contain"
                     />
                   )}
-                  <div className="relative z-10 flex flex-col items-center gap-3 text-white px-6">
-                    {videoLoading && (
-                      <>
-                        <RefreshCw size={36} className="animate-spin text-white/80" />
-                        <span className="text-xs text-white/70 uppercase tracking-[0.2em]">Cargando video…</span>
-                      </>
-                    )}
-                    {!videoLoading && videoError && (
-                      <>
-                        <Film size={48} className="text-white/60" />
-                        <span className="text-xs text-white/70 max-w-[320px] text-center leading-relaxed">{videoError}</span>
-                        {videoPermalink && (
-                          <a
-                            href={videoPermalink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-slate-900 text-xs font-medium uppercase tracking-[0.15em] hover:bg-white/90 transition"
-                          >
-                            Ver en Facebook
-                          </a>
-                        )}
-                      </>
-                    )}
-                  </div>
+                  {/* Loading state: spinner centrado sin oscurecer el poster */}
+                  {videoLoading && (
+                    <div className="relative z-10 flex flex-col items-center gap-3 text-white px-6">
+                      <div className="flex flex-col items-center gap-3 px-6 py-4 rounded-2xl bg-black/60 backdrop-blur-sm">
+                        <RefreshCw size={36} className="animate-spin text-white/90" />
+                        <span className="text-xs text-white/80 uppercase tracking-[0.2em]">Cargando video…</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Error state: gradient solo abajo + mensaje + boton */}
+                  {!videoLoading && videoError && (
+                    <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-3 px-6 pt-16 pb-8 bg-gradient-to-t from-black/90 via-black/60 to-transparent text-white">
+                      <span className="text-xs text-white/85 max-w-[360px] text-center leading-relaxed">{videoError}</span>
+                      {videoPermalink && (
+                        <a
+                          href={videoPermalink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-slate-900 text-xs font-semibold uppercase tracking-[0.15em] hover:bg-white/90 transition"
+                        >
+                          <Film size={14} /> Ver en Facebook
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             ) : thumbUrl ? (

@@ -102,10 +102,26 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
   try {
     // Video source requiere Page token (System User con Page asignada). Si no esta
     // seteado el page token, caemos al ads token (va a tirar #10 como antes).
-    const vidUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=source,picture,permalink_url,format&access_token=${pageToken}`;
+    // thumbnails{} devuelve multiples sizes; elegimos el mas grande para evitar
+    // el poster pixelado de `picture` (que es ~540px).
+    const vidUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=source,picture,permalink_url,format,thumbnails{uri,width,height,is_preferred}&access_token=${pageToken}`;
     const vidRes = await fetch(vidUrl, { cache: "no-store" });
     const vid = await vidRes.json();
-    debug.steps.push({ step: "video_fetch", status: vidRes.status, hasSource: !!vid.source, hasError: !!vid.error, err: vid.error?.message });
+    // Elegir el thumbnail HD: preferred si hay, sino el de mayor area
+    const pickHdPoster = (v: any): string | null => {
+      const thumbs = v?.thumbnails?.data;
+      if (Array.isArray(thumbs) && thumbs.length > 0) {
+        const preferred = thumbs.find((t: any) => t?.is_preferred);
+        if (preferred?.uri) return preferred.uri;
+        const sorted = [...thumbs].sort((a: any, b: any) =>
+          ((b?.width || 0) * (b?.height || 0)) - ((a?.width || 0) * (a?.height || 0))
+        );
+        return sorted[0]?.uri || null;
+      }
+      return v?.picture || null;
+    };
+    const hdPoster = pickHdPoster(vid);
+    debug.steps.push({ step: "video_fetch", status: vidRes.status, hasSource: !!vid.source, hasError: !!vid.error, err: vid.error?.message, hdPoster: !!hdPoster });
 
     if (vid.error) {
       // Permission error tipico (#10 / #200): Page Public Content Access requerido.
@@ -113,7 +129,7 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
       const isPermErr = /permission|not.*allow|#10|#200/i.test(vid.error.message || "");
       return {
         videoUrl: null,
-        posterUrl: vid.picture || posterUrl,
+        posterUrl: hdPoster || posterUrl,
         videoId,
         permalinkUrl: vid.permalink_url || permalinkFallback,
         error: isPermErr
@@ -136,7 +152,7 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
 
     return {
       videoUrl: bestSource,
-      posterUrl: vid.picture || posterUrl,
+      posterUrl: hdPoster || posterUrl,
       videoId,
       permalinkUrl: permalinkUrl || permalinkFallback,
       error: bestSource ? null : "Meta no devolvio source reproducible. Podes verlo en Facebook.",
