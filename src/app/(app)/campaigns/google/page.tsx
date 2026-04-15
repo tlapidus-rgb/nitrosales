@@ -1077,11 +1077,6 @@ export default function GoogleAdsPage() {
   const [adsCache, setAdsCache] = useState<Record<string, any[]>>({});
   const [drillLoading, setDrillLoading] = useState<Record<string, boolean>>({});
 
-  /* ── On-demand sync: auto-refresh data when sync completes ── */
-  useEffect(() => {
-    onSyncComplete(() => fetchData());
-  }, [onSyncComplete, fetchData]);
-
   /* ── Fetch ─────────────────────────────────────── */
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -1093,6 +1088,11 @@ export default function GoogleAdsPage() {
   }, [dateFrom, dateTo]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  /* ── On-demand sync: auto-refresh data when sync completes ── */
+  useEffect(() => {
+    onSyncComplete(() => fetchData());
+  }, [onSyncComplete, fetchData]);
 
   const fetchAds = useCallback(() => {
     setAdsLoading(true);
