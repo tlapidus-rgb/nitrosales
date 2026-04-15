@@ -1014,7 +1014,8 @@ function DrilldownView({
   selectedAdSetId,
   setSelectedCampaignId,
   setSelectedAdSetId,
-  creatives,
+  adSetCreatives,
+  adSetCreativesLoading,
   onSelectCreative,
 }: any) {
   const [googleType, setGoogleType] = useState<string>("ALL");
@@ -1028,12 +1029,10 @@ function DrilldownView({
     return selectedCampaign.adSets?.find((s: any) => s.id === selectedAdSetId) || null;
   }, [selectedCampaign, selectedAdSetId]);
 
-  const adSetCreatives = useMemo(() => {
-    if (!selectedAdSet || !creatives) return [];
-    return creatives
-      .filter((c: any) => c.adSetId === selectedAdSet.id)
-      .sort((a: any, b: any) => b.spend - a.spend);
-  }, [creatives, selectedAdSet]);
+  const sortedAdSetCreatives = useMemo(() => {
+    if (!adSetCreatives) return [];
+    return [...adSetCreatives].sort((a: any, b: any) => b.spend - a.spend);
+  }, [adSetCreatives]);
 
   const googleTypeCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: 0 };
@@ -1216,13 +1215,25 @@ function DrilldownView({
           />
           <div>
             <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">
-              Creativos · {adSetCreatives.length}
+              Creativos · {sortedAdSetCreatives.length}
             </div>
-            {adSetCreatives.length === 0 ? (
+            {adSetCreativesLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                    <div className="w-full aspect-square bg-slate-100 animate-pulse" />
+                    <div className="p-4 space-y-2">
+                      <div className="h-4 bg-slate-100 rounded w-2/3 animate-pulse" />
+                      <div className="h-3 bg-slate-100 rounded w-full animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : sortedAdSetCreatives.length === 0 ? (
               <DrilldownEmpty message="No hay creativos con métricas en este rango para este ad set." />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {adSetCreatives.map((c: any) => (
+                {sortedAdSetCreatives.map((c: any) => (
                   <CreativeCard
                     key={c.id}
                     creative={c}
@@ -1306,6 +1317,8 @@ export default function CreativosLabPage() {
   const [selectedAdSetId, setSelectedAdSetId] = useState<string | null>(null);
   const [structureData, setStructureData] = useState<any>(null);
   const [structureLoading, setStructureLoading] = useState(false);
+  const [adSetCreatives, setAdSetCreatives] = useState<any[] | null>(null);
+  const [adSetCreativesLoading, setAdSetCreativesLoading] = useState(false);
 
   const { breakevenRoas, contributionMargin } = useBreakeven(dateFrom, dateTo);
 
@@ -1348,6 +1361,33 @@ export default function CreativosLabPage() {
   useEffect(() => {
     if (viewMode === "drilldown") fetchStructure();
   }, [viewMode, fetchStructure]);
+
+  // Fetch creativos del adSet seleccionado (L2). Usa el endpoint de ads
+  // con filtro adSet, asi siempre trae todos los creativos del adset
+  // independiente de los filtros de la galeria (clasificacion/funnel).
+  useEffect(() => {
+    if (!selectedAdSetId) {
+      setAdSetCreatives(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setAdSetCreativesLoading(true);
+      try {
+        const params = new URLSearchParams({ from: dateFrom, to: dateTo, adSet: selectedAdSetId });
+        if (platformView !== "ALL") params.set("platform", platformView);
+        const res = await fetch(`/api/metrics/ads?${params.toString()}`);
+        const j = await res.json();
+        if (!cancelled) setAdSetCreatives(j?.creatives || []);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setAdSetCreatives([]);
+      } finally {
+        if (!cancelled) setAdSetCreativesLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedAdSetId, dateFrom, dateTo, platformView]);
 
   // Reset selección al cambiar plataforma/rango
   useEffect(() => {
@@ -1701,7 +1741,8 @@ export default function CreativosLabPage() {
             selectedAdSetId={selectedAdSetId}
             setSelectedCampaignId={setSelectedCampaignId}
             setSelectedAdSetId={setSelectedAdSetId}
-            creatives={data?.creatives || []}
+            adSetCreatives={adSetCreatives}
+            adSetCreativesLoading={adSetCreativesLoading}
             onSelectCreative={setSelectedCreative}
           />
         ) : loading ? (
