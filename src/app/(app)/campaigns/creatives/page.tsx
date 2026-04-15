@@ -47,6 +47,28 @@ function toDateInputValue(d: Date) { return d.toISOString().split("T")[0]; }
 function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
 function num(n: number) { return n.toLocaleString("es-AR"); }
 
+/* ── Media Proxy Helper ────────────────────────────── */
+// Envuelve URLs de Meta/Google CDNs a traves de /api/media/proxy
+// para evitar CORS + hot-linking restrictions. URLs nulas o de otros
+// hosts se devuelven tal cual.
+const PROXIED_HOSTS = [
+  "fbcdn.net", "facebook.com", "cdninstagram.com",
+  "googleusercontent.com", "ggpht.com", "youtube.com", "ytimg.com",
+  "doubleclick.net", "tiktokcdn.com",
+];
+function proxied(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    const shouldProxy = PROXIED_HOSTS.some((h) => host === h || host.endsWith("." + h));
+    if (!shouldProxy) return url;
+    return `/api/media/proxy?url=${encodeURIComponent(url)}`;
+  } catch {
+    return url;
+  }
+}
+
 /* ── Fatigue Detection ─────────────────────────────── */
 
 type FatigueLevel = "fresh" | "watch" | "fatigued" | "burned" | "new" | "lowdata";
@@ -216,32 +238,25 @@ function MediaThumb({ creative, onClick }: { creative: any; onClick?: () => void
       className="relative w-full aspect-square bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden cursor-pointer group"
     >
       {url && !errored ? (
-        isVideo ? (
-          <>
-            <video
-              src={url}
-              className="w-full h-full object-cover"
-              muted
-              playsInline
-              preload="metadata"
-              onError={() => setErrored(true)}
-            />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all">
+        <>
+          {/* En grid, tanto video como imagen muestran el thumbnail proxied. El play real ocurre en el modal. */}
+          <img
+            src={proxied(url)}
+            alt={creative.name}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => setErrored(true)}
+          />
+          <div className={`absolute inset-0 ${isVideo ? "bg-black/10" : "bg-black/0"} group-hover:bg-black/30 transition-colors flex items-center justify-center`}>
+            <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-[280ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)]">
+              {isVideo ? (
                 <Play size={24} className="text-slate-900 ml-0.5" fill="currentColor" />
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <img src={url} alt={creative.name} className="w-full h-full object-cover" onError={() => setErrored(true)} />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-              <div className="w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+              ) : (
                 <Maximize2 size={18} className="text-slate-900" />
-              </div>
+              )}
             </div>
-          </>
-        )
+          </div>
+        </>
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-2">
           {isVideo ? <Film size={40} /> : <ImageIcon size={40} />}
@@ -356,7 +371,38 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
   const videoRef = useRef<HTMLVideoElement>(null);
   const fatigue = useMemo(() => analyzeFatigue(creative), [creative]);
   const score = creative.videoMetrics?.videoEfficiencyScore ?? null;
-  const url = creative.mediaUrls?.[0];
+  const thumbUrl = creative.mediaUrls?.[0]; // siempre es una imagen (thumbnail)
+
+  // Video source on-demand (solo para creativos de video).
+  // /api/media/video/[creativeId] resuelve el source real via Graph API.
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!creative?.isVideo || !creative?.id) return;
+    let cancelled = false;
+    setVideoLoading(true);
+    setVideoError(null);
+    fetch(`/api/media/video/${creative.id}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.videoUrl) {
+          // Los sources de Meta viven en video.xx.fbcdn.net → proxy obligatorio
+          setVideoSrc(proxied(data.videoUrl) || data.videoUrl);
+        } else {
+          setVideoError("No pudimos obtener el video de Meta");
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setVideoError(e?.message || "Error cargando video");
+      })
+      .finally(() => {
+        if (!cancelled) setVideoLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [creative?.id, creative?.isVideo]);
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -386,29 +432,57 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
         {/* LEFT: media */}
         <div className="bg-gradient-to-br from-slate-900 to-slate-700 relative flex flex-col">
           <div className="relative flex-1 flex items-center justify-center min-h-[400px] lg:min-h-[600px]">
-            {url ? (
-              creative.isVideo ? (
+            {creative.isVideo ? (
+              // VIDEO: usamos el source real resuelto on-demand por /api/media/video/[creativeId].
+              // Mientras carga mostramos el thumbnail como poster + spinner. Si falla, thumbnail + mensaje.
+              videoSrc ? (
                 <video
                   ref={videoRef}
-                  src={url}
+                  src={videoSrc}
+                  poster={proxied(thumbUrl)}
                   className="w-full h-full max-h-[600px] object-contain"
                   controls
                   autoPlay
                   muted={muted}
                   playsInline
+                  preload="metadata"
                 />
               ) : (
-                <img src={url} alt={creative.name} className="w-full h-full max-h-[600px] object-contain" />
+                <div className="relative w-full h-full max-h-[600px] flex items-center justify-center">
+                  {thumbUrl && (
+                    <img
+                      src={proxied(thumbUrl)}
+                      alt={creative.name}
+                      className="absolute inset-0 w-full h-full object-contain opacity-50"
+                    />
+                  )}
+                  <div className="relative z-10 flex flex-col items-center gap-3 text-white">
+                    {videoLoading && (
+                      <>
+                        <RefreshCw size={36} className="animate-spin text-white/80" />
+                        <span className="text-xs text-white/70 uppercase tracking-[0.2em]">Cargando video…</span>
+                      </>
+                    )}
+                    {!videoLoading && videoError && (
+                      <>
+                        <Film size={48} className="text-white/60" />
+                        <span className="text-xs text-white/70 max-w-[280px] text-center">{videoError}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
               )
+            ) : thumbUrl ? (
+              <img src={proxied(thumbUrl)} alt={creative.name} className="w-full h-full max-h-[600px] object-contain" />
             ) : (
               <div className="text-white/50 flex flex-col items-center gap-3">
-                {creative.isVideo ? <Film size={64} /> : <ImageIcon size={64} />}
+                <ImageIcon size={64} />
                 <span className="text-sm">Preview no disponible</span>
               </div>
             )}
 
             {/* Mute toggle for video */}
-            {url && creative.isVideo && (
+            {videoSrc && creative.isVideo && (
               <button
                 onClick={() => setMuted((m) => !m)}
                 className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/80 transition"
@@ -880,13 +954,21 @@ export default function CreativosLabPage() {
                       onClick={() => setSelectedCreative(creative)}
                       className="shrink-0 flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-red-200 hover:border-red-400 hover:shadow-sm transition text-left max-w-[260px]"
                     >
-                      <div className="w-10 h-10 rounded-lg bg-slate-200 overflow-hidden shrink-0">
+                      <div className="relative w-10 h-10 rounded-lg bg-slate-200 overflow-hidden shrink-0">
                         {creative.mediaUrls?.[0] ? (
-                          creative.isVideo ? (
-                            <video src={creative.mediaUrls[0]} className="w-full h-full object-cover" muted preload="metadata" />
-                          ) : (
-                            <img src={creative.mediaUrls[0]} alt="" className="w-full h-full object-cover" />
-                          )
+                          <>
+                            <img
+                              src={proxied(creative.mediaUrls[0])}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                            {creative.isVideo && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                <Play size={12} className="text-white" fill="currentColor" />
+                              </div>
+                            )}
+                          </>
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-slate-400">
                             {creative.isVideo ? <Film size={14} /> : <ImageIcon size={14} />}
