@@ -675,9 +675,9 @@ function RevenueKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
   const v = useCountUp(kpi.current, 900);
   return (
     <KpiShell
-      accent="green"
+      accent="gold"
       label="Revenue atribuido"
-      icon={<TrendingUp size={13} strokeWidth={2.2} color={ACCENT.green.text} />}
+      icon={<TrendingUp size={13} strokeWidth={2.2} color={ACCENT.gold.text} />}
       delay={delay}
       decoration={
         <svg
@@ -691,13 +691,13 @@ function RevenueKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
         >
           <defs>
             <linearGradient id="revGrad" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#86efac" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#86efac" stopOpacity="0" />
+              <stop offset="0%" stopColor="#f4d794" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#f4d794" stopOpacity="0" />
             </linearGradient>
           </defs>
           <path
             d="M0 22 L10 20 L20 21 L30 16 L40 17 L50 11 L60 12 L72 4"
-            stroke="#86efac"
+            stroke="#f4d794"
             strokeWidth="1.6"
             fill="none"
             strokeLinecap="round"
@@ -744,9 +744,9 @@ function CreatorsKpi({
   const shown = avatars.slice(0, 3);
   return (
     <KpiShell
-      accent="pink"
+      accent="gold"
       label="Creators activos"
-      icon={<Users size={13} strokeWidth={2.2} color={ACCENT.pink.text} />}
+      icon={<Users size={13} strokeWidth={2.2} color={ACCENT.gold.text} />}
       delay={delay}
     >
       <div className="flex items-end justify-between gap-2">
@@ -761,9 +761,9 @@ function CreatorsKpi({
                 className="relative w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
                 style={{
                   background:
-                    "linear-gradient(135deg, #f472b6 0%, #db2777 55%, #9d174d 100%)",
+                    "linear-gradient(135deg, #f4d794 0%, #c9a556 55%, #8a6f37 100%)",
                   border: "1.5px solid #05070d",
-                  boxShadow: "0 2px 6px rgba(244,114,182,0.35)",
+                  boxShadow: "0 2px 6px rgba(244,215,148,0.35)",
                   zIndex: 10 - i,
                   animation: `avatarIn 500ms ${ES} ${delay + 300 + i * 90}ms both`,
                 }}
@@ -775,7 +775,7 @@ function CreatorsKpi({
                     aria-hidden
                     className="absolute inset-[-3px] rounded-full pointer-events-none"
                     style={{
-                      border: "1.5px solid rgba(244,114,182,0.55)",
+                      border: "1.5px solid rgba(244,215,148,0.55)",
                       animation: "avatarHalo 2.4s ease-in-out infinite",
                     }}
                   />
@@ -800,9 +800,9 @@ function ContentKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
   const v = useCountUp(kpi.current, 800);
   return (
     <KpiShell
-      accent="violet"
+      accent="gold"
       label="Contenido publicado"
-      icon={<Play size={12} strokeWidth={2.4} color={ACCENT.violet.text} fill={ACCENT.violet.text} />}
+      icon={<Play size={12} strokeWidth={2.4} color={ACCENT.gold.text} fill={ACCENT.gold.text} />}
       delay={delay}
       decoration={
         <div
@@ -812,8 +812,8 @@ function ContentKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
             width: 34,
             height: 34,
             borderRadius: 999,
-            background: "rgba(167,139,250,0.10)",
-            border: "1px solid rgba(167,139,250,0.22)",
+            background: "rgba(244,215,148,0.10)",
+            border: "1px solid rgba(244,215,148,0.22)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -824,7 +824,7 @@ function ContentKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
             style={{
               width: 0,
               height: 0,
-              borderLeft: "9px solid #c4b5fd",
+              borderLeft: "9px solid #f4d794",
               borderTop: "6px solid transparent",
               borderBottom: "6px solid transparent",
               marginLeft: 2,
@@ -1433,20 +1433,20 @@ const INBOX_THEME: Record<
   { accent: string; bg: string; border: string; glow: string; text: string; halo: string }
 > = {
   pink: {
-    accent: "#f472b6",
-    bg: "linear-gradient(160deg, rgba(244,114,182,0.08) 0%, rgba(244,114,182,0.02) 100%)",
-    border: "rgba(244,114,182,0.25)",
-    glow: "rgba(244,114,182,0.35)",
-    text: "#fbcfe8",
-    halo: "radial-gradient(circle at 30% 20%, rgba(244,114,182,0.35) 0%, transparent 60%)",
+    accent: "#f4d794",
+    bg: "linear-gradient(160deg, rgba(244,215,148,0.08) 0%, rgba(244,215,148,0.02) 100%)",
+    border: "rgba(244,215,148,0.28)",
+    glow: "rgba(244,215,148,0.4)",
+    text: "#fde8bc",
+    halo: "radial-gradient(circle at 30% 20%, rgba(244,215,148,0.35) 0%, transparent 60%)",
   },
   violet: {
-    accent: "#a78bfa",
-    bg: "linear-gradient(160deg, rgba(167,139,250,0.08) 0%, rgba(167,139,250,0.02) 100%)",
-    border: "rgba(167,139,250,0.25)",
-    glow: "rgba(167,139,250,0.35)",
-    text: "#ddd6fe",
-    halo: "radial-gradient(circle at 30% 20%, rgba(167,139,250,0.35) 0%, transparent 60%)",
+    accent: "#f4d794",
+    bg: "linear-gradient(160deg, rgba(244,215,148,0.08) 0%, rgba(244,215,148,0.02) 100%)",
+    border: "rgba(244,215,148,0.28)",
+    glow: "rgba(244,215,148,0.4)",
+    text: "#fde8bc",
+    halo: "radial-gradient(circle at 30% 20%, rgba(244,215,148,0.35) 0%, transparent 60%)",
   },
   amber: {
     accent: "#f4d794",
@@ -1457,12 +1457,12 @@ const INBOX_THEME: Record<
     halo: "radial-gradient(circle at 30% 20%, rgba(244,215,148,0.35) 0%, transparent 60%)",
   },
   rose: {
-    accent: "#fda4af",
-    bg: "linear-gradient(160deg, rgba(253,164,175,0.08) 0%, rgba(253,164,175,0.02) 100%)",
-    border: "rgba(253,164,175,0.25)",
-    glow: "rgba(253,164,175,0.35)",
+    accent: "#fb7185",
+    bg: "linear-gradient(160deg, rgba(251,113,133,0.08) 0%, rgba(251,113,133,0.02) 100%)",
+    border: "rgba(251,113,133,0.28)",
+    glow: "rgba(251,113,133,0.4)",
     text: "#fecdd3",
-    halo: "radial-gradient(circle at 30% 20%, rgba(253,164,175,0.35) 0%, transparent 60%)",
+    halo: "radial-gradient(circle at 30% 20%, rgba(251,113,133,0.35) 0%, transparent 60%)",
   },
 };
 
@@ -1802,20 +1802,20 @@ const FLIGHT_STATUS: Record<
   },
   on_track: {
     label: "En ritmo",
-    accent: "#a78bfa",
-    bg: "linear-gradient(165deg, rgba(167,139,250,0.08) 0%, rgba(167,139,250,0.02) 100%)",
-    border: "rgba(167,139,250,0.24)",
-    text: "#ddd6fe",
-    glow: "rgba(167,139,250,0.3)",
+    accent: "#f4d794",
+    bg: "linear-gradient(165deg, rgba(244,215,148,0.07) 0%, rgba(244,215,148,0.015) 100%)",
+    border: "rgba(244,215,148,0.22)",
+    text: "#fde8bc",
+    glow: "rgba(244,215,148,0.28)",
     icon: "on_track",
   },
   behind: {
     label: "Atrasada",
-    accent: "#fbbf24",
-    bg: "linear-gradient(165deg, rgba(251,191,36,0.08) 0%, rgba(251,191,36,0.02) 100%)",
-    border: "rgba(251,191,36,0.25)",
-    text: "#fde68a",
-    glow: "rgba(251,191,36,0.3)",
+    accent: "#f4d794",
+    bg: "linear-gradient(165deg, rgba(244,215,148,0.05) 0%, rgba(244,215,148,0.01) 100%)",
+    border: "rgba(244,215,148,0.18)",
+    text: "#fde8bc",
+    glow: "rgba(244,215,148,0.22)",
     icon: "behind",
   },
   at_risk: {
@@ -2823,18 +2823,18 @@ const INSIGHT_THEME: Record<
   { accent: string; bg: string; border: string; text: string; glow: string }
 > = {
   violet: {
-    accent: "#a78bfa",
-    bg: "linear-gradient(165deg, rgba(167,139,250,0.1) 0%, rgba(167,139,250,0.02) 100%)",
-    border: "rgba(167,139,250,0.26)",
-    text: "#ddd6fe",
-    glow: "rgba(167,139,250,0.32)",
+    accent: "#f4d794",
+    bg: "linear-gradient(165deg, rgba(244,215,148,0.1) 0%, rgba(244,215,148,0.02) 100%)",
+    border: "rgba(244,215,148,0.28)",
+    text: "#fde8bc",
+    glow: "rgba(244,215,148,0.35)",
   },
   pink: {
-    accent: "#f472b6",
-    bg: "linear-gradient(165deg, rgba(244,114,182,0.1) 0%, rgba(244,114,182,0.02) 100%)",
-    border: "rgba(244,114,182,0.26)",
-    text: "#fbcfe8",
-    glow: "rgba(244,114,182,0.32)",
+    accent: "#f4d794",
+    bg: "linear-gradient(165deg, rgba(244,215,148,0.1) 0%, rgba(244,215,148,0.02) 100%)",
+    border: "rgba(244,215,148,0.28)",
+    text: "#fde8bc",
+    glow: "rgba(244,215,148,0.35)",
   },
   amber: {
     accent: "#f4d794",
