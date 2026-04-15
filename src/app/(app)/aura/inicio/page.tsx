@@ -36,6 +36,11 @@ import {
   Inbox,
   CheckCircle2,
   ArrowRight,
+  Target,
+  Trophy,
+  Flame,
+  Hourglass,
+  Rocket,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -1710,6 +1715,506 @@ function ActionInboxZone({ state }: { state: InboxState }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Zona 5 — Campañas en vuelo (Flight deck)
+// ═══════════════════════════════════════════════════════════════
+
+type FlightStatus =
+  | "unlocked"
+  | "ahead"
+  | "on_track"
+  | "behind"
+  | "at_risk"
+  | "no_target"
+  | "no_time_limit";
+
+type Flight = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string | null;
+  revenue: number;
+  conversions: number;
+  bonusTarget: number | null;
+  bonusAmount: number | null;
+  revenuePct: number | null;
+  timePct: number | null;
+  totalDays: number | null;
+  daysElapsed: number;
+  daysRemaining: number | null;
+  status: FlightStatus;
+  creator: {
+    id: string;
+    name: string;
+    code: string;
+    avatarUrl: string | null;
+  };
+};
+type FlightsPayload = {
+  generatedAt: string;
+  total: number;
+  unlocked: number;
+  flights: Flight[];
+};
+type FlightsState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | ({ status: "ready" } & FlightsPayload);
+
+const FLIGHT_STATUS: Record<
+  FlightStatus,
+  {
+    label: string;
+    accent: string;
+    bg: string;
+    border: string;
+    text: string;
+    glow: string;
+    icon: "unlocked" | "ahead" | "on_track" | "behind" | "at_risk" | "no_target";
+  }
+> = {
+  unlocked: {
+    label: "Bonus desbloqueado",
+    accent: "#86efac",
+    bg: "linear-gradient(165deg, rgba(134,239,172,0.14) 0%, rgba(134,239,172,0.02) 100%)",
+    border: "rgba(134,239,172,0.35)",
+    text: "#bbf7d0",
+    glow: "rgba(134,239,172,0.35)",
+    icon: "unlocked",
+  },
+  ahead: {
+    label: "Adelantada",
+    accent: "#f4d794",
+    bg: "linear-gradient(165deg, rgba(244,215,148,0.1) 0%, rgba(244,215,148,0.02) 100%)",
+    border: "rgba(244,215,148,0.3)",
+    text: "#fde8bc",
+    glow: "rgba(244,215,148,0.35)",
+    icon: "ahead",
+  },
+  on_track: {
+    label: "En ritmo",
+    accent: "#a78bfa",
+    bg: "linear-gradient(165deg, rgba(167,139,250,0.08) 0%, rgba(167,139,250,0.02) 100%)",
+    border: "rgba(167,139,250,0.24)",
+    text: "#ddd6fe",
+    glow: "rgba(167,139,250,0.3)",
+    icon: "on_track",
+  },
+  behind: {
+    label: "Atrasada",
+    accent: "#fbbf24",
+    bg: "linear-gradient(165deg, rgba(251,191,36,0.08) 0%, rgba(251,191,36,0.02) 100%)",
+    border: "rgba(251,191,36,0.25)",
+    text: "#fde68a",
+    glow: "rgba(251,191,36,0.3)",
+    icon: "behind",
+  },
+  at_risk: {
+    label: "En riesgo",
+    accent: "#fb7185",
+    bg: "linear-gradient(165deg, rgba(251,113,133,0.1) 0%, rgba(251,113,133,0.02) 100%)",
+    border: "rgba(251,113,133,0.28)",
+    text: "#fecdd3",
+    glow: "rgba(251,113,133,0.35)",
+    icon: "at_risk",
+  },
+  no_target: {
+    label: "Sin bonus",
+    accent: "#94a3b8",
+    bg: "linear-gradient(165deg, rgba(148,163,184,0.05) 0%, rgba(148,163,184,0.01) 100%)",
+    border: "rgba(255,255,255,0.08)",
+    text: "rgba(255,255,255,0.55)",
+    glow: "rgba(148,163,184,0.2)",
+    icon: "no_target",
+  },
+  no_time_limit: {
+    label: "Sin deadline",
+    accent: "#94a3b8",
+    bg: "linear-gradient(165deg, rgba(148,163,184,0.05) 0%, rgba(148,163,184,0.01) 100%)",
+    border: "rgba(255,255,255,0.08)",
+    text: "rgba(255,255,255,0.55)",
+    glow: "rgba(148,163,184,0.2)",
+    icon: "no_target",
+  },
+};
+
+function FlightStatusIcon({
+  kind,
+  color,
+  size = 12,
+}: {
+  kind: "unlocked" | "ahead" | "on_track" | "behind" | "at_risk" | "no_target";
+  color: string;
+  size?: number;
+}) {
+  const p = { size, strokeWidth: 2.2, color } as const;
+  if (kind === "unlocked") return <Trophy {...p} />;
+  if (kind === "ahead") return <Flame {...p} />;
+  if (kind === "on_track") return <Rocket {...p} />;
+  if (kind === "behind") return <Hourglass {...p} />;
+  if (kind === "at_risk") return <AlertCircle {...p} />;
+  return <Target {...p} />;
+}
+
+function ProgressArc({
+  revenuePct,
+  timePct,
+  accent,
+}: {
+  revenuePct: number | null;
+  timePct: number | null;
+  accent: string;
+}) {
+  // Track horizontal con dos lecturas superpuestas: tiempo (fondo) + revenue (accent)
+  return (
+    <div className="relative">
+      <div
+        className="h-1.5 rounded-full overflow-hidden"
+        style={{ background: "rgba(255,255,255,0.06)" }}
+      >
+        {timePct !== null ? (
+          <div
+            aria-hidden
+            className="absolute inset-y-0 left-0 h-1.5 rounded-full"
+            style={{
+              width: `${Math.round(timePct * 100)}%`,
+              background: "rgba(255,255,255,0.14)",
+              transition: `width 800ms ${ES}`,
+            }}
+          />
+        ) : null}
+        {revenuePct !== null ? (
+          <div
+            className="absolute inset-y-0 left-0 h-1.5 rounded-full"
+            style={{
+              width: `${Math.round(revenuePct * 100)}%`,
+              background: `linear-gradient(90deg, ${accent}bb, ${accent})`,
+              boxShadow: `0 0 12px ${accent}66`,
+              transition: `width 900ms ${ES}`,
+            }}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CreatorMini({
+  name,
+  avatarUrl,
+  code,
+  accent,
+}: {
+  name: string;
+  avatarUrl: string | null;
+  code: string;
+  accent: string;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          className="w-8 h-8 rounded-full object-cover"
+          style={{ border: `1px solid ${accent}55` }}
+        />
+      ) : (
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold"
+          style={{
+            background: `${accent}18`,
+            color: accent,
+            border: `1px solid ${accent}55`,
+          }}
+        >
+          {name.slice(0, 1).toUpperCase()}
+        </div>
+      )}
+      <div className="min-w-0">
+        <div className="text-[12.5px] text-white/85 tracking-tight truncate">
+          {name}
+        </div>
+        <div className="text-[10.5px] text-white/40 tracking-tight truncate">
+          @{code}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FlightCard({ flight, delay }: { flight: Flight; delay: number }) {
+  const theme = FLIGHT_STATUS[flight.status];
+  const revenuePctNum = flight.revenuePct ?? 0;
+  const targetStr = flight.bonusTarget
+    ? fmtARSCompact(flight.bonusTarget)
+    : "—";
+  const revStr = fmtARSCompact(flight.revenue);
+  const bonusStr = flight.bonusAmount ? fmtARSCompact(flight.bonusAmount) : null;
+  const timeHint =
+    flight.endDate === null
+      ? "Sin deadline"
+      : flight.daysRemaining === null
+        ? ""
+        : flight.daysRemaining === 0
+          ? "vence hoy"
+          : flight.daysRemaining === 1
+            ? "1 día restante"
+            : `${flight.daysRemaining} días restantes`;
+
+  return (
+    <div
+      className="relative rounded-2xl p-5 overflow-hidden"
+      style={{
+        background: theme.bg,
+        border: `1px solid ${theme.border}`,
+        boxShadow: `0 22px 60px -40px ${theme.glow}, inset 0 1px 0 rgba(255,255,255,0.04)`,
+        animation: `flightIn 620ms ${ES} ${delay}ms both`,
+      }}
+    >
+      {/* sweep sutil de luz para unlocked + at_risk */}
+      {(flight.status === "unlocked" || flight.status === "at_risk") && (
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `linear-gradient(110deg, transparent 35%, ${theme.accent}14 50%, transparent 65%)`,
+            animation: "flightSheen 5.5s ease-in-out infinite",
+          }}
+        />
+      )}
+
+      {/* Header: creator + status pill */}
+      <div className="relative flex items-start justify-between gap-3">
+        <CreatorMini
+          name={flight.creator.name}
+          avatarUrl={flight.creator.avatarUrl}
+          code={flight.creator.code}
+          accent={theme.accent}
+        />
+        <div
+          className="flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] whitespace-nowrap"
+          style={{
+            background: `${theme.accent}18`,
+            border: `1px solid ${theme.border}`,
+            color: theme.text,
+          }}
+        >
+          <FlightStatusIcon kind={theme.icon} color={theme.accent} size={11} />
+          {theme.label}
+        </div>
+      </div>
+
+      {/* Campaign name */}
+      <div className="relative mt-4">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-white/35 font-bold">
+          Campaña
+        </p>
+        <h3
+          className="mt-1 text-[15px] tracking-tight text-white truncate"
+          style={{ fontWeight: 600, letterSpacing: "-0.01em" }}
+          title={flight.name}
+        >
+          {flight.name}
+        </h3>
+      </div>
+
+      {/* Progress block */}
+      <div className="relative mt-4">
+        <div className="flex items-baseline justify-between gap-2 mb-2">
+          <div className="flex items-baseline gap-1.5">
+            <span
+              className="text-[20px] tabular-nums tracking-tight"
+              style={{
+                color: theme.accent,
+                fontWeight: 600,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {revStr}
+            </span>
+            <span className="text-[11px] text-white/40 tracking-tight">
+              / {targetStr}
+            </span>
+          </div>
+          {flight.revenuePct !== null ? (
+            <span
+              className="text-[11px] tabular-nums font-bold"
+              style={{ color: theme.text }}
+            >
+              {Math.round(revenuePctNum * 100)}%
+            </span>
+          ) : null}
+        </div>
+        <ProgressArc
+          revenuePct={flight.revenuePct}
+          timePct={flight.timePct}
+          accent={theme.accent}
+        />
+        {/* Legenda sutil */}
+        <div className="mt-2 flex items-center justify-between text-[10px] text-white/40 tracking-tight">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: theme.accent }}
+              />
+              Revenue
+            </span>
+            <span className="flex items-center gap-1">
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: "rgba(255,255,255,0.3)" }}
+              />
+              Tiempo
+            </span>
+          </div>
+          <span className="tabular-nums">
+            {flight.totalDays
+              ? `Día ${flight.daysElapsed}/${flight.totalDays}`
+              : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* Footer stats */}
+      <div
+        className="relative mt-4 pt-3 flex items-center justify-between text-[11px]"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <div className="flex items-center gap-4">
+          <div>
+            <div className="text-white/40 uppercase tracking-[0.12em] text-[9.5px] font-bold">
+              Ventas
+            </div>
+            <div className="text-white/80 tabular-nums" style={{ fontWeight: 600 }}>
+              {flight.conversions}
+            </div>
+          </div>
+          {bonusStr ? (
+            <div>
+              <div className="text-white/40 uppercase tracking-[0.12em] text-[9.5px] font-bold">
+                Bonus
+              </div>
+              <div
+                className="tabular-nums"
+                style={{ color: theme.text, fontWeight: 600 }}
+              >
+                {bonusStr}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div
+          className="text-[10.5px] tabular-nums tracking-tight"
+          style={{ color: theme.text }}
+        >
+          {timeHint}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CampaignsInFlightZone({ state }: { state: FlightsState }) {
+  if (state.status === "loading") {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl h-[240px]"
+            style={{
+              background:
+                "linear-gradient(160deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite`,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div
+        className="rounded-2xl p-5 text-white/70 text-[13px]"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(253,164,175,0.2)",
+        }}
+      >
+        No pude cargar las campañas en vuelo. {state.message}
+      </div>
+    );
+  }
+  const { flights, total, unlocked } = state;
+  if (total === 0) {
+    return (
+      <div
+        className="rounded-2xl p-8 text-center"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          border: "1px dashed rgba(244,215,148,0.18)",
+        }}
+      >
+        <p className="text-[14px] text-white/70 tracking-tight">
+          No hay campañas activas ahora mismo.
+        </p>
+        <p className="mt-1 text-[12px] text-white/40">
+          Cuando actives una campaña, va a aparecer acá con su progreso.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* resumen */}
+      <div
+        className="mb-4 flex items-center gap-4 text-[12px] tracking-tight"
+        style={{ animation: `fadeIn 420ms ${ES}` }}
+      >
+        <div className="flex items-center gap-1.5">
+          <span
+            className="w-1.5 h-1.5 rounded-full"
+            style={{
+              background: "#a78bfa",
+              boxShadow: "0 0 8px rgba(167,139,250,0.6)",
+            }}
+          />
+          <span className="text-white/70">
+            <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+              {total}
+            </span>{" "}
+            {total === 1 ? "campaña activa" : "campañas activas"}
+          </span>
+        </div>
+        {unlocked > 0 ? (
+          <div className="flex items-center gap-1.5">
+            <Trophy size={12} color="#86efac" strokeWidth={2.2} />
+            <span className="text-white/70">
+              <span
+                className="tabular-nums"
+                style={{ color: "#bbf7d0", fontWeight: 600 }}
+              >
+                {unlocked}
+              </span>{" "}
+              {unlocked === 1 ? "con bonus desbloqueado" : "con bonus desbloqueados"}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {flights.map((f, i) => (
+          <FlightCard key={f.id} flight={f} delay={i * 90} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function timeAgo(d: Date) {
   const secs = Math.floor((Date.now() - d.getTime()) / 1000);
   if (secs < 60) return "hace unos segundos";
@@ -1732,6 +2237,19 @@ export default function AuraInicioPage() {
   const [hero, setHero] = useState<HeroState>({ status: "loading" });
   const [podium, setPodium] = useState<PodiumState>({ status: "loading" });
   const [inbox, setInbox] = useState<InboxState>({ status: "loading" });
+  const [flights, setFlights] = useState<FlightsState>({ status: "loading" });
+
+  async function loadFlights() {
+    setFlights({ status: "loading" });
+    try {
+      const res = await fetch(`/api/aura/campaigns/in-flight`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as FlightsPayload;
+      setFlights({ status: "ready", ...data });
+    } catch (e: any) {
+      setFlights({ status: "error", message: e?.message || "error desconocido" });
+    }
+  }
 
   async function loadInbox() {
     setInbox({ status: "loading" });
@@ -1810,6 +2328,7 @@ export default function AuraInicioPage() {
     loadHero();
     loadPodium();
     loadInbox();
+    loadFlights();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey]);
 
@@ -1894,6 +2413,17 @@ export default function AuraInicioPage() {
         @keyframes countPulse {
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.06); opacity: 0.92; }
+        }
+        @keyframes flightIn {
+          from { opacity: 0; transform: translateY(16px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes flightSheen {
+          0% { transform: translateX(-40%); opacity: 0; }
+          15% { opacity: 1; }
+          50% { transform: translateX(40%); opacity: 0.6; }
+          85% { opacity: 0; }
+          100% { transform: translateX(60%); opacity: 0; }
         }
       `}</style>
 
@@ -2018,6 +2548,26 @@ export default function AuraInicioPage() {
             </span>
           </div>
           <ActionInboxZone state={inbox} />
+        </section>
+
+        {/* ─── Zona 5: Campañas en vuelo ─────────────────────────── */}
+        <section className="mt-10">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.26em]"
+              style={{ color: "#e6c27a" }}
+            >
+              Campañas en vuelo
+            </span>
+            <span
+              className="w-1 h-1 rounded-full"
+              style={{ background: "rgba(244,215,148,0.55)" }}
+            />
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+              Flight deck · Progreso vs bonus
+            </span>
+          </div>
+          <CampaignsInFlightZone state={flights} />
         </section>
       </div>
     </div>
