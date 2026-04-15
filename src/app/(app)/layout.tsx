@@ -77,6 +77,17 @@ const NAV_GROUPS: NavGroup[] = [
     label: "NITRO CREATORS",
     items: [
       {
+        href: "/aura/inicio",
+        label: "Aura",
+        icon: "M12 3a9 9 0 100 18 9 9 0 000-18zm0 4a5 5 0 110 10 5 5 0 010-10zm0 3a2 2 0 100 4 2 2 0 000-4z",
+        premium: {
+          badge: "NEW",
+          badgeColor: "#f4d794",
+          glowColor: "rgba(244,215,148,0.35)",
+          description: "La nueva home del programa de creators",
+        },
+      },
+      {
         href: "/influencers",
         label: "Influencers",
         icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
