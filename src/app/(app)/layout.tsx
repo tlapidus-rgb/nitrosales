@@ -884,10 +884,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                     "linear-gradient(180deg, rgba(244,114,182,0.55), rgba(168,85,247,0.15))",
                                 }}
                               />
+                              {/* Determinar el match más específico (href más largo) para evitar doble selección */}
+                              {(() => null)()}
                               {item.children.map((sub, si) => {
-                                const subActive =
-                                  pathname === sub.href ||
-                                  (sub.href !== "/aura/inicio" && pathname.startsWith(sub.href));
+                                const children = item.children!;
+                                const matchingHrefs = children
+                                  .filter(
+                                    (c) =>
+                                      pathname === c.href ||
+                                      (c.href !== "/aura/inicio" &&
+                                        pathname.startsWith(c.href + "/")),
+                                  )
+                                  .map((c) => c.href);
+                                const bestMatch = matchingHrefs.reduce(
+                                  (best, h) => (h.length > best.length ? h : best),
+                                  "",
+                                );
+                                const subActive = sub.href === bestMatch;
                                 const prevGroup = si > 0 ? item.children![si - 1].group : undefined;
                                 const showGroupHeader = sub.group && sub.group !== prevGroup;
                                 return (
