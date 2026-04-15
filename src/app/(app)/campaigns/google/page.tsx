@@ -600,19 +600,19 @@ function PMaxCampaignCard({ campaign, ads }: { campaign: any; ads: any[] }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <div className="bg-slate-50 rounded-xl p-3">
           <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">Inversion</p>
-          <p className="text-base font-bold tabular-nums tracking-tight text-slate-900">{formatARS(totalSpend)}</p>
+          <p className="text-[15px] font-bold tabular-nums tracking-tight text-slate-900 whitespace-nowrap">{formatARS(totalSpend)}</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3">
           <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">Conversiones</p>
-          <p className="text-base font-bold tabular-nums tracking-tight text-slate-900">{totalConv}</p>
+          <p className="text-[15px] font-bold tabular-nums tracking-tight text-slate-900 whitespace-nowrap">{totalConv}</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3">
           <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">ROAS</p>
-          <p className="text-base font-bold tabular-nums tracking-tight" style={{ color: roasColor }}>{roas}x</p>
+          <p className="text-[15px] font-bold tabular-nums tracking-tight whitespace-nowrap" style={{ color: roasColor }}>{roas}x</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3">
           <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">CTR</p>
-          <p className="text-base font-bold tabular-nums tracking-tight text-slate-900">{ctr}%</p>
+          <p className="text-[15px] font-bold tabular-nums tracking-tight text-slate-900 whitespace-nowrap">{ctr}%</p>
         </div>
       </div>
 
