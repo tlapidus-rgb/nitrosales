@@ -1,1284 +1,1607 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+// ══════════════════════════════════════════════════════════════════════
+// /campaigns/meta — Rebuild sesión 21
+// ──────────────────────────────────────────────────────────────────────
+// Bloques:
+//   1. Command Bar (header + hero KPIs + breakeven chip)
+//   2. Funnel Map (TOF → MOF → BOF)
+//   3. Diagnósticos automáticos
+//   4. Tabla jerárquica de campañas (expand → adsets)
+//   5. Campaign Drawer (right slide)
+//
+// Premium: light mode, aurora, multi-shadow, count-up animations,
+// cubic-bezier (0.16, 1, 0.3, 1), tabular-nums, rounded-2xl, tracking-tight.
+// ══════════════════════════════════════════════════════════════════════
+
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell,
-  PieChart, Pie, Legend,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  LineChart, Line, ReferenceLine,
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import { KpiCard, DateRangeFilter } from "@/components/dashboard";
 import { useSyncStatus } from "@/lib/hooks/useSyncStatus";
 import { useBreakeven } from "@/lib/hooks/useBreakeven";
-import { BreakevenChip } from "@/components/campaigns/BreakevenChip";
+import { BreakevenChip, roasColorClass } from "@/components/campaigns/BreakevenChip";
 import {
-  DollarSign, Eye, MousePointer, ShoppingCart, Target, Zap,
-  Users, Radio, ArrowUp, ArrowDown, Download, TrendingUp,
-  ArrowUpRight, ArrowDownRight, GripVertical, AlertTriangle,
-  BarChart3, Layers, ChevronRight, ChevronDown, RefreshCw, Image, Film,
-  Tag, Palette, Sparkles, Megaphone, LayoutGrid,
+  DollarSign, Target, MousePointer, ShoppingCart, Activity,
+  ChevronRight, ChevronDown, RefreshCw, Zap, AlertTriangle,
+  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
+  Sparkles, Flame, Trophy, Hourglass, Gauge, ExternalLink,
+  Search, X, Clock, ArrowRight, Layers, BarChart3,
 } from "lucide-react";
 
-/* ── Constants ─────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   Constants
+   ════════════════════════════════════════════════════ */
 
 const QUICK_RANGES = [
-  { label: "7 dias", days: 7 },
-  { label: "14 dias", days: 14 },
-  { label: "30 dias", days: 30 },
-  { label: "90 dias", days: 90 },
+  { label: "7 días", days: 7 },
+  { label: "14 días", days: 14 },
+  { label: "30 días", days: 30 },
+  { label: "90 días", days: 90 },
 ];
 
-function toDateInputValue(d: Date) { return d.toISOString().split("T")[0]; }
-
-const FUNNEL_STAGES = [
-  { key: "TOF", label: "Top of Funnel", sublabel: "Awareness & Reach", color: "#8b5cf6", bgColor: "bg-purple-50", borderColor: "border-purple-200", textColor: "text-purple-700" },
-  { key: "MOF", label: "Mid Funnel", sublabel: "Consideration & Traffic", color: "#3b82f6", bgColor: "bg-blue-50", borderColor: "border-blue-200", textColor: "text-blue-700" },
-  { key: "BOF", label: "Bottom of Funnel", sublabel: "Conversions & Sales", color: "#10b981", bgColor: "bg-green-50", borderColor: "border-green-200", textColor: "text-green-700" },
+const FUNNEL_STAGES: Array<{
+  key: "TOF" | "MOF" | "BOF";
+  label: string;
+  sublabel: string;
+  hex: string;
+  glow: string;
+  ring: string;
+  text: string;
+  soft: string;
+}> = [
+  {
+    key: "TOF",
+    label: "Top of Funnel",
+    sublabel: "Awareness",
+    hex: "#8b5cf6",
+    glow: "from-violet-500/15 to-violet-500/0",
+    ring: "ring-violet-200",
+    text: "text-violet-700",
+    soft: "bg-violet-50",
+  },
+  {
+    key: "MOF",
+    label: "Mid Funnel",
+    sublabel: "Consideration",
+    hex: "#3b82f6",
+    glow: "from-blue-500/15 to-blue-500/0",
+    ring: "ring-blue-200",
+    text: "text-blue-700",
+    soft: "bg-blue-50",
+  },
+  {
+    key: "BOF",
+    label: "Bottom of Funnel",
+    sublabel: "Conversión",
+    hex: "#10b981",
+    glow: "from-emerald-500/15 to-emerald-500/0",
+    ring: "ring-emerald-200",
+    text: "text-emerald-700",
+    soft: "bg-emerald-50",
+  },
 ];
 
-const ROAS_TARGETS: Record<string, { min: number; good: number }> = {
-  TOF: { min: 0.5, good: 1.0 },
-  MOF: { min: 1.0, good: 1.5 },
-  BOF: { min: 2.0, good: 3.0 },
-};
-
-/* ── Small Components ──────────────────────────────── */
-
-function RoasBadge({ value, stage }: { value: number; stage?: string }) {
-  const targets = stage ? ROAS_TARGETS[stage] : { min: 1.5, good: 3 };
-  const color = value >= (targets?.good || 3) ? "text-green-600 bg-green-50" :
-    value >= (targets?.min || 1.5) ? "text-amber-600 bg-amber-50" : "text-red-600 bg-red-50";
-  return <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${color}`}>{value}x</span>;
+function toDateInputValue(d: Date) {
+  return d.toISOString().split("T")[0];
 }
 
-function ChangeBadge({ value }: { value: number }) {
-  if (!value || value === 0) return <span className="text-xs text-gray-400">--</span>;
-  const pos = value > 0;
+const ES_TRANSITION = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+/* ════════════════════════════════════════════════════
+   Hooks
+   ════════════════════════════════════════════════════ */
+
+function useCountUp(target: number, duration = 600) {
+  const [value, setValue] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number | null>(null);
+  const fromRef = useRef(0);
+
+  useEffect(() => {
+    fromRef.current = value;
+    startRef.current = null;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+    const step = (t: number) => {
+      if (!startRef.current) startRef.current = t;
+      const elapsed = t - startRef.current;
+      const p = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 4); // easeOutQuart
+      setValue(fromRef.current + (target - fromRef.current) * eased);
+      if (p < 1) rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, duration]);
+
+  return value;
+}
+
+/* ════════════════════════════════════════════════════
+   Small Components
+   ════════════════════════════════════════════════════ */
+
+function CountARS({ value }: { value: number }) {
+  const v = useCountUp(value, 700);
+  return <span className="tabular-nums">{formatARS(v)}</span>;
+}
+
+function CountX({ value, digits = 2 }: { value: number; digits?: number }) {
+  const v = useCountUp(value, 700);
+  return <span className="tabular-nums">{v.toFixed(digits)}x</span>;
+}
+
+function CountNum({ value }: { value: number }) {
+  const v = useCountUp(value, 700);
+  return <span className="tabular-nums">{Math.round(v).toLocaleString("es-AR")}</span>;
+}
+
+function DeltaPill({ value, inverse = false }: { value: number; inverse?: boolean }) {
+  if (!isFinite(value) || value === 0) {
+    return <span className="text-[11px] text-slate-400 tabular-nums">—</span>;
+  }
+  const good = inverse ? value < 0 : value > 0;
+  const Icon = value > 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${pos ? "text-emerald-600" : "text-red-500"}`}>
-      {pos ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+    <span
+      className={`inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums ${
+        good ? "text-emerald-600" : "text-rose-500"
+      }`}
+    >
+      <Icon size={11} strokeWidth={2.5} />
       {Math.abs(value).toFixed(1)}%
     </span>
   );
 }
 
-function FrequencyGauge({ value }: { value: number }) {
-  const pct = Math.min((value / 7) * 100, 100);
-  const color = value <= 3 ? "#10b981" : value <= 5 ? "#f59e0b" : "#ef4444";
-  const label = value <= 3 ? "Saludable" : value <= 5 ? "Monitorear" : "Fatiga";
+function StatusDot({ status }: { status: string }) {
+  const s = (status || "").toUpperCase();
+  const cfg =
+    s === "ACTIVE"
+      ? { bg: "bg-emerald-500", label: "Activa", ring: "ring-emerald-200" }
+      : s === "PAUSED"
+      ? { bg: "bg-amber-400", label: "Pausada", ring: "ring-amber-200" }
+      : s === "ARCHIVED"
+      ? { bg: "bg-slate-400", label: "Archivada", ring: "ring-slate-200" }
+      : { bg: "bg-slate-300", label: s || "Sin estado", ring: "ring-slate-200" };
   return (
-    <div>
-      <div className="flex justify-between text-xs mb-1">
-        <span className="text-gray-500">Frecuencia Promedio</span>
-        <span className="font-bold" style={{ color }}>{value.toFixed(1)}x/semana</span>
-      </div>
-      <div className="w-full bg-gray-100 rounded-full h-2">
-        <div className="h-2 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-      <div className="text-[10px] mt-0.5 text-right" style={{ color }}>{label}</div>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    ACTIVE: "bg-green-100 text-green-700",
-    PAUSED: "bg-amber-100 text-amber-700",
-    ARCHIVED: "bg-gray-100 text-gray-500",
-    DELETED: "bg-red-100 text-red-600",
-  };
-  return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${colors[status] || "bg-gray-100 text-gray-700"}`}>
-      {status}
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.bg} ring-2 ${cfg.ring}`} />
+      {cfg.label}
     </span>
   );
 }
 
-function FunnelStageBadge({ stage }: { stage: string }) {
+function StageChip({ stage }: { stage: string }) {
   const cfg = FUNNEL_STAGES.find((f) => f.key === stage);
-  if (!cfg) return <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Sin asignar</span>;
+  if (!cfg) {
+    return (
+      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
+        —
+      </span>
+    );
+  }
   return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${cfg.bgColor} ${cfg.textColor}`}>
+    <span
+      className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.soft} ${cfg.text}`}
+    >
       {cfg.key}
     </span>
   );
 }
 
-/* ── Funnel Drop Zone Component ────────────────────── */
+/**
+ * Auto-classify a campaign or adset based on simple heuristics.
+ * Returns a badge config (or null if nothing interesting).
+ */
+function classifyCampaign(c: {
+  status: string;
+  spend: number;
+  conversions: number;
+  roas: number;
+  daysWithData: number;
+  breakevenRoas: number;
+}): { label: string; kind: string; Icon: any; soft: string; text: string } | null {
+  const active = (c.status || "").toUpperCase() === "ACTIVE";
+  if (!active) return null;
 
-function FunnelBoard({ campaigns, funnelSummary, onAssign }: {
-  campaigns: any[];
-  funnelSummary: any[];
-  onAssign: (campaignId: string, stage: string) => void;
+  // Ganador: ROAS muy por encima del BE con gasto relevante
+  if (c.breakevenRoas > 0 && c.roas >= c.breakevenRoas * 1.5 && c.spend > 5000) {
+    return {
+      label: "Ganador",
+      kind: "win",
+      Icon: Trophy,
+      soft: "bg-emerald-50",
+      text: "text-emerald-700",
+    };
+  }
+
+  // Quemado: gasto alto sin conversiones en varios días
+  if (c.spend > 10000 && c.conversions === 0 && c.daysWithData >= 5) {
+    return {
+      label: "Quemado",
+      kind: "burn",
+      Icon: Flame,
+      soft: "bg-rose-50",
+      text: "text-rose-700",
+    };
+  }
+
+  // En aprendizaje: poca data aún
+  if (c.daysWithData > 0 && c.daysWithData <= 3 && c.conversions < 5) {
+    return {
+      label: "En aprendizaje",
+      kind: "learn",
+      Icon: Hourglass,
+      soft: "bg-blue-50",
+      text: "text-blue-700",
+    };
+  }
+
+  // Sangrando: ROAS debajo del BE con gasto alto
+  if (c.breakevenRoas > 0 && c.roas < c.breakevenRoas && c.spend > 5000) {
+    return {
+      label: "Por debajo BE",
+      kind: "bleed",
+      Icon: AlertTriangle,
+      soft: "bg-amber-50",
+      text: "text-amber-700",
+    };
+  }
+
+  return null;
+}
+
+function Badge({
+  Icon,
+  label,
+  soft,
+  text,
+}: {
+  Icon: any;
+  label: string;
+  soft: string;
+  text: string;
 }) {
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${soft} ${text}`}
+    >
+      <Icon size={10} strokeWidth={2.5} />
+      {label}
+    </span>
+  );
+}
 
-  const grouped = useMemo(() => {
-    const map: Record<string, any[]> = { TOF: [], MOF: [], BOF: [], UNKNOWN: [] };
-    campaigns.forEach((c) => {
-      const stage = c.funnelStage || "UNKNOWN";
-      if (!map[stage]) map[stage] = [];
-      map[stage].push(c);
-    });
-    return map;
-  }, [campaigns]);
+/**
+ * Sparkline for a single campaign from dailyTrend (platform-scoped spend).
+ * Here we receive the campaign's own dailyMetrics (spend per day) if available;
+ * if not, we show a flat line.
+ */
+function Sparkline({ points, color = "#3b82f6" }: { points: number[]; color?: string }) {
+  if (!points || points.length < 2) {
+    return <span className="text-[11px] text-slate-300">—</span>;
+  }
+  const max = Math.max(...points, 1);
+  const min = Math.min(...points);
+  const w = 80;
+  const h = 22;
+  const step = w / (points.length - 1);
+  const d = points
+    .map((v, i) => {
+      const x = i * step;
+      const y = h - ((v - min) / (max - min || 1)) * h;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg width={w} height={h} className="block">
+      <path d={d} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    setDraggedId(id);
-    e.dataTransfer.effectAllowed = "move";
-  };
+/* ════════════════════════════════════════════════════
+   Main Page
+   ════════════════════════════════════════════════════ */
 
-  const handleDragOver = (e: React.DragEvent, stage: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setDragOverStage(stage);
-  };
+export default function MetaCampaignsPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <MetaCampaignsInner />
+    </Suspense>
+  );
+}
 
-  const handleDrop = (e: React.DragEvent, stage: string) => {
-    e.preventDefault();
-    if (draggedId) {
-      onAssign(draggedId, stage);
+function PageSkeleton() {
+  return (
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="max-w-[1400px] mx-auto animate-pulse space-y-4">
+        <div className="h-8 w-64 bg-slate-200 rounded" />
+        <div className="grid grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-32 bg-white rounded-2xl" />
+          ))}
+        </div>
+        <div className="h-64 bg-white rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+function MetaCampaignsInner() {
+  /* ── Date range ───────────────────────────────── */
+  const now = new Date();
+  const [dateFrom, setDateFrom] = useState(
+    toDateInputValue(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000))
+  );
+  const [dateTo, setDateTo] = useState(toDateInputValue(now));
+  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
+
+  /* ── Data state ───────────────────────────────── */
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [structure, setStructure] = useState<any>(null);
+  const [structureLoading, setStructureLoading] = useState(false);
+
+  /* ── UI state ─────────────────────────────────── */
+  const [query, setQuery] = useState("");
+  const [stageFilter, setStageFilter] = useState<"ALL" | "TOF" | "MOF" | "BOF">("ALL");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+
+  /* ── Hooks: sync + breakeven ──────────────────── */
+  const { lastSyncAt, isSyncing, triggerSync, onSyncComplete } = useSyncStatus("META_ADS");
+  const breakeven = useBreakeven(dateFrom, dateTo);
+
+  /* ── Fetching ─────────────────────────────────── */
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(
+        `/api/metrics/campaigns?platform=META&from=${dateFrom}&to=${dateTo}`,
+        { cache: "no-store" }
+      );
+      const d = await r.json();
+      setData(d && typeof d === "object" ? d : null);
+    } catch (e) {
+      console.error("[/campaigns/meta] fetchData error", e);
+      setData(null);
+    } finally {
+      setLoading(false);
     }
-    setDraggedId(null);
-    setDragOverStage(null);
+  }, [dateFrom, dateTo]);
+
+  const fetchStructure = useCallback(async () => {
+    setStructureLoading(true);
+    try {
+      const r = await fetch(
+        `/api/metrics/ads/structure?platform=META&from=${dateFrom}&to=${dateTo}`,
+        { cache: "no-store" }
+      );
+      const d = await r.json();
+      setStructure(d && typeof d === "object" ? d : null);
+    } catch (e) {
+      console.error("[/campaigns/meta] fetchStructure error", e);
+      setStructure(null);
+    } finally {
+      setStructureLoading(false);
+    }
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => {
+    fetchData();
+    fetchStructure();
+  }, [fetchData, fetchStructure]);
+
+  // Refresh when sync completes
+  useEffect(() => {
+    onSyncComplete(() => {
+      fetchData();
+      fetchStructure();
+    });
+  }, [onSyncComplete, fetchData, fetchStructure]);
+
+  /* ── Date range handlers ──────────────────────── */
+  const handleQuickRange = (days: number) => {
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+    setDateFrom(toDateInputValue(start));
+    setDateTo(toDateInputValue(end));
+    setActiveQuickRange(days);
+  };
+  const handleDateChange = (type: "from" | "to", value: string) => {
+    if (type === "from") setDateFrom(value);
+    else setDateTo(value);
+    setActiveQuickRange(null);
   };
 
-  const handleDragEnd = () => {
-    setDraggedId(null);
-    setDragOverStage(null);
-  };
+  /* ── Derived data ─────────────────────────────── */
+  const campaigns = Array.isArray(data?.campaigns) ? data.campaigns : [];
+  const totals = data?.totals || {};
+  const changes = data?.changes || {};
+  const funnelSummary = Array.isArray(data?.funnelSummary) ? data.funnelSummary : [];
+  const dailyTrend = Array.isArray(data?.dailyTrend) ? data.dailyTrend : [];
+
+  const metaCampaigns = useMemo(
+    () => campaigns.filter((c: any) => c.platform === "META"),
+    [campaigns]
+  );
+
+  const metaTotals = useMemo(() => {
+    return metaCampaigns.reduce(
+      (acc: any, c: any) => ({
+        spend: acc.spend + (c.spend || 0),
+        impressions: acc.impressions + (c.impressions || 0),
+        clicks: acc.clicks + (c.clicks || 0),
+        conversions: acc.conversions + (c.conversions || 0),
+        conversionValue: acc.conversionValue + (c.conversionValue || 0),
+      }),
+      { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 }
+    );
+  }, [metaCampaigns]);
+
+  const metaRoas = metaTotals.spend > 0 ? metaTotals.conversionValue / metaTotals.spend : 0;
+  const metaCtr = metaTotals.impressions > 0 ? (metaTotals.clicks / metaTotals.impressions) * 100 : 0;
+  const metaCpa = metaTotals.conversions > 0 ? metaTotals.spend / metaTotals.conversions : 0;
+
+  // Filter + search
+  const displayCampaigns = useMemo(() => {
+    let list = metaCampaigns;
+    if (stageFilter !== "ALL") list = list.filter((c: any) => c.funnelStage === stageFilter);
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      list = list.filter((c: any) => (c.name || "").toLowerCase().includes(q));
+    }
+    return list;
+  }, [metaCampaigns, stageFilter, query]);
+
+  // Funnel aggregates (Meta only)
+  const metaFunnel = useMemo(() => {
+    const agg: Record<string, { spend: number; conversions: number; conversionValue: number; count: number }> = {
+      TOF: { spend: 0, conversions: 0, conversionValue: 0, count: 0 },
+      MOF: { spend: 0, conversions: 0, conversionValue: 0, count: 0 },
+      BOF: { spend: 0, conversions: 0, conversionValue: 0, count: 0 },
+    };
+    metaCampaigns.forEach((c: any) => {
+      const s = c.funnelStage;
+      if (agg[s]) {
+        agg[s].spend += c.spend || 0;
+        agg[s].conversions += c.conversions || 0;
+        agg[s].conversionValue += c.conversionValue || 0;
+        agg[s].count++;
+      }
+    });
+    return agg;
+  }, [metaCampaigns]);
+
+  // Diagnóstico: auto-insights
+  const diagnostics = useMemo(() => {
+    const out: Array<{
+      severity: "high" | "med" | "low";
+      Icon: any;
+      title: string;
+      detail: string;
+      campaignId?: string;
+    }> = [];
+
+    // Check: no ACTIVE campaigns
+    const active = metaCampaigns.filter((c: any) => (c.status || "").toUpperCase() === "ACTIVE");
+    if (metaCampaigns.length > 0 && active.length === 0) {
+      out.push({
+        severity: "high",
+        Icon: AlertTriangle,
+        title: "Sin campañas activas",
+        detail: `Todas las ${metaCampaigns.length} campañas están pausadas o archivadas.`,
+      });
+    }
+
+    // Check: quemadas (spend alto sin conversiones)
+    const burned = metaCampaigns.filter(
+      (c: any) =>
+        (c.status || "").toUpperCase() === "ACTIVE" &&
+        c.spend > 10000 &&
+        c.conversions === 0 &&
+        c.daysWithData >= 5
+    );
+    burned.slice(0, 3).forEach((c: any) => {
+      out.push({
+        severity: "high",
+        Icon: Flame,
+        title: "Campaña quemada",
+        detail: `${c.name} gastó ${formatARS(c.spend)} en ${c.daysWithData} días sin conversiones.`,
+        campaignId: c.id,
+      });
+    });
+
+    // Check: ROAS bajo break-even con gasto
+    if (breakeven.breakevenRoas > 0) {
+      const bleeding = metaCampaigns.filter(
+        (c: any) =>
+          (c.status || "").toUpperCase() === "ACTIVE" &&
+          c.spend > 5000 &&
+          c.roas > 0 &&
+          c.roas < breakeven.breakevenRoas
+      );
+      if (bleeding.length > 0) {
+        const totalBleed = bleeding.reduce((s: number, c: any) => s + c.spend, 0);
+        out.push({
+          severity: "med",
+          Icon: TrendingDown,
+          title: `${bleeding.length} campañas bajo break-even`,
+          detail: `Gastando ${formatARS(totalBleed)} con ROAS < ${breakeven.breakevenRoas.toFixed(2)}x.`,
+        });
+      }
+    }
+
+    // Check: ganadoras — buena noticia
+    if (breakeven.breakevenRoas > 0) {
+      const winners = metaCampaigns.filter(
+        (c: any) =>
+          (c.status || "").toUpperCase() === "ACTIVE" &&
+          c.spend > 5000 &&
+          c.roas >= breakeven.breakevenRoas * 1.5
+      );
+      if (winners.length > 0) {
+        const topWinner = [...winners].sort((a: any, b: any) => b.roas - a.roas)[0];
+        out.push({
+          severity: "low",
+          Icon: Trophy,
+          title: `${winners.length} campaña${winners.length > 1 ? "s" : ""} ganadora${winners.length > 1 ? "s" : ""}`,
+          detail: `Top: ${topWinner.name} con ${topWinner.roas.toFixed(2)}x ROAS.`,
+          campaignId: topWinner.id,
+        });
+      }
+    }
+
+    // Check: no data
+    if (metaCampaigns.length === 0 && !loading) {
+      out.push({
+        severity: "med",
+        Icon: AlertTriangle,
+        title: "Sin datos de Meta Ads",
+        detail: "No hay campañas en este rango. Verificá la conexión o ampliá el período.",
+      });
+    }
+
+    return out;
+  }, [metaCampaigns, breakeven.breakevenRoas, loading]);
+
+  // Build per-campaign spend series (last N days) from dailyTrend
+  // dailyTrend has META/GOOGLE/TIKTOK totals, not per-campaign. Fallback to sparkline from structure.
+  const spendByDay = useMemo(() => {
+    const list = dailyTrend
+      .slice(-14)
+      .map((d: any) => ({ date: d.date, spend: d.META || 0, revenue: d.conversionValue || 0 }));
+    return list;
+  }, [dailyTrend]);
+
+  // Find drawer campaign
+  const drawerCampaign = useMemo(() => {
+    if (!drawerId) return null;
+    const c = metaCampaigns.find((x: any) => x.id === drawerId);
+    const s = structure?.campaigns?.find((x: any) => x.id === drawerId);
+    return c ? { ...c, adSets: s?.adSets || [] } : null;
+  }, [drawerId, metaCampaigns, structure]);
+
+  // Structure map for expand → adsets
+  const adsetsByCampaign = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    (structure?.campaigns || []).forEach((c: any) => {
+      m[c.id] = c.adSets || [];
+    });
+    return m;
+  }, [structure]);
+
+  /* ════════════════════════════════════════════════════
+     Render
+     ════════════════════════════════════════════════════ */
+  const hasData = metaCampaigns.length > 0;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-            <Layers size={18} className="text-purple-600" />
-            Funnel de Campanas
-          </h3>
-          <p className="text-xs text-gray-400 mt-0.5">Arrastra campanas entre etapas del funnel para clasificarlas</p>
+    <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
+      {/* ── Aurora background ── */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(1100px 600px at 15% -10%, rgba(139,92,246,0.12), transparent 60%), radial-gradient(900px 500px at 95% 10%, rgba(59,130,246,0.10), transparent 60%), radial-gradient(800px 400px at 50% 100%, rgba(16,185,129,0.06), transparent 65%)",
+        }}
+      />
+
+      <div className="max-w-[1400px] mx-auto p-5 lg:p-8 space-y-6">
+        {/* ── Header ── */}
+        <div
+          className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+          style={{ animation: `meta-enter 500ms ${ES_TRANSITION}` }}
+        >
+          <div>
+            <div className="text-xs text-slate-500 tracking-tight flex items-center gap-1.5">
+              <span>Campañas</span>
+              <ChevronRight size={12} className="text-slate-300" />
+              <span className="text-slate-700 font-medium">Meta Ads</span>
+            </div>
+            <h1 className="mt-1 text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+              Meta Ads
+              <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">
+                Facebook · Instagram
+              </span>
+            </h1>
+            <p className="mt-1 text-sm text-slate-500 tracking-tight">
+              Visión unificada de performance, funnel y diagnóstico para tus campañas Meta.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <SyncPill lastSyncAt={lastSyncAt} isSyncing={isSyncing} onTrigger={triggerSync} />
+            <DateRangeFilter
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              activeQuickRange={activeQuickRange}
+              quickRanges={QUICK_RANGES}
+              onQuickRange={handleQuickRange}
+              onDateChange={handleDateChange}
+              loading={loading}
+            />
+          </div>
         </div>
+
+        {/* ── Breakeven chip ── */}
+        {!breakeven.loading && (
+          <div style={{ animation: `meta-enter 500ms ${ES_TRANSITION} 80ms both` }}>
+            <BreakevenChip
+              currentRoas={metaRoas}
+              breakevenRoas={breakeven.breakevenRoas}
+              contributionMargin={breakeven.contributionMargin}
+            />
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════
+            BLOCK 1 — Command Bar (Hero KPIs)
+           ══════════════════════════════════════════════ */}
+        <section
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+          style={{ animation: `meta-enter 500ms ${ES_TRANSITION} 120ms both` }}
+        >
+          <HeroKpi
+            icon={<DollarSign size={16} className="text-slate-700" />}
+            iconBg="bg-slate-100"
+            label="Gasto"
+            value={<CountARS value={metaTotals.spend} />}
+            delta={changes?.spend}
+            sub="Total en rango"
+          />
+          <HeroKpi
+            icon={<Target size={16} className="text-emerald-700" />}
+            iconBg="bg-emerald-50"
+            label="ROAS"
+            value={<CountX value={metaRoas} />}
+            delta={changes?.roas}
+            sub={
+              breakeven.breakevenRoas > 0
+                ? `Break-even ${breakeven.breakevenRoas.toFixed(2)}x`
+                : "Sin break-even"
+            }
+            valueClass={roasColorClass(metaRoas, breakeven.breakevenRoas)}
+          />
+          <HeroKpi
+            icon={<MousePointer size={16} className="text-blue-700" />}
+            iconBg="bg-blue-50"
+            label="CTR"
+            value={
+              <span className="tabular-nums">
+                <CountUpPct value={metaCtr} />%
+              </span>
+            }
+            delta={null}
+            sub={`${formatCompact(metaTotals.clicks)} clicks / ${formatCompact(metaTotals.impressions)} imp`}
+          />
+          <HeroKpi
+            icon={<ShoppingCart size={16} className="text-violet-700" />}
+            iconBg="bg-violet-50"
+            label="Conversiones"
+            value={<CountNum value={metaTotals.conversions} />}
+            delta={changes?.conversions}
+            sub={metaCpa > 0 ? `CPA ${formatARS(metaCpa)}` : "—"}
+          />
+        </section>
+
+        {/* ══════════════════════════════════════════════
+            BLOCK 2 — Funnel Map
+           ══════════════════════════════════════════════ */}
+        <section
+          className="rounded-2xl bg-white/90 backdrop-blur p-5 lg:p-6 border border-slate-100"
+          style={{
+            boxShadow:
+              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+            animation: `meta-enter 500ms ${ES_TRANSITION} 180ms both`,
+          }}
+        >
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+                <Layers size={15} className="text-slate-500" />
+                Mapa del funnel
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Distribución de gasto y retorno por etapa
+              </p>
+            </div>
+            <span className="text-[11px] text-slate-400 tabular-nums">
+              Total: {formatARS(metaTotals.spend)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-3 relative">
+            {FUNNEL_STAGES.map((f, idx) => {
+              const v = metaFunnel[f.key] || { spend: 0, count: 0, conversionValue: 0, conversions: 0 };
+              const pct = metaTotals.spend > 0 ? (v.spend / metaTotals.spend) * 100 : 0;
+              const roas = v.spend > 0 ? v.conversionValue / v.spend : 0;
+              return (
+                <div key={f.key} className="relative">
+                  <div
+                    className="rounded-2xl p-4 lg:p-5 bg-white ring-1 ring-slate-100 relative overflow-hidden"
+                    style={{
+                      boxShadow:
+                        "0 1px 0 rgba(15,23,42,0.04), 0 4px 12px -6px rgba(15,23,42,0.08)",
+                    }}
+                  >
+                    <div
+                      aria-hidden
+                      className={`absolute inset-0 bg-gradient-to-br ${f.glow} pointer-events-none`}
+                    />
+                    <div className="relative">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className={`text-[10px] font-bold uppercase tracking-widest ${f.text}`}>
+                            {f.key}
+                          </div>
+                          <div className="text-sm font-semibold text-slate-900 mt-0.5 tracking-tight">
+                            {f.label}
+                          </div>
+                          <div className="text-[11px] text-slate-500">{f.sublabel}</div>
+                        </div>
+                        <span className={`text-[10px] font-semibold ${f.text} ${f.soft} px-2 py-0.5 rounded-md`}>
+                          {v.count} camp
+                        </span>
+                      </div>
+
+                      <div className="mt-4">
+                        <div className="text-2xl font-bold text-slate-900 tabular-nums tracking-tight">
+                          {formatARS(v.spend)}
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+                          {pct.toFixed(1)}% del gasto
+                        </div>
+                      </div>
+
+                      <div className="mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-[width]"
+                          style={{
+                            width: `${Math.min(pct, 100)}%`,
+                            backgroundColor: f.hex,
+                            transition: `width 600ms ${ES_TRANSITION}`,
+                          }}
+                        />
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <Mini label="ROAS" value={`${roas.toFixed(2)}x`} valueClass={roasColorClass(roas, breakeven.breakevenRoas)} />
+                        <Mini label="Conv." value={Math.round(v.conversions).toLocaleString("es-AR")} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {idx < FUNNEL_STAGES.length - 1 && (
+                    <div className="hidden lg:flex absolute -right-2.5 top-1/2 -translate-y-1/2 items-center justify-center z-10">
+                      <div className="w-5 h-5 rounded-full bg-white ring-1 ring-slate-200 flex items-center justify-center shadow-sm">
+                        <ArrowRight size={12} className="text-slate-400" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════
+            BLOCK 3 — Diagnósticos
+           ══════════════════════════════════════════════ */}
+        <section
+          className="rounded-2xl bg-white/90 backdrop-blur p-5 lg:p-6 border border-slate-100"
+          style={{
+            boxShadow:
+              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+            animation: `meta-enter 500ms ${ES_TRANSITION} 240ms both`,
+          }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+                <Sparkles size={15} className="text-slate-500" />
+                Diagnósticos automáticos
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Insights generados de tus campañas Meta
+              </p>
+            </div>
+            <span className="text-[11px] text-slate-400 tabular-nums">
+              {diagnostics.length} {diagnostics.length === 1 ? "insight" : "insights"}
+            </span>
+          </div>
+
+          {diagnostics.length === 0 ? (
+            <EmptyInsight />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {diagnostics.map((d, i) => (
+                <DiagnosticCard
+                  key={i}
+                  severity={d.severity}
+                  Icon={d.Icon}
+                  title={d.title}
+                  detail={d.detail}
+                  onClick={d.campaignId ? () => setDrawerId(d.campaignId!) : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ══════════════════════════════════════════════
+            BLOCK 4 — Campaign Table (hierarchical)
+           ══════════════════════════════════════════════ */}
+        <section
+          className="rounded-2xl bg-white border border-slate-100 overflow-hidden"
+          style={{
+            boxShadow:
+              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+            animation: `meta-enter 500ms ${ES_TRANSITION} 300ms both`,
+          }}
+        >
+          {/* Table header bar */}
+          <div className="p-4 lg:p-5 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+                <BarChart3 size={15} className="text-slate-500" />
+                Campañas
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {displayCampaigns.length} de {metaCampaigns.length} — clic para ver detalle
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar campaña…"
+                  className="pl-7.5 pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-52 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-[border,box-shadow] tracking-tight"
+                  style={{ transition: `border-color 180ms ${ES_TRANSITION}, box-shadow 180ms ${ES_TRANSITION}` }}
+                />
+              </div>
+
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5">
+                {(["ALL", "TOF", "MOF", "BOF"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStageFilter(s)}
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md tracking-tight ${
+                      stageFilter === s
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                    style={{ transition: `background-color 180ms ${ES_TRANSITION}, color 180ms ${ES_TRANSITION}` }}
+                  >
+                    {s === "ALL" ? "Todas" : s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          {loading ? (
+            <TableSkeleton />
+          ) : displayCampaigns.length === 0 ? (
+            <EmptyTable hasData={hasData} />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 border-b border-slate-100">
+                    <th className="text-left py-3 px-4 lg:px-6">Campaña</th>
+                    <th className="text-left py-3 px-2">Stage</th>
+                    <th className="text-left py-3 px-2">Estado</th>
+                    <th className="text-right py-3 px-2">Gasto</th>
+                    <th className="text-right py-3 px-2">CTR</th>
+                    <th className="text-right py-3 px-2">CPA</th>
+                    <th className="text-right py-3 px-2">Conv.</th>
+                    <th className="text-right py-3 px-2">ROAS</th>
+                    <th className="text-right py-3 px-2">Tags</th>
+                    <th className="w-8 py-3 px-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayCampaigns.map((c: any, idx: number) => {
+                    const badge = classifyCampaign({
+                      status: c.status,
+                      spend: c.spend,
+                      conversions: c.conversions,
+                      roas: c.roas,
+                      daysWithData: c.daysWithData,
+                      breakevenRoas: breakeven.breakevenRoas,
+                    });
+                    const expanded = expandedId === c.id;
+                    const adsets = adsetsByCampaign[c.id] || [];
+                    return (
+                      <React.Fragment key={c.id}>
+                        <tr
+                          className="border-b border-slate-50 hover:bg-slate-50/60 cursor-pointer group"
+                          style={{ transition: `background-color 180ms ${ES_TRANSITION}` }}
+                          onClick={() => setDrawerId(c.id)}
+                        >
+                          <td className="py-3 px-4 lg:px-6">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedId(expanded ? null : c.id);
+                                }}
+                                className="p-0.5 rounded hover:bg-slate-100 text-slate-400"
+                                style={{ transition: `transform 200ms ${ES_TRANSITION}` }}
+                                aria-label={expanded ? "Colapsar" : "Expandir"}
+                              >
+                                {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                              </button>
+                              <div className="min-w-0">
+                                <div className="text-[13px] font-medium text-slate-900 truncate max-w-[280px] tracking-tight">
+                                  {c.name}
+                                </div>
+                                <div className="text-[10px] text-slate-400 tabular-nums">
+                                  {c.daysWithData} día{c.daysWithData === 1 ? "" : "s"} con data
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2">
+                            <StageChip stage={c.funnelStage} />
+                          </td>
+                          <td className="py-3 px-2">
+                            <StatusDot status={c.status} />
+                          </td>
+                          <td className="py-3 px-2 text-right text-[13px] text-slate-900 tabular-nums font-medium">
+                            {formatARS(c.spend)}
+                          </td>
+                          <td className="py-3 px-2 text-right text-[12px] text-slate-700 tabular-nums">
+                            {c.ctr.toFixed(2)}%
+                          </td>
+                          <td className="py-3 px-2 text-right text-[12px] text-slate-700 tabular-nums">
+                            {c.costPerConversion > 0 ? formatARS(c.costPerConversion) : "—"}
+                          </td>
+                          <td className="py-3 px-2 text-right text-[12px] text-slate-700 tabular-nums">
+                            {c.conversions.toLocaleString("es-AR")}
+                          </td>
+                          <td className="py-3 px-2 text-right text-[13px] font-bold tabular-nums">
+                            <span className={roasColorClass(c.roas, breakeven.breakevenRoas)}>
+                              {c.roas.toFixed(2)}x
+                            </span>
+                          </td>
+                          <td className="py-3 px-2 text-right">
+                            {badge ? (
+                              <Badge Icon={badge.Icon} label={badge.label} soft={badge.soft} text={badge.text} />
+                            ) : (
+                              <span className="text-[11px] text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2">
+                            <ExternalLink size={12} className="text-slate-300 group-hover:text-slate-500" />
+                          </td>
+                        </tr>
+
+                        {expanded && (
+                          <tr className="bg-slate-50/70 border-b border-slate-100">
+                            <td colSpan={10} className="p-4 lg:p-5">
+                              {structureLoading && adsets.length === 0 ? (
+                                <div className="text-[11px] text-slate-500">Cargando ad sets…</div>
+                              ) : adsets.length === 0 ? (
+                                <div className="text-[11px] text-slate-500">Sin ad sets en este período.</div>
+                              ) : (
+                                <AdsetsMini
+                                  adsets={adsets}
+                                  breakevenRoas={breakeven.breakevenRoas}
+                                />
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* Footer mini chart */}
+        {spendByDay.length > 0 && (
+          <section
+            className="rounded-2xl bg-white border border-slate-100 p-5 lg:p-6"
+            style={{
+              boxShadow:
+                "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+              animation: `meta-enter 500ms ${ES_TRANSITION} 360ms both`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900 tracking-tight">
+                  Gasto diario Meta · 14 días
+                </h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Tendencia de inversión en la plataforma
+                </p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={spendByDay}>
+                <defs>
+                  <linearGradient id="metaSpendGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(d) => (d || "").slice(5)}
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tickFormatter={(n) => formatCompact(n)}
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={40}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "white",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 10,
+                    fontSize: 11,
+                    boxShadow: "0 8px 24px -12px rgba(15,23,42,0.12)",
+                  }}
+                  labelStyle={{ color: "#64748b" }}
+                  formatter={(v: any) => [formatARS(v), "Gasto"]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="spend"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  fill="url(#metaSpendGrad)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </section>
+        )}
       </div>
 
-      {/* Funnel Stages */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {FUNNEL_STAGES.map((stage) => {
-          const summary = funnelSummary.find((f: any) => f.stage === stage.key);
-          const stageCampaigns = grouped[stage.key] || [];
-          const isDragOver = dragOverStage === stage.key;
-          return (
-            <div
-              key={stage.key}
-              onDragOver={(e) => handleDragOver(e, stage.key)}
-              onDragLeave={() => setDragOverStage(null)}
-              onDrop={(e) => handleDrop(e, stage.key)}
-              className={`rounded-xl border-2 transition-all duration-200 ${
-                isDragOver ? `${stage.borderColor} bg-opacity-50 shadow-lg scale-[1.01]` : "border-gray-100"
-              } ${stage.bgColor} bg-opacity-30`}
-            >
-              {/* Stage Header */}
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
-                  <span className={`font-semibold text-sm ${stage.textColor}`}>{stage.label}</span>
-                  <span className="text-[10px] text-gray-400 ml-auto">{stageCampaigns.length} campanas</span>
-                </div>
-                <p className="text-[10px] text-gray-500">{stage.sublabel}</p>
-                {/* Stage KPIs */}
-                {summary && (
-                  <div className="grid grid-cols-3 gap-2 mt-3 pt-2 border-t border-gray-100">
-                    <div className="text-center">
-                      <p className="text-[9px] text-gray-400 uppercase">Gasto</p>
-                      <p className="text-xs font-bold text-gray-800">{formatCompact(summary.spend)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-gray-400 uppercase">ROAS</p>
-                      <p className="text-xs font-bold" style={{ color: stage.color }}>{summary.roas}x</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-gray-400 uppercase">Conv.</p>
-                      <p className="text-xs font-bold text-gray-800">{summary.conversions}</p>
-                    </div>
-                  </div>
+      {/* ══════════════════════════════════════════════
+          BLOCK 5 — Campaign Drawer
+         ══════════════════════════════════════════════ */}
+      <CampaignDrawer
+        open={!!drawerId}
+        onClose={() => setDrawerId(null)}
+        campaign={drawerCampaign}
+        breakevenRoas={breakeven.breakevenRoas}
+        loadingStructure={structureLoading}
+      />
+
+      {/* ── Animations ── */}
+      <style jsx global>{`
+        @keyframes meta-enter {
+          0% {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes meta-slide-in {
+          0% {
+            opacity: 0;
+            transform: translateX(24px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          *,
+          *::before,
+          *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════
+   Sub-components
+   ════════════════════════════════════════════════════ */
+
+function SyncPill({
+  lastSyncAt,
+  isSyncing,
+  onTrigger,
+}: {
+  lastSyncAt: string | null;
+  isSyncing: boolean;
+  onTrigger: () => void;
+}) {
+  const ago = useMemo(() => {
+    if (!lastSyncAt) return "Nunca";
+    const s = Math.round((Date.now() - new Date(lastSyncAt).getTime()) / 1000);
+    if (s < 60) return `${s}s`;
+    if (s < 3600) return `${Math.round(s / 60)}min`;
+    return `${Math.round(s / 3600)}h`;
+  }, [lastSyncAt]);
+  return (
+    <button
+      onClick={onTrigger}
+      disabled={isSyncing}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white ring-1 ring-slate-200 text-[11px] text-slate-600 hover:ring-slate-300 disabled:opacity-60 tracking-tight"
+      style={{ transition: `box-shadow 180ms ${ES_TRANSITION}` }}
+      title={lastSyncAt ? `Última sync: ${new Date(lastSyncAt).toLocaleString("es-AR")}` : "Nunca sincronizado"}
+    >
+      <RefreshCw size={11} className={isSyncing ? "animate-spin" : ""} />
+      {isSyncing ? "Sincronizando…" : <>Sync · <span className="tabular-nums font-medium">{ago}</span></>}
+    </button>
+  );
+}
+
+function HeroKpi({
+  icon,
+  iconBg,
+  label,
+  value,
+  delta,
+  sub,
+  valueClass = "",
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  label: string;
+  value: React.ReactNode;
+  delta: number | null | undefined;
+  sub: string;
+  valueClass?: string;
+}) {
+  return (
+    <div
+      className="rounded-2xl bg-white p-5 border border-slate-100 relative overflow-hidden"
+      style={{
+        boxShadow:
+          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`p-2 rounded-xl ${iconBg}`}>{icon}</div>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
+      </div>
+      <div className={`text-2xl lg:text-[28px] font-bold tracking-tight ${valueClass || "text-slate-900"}`}>
+        {value}
+      </div>
+      <div className="mt-1.5 flex items-center gap-2">
+        {delta !== null && delta !== undefined ? <DeltaPill value={Number(delta)} /> : null}
+        <span className="text-[11px] text-slate-500 tabular-nums">{sub}</span>
+      </div>
+    </div>
+  );
+}
+
+function CountUpPct({ value }: { value: number }) {
+  const v = useCountUp(value, 700);
+  return <>{v.toFixed(2)}</>;
+}
+
+function Mini({ label, value, valueClass = "" }: { label: string; value: React.ReactNode; valueClass?: string }) {
+  return (
+    <div>
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</div>
+      <div className={`text-[14px] font-bold mt-0.5 tabular-nums ${valueClass || "text-slate-900"}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function DiagnosticCard({
+  severity,
+  Icon,
+  title,
+  detail,
+  onClick,
+}: {
+  severity: "high" | "med" | "low";
+  Icon: any;
+  title: string;
+  detail: string;
+  onClick?: () => void;
+}) {
+  const cfg =
+    severity === "high"
+      ? { border: "border-rose-100", iconBg: "bg-rose-50", iconColor: "text-rose-600", tag: "Urgente", tagColor: "text-rose-700 bg-rose-50" }
+      : severity === "med"
+      ? { border: "border-amber-100", iconBg: "bg-amber-50", iconColor: "text-amber-600", tag: "Atención", tagColor: "text-amber-700 bg-amber-50" }
+      : { border: "border-emerald-100", iconBg: "bg-emerald-50", iconColor: "text-emerald-600", tag: "Buena señal", tagColor: "text-emerald-700 bg-emerald-50" };
+
+  const Component: any = onClick ? "button" : "div";
+  return (
+    <Component
+      onClick={onClick}
+      className={`text-left rounded-xl bg-white p-4 border ${cfg.border} group ${
+        onClick ? "hover:shadow-md cursor-pointer" : ""
+      }`}
+      style={{ transition: `box-shadow 220ms ${ES_TRANSITION}, transform 220ms ${ES_TRANSITION}` }}
+    >
+      <div className="flex items-start gap-3">
+        <div className={`p-2 rounded-lg ${cfg.iconBg} shrink-0`}>
+          <Icon size={14} className={cfg.iconColor} strokeWidth={2.25} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${cfg.tagColor}`}>{cfg.tag}</span>
+            {onClick && (
+              <ChevronRight
+                size={13}
+                className="text-slate-300 group-hover:text-slate-500 ml-auto"
+                style={{ transition: `transform 220ms ${ES_TRANSITION}` }}
+              />
+            )}
+          </div>
+          <div className="text-[13px] font-semibold text-slate-900 mt-1 tracking-tight">{title}</div>
+          <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{detail}</div>
+        </div>
+      </div>
+    </Component>
+  );
+}
+
+function EmptyInsight() {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center">
+      <Gauge size={18} className="mx-auto text-slate-300 mb-1.5" />
+      <div className="text-[12px] text-slate-500 tracking-tight">
+        Todo en orden — sin alertas para este rango.
+      </div>
+    </div>
+  );
+}
+
+function AdsetsMini({
+  adsets,
+  breakevenRoas,
+}: {
+  adsets: any[];
+  breakevenRoas: number;
+}) {
+  return (
+    <div className="rounded-xl bg-white border border-slate-100 overflow-hidden">
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 border-b border-slate-100">
+            <th className="text-left py-2 px-3">Ad Set</th>
+            <th className="text-left py-2 px-2">Estado</th>
+            <th className="text-right py-2 px-2">Gasto</th>
+            <th className="text-right py-2 px-2">CTR</th>
+            <th className="text-right py-2 px-2">CPA</th>
+            <th className="text-right py-2 px-2">Conv.</th>
+            <th className="text-right py-2 px-2">ROAS</th>
+            <th className="text-right py-2 px-3">Ads</th>
+          </tr>
+        </thead>
+        <tbody>
+          {adsets
+            .slice()
+            .sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0))
+            .map((a: any) => (
+              <tr key={a.id} className="border-b border-slate-50 last:border-0">
+                <td className="py-2 px-3">
+                  <div className="text-[12px] text-slate-800 truncate max-w-[260px] tracking-tight">{a.name}</div>
+                  <div className="text-[10px] text-slate-400">{a.optimizationGoal || "—"}</div>
+                </td>
+                <td className="py-2 px-2">
+                  <StatusDot status={a.status} />
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-700 font-medium">
+                  {formatARS(a.spend || 0)}
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-600">
+                  {(a.ctr || 0).toFixed(2)}%
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-600">
+                  {a.cpa > 0 ? formatARS(a.cpa) : "—"}
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-600">
+                  {(a.conversions || 0).toLocaleString("es-AR")}
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums font-bold">
+                  <span className={roasColorClass(a.roas || 0, breakevenRoas)}>
+                    {(a.roas || 0).toFixed(2)}x
+                  </span>
+                </td>
+                <td className="py-2 px-3 text-right tabular-nums text-slate-500">
+                  {a.adsCount || 0}
+                </td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EmptyTable({ hasData }: { hasData: boolean }) {
+  return (
+    <div className="p-12 text-center">
+      <BarChart3 size={28} className="mx-auto text-slate-300 mb-2" />
+      <div className="text-sm text-slate-600 font-medium tracking-tight">
+        {hasData ? "Sin resultados con los filtros actuales" : "Sin campañas Meta en el rango"}
+      </div>
+      <div className="text-[11px] text-slate-400 mt-1">
+        {hasData ? "Probá ampliar el filtro o buscar otra campaña." : "Ampliá el rango de fechas o verificá la conexión Meta."}
+      </div>
+    </div>
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <div className="p-5 space-y-2">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="h-10 bg-slate-50 rounded animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════
+   Campaign Drawer
+   ════════════════════════════════════════════════════ */
+
+function CampaignDrawer({
+  open,
+  onClose,
+  campaign,
+  breakevenRoas,
+  loadingStructure,
+}: {
+  open: boolean;
+  onClose: () => void;
+  campaign: any;
+  breakevenRoas: number;
+  loadingStructure: boolean;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (open) window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open || !campaign) {
+    return (
+      <div
+        className="fixed inset-0 z-40 pointer-events-none"
+        aria-hidden
+      />
+    );
+  }
+
+  const badge = classifyCampaign({
+    status: campaign.status,
+    spend: campaign.spend,
+    conversions: campaign.conversions,
+    roas: campaign.roas,
+    daysWithData: campaign.daysWithData,
+    breakevenRoas,
+  });
+
+  const adsets: any[] = Array.isArray(campaign.adSets) ? campaign.adSets : [];
+
+  return (
+    <>
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[2px]"
+        onClick={onClose}
+        style={{ animation: `meta-enter 240ms ${ES_TRANSITION}` }}
+      />
+      {/* Drawer */}
+      <aside
+        className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-[580px] bg-white shadow-2xl overflow-y-auto"
+        style={{
+          animation: `meta-slide-in 360ms ${ES_TRANSITION}`,
+          boxShadow: "0 0 0 1px rgba(15,23,42,0.06), -20px 0 60px -30px rgba(15,23,42,0.30)",
+        }}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-100 p-5 z-10">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <StageChip stage={campaign.funnelStage} />
+                <StatusDot status={campaign.status} />
+                {badge && (
+                  <Badge Icon={badge.Icon} label={badge.label} soft={badge.soft} text={badge.text} />
                 )}
               </div>
-              {/* Campaign Cards */}
-              <div className="p-3 space-y-2 max-h-[280px] overflow-y-auto">
-                {stageCampaigns.length === 0 && (
-                  <div className={`border-2 border-dashed rounded-lg p-4 text-center ${stage.borderColor}`}>
-                    <p className="text-xs text-gray-400">Arrastra campanas aqui</p>
-                  </div>
-                )}
-                {stageCampaigns.map((c: any) => (
+              <h3 className="text-lg font-bold text-slate-900 tracking-tight">{campaign.name}</h3>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                {campaign.objective || "Sin objetivo"}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+              aria-label="Cerrar"
+              style={{ transition: `background-color 180ms ${ES_TRANSITION}` }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        <div className="p-5 grid grid-cols-2 gap-3">
+          <DrawerKpi
+            icon={<DollarSign size={14} className="text-slate-700" />}
+            iconBg="bg-slate-100"
+            label="Gasto"
+            value={formatARS(campaign.spend)}
+          />
+          <DrawerKpi
+            icon={<Target size={14} className="text-emerald-700" />}
+            iconBg="bg-emerald-50"
+            label="ROAS"
+            value={`${(campaign.roas || 0).toFixed(2)}x`}
+            valueClass={roasColorClass(campaign.roas || 0, breakevenRoas)}
+          />
+          <DrawerKpi
+            icon={<ShoppingCart size={14} className="text-violet-700" />}
+            iconBg="bg-violet-50"
+            label="Conversiones"
+            value={(campaign.conversions || 0).toLocaleString("es-AR")}
+          />
+          <DrawerKpi
+            icon={<MousePointer size={14} className="text-blue-700" />}
+            iconBg="bg-blue-50"
+            label="CTR"
+            value={`${(campaign.ctr || 0).toFixed(2)}%`}
+          />
+          <DrawerKpi
+            icon={<Activity size={14} className="text-amber-700" />}
+            iconBg="bg-amber-50"
+            label="CPA"
+            value={campaign.costPerConversion > 0 ? formatARS(campaign.costPerConversion) : "—"}
+          />
+          <DrawerKpi
+            icon={<Clock size={14} className="text-slate-700" />}
+            iconBg="bg-slate-100"
+            label="Días con data"
+            value={(campaign.daysWithData || 0).toString()}
+          />
+        </div>
+
+        {/* Adsets */}
+        <div className="px-5 pb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-[12px] font-semibold uppercase tracking-widest text-slate-500">
+              Ad sets ({adsets.length})
+            </h4>
+          </div>
+          {loadingStructure && adsets.length === 0 ? (
+            <div className="text-[12px] text-slate-500">Cargando ad sets…</div>
+          ) : adsets.length === 0 ? (
+            <div className="text-[12px] text-slate-500 rounded-xl border border-dashed border-slate-200 p-6 text-center">
+              Sin ad sets en este período.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {adsets
+                .slice()
+                .sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0))
+                .map((a: any) => (
                   <div
-                    key={c.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, c.id)}
-                    onDragEnd={handleDragEnd}
-                    className={`bg-white rounded-lg border border-gray-200 p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group ${
-                      draggedId === c.id ? "opacity-40 scale-95" : ""
-                    }`}
+                    key={a.id}
+                    className="rounded-xl border border-slate-100 p-3 bg-slate-50/40"
                   >
-                    <div className="flex items-start gap-2">
-                      <GripVertical size={14} className="text-gray-300 mt-0.5 flex-shrink-0 group-hover:text-gray-500" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-gray-900 truncate" title={c.name}>{c.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-gray-500">{formatARS(c.spend)}</span>
-                          <span className="text-[10px] text-gray-300">|</span>
-                          <RoasBadge value={c.roas} stage={stage.key} />
-                          <span className="text-[10px] text-gray-300">|</span>
-                          <StatusBadge status={c.status} />
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-medium text-slate-900 truncate tracking-tight">
+                          {a.name}
                         </div>
+                        <div className="text-[10px] text-slate-400">
+                          {a.optimizationGoal || "—"} · {a.adsCount || 0} ads
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className={`text-[14px] font-bold tabular-nums ${roasColorClass(a.roas || 0, breakevenRoas)}`}>
+                          {(a.roas || 0).toFixed(2)}x
+                        </div>
+                        <div className="text-[10px] text-slate-500 tabular-nums">{formatARS(a.spend || 0)}</div>
                       </div>
                     </div>
                   </div>
                 ))}
-              </div>
             </div>
-          );
-        })}
-      </div>
+          )}
 
-      {/* Unassigned campaigns */}
-      {(grouped.UNKNOWN || []).length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
-            <AlertTriangle size={12} className="text-amber-500" />
-            {grouped.UNKNOWN.length} campana(s) sin clasificar - arrastralas a una etapa
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {grouped.UNKNOWN.map((c: any) => (
-              <div
-                key={c.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, c.id)}
-                onDragEnd={handleDragEnd}
-                className={`bg-gray-50 rounded-lg border border-gray-200 px-3 py-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${
-                  draggedId === c.id ? "opacity-40 scale-95" : ""
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <GripVertical size={12} className="text-gray-300" />
-                  <span className="text-xs font-medium text-gray-700 truncate max-w-[200px]">{c.name}</span>
-                  <span className="text-[10px] text-gray-400">{formatARS(c.spend)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* Link to Creativos Lab */}
+          <a
+            href={`/campaigns/creatives?platform=META&campaign=${encodeURIComponent(campaign.id)}`}
+            className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-blue-600 hover:text-blue-700"
+            style={{ transition: `color 180ms ${ES_TRANSITION}` }}
+          >
+            Ver creativos en Creativos Lab
+            <ExternalLink size={12} />
+          </a>
         </div>
-      )}
-    </div>
+      </aside>
+    </>
   );
 }
 
-/* ── Funnel Flow Visualization ────────────────────── */
-
-function FunnelFlowChart({ funnelSummary, totals }: { funnelSummary: any[]; totals: any }) {
-  const stages = ["TOF", "MOF", "BOF"];
-  const orderedData = stages.map((s) => funnelSummary.find((f: any) => f.stage === s)).filter(Boolean);
-
-  if (orderedData.length === 0) return null;
-
-  const totalSpend = totals.spend || 1;
-
+function DrawerKpi({
+  icon,
+  iconBg,
+  label,
+  value,
+  valueClass = "",
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <BarChart3 size={18} className="text-indigo-600" />
-        Budget Allocation por Funnel
-      </h3>
-      <div className="space-y-4">
-        {orderedData.map((data: any, i: number) => {
-          const cfg = FUNNEL_STAGES.find((f) => f.key === data.stage)!;
-          const pct = ((data.spend / totalSpend) * 100).toFixed(1);
-          const idealPct = data.stage === "TOF" ? 60 : data.stage === "MOF" ? 25 : 15;
-          const deviation = Number(pct) - idealPct;
-          return (
-            <div key={data.stage}>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cfg.color }} />
-                  <span className="text-sm font-medium text-gray-900">{cfg.label}</span>
-                  <span className="text-[10px] text-gray-400">{data.campaigns} campanas</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-gray-900">{pct}%</span>
-                  <span className="text-[10px] text-gray-400">(ideal: {idealPct}%)</span>
-                  {Math.abs(deviation) > 10 && (
-                    <AlertTriangle size={12} className="text-amber-500" />
-                  )}
-                </div>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-4 relative">
-                <div
-                  className="h-4 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.max(Number(pct), 2)}%`, backgroundColor: cfg.color, opacity: 0.8 }}
-                />
-                {/* Ideal marker */}
-                <div
-                  className="absolute top-0 h-4 w-0.5 bg-gray-400"
-                  style={{ left: `${idealPct}%` }}
-                  title={`Ideal: ${idealPct}%`}
-                />
-              </div>
-              <div className="flex justify-between mt-1.5 text-[10px]">
-                <span className="text-gray-400">Gasto: {formatARS(data.spend)}</span>
-                <span className="text-gray-400">ROAS: {data.roas}x</span>
-                <span className="text-gray-400">CPA: {formatARS(data.costPerConversion || 0)}</span>
-                <span className="text-gray-400">CTR: {data.ctr}%</span>
-              </div>
-            </div>
-          );
-        })}
+    <div className="rounded-xl bg-slate-50/60 p-3 border border-slate-100">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className={`p-1.5 rounded-lg ${iconBg}`}>{icon}</div>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
       </div>
-      {/* Recommendation */}
-      {orderedData.length >= 2 && (() => {
-        const tofPct = orderedData.find((d: any) => d.stage === "TOF")
-          ? (orderedData.find((d: any) => d.stage === "TOF").spend / totalSpend) * 100 : 0;
-        const bofPct = orderedData.find((d: any) => d.stage === "BOF")
-          ? (orderedData.find((d: any) => d.stage === "BOF").spend / totalSpend) * 100 : 0;
-        if (tofPct < 40) {
-          return (
-            <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <p className="text-xs text-purple-700">
-                <strong>Recomendacion:</strong> Tu inversion en TOF ({tofPct.toFixed(0)}%) esta por debajo del ideal (60%).
-                Considera aumentar el presupuesto en awareness para alimentar el funnel.
-              </p>
-            </div>
-          );
-        }
-        if (bofPct > 40) {
-          return (
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-xs text-amber-700">
-                <strong>Atencion:</strong> Tu inversion en BOF ({bofPct.toFixed(0)}%) es alta. Si el ROAS baja,
-                probablemente tu audiencia de retargeting se esta agotando.
-              </p>
-            </div>
-          );
-        }
-        return null;
-      })()}
-    </div>
-  );
-}
-
-/* ── Main Component ────────────────────────────────── */
-
-export default function MetaAdsPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState(toDateInputValue(new Date(Date.now() - 30 * 86400000)));
-  const [dateTo, setDateTo] = useState(toDateInputValue(new Date()));
-  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
-  const [sortField, setSortField] = useState("spend");
-  const [sortAsc, setSortAsc] = useState(false);
-  const [chartMode, setChartMode] = useState<"spend" | "roas" | "reach">("spend");
-  const [activeTab, setActiveTab] = useState<"funnel" | "campaigns" | "performance" | "creatives">("funnel");
-  const [adsData, setAdsData] = useState<any>(null);
-  const [adsLoading, setAdsLoading] = useState(false);
-  const [classFilter, setClassFilter] = useState<string | null>(null);
-  const [draggedAdId, setDraggedAdId] = useState<string | null>(null);
-  const [dragOverType, setDragOverType] = useState<string | null>(null);
-  const { lastSyncAt, isSyncing, syncError, triggerSync: triggerMetaSync, onSyncComplete } = useSyncStatus("META_ADS");
-  const { breakevenRoas, contributionMargin } = useBreakeven(dateFrom, dateTo);
-  // Drill-down state
-  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
-  const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
-  const [adSetsCache, setAdSetsCache] = useState<Record<string, any>>({});
-  const [adsCache, setAdsCache] = useState<Record<string, any[]>>({});
-  const [drillLoading, setDrillLoading] = useState<Record<string, boolean>>({});
-
-  /* ── On-demand sync: auto-refresh data when sync completes ── */
-  useEffect(() => {
-    onSyncComplete(() => fetchData());
-  }, [onSyncComplete, fetchData]);
-
-  /* ── Fetch ─────────────────────────────────────── */
-  const fetchData = useCallback(() => {
-    setLoading(true);
-    fetch(`/api/metrics/campaigns?platform=META&from=${dateFrom}&to=${dateTo}`)
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [dateFrom, dateTo]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  // Fetch ads when switching to creatives tab
-  const fetchAds = useCallback(() => {
-    setAdsLoading(true);
-    const classParam = classFilter ? `&classification=${classFilter}` : "";
-    fetch(`/api/metrics/ads?platform=META&from=${dateFrom}&to=${dateTo}${classParam}`)
-      .then((r) => r.json())
-      .then((d) => setAdsData(d))
-      .catch(() => {})
-      .finally(() => setAdsLoading(false));
-  }, [dateFrom, dateTo, classFilter]);
-
-  useEffect(() => {
-    if (activeTab === "creatives") fetchAds();
-  }, [activeTab, fetchAds]);
-
-  /* ── Date handlers ─────────────────────────────── */
-  const handleQuickRange = (days: number) => {
-    setDateTo(toDateInputValue(new Date()));
-    setDateFrom(toDateInputValue(new Date(Date.now() - days * 86400000)));
-    setActiveQuickRange(days);
-  };
-  const handleDateChange = (type: "from" | "to", v: string) => {
-    type === "from" ? setDateFrom(v) : setDateTo(v);
-    setActiveQuickRange(null);
-  };
-
-  /* ── Funnel assign handler ─────────────────────── */
-  const handleFunnelAssign = useCallback(async (campaignId: string, stage: string) => {
-    try {
-      await fetch("/api/metrics/campaigns", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignId, funnelStage: stage }),
-      });
-      fetchData(); // Refresh
-    } catch (e) {
-      console.error("Failed to assign funnel stage:", e);
-    }
-  }, [fetchData]);
-
-  /* ── Classification drag handler ──────────────── */
-  const handleClassificationChange = useCallback(async (creativeId: string, newType: string) => {
-    try {
-      await fetch("/api/metrics/ads", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creativeId, classification: newType }),
-      });
-      fetchAds();
-    } catch (e) {
-      console.error("Failed to update classification:", e);
-    }
-  }, [fetchAds]);
-
-  /* ── Drill-down handlers ─────────────────────── */
-  const toggleCampaignExpand = useCallback(async (campaignId: string) => {
-    setExpandedCampaigns((prev) => {
-      const next = new Set(prev);
-      if (next.has(campaignId)) {
-        next.delete(campaignId);
-      } else {
-        next.add(campaignId);
-        // Fetch ad sets if not cached
-        if (!adSetsCache[campaignId]) {
-          setDrillLoading((l) => ({ ...l, [campaignId]: true }));
-          fetch(`/api/metrics/campaigns/drilldown?platform=META&campaignId=${campaignId}&from=${dateFrom}&to=${dateTo}`)
-            .then((r) => r.json())
-            .then((d) => {
-              setAdSetsCache((c) => ({ ...c, [campaignId]: d.adSets || [] }));
-            })
-            .catch(() => {})
-            .finally(() => setDrillLoading((l) => ({ ...l, [campaignId]: false })));
-        }
-      }
-      return next;
-    });
-  }, [adSetsCache, dateFrom, dateTo]);
-
-  const toggleAdSetExpand = useCallback(async (adSetId: string) => {
-    setExpandedAdSets((prev) => {
-      const next = new Set(prev);
-      if (next.has(adSetId)) {
-        next.delete(adSetId);
-      } else {
-        next.add(adSetId);
-        if (!adsCache[adSetId]) {
-          setDrillLoading((l) => ({ ...l, [adSetId]: true }));
-          fetch(`/api/metrics/campaigns/drilldown?platform=META&adSetId=${adSetId}&from=${dateFrom}&to=${dateTo}`)
-            .then((r) => r.json())
-            .then((d) => {
-              setAdsCache((c) => ({ ...c, [adSetId]: d.ads || [] }));
-            })
-            .catch(() => {})
-            .finally(() => setDrillLoading((l) => ({ ...l, [adSetId]: false })));
-        }
-      }
-      return next;
-    });
-  }, [adsCache, dateFrom, dateTo]);
-
-  // Clear drill-down cache when dates change
-  useEffect(() => {
-    setAdSetsCache({});
-    setAdsCache({});
-    setExpandedCampaigns(new Set());
-    setExpandedAdSets(new Set());
-  }, [dateFrom, dateTo]);
-
-  /* ── Derived data ──────────────────────────────── */
-  const campaigns = data?.campaigns || [];
-  const totals = data?.totals || {};
-  const changes = data?.changes || {};
-  const dailyTrend = data?.dailyTrend || [];
-  const funnelSummary = data?.funnelSummary || [];
-
-  const sorted = useMemo(() => {
-    return [...campaigns].sort((a: any, b: any) => {
-      const aV = a[sortField] || 0;
-      const bV = b[sortField] || 0;
-      return sortAsc ? aV - bV : bV - aV;
-    });
-  }, [campaigns, sortField, sortAsc]);
-
-  const globalRoas = totals.spend > 0 ? (totals.conversionValue / totals.spend).toFixed(2) : "0";
-  const globalCtr = totals.impressions > 0 ? ((totals.clicks / totals.impressions) * 100).toFixed(2) : "0";
-  const globalCpm = totals.impressions > 0 ? (totals.spend / totals.impressions * 1000).toFixed(0) : "0";
-  const globalFrequency = totals.reach > 0 ? (totals.impressions / totals.reach).toFixed(1) : "0";
-  const globalCostPerConv = totals.conversions > 0 ? (totals.spend / totals.conversions).toFixed(0) : "0";
-
-  // Active vs paused count
-  const activeCount = campaigns.filter((c: any) => c.status === "ACTIVE").length;
-  const pausedCount = campaigns.filter((c: any) => c.status === "PAUSED").length;
-
-  // Frequency fatigue detection
-  const highFreqCampaigns = campaigns.filter((c: any) => c.frequency > 5);
-
-  /* ── Sort helpers ──────────────────────────────── */
-  const handleSort = (field: string) => {
-    if (sortField === field) setSortAsc(!sortAsc);
-    else { setSortField(field); setSortAsc(false); }
-  };
-  const SortIcon = ({ field }: { field: string }) => {
-    if (sortField !== field) return null;
-    return sortAsc ? <ArrowUp className="w-3 h-3 inline ml-0.5" /> : <ArrowDown className="w-3 h-3 inline ml-0.5" />;
-  };
-
-  /* ── CSV Export ─────────────────────────────────── */
-  const exportCSV = () => {
-    const headers = ["Campana", "Estado", "Funnel", "Objetivo", "Gasto", "Impresiones", "Clicks", "CTR%", "CPC", "CPM", "Conversiones", "Revenue", "ROAS", "Reach", "Frecuencia"];
-    const rows = campaigns.map((c: any) => [
-      `"${c.name.replace(/"/g, '""')}"`, c.status, c.funnelStage, c.objective || "",
-      c.spend.toFixed(2), c.impressions, c.clicks, c.ctr, c.cpc.toFixed(2), c.cpm.toFixed(2),
-      c.conversions, c.conversionValue.toFixed(2), c.roas, c.reach, c.frequency,
-    ].join(","));
-    const csv = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `meta_ads_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
-  /* ── Loading ───────────────────────────────────── */
-  if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mr-3" />
-        <span className="text-gray-500">Cargando Meta Ads...</span>
-      </div>
-    );
-  }
-
-  /* ── Render ────────────────────────────────────── */
-  return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center shadow-lg">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
-                <path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.23.19 2.23.19v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 008.44-9.9c0-5.53-4.5-10.02-10-10.02z"/>
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Meta Ads</h1>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Facebook & Instagram Ads &middot; {dateFrom} a {dateTo}
-                {isSyncing ? (
-                  <span className="ml-2 inline-flex items-center gap-1 text-amber-600">
-                    <RefreshCw size={11} className="animate-spin" />
-                    Actualizando datos...
-                  </span>
-                ) : lastSyncAt ? (
-                  <button
-                    onClick={() => triggerMetaSync()}
-                    className="ml-2 inline-flex items-center gap-1 text-green-600 hover:text-green-700 transition-colors"
-                    title="Click para actualizar"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                    Sync: {new Date(lastSyncAt).toLocaleString("es-AR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
-                  </button>
-                ) : null}
-              </p>
-            </div>
-          </div>
-        </div>
-        <DateRangeFilter
-          dateFrom={dateFrom} dateTo={dateTo}
-          activeQuickRange={activeQuickRange}
-          quickRanges={QUICK_RANGES}
-          onQuickRange={handleQuickRange}
-          onDateChange={handleDateChange}
-          loading={loading}
-        />
-      </div>
-
-      {/* Status strip */}
-      <div className="flex items-center gap-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          {activeCount} activas
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-amber-400" />
-          {pausedCount} pausadas
-        </span>
-        <span className="flex items-center gap-1.5">
-          {campaigns.length} campanas total
-        </span>
-        {highFreqCampaigns.length > 0 && (
-          <span className="flex items-center gap-1.5 text-red-500 font-medium">
-            <AlertTriangle size={12} />
-            {highFreqCampaigns.length} con fatiga de frecuencia
-          </span>
-        )}
-      </div>
-
-      {/* Break-even health chip */}
-      <BreakevenChip
-        currentRoas={Number(globalRoas) || 0}
-        breakevenRoas={breakevenRoas}
-        contributionMargin={contributionMargin}
-      />
-
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-        <KpiCard icon={<DollarSign size={14} className="text-red-600" />} iconBg="bg-red-50" label="Inversion" value={formatARS(totals.spend || 0)} change={changes.spend} />
-        <KpiCard icon={<Eye size={14} className="text-purple-600" />} iconBg="bg-purple-50" label="Impresiones" value={formatCompact(totals.impressions || 0)} change={changes.impressions} />
-        <KpiCard icon={<Users size={14} className="text-blue-600" />} iconBg="bg-blue-50" label="Alcance" value={formatCompact(totals.reach || 0)} change={changes.reach} />
-        <KpiCard icon={<MousePointer size={14} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Clicks" value={formatCompact(totals.clicks || 0)} change={changes.clicks} />
-        <KpiCard icon={<ShoppingCart size={14} className="text-green-600" />} iconBg="bg-green-50" label="Conversiones" value={String(totals.conversions || 0)} change={changes.conversions} />
-        <KpiCard icon={<Target size={14} className="text-purple-600" />} iconBg="bg-purple-50" label="ROAS" value={`${globalRoas}x`} subtitle={breakevenRoas > 0 ? `BE ${breakevenRoas.toFixed(2)}x · CM ${(contributionMargin * 100).toFixed(0)}%` : undefined} change={breakevenRoas > 0 ? undefined : changes.roas} />
-        <KpiCard icon={<Zap size={14} className="text-amber-600" />} iconBg="bg-amber-50" label="CTR" value={`${globalCtr}%`} subtitle={`CPM: ${formatARS(Number(globalCpm))}`} />
-        <KpiCard icon={<Radio size={14} className="text-cyan-600" />} iconBg="bg-cyan-50" label="Frecuencia" value={`${globalFrequency}x`} subtitle={`CPA: ${formatARS(Number(globalCostPerConv))}`} />
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="border-b border-gray-200">
-          <div className="flex">
-            {([
-              { key: "funnel" as const, label: "Funnel & Budget", icon: <Layers size={14} /> },
-              { key: "performance" as const, label: "Performance", icon: <TrendingUp size={14} /> },
-              { key: "creatives" as const, label: "Creativos", icon: <Palette size={14} /> },
-              { key: "campaigns" as const, label: "Campanas", icon: <BarChart3 size={14} /> },
-            ]).map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-6 py-3.5 text-sm font-medium border-b-2 transition-all ${
-                  activeTab === tab.key
-                    ? "border-purple-600 text-purple-600 bg-purple-50/50"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="p-0">
-          {/* ── TAB: Funnel & Budget ──────────────────── */}
-          {activeTab === "funnel" && (
-            <div className="p-6 space-y-6">
-              {/* Funnel Board with drag-and-drop */}
-              <FunnelBoard
-                campaigns={campaigns}
-                funnelSummary={funnelSummary}
-                onAssign={handleFunnelAssign}
-              />
-
-              {/* Funnel Budget Allocation */}
-              <FunnelFlowChart funnelSummary={funnelSummary} totals={totals} />
-            </div>
-          )}
-
-          {/* ── TAB: Performance ─────────────────────── */}
-          {activeTab === "performance" && (
-            <div className="p-6 space-y-6">
-              {/* Chart Modes */}
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900">Tendencia Diaria</h3>
-                <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
-                  {([
-                    { key: "spend" as const, label: "Gasto" },
-                    { key: "roas" as const, label: "ROAS" },
-                    { key: "reach" as const, label: "Alcance" },
-                  ]).map((m) => (
-                    <button key={m.key} onClick={() => setChartMode(m.key)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                        chartMode === m.key ? "bg-white shadow-sm text-purple-600" : "text-gray-500 hover:text-gray-700"
-                      }`}>
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {dailyTrend.length > 0 ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  {chartMode === "spend" ? (
-                    <AreaChart data={dailyTrend}>
-                      <defs>
-                        <linearGradient id="metaSpendGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.05} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
-                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(v)} />
-                      <Tooltip formatter={(v: number) => [formatARS(v), "Gasto Meta"]} labelFormatter={(d) => new Date(d).toLocaleDateString("es-AR")} />
-                      <Area type="monotone" dataKey="META" fill="url(#metaSpendGrad)" stroke="#8b5cf6" strokeWidth={2} />
-                    </AreaChart>
-                  ) : chartMode === "roas" ? (
-                    <LineChart data={dailyTrend.map((d: any) => ({
-                      date: d.date,
-                      roas: d.META > 0 ? Math.round((d.conversionValue / d.META) * 100) / 100 : 0,
-                    }))}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
-                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}x`} />
-                      <Tooltip formatter={(v: number) => [`${v}x`, "ROAS"]} />
-                      <Line type="monotone" dataKey="roas" stroke="#10b981" strokeWidth={2} dot={false} />
-                    </LineChart>
-                  ) : (
-                    <AreaChart data={dailyTrend}>
-                      <defs>
-                        <linearGradient id="reachGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
-                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(v)} />
-                      <Tooltip formatter={(v: number) => [formatCompact(v), "Alcance"]} />
-                      <Area type="monotone" dataKey="reach" fill="url(#reachGrad)" stroke="#3b82f6" strokeWidth={2} />
-                    </AreaChart>
-                  )}
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[350px] flex items-center justify-center text-gray-400">Sin datos de tendencia</div>
-              )}
-
-              {/* Frequency Gauge + Creative Fatigue Alerts */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 rounded-xl p-5">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-4">Salud de Audiencia</h4>
-                  <FrequencyGauge value={Number(globalFrequency)} />
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-500">Alcance Total</span>
-                      <span className="font-bold">{formatCompact(totals.reach || 0)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-500">Impresiones / Persona</span>
-                      <span className="font-bold">{globalFrequency}x</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-500">CPM Promedio</span>
-                      <span className="font-bold">{formatARS(Number(globalCpm))}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-xl p-5">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <AlertTriangle size={14} className="text-amber-500" />
-                    Alertas de Fatiga Creativa
-                  </h4>
-                  {highFreqCampaigns.length === 0 ? (
-                    <div className="flex items-center gap-2 text-green-600 text-xs p-3 bg-green-50 rounded-lg">
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      Ninguna campana muestra signos de fatiga. Todo bien.
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-[160px] overflow-y-auto">
-                      {highFreqCampaigns.map((c: any) => (
-                        <div key={c.id} className="flex items-center justify-between p-2 bg-red-50 rounded-lg border border-red-100">
-                          <span className="text-xs text-red-700 truncate max-w-[200px]" title={c.name}>{c.name}</span>
-                          <span className="text-xs font-bold text-red-600">{c.frequency}x freq</span>
-                        </div>
-                      ))}
-                      <p className="text-[10px] text-gray-400 pt-1">
-                        Campanas con frecuencia mayor a 5x por semana. Considera refrescar los creativos o pausar.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── TAB: Creativos ──────────────────────── */}
-          {activeTab === "creatives" && (
-            <div className="p-6 space-y-6">
-              {adsLoading && !adsData ? (
-                <div className="flex items-center justify-center h-48">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mr-3" />
-                  <span className="text-gray-500">Cargando creativos...</span>
-                </div>
-              ) : !adsData?.creatives?.length ? (
-                <div className="text-center py-16">
-                  <Palette className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 mb-1">No hay creativos sincronizados aun</p>
-                  <p className="text-xs text-gray-400">Los creativos se sincronizan con el proximo sync de datos</p>
-                </div>
-              ) : (
-                <>
-                  {/* Classification Breakdown Chart */}
-                  {adsData.classificationBreakdown?.length > 0 && (
-                    <div className="bg-white rounded-xl border border-gray-200 p-5">
-                      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Sparkles size={16} className="text-purple-600" />
-                        Performance por Tipo de Creativo
-                      </h3>
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* ROAS by Type */}
-                        <div>
-                          <p className="text-xs text-gray-500 mb-3 font-medium">ROAS por Tipo</p>
-                          <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={adsData.classificationBreakdown} layout="vertical">
-                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}x`} />
-                              <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={80} />
-                              <Tooltip formatter={(v: number) => [`${v}x`, "ROAS"]} />
-                              <Bar dataKey="roas" radius={[0, 4, 4, 0]}>
-                                {adsData.classificationBreakdown.map((entry: any, i: number) => (
-                                  <Cell key={i} fill={entry.color} />
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                        {/* Spend by Type */}
-                        <div>
-                          <p className="text-xs text-gray-500 mb-3 font-medium">Inversion por Tipo</p>
-                          <ResponsiveContainer width="100%" height={220}>
-                            <PieChart>
-                              <Pie
-                                data={adsData.classificationBreakdown}
-                                cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                                dataKey="spend" nameKey="label"
-                                paddingAngle={2}
-                              >
-                                {adsData.classificationBreakdown.map((entry: any, i: number) => (
-                                  <Cell key={i} fill={entry.color} />
-                                ))}
-                              </Pie>
-                              <Tooltip formatter={(v: number) => [formatARS(v), "Gasto"]} />
-                              <Legend
-                                verticalAlign="bottom"
-                                iconType="circle"
-                                iconSize={8}
-                                formatter={(value: string) => <span className="text-xs text-gray-600">{value}</span>}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-
-                      {/* Classification Summary Cards */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-5">
-                        {adsData.classificationBreakdown.map((cls: any) => (
-                          <button
-                            key={cls.type}
-                            onClick={() => setClassFilter(classFilter === cls.type ? null : cls.type)}
-                            className={`p-3 rounded-lg border transition-all text-left ${
-                              classFilter === cls.type
-                                ? "border-purple-400 bg-purple-50 shadow-sm"
-                                : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cls.color }} />
-                              <span className="text-xs font-semibold text-gray-700">{cls.label}</span>
-                              <span className="text-[10px] text-gray-400 ml-auto">{cls.count}</span>
-                            </div>
-                            <div className="text-sm font-bold text-gray-900">{formatARS(cls.spend)}</div>
-                            <div className="flex gap-3 mt-1">
-                              <span className="text-[10px] text-gray-500">ROAS: <b>{cls.roas}x</b></span>
-                              <span className="text-[10px] text-gray-500">CTR: <b>{cls.ctr}%</b></span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Classification Drag & Drop Board */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                          <Tag size={16} className="text-purple-600" />
-                          Clasificacion de Creativos
-                        </h3>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          Arrastra anuncios entre categorias para reclasificar. La IA clasifica automaticamente y vos podes corregir.
-                        </p>
-                      </div>
-                      {classFilter && (
-                        <button onClick={() => setClassFilter(null)} className="text-xs text-purple-600 hover:underline">
-                          Ver todos
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Classification Columns */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                      {(adsData.classificationTypes || []).slice(0, 10).map((ct: any) => {
-                        const typeCreatives = adsData.creatives.filter((c: any) => c.classification === ct.value);
-                        const isDragOver = dragOverType === ct.value;
-                        if (classFilter && classFilter !== ct.value && typeCreatives.length === 0) return null;
-
-                        return (
-                          <div
-                            key={ct.value}
-                            onDragOver={(e) => { e.preventDefault(); setDragOverType(ct.value); }}
-                            onDragLeave={() => setDragOverType(null)}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              if (draggedAdId) handleClassificationChange(draggedAdId, ct.value);
-                              setDraggedAdId(null);
-                              setDragOverType(null);
-                            }}
-                            className={`rounded-xl border-2 transition-all ${
-                              isDragOver ? "border-purple-400 bg-purple-50 shadow-lg scale-[1.01]" : "border-gray-100"
-                            }`}
-                          >
-                            <div className="p-3 border-b border-gray-100">
-                              <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ct.color }} />
-                                <span className="text-xs font-semibold text-gray-700">{ct.label}</span>
-                                <span className="text-[10px] text-gray-400 ml-auto">{typeCreatives.length}</span>
-                              </div>
-                            </div>
-                            <div className="p-2 space-y-1.5 max-h-[300px] overflow-y-auto">
-                              {typeCreatives.length === 0 && (
-                                <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
-                                  <p className="text-[10px] text-gray-400">Arrastra aqui</p>
-                                </div>
-                              )}
-                              {typeCreatives.slice(0, 8).map((ad: any) => (
-                                <div
-                                  key={ad.id}
-                                  draggable
-                                  onDragStart={() => setDraggedAdId(ad.id)}
-                                  onDragEnd={() => { setDraggedAdId(null); setDragOverType(null); }}
-                                  className={`bg-white rounded-lg border border-gray-200 p-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${
-                                    draggedAdId === ad.id ? "opacity-40 scale-95" : ""
-                                  }`}
-                                >
-                                  <div className="flex items-start gap-1.5">
-                                    <GripVertical size={10} className="text-gray-300 mt-0.5 flex-shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-[10px] font-medium text-gray-900 truncate" title={ad.name}>{ad.name}</p>
-                                      <div className="flex items-center gap-1.5 mt-0.5">
-                                        <span className="text-[9px] text-gray-400">{formatARS(ad.spend)}</span>
-                                        <span className="text-[9px] text-gray-300">|</span>
-                                        <span className="text-[9px] font-medium" style={{ color: ad.roas >= 3 ? "#10b981" : ad.roas >= 1 ? "#f59e0b" : "#ef4444" }}>{ad.roas}x</span>
-                                      </div>
-                                      {ad.classificationManual && (
-                                        <span className="text-[8px] text-purple-500 mt-0.5 inline-block">manual</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                              {typeCreatives.length > 8 && (
-                                <p className="text-[9px] text-gray-400 text-center py-1">+{typeCreatives.length - 8} mas</p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Creatives Table */}
-                  <div className="bg-white rounded-xl border border-gray-200">
-                    <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                        <Film size={16} className="text-purple-600" />
-                        Todos los Creativos ({adsData.creatives.length})
-                      </h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Anuncio</th>
-                            <th className="px-3 py-3 text-center font-semibold text-gray-700">Tipo</th>
-                            <th className="px-3 py-3 text-center font-semibold text-gray-700">Clasificacion</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Gasto</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Impr.</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Clicks</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">CTR</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Conv.</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Revenue</th>
-                            <th className="px-3 py-3 text-center font-semibold text-gray-700">ROAS</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">CPA</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {adsData.creatives.map((ad: any) => {
-                            const clsInfo = adsData.classificationTypes?.find((ct: any) => ct.value === ad.classification);
-                            return (
-                              <tr key={ad.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-4 py-3">
-                                  <div className="font-medium text-gray-900 truncate max-w-[220px]" title={ad.name}>{ad.name}</div>
-                                  <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[220px]" title={ad.campaignName}>{ad.campaignName}</div>
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{ad.type}</span>
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <span
-                                    className="text-[10px] px-2 py-0.5 rounded-full font-medium text-white"
-                                    style={{ backgroundColor: clsInfo?.color || "#6B7280" }}
-                                  >
-                                    {clsInfo?.label || ad.classification}
-                                  </span>
-                                  {ad.classificationManual && (
-                                    <span className="ml-1 text-[8px] text-purple-500">manual</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(ad.spend)}</td>
-                                <td className="px-3 py-3 text-right text-gray-700">{formatCompact(ad.impressions)}</td>
-                                <td className="px-3 py-3 text-right text-gray-700">{formatCompact(ad.clicks)}</td>
-                                <td className="px-3 py-3 text-right text-gray-700">{ad.ctr}%</td>
-                                <td className="px-3 py-3 text-right text-gray-700">{ad.conversions}</td>
-                                <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(ad.conversionValue)}</td>
-                                <td className="px-3 py-3 text-center"><RoasBadge value={ad.roas} /></td>
-                                <td className="px-3 py-3 text-right text-gray-700">{formatARS(ad.costPerConversion)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ── TAB: Campaigns Drill-down Table ─────── */}
-          {activeTab === "campaigns" && (
-            <div>
-              <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-gray-900">
-                    Campanas Meta ({campaigns.length})
-                  </h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Hace clic en una campana para ver sus conjuntos de anuncios y anuncios</p>
-                </div>
-                <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors">
-                  <Download className="w-4 h-4" /> Exportar CSV
-                </button>
-              </div>
-              {sorted.length === 0 ? (
-                <div className="p-12 text-center text-gray-400">No hay campanas Meta con datos en este periodo.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[280px]">Nombre</th>
-                        <th className="px-3 py-3 text-center font-semibold text-gray-700">Estado</th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("spend")}>Gasto<SortIcon field="spend" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("impressions")}>Impr.<SortIcon field="impressions" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("reach")}>Alcance<SortIcon field="reach" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("clicks")}>Clicks<SortIcon field="clicks" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("ctr")}>CTR<SortIcon field="ctr" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("conversions")}>Conv.<SortIcon field="conversions" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("conversionValue")}>Revenue<SortIcon field="conversionValue" /></th>
-                        <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("roas")}>ROAS<SortIcon field="roas" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700">CPA</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sorted.map((c: any) => {
-                        const isExpanded = expandedCampaigns.has(c.id);
-                        const campaignAdSets = adSetsCache[c.id] || [];
-                        const isLoadingAdSets = drillLoading[c.id];
-                        return (
-                          <React.Fragment key={c.id}>
-                            {/* ── Campaign Row ── */}
-                            <tr
-                              className="hover:bg-purple-50/30 transition-colors cursor-pointer border-b border-gray-100 group"
-                              onClick={() => toggleCampaignExpand(c.id)}
-                            >
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                  <span className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>
-                                    <ChevronRight size={14} className="text-purple-500" />
-                                  </span>
-                                  <Megaphone size={14} className="text-purple-400 flex-shrink-0" />
-                                  <div className="min-w-0">
-                                    <div className="font-medium text-gray-900 truncate max-w-[220px]" title={c.name}>{c.name}</div>
-                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                      <FunnelStageBadge stage={c.funnelStage} />
-                                      {c.objective && <span className="text-[9px] text-gray-400">{c.objective.replace(/^FUNNEL:(TOF|MOF|BOF)\|/, "").substring(0, 30)}</span>}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-3 py-3 text-center"><StatusBadge status={c.status} /></td>
-                              <td className="px-3 py-3 text-right text-gray-900 font-semibold">{formatARS(c.spend)}</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.impressions)}</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.reach)}</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.clicks)}</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{c.ctr}%</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{c.conversions}</td>
-                              <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(c.conversionValue)}</td>
-                              <td className="px-3 py-3 text-center"><RoasBadge value={c.roas} stage={c.funnelStage} /></td>
-                              <td className="px-3 py-3 text-right text-gray-700">{formatARS(c.costPerConversion)}</td>
-                            </tr>
-
-                            {/* ── Ad Sets (expanded) ── */}
-                            {isExpanded && (
-                              <>
-                                {isLoadingAdSets ? (
-                                  <tr><td colSpan={11} className="bg-purple-50/20">
-                                    <div className="flex items-center gap-2 px-8 py-3 text-xs text-gray-500">
-                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-500" />
-                                      Cargando conjuntos de anuncios...
-                                    </div>
-                                  </td></tr>
-                                ) : campaignAdSets.length === 0 ? (
-                                  <tr><td colSpan={11} className="bg-purple-50/20 px-8 py-3 text-xs text-gray-400">
-                                    Sin conjuntos de anuncios sincronizados para esta campana
-                                  </td></tr>
-                                ) : (
-                                  campaignAdSets.map((as: any) => {
-                                    const isAsExpanded = expandedAdSets.has(as.id);
-                                    const adSetAds = adsCache[as.id] || [];
-                                    const isLoadingAds = drillLoading[as.id];
-                                    return (
-                                      <React.Fragment key={as.id}>
-                                        {/* ── Ad Set Row ── */}
-                                        <tr
-                                          className="hover:bg-blue-50/30 transition-colors cursor-pointer bg-gray-50/50 border-b border-gray-100"
-                                          onClick={(e) => { e.stopPropagation(); toggleAdSetExpand(as.id); }}
-                                        >
-                                          <td className="pl-10 pr-4 py-2.5">
-                                            <div className="flex items-center gap-2">
-                                              <span className={`transition-transform duration-200 ${isAsExpanded ? "rotate-90" : ""}`}>
-                                                <ChevronRight size={12} className="text-blue-500" />
-                                              </span>
-                                              <LayoutGrid size={13} className="text-blue-400 flex-shrink-0" />
-                                              <div className="min-w-0">
-                                                <div className="font-medium text-gray-800 text-xs truncate max-w-[200px]" title={as.name}>{as.name}</div>
-                                                <div className="flex items-center gap-1.5 mt-0.5">
-                                                  {as.optimizationGoal && <span className="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">{as.optimizationGoal}</span>}
-                                                  {as.adsCount > 0 && <span className="text-[9px] text-gray-400">{as.adsCount} anuncios</span>}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </td>
-                                          <td className="px-3 py-2.5 text-center"><StatusBadge status={as.status} /></td>
-                                          <td className="px-3 py-2.5 text-right text-gray-700 font-medium text-xs">{formatARS(as.spend)}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatCompact(as.impressions)}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatCompact(as.reach)}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatCompact(as.clicks)}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{as.ctr}%</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{as.conversions}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-700 font-medium text-xs">{formatARS(as.conversionValue)}</td>
-                                          <td className="px-3 py-2.5 text-center"><RoasBadge value={as.roas} /></td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatARS(as.costPerConversion)}</td>
-                                        </tr>
-
-                                        {/* ── Ads (expanded from ad set) ── */}
-                                        {isAsExpanded && (
-                                          <>
-                                            {isLoadingAds ? (
-                                              <tr><td colSpan={11} className="bg-blue-50/20">
-                                                <div className="flex items-center gap-2 px-14 py-2 text-xs text-gray-500">
-                                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-400" />
-                                                  Cargando anuncios...
-                                                </div>
-                                              </td></tr>
-                                            ) : adSetAds.length === 0 ? (
-                                              <tr><td colSpan={11} className="bg-blue-50/20 px-14 py-2 text-xs text-gray-400">
-                                                Sin anuncios sincronizados para este conjunto
-                                              </td></tr>
-                                            ) : (
-                                              adSetAds.map((ad: any) => (
-                                                <tr key={ad.id} className="bg-blue-50/10 hover:bg-blue-50/30 border-b border-gray-50 transition-colors">
-                                                  <td className="pl-16 pr-4 py-2">
-                                                    <div className="flex items-center gap-2">
-                                                      {ad.type === "VIDEO" ? <Film size={12} className="text-pink-400" /> : <Image size={12} className="text-emerald-400" />}
-                                                      <div className="min-w-0">
-                                                        <div className="text-xs text-gray-700 truncate max-w-[180px]" title={ad.name}>{ad.name}</div>
-                                                        {ad.classification && ad.classification !== "OTHER" && (
-                                                          <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded mt-0.5 inline-block">{ad.classification}</span>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                  </td>
-                                                  <td className="px-3 py-2 text-center"><StatusBadge status={ad.status} /></td>
-                                                  <td className="px-3 py-2 text-right text-gray-600 text-[11px]">{formatARS(ad.spend)}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatCompact(ad.impressions)}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatCompact(ad.reach || 0)}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatCompact(ad.clicks)}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{ad.ctr}%</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{ad.conversions}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-600 text-[11px]">{formatARS(ad.conversionValue)}</td>
-                                                  <td className="px-3 py-2 text-center"><RoasBadge value={ad.roas} /></td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatARS(ad.costPerConversion)}</td>
-                                                </tr>
-                                              ))
-                                            )}
-                                          </>
-                                        )}
-                                      </React.Fragment>
-                                    );
-                                  })
-                                )}
-                              </>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="bg-gray-50 border-t-2 border-gray-300">
-                      <tr className="font-bold">
-                        <td className="px-4 py-3 text-gray-900">TOTAL</td>
-                        <td />
-                        <td className="px-3 py-3 text-right text-gray-900">{formatARS(totals.spend || 0)}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatCompact(totals.impressions || 0)}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatCompact(totals.reach || 0)}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatCompact(totals.clicks || 0)}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{globalCtr}%</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{totals.conversions || 0}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatARS(totals.conversionValue || 0)}</td>
-                        <td className="px-3 py-3 text-center"><RoasBadge value={Number(globalRoas)} /></td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatARS(Number(globalCostPerConv))}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+      <div className={`text-[15px] font-bold tabular-nums tracking-tight ${valueClass || "text-slate-900"}`}>
+        {value}
       </div>
     </div>
   );
