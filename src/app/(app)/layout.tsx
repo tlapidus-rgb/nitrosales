@@ -12,7 +12,7 @@ type NavItem = {
   href: string;
   label: string;
   icon: string;
-  children?: { href: string; label: string }[];
+  children?: { href: string; label: string; group?: string }[];
   premium?: { badge: string; badgeColor: string; glowColor: string; description: string };
 };
 
@@ -88,13 +88,13 @@ const NAV_GROUPS: NavGroup[] = [
         },
         children: [
           { href: "/aura/inicio", label: "Inicio" },
-          { href: "/aura/creadores", label: "Creadores" },
-          { href: "/aura/creadores/aplicaciones", label: "Aplicaciones" },
-          { href: "/aura/campanas", label: "Campañas" },
-          { href: "/aura/campanas/nueva", label: "Nueva campaña" },
-          { href: "/aura/contenido", label: "Contenido" },
-          { href: "/aura/contenido/briefings", label: "Briefings" },
-          { href: "/aura/contenido/aprobaciones", label: "Aprobaciones" },
+          { href: "/aura/creadores", label: "Creadores", group: "Creadores" },
+          { href: "/aura/creadores/aplicaciones", label: "Aplicaciones", group: "Creadores" },
+          { href: "/aura/campanas", label: "Campañas", group: "Campañas" },
+          { href: "/aura/campanas/nueva", label: "Nueva campaña", group: "Campañas" },
+          { href: "/aura/contenido", label: "Overview", group: "Contenido" },
+          { href: "/aura/contenido/briefings", label: "Briefings", group: "Contenido" },
+          { href: "/aura/contenido/aprobaciones", label: "Aprobaciones", group: "Contenido" },
         ],
       },
       {
@@ -888,9 +888,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                 const subActive =
                                   pathname === sub.href ||
                                   (sub.href !== "/aura/inicio" && pathname.startsWith(sub.href));
+                                const prevGroup = si > 0 ? item.children![si - 1].group : undefined;
+                                const showGroupHeader = sub.group && sub.group !== prevGroup;
                                 return (
+                                  <div key={sub.href}>
+                                    {showGroupHeader ? (
+                                      <div
+                                        className="relative flex items-center gap-2 px-2.5 pt-3 pb-1 select-none"
+                                        style={{
+                                          transform: isActive ? "translateX(0)" : "translateX(-8px)",
+                                          opacity: isActive ? 1 : 0,
+                                          transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms`,
+                                        }}
+                                      >
+                                        <span
+                                          className="text-[9px] font-semibold tracking-[0.18em] uppercase"
+                                          style={{ color: "rgba(251,207,232,0.42)" }}
+                                        >
+                                          {sub.group}
+                                        </span>
+                                        <span
+                                          className="flex-1 h-[1px]"
+                                          style={{
+                                            background:
+                                              "linear-gradient(90deg, rgba(244,114,182,0.22), rgba(244,114,182,0) 80%)",
+                                          }}
+                                        />
+                                      </div>
+                                    ) : null}
                                   <Link
-                                    key={sub.href}
                                     href={sub.href}
                                     onClick={() => setSidebarOpen(false)}
                                     className="group/sub relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-300"
@@ -938,6 +964,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                       {sub.label}
                                     </div>
                                   </Link>
+                                  </div>
                                 );
                               })}
                             </div>
