@@ -1030,34 +1030,34 @@ function DrilldownView({
     return selectedCampaign.adSets?.find((s: any) => s.id === selectedAdSetId) || null;
   }, [selectedCampaign, selectedAdSetId]);
 
-  // L2: estrategia robusta. Muchos creativos tienen adSetId=null en la DB
-  // (Google PMax no usa ad sets, y a veces el sync no popula el FK).
-  // Buscamos en este orden:
-  //   1) Match por adSetId desde la galeria (Meta tipico)
-  //   2) Fetch dedicado /by-adset (trae mas que la galeria)
-  //   3) Fallback: TODOS los creativos de la campana padre. Asi nunca vemos
-  //      vacio cuando hay creativos en la campana, aunque adSetId sea null.
-  const sortedAdSetCreatives = useMemo(() => {
-    if (!selectedAdSet || !selectedCampaign) return [];
+  // L2: solo creativos cuyo adSetId matchea exactamente. NO mostramos
+  // fallback de campana cuando hay multiples adsets, porque mostraria los
+  // mismos creativos en todos los adsets (data sin segmentar = mezcla).
+  const matchedByAdSet = useMemo(() => {
+    if (!selectedAdSet) return [];
     const all = galleryCreatives || [];
     const byAdSetGallery = all.filter((c: any) => c.adSetId === selectedAdSet.id);
-    if (byAdSetGallery.length > 0) {
-      return [...byAdSetGallery].sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0));
-    }
-    if (adSetCreatives && adSetCreatives.length > 0) {
-      return [...adSetCreatives].sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0));
-    }
-    // Fallback: todos los creativos de la campana padre
-    const byCampaign = all.filter((c: any) => c.campaignId === selectedCampaign.id);
-    return [...byCampaign].sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0));
-  }, [adSetCreatives, galleryCreatives, selectedAdSet, selectedCampaign]);
+    if (byAdSetGallery.length > 0) return byAdSetGallery;
+    if (adSetCreatives && adSetCreatives.length > 0) return adSetCreatives;
+    return [];
+  }, [adSetCreatives, galleryCreatives, selectedAdSet]);
 
-  const usingCampaignFallback = useMemo(() => {
-    if (!selectedAdSet || !galleryCreatives) return false;
-    const byAdSetGallery = galleryCreatives.filter((c: any) => c.adSetId === selectedAdSet.id);
-    const byBy = adSetCreatives && adSetCreatives.length > 0;
-    return byAdSetGallery.length === 0 && !byBy && sortedAdSetCreatives.length > 0;
-  }, [galleryCreatives, adSetCreatives, selectedAdSet, sortedAdSetCreatives]);
+  // Fallback de campana SOLO si la campana tiene 1 unico adset (asi no hay
+  // riesgo de mezclar creativos de adsets distintos).
+  const campaignFallbackCreatives = useMemo(() => {
+    if (!selectedCampaign || !selectedAdSet) return [];
+    if (matchedByAdSet.length > 0) return [];
+    if ((selectedCampaign.adSets?.length || 0) !== 1) return [];
+    const all = galleryCreatives || [];
+    return all.filter((c: any) => c.campaignId === selectedCampaign.id);
+  }, [selectedCampaign, selectedAdSet, matchedByAdSet, galleryCreatives]);
+
+  const sortedAdSetCreatives = useMemo(() => {
+    const list = matchedByAdSet.length > 0 ? matchedByAdSet : campaignFallbackCreatives;
+    return [...list].sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0));
+  }, [matchedByAdSet, campaignFallbackCreatives]);
+
+  const usingCampaignFallback = matchedByAdSet.length === 0 && campaignFallbackCreatives.length > 0;
 
   const googleTypeCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: 0 };
@@ -1262,7 +1262,7 @@ function DrilldownView({
                 ))}
               </div>
             ) : sortedAdSetCreatives.length === 0 ? (
-              <DrilldownEmpty message="No hay creativos con métricas en este rango para este ad set." />
+              <DrilldownEmpty message="Los creativos de esta campaña no tienen ad set asignado en la base de datos (problema de sync). Volvé a Campañas para verlos agrupados, o revisá la galería." />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {sortedAdSetCreatives.map((c: any) => (
