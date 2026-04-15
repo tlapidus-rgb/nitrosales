@@ -33,7 +33,7 @@ import {
   Eye, MousePointer, Target, Trophy, Flame, AlertTriangle, Sparkles,
   HelpCircle, RefreshCw, Smartphone, Monitor, Globe, Filter,
   ChevronRight, ExternalLink, Info, Zap, BarChart3, Award, X,
-  Layers, Plus, Minus, Clock, Lightbulb, ChevronDown, CheckCircle2,
+  Layers, Plus, Minus, Clock, Lightbulb, ChevronDown, ChevronUp, CheckCircle2,
 } from "lucide-react";
 
 /* ════════════════════════════════════════════════════
@@ -484,6 +484,8 @@ function AurumSectionCard({
   const [input, setInput] = useState("");
   const [asking, setAsking] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [everOpened, setEverOpened] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -507,6 +509,8 @@ function AurumSectionCard({
     setInitialInsight(null);
     setMessages([]);
     setExpanded(false);
+    setOpen(false);
+    setEverOpened(false);
 
     (async () => {
       try {
@@ -570,6 +574,139 @@ function AurumSectionCard({
     }
   };
 
+  const handleOpen = () => {
+    setOpen(true);
+    setEverOpened(true);
+  };
+
+  // Teaser de 1 línea para el estado minimizado (strip markdown)
+  const teaser = (initialInsight || "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/^- /gm, "")
+    .replace(/\n+/g, " · ")
+    .trim();
+
+  if (!open) {
+    return (
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={handleOpen}
+          className="group w-full text-left relative rounded-2xl overflow-hidden transition-all"
+          style={{
+            background: "linear-gradient(180deg, #0a0a0f 0%, #131016 100%)",
+            boxShadow:
+              "0 1px 0 rgba(251,191,36,0.08), 0 6px 18px -8px rgba(0,0,0,0.5), 0 20px 40px -28px rgba(217,119,6,0.18)",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.boxShadow =
+              "0 1px 0 rgba(251,191,36,0.2), 0 8px 24px -8px rgba(0,0,0,0.6), 0 28px 60px -28px rgba(217,119,6,0.45)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.boxShadow =
+              "0 1px 0 rgba(251,191,36,0.08), 0 6px 18px -8px rgba(0,0,0,0.5), 0 20px 40px -28px rgba(217,119,6,0.18)";
+          }}
+        >
+          <div
+            className="absolute inset-0 opacity-60 pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(400px 140px at 8% 50%, rgba(251,191,36,0.10), transparent 60%), radial-gradient(300px 120px at 96% 50%, rgba(217,119,6,0.08), transparent 60%)",
+            }}
+          />
+          <div
+            className="absolute inset-0 pointer-events-none rounded-2xl"
+            style={{
+              padding: 1,
+              background:
+                "linear-gradient(180deg, rgba(251,191,36,0.28), rgba(251,191,36,0.06) 40%, rgba(217,119,6,0.18))",
+              WebkitMask:
+                "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+              WebkitMaskComposite: "xor",
+              maskComposite: "exclude",
+            }}
+          />
+
+          <div className="relative flex items-center gap-3 px-4 py-3">
+            <AurumOrbMini size={28} thinking={insightLoading || asking} />
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-[13px] font-bold tracking-tight"
+                  style={{
+                    background: "linear-gradient(180deg, #fef3c7 0%, #fbbf24 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
+                  Aurum
+                </span>
+                <span className="text-[10px] text-amber-200/50">·</span>
+                <span className="text-[11px] text-amber-100/80 truncate">
+                  {contextLabel}
+                </span>
+                {!insightLoading && !insightError && !everOpened && (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded"
+                    style={{
+                      color: "#fde68a",
+                      background: "rgba(251,191,36,0.12)",
+                      border: "1px solid rgba(251,191,36,0.3)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: 999,
+                        background: "#fbbf24",
+                        boxShadow: "0 0 8px rgba(251,191,36,0.8)",
+                        animation: "aurumBreath 2s ease-in-out infinite",
+                      }}
+                    />
+                    Listo
+                  </span>
+                )}
+                {messages.length > 0 && (
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded"
+                    style={{
+                      color: "#fde68a",
+                      background: "rgba(251,191,36,0.08)",
+                      border: "1px solid rgba(251,191,36,0.2)",
+                    }}
+                  >
+                    {messages.filter((m) => m.role === "user").length} pregunta{messages.filter((m) => m.role === "user").length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-amber-200/60 mt-0.5 truncate">
+                {insightLoading
+                  ? "Analizando esta sección…"
+                  : insightError
+                  ? "Tap para reintentar análisis"
+                  : teaser
+                  ? teaser
+                  : "Tap para ver el análisis y preguntar"}
+              </div>
+            </div>
+
+            <div
+              className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.18em] px-2.5 py-1.5 rounded-lg transition-all"
+              style={{
+                color: "#422006",
+                background: "linear-gradient(180deg, #fbbf24 0%, #d97706 100%)",
+                boxShadow: "0 2px 12px -2px rgba(251,191,36,0.4)",
+              }}
+            >
+              Abrir
+              <ChevronDown size={12} strokeWidth={2.8} />
+            </div>
+          </div>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className="relative rounded-2xl overflow-hidden mt-4"
@@ -577,6 +714,7 @@ function AurumSectionCard({
         background: "linear-gradient(180deg, #0a0a0f 0%, #131016 100%)",
         boxShadow:
           "0 1px 0 rgba(251,191,36,0.08), 0 10px 30px -10px rgba(0,0,0,0.5), 0 30px 60px -30px rgba(217,119,6,0.2)",
+        animation: `fadeInUp 320ms ${ES_TRANSITION}`,
       }}
     >
       <div
@@ -620,6 +758,28 @@ function AurumSectionCard({
               Respuestas cortas y concretas sobre la data de esta sección. Para análisis más profundo, usá el chat completo de Aurum.
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            title="Minimizar"
+            className="shrink-0 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.18em] px-2.5 py-1.5 rounded-lg transition-all"
+            style={{
+              color: "#fde68a",
+              background: "rgba(251,191,36,0.06)",
+              border: "1px solid rgba(251,191,36,0.18)",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.14)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(251,191,36,0.32)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.06)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(251,191,36,0.18)";
+            }}
+          >
+            <ChevronUp size={11} strokeWidth={2.8} />
+            Minimizar
+          </button>
         </div>
 
         <div className="mt-4 min-h-[60px]">
