@@ -86,6 +86,13 @@ const NAV_GROUPS: NavGroup[] = [
           glowColor: "rgba(244,114,182,0.38)",
           description: "La nueva home del programa de creators",
         },
+        children: [
+          { href: "/aura/inicio", label: "Inicio" },
+          { href: "/aura/creadores", label: "Creadores" },
+          { href: "/aura/creadores/aplicaciones", label: "Aplicaciones" },
+          { href: "/aura/campanas", label: "Campañas" },
+          { href: "/aura/campanas/nueva", label: "Nueva campaña" },
+        ],
       },
       {
         href: "/influencers",
