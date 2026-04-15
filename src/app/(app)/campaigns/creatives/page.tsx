@@ -1,19 +1,23 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell,
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer, Cell,
+  LineChart, Line, ReferenceLine,
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import { DateRangeFilter } from "@/components/dashboard";
+import { useBreakeven, getRoasHealth } from "@/lib/hooks/useBreakeven";
+import { roasColorClass } from "@/components/campaigns/BreakevenChip";
 import {
-  Play, Eye, MousePointer, Target, Zap, TrendingUp,
-  Film, Image, AlertTriangle, CheckCircle, XCircle,
-  BarChart3, Filter, ChevronDown, ChevronUp,
-  Activity, Video, Sparkles, X, ShoppingCart,
-  Crosshair, Users, ArrowRight, Layers, Package,
+  Play, Pause, Eye, MousePointer, ShoppingCart, Target, Zap, TrendingUp, TrendingDown,
+  Film, ImageIcon, AlertTriangle, CheckCircle2, XCircle, Flame, Snowflake,
+  BarChart3, Filter, ChevronDown, ChevronUp, ArrowRight, ArrowUpRight, ArrowDownRight,
+  Activity, Video, Sparkles, X, Crosshair, Users, Layers, Package,
+  Search, Grid3X3, List, Maximize2, ExternalLink, Award, Clock,
+  ShieldCheck, Gauge, RefreshCw, Volume2, VolumeX, Star,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────── */
@@ -24,996 +28,1033 @@ const QUICK_RANGES = [
   { label: "90d", days: 90 },
 ];
 
-function toDateInputValue(d: Date) {
-  return d.toISOString().split("T")[0];
-}
+type PlatformView = "META" | "GOOGLE" | "ALL";
 
-/* ── Color & Label Helpers ─────────────────────────── */
+const PLATFORM_META = {
+  META:   { label: "Meta Ads",   short: "Meta",   color: "#8b5cf6", bg: "bg-purple-500", text: "text-purple-600", soft: "bg-purple-50", ring: "ring-purple-200" },
+  GOOGLE: { label: "Google Ads", short: "Google", color: "#3b82f6", bg: "bg-blue-500",   text: "text-blue-600",   soft: "bg-blue-50",   ring: "ring-blue-200" },
+  ALL:    { label: "Todos",      short: "Todos",  color: "#475569", bg: "bg-slate-500",  text: "text-slate-600",  soft: "bg-slate-50",  ring: "ring-slate-200" },
+} as const;
 
-const FUNNEL_CONFIG: Record<string, { color: string; lightColor: string; bg: string; lightBg: string; icon: any; label: string; shortLabel: string }> = {
-  TOF: { color: "text-purple-400", lightColor: "text-purple-700", bg: "bg-purple-500/10 border-purple-500/20", lightBg: "bg-purple-50 border-purple-200", icon: Eye, label: "Top of Funnel", shortLabel: "TOF" },
-  MOF: { color: "text-blue-400", lightColor: "text-blue-700", bg: "bg-blue-500/10 border-blue-500/20", lightBg: "bg-blue-50 border-blue-200", icon: MousePointer, label: "Middle of Funnel", shortLabel: "MOF" },
-  BOF: { color: "text-emerald-400", lightColor: "text-emerald-700", bg: "bg-emerald-500/10 border-emerald-500/20", lightBg: "bg-emerald-50 border-emerald-200", icon: ShoppingCart, label: "Bottom of Funnel", shortLabel: "BOF" },
-  UNKNOWN: { color: "text-gray-400", lightColor: "text-gray-600", bg: "bg-gray-500/10 border-gray-500/20", lightBg: "bg-gray-50 border-gray-200", icon: Layers, label: "Sin clasificar", shortLabel: "?" },
+const FUNNEL_META: Record<string, { color: string; bg: string; ring: string; icon: any; label: string }> = {
+  TOF:     { color: "text-purple-700",  bg: "bg-purple-50",  ring: "ring-purple-200",  icon: Eye,          label: "TOF · Awareness" },
+  MOF:     { color: "text-blue-700",    bg: "bg-blue-50",    ring: "ring-blue-200",    icon: MousePointer, label: "MOF · Consideration" },
+  BOF:     { color: "text-emerald-700", bg: "bg-emerald-50", ring: "ring-emerald-200", icon: ShoppingCart, label: "BOF · Conversion" },
+  UNKNOWN: { color: "text-slate-600",   bg: "bg-slate-50",   ring: "ring-slate-200",   icon: Layers,       label: "Sin clasificar" },
 };
 
-const DIAGNOSIS_CONFIG: Record<string, { color: string; bg: string; icon: any; label: string }> = {
-  WEAK_HOOK: { color: "text-red-600", bg: "bg-red-50", icon: XCircle, label: "Hook debil" },
-  WEAK_CONTENT: { color: "text-amber-600", bg: "bg-amber-50", icon: AlertTriangle, label: "Contenido debil" },
-  WEAK_CTA: { color: "text-orange-600", bg: "bg-orange-50", icon: MousePointer, label: "Falta CTA" },
-  WEAK_CONVERSION: { color: "text-red-600", bg: "bg-red-50", icon: ShoppingCart, label: "No convierte" },
-  LOW_ROI: { color: "text-red-700", bg: "bg-red-50", icon: TrendingUp, label: "ROI bajo" },
-  STRONG_PERFORMER: { color: "text-emerald-600", bg: "bg-emerald-50", icon: CheckCircle, label: "Performer" },
-  STRONG_ENGAGER: { color: "text-blue-600", bg: "bg-blue-50", icon: Zap, label: "Engager" },
-  STRONG_CONVERTER: { color: "text-emerald-600", bg: "bg-emerald-50", icon: Target, label: "Conversor" },
+function toDateInputValue(d: Date) { return d.toISOString().split("T")[0]; }
+function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
+function num(n: number) { return n.toLocaleString("es-AR"); }
+
+/* ── Fatigue Detection ─────────────────────────────── */
+
+type FatigueLevel = "fresh" | "watch" | "fatigued" | "burned" | "new" | "lowdata";
+
+interface FatigueResult {
+  level: FatigueLevel;
+  score: number;        // 0-100
+  reasons: string[];    // human-readable signals
+  cpmDelta: number;     // % change first half vs second half
+  roasDelta: number;
+  ctrDelta: number;
+  recommendation: string;
+}
+
+function analyzeFatigue(c: any): FatigueResult {
+  const days = c.dailySpend?.length || 0;
+  if (days < 3) {
+    return { level: "new", score: 0, reasons: ["Creativo nuevo · pocos datos"], cpmDelta: 0, roasDelta: 0, ctrDelta: 0, recommendation: "Esperá 5-7 dias de data antes de evaluar." };
+  }
+  if (c.spend < 5000) {
+    return { level: "lowdata", score: 0, reasons: ["Inversion baja · sin senal"], cpmDelta: 0, roasDelta: 0, ctrDelta: 0, recommendation: "Aumentá presupuesto o consolidá con otros creativos." };
+  }
+
+  const arr = [...c.dailySpend].sort((a, b) => a.date.localeCompare(b.date));
+  const half = Math.floor(arr.length / 2);
+  const first = arr.slice(0, half);
+  const second = arr.slice(half);
+
+  const sum = (xs: any[], k: string) => xs.reduce((s, x) => s + (Number(x[k]) || 0), 0);
+
+  const cpm1 = sum(first, "impressions") > 0 ? (sum(first, "spend") / sum(first, "impressions")) * 1000 : 0;
+  const cpm2 = sum(second, "impressions") > 0 ? (sum(second, "spend") / sum(second, "impressions")) * 1000 : 0;
+  const ctr1 = sum(first, "impressions") > 0 ? sum(first, "clicks") / sum(first, "impressions") : 0;
+  const ctr2 = sum(second, "impressions") > 0 ? sum(second, "clicks") / sum(second, "impressions") : 0;
+
+  const cpmDelta = cpm1 > 0 ? (cpm2 - cpm1) / cpm1 : 0;
+  const ctrDelta = ctr1 > 0 ? (ctr2 - ctr1) / ctr1 : 0;
+  const roasDelta = 0; // ROAS por dia no esta directo en dailySpend, usamos CTR/CPM como proxy
+
+  const reasons: string[] = [];
+  let score = 50;
+
+  if (cpmDelta > 0.30) { reasons.push(`CPM subiendo ${pct(cpmDelta)}`); score -= 25; }
+  else if (cpmDelta > 0.15) { reasons.push(`CPM en alza (${pct(cpmDelta)})`); score -= 12; }
+  else if (cpmDelta < -0.10) { reasons.push(`CPM bajando ${pct(cpmDelta)}`); score += 10; }
+
+  if (ctrDelta < -0.30) { reasons.push(`CTR cayendo ${pct(ctrDelta)}`); score -= 25; }
+  else if (ctrDelta < -0.15) { reasons.push(`CTR en baja (${pct(ctrDelta)})`); score -= 12; }
+  else if (ctrDelta > 0.10) { reasons.push(`CTR subiendo ${pct(ctrDelta)}`); score += 10; }
+
+  if (days > 21) { reasons.push(`Activo hace ${days} dias`); score -= 8; }
+
+  score = Math.max(0, Math.min(100, score));
+
+  let level: FatigueLevel;
+  let recommendation: string;
+  if (score >= 70) { level = "fresh"; recommendation = "Performance solida · escalá presupuesto."; }
+  else if (score >= 45) { level = "watch"; recommendation = "Performance estable · monitoreá CPM y CTR."; }
+  else if (score >= 25) { level = "fatigued"; recommendation = "Fatiga detectada · prepará variantes nuevas."; }
+  else { level = "burned"; recommendation = "Pausá y reemplazá · este creativo dejó de funcionar."; }
+
+  if (reasons.length === 0) reasons.push("Performance estable");
+
+  return { level, score, reasons, cpmDelta, roasDelta, ctrDelta, recommendation };
+}
+
+const FATIGUE_META: Record<FatigueLevel, { label: string; color: string; bg: string; text: string; ring: string; icon: any }> = {
+  fresh:    { label: "Fresco",        color: "#10b981", bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-200", icon: Sparkles },
+  watch:    { label: "Estable",       color: "#3b82f6", bg: "bg-blue-50",    text: "text-blue-700",    ring: "ring-blue-200",    icon: Activity },
+  fatigued: { label: "Fatiga",        color: "#f59e0b", bg: "bg-amber-50",   text: "text-amber-700",   ring: "ring-amber-200",   icon: AlertTriangle },
+  burned:   { label: "Quemado",       color: "#ef4444", bg: "bg-red-50",     text: "text-red-700",     ring: "ring-red-200",     icon: Flame },
+  new:      { label: "Nuevo",         color: "#8b5cf6", bg: "bg-purple-50",  text: "text-purple-700",  ring: "ring-purple-200",  icon: Star },
+  lowdata:  { label: "Poca data",     color: "#94a3b8", bg: "bg-slate-50",   text: "text-slate-600",   ring: "ring-slate-200",   icon: Snowflake },
 };
 
-function getScoreColor(score: number) {
-  if (score >= 60) return "#10b981";
-  if (score >= 35) return "#f59e0b";
-  if (score >= 15) return "#f97316";
-  return "#ef4444";
+/* ── Helper Components ─────────────────────────────── */
+
+function PlatformChip({ platform }: { platform: string }) {
+  const m = PLATFORM_META[platform as keyof typeof PLATFORM_META] || PLATFORM_META.ALL;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${m.soft} ${m.text} ring-1 ${m.ring}`}>
+      {m.short}
+    </span>
+  );
 }
 
-function getScoreLabel(score: number) {
-  if (score >= 60) return "Excelente";
-  if (score >= 35) return "Bueno";
-  if (score >= 15) return "Regular";
-  return "Bajo";
+function FunnelChip({ stage }: { stage: string }) {
+  const m = FUNNEL_META[stage] || FUNNEL_META.UNKNOWN;
+  const Icon = m.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${m.bg} ${m.color} ring-1 ${m.ring}`}>
+      <Icon size={10} />
+      {stage === "UNKNOWN" ? "—" : stage}
+    </span>
+  );
 }
 
-function getRoasColor(roas: number) {
-  if (roas >= 3) return "text-green-600";
-  if (roas >= 1.5) return "text-amber-600";
-  return "text-red-600";
+function FatigueChip({ fatigue, compact = false }: { fatigue: FatigueResult; compact?: boolean }) {
+  const m = FATIGUE_META[fatigue.level];
+  const Icon = m.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 ${compact ? "text-[10px] px-2 py-0.5" : "text-xs px-2.5 py-1"} rounded-full font-bold ${m.bg} ${m.text} ring-1 ${m.ring}`}>
+      <Icon size={compact ? 10 : 12} />
+      {m.label}
+    </span>
+  );
 }
 
-/* ── Thumbnail Modal ──────────────────────────────── */
+function ScoreBadge({ score, size = "md" }: { score: number | null; size?: "sm" | "md" | "lg" }) {
+  if (score == null) {
+    const cls = size === "lg" ? "text-2xl" : size === "sm" ? "text-xs" : "text-base";
+    return <span className={`${cls} text-slate-300 font-bold tabular-nums`}>—</span>;
+  }
+  const color =
+    score >= 75 ? "text-emerald-600 bg-emerald-50 ring-emerald-200" :
+    score >= 50 ? "text-amber-600 bg-amber-50 ring-amber-200" :
+    "text-red-600 bg-red-50 ring-red-200";
+  const sz = size === "lg" ? "text-2xl px-3 py-1.5" : size === "sm" ? "text-[11px] px-1.5 py-0.5" : "text-sm px-2 py-0.5";
+  return (
+    <span className={`inline-flex items-center justify-center font-extrabold tabular-nums rounded-lg ring-1 ${color} ${sz}`}>
+      {Math.round(score)}
+    </span>
+  );
+}
 
-function ThumbnailModal({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
+function RoasPill({ value, breakeven }: { value: number; breakeven: number }) {
+  const cls = roasColorClass(value, breakeven);
+  const bgCls =
+    cls === "text-green-600" ? "bg-emerald-50 ring-emerald-200" :
+    cls === "text-amber-600" ? "bg-amber-50 ring-amber-200" :
+    cls === "text-red-600" ? "bg-red-50 ring-red-200" :
+    "bg-slate-50 ring-slate-200";
+  return (
+    <span className={`inline-flex items-center font-extrabold tabular-nums text-sm px-2 py-0.5 rounded-md ring-1 ${cls} ${bgCls}`}>
+      {value.toFixed(2)}x
+    </span>
+  );
+}
+
+function MiniSparkline({ data, color = "#3b82f6" }: { data: any[]; color?: string }) {
+  if (!data || data.length < 2) return <div className="h-8 w-full bg-slate-50 rounded" />;
+  return (
+    <ResponsiveContainer width="100%" height={32}>
+      <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id={`spark-${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.4} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <Area type="monotone" dataKey="spend" stroke={color} strokeWidth={1.5} fill={`url(#spark-${color.replace("#", "")})`} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+/* ── Media Preview ────────────────────────────────── */
+
+function MediaThumb({ creative, onClick }: { creative: any; onClick?: () => void }) {
+  const url = creative.mediaUrls?.[0];
+  const isVideo = creative.isVideo;
+  const [errored, setErrored] = useState(false);
+
+  return (
+    <div
+      onClick={onClick}
+      className="relative w-full aspect-square bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden cursor-pointer group"
+    >
+      {url && !errored ? (
+        isVideo ? (
+          <>
+            <video
+              src={url}
+              className="w-full h-full object-cover"
+              muted
+              playsInline
+              preload="metadata"
+              onError={() => setErrored(true)}
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+              <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all">
+                <Play size={24} className="text-slate-900 ml-0.5" fill="currentColor" />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <img src={url} alt={creative.name} className="w-full h-full object-cover" onError={() => setErrored(true)} />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                <Maximize2 size={18} className="text-slate-900" />
+              </div>
+            </div>
+          </>
+        )
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-2">
+          {isVideo ? <Film size={40} /> : <ImageIcon size={40} />}
+          <span className="text-[10px] uppercase tracking-wider font-medium">Sin preview</span>
+        </div>
+      )}
+
+      {/* Type chip top-left */}
+      <div className="absolute top-2 left-2">
+        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-white font-medium uppercase tracking-wider">
+          {isVideo ? <><Film size={10} /> Video</> : <><ImageIcon size={10} /> Imagen</>}
+        </span>
+      </div>
+
+      {/* Status chip top-right */}
+      {creative.status && (
+        <div className="absolute top-2 right-2">
+          <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md backdrop-blur-sm font-medium uppercase tracking-wider ${
+            creative.status === "ACTIVE" ? "bg-emerald-500/90 text-white" :
+            creative.status === "PAUSED" ? "bg-slate-500/90 text-white" :
+            "bg-slate-400/90 text-white"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${creative.status === "ACTIVE" ? "bg-white animate-pulse" : "bg-white/70"}`} />
+            {creative.status}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Creative Card (gallery item) ──────────────────── */
+
+function CreativeCard({ creative, breakeven, onClick }: { creative: any; breakeven: number; onClick: () => void }) {
+  const fatigue = useMemo(() => analyzeFatigue(creative), [creative]);
+  const score = creative.videoMetrics?.videoEfficiencyScore ?? null;
+
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-lg transition-all cursor-pointer overflow-hidden flex flex-col"
+    >
+      <MediaThumb creative={creative} onClick={onClick} />
+
+      <div className="p-4 flex-1 flex flex-col gap-3">
+        {/* Header row: platform + funnel + score */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <PlatformChip platform={creative.platform} />
+            <FunnelChip stage={creative.funnelStage} />
+          </div>
+          {score != null && <ScoreBadge score={score} size="sm" />}
+        </div>
+
+        {/* Name */}
+        <div className="min-h-[2.5rem]">
+          <div className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug">
+            {creative.name || creative.headline || "Sin nombre"}
+          </div>
+          {creative.campaignName && (
+            <div className="text-[11px] text-slate-500 truncate mt-0.5">{creative.campaignName}</div>
+          )}
+        </div>
+
+        {/* Key metrics grid */}
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="rounded-lg bg-slate-50 px-2 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Inversión</div>
+            <div className="text-sm font-extrabold text-slate-900 tabular-nums mt-0.5">{formatCompact(creative.spend)}</div>
+          </div>
+          <div className="rounded-lg bg-slate-50 px-2 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">ROAS</div>
+            <div className="mt-0.5 flex justify-center"><RoasPill value={creative.roas} breakeven={breakeven} /></div>
+          </div>
+        </div>
+
+        {/* Secondary metrics */}
+        <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+          <div>
+            <div className="text-slate-500">CTR</div>
+            <div className="font-bold text-slate-800 tabular-nums">{creative.ctr.toFixed(2)}%</div>
+          </div>
+          <div>
+            <div className="text-slate-500">CPC</div>
+            <div className="font-bold text-slate-800 tabular-nums">{formatARS(creative.cpc)}</div>
+          </div>
+          <div>
+            <div className="text-slate-500">Conv.</div>
+            <div className="font-bold text-slate-800 tabular-nums">{num(creative.conversions)}</div>
+          </div>
+        </div>
+
+        {/* Footer: fatigue + sparkline */}
+        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+          <FatigueChip fatigue={fatigue} compact />
+          <div className="text-[10px] text-slate-400 flex items-center gap-1">
+            <Clock size={10} /> {creative.daysWithData}d
+          </div>
+        </div>
+        <div className="-mt-2 h-8">
+          <MiniSparkline data={creative.dailySpend} color={PLATFORM_META[creative.platform]?.color || "#64748b"} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Detail Modal ─────────────────────────────────── */
+
+function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; breakeven: number; onClose: () => void }) {
+  const [muted, setMuted] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fatigue = useMemo(() => analyzeFatigue(creative), [creative]);
+  const score = creative.videoMetrics?.videoEfficiencyScore ?? null;
+  const url = creative.mediaUrls?.[0];
+
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onEsc);
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onEsc); document.body.style.overflow = ""; };
   }, [onClose]);
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-        <button
-          onClick={onClose}
-          className="absolute -top-3 -right-3 z-10 w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-white transition-colors"
-        >
-          <X size={16} />
-        </button>
-        <img
-          src={url}
-          alt={name}
-          className="rounded-xl max-w-[90vw] max-h-[85vh] object-contain shadow-2xl"
-        />
-        <p className="text-center text-sm text-gray-500 mt-2 truncate max-w-[500px] mx-auto">{name}</p>
-      </div>
-    </div>
-  );
-}
+  const retentionData = creative.videoMetrics ? [
+    { point: "0%",  retention: 100 },
+    { point: "25%", retention: creative.videoMetrics.dropOffAnalysis?.retention25 ?? 0 },
+    { point: "50%", retention: creative.videoMetrics.dropOffAnalysis?.retention50 ?? 0 },
+    { point: "75%", retention: creative.videoMetrics.dropOffAnalysis?.retention75 ?? 0 },
+    { point: "100%", retention: creative.videoMetrics.dropOffAnalysis?.retention100 ?? 0 },
+  ] : [];
 
-/* ── Small Clickable Thumbnail ────────────────────── */
-
-function Thumbnail({ url, name, onClickZoom }: { url: string; name: string; onClickZoom: () => void }) {
-  const [error, setError] = useState(false);
-  if (error || !url) {
-    return <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center"><Film size={16} className="text-gray-400" /></div>;
-  }
-  return (
-    <img
-      src={url}
-      alt={name}
-      onClick={(e) => { e.stopPropagation(); onClickZoom(); }}
-      className="w-12 h-12 rounded-lg object-cover bg-gray-100 cursor-pointer hover:ring-2 hover:ring-indigo-400/50 transition-all"
-      onError={() => setError(true)}
-    />
-  );
-}
-
-/* ── Funnel Badge ─────────────────────────────────── */
-
-function FunnelBadge({ stage }: { stage: string }) {
-  const config = FUNNEL_CONFIG[stage] || FUNNEL_CONFIG.UNKNOWN;
-  return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${config.lightBg} ${config.lightColor}`}>
-      {config.shortLabel}
-    </span>
-  );
-}
-
-/* ── Diagnosis Badge ──────────────────────────────── */
-
-function DiagnosisBadge({ diagnosis }: { diagnosis: string | null }) {
-  if (!diagnosis) return <span className="text-xs text-gray-400">-</span>;
-  const config = DIAGNOSIS_CONFIG[diagnosis];
-  if (!config) return <span className="text-xs text-gray-500">{diagnosis}</span>;
-  const Icon = config.icon;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${config.bg} ${config.color}`}>
-      <Icon size={11} />
-      {config.label}
-    </span>
-  );
-}
-
-/* ── Score Pill ────────────────────────────────────── */
-
-function ScorePill({ score }: { score: number | null }) {
-  if (score === null || score === undefined) return <span className="text-xs text-gray-400">-</span>;
-  const color = getScoreColor(score);
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
-        style={{ backgroundColor: color + "20", color }}>
-        {Math.round(score)}
-      </div>
-      <span className="text-[10px] text-gray-500 hidden xl:block">{getScoreLabel(score)}</span>
-    </div>
-  );
-}
-
-/* ── Retention Mini Bar ───────────────────────────── */
-
-function RetentionMiniBar({ dropOff }: { dropOff: any }) {
-  if (!dropOff) return <span className="text-xs text-gray-400">-</span>;
-  const points = [
-    { label: "25%", val: dropOff.retention25 },
-    { label: "50%", val: dropOff.retention50 },
-    { label: "75%", val: dropOff.retention75 },
-    { label: "100%", val: dropOff.retention100 },
-  ];
-  return (
-    <div className="flex items-end gap-0.5 h-6">
-      {points.map((p) => (
-        <div key={p.label} className="flex flex-col items-center" title={`${p.label}: ${p.val ?? "-"}%`}>
-          <div
-            className="w-3 rounded-sm bg-purple-400"
-            style={{ height: `${Math.max((p.val || 0) / 100 * 24, 2)}px` }}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ── Score Breakdown (expanded) ───────────────────── */
-
-function ScoreBreakdown({ weights, breakdown }: { weights: any; breakdown: any }) {
-  if (!weights || !breakdown) return null;
-  const items = [
-    { key: "hook", label: "Hook Rate", color: "#8b5cf6" },
-    { key: "hold", label: "Hold Rate", color: "#6366f1" },
-    { key: "completion", label: "Completion", color: "#06b6d4" },
-    { key: "action", label: "Action Rate", color: "#3b82f6" },
-    { key: "conv", label: "Conv Rate", color: "#10b981" },
-    { key: "roas", label: "ROAS", color: "#f59e0b" },
-  ].filter((i) => (weights[i.key] || 0) > 0);
+  const scoreBreakdown = creative.videoMetrics?.scoreBreakdown
+    ? Object.entries(creative.videoMetrics.scoreBreakdown).map(([k, v]: any) => ({ metric: k, value: Number(v) || 0 }))
+    : [];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-      {items.map((item) => (
-        <div key={item.key} className="bg-gray-50 rounded-lg p-2">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-gray-500">{item.label}</span>
-            <span className="text-[10px] text-gray-400">peso {Math.round((weights[item.key] || 0) * 100)}%</span>
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div
+        className="bg-white rounded-3xl shadow-2xl max-w-6xl w-full my-8 overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* LEFT: media */}
+        <div className="bg-gradient-to-br from-slate-900 to-slate-700 relative flex flex-col">
+          <div className="relative flex-1 flex items-center justify-center min-h-[400px] lg:min-h-[600px]">
+            {url ? (
+              creative.isVideo ? (
+                <video
+                  ref={videoRef}
+                  src={url}
+                  className="w-full h-full max-h-[600px] object-contain"
+                  controls
+                  autoPlay
+                  muted={muted}
+                  playsInline
+                />
+              ) : (
+                <img src={url} alt={creative.name} className="w-full h-full max-h-[600px] object-contain" />
+              )
+            ) : (
+              <div className="text-white/50 flex flex-col items-center gap-3">
+                {creative.isVideo ? <Film size={64} /> : <ImageIcon size={64} />}
+                <span className="text-sm">Preview no disponible</span>
+              </div>
+            )}
+
+            {/* Mute toggle for video */}
+            {url && creative.isVideo && (
+              <button
+                onClick={() => setMuted((m) => !m)}
+                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/80 transition"
+              >
+                {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-              <div className="h-full rounded-full" style={{
-                width: `${Math.min((breakdown[item.key] || 0) / (weights[item.key] || 0.01) * 100, 100)}%`,
-                backgroundColor: item.color
-              }} />
-            </div>
-            <span className="text-xs font-mono" style={{ color: item.color }}>{(breakdown[item.key] || 0).toFixed(1)}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
-/* ── Retention Full Bar ───────────────────────────── */
-
-function RetentionFull({ dropOff }: { dropOff: any }) {
-  if (!dropOff) return null;
-  const steps = [
-    { label: "3s Play", pct: 100, color: "#8b5cf6" },
-    { label: "25%", pct: dropOff.retention25, color: "#6366f1" },
-    { label: "50%", pct: dropOff.retention50, color: "#3b82f6" },
-    { label: "75%", pct: dropOff.retention75, color: "#06b6d4" },
-    { label: "100%", pct: dropOff.retention100, color: "#10b981" },
-  ].filter((s) => s.pct !== null);
-
-  return (
-    <div className="space-y-1">
-      {steps.map((s) => (
-        <div key={s.label} className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-500 w-12 text-right shrink-0">{s.label}</span>
-          <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: `${Math.max(s.pct, 2)}%`, backgroundColor: s.color }} />
-          </div>
-          <span className="text-[11px] font-mono text-gray-600 w-8 shrink-0">{s.pct}%</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ── Expanded Row Detail ──────────────────────────── */
-
-function ExpandedDetail({ creative }: { creative: any }) {
-  const vm = creative.videoMetrics;
-  const [modalUrl, setModalUrl] = useState<string | null>(null);
-
-  return (
-    <div className="px-4 py-4 bg-gray-50 border-t border-gray-100">
-      {modalUrl && <ThumbnailModal url={modalUrl} name={creative.name} onClose={() => setModalUrl(null)} />}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Col 1: Thumbnail + info */}
-        <div className="space-y-3">
-          {creative.mediaUrls?.[0] && (
-            <img
-              src={creative.mediaUrls[0]}
-              alt={creative.name}
-              className="rounded-lg max-h-48 w-full object-contain bg-gray-100 cursor-pointer hover:ring-2 hover:ring-indigo-400/50 transition-all"
-              onClick={() => setModalUrl(creative.mediaUrls[0])}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
-          )}
-          <div className="space-y-1">
-            <p className="text-xs text-gray-500">Campana: <span className="text-gray-900 font-medium">{creative.campaignName || "-"}</span></p>
-            <p className="text-xs text-gray-500">Objetivo: <span className="text-gray-900 font-medium">{creative.campaignObjective || "-"}</span></p>
-            <p className="text-xs text-gray-500">Dias con datos: <span className="text-gray-900 font-medium">{creative.daysWithData}</span></p>
-            <div className="pt-1"><DiagnosisBadge diagnosis={vm?.dropOffAnalysis?.diagnosis} /></div>
-          </div>
-        </div>
-
-        {/* Col 2: Retention + metrics */}
-        {vm && (
-          <div className="space-y-3">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Curva de retencion</h4>
-            <RetentionFull dropOff={vm.dropOffAnalysis} />
-
-            <div className="grid grid-cols-4 gap-2 text-center">
-              {[
-                { label: "Hook", val: vm.hookRate, suffix: "%" },
-                { label: "Action", val: vm.actionRate, suffix: "%" },
-                { label: "Hold", val: vm.holdRate, suffix: "%" },
-                { label: "Compl", val: vm.completionRate, suffix: "%" },
-              ].map((m) => (
-                <div key={m.label} className="bg-white rounded-lg px-2 py-1.5 border border-gray-100">
-                  <span className="text-[10px] text-gray-500 block">{m.label}</span>
-                  <span className="text-sm font-bold text-gray-900">{m.val != null ? m.val.toFixed(1) + m.suffix : "-"}</span>
-                </div>
-              ))}
-            </div>
-
-            {vm.dropOffAnalysis?.diagnosisLabel && (
-              <div className="bg-white rounded-lg p-2.5 flex items-start gap-2 border border-gray-100">
-                <Sparkles size={13} className="text-indigo-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-gray-600">{vm.dropOffAnalysis.diagnosisLabel}</p>
+          {/* Caption / copy */}
+          <div className="bg-slate-900/95 text-white p-4 space-y-2 border-t border-white/10">
+            {creative.headline && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Headline</div>
+                <div className="text-sm font-medium">{creative.headline}</div>
+              </div>
+            )}
+            {creative.description && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Descripción</div>
+                <div className="text-xs text-white/80">{creative.description}</div>
+              </div>
+            )}
+            {creative.ctaType && (
+              <div className="pt-1">
+                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-white/10 text-white font-bold uppercase tracking-wider">
+                  CTA · {creative.ctaType}
+                </span>
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {/* Col 3: Score breakdown */}
-        {vm && (
-          <div className="space-y-3">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Composicion del Score ({FUNNEL_CONFIG[creative.funnelStage]?.shortLabel || "?"})
-            </h4>
-            <ScoreBreakdown weights={vm.scoreWeights} breakdown={vm.scoreBreakdown} />
+        {/* RIGHT: detail */}
+        <div className="p-6 lg:p-8 space-y-5 overflow-y-auto max-h-[90vh]">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <PlatformChip platform={creative.platform} />
+                <FunnelChip stage={creative.funnelStage} />
+                <FatigueChip fatigue={fatigue} compact />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-900 leading-tight">{creative.name || "Sin nombre"}</h2>
+              {creative.campaignName && (
+                <div className="text-sm text-slate-500 mt-1 flex items-center gap-1.5">
+                  <Layers size={12} /> {creative.campaignName}
+                </div>
+              )}
+            </div>
+            <button onClick={onClose} className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition">
+              <X size={18} />
+            </button>
+          </div>
 
-            <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-gray-200">
-              <div>
-                <span className="text-[10px] text-gray-500 block">Plays</span>
-                <span className="text-xs font-mono text-gray-700">{formatCompact(vm.videoPlays || 0)}</span>
+          {/* Hero ROAS + Score */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-4">
+              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">ROAS</div>
+              <div className={`text-3xl font-extrabold tabular-nums ${roasColorClass(creative.roas, breakeven)}`}>
+                {creative.roas.toFixed(2)}<span className="text-lg">x</span>
               </div>
-              <div>
-                <span className="text-[10px] text-gray-500 block">Conv Value</span>
-                <span className="text-xs font-mono text-gray-700">{formatARS(creative.conversionValue)}</span>
+              <div className="text-[11px] text-slate-500 mt-1">BE: <span className="font-bold tabular-nums">{breakeven.toFixed(2)}x</span></div>
+            </div>
+            <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-4">
+              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Score</div>
+              <div className="flex items-baseline gap-2">
+                <ScoreBadge score={score} size="lg" />
+                <span className="text-xs text-slate-500">/ 100</span>
               </div>
-              <div>
-                <span className="text-[10px] text-gray-500 block">CPA</span>
-                <span className="text-xs font-mono text-gray-700">{creative.costPerConversion > 0 ? formatARS(creative.costPerConversion) : "-"}</span>
+              <div className="text-[11px] text-slate-500 mt-1">{score == null ? "Sin video metrics" : "Funnel-aware"}</div>
+            </div>
+          </div>
+
+          {/* Performance grid */}
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">Performance</div>
+            <div className="grid grid-cols-3 gap-2">
+              <MetricBox label="Inversión" value={formatARS(creative.spend)} />
+              <MetricBox label="Revenue" value={formatARS(creative.conversionValue)} />
+              <MetricBox label="Conv." value={num(creative.conversions)} />
+              <MetricBox label="Impresiones" value={formatCompact(creative.impressions)} />
+              <MetricBox label="Clicks" value={formatCompact(creative.clicks)} />
+              <MetricBox label="CTR" value={`${creative.ctr.toFixed(2)}%`} />
+              <MetricBox label="CPC" value={formatARS(creative.cpc)} />
+              <MetricBox label="CPM" value={formatARS(creative.cpm)} />
+              <MetricBox label="CPA" value={creative.conversions > 0 ? formatARS(creative.costPerConversion) : "—"} />
+            </div>
+          </div>
+
+          {/* Video retention */}
+          {creative.isVideo && creative.videoMetrics && (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2 flex items-center gap-1.5">
+                <Video size={12} /> Curva de retención
+              </div>
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                <ResponsiveContainer width="100%" height={140}>
+                  <AreaChart data={retentionData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="ret-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="point" tick={{ fontSize: 10, fill: "#64748b" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "#64748b" }} domain={[0, 100]} unit="%" />
+                    <RechartsTooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
+                      formatter={(v: any) => [`${Number(v).toFixed(1)}%`, "Retención"]}
+                    />
+                    <Area type="monotone" dataKey="retention" stroke="#3b82f6" strokeWidth={2} fill="url(#ret-grad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+                <div className="grid grid-cols-4 gap-2 mt-3 text-center">
+                  <RetentionBox label="Hook" value={creative.videoMetrics.hookRate} />
+                  <RetentionBox label="Hold" value={creative.videoMetrics.holdRate} />
+                  <RetentionBox label="Action" value={creative.videoMetrics.actionRate} />
+                  <RetentionBox label="Complete" value={creative.videoMetrics.completionRate} />
+                </div>
+                {creative.videoMetrics.dropOffAnalysis?.diagnosisLabel && (
+                  <div className="mt-3 text-xs text-slate-700 bg-white rounded-lg p-2.5 border border-slate-200">
+                    <span className="font-bold">Diagnóstico:</span> {creative.videoMetrics.dropOffAnalysis.diagnosisLabel}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Score breakdown */}
+          {scoreBreakdown.length > 0 && (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">Score breakdown</div>
+              <div className="space-y-1.5">
+                {scoreBreakdown.map((s) => (
+                  <div key={s.metric} className="flex items-center gap-2 text-xs">
+                    <span className="w-20 text-slate-600 font-medium capitalize">{s.metric}</span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full" style={{ width: `${Math.min(100, s.value)}%` }} />
+                    </div>
+                    <span className="w-10 text-right font-bold tabular-nums text-slate-800">{s.value.toFixed(0)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Fatigue panel */}
+          <div className={`rounded-2xl p-4 ring-1 ${FATIGUE_META[fatigue.level].bg} ${FATIGUE_META[fatigue.level].ring}`}>
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-full ${FATIGUE_META[fatigue.level].text} bg-white flex items-center justify-center shrink-0 ring-1 ${FATIGUE_META[fatigue.level].ring}`}>
+                {React.createElement(FATIGUE_META[fatigue.level].icon, { size: 18 })}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-sm font-extrabold ${FATIGUE_META[fatigue.level].text} mb-1`}>
+                  {FATIGUE_META[fatigue.level].label} · score {fatigue.score}/100
+                </div>
+                <div className="text-xs text-slate-700 mb-2">{fatigue.recommendation}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {fatigue.reasons.map((r, i) => (
+                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-white/80 text-slate-700 ring-1 ring-slate-200 font-medium">
+                      {r}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Non-video expanded */}
-        {!vm && (
-          <div className="md:col-span-2 grid grid-cols-3 gap-2 text-center">
-            {[
-              { label: "Impressions", val: formatCompact(creative.impressions) },
-              { label: "Clicks", val: formatCompact(creative.clicks) },
-              { label: "CTR", val: creative.ctr + "%" },
-              { label: "Conversions", val: creative.conversions },
-              { label: "Conv Value", val: formatARS(creative.conversionValue) },
-              { label: "CPA", val: creative.costPerConversion > 0 ? formatARS(creative.costPerConversion) : "-" },
-            ].map((m) => (
-              <div key={m.label} className="bg-white rounded-lg px-2 py-2 border border-gray-100">
-                <span className="text-[10px] text-gray-500 block">{m.label}</span>
-                <span className="text-sm font-bold text-gray-900">{m.val}</span>
+          {/* Daily trend */}
+          {creative.dailySpend?.length > 1 && (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">Tendencia diaria · Inversión</div>
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                <ResponsiveContainer width="100%" height={100}>
+                  <AreaChart data={creative.dailySpend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="trend-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={PLATFORM_META[creative.platform]?.color || "#64748b"} stopOpacity={0.4} />
+                        <stop offset="100%" stopColor={PLATFORM_META[creative.platform]?.color || "#64748b"} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" hide />
+                    <YAxis tick={{ fontSize: 9, fill: "#94a3b8" }} />
+                    <RechartsTooltip
+                      contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }}
+                      formatter={(v: any) => [formatARS(Number(v)), "Spend"]}
+                    />
+                    <Area type="monotone" dataKey="spend" stroke={PLATFORM_META[creative.platform]?.color || "#64748b"} strokeWidth={1.5} fill="url(#trend-grad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-/* ── SOURCE_ICONS for Ventas por Anuncio ─────────── */
+function MetricBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{label}</div>
+      <div className="text-sm font-extrabold text-slate-900 tabular-nums mt-0.5">{value}</div>
+    </div>
+  );
+}
 
-const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string }> = {
-  meta: { icon: "M", color: "#1877F2", label: "Meta" },
-  google: { icon: "G", color: "#4285F4", label: "Google" },
-  direct: { icon: "D", color: "#6b7280", label: "Directo" },
-  "gocuotas.com": { icon: "$", color: "#10b981", label: "GoCuotas" },
-  icommarketing: { icon: "E", color: "#f59e0b", label: "Email" },
-  duckduckgo: { icon: "D", color: "#de5833", label: "DuckDuckGo" },
-  email: { icon: "E", color: "#f59e0b", label: "Email" },
-  referral: { icon: "R", color: "#8b5cf6", label: "Referral" },
-};
+function RetentionBox({ label, value }: { label: string; value: number }) {
+  const v = Number(value) || 0;
+  const color = v >= 50 ? "text-emerald-700" : v >= 25 ? "text-amber-700" : "text-red-700";
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{label}</div>
+      <div className={`text-sm font-extrabold tabular-nums ${color}`}>{v.toFixed(1)}%</div>
+    </div>
+  );
+}
 
-/* ══════════════════════════════════════════════════════
-   MAIN PAGE
-   ══════════════════════════════════════════════════════ */
+/* ── Hero KPI Strip ───────────────────────────────── */
 
-export default function CreativesVideoPage() {
-  const [activeTab, setActiveTab] = useState<"performance" | "sales">("performance");
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [modalUrl, setModalUrl] = useState<string | null>(null);
+function KpiHero({ label, value, sub, icon: Icon, accent = "slate", trend }: any) {
+  const accents: Record<string, { bg: string; text: string; ring: string }> = {
+    slate:    { bg: "bg-slate-50",    text: "text-slate-700",    ring: "ring-slate-200" },
+    blue:     { bg: "bg-blue-50",     text: "text-blue-700",     ring: "ring-blue-200" },
+    purple:   { bg: "bg-purple-50",   text: "text-purple-700",   ring: "ring-purple-200" },
+    emerald:  { bg: "bg-emerald-50",  text: "text-emerald-700",  ring: "ring-emerald-200" },
+    amber:    { bg: "bg-amber-50",    text: "text-amber-700",    ring: "ring-amber-200" },
+    red:      { bg: "bg-red-50",      text: "text-red-700",      ring: "ring-red-200" },
+  };
+  const a = accents[accent] || accents.slate;
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-4 hover:shadow-sm transition">
+      <div className="flex items-center justify-between mb-3">
+        <div className={`w-9 h-9 rounded-xl ${a.bg} ${a.text} ring-1 ${a.ring} flex items-center justify-center`}>
+          <Icon size={16} />
+        </div>
+        {trend && (
+          <span className={`text-[11px] font-bold tabular-nums flex items-center gap-0.5 ${trend > 0 ? "text-emerald-600" : trend < 0 ? "text-red-600" : "text-slate-400"}`}>
+            {trend > 0 ? <ArrowUpRight size={12} /> : trend < 0 ? <ArrowDownRight size={12} /> : null}
+            {Math.abs(trend).toFixed(1)}%
+          </span>
+        )}
+      </div>
+      <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">{label}</div>
+      <div className="text-2xl font-extrabold text-slate-900 tabular-nums leading-tight mt-1">{value}</div>
+      {sub && <div className="text-[11px] text-slate-500 mt-1">{sub}</div>}
+    </div>
+  );
+}
 
-  // Filters
-  const [filterType, setFilterType] = useState<"ALL" | "VIDEO" | "IMAGE">("ALL");
-  const [filterFunnel, setFilterFunnel] = useState<string>("ALL");
-  const [filterCampaign, setFilterCampaign] = useState<string>("ALL");
-  const [sortField, setSortField] = useState<string>("spend");
-  const [sortAsc, setSortAsc] = useState(false);
+/* ── Main Page ────────────────────────────────────── */
 
-  // Score explanation collapsible
-  const [scoreOpen, setScoreOpen] = useState(false);
-
-  // Date range
+export default function CreativosLabPage() {
   const [dateFrom, setDateFrom] = useState(toDateInputValue(new Date(Date.now() - 30 * 86400000)));
   const [dateTo, setDateTo] = useState(toDateInputValue(new Date()));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
 
-  // Ventas por Anuncio state
-  const [salesData, setSalesData] = useState<any[]>([]);
-  const [salesLoading, setSalesLoading] = useState(false);
-  const [selectedAd, setSelectedAd] = useState<string | null>(null);
-  const [salesSourceFilter, setSalesSourceFilter] = useState<string>("ALL");
-
-  /* ── Fetch creatives ────────────────────────────── */
-  useEffect(() => {
-    setLoading(true);
-    fetch(`/api/metrics/ads?from=${dateFrom}&to=${dateTo}`)
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [dateFrom, dateTo]);
-
-  /* ── Fetch sales by ad ──────────────────────────── */
-  useEffect(() => {
-    if (activeTab !== "sales") return;
-    setSalesLoading(true);
-    setSalesSourceFilter("ALL");
-    fetch(`/api/metrics/pixel/sales-by-ad?from=${dateFrom}&to=${dateTo}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setSalesData(d.ads || []);
-        if (d.ads?.length > 0) setSelectedAd(d.ads[0].adKey);
-      })
-      .catch(() => {})
-      .finally(() => setSalesLoading(false));
-  }, [activeTab, dateFrom, dateTo]);
-
-  /* ── Date handlers ─────────────────────────────── */
   const handleQuickRange = (days: number) => {
     setDateTo(toDateInputValue(new Date()));
     setDateFrom(toDateInputValue(new Date(Date.now() - days * 86400000)));
     setActiveQuickRange(days);
   };
   const handleDateChange = (type: "from" | "to", v: string) => {
-    type === "from" ? setDateFrom(v) : setDateTo(v);
+    if (type === "from") setDateFrom(v); else setDateTo(v);
     setActiveQuickRange(null);
   };
 
-  /* ── Derived data ──────────────────────────────── */
-  const allCreatives = data?.creatives || [];
-  const campaigns = data?.campaigns || [];
-  const funnelBreakdown = data?.funnelBreakdown || [];
+  const [platformView, setPlatformView] = useState<PlatformView>("META");
+  const [funnelFilter, setFunnelFilter] = useState<string>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"spend" | "roas" | "score" | "ctr">("spend");
 
-  const filtered = useMemo(() => {
-    let list = allCreatives;
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedCreative, setSelectedCreative] = useState<any | null>(null);
 
-    // Type filter
-    if (filterType === "VIDEO") list = list.filter((c: any) => c.isVideo);
-    else if (filterType === "IMAGE") list = list.filter((c: any) => !c.isVideo);
+  const { breakevenRoas, contributionMargin } = useBreakeven(dateFrom, dateTo);
 
-    // Funnel filter
-    if (filterFunnel !== "ALL") list = list.filter((c: any) => c.funnelStage === filterFunnel);
-
-    // Campaign filter
-    if (filterCampaign !== "ALL") list = list.filter((c: any) => c.campaignId === filterCampaign);
-
-    // Sort
-    return [...list].sort((a: any, b: any) => {
-      let aVal: number, bVal: number;
-      switch (sortField) {
-        case "score":
-          aVal = a.videoMetrics?.videoEfficiencyScore ?? -1;
-          bVal = b.videoMetrics?.videoEfficiencyScore ?? -1;
-          break;
-        case "hookRate":
-          aVal = a.videoMetrics?.hookRate ?? -1;
-          bVal = b.videoMetrics?.hookRate ?? -1;
-          break;
-        case "actionRate":
-          aVal = a.videoMetrics?.actionRate ?? -1;
-          bVal = b.videoMetrics?.actionRate ?? -1;
-          break;
-        case "roas": aVal = a.roas; bVal = b.roas; break;
-        case "conv": aVal = a.conversions; bVal = b.conversions; break;
-        case "spend":
-        default:
-          aVal = a.spend; bVal = b.spend;
-      }
-      return sortAsc ? aVal - bVal : bVal - aVal;
-    });
-  }, [allCreatives, filterType, filterFunnel, filterCampaign, sortField, sortAsc]);
-
-  /* ── Summary KPIs ──────────────────────────────── */
-  const kpis = useMemo(() => {
-    if (filtered.length === 0) return null;
-    const totalSpend = filtered.reduce((s: number, c: any) => s + c.spend, 0);
-    const totalConvValue = filtered.reduce((s: number, c: any) => s + c.conversionValue, 0);
-    const totalConv = filtered.reduce((s: number, c: any) => s + c.conversions, 0);
-    const totalClicks = filtered.reduce((s: number, c: any) => s + c.clicks, 0);
-    const totalImpr = filtered.reduce((s: number, c: any) => s + c.impressions, 0);
-    const videos = filtered.filter((c: any) => c.isVideo);
-    const scores = videos.map((c: any) => c.videoMetrics?.videoEfficiencyScore).filter((s: any) => s != null);
-    const avgScore = scores.length > 0 ? scores.reduce((s: number, v: number) => s + v, 0) / scores.length : null;
-
-    return {
-      creatives: filtered.length,
-      videos: videos.length,
-      spend: totalSpend,
-      roas: totalSpend > 0 ? totalConvValue / totalSpend : 0,
-      conversions: totalConv,
-      convValue: totalConvValue,
-      ctr: totalImpr > 0 ? (totalClicks / totalImpr) * 100 : 0,
-      avgScore,
-    };
-  }, [filtered]);
-
-  /* ── Toggle sort ────────────────────────────────── */
-  const handleSort = useCallback((field: string) => {
-    if (sortField === field) setSortAsc(!sortAsc);
-    else { setSortField(field); setSortAsc(false); }
-  }, [sortField, sortAsc]);
-
-  /* ── Filtered sales data by source ──────────────── */
-  const filteredSalesData = useMemo(() => {
-    if (salesSourceFilter === "ALL") return salesData;
-    return salesData.filter((a: any) => a.source === salesSourceFilter);
-  }, [salesData, salesSourceFilter]);
-
-  /* ── Available sources for filter chips ─────────── */
-  const salesSources = useMemo(() => {
-    const sources = new Set(salesData.map((a: any) => a.source));
-    return Array.from(sources).sort();
-  }, [salesData]);
-
-  /* ── Auto-select first ad when filter changes ──── */
-  useEffect(() => {
-    if (filteredSalesData.length > 0) {
-      // Only auto-select if current selection is not in filtered data
-      const current = filteredSalesData.find((a: any) => a.adKey === selectedAd);
-      if (!current) setSelectedAd(filteredSalesData[0].adKey);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ from: dateFrom, to: dateTo });
+      if (platformView !== "ALL") params.set("platform", platformView);
+      const res = await fetch(`/api/metrics/ads?${params.toString()}`);
+      const j = await res.json();
+      setData(j);
+    } catch (e) {
+      console.error(e);
+      setData(null);
+    } finally {
+      setLoading(false);
     }
-  }, [filteredSalesData]);
+  }, [dateFrom, dateTo, platformView]);
 
-  /* ── Selected ad data for Ventas por Anuncio ──── */
-  const selectedAdData = useMemo(() => {
-    if (!selectedAd) return null;
-    return salesData.find((a: any) => a.adKey === selectedAd) || null;
-  }, [salesData, selectedAd]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  /* ── Loading State ─────────────────────────────── */
-  if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center h-96 bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3" />
-        <span className="text-gray-500">Cargando creativos...</span>
-      </div>
-    );
-  }
+  // Filter + sort
+  const filteredCreatives = useMemo(() => {
+    if (!data?.creatives) return [];
+    let cs = data.creatives;
+    if (funnelFilter !== "ALL") cs = cs.filter((c: any) => c.funnelStage === funnelFilter);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      cs = cs.filter((c: any) =>
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.headline || "").toLowerCase().includes(q) ||
+        (c.campaignName || "").toLowerCase().includes(q)
+      );
+    }
+    cs = [...cs].sort((a, b) => {
+      if (sortBy === "score") return (b.videoMetrics?.videoEfficiencyScore ?? -1) - (a.videoMetrics?.videoEfficiencyScore ?? -1);
+      return b[sortBy] - a[sortBy];
+    });
+    return cs;
+  }, [data, funnelFilter, searchQuery, sortBy]);
 
-  const SortBtn = ({ field, label }: { field: string; label: string }) => (
-    <button
-      onClick={() => handleSort(field)}
-      className={`text-[11px] px-1 transition-colors ${sortField === field ? "text-gray-900 font-semibold" : "text-gray-500 hover:text-gray-700"}`}
-    >
-      {label}{sortField === field && (sortAsc ? " \u2191" : " \u2193")}
-    </button>
-  );
+  // Aggregates
+  const totals = data?.totals;
+  const fatigueAlerts = useMemo(() => {
+    if (!data?.creatives) return [];
+    return data.creatives
+      .map((c: any) => ({ creative: c, fatigue: analyzeFatigue(c) }))
+      .filter((x: any) => (x.fatigue.level === "fatigued" || x.fatigue.level === "burned") && x.creative.spend > 10000)
+      .sort((a: any, b: any) => b.creative.spend - a.creative.spend);
+  }, [data]);
+
+  const topPerformer = useMemo(() => {
+    if (!data?.creatives || data.creatives.length === 0) return null;
+    return [...data.creatives].sort((a, b) => b.roas - a.roas)[0];
+  }, [data]);
+
+  const activeCount = data?.creatives?.filter((c: any) => c.status === "ACTIVE").length || 0;
+  const videoCount = data?.creatives?.filter((c: any) => c.isVideo).length || 0;
+
+  const blendedRoas = totals?.spend > 0 ? totals.conversionValue / totals.spend : 0;
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      {modalUrl && <ThumbnailModal url={modalUrl} name="" onClose={() => setModalUrl(null)} />}
-
-      {/* ── Header ─────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Creativos</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Rendimiento por funnel &middot; Score adaptado al objetivo de cada campana
-          </p>
-        </div>
-        <DateRangeFilter
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          activeQuickRange={activeQuickRange}
-          quickRanges={QUICK_RANGES}
-          onQuickRange={handleQuickRange}
-          onDateChange={handleDateChange}
-          loading={loading}
-        />
-      </div>
-
-      {/* ── Tab Bar ────────────────────────────────── */}
-      <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg w-fit">
-        <button
-          onClick={() => setActiveTab("performance")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-            activeTab === "performance" ? "bg-white shadow-sm text-indigo-600" : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          <Film size={14} className="inline mr-1.5 -mt-0.5" />
-          Performance
-        </button>
-        <button
-          onClick={() => setActiveTab("sales")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-            activeTab === "sales" ? "bg-white shadow-sm text-indigo-600" : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          <ShoppingCart size={14} className="inline mr-1.5 -mt-0.5" />
-          Ventas por Anuncio
-        </button>
-      </div>
-
-      {/* ══════════════════════════════════════════════
-          TAB: PERFORMANCE
-         ══════════════════════════════════════════════ */}
-      {activeTab === "performance" && (
-        <>
-          {/* ── Funnel Summary Cards ──────────────────── */}
-          {funnelBreakdown.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {funnelBreakdown.map((f: any) => {
-                const config = FUNNEL_CONFIG[f.stage] || FUNNEL_CONFIG.UNKNOWN;
-                const Icon = config.icon;
-                const isActive = filterFunnel === f.stage;
-                return (
-                  <button
-                    key={f.stage}
-                    onClick={() => setFilterFunnel(isActive ? "ALL" : f.stage)}
-                    className={`bg-white border rounded-xl p-3 text-left transition-all shadow-sm hover:shadow-md ${
-                      isActive ? "border-indigo-400 ring-1 ring-indigo-200" : "border-gray-200"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Icon size={14} className={config.lightColor} />
-                      <span className={`text-xs font-semibold ${config.lightColor}`}>{f.label}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <div>
-                        <span className="text-lg font-bold text-gray-900">{f.count}</span>
-                        <span className="text-[10px] text-gray-500 ml-1">creativos</span>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-sm font-bold ${getRoasColor(f.roas)}`}>{f.roas.toFixed(1)}x</span>
-                        <span className="text-[10px] text-gray-500 block">ROAS</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-1 text-[10px] text-gray-500">
-                      <span>{formatARS(f.spend)}</span>
-                      <span>{f.conversions} conv</span>
-                    </div>
-                  </button>
-                );
-              })}
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      {/* Header */}
+      <div className="border-b border-slate-200 bg-white sticky top-0 z-30 backdrop-blur-sm bg-white/95">
+        <div className="px-6 py-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                <span>Marketing & Adquisición</span>
+                <ArrowRight size={12} />
+                <span>Campaigns</span>
+                <ArrowRight size={12} />
+                <span className="font-semibold text-slate-700">Creativos Lab</span>
+              </div>
+              <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-2">
+                <Sparkles className="text-purple-500" size={22} />
+                Creativos Lab
+              </h1>
+              <p className="text-sm text-slate-500 mt-0.5">Galería visual con preview, scoring y detección de fatiga.</p>
             </div>
-          )}
 
-          {/* ── KPI Summary Row ──────────────────────── */}
-          {kpis && (
-            <div className="flex flex-wrap items-center gap-3 px-1">
-              {[
-                { label: "Creativos", val: String(kpis.creatives), sub: `${kpis.videos} videos` },
-                { label: "Spend", val: formatARS(kpis.spend) },
-                { label: "ROAS", val: kpis.roas.toFixed(1) + "x", color: getRoasColor(kpis.roas) },
-                { label: "Conv", val: String(kpis.conversions), sub: formatARS(kpis.convValue) },
-                { label: "CTR", val: kpis.ctr.toFixed(2) + "%" },
-                ...(kpis.avgScore !== null ? [{ label: "Avg Score", val: kpis.avgScore.toFixed(1), color: "text-gray-900" }] : []),
-              ].map((k) => (
-                <div key={k.label} className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-gray-500 uppercase">{k.label}:</span>
-                  <span className={`text-sm font-bold ${k.color || "text-gray-900"}`}>{k.val}</span>
-                  {k.sub && <span className="text-[10px] text-gray-400">({k.sub})</span>}
-                </div>
-              ))}
+            <div className="flex items-center gap-3 flex-wrap">
+              <DateRangeFilter
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                activeQuickRange={activeQuickRange}
+                quickRanges={QUICK_RANGES}
+                onQuickRange={handleQuickRange}
+                onDateChange={handleDateChange}
+                loading={loading}
+              />
+              <button
+                onClick={fetchData}
+                className="w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition"
+                title="Refrescar"
+              >
+                <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+              </button>
             </div>
-          )}
+          </div>
 
-          {/* ── Filters Bar ──────────────────────────── */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Type filter */}
-            <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5 shadow-sm">
-              {(["ALL", "VIDEO", "IMAGE"] as const).map((t) => (
+          {/* Platform segmented control */}
+          <div className="mt-4 inline-flex p-1 bg-slate-100 rounded-xl">
+            {(["META", "GOOGLE", "ALL"] as PlatformView[]).map((p) => {
+              const m = PLATFORM_META[p];
+              const active = platformView === p;
+              return (
                 <button
-                  key={t}
-                  onClick={() => setFilterType(t)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                    filterType === t ? "bg-indigo-600 text-white" : "text-gray-600 hover:text-gray-900"
+                  key={p}
+                  onClick={() => setPlatformView(p)}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
+                    active ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
-                  {t === "ALL" ? "Todos" : t === "VIDEO" ? "Video" : "Imagen"}
+                  <span className={`w-2 h-2 rounded-full`} style={{ background: m.color }} />
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 py-6 max-w-[1600px] mx-auto space-y-6">
+        {/* KPI Strip */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <KpiHero
+            label="Inversión"
+            value={formatCompact(totals?.spend || 0)}
+            sub={`${data?.creatives?.length || 0} creativos`}
+            icon={Zap}
+            accent={platformView === "META" ? "purple" : platformView === "GOOGLE" ? "blue" : "slate"}
+            trend={data?.changes?.spend}
+          />
+          <KpiHero
+            label="Revenue atrib."
+            value={formatCompact(totals?.conversionValue || 0)}
+            sub={`${num(totals?.conversions || 0)} conv.`}
+            icon={ShoppingCart}
+            accent="emerald"
+            trend={data?.changes?.conversionValue}
+          />
+          <KpiHero
+            label="ROAS"
+            value={`${blendedRoas.toFixed(2)}x`}
+            sub={`BE: ${breakevenRoas.toFixed(2)}x · CM ${(contributionMargin * 100).toFixed(0)}%`}
+            icon={Gauge}
+            accent={blendedRoas >= breakevenRoas * 1.5 ? "emerald" : blendedRoas >= breakevenRoas ? "amber" : "red"}
+          />
+          <KpiHero
+            label="Activos"
+            value={`${activeCount}`}
+            sub={`${videoCount} videos · ${(data?.creatives?.length || 0) - videoCount} imagenes`}
+            icon={Activity}
+            accent="blue"
+          />
+          <KpiHero
+            label="Necesitan refresh"
+            value={`${fatigueAlerts.length}`}
+            sub={fatigueAlerts.length === 0 ? "Todo fresco ✨" : "Fatiga detectada"}
+            icon={Flame}
+            accent={fatigueAlerts.length > 0 ? "red" : "emerald"}
+          />
+          <KpiHero
+            label="CTR promedio"
+            value={`${totals?.spend > 0 && totals?.impressions > 0 ? ((totals.clicks / totals.impressions) * 100).toFixed(2) : "0.00"}%`}
+            sub={`CPC ${formatARS(totals?.clicks > 0 ? totals.spend / totals.clicks : 0)}`}
+            icon={MousePointer}
+            accent="slate"
+          />
+        </div>
+
+        {/* Fatigue alert panel */}
+        {fatigueAlerts.length > 0 && (
+          <div className="bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 rounded-2xl border border-red-200 p-5">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-red-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-red-500/30">
+                <Flame size={22} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-base font-extrabold text-slate-900">{fatigueAlerts.length} creativo{fatigueAlerts.length === 1 ? "" : "s"} necesita{fatigueAlerts.length === 1 ? "" : "n"} acción</h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500 text-white font-bold uppercase tracking-wider">Urgente</span>
+                </div>
+                <p className="text-sm text-slate-700 mb-3">CPM en alza o CTR cayendo · pausá o creá variantes nuevas para no quemar presupuesto.</p>
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  {fatigueAlerts.slice(0, 8).map(({ creative, fatigue }: any) => (
+                    <button
+                      key={creative.id}
+                      onClick={() => setSelectedCreative(creative)}
+                      className="shrink-0 flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-red-200 hover:border-red-400 hover:shadow-sm transition text-left max-w-[260px]"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-slate-200 overflow-hidden shrink-0">
+                        {creative.mediaUrls?.[0] ? (
+                          creative.isVideo ? (
+                            <video src={creative.mediaUrls[0]} className="w-full h-full object-cover" muted preload="metadata" />
+                          ) : (
+                            <img src={creative.mediaUrls[0]} alt="" className="w-full h-full object-cover" />
+                          )
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-400">
+                            {creative.isVideo ? <Film size={14} /> : <ImageIcon size={14} />}
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-slate-900 truncate">{creative.name || "Sin nombre"}</div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                          <FatigueChip fatigue={fatigue} compact />
+                          <span className="tabular-nums">{formatCompact(creative.spend)}</span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Top performer showcase */}
+        {topPerformer && topPerformer.spend > 0 && (
+          <div className="bg-gradient-to-br from-emerald-50 via-white to-blue-50 rounded-2xl border border-emerald-200 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                <Award size={16} />
+              </div>
+              <h3 className="text-base font-extrabold text-slate-900">Top performer del periodo</h3>
+              <PlatformChip platform={topPerformer.platform} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-5 items-center">
+              <div className="w-full md:w-[200px] aspect-square rounded-xl overflow-hidden bg-slate-100 cursor-pointer" onClick={() => setSelectedCreative(topPerformer)}>
+                <MediaThumb creative={topPerformer} onClick={() => setSelectedCreative(topPerformer)} />
+              </div>
+              <div className="space-y-2 min-w-0">
+                <div className="text-lg font-extrabold text-slate-900 line-clamp-2">{topPerformer.name || "Sin nombre"}</div>
+                {topPerformer.campaignName && (
+                  <div className="text-sm text-slate-500 flex items-center gap-1.5">
+                    <Layers size={12} /> {topPerformer.campaignName}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <FunnelChip stage={topPerformer.funnelStage} />
+                  <FatigueChip fatigue={analyzeFatigue(topPerformer)} compact />
+                  {topPerformer.videoMetrics?.videoEfficiencyScore != null && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-slate-700 ring-1 ring-slate-200 font-bold">
+                      Score {Math.round(topPerformer.videoMetrics.videoEfficiencyScore)}/100
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 md:grid-cols-1 gap-3 md:gap-2 min-w-[180px]">
+                <div className="text-center md:text-left">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">ROAS</div>
+                  <div className={`text-3xl font-extrabold tabular-nums ${roasColorClass(topPerformer.roas, breakevenRoas)}`}>
+                    {topPerformer.roas.toFixed(2)}<span className="text-base">x</span>
+                  </div>
+                </div>
+                <div className="text-center md:text-left">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Inversión</div>
+                  <div className="text-base font-bold text-slate-900 tabular-nums">{formatARS(topPerformer.spend)}</div>
+                </div>
+                <div className="text-center md:text-left">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Revenue</div>
+                  <div className="text-base font-bold text-slate-900 tabular-nums">{formatARS(topPerformer.conversionValue)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Filter bar */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <Search size={16} className="text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar creativo, headline o campaña..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-transparent outline-none text-sm placeholder:text-slate-400"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Funnel</span>
+            <div className="flex p-0.5 bg-slate-100 rounded-lg">
+              {["ALL", "TOF", "MOF", "BOF"].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFunnelFilter(f)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${
+                    funnelFilter === f ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {f === "ALL" ? "Todos" : f}
                 </button>
               ))}
             </div>
-
-            {/* Campaign filter */}
-            {campaigns.length > 0 && (
-              <select
-                value={filterCampaign}
-                onChange={(e) => setFilterCampaign(e.target.value)}
-                className="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 max-w-[200px] shadow-sm"
-              >
-                <option value="ALL">Todas las campanas</option>
-                {campaigns.map((c: any) => (
-                  <option key={c.id} value={c.id}>
-                    [{FUNNEL_CONFIG[c.funnelStage]?.shortLabel || "?"}] {c.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {/* Active filter indicator */}
-            {(filterFunnel !== "ALL" || filterCampaign !== "ALL") && (
-              <button
-                onClick={() => { setFilterFunnel("ALL"); setFilterCampaign("ALL"); }}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 text-xs hover:bg-red-100 transition-colors"
-              >
-                <X size={12} /> Limpiar filtros
-              </button>
-            )}
-
-            <span className="text-[10px] text-gray-400 ml-auto">{filtered.length} resultados</span>
           </div>
 
-          {/* ── Creative Table (simplified) ──────────── */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr className="text-[11px] text-gray-600 uppercase">
-                    <th className="text-left px-3 py-2.5 w-8">#</th>
-                    <th className="text-left px-2 py-2.5 w-12"></th>
-                    <th className="text-left px-2 py-2.5"><SortBtn field="name" label="Creativo" /></th>
-                    <th className="text-center px-2 py-2.5 w-10">Funnel</th>
-                    <th className="text-center px-2 py-2.5 w-14"><SortBtn field="score" label="Score" /></th>
-                    <th className="text-right px-2 py-2.5 w-20"><SortBtn field="spend" label="Spend" /></th>
-                    <th className="text-right px-2 py-2.5 w-14"><SortBtn field="roas" label="ROAS" /></th>
-                    <th className="text-right px-2 py-2.5 w-12"><SortBtn field="conv" label="Conv" /></th>
-                    <th className="text-center px-2 py-2.5 w-8"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filtered.map((c: any, i: number) => {
-                    const isExpanded = expandedId === c.id;
-                    const vm = c.videoMetrics;
-                    return (
-                      <React.Fragment key={c.id}>
-                        <tr
-                          className={`hover:bg-gray-50 cursor-pointer transition-colors ${
-                            isExpanded ? "bg-gray-50" : ""
-                          }`}
-                          onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                        >
-                          <td className="px-3 py-2.5 text-gray-400 text-xs">{i + 1}</td>
-                          <td className="px-2 py-2.5">
-                            <Thumbnail
-                              url={c.mediaUrls?.[0]}
-                              name={c.name}
-                              onClickZoom={() => { setModalUrl(c.mediaUrls?.[0]); }}
-                            />
-                          </td>
-                          <td className="px-2 py-2.5">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              {c.isVideo ? <Video size={12} className="text-purple-500 shrink-0" /> : <Image size={12} className="text-blue-500 shrink-0" />}
-                              <span className="text-gray-900 font-medium truncate max-w-[220px] text-xs">{c.name}</span>
-                            </div>
-                            <p className="text-[10px] text-gray-400 truncate max-w-[220px]">{c.campaignName || "-"}</p>
-                          </td>
-                          <td className="px-2 py-2.5 text-center"><FunnelBadge stage={c.funnelStage} /></td>
-                          <td className="px-2 py-2.5 text-center"><ScorePill score={vm?.videoEfficiencyScore} /></td>
-                          <td className="px-2 py-2.5 text-right text-gray-700 text-xs font-medium">{formatARS(c.spend)}</td>
-                          <td className="px-2 py-2.5 text-right">
-                            <span className={`text-xs font-bold ${getRoasColor(c.roas)}`}>{c.roas.toFixed(1)}x</span>
-                          </td>
-                          <td className="px-2 py-2.5 text-right text-gray-700 text-xs">{c.conversions}</td>
-                          <td className="px-2 py-2.5 text-center">
-                            {isExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-                          </td>
-                        </tr>
-                        {isExpanded && (
-                          <tr>
-                            <td colSpan={9}>
-                              <ExpandedDetail creative={c} />
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {filtered.length === 0 && (
-              <div className="text-center py-12">
-                <Film size={40} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-gray-500 text-sm">No se encontraron creativos con estos filtros</p>
-              </div>
-            )}
-          </div>
-
-          {/* ── Score Explanation (collapsible) ────────── */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <button
-              onClick={() => setScoreOpen(!scoreOpen)}
-              className="w-full flex items-center justify-between p-4 text-left"
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Ordenar</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-lg border-none outline-none cursor-pointer"
             >
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                <Sparkles size={14} className="text-indigo-500" />
-                Como funciona el Efficiency Score
-              </h3>
-              {scoreOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-            </button>
-            {scoreOpen && (
-              <div className="px-4 pb-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Eye size={14} className="text-purple-600" />
-                      <span className="text-xs font-semibold text-purple-700">TOF - Awareness</span>
-                    </div>
-                    <p className="text-[11px] text-gray-600 leading-relaxed">
-                      Prioriza hook rate y completion. Mide cuantos paran a mirar y cuanto ven del video.
-                    </p>
-                    <div className="flex gap-1 mt-2 flex-wrap">
-                      {[{l:"Hook",w:35},{l:"Hold",w:25},{l:"Compl",w:20},{l:"Action",w:15},{l:"Conv",w:5}].map(x=>(
-                        <span key={x.l} className="text-[9px] text-purple-600 bg-purple-100 px-1 py-0.5 rounded">{x.l} {x.w}%</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <MousePointer size={14} className="text-blue-600" />
-                      <span className="text-xs font-semibold text-blue-700">MOF - Consideracion</span>
-                    </div>
-                    <p className="text-[11px] text-gray-600 leading-relaxed">
-                      Prioriza action rate y clicks. Mide cuantos interactuan y consideran tu producto.
-                    </p>
-                    <div className="flex gap-1 mt-2 flex-wrap">
-                      {[{l:"Action",w:40},{l:"Hook",w:20},{l:"Hold",w:15},{l:"Conv",w:15},{l:"Compl",w:10}].map(x=>(
-                        <span key={x.l} className="text-[9px] text-blue-600 bg-blue-100 px-1 py-0.5 rounded">{x.l} {x.w}%</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <ShoppingCart size={14} className="text-emerald-600" />
-                      <span className="text-xs font-semibold text-emerald-700">BOF - Conversion</span>
-                    </div>
-                    <p className="text-[11px] text-gray-600 leading-relaxed">
-                      Prioriza conversiones y ROAS. Mide cuantos terminan comprando despues de ver el video.
-                    </p>
-                    <div className="flex gap-1 mt-2 flex-wrap">
-                      {[{l:"Conv",w:30},{l:"ROAS",w:25},{l:"Action",w:25},{l:"Hook",w:10},{l:"Hold",w:5}].map(x=>(
-                        <span key={x.l} className="text-[9px] text-emerald-600 bg-emerald-100 px-1 py-0.5 rounded">{x.l} {x.w}%</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+              <option value="spend">Inversión</option>
+              <option value="roas">ROAS</option>
+              <option value="score">Score</option>
+              <option value="ctr">CTR</option>
+            </select>
           </div>
-        </>
-      )}
+        </div>
 
-      {/* ══════════════════════════════════════════════
-          TAB: VENTAS POR ANUNCIO
-         ══════════════════════════════════════════════ */}
-      {activeTab === "sales" && (
-        <>
-          {salesLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3" />
-              <span className="text-gray-500">Cargando ventas por anuncio...</span>
-            </div>
-          ) : salesData.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-              <ShoppingCart size={48} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500 text-sm">No se encontraron ventas atribuidas a anuncios en este periodo</p>
-              <p className="text-gray-400 text-xs mt-1">Las ventas se atribuyen a anuncios a traves del parametro utm_content del pixel</p>
-            </div>
-          ) : (
-            <>
-            {/* Source Filter Chips */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-500 font-medium">Filtrar:</span>
-              <button
-                onClick={() => { setSalesSourceFilter("ALL"); setSelectedAd(null); }}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                  salesSourceFilter === "ALL"
-                    ? "bg-gray-900 text-white"
-                    : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                Todos ({salesData.length})
-              </button>
-              {salesSources.map((src) => {
-                const info = SOURCE_ICONS[src] || SOURCE_ICONS.direct;
-                const count = salesData.filter((a: any) => a.source === src).length;
-                return (
-                  <button
-                    key={src}
-                    onClick={() => { setSalesSourceFilter(src); setSelectedAd(null); }}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
-                      salesSourceFilter === src
-                        ? "text-white"
-                        : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-                    }`}
-                    style={salesSourceFilter === src ? { backgroundColor: info.color } : {}}
-                  >
-                    <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ backgroundColor: salesSourceFilter === src ? "rgba(255,255,255,0.3)" : info.color }}>
-                      {info.icon}
-                    </span>
-                    {info.label} ({count})
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Panel: Ad List */}
-              <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-4 border-b border-gray-200">
-                  <h3 className="font-semibold text-gray-900 text-sm">Anuncios con ventas</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{filteredSalesData.length} anuncios</p>
-                </div>
-                <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
-                  {filteredSalesData.map((ad: any) => {
-                    const isSelected = selectedAd === ad.adKey;
-                    const sourceInfo = SOURCE_ICONS[ad.source] || SOURCE_ICONS.direct;
-                    return (
-                      <button
-                        key={ad.adKey}
-                        onClick={() => setSelectedAd(ad.adKey)}
-                        className={`w-full p-3 text-left transition-all hover:bg-gray-50 ${
-                          isSelected ? "bg-indigo-50 border-l-2 border-indigo-500" : "border-l-2 border-transparent"
-                        }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          {ad.thumbnailUrl ? (
-                            <img src={ad.thumbnailUrl} alt="" className="w-10 h-10 rounded-md object-cover bg-gray-100 shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                          ) : (
-                            <div className="w-10 h-10 rounded-md flex items-center justify-center shrink-0 text-white text-xs font-bold" style={{ backgroundColor: sourceInfo.color }}>
-                              {sourceInfo.icon}
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-gray-900 truncate">{ad.adName}</p>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <span className="w-3 h-3 rounded-full flex items-center justify-center text-[7px] font-bold text-white" style={{ backgroundColor: sourceInfo.color }}>
-                                {sourceInfo.icon}
-                              </span>
-                              <p className="text-[10px] text-gray-400 truncate">{ad.campaign || ad.medium || sourceInfo.label}</p>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs font-bold text-gray-900">{formatARS(ad.revenue)}</span>
-                              <span className="text-[10px] text-gray-400">{ad.orders} ord</span>
-                              <span className="text-[10px] text-gray-400">{ad.units} uds</span>
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+        {/* Gallery */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="w-full aspect-square bg-slate-100 animate-pulse" />
+                <div className="p-4 space-y-2">
+                  <div className="h-4 bg-slate-100 rounded w-2/3 animate-pulse" />
+                  <div className="h-3 bg-slate-100 rounded w-full animate-pulse" />
+                  <div className="h-3 bg-slate-100 rounded w-1/2 animate-pulse" />
                 </div>
               </div>
-
-              {/* Right Panel: Detail */}
-              <div className="lg:col-span-2 space-y-4">
-                {selectedAdData ? (
-                  <>
-                    {/* KPI Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {[
-                        { label: "Revenue", value: formatARS(selectedAdData.revenue), icon: <ShoppingCart size={16} className="text-green-600" />, bg: "bg-green-50" },
-                        { label: "Ordenes", value: String(selectedAdData.orders), icon: <Package size={16} className="text-indigo-600" />, bg: "bg-indigo-50" },
-                        { label: "Unidades", value: String(selectedAdData.units), icon: <BarChart3 size={16} className="text-blue-600" />, bg: "bg-blue-50" },
-                        { label: "Ticket Prom.", value: selectedAdData.orders > 0 ? formatARS(selectedAdData.revenue / selectedAdData.orders) : "-", icon: <Target size={16} className="text-amber-600" />, bg: "bg-amber-50" },
-                      ].map((kpi) => (
-                        <div key={kpi.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center`}>{kpi.icon}</div>
-                          </div>
-                          <p className="text-lg font-bold text-gray-900">{kpi.value}</p>
-                          <p className="text-[10px] text-gray-500 uppercase">{kpi.label}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Product Cards */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                      <div className="p-4 border-b border-gray-200">
-                        <h3 className="font-semibold text-gray-900 text-sm">Productos vendidos</h3>
-                      </div>
-                      <div className="divide-y divide-gray-100">
-                        {(selectedAdData.products || []).map((product: any, idx: number) => (
-                          <div key={idx} className="p-3 flex items-center gap-3 hover:bg-gray-50">
-                            {product.imageUrl ? (
-                              <img src={product.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0" />
-                            ) : (
-                              <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                                <Package size={16} className="text-gray-400" />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-gray-900 truncate">{product.name || "Producto"}</p>
-                              {product.sku && <p className="text-[10px] text-gray-400">SKU: {product.sku}</p>}
-                            </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-xs font-bold text-gray-900">{formatARS(product.revenue)}</p>
-                              <p className="text-[10px] text-gray-400">{product.units} uds</p>
-                            </div>
-                          </div>
-                        ))}
-                        {(!selectedAdData.products || selectedAdData.products.length === 0) && (
-                          <div className="p-8 text-center text-gray-400 text-sm">Sin detalle de productos</div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-                    <ArrowRight size={32} className="mx-auto text-gray-300 mb-2" />
-                    <p className="text-gray-500 text-sm">Selecciona un anuncio para ver el detalle</p>
-                  </div>
-                )}
+            ))}
+          </div>
+        ) : filteredCreatives.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-slate-100 mx-auto mb-4 flex items-center justify-center text-slate-400">
+              <Film size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">No hay creativos para mostrar</h3>
+            <p className="text-sm text-slate-500">Probá ampliar el rango de fechas, cambiar plataforma o ajustar los filtros.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-slate-600">
+                Mostrando <span className="font-bold text-slate-900">{filteredCreatives.length}</span> creativo{filteredCreatives.length === 1 ? "" : "s"}
+                {platformView !== "ALL" && <> de <span className="font-bold">{PLATFORM_META[platformView].label}</span></>}
               </div>
             </div>
-            </>
-          )}
-        </>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredCreatives.map((c: any) => (
+                <CreativeCard
+                  key={c.id}
+                  creative={c}
+                  breakeven={breakevenRoas}
+                  onClick={() => setSelectedCreative(c)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Detail Modal */}
+      {selectedCreative && (
+        <CreativeDetailModal
+          creative={selectedCreative}
+          breakeven={breakevenRoas}
+          onClose={() => setSelectedCreative(null)}
+        />
       )}
     </div>
   );
