@@ -14,6 +14,7 @@ import {
   TrendingDown, ArrowUp, ArrowDown, Download, Target, Zap,
   BarChart3, ArrowUpRight, ArrowDownRight, AlertTriangle,
   ShieldCheck, Activity, Gauge, Scale, Info,
+  Flame, Rocket, Scissors, Layers, ExternalLink, Copy, CheckCircle2,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────── */
@@ -287,6 +288,341 @@ function DiscrepancyBlock({
   );
 }
 
+/* ── Urgent Actions (Hoy) ──────────────────────────── */
+// Genera hasta 3 acciones urgentes priorizadas por $ impact,
+// derivadas de los datos que ya trae el API de campañas.
+// NO ejecuta acciones: solo recomienda + deep-link a la plataforma.
+
+type UrgentAction = {
+  kind: "kill" | "scale" | "fix";
+  title: string;
+  whyHuman: string;           // lenguaje simple
+  whyTech: string;            // métricas técnicas
+  impactArs: number;          // estimado en ARS (para ranking)
+  impactLabel: string;        // texto ej: "Ahorro ~$18k/sem"
+  ctaLabel: string;           // ej: "Pausar creativo"
+  platform?: string;          // META | GOOGLE
+  campaignName?: string;
+  externalUrl?: string;       // deep-link a ads manager si lo tenemos
+};
+
+function buildUrgentActions(
+  campaigns: any[],
+  breakevenRoas: number,
+  totalSpend: number
+): UrgentAction[] {
+  const actions: UrgentAction[] = [];
+  if (!Array.isArray(campaigns) || campaigns.length === 0) return actions;
+
+  const beTarget = breakevenRoas > 0 ? breakevenRoas : 1.5;
+
+  // 1. Peor ofensor: mayor gasto con ROAS < break-even (plata que se quema)
+  const losers = campaigns
+    .filter((c) => c.spend > 0 && (c.roas || 0) < beTarget && c.spend >= 1000)
+    .sort((a, b) => b.spend - a.spend);
+
+  if (losers.length > 0) {
+    const worst = losers[0];
+    const wasted = Math.max(0, worst.spend - (worst.conversionValue || 0) / Math.max(beTarget, 0.01));
+    actions.push({
+      kind: "kill",
+      title: `Pausá "${worst.name}"`,
+      whyHuman: `Esta campaña gasta mucho y no recupera. Estás perdiendo plata acá.`,
+      whyTech: `Spend ${formatARS(worst.spend)} · ROAS ${worst.roas}x (BE ${beTarget.toFixed(2)}x) · ${worst.conversions || 0} conv · CPA ${worst.conversions > 0 ? formatARS(worst.spend / worst.conversions) : "--"}`,
+      impactArs: wasted,
+      impactLabel: `Ahorro estimado ~${formatCompact(wasted)}`,
+      ctaLabel: "Ir a la campaña",
+      platform: worst.platform,
+      campaignName: worst.name,
+    });
+  }
+
+  // 2. Mejor oportunidad de escalar: ROAS >= 1.5x BE + conversiones suficientes + gasto no dominante
+  const avgSpend = totalSpend / Math.max(campaigns.length, 1);
+  const scalers = campaigns
+    .filter((c) =>
+      c.spend > 0 &&
+      (c.roas || 0) >= beTarget * 1.5 &&
+      (c.conversions || 0) >= 3 &&
+      c.spend < avgSpend * 2
+    )
+    .sort((a, b) => (b.roas || 0) - (a.roas || 0));
+
+  if (scalers.length > 0) {
+    const best = scalers[0];
+    // Impacto estimado: si le subís +30% al spend manteniendo ROAS, cuánto revenue extra
+    const extraRev = best.spend * 0.3 * (best.roas || 0);
+    actions.push({
+      kind: "scale",
+      title: `Subí presupuesto en "${best.name}"`,
+      whyHuman: `Esta campaña está rindiendo muy bien. Le queda aire para escalar.`,
+      whyTech: `ROAS ${best.roas}x (${((best.roas || 0) / beTarget).toFixed(1)}× BE) · ${best.conversions} conv · Spend ${formatARS(best.spend)} · CTR ${best.ctr}%`,
+      impactArs: extraRev,
+      impactLabel: `Ingreso extra ~${formatCompact(extraRev)}`,
+      ctaLabel: "Ir a la campaña",
+      platform: best.platform,
+      campaignName: best.name,
+    });
+  }
+
+  // 3. Fuga consolidada: si hay varios losers, mostrar el impacto total
+  if (losers.length >= 2) {
+    const totalWasted = losers.reduce(
+      (s, c) => s + Math.max(0, c.spend - (c.conversionValue || 0) / Math.max(beTarget, 0.01)),
+      0
+    );
+    actions.push({
+      kind: "fix",
+      title: `Revisá ${losers.length} campañas por debajo del break-even`,
+      whyHuman: `Hay varias campañas quemando plata al mismo tiempo. Juntarlas te da el mayor ahorro del día.`,
+      whyTech: `${losers.length} campañas con ROAS < ${beTarget.toFixed(2)}x · Spend total ${formatCompact(losers.reduce((s, c) => s + c.spend, 0))} · Revenue atrib. ${formatCompact(losers.reduce((s, c) => s + (c.conversionValue || 0), 0))}`,
+      impactArs: totalWasted,
+      impactLabel: `Ahorro potencial ~${formatCompact(totalWasted)}`,
+      ctaLabel: "Ver lista completa",
+    });
+  }
+
+  // Orden por impacto descendente y devolver top 3
+  return actions.sort((a, b) => b.impactArs - a.impactArs).slice(0, 3);
+}
+
+function UrgentActionCard({ action }: { action: UrgentAction }) {
+  const [copied, setCopied] = useState(false);
+
+  const styleByKind: Record<string, {
+    ring: string; chipBg: string; chipText: string; iconBg: string;
+    Icon: any; label: string; accent: string;
+  }> = {
+    kill: {
+      ring: "ring-red-200",
+      chipBg: "bg-red-100",
+      chipText: "text-red-800",
+      iconBg: "bg-red-100 text-red-600",
+      Icon: Scissors,
+      label: "Cortar gasto",
+      accent: "text-red-700",
+    },
+    scale: {
+      ring: "ring-emerald-200",
+      chipBg: "bg-emerald-100",
+      chipText: "text-emerald-800",
+      iconBg: "bg-emerald-100 text-emerald-600",
+      Icon: Rocket,
+      label: "Escalar",
+      accent: "text-emerald-700",
+    },
+    fix: {
+      ring: "ring-amber-200",
+      chipBg: "bg-amber-100",
+      chipText: "text-amber-800",
+      iconBg: "bg-amber-100 text-amber-600",
+      Icon: Flame,
+      label: "Revisar",
+      accent: "text-amber-700",
+    },
+  };
+
+  const s = styleByKind[action.kind];
+  const Icon = s.Icon;
+
+  const copyRecommendation = async () => {
+    const text = `${action.title}\n\n${action.whyHuman}\n\nDatos: ${action.whyTech}\n${action.impactLabel}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* noop */
+    }
+  };
+
+  return (
+    <div className={`relative bg-white rounded-2xl shadow-sm ring-1 ${s.ring} p-5 flex flex-col gap-3 overflow-hidden`}>
+      {/* Top: Label + Icon */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className={`p-2 rounded-xl ${s.iconBg}`}>
+            <Icon size={16} />
+          </div>
+          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${s.chipBg} ${s.chipText}`}>
+            {s.label}
+          </span>
+        </div>
+        {action.platform && (
+          <PlatformBadge platform={action.platform} />
+        )}
+      </div>
+
+      {/* Title (human-first) */}
+      <div>
+        <h3 className="text-[15px] font-bold text-slate-900 leading-snug line-clamp-2">{action.title}</h3>
+        <p className="text-xs text-slate-600 mt-1 leading-relaxed">{action.whyHuman}</p>
+      </div>
+
+      {/* Tech line — siempre visible para el que quiere el dato */}
+      <p className="text-[11px] text-slate-500 font-mono tabular-nums bg-slate-50 rounded-lg px-2 py-1.5 leading-snug">
+        {action.whyTech}
+      </p>
+
+      {/* Impact + CTA */}
+      <div className="mt-auto flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+        <div>
+          <p className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Impacto</p>
+          <p className={`text-sm font-bold tabular-nums ${s.accent}`}>{action.impactLabel}</p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={copyRecommendation}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 transition-colors"
+            title="Copiar recomendación"
+          >
+            {copied ? <CheckCircle2 size={14} className="text-emerald-600" /> : <Copy size={14} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UrgentActionsBlock({ actions }: { actions: UrgentAction[] }) {
+  if (!actions || actions.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600"><CheckCircle2 size={16} /></div>
+          <h3 className="font-semibold text-slate-900">Sin acciones urgentes hoy</h3>
+        </div>
+        <p className="text-sm text-slate-500">
+          No detectamos campañas quemando plata ni oportunidades obvias de escalar en este período.
+          Probá ampliar el rango de fechas o revisar manualmente en Meta Ads y Google Ads.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+          Acciones urgentes de hoy
+        </span>
+        <span className="text-[11px] text-slate-400">— priorizadas por impacto en $</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {actions.map((a, i) => <UrgentActionCard key={i} action={a} />)}
+      </div>
+    </div>
+  );
+}
+
+/* ── Mix Health (TOF/MOF/BOF) ──────────────────────── */
+
+function MixHealthPanel({ funnelSummary, totalSpend }: { funnelSummary: any[]; totalSpend: number }) {
+  if (!Array.isArray(funnelSummary) || funnelSummary.length === 0 || totalSpend <= 0) return null;
+
+  const tof = funnelSummary.find((s) => s.stage === "TOF");
+  const mof = funnelSummary.find((s) => s.stage === "MOF");
+  const bof = funnelSummary.find((s) => s.stage === "BOF");
+  const unknown = funnelSummary.find((s) => s.stage === "UNKNOWN");
+
+  const stages = [
+    { key: "TOF", label: "TOF", sub: "Nuevos (prospecting)", data: tof, color: "bg-indigo-500", text: "text-indigo-700", bg: "bg-indigo-50" },
+    { key: "MOF", label: "MOF", sub: "Consideración", data: mof, color: "bg-cyan-500", text: "text-cyan-700", bg: "bg-cyan-50" },
+    { key: "BOF", label: "BOF", sub: "Retargeting / Marca", data: bof, color: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
+  ];
+
+  const bofShare = bof && totalSpend > 0 ? (bof.spend / totalSpend) * 100 : 0;
+  const tofShare = tof && totalSpend > 0 ? (tof.spend / totalSpend) * 100 : 0;
+  const unclassifiedShare = unknown && totalSpend > 0 ? (unknown.spend / totalSpend) * 100 : 0;
+
+  let warning: { tone: "warn" | "ok" | "info"; msg: string } | null = null;
+  if (bofShare > 60) {
+    warning = {
+      tone: "warn",
+      msg: `El ${bofShare.toFixed(0)}% de la inversión va a retargeting/marca. Estás cosechando, no cazando — si se seca el MOF/BOF, se seca la venta.`,
+    };
+  } else if (tofShare < 20 && tof) {
+    warning = {
+      tone: "warn",
+      msg: `Solo ${tofShare.toFixed(0)}% del gasto es prospecting. Sin audiencia nueva entrando, no hay crecimiento sostenible.`,
+    };
+  } else if (unclassifiedShare > 30) {
+    warning = {
+      tone: "info",
+      msg: `${unclassifiedShare.toFixed(0)}% del gasto está en campañas sin clasificar. Ajustá el naming (TOF/MOF/BOF) en Meta/Google para un análisis más preciso.`,
+    };
+  } else {
+    warning = {
+      tone: "ok",
+      msg: "Mix balanceado entre prospecting y retargeting.",
+    };
+  }
+
+  const warnBg = warning.tone === "warn" ? "bg-amber-50 text-amber-800 ring-amber-200"
+    : warning.tone === "info" ? "bg-slate-50 text-slate-700 ring-slate-200"
+    : "bg-emerald-50 text-emerald-800 ring-emerald-200";
+  const warnIcon = warning.tone === "warn" ? AlertTriangle : warning.tone === "info" ? Info : ShieldCheck;
+  const WIcon = warnIcon;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Layers size={16} className="text-indigo-600" />
+        <h3 className="font-semibold text-slate-900">Salud del Mix de Inversión</h3>
+        <span className="text-xs text-slate-400 ml-auto">TOF · MOF · BOF auto-clasificado</span>
+      </div>
+
+      {/* Barra apilada */}
+      <div className="relative h-3 bg-slate-100 rounded-full overflow-hidden mb-2 ring-1 ring-slate-200">
+        {stages.map((st) => {
+          if (!st.data || st.data.spend <= 0) return null;
+          const pct = (st.data.spend / totalSpend) * 100;
+          return (
+            <div
+              key={st.key}
+              className={`${st.color} h-full float-left transition-all`}
+              style={{ width: `${pct}%` }}
+              title={`${st.label}: ${pct.toFixed(1)}% · ${formatCompact(st.data.spend)}`}
+            />
+          );
+        })}
+      </div>
+
+      {/* Tiles por stage */}
+      <div className="grid grid-cols-3 gap-3 mt-4">
+        {stages.map((st) => {
+          const pct = st.data && totalSpend > 0 ? (st.data.spend / totalSpend) * 100 : 0;
+          const hasData = !!st.data && st.data.spend > 0;
+          return (
+            <div key={st.key} className={`rounded-xl p-3 ring-1 ring-slate-100 ${hasData ? st.bg : "bg-slate-50"}`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${hasData ? st.text : "text-slate-400"}`}>
+                  {st.label}
+                </span>
+                <span className={`text-[10px] font-semibold tabular-nums ${hasData ? "text-slate-700" : "text-slate-400"}`}>
+                  {pct.toFixed(0)}%
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-0.5">{st.sub}</p>
+              <p className={`text-sm font-bold tabular-nums mt-1 ${hasData ? "text-slate-900" : "text-slate-400"}`}>
+                {hasData ? formatCompact(st.data.spend) : "--"}
+              </p>
+              <p className="text-[10px] text-slate-500 font-mono tabular-nums mt-0.5">
+                {hasData ? `ROAS ${st.data.roas}x · ${st.data.conversions} conv` : "sin inversión"}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Alerta contextual */}
+      <div className={`mt-4 rounded-xl px-3 py-2 ring-1 ${warnBg} flex items-start gap-2`}>
+        <WIcon size={14} className="flex-shrink-0 mt-0.5" />
+        <p className="text-[12px] leading-snug">{warning.msg}</p>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Component ────────────────────────────────── */
 
 export default function CampaignsPage() {
@@ -334,6 +670,7 @@ export default function CampaignsPage() {
   const changes = data?.changes || {};
   const dailyTrend = data?.dailyTrend || [];
   const platformSummary = data?.platformSummary || [];
+  const funnelSummary = data?.funnelSummary || [];
 
   // ── Break-even calculation from P&L (solo VTEX, tienda directa) ──
   // Motivo: los ads mandan trafico a VTEX. MELI es marketplace organico aparte.
@@ -373,6 +710,12 @@ export default function CampaignsPage() {
   // nCAC estimate = Ad spend / New customers (approx. = conversions)
   const totalConv = Number(totals.conversions || 0);
   const nCAC = totalConv > 0 ? adSpendTotal / totalConv : 0;
+
+  // Urgent actions (derivadas 100% de datos ya cargados)
+  const urgentActions = useMemo(
+    () => buildUrgentActions(campaigns, breakevenRoas, adSpendTotal),
+    [campaigns, breakevenRoas, adSpendTotal]
+  );
 
   const filtered = useMemo(() => {
     if (platformFilter === "ALL") return campaigns;
@@ -463,6 +806,9 @@ export default function CampaignsPage() {
         />
       </div>
 
+      {/* Acciones urgentes de hoy (lo primero que tiene que ver Tomy) */}
+      <UrgentActionsBlock actions={urgentActions} />
+
       {/* Break-even Health Banner */}
       <BreakevenBanner
         blendedRoas={blendedRoas}
@@ -471,6 +817,9 @@ export default function CampaignsPage() {
         adSpend={adSpendTotal}
         realRevenue={realRevenue}
       />
+
+      {/* Salud del Mix TOF/MOF/BOF */}
+      <MixHealthPanel funnelSummary={funnelSummary} totalSpend={adSpendTotal} />
 
       {/* Platform Filter Chips */}
       <div className="flex items-center gap-2">
