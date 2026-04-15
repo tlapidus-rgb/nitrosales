@@ -15,6 +15,7 @@ import {
   BarChart3, ArrowUpRight, ArrowDownRight, AlertTriangle,
   ShieldCheck, Activity, Gauge, Scale, Info,
   Flame, Rocket, Scissors, Layers, ExternalLink, Copy, CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 
 /* ── Constants ─────────────────────────────────────── */
@@ -253,34 +254,94 @@ function DiscrepancyBlock({
   const diffPct = attributedRevenue > 0 ? (diff / attributedRevenue) * 100 : 0;
   const attributedRoas = adSpend > 0 ? attributedRevenue / adSpend : 0;
   const blendedRoas = adSpend > 0 ? vtexRevenue / adSpend : 0;
+  const positive = diff >= 0;
+
+  // Insight humano, cortito, potente
+  const headline = positive
+    ? `Tu negocio está generando ${formatCompact(Math.abs(diff))} más de lo que las plataformas se atribuyen.`
+    : `Las plataformas están sobre-atribuyendo ${formatCompact(Math.abs(diff))}.`;
+  const subline = positive
+    ? `Hay halo orgánico + tráfico directo que los ads ayudan a traer pero no se llevan el crédito.`
+    : `Hay conversiones contadas dos veces o atribuidas a ads que no las originaron.`;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Scale size={16} className="text-indigo-600" />
-        <h3 className="font-semibold text-gray-900">Plataformas vs Realidad (VTEX)</h3>
-        <span className="text-xs text-gray-400 ml-auto">Brecha de atribucion · solo tienda directa</span>
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-lg bg-purple-50 p-3">
-          <p className="text-[10px] uppercase text-purple-700 font-semibold">Plataformas dicen</p>
-          <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">{formatCompact(attributedRevenue)}</p>
-          <p className="text-[11px] text-slate-500 mt-0.5">ROAS reportado: <span className="font-medium">{attributedRoas.toFixed(2)}x</span></p>
+    <div className="relative rounded-3xl overflow-hidden ns-fade-up ring-1 ring-indigo-200/60 shadow-sm">
+      {/* Gradient hero background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-emerald-50" />
+      <div className="pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full bg-indigo-300/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-emerald-300/20 blur-3xl" />
+
+      <div className="relative p-6 md:p-7">
+        {/* Edge badge */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[10px] font-bold uppercase tracking-[0.18em] shadow-sm">
+            <Sparkles size={11} className="text-amber-300" />
+            NitroSales Edge
+          </span>
+          <span className="text-[11px] text-slate-500">Plataformas vs Realidad VTEX · lo que solo vos ves</span>
         </div>
-        <div className="rounded-lg bg-emerald-50 p-3">
-          <p className="text-[10px] uppercase text-emerald-700 font-semibold">Realidad VTEX</p>
-          <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">{formatCompact(vtexRevenue)}</p>
-          <p className="text-[11px] text-slate-500 mt-0.5">Blended ROAS: <span className="font-medium">{blendedRoas.toFixed(2)}x</span></p>
+
+        {/* Headline insight */}
+        <h3 className="text-[20px] md:text-[22px] font-bold text-slate-900 leading-tight max-w-3xl">
+          {headline}
+        </h3>
+        <p className="text-[13px] text-slate-600 mt-1.5 max-w-3xl">{subline}</p>
+
+        {/* 3-card premium comparison */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
+          {/* Plataformas dicen */}
+          <div className="relative group bg-white/80 backdrop-blur rounded-2xl p-4 ring-1 ring-purple-200/70 shadow-sm hover:shadow-md transition-all ns-fade-up" style={{ animationDelay: "60ms" }}>
+            <div className="absolute left-0 top-4 bottom-4 w-[3px] bg-purple-500 rounded-r" />
+            <div className="pl-2">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                <p className="text-[10px] uppercase tracking-[0.14em] text-purple-700 font-bold">Plataformas dicen</p>
+              </div>
+              <p className="text-[26px] font-bold text-slate-900 tabular-nums mt-1.5 leading-none">{formatCompact(attributedRevenue)}</p>
+              <p className="text-[11px] text-slate-500 mt-2 tabular-nums">ROAS reportado · <span className="font-semibold text-slate-700">{attributedRoas.toFixed(2)}x</span></p>
+            </div>
+          </div>
+
+          {/* Realidad VTEX — destacada, con pulso verde si es positivo */}
+          <div className={`relative group bg-white/90 backdrop-blur rounded-2xl p-4 ring-1 shadow-sm hover:shadow-md transition-all ns-fade-up ${positive ? "ring-emerald-300/80" : "ring-emerald-200/70"}`} style={{ animationDelay: "120ms" }}>
+            <div className="absolute left-0 top-4 bottom-4 w-[3px] bg-emerald-500 rounded-r" />
+            <div className="pl-2">
+              <div className="flex items-center gap-1.5">
+                <span className={`relative w-1.5 h-1.5 rounded-full bg-emerald-500 ${positive ? "ns-pulse-dot" : ""}`} />
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-700 font-bold">Realidad VTEX</p>
+              </div>
+              <p className="text-[26px] font-bold text-slate-900 tabular-nums mt-1.5 leading-none">{formatCompact(vtexRevenue)}</p>
+              <p className="text-[11px] text-slate-500 mt-2 tabular-nums">Blended ROAS · <span className="font-semibold text-slate-700">{blendedRoas.toFixed(2)}x</span></p>
+            </div>
+          </div>
+
+          {/* Diferencia — con flecha y magnitud */}
+          <div className={`relative group rounded-2xl p-4 ring-1 shadow-sm hover:shadow-md transition-all ns-fade-up ${positive ? "bg-gradient-to-br from-emerald-500 to-emerald-600 ring-emerald-400" : "bg-gradient-to-br from-rose-500 to-red-600 ring-rose-400"}`} style={{ animationDelay: "180ms" }}>
+            <div className="pointer-events-none absolute -top-8 -right-8 w-24 h-24 rounded-full bg-white/20 blur-2xl" />
+            <div className="relative">
+              <div className="flex items-center gap-1.5">
+                {positive ? <TrendingUp size={12} className="text-white/90" /> : <TrendingDown size={12} className="text-white/90" />}
+                <p className="text-[10px] uppercase tracking-[0.14em] text-white/90 font-bold">
+                  {positive ? "Halo + directo" : "Sobre-atribución"}
+                </p>
+              </div>
+              <p className="text-[26px] font-bold text-white tabular-nums mt-1.5 leading-none">
+                {positive ? "+" : ""}{formatCompact(diff)}
+              </p>
+              <p className="text-[11px] text-white/80 mt-2 tabular-nums">
+                {positive ? "+" : ""}{diffPct.toFixed(0)}% vs lo reportado
+              </p>
+            </div>
+          </div>
         </div>
-        <div className={`rounded-lg p-3 ${diff >= 0 ? "bg-blue-50" : "bg-red-50"}`}>
-          <p className={`text-[10px] uppercase font-semibold ${diff >= 0 ? "text-blue-700" : "text-red-700"}`}>Diferencia</p>
-          <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">
-            {diff >= 0 ? "+" : ""}{formatCompact(diff)}
-          </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            {diff >= 0
-              ? `Organico directo + halo (+${diffPct.toFixed(0)}%)`
-              : `Sobre-atribucion (${diffPct.toFixed(0)}%)`}
+
+        {/* Footer insight */}
+        <div className="mt-5 flex items-start gap-2 text-[11.5px] text-slate-600 bg-white/60 backdrop-blur rounded-xl px-3 py-2 ring-1 ring-slate-200/60">
+          <Scale size={14} className="text-indigo-600 mt-0.5 shrink-0" />
+          <p>
+            <span className="font-semibold text-slate-800">Por qué importa:</span>{" "}
+            Meta y Google se pelean por atribuirse las ventas. VTEX te dice lo que realmente entró a caja.
+            La brecha revela el impacto real de tus ads en el negocio —no solo lo que cada plataforma reclama.
           </p>
         </div>
       </div>
@@ -626,11 +687,12 @@ function MixHealthPanel({ funnelSummary, totalSpend }: { funnelSummary: any[]; t
 /* ── Premium KPI Card (Hoy) ────────────────────────── */
 
 function PremiumKpi({
-  label, value, subtitle, deltaPct, accent = "indigo", delay = 0,
+  label, value, subtitle, deltaPct, accent = "indigo", delay = 0, healthy = false,
 }: {
   label: string; value: string; subtitle?: string | null; deltaPct?: number | null;
   accent?: "indigo" | "emerald" | "red" | "amber" | "cyan" | "purple" | "blue";
   delay?: number;
+  healthy?: boolean; // true = pulso verde (todo está OK)
 }) {
   const accents: Record<string, { bar: string; chipBg: string; chipText: string; glow: string }> = {
     indigo:  { bar: "bg-indigo-500",  chipBg: "bg-indigo-50",  chipText: "text-indigo-700",  glow: "from-indigo-400/15" },
@@ -656,7 +718,15 @@ function PremiumKpi({
       <div className={`pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-gradient-to-br ${a.glow} to-transparent blur-2xl opacity-70 group-hover:opacity-100 transition-opacity`} />
 
       <div className="relative">
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+          {healthy && (
+            <span className="relative flex w-1.5 h-1.5" title="Saludable">
+              <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-75 ns-pulse-halo" />
+              <span className="relative rounded-full w-1.5 h-1.5 bg-emerald-500" />
+            </span>
+          )}
+        </div>
         <div className="flex items-baseline gap-2 mt-1.5">
           <p className="text-[28px] font-bold text-slate-900 tabular-nums leading-none">{value}</p>
           {hasDelta && (
@@ -691,11 +761,13 @@ function PlatformPremiumCard({
 
   let statusLabel = "Sin datos";
   let statusChip = "bg-slate-100 text-slate-600";
+  let isHealthy = false;
   if (breakevenRoas > 0 && spend > 0) {
-    if (roas >= breakevenRoas * 1.5) { statusLabel = "Rentable"; statusChip = "bg-emerald-100 text-emerald-800"; }
+    if (roas >= breakevenRoas * 1.5) { statusLabel = "Rentable"; statusChip = "bg-emerald-100 text-emerald-800"; isHealthy = true; }
     else if (roas >= breakevenRoas)  { statusLabel = "En equilibrio"; statusChip = "bg-amber-100 text-amber-800"; }
     else                              { statusLabel = "Perdiendo"; statusChip = "bg-red-100 text-red-800"; }
   } else if (spend > 0) {
+    isHealthy = roas >= 2;
     statusLabel = roas >= 2 ? "Rentable" : roas >= 1 ? "En equilibrio" : "Perdiendo";
     statusChip = roas >= 2 ? "bg-emerald-100 text-emerald-800" : roas >= 1 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800";
   }
@@ -721,7 +793,13 @@ function PlatformPremiumCard({
               <p className="text-[11px] text-slate-500 mt-1">{data?.campaigns || 0} campañas · {formatCompact(spend)} inv.</p>
             </div>
           </div>
-          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusChip}`}>
+          <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusChip}`}>
+            {isHealthy && (
+              <span className="relative flex w-1.5 h-1.5">
+                <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-75 ns-pulse-halo" />
+                <span className="relative rounded-full w-1.5 h-1.5 bg-emerald-500" />
+              </span>
+            )}
             {statusLabel}
           </span>
         </div>
@@ -746,9 +824,11 @@ function PlatformPremiumCard({
         <div className="mt-5">
           <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden ring-1 ring-slate-200">
             <div
-              className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
+              className="relative h-full rounded-full transition-all duration-1000 ns-bar-fill overflow-hidden"
               style={{ width: `${roasPct}%`, background: cfg.color }}
-            />
+            >
+              <span className="absolute inset-0 ns-shimmer" />
+            </div>
             {breakevenRoas > 0 && (
               <div className="absolute inset-y-0 w-0.5 bg-slate-900/70" style={{ left: `${bePct}%` }} />
             )}
@@ -989,6 +1069,7 @@ export default function CampaignsPage() {
           subtitle="Facturado en tienda"
           accent="emerald"
           delay={60}
+          healthy={realRevenue > 0}
         />
         <PremiumKpi
           label="Blended ROAS"
@@ -996,6 +1077,7 @@ export default function CampaignsPage() {
           subtitle={breakevenRoas > 0 ? `Break-even ${breakevenRoas.toFixed(2)}x · CM ${(contributionMargin * 100).toFixed(0)}%` : "VTEX / Inversión"}
           accent="indigo"
           delay={120}
+          healthy={breakevenRoas > 0 && blendedRoas >= breakevenRoas}
         />
         <PremiumKpi
           label="nCAC estimado"
@@ -1031,6 +1113,13 @@ export default function CampaignsPage() {
           </div>
         </div>
       )}
+
+      {/* ⭐ HERO: Plataformas vs Realidad VTEX — el diferencial de NitroSales */}
+      <DiscrepancyBlock
+        attributedRevenue={attributedRevenue}
+        vtexRevenue={realRevenue}
+        adSpend={adSpendTotal}
+      />
 
       {/* Chart único — ROAS diario vs Break-even */}
       <div className="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200/80 p-6 ns-fade-up">
@@ -1071,13 +1160,6 @@ export default function CampaignsPage() {
         )}
       </div>
 
-      {/* Plataformas vs Realidad VTEX (al final, contextual) */}
-      <DiscrepancyBlock
-        attributedRevenue={attributedRevenue}
-        vtexRevenue={realRevenue}
-        adSpend={adSpendTotal}
-      />
-
       {/* Animations CSS — se inyecta una vez */}
       <style jsx global>{`
         @keyframes ns-fade-up {
@@ -1086,6 +1168,49 @@ export default function CampaignsPage() {
         }
         .ns-fade-up {
           animation: ns-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        /* Pulso verde titilando: halo que crece y se desvanece */
+        @keyframes ns-pulse-halo {
+          0%   { transform: scale(1);   opacity: 0.75; }
+          70%  { transform: scale(2.2); opacity: 0;    }
+          100% { transform: scale(2.2); opacity: 0;    }
+        }
+        .ns-pulse-halo {
+          animation: ns-pulse-halo 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        /* Variante más sutil para dots pequeños */
+        @keyframes ns-pulse-dot {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+          50%      { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);  }
+        }
+        .ns-pulse-dot {
+          animation: ns-pulse-dot 1.8s ease-out infinite;
+        }
+
+        /* Shimmer: reflejo que pasa de izquierda a derecha sobre una barra */
+        @keyframes ns-shimmer {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(200%);  }
+        }
+        .ns-shimmer {
+          background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.55) 50%,
+            transparent 100%
+          );
+          animation: ns-shimmer 2.4s ease-in-out infinite;
+        }
+
+        /* Barra que se llena al montar */
+        @keyframes ns-bar-fill {
+          from { transform: scaleX(0); transform-origin: left; }
+          to   { transform: scaleX(1); transform-origin: left; }
+        }
+        .ns-bar-fill {
+          animation: ns-bar-fill 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
         }
       `}</style>
     </div>
