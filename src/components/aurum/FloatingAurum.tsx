@@ -5,79 +5,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sparkles, X, ChevronRight, RefreshCw } from "lucide-react";
 import { useAurumContext } from "./AurumContext";
+import { AurumOrb } from "./AurumOrb";
 
 const ES_TRANSITION = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 type AurumMsg = { role: "user" | "assistant"; content: string };
 
-/* ──────────────────────────────────────────────────
-   AurumOrb — la esfera dorada viva. 3 variantes de tamaño.
-   ────────────────────────────────────────────────── */
-function AurumOrb({ size = 52, thinking = false }: { size?: number; thinking?: boolean }) {
-  return (
-    <div
-      className="relative flex items-center justify-center"
-      style={{ width: size, height: size }}
-    >
-      {/* Pulse ring exterior */}
-      <div
-        className="absolute inset-0 rounded-full"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(251,191,36,0.35) 0%, rgba(217,119,6,0.15) 40%, transparent 70%)",
-          filter: "blur(6px)",
-          animation: `aurumPulseRing ${thinking ? 1.4 : 3}s ease-in-out infinite`,
-        }}
-      />
-      {/* Orb principal */}
-      <div
-        className="relative rounded-full"
-        style={{
-          width: size - 10,
-          height: size - 10,
-          background:
-            "radial-gradient(circle at 30% 25%, #fffbeb 0%, #fef3c7 22%, #fde68a 45%, #fbbf24 68%, #d97706 92%)",
-          boxShadow:
-            "inset 0 -4px 10px rgba(120,53,15,0.4), inset 0 3px 6px rgba(255,255,255,0.55), 0 0 18px rgba(251,191,36,0.55), 0 0 42px rgba(217,119,6,0.35)",
-          animation: `aurumBreath ${thinking ? 1.6 : 3.5}s ease-in-out infinite`,
-        }}
-      />
-      {/* Highlight */}
-      <div
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          width: size * 0.26,
-          height: size * 0.18,
-          top: size * 0.2,
-          left: size * 0.24,
-          background:
-            "radial-gradient(ellipse, rgba(255,255,255,0.85), transparent 65%)",
-          filter: "blur(2px)",
-        }}
-      />
-      {/* Orbit particle */}
-      {thinking && (
-        <div
-          className="absolute inset-0"
-          style={{ animation: `aurumOrbit 2.8s linear infinite` }}
-        >
-          <div
-            className="absolute rounded-full"
-            style={{
-              width: 4,
-              height: 4,
-              top: 2,
-              left: "50%",
-              transform: "translateX(-50%)",
-              background: "#fef3c7",
-              boxShadow: "0 0 8px rgba(251,191,36,0.9)",
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
+// AurumOrb ahora se importa desde "./AurumOrb" (anillo Saturno + orb dorado).
 
 /* ──────────────────────────────────────────────────
    AurumText — render markdown simple (negritas + bullets).

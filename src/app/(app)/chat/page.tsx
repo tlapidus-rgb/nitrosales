@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
+import { AurumOrb } from "@/components/aurum/AurumOrb";
 
 type Message = { role: "user" | "assistant"; content: string };
 type ReasoningMode = "FLASH" | "CORE" | "DEEP";
@@ -70,73 +71,7 @@ const STAGES = [
   { value: "established", label: "Establecido", desc: "> 2 a\u00f1os" },
 ];
 
-// ══════ Aurum Orb: breathing golden sphere ══════
-function AurumOrb({ size = 40, thinking = false }: { size?: number; thinking?: boolean }) {
-  return (
-    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
-      {thinking && (
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background: "radial-gradient(circle, rgba(251,191,36,0.35) 0%, transparent 70%)",
-            animation: "aurumPulseRing 2.2s ease-in-out infinite",
-          }}
-        />
-      )}
-      <div
-        className="absolute inset-[15%] rounded-full"
-        style={{
-          background: "radial-gradient(circle at 35% 30%, #fef3c7 0%, #fde68a 20%, #fbbf24 45%, #d97706 100%)",
-          boxShadow:
-            "0 0 20px rgba(251,191,36,0.5), 0 0 40px rgba(251,191,36,0.25), inset -2px -4px 8px rgba(120,53,15,0.35), inset 2px 3px 6px rgba(254,243,199,0.6)",
-          animation: "aurumBreath 3.5s ease-in-out infinite",
-        }}
-      />
-      <div
-        className="absolute rounded-full"
-        style={{
-          top: "22%",
-          left: "25%",
-          width: "22%",
-          height: "18%",
-          background: "radial-gradient(circle, rgba(255,255,255,0.85) 0%, transparent 70%)",
-          filter: "blur(1px)",
-        }}
-      />
-      {thinking && (
-        <>
-          <div className="absolute inset-0" style={{ animation: "aurumOrbit 3.8s linear infinite" }}>
-            <div
-              className="absolute rounded-full"
-              style={{
-                top: "-2px",
-                left: "50%",
-                width: "3px",
-                height: "3px",
-                background: "#fde68a",
-                boxShadow: "0 0 8px rgba(251,191,36,0.9)",
-                transform: "translateX(-50%)",
-              }}
-            />
-          </div>
-          <div className="absolute inset-0" style={{ animation: "aurumOrbit 2.6s linear infinite reverse" }}>
-            <div
-              className="absolute rounded-full"
-              style={{
-                bottom: "0px",
-                right: "10%",
-                width: "2px",
-                height: "2px",
-                background: "#fef3c7",
-                boxShadow: "0 0 6px rgba(253,224,71,0.9)",
-              }}
-            />
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
+// AurumOrb ahora se importa desde @/components/aurum/AurumOrb (anillo Saturno).
 
 // ══════ Cycling Headline (welcome) ══════
 const WELCOME_PHRASES = [
