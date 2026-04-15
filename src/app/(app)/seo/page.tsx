@@ -1448,6 +1448,16 @@ function SEOPageInner() {
           background: rgba(251,191,36,0.45);
         }
         .aurum-scroll { scrollbar-width: thin; scrollbar-color: rgba(251,191,36,0.25) transparent; }
+        .nitro-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .nitro-scroll::-webkit-scrollbar-track { background: transparent; }
+        .nitro-scroll::-webkit-scrollbar-thumb {
+          background: rgba(15,23,42,0.12);
+          border-radius: 4px;
+        }
+        .nitro-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(15,23,42,0.22);
+        }
+        .nitro-scroll { scrollbar-width: thin; scrollbar-color: rgba(15,23,42,0.12) transparent; }
       `}</style>
     </div>
   );
@@ -2152,33 +2162,36 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
       </div>
 
       {/* List */}
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-auto nitro-scroll"
+        style={{ maxHeight: list.length === 0 ? undefined : 380 }}
+      >
         {list.length === 0 ? (
           <div className="p-6 text-center text-[12px] text-slate-400">
             Sin movimientos en esta categoría para el período
           </div>
         ) : (
           <table className="w-full text-[12px]">
-            <thead className="bg-slate-50/60 border-b border-slate-100">
+            <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
               <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
-                <th className="px-4 py-2.5 font-semibold">Keyword</th>
-                <th className="px-3 py-2.5 font-semibold text-right">Posición</th>
-                <th className="px-3 py-2.5 font-semibold text-right">Cambio</th>
-                <th className="px-3 py-2.5 font-semibold text-right">Clicks</th>
-                <th className="px-3 py-2.5 font-semibold text-right">Impresiones</th>
+                <th className="px-4 py-2 font-semibold">Keyword</th>
+                <th className="px-3 py-2 font-semibold text-right">Posición</th>
+                <th className="px-3 py-2 font-semibold text-right">Cambio</th>
+                <th className="px-3 py-2 font-semibold text-right">Clicks</th>
+                <th className="px-3 py-2 font-semibold text-right">Impresiones</th>
               </tr>
             </thead>
             <tbody>
-              {list.slice(0, 15).map((k: any, i: number) => (
+              {list.slice(0, 50).map((k: any, i: number) => (
                 <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-2">
                     <div className="font-medium text-slate-900 truncate max-w-[320px]" title={k.keyword}>
                       {k.keyword}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-700">
                     {activeTab === "down" || activeTab === "up" ? (
-                      <span className="inline-flex flex-col items-end">
+                      <span className="inline-flex flex-col items-end leading-tight">
                         <span>{fmtPos(k.position)}</span>
                         {k.prevPosition != null && (
                           <span className="text-[10px] text-slate-400">antes: {fmtPos(k.prevPosition)}</span>
@@ -2188,7 +2201,7 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
                       fmtPos(k.position)
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">
+                  <td className="px-3 py-2 text-right tabular-nums">
                     {k.change != null ? (
                       <span className={`inline-flex items-center gap-0.5 font-semibold ${
                         k.change > 0 ? "text-emerald-600" : k.change < 0 ? "text-rose-600" : "text-slate-400"
@@ -2202,8 +2215,8 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
                       <span className="text-[10px] text-slate-500 font-semibold">Perdida</span>
                     ) : "—"}
                   </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{fmtNum(k.clicks)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{fmtCompact(k.impressions)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(k.clicks)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtCompact(k.impressions)}</td>
                 </tr>
               ))}
             </tbody>
@@ -2310,32 +2323,35 @@ function KeywordsTable({ keywords, loading }: any) {
           "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
       }}
     >
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-auto nitro-scroll"
+        style={{ maxHeight: 420 }}
+      >
         <table className="w-full text-[12px]">
-          <thead className="bg-slate-50/60 border-b border-slate-100">
+          <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
             <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
-              <th className="px-4 py-2.5 font-semibold">Keyword</th>
-              <th className="px-3 py-2.5 font-semibold text-right">
+              <th className="px-4 py-2 font-semibold">Keyword</th>
+              <th className="px-3 py-2 font-semibold text-right">
                 <span className="inline-flex items-center gap-1 justify-end">
                   Clicks <InfoTip text="Visitas que recibiste desde Google por esa búsqueda." />
                 </span>
               </th>
-              <th className="px-3 py-2.5 font-semibold text-right">
+              <th className="px-3 py-2 font-semibold text-right">
                 <span className="inline-flex items-center gap-1 justify-end">
                   Impresiones <InfoTip text="Cuántas veces apareciste en los resultados por esa búsqueda." />
                 </span>
               </th>
-              <th className="px-3 py-2.5 font-semibold text-right">
+              <th className="px-3 py-2 font-semibold text-right">
                 <span className="inline-flex items-center gap-1 justify-end">
                   CTR <InfoTip text="% de gente que te hizo click después de verte." />
                 </span>
               </th>
-              <th className="px-3 py-2.5 font-semibold text-right">
+              <th className="px-3 py-2 font-semibold text-right">
                 <span className="inline-flex items-center gap-1 justify-end">
                   Posición <InfoTip text="Tu lugar promedio en los resultados. Menos es mejor (1 es el primero)." />
                 </span>
               </th>
-              <th className="px-3 py-2.5 font-semibold text-right">
+              <th className="px-3 py-2 font-semibold text-right">
                 <span className="inline-flex items-center gap-1 justify-end">
                   Cambio pos. <InfoTip text="Cuánto subiste o bajaste de posición vs el período anterior." />
                 </span>
@@ -2362,20 +2378,20 @@ function KeywordsTable({ keywords, loading }: any) {
                 };
                 return (
                   <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2">
                       <div className="font-medium text-slate-900 truncate max-w-[320px]" title={k.keyword}>
                         {k.keyword}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-800 font-semibold">{fmtNum(k.clicks)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmtCompact(k.impressions)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmtPct(k.ctr)}</td>
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-800 font-semibold">{fmtNum(k.clicks)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtCompact(k.impressions)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtPct(k.ctr)}</td>
+                    <td className="px-3 py-2 text-right">
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold tabular-nums ${bucketColor[posBucket]}`}>
                         {fmtPos(k.position)}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-3 py-2 text-right">
                       {k.positionChange != null && k.positionChange !== 0 ? (
                         <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums ${
                           k.positionChange > 0 ? "text-emerald-600" : "text-rose-600"
@@ -2417,16 +2433,19 @@ function PagesTable({ pages, loading }: any) {
           "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
       }}
     >
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-auto nitro-scroll"
+        style={{ maxHeight: 420 }}
+      >
         <table className="w-full text-[12px]">
-          <thead className="bg-slate-50/60 border-b border-slate-100">
+          <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
             <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
-              <th className="px-4 py-2.5 font-semibold">Página</th>
-              <th className="px-3 py-2.5 font-semibold text-right">Clicks</th>
-              <th className="px-3 py-2.5 font-semibold text-right">Impresiones</th>
-              <th className="px-3 py-2.5 font-semibold text-right">CTR</th>
-              <th className="px-3 py-2.5 font-semibold text-right">Posición</th>
-              <th className="px-3 py-2.5 font-semibold text-right">
+              <th className="px-4 py-2 font-semibold">Página</th>
+              <th className="px-3 py-2 font-semibold text-right">Clicks</th>
+              <th className="px-3 py-2 font-semibold text-right">Impresiones</th>
+              <th className="px-3 py-2 font-semibold text-right">CTR</th>
+              <th className="px-3 py-2 font-semibold text-right">Posición</th>
+              <th className="px-3 py-2 font-semibold text-right">
                 <span className="inline-flex items-center gap-1 justify-end">
                   Keywords <InfoTip text="Cuántas búsquedas distintas te traen tráfico a esta página." />
                 </span>
@@ -2449,7 +2468,7 @@ function PagesTable({ pages, loading }: any) {
               })();
               return (
                 <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <a
                         href={p.url}
@@ -2463,11 +2482,11 @@ function PagesTable({ pages, loading }: any) {
                       <ExternalLink size={11} className="text-slate-400 flex-shrink-0" />
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-800 font-semibold">{fmtNum(p.clicks)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmtCompact(p.impressions)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmtPct(p.ctr)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmtPos(p.avgPosition)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{fmtNum(p.keywordCount)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-800 font-semibold">{fmtNum(p.clicks)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtCompact(p.impressions)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtPct(p.ctr)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtPos(p.avgPosition)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(p.keywordCount)}</td>
                 </tr>
               );
             })}
@@ -2499,46 +2518,57 @@ function CannibalizationCard({ items, loading }: any) {
           contenido para que apunten a búsquedas distintas.
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-auto nitro-scroll"
+        style={{ maxHeight: 380 }}
+      >
         <table className="w-full text-[12px]">
-          <thead className="bg-slate-50/60 border-b border-slate-100">
+          <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
             <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
-              <th className="px-4 py-2.5 font-semibold">Keyword</th>
-              <th className="px-3 py-2.5 font-semibold text-center">Páginas compitiendo</th>
-              <th className="px-3 py-2.5 font-semibold text-right">Clicks totales</th>
-              <th className="px-3 py-2.5 font-semibold text-right">Impresiones</th>
+              <th className="px-4 py-2 font-semibold">Keyword</th>
+              <th className="px-3 py-2 font-semibold text-center">Páginas compitiendo</th>
+              <th className="px-3 py-2 font-semibold text-right">Clicks totales</th>
+              <th className="px-3 py-2 font-semibold text-right">Impresiones</th>
             </tr>
           </thead>
           <tbody>
-            {items.slice(0, 10).map((c: any, i: number) => (
+            {items.slice(0, 50).map((c: any, i: number) => (
               <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-amber-50/30 transition-colors">
-                <td className="px-4 py-2.5">
+                <td className="px-4 py-2">
                   <div className="font-medium text-slate-900 truncate max-w-[240px]" title={c.keyword}>
                     {c.keyword}
                   </div>
                   {c.pages && c.pages.length > 0 && (
-                    <div className="mt-1 space-y-0.5">
-                      {c.pages.slice(0, 3).map((pg: string, j: number) => (
+                    <div className="mt-0.5 space-y-0.5">
+                      {c.pages.slice(0, 2).map((pg: string, j: number) => (
                         <div key={j} className="text-[10px] text-slate-500 truncate max-w-[360px]" title={pg}>
                           · {pg}
                         </div>
                       ))}
+                      {c.pages.length > 2 && (
+                        <div className="text-[10px] text-slate-400">+{c.pages.length - 2} más</div>
+                      )}
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-2.5 text-center">
+                <td className="px-3 py-2 text-center">
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[11px] font-semibold">
                     <Layers size={11} strokeWidth={2.5} />
                     {c.pageCount}
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{fmtNum(c.clicks)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{fmtCompact(c.impressions)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(c.clicks)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtCompact(c.impressions)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {items.length > 0 && (
+        <div className="px-4 py-2 bg-slate-50/40 border-t border-slate-100 text-[10px] text-slate-400 text-right">
+          {items.length} caso{items.length === 1 ? "" : "s"} · scroll para ver más
+        </div>
+      )}
     </div>
   );
 }
