@@ -87,114 +87,256 @@ function BreakevenBanner({
 }) {
   const hasData = breakevenRoas > 0 && adSpend > 0;
 
-  let status: "green" | "amber" | "red" | "gray" = "gray";
+  // Status & paleta premium
+  type Status = "stellar" | "excellent" | "healthy" | "edge" | "loss" | "none";
+  let status: Status = "none";
   let statusLabel = "Sin datos suficientes";
   let statusSub = "Cargá COGS y fees para calcular el break-even.";
   let Icon: any = Info;
-  let bg = "from-slate-50 to-slate-100";
-  let ring = "ring-slate-200";
-  let chipBg = "bg-slate-100 text-slate-700";
+  let zoneName = "Sin datos";
+  const multiple = hasData ? blendedRoas / breakevenRoas : 0;
 
   if (hasData) {
-    if (blendedRoas >= breakevenRoas * 1.5) {
-      status = "green";
-      statusLabel = "Rentable con margen";
-      statusSub = `Estas ganando ${(blendedRoas / breakevenRoas).toFixed(1)}x sobre el punto de equilibrio.`;
-      Icon = ShieldCheck;
-      bg = "from-emerald-50 to-green-50";
-      ring = "ring-emerald-200";
-      chipBg = "bg-emerald-100 text-emerald-800";
-    } else if (blendedRoas >= breakevenRoas) {
-      status = "amber";
-      statusLabel = "En zona de equilibrio";
-      statusSub = "Cubris costos pero hay poco margen. Optimizar creativos o bajar CPC.";
-      Icon = Activity;
-      bg = "from-amber-50 to-yellow-50";
-      ring = "ring-amber-200";
-      chipBg = "bg-amber-100 text-amber-800";
+    if (multiple >= 5) {
+      status = "stellar"; statusLabel = "Estelar"; Icon = Sparkles; zoneName = "Estelar";
+      statusSub = `Por cada $1 invertido en ads, $${blendedRoas.toFixed(2)} entran a VTEX. Vas ${multiple.toFixed(1)}× el break-even.`;
+    } else if (multiple >= 3) {
+      status = "excellent"; statusLabel = "Excelente"; Icon = Rocket; zoneName = "Excelente";
+      statusSub = `Por cada $1 invertido, $${blendedRoas.toFixed(2)} entran a VTEX. Tenés margen para escalar agresivo.`;
+    } else if (multiple >= 1.5) {
+      status = "healthy"; statusLabel = "Rentable con margen"; Icon = ShieldCheck; zoneName = "Saludable";
+      statusSub = `Por cada $1 invertido, $${blendedRoas.toFixed(2)} entran a VTEX. Margen sano sobre el break-even.`;
+    } else if (multiple >= 1) {
+      status = "edge"; statusLabel = "En equilibrio"; Icon = Activity; zoneName = "Equilibrio";
+      statusSub = "Cubris costos pero el margen es fino. Optimizá creativos o bajá CPC.";
     } else {
-      status = "red";
+      status = "loss"; statusLabel = "Perdiendo plata"; Icon = AlertTriangle; zoneName = "Pérdida";
       const gap = ((breakevenRoas - blendedRoas) / breakevenRoas) * 100;
-      statusLabel = "Perdiendo plata";
-      statusSub = `Estas ${gap.toFixed(0)}% por debajo del break-even. Revisar ASAP.`;
-      Icon = AlertTriangle;
-      bg = "from-red-50 to-rose-50";
-      ring = "ring-red-200";
-      chipBg = "bg-red-100 text-red-800";
+      statusSub = `Estás ${gap.toFixed(0)}% por debajo del break-even. Revisar campañas ASAP.`;
     }
   }
 
-  const target = breakevenRoas || 3;
-  const filledPct = Math.min(100, Math.max(0, (blendedRoas / (target * 2)) * 100));
-  const breakevenPct = Math.min(100, (breakevenRoas / (target * 2)) * 100);
+  // Paleta por estado — premium, contraste alto
+  const palette = {
+    stellar:   { accent: "#059669", from: "from-emerald-100/70", via: "via-teal-50/40",     to: "to-white",          ring: "ring-emerald-200/80",  chipBg: "bg-emerald-600 text-white",     icon: "bg-emerald-100 text-emerald-700", glow: "from-emerald-300/30",  bar: ["#10b981","#059669","#047857"] },
+    excellent: { accent: "#10b981", from: "from-emerald-50",     via: "via-emerald-50/40",  to: "to-white",          ring: "ring-emerald-200",     chipBg: "bg-emerald-500 text-white",     icon: "bg-emerald-100 text-emerald-700", glow: "from-emerald-300/25",  bar: ["#34d399","#10b981","#059669"] },
+    healthy:   { accent: "#10b981", from: "from-emerald-50/70",  via: "via-white",          to: "to-emerald-50/40",  ring: "ring-emerald-200",     chipBg: "bg-emerald-500 text-white",     icon: "bg-emerald-100 text-emerald-700", glow: "from-emerald-200/20",  bar: ["#34d399","#10b981"] },
+    edge:      { accent: "#f59e0b", from: "from-amber-50",       via: "via-yellow-50/30",   to: "to-white",          ring: "ring-amber-200",       chipBg: "bg-amber-500 text-white",       icon: "bg-amber-100 text-amber-700",     glow: "from-amber-200/30",    bar: ["#fbbf24","#f59e0b"] },
+    loss:      { accent: "#ef4444", from: "from-rose-50",        via: "via-red-50/30",      to: "to-white",          ring: "ring-rose-200",        chipBg: "bg-rose-600 text-white",        icon: "bg-rose-100 text-rose-700",       glow: "from-rose-300/25",     bar: ["#f87171","#ef4444"] },
+    none:      { accent: "#64748b", from: "from-slate-50",       via: "via-white",          to: "to-slate-50",       ring: "ring-slate-200",       chipBg: "bg-slate-200 text-slate-700",   icon: "bg-slate-100 text-slate-600",     glow: "from-slate-200/30",    bar: ["#cbd5e1","#94a3b8"] },
+  } as const;
+  const p = palette[status];
+
+  // Zone gauge: 5 tramos nombrados (Pérdida / Equilibrio / Saludable / Excelente / Estelar)
+  // Cada tramo ocupa 20% de la barra, escala visual independiente del valor exacto
+  const zoneStops = [
+    { name: "Pérdida",    color: "#fecaca", text: "#b91c1c", min: 0,            max: breakevenRoas },
+    { name: "Equilibrio", color: "#fde68a", text: "#b45309", min: breakevenRoas, max: breakevenRoas * 1.5 },
+    { name: "Saludable",  color: "#a7f3d0", text: "#047857", min: breakevenRoas * 1.5, max: breakevenRoas * 3 },
+    { name: "Excelente",  color: "#6ee7b7", text: "#047857", min: breakevenRoas * 3,   max: breakevenRoas * 5 },
+    { name: "Estelar",    color: "#34d399", text: "#065f46", min: breakevenRoas * 5,   max: breakevenRoas * 8 },
+  ];
+
+  // Posición del marker (interpolada dentro del zone donde cae)
+  let markerPct = 0;
+  let markerZoneIdx = 0;
+  if (hasData) {
+    if (blendedRoas <= 0) { markerPct = 0; markerZoneIdx = 0; }
+    else {
+      let placed = false;
+      for (let i = 0; i < zoneStops.length; i++) {
+        const z = zoneStops[i];
+        if (blendedRoas >= z.min && blendedRoas <= z.max) {
+          const within = (blendedRoas - z.min) / Math.max(z.max - z.min, 0.0001);
+          markerPct = (i * 20) + within * 20;
+          markerZoneIdx = i;
+          placed = true; break;
+        }
+      }
+      if (!placed) { markerPct = 100; markerZoneIdx = zoneStops.length - 1; } // arriba de Estelar
+    }
+  }
+  markerPct = Math.min(99.5, Math.max(0.5, markerPct));
+  const beMarkerPct = 20; // BE siempre cae al final del primer tramo (Pérdida)
 
   return (
-    <div className={`bg-gradient-to-br ${bg} rounded-2xl ring-1 ${ring} p-6 shadow-sm`}>
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-start gap-3">
-          <div className={`p-2.5 rounded-xl ${chipBg}`}>
-            <Icon size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${chipBg}`}>
-                {statusLabel}
-              </span>
-              <span className="text-xs text-slate-500">Salud publicitaria</span>
-            </div>
-            <h2 className="text-xl font-bold text-slate-900 mt-1">
-              {hasData ? (
-                <>Blended ROAS VTEX <span className="tabular-nums">{blendedRoas.toFixed(2)}x</span> vs Break-even <span className="tabular-nums">{breakevenRoas.toFixed(2)}x</span></>
-              ) : (
-                "Break-even ROAS"
-              )}
-            </h2>
-            <p className="text-sm text-slate-600 mt-0.5 max-w-xl">{statusSub}</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-4 text-right">
-          <div>
-            <p className="text-[10px] uppercase text-slate-500 font-semibold">CM (VTEX)</p>
-            <p className="text-lg font-bold text-slate-900 tabular-nums">
-              {contributionMargin > 0 ? `${(contributionMargin * 100).toFixed(1)}%` : "--"}
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase text-slate-500 font-semibold">Inversion</p>
-            <p className="text-lg font-bold text-slate-900 tabular-nums">{formatCompact(adSpend)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase text-slate-500 font-semibold">Revenue VTEX</p>
-            <p className="text-lg font-bold text-slate-900 tabular-nums">{formatCompact(realRevenue)}</p>
-          </div>
-        </div>
-      </div>
+    <div className={`relative rounded-3xl overflow-hidden shadow-sm ring-1 ${p.ring} ns-fade-up`}>
+      {/* Background premium: gradient sutil + 2 blobs de color */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${p.from} ${p.via} ${p.to}`} />
+      <div className={`pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full bg-gradient-to-br ${p.glow} to-transparent blur-3xl`} />
+      <div className={`pointer-events-none absolute -bottom-24 -right-32 w-96 h-96 rounded-full bg-gradient-to-br ${p.glow} to-transparent blur-3xl opacity-60`} />
 
-      {/* Break-even gauge */}
-      <div className="mt-5">
-        <div className="relative h-3 bg-white/60 rounded-full overflow-hidden ring-1 ring-slate-200">
-          <div
-            className={`absolute inset-y-0 left-0 rounded-full transition-all ${
-              status === "green" ? "bg-emerald-500" :
-              status === "amber" ? "bg-amber-500" :
-              status === "red" ? "bg-red-500" : "bg-slate-300"
-            }`}
-            style={{ width: `${filledPct}%` }}
-          />
-          {hasData && (
-            <div
-              className="absolute inset-y-0 w-0.5 bg-slate-900"
-              style={{ left: `${breakevenPct}%` }}
-              title={`Break-even: ${breakevenRoas.toFixed(2)}x`}
+      <div className="relative p-6 md:p-7">
+        {/* TOP ROW: Headline + Metrics mini-cards */}
+        <div className="flex items-start justify-between gap-6 flex-wrap">
+          {/* LEFT: status + headline */}
+          <div className="flex items-start gap-3.5 min-w-0 flex-1">
+            <div className={`p-2.5 rounded-2xl ${p.icon} ring-1 ring-white/60 shadow-sm`}>
+              <Icon size={22} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em] px-2.5 py-1 rounded-full shadow-sm ${p.chipBg}`}>
+                  {status === "stellar" && <Sparkles size={10} className="text-amber-300" />}
+                  {statusLabel}
+                </span>
+                <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Salud publicitaria</span>
+                {status !== "none" && status !== "loss" && (
+                  <span className="relative flex w-1.5 h-1.5 ml-0.5">
+                    <span className="absolute inset-0 rounded-full opacity-75 ns-pulse-halo" style={{ background: p.accent }} />
+                    <span className="relative rounded-full w-1.5 h-1.5" style={{ background: p.accent }} />
+                  </span>
+                )}
+              </div>
+
+              {/* HERO: multiplicador como protagonista */}
+              {hasData ? (
+                <div className="mt-2.5">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-[40px] md:text-[44px] font-bold text-slate-900 tabular-nums leading-none tracking-tight">
+                      {multiple.toFixed(1)}<span className="text-[26px] text-slate-400 font-semibold">×</span>
+                    </span>
+                    <span className="text-[14px] text-slate-600">sobre el break-even</span>
+                  </div>
+                  <p className="text-[12.5px] text-slate-600 mt-1.5 max-w-xl leading-relaxed">{statusSub}</p>
+                  <div className="mt-2 inline-flex items-center gap-2 text-[11px] text-slate-500">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/70 ring-1 ring-slate-200/80 backdrop-blur tabular-nums">
+                      <span className="font-semibold text-slate-700">Blended ROAS</span> {blendedRoas.toFixed(2)}x
+                    </span>
+                    <span className="text-slate-300">·</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/70 ring-1 ring-slate-200/80 backdrop-blur tabular-nums">
+                      <span className="font-semibold text-slate-700">Break-even</span> {breakevenRoas.toFixed(2)}x
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-xl font-bold text-slate-900 mt-1">Break-even ROAS</h2>
+                  <p className="text-sm text-slate-600 mt-0.5">{statusSub}</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT: 3 metric mini-cards */}
+          <div className="grid grid-cols-3 gap-2 shrink-0">
+            <MetricMini
+              label="CM (VTEX)"
+              value={contributionMargin > 0 ? `${(contributionMargin * 100).toFixed(1)}%` : "--"}
+              hint="post-fees"
+              accent={p.accent}
             />
-          )}
+            <MetricMini
+              label="Inversión"
+              value={formatCompact(adSpend)}
+              hint="ad spend"
+              accent={p.accent}
+            />
+            <MetricMini
+              label="Revenue VTEX"
+              value={formatCompact(realRevenue)}
+              hint="entró a caja"
+              accent={p.accent}
+              highlight
+            />
+          </div>
         </div>
-        <div className="flex justify-between mt-1.5 text-[10px] text-slate-500">
-          <span>0x</span>
-          <span>Break-even {hasData ? breakevenRoas.toFixed(2) : "--"}x</span>
-          <span>{(target * 2).toFixed(1)}x</span>
+
+        {/* ZONE GAUGE: 5 tramos nombrados con marker glowing */}
+        <div className="mt-7">
+          <div className="flex items-end justify-between mb-1.5 px-0.5">
+            <span className="text-[10px] uppercase tracking-[0.14em] font-bold text-slate-500">Zona de salud</span>
+            <span className="text-[10px] text-slate-400 tabular-nums">
+              {hasData ? `Tu ROAS ${blendedRoas.toFixed(2)}x está en zona ` : ""}
+              {hasData && <span className="font-semibold" style={{ color: p.accent }}>{zoneName}</span>}
+            </span>
+          </div>
+
+          <div className="relative h-9 rounded-2xl overflow-hidden ring-1 ring-slate-200/80 shadow-inner bg-slate-50">
+            {/* Tramos */}
+            <div className="absolute inset-0 flex">
+              {zoneStops.map((z, i) => (
+                <div
+                  key={z.name}
+                  className="relative h-full flex items-center justify-center transition-opacity"
+                  style={{
+                    width: "20%",
+                    background: i === markerZoneIdx
+                      ? `linear-gradient(180deg, ${z.color}cc 0%, ${z.color}99 100%)`
+                      : `linear-gradient(180deg, ${z.color}55 0%, ${z.color}33 100%)`,
+                    opacity: hasData ? 1 : 0.4,
+                  }}
+                >
+                  <span
+                    className="text-[9.5px] font-bold uppercase tracking-wider"
+                    style={{ color: i === markerZoneIdx ? z.text : `${z.text}99`, opacity: i === markerZoneIdx ? 1 : 0.7 }}
+                  >
+                    {z.name}
+                  </span>
+                  {i < zoneStops.length - 1 && (
+                    <span className="absolute right-0 top-1.5 bottom-1.5 w-px bg-white/70" />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* BE line */}
+            {hasData && (
+              <div
+                className="absolute top-0 bottom-0 w-px bg-slate-700/80"
+                style={{ left: `${beMarkerPct}%` }}
+              />
+            )}
+
+            {/* Current ROAS marker */}
+            {hasData && (
+              <div
+                className="absolute top-1/2 -translate-y-1/2 z-10"
+                style={{ left: `${markerPct}%`, transform: "translate(-50%, -50%)" }}
+              >
+                <div className="relative">
+                  <span className="absolute inset-0 rounded-full ns-pulse-halo opacity-60" style={{ background: p.accent, width: 22, height: 22, top: -3, left: -3 }} />
+                  <div
+                    className="relative flex items-center justify-center rounded-full ring-2 ring-white shadow-lg"
+                    style={{ width: 16, height: 16, background: `linear-gradient(135deg, ${p.bar[0]} 0%, ${p.bar[p.bar.length - 1]} 100%)` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Eje inferior: 0x · BE · 1.5×BE · 3×BE · 5×BE · 8×BE+ */}
+          <div className="flex justify-between mt-1.5 text-[10px] text-slate-500 tabular-nums px-0.5">
+            <span>0x</span>
+            <span className="font-semibold text-slate-700">BE {hasData ? breakevenRoas.toFixed(2) : "--"}x</span>
+            <span>{hasData ? (breakevenRoas * 1.5).toFixed(1) : "--"}x</span>
+            <span>{hasData ? (breakevenRoas * 3).toFixed(1) : "--"}x</span>
+            <span>{hasData ? (breakevenRoas * 5).toFixed(1) : "--"}x</span>
+            <span>{hasData ? (breakevenRoas * 8).toFixed(0) : "--"}x+</span>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* Mini-card de métrica para el header del banner */
+function MetricMini({
+  label, value, hint, accent, highlight,
+}: { label: string; value: string; hint?: string; accent: string; highlight?: boolean }) {
+  return (
+    <div
+      className={`relative rounded-xl px-3 py-2.5 ring-1 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md ${
+        highlight ? "bg-white shadow-sm ring-white" : "bg-white/70 ring-slate-200/80"
+      }`}
+      style={highlight ? { boxShadow: `0 1px 0 ${accent}33, 0 4px 12px ${accent}1a` } : undefined}
+    >
+      {highlight && (
+        <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full" style={{ background: accent }} />
+      )}
+      <p className="text-[9.5px] uppercase tracking-[0.14em] text-slate-500 font-bold">{label}</p>
+      <p className="text-[18px] font-bold text-slate-900 tabular-nums leading-tight mt-0.5">{value}</p>
+      {hint && <p className="text-[9.5px] text-slate-400 mt-0.5">{hint}</p>}
     </div>
   );
 }
