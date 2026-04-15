@@ -275,6 +275,38 @@ export class GoogleAdsConnector {
     return null;
   }
 
+  // ── Extraer TODOS los headlines (array) ──
+  static extractHeadlines(row: any): string[] {
+    const ad = row.adGroupAd?.ad;
+    if (!ad) return [];
+    const rsa = ad.responsiveSearchAd?.headlines || [];
+    const rda = ad.responsiveDisplayAd?.headlines || [];
+    const all = [...rsa, ...rda]
+      .map((h: any) => (typeof h === "string" ? h : h?.text))
+      .filter((t: any) => typeof t === "string" && t.length > 0);
+    return Array.from(new Set(all));
+  }
+
+  // ── Extraer TODAS las descriptions (array) ──
+  static extractDescriptions(row: any): string[] {
+    const ad = row.adGroupAd?.ad;
+    if (!ad) return [];
+    const rsa = ad.responsiveSearchAd?.descriptions || [];
+    const rda = ad.responsiveDisplayAd?.descriptions || [];
+    const all = [...rsa, ...rda]
+      .map((d: any) => (typeof d === "string" ? d : d?.text))
+      .filter((t: any) => typeof t === "string" && t.length > 0);
+    return Array.from(new Set(all));
+  }
+
+  // ── Extraer final URLs ──
+  static extractFinalUrls(row: any): string[] {
+    const ad = row.adGroupAd?.ad;
+    if (!ad) return [];
+    const urls = ad.finalUrls || [];
+    return Array.isArray(urls) ? urls.filter((u: any) => typeof u === "string") : [];
+  }
+
   // ── Test de conexión ──
   async testConnection(): Promise<boolean> {
     try {

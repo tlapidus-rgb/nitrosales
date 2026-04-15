@@ -413,6 +413,7 @@ model AdCreative {
   headline      String?                          // Texto principal del ad
   description   String?                          // Texto secundario
   ctaType       String?                          // CTA: SHOP_NOW, LEARN_MORE, etc.
+  metadata      Json?                            // Rich metadata: headlines[], descriptions[], keywords[], extensions[], finalUrls[], etc.
 
   // Classification (AI + manual)
   classificationAuto    String?                  // Tipo detectado por IA: UGC, PRODUCT, TESTIMONIAL, LIFESTYLE, PROMO, etc.

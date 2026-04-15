@@ -366,14 +366,67 @@ export async function GET(req: Request) {
     let adsUpserted = 0;
     let adMetricsUpserted = 0;
 
+    // Fetch keywords per ad_group para poder linkearlos a cada creativo
+    // (solo keywords ACTIVAS con impresiones en la ventana, limitados a top-N por adGroup)
+    const keywordsByAdGroup: Record<string, Array<{ text: string; matchType: string; qs: number | null; impressions: number; clicks: number; conversions: number }>> = {};
     try {
-      // Fetch ads (now also getting ad_group.id)
+      const keywordResults = await queryGoogleAds(
+        accessToken,
+        `SELECT
+          ad_group.id,
+          ad_group_criterion.keyword.text,
+          ad_group_criterion.keyword.match_type,
+          ad_group_criterion.quality_info.quality_score,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.conversions
+        FROM keyword_view
+        WHERE segments.date BETWEEN '${formatDate(startDate)}' AND '${formatDate(endDate)}'
+          AND ad_group_criterion.status != 'REMOVED'
+          AND ad_group.status != 'REMOVED'
+          AND campaign.status != 'REMOVED'`
+      );
+      // Agregamos por ad_group + keyword text para sumar métricas
+      const agg: Record<string, Record<string, any>> = {};
+      for (const row of keywordResults) {
+        const agId = String(row.adGroup?.id || "");
+        const text = row.adGroupCriterion?.keyword?.text || "";
+        if (!agId || !text) continue;
+        const key = text + "|" + (row.adGroupCriterion?.keyword?.matchType || "");
+        if (!agg[agId]) agg[agId] = {};
+        if (!agg[agId][key]) {
+          agg[agId][key] = {
+            text,
+            matchType: row.adGroupCriterion?.keyword?.matchType || "UNKNOWN",
+            qs: row.adGroupCriterion?.qualityInfo?.qualityScore ?? null,
+            impressions: 0,
+            clicks: 0,
+            conversions: 0,
+          };
+        }
+        agg[agId][key].impressions += parseInt(row.metrics?.impressions || "0");
+        agg[agId][key].clicks += parseInt(row.metrics?.clicks || "0");
+        agg[agId][key].conversions += Math.round(parseFloat(row.metrics?.conversions || "0"));
+      }
+      // Ordenar por impresiones desc y tomar top 20 por ad_group
+      for (const agId of Object.keys(agg)) {
+        keywordsByAdGroup[agId] = Object.values(agg[agId])
+          .sort((a, b) => b.impressions - a.impressions)
+          .slice(0, 20);
+      }
+    } catch (e: any) {
+      console.error("Google keywords sync error (non-fatal):", e.message);
+    }
+
+    try {
+      // Fetch ads (now also getting ad_group.id + final_urls)
       const adResults = await queryGoogleAds(
         accessToken,
         `SELECT
           ad_group_ad.ad.id,
           ad_group_ad.ad.name,
           ad_group_ad.ad.type,
+          ad_group_ad.ad.final_urls,
           ad_group_ad.ad.responsive_search_ad.headlines,
           ad_group_ad.ad.responsive_search_ad.descriptions,
           ad_group_ad.ad.responsive_display_ad.headlines,
@@ -399,6 +452,19 @@ export async function GET(req: Request) {
         const adType = GoogleAdsConnector.detectAdType(ad.type || "");
         const headline = GoogleAdsConnector.extractHeadline(row);
         const description = GoogleAdsConnector.extractDescription(row);
+        const headlines = GoogleAdsConnector.extractHeadlines(row);
+        const descriptions = GoogleAdsConnector.extractDescriptions(row);
+        const finalUrls = GoogleAdsConnector.extractFinalUrls(row);
+        const keywords = adGroupExternalId ? (keywordsByAdGroup[adGroupExternalId] || []) : [];
+
+        const metadata: any = {
+          headlines,
+          descriptions,
+          finalUrls,
+          keywords,
+          adGroupExternalId: adGroupExternalId || null,
+          syncedAt: new Date().toISOString(),
+        };
 
         const classification = classifyCreative({
           adName: ad.name,
@@ -423,6 +489,7 @@ export async function GET(req: Request) {
             type: adType,
             headline,
             description,
+            metadata,
             classificationAuto: classification.type,
             classificationScore: classification.confidence,
             campaignId: dbCampaignId,
@@ -437,6 +504,7 @@ export async function GET(req: Request) {
             type: adType,
             headline,
             description,
+            metadata,
             classificationAuto: classification.type,
             classificationScore: classification.confidence,
             adSetId: dbAdGroupId,

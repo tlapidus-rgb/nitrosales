@@ -347,6 +347,7 @@ export async function GET(request: Request) {
           headline: c.headline,
           description: c.description,
           ctaType: c.ctaType,
+          metadata: (c as any).metadata || null,
           classification,
           classificationAuto: c.classificationAuto,
           classificationManual: c.classificationManual,
