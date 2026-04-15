@@ -31,7 +31,13 @@ import {
   Play,
   Eye,
   HelpCircle,
+  Clock,
+  Zap,
+  Inbox,
+  CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
@@ -1373,6 +1379,337 @@ function HeroMetricsZone({ state }: { state: HeroState }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Zona 4 — Bandeja de acciones (Action Inbox)
+// ═══════════════════════════════════════════════════════════════
+
+type InboxTone = "pink" | "violet" | "amber" | "rose";
+type InboxSample = {
+  id: string;
+  primary: string;
+  secondary: string;
+  hint?: string;
+  thumbnail?: string | null;
+  avatarUrl?: string | null;
+};
+type InboxAction = {
+  key: string;
+  tone: InboxTone;
+  priority: number;
+  icon: string;
+  title: string;
+  subtitle: string;
+  count: number;
+  href: string;
+  cta: string;
+  samples: InboxSample[];
+};
+type InboxPayload = {
+  generatedAt: string;
+  totalPending: number;
+  actions: InboxAction[];
+};
+type InboxState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | ({ status: "ready" } & InboxPayload);
+
+const INBOX_THEME: Record<
+  InboxTone,
+  { accent: string; bg: string; border: string; glow: string; text: string; halo: string }
+> = {
+  pink: {
+    accent: "#f472b6",
+    bg: "linear-gradient(160deg, rgba(244,114,182,0.08) 0%, rgba(244,114,182,0.02) 100%)",
+    border: "rgba(244,114,182,0.25)",
+    glow: "rgba(244,114,182,0.35)",
+    text: "#fbcfe8",
+    halo: "radial-gradient(circle at 30% 20%, rgba(244,114,182,0.35) 0%, transparent 60%)",
+  },
+  violet: {
+    accent: "#a78bfa",
+    bg: "linear-gradient(160deg, rgba(167,139,250,0.08) 0%, rgba(167,139,250,0.02) 100%)",
+    border: "rgba(167,139,250,0.25)",
+    glow: "rgba(167,139,250,0.35)",
+    text: "#ddd6fe",
+    halo: "radial-gradient(circle at 30% 20%, rgba(167,139,250,0.35) 0%, transparent 60%)",
+  },
+  amber: {
+    accent: "#f4d794",
+    bg: "linear-gradient(160deg, rgba(244,215,148,0.08) 0%, rgba(244,215,148,0.02) 100%)",
+    border: "rgba(244,215,148,0.28)",
+    glow: "rgba(244,215,148,0.4)",
+    text: "#fde8bc",
+    halo: "radial-gradient(circle at 30% 20%, rgba(244,215,148,0.35) 0%, transparent 60%)",
+  },
+  rose: {
+    accent: "#fda4af",
+    bg: "linear-gradient(160deg, rgba(253,164,175,0.08) 0%, rgba(253,164,175,0.02) 100%)",
+    border: "rgba(253,164,175,0.25)",
+    glow: "rgba(253,164,175,0.35)",
+    text: "#fecdd3",
+    halo: "radial-gradient(circle at 30% 20%, rgba(253,164,175,0.35) 0%, transparent 60%)",
+  },
+};
+
+function InboxIcon({ name, color }: { name: string; color: string }) {
+  const common = { size: 16, strokeWidth: 2, color } as const;
+  if (name === "sparkle") return <Sparkles {...common} />;
+  if (name === "play") return <Play {...common} />;
+  if (name === "clock") return <Clock {...common} />;
+  if (name === "zap") return <Zap {...common} />;
+  return <Inbox {...common} />;
+}
+
+function InboxActionCard({
+  action,
+  delay,
+}: {
+  action: InboxAction;
+  delay: number;
+}) {
+  const theme = INBOX_THEME[action.tone];
+  const isPending = action.count > 0;
+  return (
+    <Link
+      href={action.href}
+      className="group relative block rounded-2xl p-5 overflow-hidden transition-all"
+      style={{
+        background: isPending ? theme.bg : "rgba(255,255,255,0.02)",
+        border: isPending ? `1px solid ${theme.border}` : "1px solid rgba(255,255,255,0.05)",
+        boxShadow: isPending
+          ? `0 20px 60px -30px ${theme.glow}, inset 0 1px 0 rgba(255,255,255,0.04)`
+          : "inset 0 1px 0 rgba(255,255,255,0.03)",
+        animation: `inboxIn 560ms ${ES} ${delay}ms both`,
+      }}
+    >
+      {/* Halo decorativo para cards con pendientes */}
+      {isPending ? (
+        <div
+          aria-hidden
+          className="absolute -top-10 -right-10 w-40 h-40 pointer-events-none"
+          style={{
+            background: theme.halo,
+            filter: "blur(20px)",
+            opacity: 0.6,
+            animation: "shimmerPulse 3.4s ease-in-out infinite",
+          }}
+        />
+      ) : null}
+
+      {/* Header: icono + badge de count */}
+      <div className="relative flex items-start justify-between">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center"
+          style={{
+            background: isPending
+              ? `linear-gradient(145deg, ${theme.accent}22, ${theme.accent}08)`
+              : "rgba(255,255,255,0.04)",
+            border: `1px solid ${isPending ? theme.border : "rgba(255,255,255,0.06)"}`,
+          }}
+        >
+          <InboxIcon name={action.icon} color={isPending ? theme.accent : "rgba(255,255,255,0.4)"} />
+        </div>
+
+        {isPending ? (
+          <div
+            className="px-2.5 py-1 rounded-full text-[11px] font-bold tabular-nums tracking-tight"
+            style={{
+              background: `${theme.accent}18`,
+              color: theme.text,
+              border: `1px solid ${theme.border}`,
+              animation: "countPulse 2.6s ease-in-out infinite",
+            }}
+          >
+            {action.count}
+          </div>
+        ) : (
+          <div
+            className="px-2 py-1 rounded-full text-[10px] font-bold tracking-[0.18em] uppercase flex items-center gap-1"
+            style={{
+              color: "rgba(134,239,172,0.75)",
+              background: "rgba(134,239,172,0.06)",
+              border: "1px solid rgba(134,239,172,0.18)",
+            }}
+          >
+            <CheckCircle2 size={10} strokeWidth={2.4} />
+            OK
+          </div>
+        )}
+      </div>
+
+      {/* Title + subtitle */}
+      <div className="relative mt-4">
+        <h3
+          className="text-[15px] tracking-tight text-white"
+          style={{ fontWeight: 600, letterSpacing: "-0.01em" }}
+        >
+          {action.title}
+        </h3>
+        <p className="mt-1 text-[12.5px] text-white/55 tracking-tight leading-snug">
+          {action.subtitle}
+        </p>
+      </div>
+
+      {/* Samples (solo si hay pendientes y muestras) */}
+      {isPending && action.samples.length > 0 ? (
+        <ul className="relative mt-4 space-y-2">
+          {action.samples.slice(0, 3).map((s, i) => (
+            <li
+              key={s.id}
+              className="flex items-center gap-2.5 text-[12px]"
+              style={{
+                animation: `sampleIn 420ms ${ES} ${delay + 120 + i * 70}ms both`,
+              }}
+            >
+              {/* Avatar o thumb o dot */}
+              {s.thumbnail ? (
+                <img
+                  src={s.thumbnail}
+                  alt=""
+                  className="w-7 h-7 rounded-lg object-cover"
+                  style={{ border: `1px solid ${theme.border}` }}
+                />
+              ) : s.avatarUrl ? (
+                <img
+                  src={s.avatarUrl}
+                  alt=""
+                  className="w-7 h-7 rounded-full object-cover"
+                  style={{ border: `1px solid ${theme.border}` }}
+                />
+              ) : (
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold"
+                  style={{
+                    background: `${theme.accent}18`,
+                    color: theme.text,
+                    border: `1px solid ${theme.border}`,
+                  }}
+                >
+                  {s.primary.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-white/85 tracking-tight truncate">
+                  {s.primary}
+                </div>
+                <div className="text-white/35 text-[10.5px] tracking-tight truncate">
+                  {s.secondary}
+                </div>
+              </div>
+              {s.hint ? (
+                <span className="text-[10px] text-white/30 tabular-nums whitespace-nowrap">
+                  {s.hint}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {/* CTA footer */}
+      <div
+        className="relative mt-5 flex items-center justify-between pt-3"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <span
+          className="text-[11.5px] tracking-tight transition-colors"
+          style={{ color: isPending ? theme.text : "rgba(255,255,255,0.5)" }}
+        >
+          {action.cta}
+        </span>
+        <span
+          className="flex items-center justify-center w-6 h-6 rounded-full transition-all group-hover:translate-x-0.5"
+          style={{
+            background: isPending ? `${theme.accent}18` : "rgba(255,255,255,0.04)",
+            color: isPending ? theme.accent : "rgba(255,255,255,0.45)",
+          }}
+        >
+          <ArrowRight size={12} strokeWidth={2.2} />
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function ActionInboxZone({ state }: { state: InboxState }) {
+  if (state.status === "loading") {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl h-[220px]"
+            style={{
+              background:
+                "linear-gradient(160deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite`,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div
+        className="rounded-2xl p-5 text-white/70 text-[13px]"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(253,164,175,0.2)",
+        }}
+      >
+        No pude cargar la bandeja. {state.message}
+      </div>
+    );
+  }
+
+  const { actions, totalPending } = state;
+
+  return (
+    <div>
+      {/* Resumen de totalPending */}
+      <div
+        className="mb-4 flex items-center gap-2.5 text-[12px] tracking-tight"
+        style={{ animation: `fadeIn 420ms ${ES}` }}
+      >
+        {totalPending === 0 ? (
+          <>
+            <CheckCircle2 size={14} color="rgba(134,239,172,0.9)" strokeWidth={2.2} />
+            <span className="text-white/70">
+              Bandeja limpia. Todo lo accionable está resuelto.
+            </span>
+          </>
+        ) : (
+          <>
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{
+                background: "#f4d794",
+                animation: "countPulse 1.8s ease-in-out infinite",
+                boxShadow: "0 0 8px rgba(244,215,148,0.6)",
+              }}
+            />
+            <span className="text-white/75">
+              <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+                {totalPending}
+              </span>{" "}
+              {totalPending === 1 ? "cosa te está esperando" : "cosas te están esperando"}
+            </span>
+          </>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {actions.map((action, i) => (
+          <InboxActionCard key={action.key} action={action} delay={i * 90} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function timeAgo(d: Date) {
   const secs = Math.floor((Date.now() - d.getTime()) / 1000);
   if (secs < 60) return "hace unos segundos";
@@ -1394,6 +1731,19 @@ export default function AuraInicioPage() {
   const [pulse, setPulse] = useState<PulseState>({ status: "loading" });
   const [hero, setHero] = useState<HeroState>({ status: "loading" });
   const [podium, setPodium] = useState<PodiumState>({ status: "loading" });
+  const [inbox, setInbox] = useState<InboxState>({ status: "loading" });
+
+  async function loadInbox() {
+    setInbox({ status: "loading" });
+    try {
+      const res = await fetch(`/api/aura/inbox`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as InboxPayload;
+      setInbox({ status: "ready", ...data });
+    } catch (e: any) {
+      setInbox({ status: "error", message: e?.message || "error desconocido" });
+    }
+  }
 
   async function loadPodium() {
     setPodium({ status: "loading" });
@@ -1459,6 +1809,7 @@ export default function AuraInicioPage() {
     loadPulse(false);
     loadHero();
     loadPodium();
+    loadInbox();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey]);
 
@@ -1531,6 +1882,18 @@ export default function AuraInicioPage() {
         @keyframes sparkleFloat {
           0%, 100% { transform: translateY(0) scale(1); opacity: 0.55; }
           50% { transform: translateY(-6px) scale(1.18); opacity: 1; }
+        }
+        @keyframes inboxIn {
+          from { opacity: 0; transform: translateY(14px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes sampleIn {
+          from { opacity: 0; transform: translateX(-6px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes countPulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.06); opacity: 0.92; }
         }
       `}</style>
 
@@ -1635,6 +1998,26 @@ export default function AuraInicioPage() {
             </span>
           </div>
           <HallOfFlameZone state={podium} />
+        </section>
+
+        {/* ─── Zona 4: Bandeja de acciones ───────────────────────── */}
+        <section className="mt-10">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.26em]"
+              style={{ color: "#e6c27a" }}
+            >
+              Bandeja de acciones
+            </span>
+            <span
+              className="w-1 h-1 rounded-full"
+              style={{ background: "rgba(244,215,148,0.55)" }}
+            />
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+              Lo que te está esperando
+            </span>
+          </div>
+          <ActionInboxZone state={inbox} />
         </section>
       </div>
     </div>
