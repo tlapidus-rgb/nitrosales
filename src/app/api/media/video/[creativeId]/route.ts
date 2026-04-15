@@ -46,11 +46,14 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
     return { videoUrl: null, posterUrl: null, videoId: null, permalinkUrl: null, error: "Falta META_ADS_ACCESS_TOKEN", debug };
   }
 
-  // ── Step 1: ad → adcreatives → video_id + image_url + thumbnail_url
+  // ── Step 1: ad → adcreatives → video_id + image_url + thumbnail_url + permalink fallback
+  // Pedimos preview_shareable_link y effective_object_story_id como fallback de permalink
+  // (se leen con ads_read; no necesitan Page Public Content Access).
   let videoId: string | null = null;
   let posterUrl: string | null = null;
+  let permalinkFallback: string | null = null;
   try {
-    const adUrl = `https://graph.facebook.com/v19.0/${externalAdId}?fields=adcreatives{id,video_id,image_url,thumbnail_url,object_story_spec},creative{id,video_id,image_url,thumbnail_url,object_story_spec}&access_token=${token}`;
+    const adUrl = `https://graph.facebook.com/v19.0/${externalAdId}?fields=preview_shareable_link,effective_object_story_id,adcreatives{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec},creative{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec}&access_token=${token}`;
     const adRes = await fetch(adUrl, { cache: "no-store" });
     const ad = await adRes.json();
     debug.steps.push({ step: "ad_fetch", status: adRes.status, hasError: !!ad.error, err: ad.error?.message });
@@ -67,13 +70,27 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
       videoId = creative.video_id || creative?.object_story_spec?.video_data?.video_id || null;
       posterUrl = creative.image_url || creative.thumbnail_url || null;
     }
+
+    // Construir permalink fallback (orden de preferencia)
+    // 1. preview_shareable_link del ad (link a Ads Manager / preview)
+    // 2. effective_object_story_id → https://www.facebook.com/{page_id}/posts/{post_id}
+    if (ad.preview_shareable_link) {
+      permalinkFallback = ad.preview_shareable_link;
+    } else {
+      const storyId = ad.effective_object_story_id || creative?.effective_object_story_id || null;
+      if (storyId && typeof storyId === "string" && storyId.includes("_")) {
+        const [pageId, postId] = storyId.split("_");
+        permalinkFallback = `https://www.facebook.com/${pageId}/posts/${postId}`;
+      }
+    }
+    debug.steps.push({ step: "permalink_fallback", got: !!permalinkFallback });
   } catch (e: any) {
     debug.steps.push({ step: "ad_fetch", error: e?.message });
     return { videoUrl: null, posterUrl: null, videoId: null, permalinkUrl: null, error: `Error consultando ad: ${e?.message}`, debug };
   }
 
   if (!videoId) {
-    return { videoUrl: null, posterUrl, videoId: null, permalinkUrl: null, error: "El creativo no tiene video_id asociado", debug };
+    return { videoUrl: null, posterUrl, videoId: null, permalinkUrl: permalinkFallback, error: "El creativo no tiene video_id asociado", debug };
   }
 
   // ── Step 2: video → source + picture (HD) + permalink_url
@@ -84,13 +101,17 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
     debug.steps.push({ step: "video_fetch", status: vidRes.status, hasSource: !!vid.source, hasError: !!vid.error, err: vid.error?.message });
 
     if (vid.error) {
-      // Permission error tipico: codigo 200 / mensaje sobre Page Public Content Access o ads_management
+      // Permission error tipico (#10 / #200): Page Public Content Access requerido.
+      // Mensaje humano sin codigos crudos + permalink fallback ya armado.
+      const isPermErr = /permission|not.*allow|#10|#200/i.test(vid.error.message || "");
       return {
         videoUrl: null,
         posterUrl: vid.picture || posterUrl,
         videoId,
-        permalinkUrl: vid.permalink_url || null,
-        error: `Graph API video: ${vid.error.message}`,
+        permalinkUrl: vid.permalink_url || permalinkFallback,
+        error: isPermErr
+          ? "Meta no permite reproducir el video aca (faltan permisos del token). Podes verlo en Facebook."
+          : `Meta API: ${vid.error.message}`,
         debug,
       };
     }
@@ -110,13 +131,13 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
       videoUrl: bestSource,
       posterUrl: vid.picture || posterUrl,
       videoId,
-      permalinkUrl,
-      error: bestSource ? null : "Meta no devolvio source reproducible (permisos del token)",
+      permalinkUrl: permalinkUrl || permalinkFallback,
+      error: bestSource ? null : "Meta no devolvio source reproducible. Podes verlo en Facebook.",
       debug,
     };
   } catch (e: any) {
     debug.steps.push({ step: "video_fetch", error: e?.message });
-    return { videoUrl: null, posterUrl, videoId, permalinkUrl: null, error: `Error consultando video: ${e?.message}`, debug };
+    return { videoUrl: null, posterUrl, videoId, permalinkUrl: permalinkFallback, error: `Error consultando video: ${e?.message}`, debug };
   }
 }
 
