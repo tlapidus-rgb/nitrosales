@@ -831,6 +831,414 @@ function RetentionBox({ label, value }: { label: string; value: number }) {
   );
 }
 
+/* ── Drilldown components ─────────────────────────── */
+// Vista Campaign -> AdSet -> Ad. Patron breadcrumb (single pane)
+// para que sea consistente entre desktop y mobile.
+
+const GOOGLE_TYPE_META: Record<string, { label: string; icon: any; color: string }> = {
+  SEARCH:          { label: "Search",    icon: Search,       color: "#3b82f6" },
+  SHOPPING:        { label: "Shopping",  icon: ShoppingCart, color: "#10b981" },
+  PERFORMANCE_MAX: { label: "PMax",      icon: Sparkles,     color: "#8b5cf6" },
+  DISPLAY:         { label: "Display",   icon: ImageIcon,    color: "#f59e0b" },
+  VIDEO:           { label: "Video",     icon: Video,        color: "#ef4444" },
+  DEMAND_GEN:      { label: "Demand Gen",icon: Flame,        color: "#ec4899" },
+  LOCAL:           { label: "Local",     icon: Crosshair,    color: "#06b6d4" },
+};
+
+function StatusDot({ status }: { status: string }) {
+  const isActive = status === "ACTIVE";
+  const isPaused = status === "PAUSED";
+  const c = isActive ? "bg-emerald-500" : isPaused ? "bg-slate-400" : "bg-slate-300";
+  const l = isActive ? "Activa" : isPaused ? "Pausada" : (status || "—");
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+      <span className={`w-1.5 h-1.5 rounded-full ${c} ${isActive ? "animate-pulse" : ""}`} />
+      {l}
+    </span>
+  );
+}
+
+function MiniMetric({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div className="text-right">
+      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{label}</div>
+      <div className={`text-sm font-extrabold tabular-nums mt-0.5 ${accent || "text-slate-900"}`}>{value}</div>
+    </div>
+  );
+}
+
+function CampaignRow({ campaign, breakeven, onClick }: any) {
+  const isMeta = campaign.platform === "META";
+  const accent = isMeta ? "#8b5cf6" : "#3b82f6";
+  return (
+    <button
+      onClick={onClick}
+      className="group w-full bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] transition-all duration-[280ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] p-4 text-left"
+    >
+      <div className="flex items-center gap-4">
+        <div
+          className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: `${accent}1a`, color: accent }}
+        >
+          <Layers size={18} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+            <PlatformChip platform={campaign.platform} />
+            <FunnelChip stage={campaign.funnelStage} />
+            <StatusDot status={campaign.status} />
+          </div>
+          <div className="text-sm font-bold text-slate-900 truncate">{campaign.name || "Sin nombre"}</div>
+          <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+            {campaign.adSetsCount} ad set{campaign.adSetsCount === 1 ? "" : "s"} · {campaign.adsCount} creativo{campaign.adsCount === 1 ? "" : "s"}
+          </div>
+        </div>
+        <div className="hidden lg:grid grid-cols-4 gap-5 shrink-0">
+          <MiniMetric label="Inv." value={formatCompact(campaign.spend)} />
+          <MiniMetric label="Conv." value={num(campaign.conversions)} />
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">ROAS</div>
+            <div className="mt-0.5 flex justify-end"><RoasPill value={campaign.roas} breakeven={breakeven} /></div>
+          </div>
+          <MiniMetric label="CTR" value={`${campaign.ctr.toFixed(2)}%`} />
+        </div>
+        <ChevronRight size={18} className="text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-transform duration-[220ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] shrink-0" />
+      </div>
+    </button>
+  );
+}
+
+function AdSetRow({ adSet, breakeven, onClick }: any) {
+  const topAd = adSet.topAd;
+  return (
+    <button
+      onClick={onClick}
+      className="group w-full bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] transition-all duration-[280ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] p-4 text-left"
+    >
+      <div className="flex items-center gap-4">
+        <div className="relative w-14 h-14 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden shrink-0 ring-1 ring-slate-200/60">
+          {topAd?.mediaUrl ? (
+            <img
+              src={proxied(topAd.mediaUrl)}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-slate-400">
+              {topAd?.type === "VIDEO" ? <Film size={20} /> : <ImageIcon size={20} />}
+            </div>
+          )}
+          {adSet.isVideoCount > 0 && (
+            <div className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-black/75 backdrop-blur-sm text-white flex items-center justify-center">
+              <Play size={9} fill="currentColor" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <StatusDot status={adSet.status} />
+            {adSet.optimizationGoal && (
+              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold truncate max-w-[180px]">
+                {adSet.optimizationGoal}
+              </span>
+            )}
+          </div>
+          <div className="text-sm font-bold text-slate-900 truncate">{adSet.name || "Sin nombre"}</div>
+          <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+            {adSet.adsCount} creativo{adSet.adsCount === 1 ? "" : "s"}
+            {adSet.isVideoCount > 0 && <> · {adSet.isVideoCount} video{adSet.isVideoCount === 1 ? "" : "s"}</>}
+            {adSet.frequency && <> · Freq {adSet.frequency.toFixed(2)}</>}
+          </div>
+        </div>
+        <div className="hidden lg:grid grid-cols-4 gap-5 shrink-0">
+          <MiniMetric label="Inv." value={formatCompact(adSet.spend)} />
+          <MiniMetric label="Conv." value={num(adSet.conversions)} />
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">ROAS</div>
+            <div className="mt-0.5 flex justify-end"><RoasPill value={adSet.roas} breakeven={breakeven} /></div>
+          </div>
+          <MiniMetric label="CTR" value={`${adSet.ctr.toFixed(2)}%`} />
+        </div>
+        <ChevronRight size={18} className="text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-transform duration-[220ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] shrink-0" />
+      </div>
+    </button>
+  );
+}
+
+function DrilldownHero({ title, subtitle, chips, metrics }: any) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-[0_1px_0_rgba(15,23,42,0.04),0_8px_24px_-16px_rgba(15,23,42,0.12)]">
+      <div className="flex items-center gap-2 flex-wrap mb-2">{chips}</div>
+      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight leading-tight">{title}</h2>
+      <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mt-4 pt-4 border-t border-slate-100">
+        {metrics.map((m: any) => (
+          <div key={m.label}>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{m.label}</div>
+            <div className={`text-base font-extrabold tabular-nums mt-0.5 ${m.accent || "text-slate-900"}`}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DrilldownEmpty({ message }: { message: string }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+      <div className="w-12 h-12 rounded-full bg-slate-100 mx-auto mb-3 flex items-center justify-center text-slate-400">
+        <Layers size={20} />
+      </div>
+      <p className="text-sm text-slate-500">{message}</p>
+    </div>
+  );
+}
+
+function DrilldownSkeleton() {
+  return (
+    <div className="space-y-2">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="bg-white rounded-2xl border border-slate-200 p-4 h-20 animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+function DrilldownView({
+  structure,
+  structureLoading,
+  platformView,
+  breakeven,
+  selectedCampaignId,
+  selectedAdSetId,
+  setSelectedCampaignId,
+  setSelectedAdSetId,
+  creatives,
+  onSelectCreative,
+}: any) {
+  const [googleType, setGoogleType] = useState<string>("ALL");
+
+  const selectedCampaign = useMemo(
+    () => structure?.campaigns?.find((c: any) => c.id === selectedCampaignId) || null,
+    [structure, selectedCampaignId]
+  );
+  const selectedAdSet = useMemo(() => {
+    if (!selectedCampaign) return null;
+    return selectedCampaign.adSets?.find((s: any) => s.id === selectedAdSetId) || null;
+  }, [selectedCampaign, selectedAdSetId]);
+
+  const adSetCreatives = useMemo(() => {
+    if (!selectedAdSet || !creatives) return [];
+    return creatives
+      .filter((c: any) => c.adSetId === selectedAdSet.id)
+      .sort((a: any, b: any) => b.spend - a.spend);
+  }, [creatives, selectedAdSet]);
+
+  const googleTypeCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: 0 };
+    if (!structure?.campaigns) return counts;
+    structure.campaigns.forEach((c: any) => {
+      if (c.platform !== "GOOGLE") return;
+      counts.ALL++;
+      const t = c.objective || "UNKNOWN";
+      counts[t] = (counts[t] || 0) + 1;
+    });
+    return counts;
+  }, [structure]);
+
+  const campaignsList = useMemo(() => {
+    if (!structure?.campaigns) return [];
+    let cs = structure.campaigns;
+    if (platformView === "GOOGLE" && googleType !== "ALL") {
+      cs = cs.filter((c: any) => (c.objective || "UNKNOWN") === googleType);
+    }
+    return cs;
+  }, [structure, platformView, googleType]);
+
+  if (structureLoading) return <DrilldownSkeleton />;
+
+  return (
+    <div className="space-y-4">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-sm flex-wrap">
+        <button
+          onClick={() => { setSelectedCampaignId(null); setSelectedAdSetId(null); }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors duration-[200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] ${
+            selectedCampaignId
+              ? "text-slate-600 hover:bg-slate-100"
+              : "bg-slate-900 text-white shadow-sm"
+          }`}
+        >
+          <Layers size={14} /> Campañas
+        </button>
+        {selectedCampaign && (
+          <>
+            <ChevronRight size={14} className="text-slate-300" />
+            <button
+              onClick={() => setSelectedAdSetId(null)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors duration-[200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] max-w-[280px] ${
+                selectedAdSetId
+                  ? "text-slate-600 hover:bg-slate-100"
+                  : "bg-slate-900 text-white shadow-sm"
+              }`}
+            >
+              <span className="truncate">{selectedCampaign.name}</span>
+            </button>
+          </>
+        )}
+        {selectedAdSet && (
+          <>
+            <ChevronRight size={14} className="text-slate-300" />
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold max-w-[280px] shadow-sm">
+              <span className="truncate">{selectedAdSet.name}</span>
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* L0: Campaigns */}
+      {!selectedCampaign && (
+        <div className="space-y-4">
+          {/* Google split tabs */}
+          {platformView === "GOOGLE" && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex gap-1 overflow-x-auto">
+              {(["ALL","SEARCH","SHOPPING","PERFORMANCE_MAX","DISPLAY","VIDEO","DEMAND_GEN","LOCAL"] as const).map((t) => {
+                const meta = t === "ALL" ? null : GOOGLE_TYPE_META[t];
+                const count = googleTypeCounts[t] || 0;
+                if (t !== "ALL" && count === 0) return null;
+                const Icon = meta?.icon || Layers;
+                const active = googleType === t;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setGoogleType(t)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all duration-[220ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] flex items-center gap-2 whitespace-nowrap ${
+                      active ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <Icon size={14} style={{ color: active ? "#fff" : meta?.color || "#64748b" }} />
+                    {t === "ALL" ? "Todas" : meta?.label}
+                    <span className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded-md ${
+                      active ? "bg-white/15 text-white/90" : "bg-slate-100 text-slate-500"
+                    }`}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {campaignsList.length === 0 ? (
+            <DrilldownEmpty message="No hay campañas con actividad en este rango." />
+          ) : (
+            <div className="space-y-2">
+              {campaignsList.map((c: any) => (
+                <CampaignRow
+                  key={c.id}
+                  campaign={c}
+                  breakeven={breakeven}
+                  onClick={() => setSelectedCampaignId(c.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* L1: AdSets */}
+      {selectedCampaign && !selectedAdSet && (
+        <div className="space-y-4">
+          <DrilldownHero
+            title={selectedCampaign.name || "Sin nombre"}
+            subtitle={`${selectedCampaign.objective || "—"} · ${selectedCampaign.adSetsCount} ad sets · ${selectedCampaign.adsCount} creativos`}
+            chips={
+              <>
+                <PlatformChip platform={selectedCampaign.platform} />
+                <FunnelChip stage={selectedCampaign.funnelStage} />
+                <StatusDot status={selectedCampaign.status} />
+              </>
+            }
+            metrics={[
+              { label: "Inversión", value: formatARS(selectedCampaign.spend) },
+              { label: "Revenue",   value: formatARS(selectedCampaign.conversionValue) },
+              { label: "ROAS",      value: `${selectedCampaign.roas.toFixed(2)}x`, accent: roasColorClass(selectedCampaign.roas, breakeven) },
+              { label: "Conv.",     value: num(selectedCampaign.conversions) },
+              { label: "CTR",       value: `${selectedCampaign.ctr.toFixed(2)}%` },
+              { label: "CPA",       value: selectedCampaign.cpa > 0 ? formatARS(selectedCampaign.cpa) : "—" },
+            ]}
+          />
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">
+              Ad Sets · {selectedCampaign.adSets?.length || 0}
+            </div>
+            {(!selectedCampaign.adSets || selectedCampaign.adSets.length === 0) ? (
+              <DrilldownEmpty message="Esta campaña no tiene ad sets activos en el rango." />
+            ) : (
+              <div className="space-y-2">
+                {selectedCampaign.adSets.map((s: any) => (
+                  <AdSetRow
+                    key={s.id}
+                    adSet={s}
+                    breakeven={breakeven}
+                    onClick={() => setSelectedAdSetId(s.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* L2: Ads (creativos) */}
+      {selectedAdSet && (
+        <div className="space-y-4">
+          <DrilldownHero
+            title={selectedAdSet.name || "Sin nombre"}
+            subtitle={`${selectedAdSet.optimizationGoal || "—"} · ${selectedAdSet.adsCount} creativos${selectedAdSet.dailyBudget ? ` · Budget ${formatARS(selectedAdSet.dailyBudget)}/día` : ""}`}
+            chips={
+              <>
+                <StatusDot status={selectedAdSet.status} />
+                {selectedAdSet.frequency && (
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                    Freq {selectedAdSet.frequency.toFixed(2)}
+                  </span>
+                )}
+              </>
+            }
+            metrics={[
+              { label: "Inversión", value: formatARS(selectedAdSet.spend) },
+              { label: "Revenue",   value: formatARS(selectedAdSet.conversionValue) },
+              { label: "ROAS",      value: `${selectedAdSet.roas.toFixed(2)}x`, accent: roasColorClass(selectedAdSet.roas, breakeven) },
+              { label: "Conv.",     value: num(selectedAdSet.conversions) },
+              { label: "CTR",       value: `${selectedAdSet.ctr.toFixed(2)}%` },
+              { label: "Reach",     value: selectedAdSet.reach ? formatCompact(selectedAdSet.reach) : "—" },
+            ]}
+          />
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">
+              Creativos · {adSetCreatives.length}
+            </div>
+            {adSetCreatives.length === 0 ? (
+              <DrilldownEmpty message="No hay creativos con métricas en este rango para este ad set." />
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {adSetCreatives.map((c: any) => (
+                  <CreativeCard
+                    key={c.id}
+                    creative={c}
+                    breakeven={breakeven}
+                    onClick={() => onSelectCreative(c)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Hero KPI Strip ───────────────────────────────── */
 
 function KpiHero({ label, value, sub, icon: Icon, accent = "slate", trend }: any) {
@@ -889,6 +1297,16 @@ export default function CreativosLabPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCreative, setSelectedCreative] = useState<any | null>(null);
 
+  // ── Phase B2: Drilldown view ──
+  // viewMode controla si renderizamos la galería plana o el árbol
+  // jerárquico Campaign → AdSet → Ad. structureData se hidrata lazy
+  // (solo cuando el usuario entra a drilldown) para no penalizar TTI.
+  const [viewMode, setViewMode] = useState<"gallery" | "drilldown">("gallery");
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [selectedAdSetId, setSelectedAdSetId] = useState<string | null>(null);
+  const [structureData, setStructureData] = useState<any>(null);
+  const [structureLoading, setStructureLoading] = useState(false);
+
   const { breakevenRoas, contributionMargin } = useBreakeven(dateFrom, dateTo);
 
   const fetchData = useCallback(async () => {
@@ -908,6 +1326,34 @@ export default function CreativosLabPage() {
   }, [dateFrom, dateTo, platformView]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Fetch structure (Campaigns + AdSets) cuando se entra a drilldown
+  // o cambia el rango/plataforma. Se cachea en structureData.
+  const fetchStructure = useCallback(async () => {
+    setStructureLoading(true);
+    try {
+      const params = new URLSearchParams({ from: dateFrom, to: dateTo });
+      if (platformView !== "ALL") params.set("platform", platformView);
+      const res = await fetch(`/api/metrics/ads/structure?${params.toString()}`);
+      const j = await res.json();
+      setStructureData(j);
+    } catch (e) {
+      console.error(e);
+      setStructureData(null);
+    } finally {
+      setStructureLoading(false);
+    }
+  }, [dateFrom, dateTo, platformView]);
+
+  useEffect(() => {
+    if (viewMode === "drilldown") fetchStructure();
+  }, [viewMode, fetchStructure]);
+
+  // Reset selección al cambiar plataforma/rango
+  useEffect(() => {
+    setSelectedCampaignId(null);
+    setSelectedAdSetId(null);
+  }, [platformView, dateFrom, dateTo]);
 
   // Filter + sort
   const filteredCreatives = useMemo(() => {
@@ -1170,51 +1616,95 @@ export default function CreativosLabPage() {
 
         {/* Filter bar */}
         <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-            <Search size={16} className="text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar creativo, headline o campaña..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-transparent outline-none text-sm placeholder:text-slate-400"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Funnel</span>
-            <div className="flex p-0.5 bg-slate-100 rounded-lg">
-              {["ALL", "TOF", "MOF", "BOF"].map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFunnelFilter(f)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${
-                    funnelFilter === f ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {f === "ALL" ? "Todos" : f}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Ordenar</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-lg border-none outline-none cursor-pointer"
+          {/* View mode toggle (Galería ↔ Drilldown) */}
+          <div className="inline-flex p-0.5 bg-slate-100 rounded-xl">
+            <button
+              onClick={() => setViewMode("gallery")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-[200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] flex items-center gap-1.5 ${
+                viewMode === "gallery"
+                  ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
             >
-              <option value="spend">Inversión</option>
-              <option value="roas">ROAS</option>
-              <option value="score">Score</option>
-              <option value="ctr">CTR</option>
-            </select>
+              <Grid3X3 size={13} /> Galería
+            </button>
+            <button
+              onClick={() => setViewMode("drilldown")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-[200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] flex items-center gap-1.5 ${
+                viewMode === "drilldown"
+                  ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <List size={13} /> Drilldown
+            </button>
           </div>
+
+          {viewMode === "gallery" && (
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <Search size={16} className="text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar creativo, headline o campaña..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent outline-none text-sm placeholder:text-slate-400"
+              />
+            </div>
+          )}
+          {viewMode === "drilldown" && <div className="flex-1" />}
+
+          {viewMode === "gallery" && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Funnel</span>
+                <div className="flex p-0.5 bg-slate-100 rounded-lg">
+                  {["ALL", "TOF", "MOF", "BOF"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setFunnelFilter(f)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${
+                        funnelFilter === f ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      {f === "ALL" ? "Todos" : f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Ordenar</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-lg border-none outline-none cursor-pointer"
+                >
+                  <option value="spend">Inversión</option>
+                  <option value="roas">ROAS</option>
+                  <option value="score">Score</option>
+                  <option value="ctr">CTR</option>
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Gallery */}
-        {loading ? (
+        {/* Drilldown view (Campaigns → AdSets → Ads) */}
+        {viewMode === "drilldown" ? (
+          <DrilldownView
+            structure={structureData}
+            structureLoading={structureLoading}
+            platformView={platformView}
+            breakeven={breakevenRoas}
+            selectedCampaignId={selectedCampaignId}
+            selectedAdSetId={selectedAdSetId}
+            setSelectedCampaignId={setSelectedCampaignId}
+            setSelectedAdSetId={setSelectedAdSetId}
+            creatives={data?.creatives || []}
+            onSelectCreative={setSelectedCreative}
+          />
+        ) : loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
