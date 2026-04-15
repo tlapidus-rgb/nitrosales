@@ -14,7 +14,7 @@ import { roasColorClass } from "@/components/campaigns/BreakevenChip";
 import {
   Play, Pause, Eye, MousePointer, ShoppingCart, Target, Zap, TrendingUp, TrendingDown,
   Film, ImageIcon, AlertTriangle, CheckCircle2, XCircle, Flame, Snowflake,
-  BarChart3, Filter, ChevronDown, ChevronUp, ArrowRight, ArrowUpRight, ArrowDownRight,
+  BarChart3, Filter, ChevronDown, ChevronUp, ChevronRight, ArrowRight, ArrowUpRight, ArrowDownRight,
   Activity, Video, Sparkles, X, Crosshair, Users, Layers, Package,
   Search, Grid3X3, List, Maximize2, ExternalLink, Award, Clock,
   ShieldCheck, Gauge, RefreshCw, Volume2, VolumeX, Star,
