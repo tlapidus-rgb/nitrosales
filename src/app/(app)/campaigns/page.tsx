@@ -271,22 +271,19 @@ function DiscrepancyBlock({
 
   return (
     <div className="relative rounded-3xl overflow-hidden ns-fade-up ring-1 ring-slate-200 shadow-sm bg-white">
-      {/* Gradient sutil — mucho más limpio, no full verde */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-white" />
-      <div className="pointer-events-none absolute -top-24 -left-24 w-64 h-64 rounded-full bg-indigo-200/25 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 w-72 h-72 rounded-full bg-emerald-200/20 blur-3xl" />
+      {/* Background blobs */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/60 via-white to-emerald-50/60" />
+      <div className="pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full bg-indigo-300/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-emerald-300/20 blur-3xl" />
 
       <div className="relative p-6 md:p-7">
         {/* Edge badge */}
-        <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[10px] font-bold uppercase tracking-[0.18em] shadow-sm">
-              <Sparkles size={11} className="text-amber-300" />
-              NitroSales Edge
-            </span>
-            <span className="text-[11px] text-slate-500">Plataformas vs Realidad VTEX · lo que solo vos ves</span>
-          </div>
-          <Tooltip text="Las plataformas (Meta/Google) reportan las ventas que ELLAS creen haber generado. VTEX te muestra las ventas REALES que entraron a tu tienda. Comparar las dos revela el impacto real de los ads vs lo que cada plataforma se quiere atribuir." />
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[10px] font-bold uppercase tracking-[0.18em] shadow-sm">
+            <Sparkles size={11} className="text-amber-300" />
+            NitroSales Edge
+          </span>
+          <span className="text-[11px] text-slate-500">Plataformas vs Realidad VTEX · lo que solo vos ves</span>
         </div>
 
         {/* Headline insight */}
@@ -295,83 +292,68 @@ function DiscrepancyBlock({
         </h3>
         <p className="text-[13px] text-slate-600 mt-1.5 max-w-3xl">{subline}</p>
 
-        {/* Visual de barras comparativas — más fácil de entender de un vistazo */}
-        <div className="mt-6 space-y-3.5">
-          {/* Plataformas dicen */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
+        {/* 3 cards de colores fuertes */}
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Plataformas dicen — morado/violeta */}
+          <div className="relative rounded-2xl p-4 text-white overflow-hidden shadow-md"
+               style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)" }}>
+            <div className="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-purple-500" />
-                <span className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">Plataformas dicen</span>
-                <Tooltip text="Suma del revenue que Meta + Google se atribuyen como suyo. Cada plataforma cuenta sus propias ventas usando sus pixels y ventanas de atribución (típico: 7d-click + 1d-view)." />
+                <span className="w-2 h-2 rounded-full bg-white/80" />
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">Plataformas dicen</p>
               </div>
-              <div className="flex items-baseline gap-2 tabular-nums">
-                <span className="text-[15px] font-bold text-slate-900">{formatCompact(attributedRevenue)}</span>
-                <span className="text-[11px] text-slate-500">ROAS {attributedRoas.toFixed(2)}x</span>
-              </div>
-            </div>
-            <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden ring-1 ring-slate-200">
-              <div
-                className="relative h-full rounded-full ns-bar-fill overflow-hidden"
-                style={{ width: `${platformBarPct}%`, background: "linear-gradient(90deg, #a855f7 0%, #8b5cf6 100%)" }}
-              >
-                <span className="absolute inset-0 ns-shimmer" />
+              <p className="text-[24px] font-bold tabular-nums leading-tight mt-1.5">{formatCompact(attributedRevenue)}</p>
+              <p className="text-[11px] text-white/80 mt-0.5">Meta + Google atribuido</p>
+              <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-white/15 backdrop-blur px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+                ROAS {attributedRoas.toFixed(2)}x
               </div>
             </div>
           </div>
 
-          {/* Realidad VTEX */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
+          {/* Realidad VTEX — verde */}
+          <div className="relative rounded-2xl p-4 text-white overflow-hidden shadow-md"
+               style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}>
+            <div className="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative">
               <div className="flex items-center gap-1.5">
-                <span className={`relative w-2 h-2 rounded-full bg-emerald-500 ${positive ? "ns-pulse-dot" : ""}`} />
-                <span className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">Realidad VTEX</span>
-                <Tooltip text="Revenue que efectivamente entró a tu tienda VTEX en este período. Es la verdad — lo que el cliente pagó y vos cobraste. No depende de pixels ni ventanas de atribución." />
+                <span className={`relative w-2 h-2 rounded-full bg-white ${positive ? "ns-pulse-dot" : ""}`} />
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/90">Realidad VTEX</p>
               </div>
-              <div className="flex items-baseline gap-2 tabular-nums">
-                <span className="text-[15px] font-bold text-slate-900">{formatCompact(vtexRevenue)}</span>
-                <span className="text-[11px] text-slate-500">Blended ROAS {blendedRoas.toFixed(2)}x</span>
-              </div>
-            </div>
-            <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden ring-1 ring-slate-200">
-              <div
-                className="relative h-full rounded-full ns-bar-fill overflow-hidden"
-                style={{ width: `${vtexBarPct}%`, background: "linear-gradient(90deg, #10b981 0%, #059669 100%)" }}
-              >
-                <span className="absolute inset-0 ns-shimmer" />
+              <p className="text-[24px] font-bold tabular-nums leading-tight mt-1.5">{formatCompact(vtexRevenue)}</p>
+              <p className="text-[11px] text-white/85 mt-0.5">Lo que entró a caja</p>
+              <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-white/15 backdrop-blur px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+                Blended ROAS {blendedRoas.toFixed(2)}x
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Diferencia destacada — chip elegante, no full color */}
-        <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 ring-1 bg-white/70 backdrop-blur border-l-4"
-             style={{ borderLeftColor: positive ? "#10b981" : "#ef4444", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className={`p-1.5 rounded-lg ${positive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
-              {positive ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-            </div>
-            <div className="min-w-0">
+          {/* Diferencia */}
+          <div className="relative rounded-2xl p-4 text-white overflow-hidden shadow-md"
+               style={{ background: positive
+                 ? "linear-gradient(135deg, #0f766e 0%, #059669 100%)"
+                 : "linear-gradient(135deg, #b91c1c 0%, #ef4444 100%)" }}>
+            <div className="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative">
               <div className="flex items-center gap-1.5">
-                <p className="text-[10px] uppercase tracking-[0.14em] font-bold text-slate-500">
-                  {positive ? "Halo + tráfico directo" : "Sobre-atribución"}
+                {positive ? <TrendingUp size={12} className="text-white" /> : <TrendingDown size={12} className="text-white" />}
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/90">
+                  {positive ? "Halo + directo" : "Sobre-atribución"}
                 </p>
-                <Tooltip text={positive
-                  ? "VTEX vendió más de lo que las plataformas se atribuyen. Indica que los ads ayudan a generar ventas que terminan entrando por orgánico/directo (efecto halo), o tenés tráfico orgánico fuerte."
-                  : "Las plataformas se atribuyen más ventas que las que VTEX registró. Probablemente hay doble conteo entre Meta y Google, o ventas atribuidas que en realidad eran orgánicas."} />
               </div>
-              <p className="text-[18px] font-bold text-slate-900 tabular-nums leading-tight">
+              <p className="text-[24px] font-bold tabular-nums leading-tight mt-1.5">
                 {positive ? "+" : ""}{formatCompact(diff)}
-                <span className={`text-[12px] font-semibold ml-2 ${positive ? "text-emerald-700" : "text-rose-700"}`}>
-                  {positive ? "+" : ""}{diffPct.toFixed(0)}%
-                </span>
               </p>
+              <p className="text-[11px] text-white/85 mt-0.5">Diferencia VTEX − plataformas</p>
+              <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-white/15 backdrop-blur px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+                {positive ? "+" : ""}{diffPct.toFixed(0)}%
+              </div>
             </div>
           </div>
         </div>
 
         {/* Footer insight */}
-        <div className="mt-4 flex items-start gap-2 text-[11.5px] text-slate-600 bg-slate-50/80 backdrop-blur rounded-xl px-3 py-2 ring-1 ring-slate-200/60">
+        <div className="mt-4 flex items-start gap-2 text-[11.5px] text-slate-600 bg-white/70 backdrop-blur rounded-xl px-3 py-2 ring-1 ring-slate-200/60">
           <Scale size={14} className="text-indigo-600 mt-0.5 shrink-0" />
           <p>
             <span className="font-semibold text-slate-800">Por qué importa:</span>{" "}
