@@ -41,6 +41,15 @@ import {
   Flame,
   Hourglass,
   Rocket,
+  Radio,
+  Instagram,
+  Youtube,
+  Music2,
+  Heart,
+  MessageCircle,
+  Share2,
+  Bookmark,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -2215,6 +2224,574 @@ function CampaignsInFlightZone({ state }: { state: FlightsState }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Zona 6 — Content radar
+// ═══════════════════════════════════════════════════════════════
+
+type RadarPlatform = {
+  platform: string;
+  count: number;
+  views: number;
+  likes: number;
+  comments: number;
+};
+type RadarPiece = {
+  id: string;
+  type: string;
+  platform: string;
+  url: string;
+  thumbnailUrl: string | null;
+  publishedAt: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  engagementRate: number;
+  isUGC: boolean;
+  creator: {
+    id: string;
+    name: string;
+    code: string;
+    avatarUrl: string | null;
+  };
+};
+type RadarPayload = {
+  generatedAt: string;
+  period: { from: string; to: string };
+  totals: {
+    pieces: number;
+    views: number;
+    avgEngagementRate: number;
+    ugc: number;
+  };
+  platforms: RadarPlatform[];
+  topPieces: RadarPiece[];
+};
+type RadarState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | ({ status: "ready" } & RadarPayload);
+
+const PLATFORM_THEME: Record<
+  string,
+  { label: string; accent: string; bg: string; border: string; text: string }
+> = {
+  INSTAGRAM: {
+    label: "Instagram",
+    accent: "#f472b6",
+    bg: "linear-gradient(165deg, rgba(244,114,182,0.1) 0%, rgba(244,114,182,0.02) 100%)",
+    border: "rgba(244,114,182,0.28)",
+    text: "#fbcfe8",
+  },
+  TIKTOK: {
+    label: "TikTok",
+    accent: "#22d3ee",
+    bg: "linear-gradient(165deg, rgba(34,211,238,0.1) 0%, rgba(34,211,238,0.02) 100%)",
+    border: "rgba(34,211,238,0.28)",
+    text: "#a5f3fc",
+  },
+  YOUTUBE: {
+    label: "YouTube",
+    accent: "#fb7185",
+    bg: "linear-gradient(165deg, rgba(251,113,133,0.1) 0%, rgba(251,113,133,0.02) 100%)",
+    border: "rgba(251,113,133,0.28)",
+    text: "#fecdd3",
+  },
+  OTHER: {
+    label: "Otro",
+    accent: "#94a3b8",
+    bg: "linear-gradient(165deg, rgba(148,163,184,0.08) 0%, rgba(148,163,184,0.02) 100%)",
+    border: "rgba(255,255,255,0.08)",
+    text: "rgba(255,255,255,0.6)",
+  },
+};
+
+function PlatformIcon({
+  platform,
+  color,
+  size = 14,
+}: {
+  platform: string;
+  color: string;
+  size?: number;
+}) {
+  const p = { size, strokeWidth: 2, color } as const;
+  if (platform === "INSTAGRAM") return <Instagram {...p} />;
+  if (platform === "TIKTOK") return <Music2 {...p} />;
+  if (platform === "YOUTUBE") return <Youtube {...p} />;
+  return <Radio {...p} />;
+}
+
+function fmtCompactNum(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return Math.round(n).toString();
+}
+
+function PlatformTile({
+  p,
+  totalViews,
+  delay,
+}: {
+  p: RadarPlatform;
+  totalViews: number;
+  delay: number;
+}) {
+  const theme = PLATFORM_THEME[p.platform] || PLATFORM_THEME.OTHER;
+  const share = totalViews > 0 ? (p.views / totalViews) * 100 : 0;
+  return (
+    <div
+      className="relative rounded-2xl p-4 overflow-hidden"
+      style={{
+        background: theme.bg,
+        border: `1px solid ${theme.border}`,
+        animation: `radarIn 540ms ${ES} ${delay}ms both`,
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{
+            background: `${theme.accent}18`,
+            border: `1px solid ${theme.border}`,
+          }}
+        >
+          <PlatformIcon platform={p.platform} color={theme.accent} size={13} />
+        </div>
+        <span
+          className="text-[10px] uppercase tracking-[0.18em] font-bold"
+          style={{ color: theme.text }}
+        >
+          {theme.label}
+        </span>
+      </div>
+      <div className="mt-3 flex items-baseline gap-1.5">
+        <span
+          className="text-[22px] tabular-nums tracking-tight"
+          style={{ color: theme.accent, fontWeight: 600, letterSpacing: "-0.02em" }}
+        >
+          {fmtCompactNum(p.views)}
+        </span>
+        <span className="text-[10.5px] text-white/40 tracking-tight">views</span>
+      </div>
+      <div className="mt-1 flex items-center justify-between text-[10.5px] text-white/55 tabular-nums">
+        <span>
+          {p.count} {p.count === 1 ? "pieza" : "piezas"}
+        </span>
+        <span style={{ color: theme.text }}>
+          {Math.round(share)}%
+        </span>
+      </div>
+      {/* Share bar */}
+      <div
+        className="mt-2 h-1 rounded-full overflow-hidden"
+        style={{ background: "rgba(255,255,255,0.06)" }}
+      >
+        <div
+          className="h-1 rounded-full"
+          style={{
+            width: `${Math.round(share)}%`,
+            background: `linear-gradient(90deg, ${theme.accent}99, ${theme.accent})`,
+            boxShadow: `0 0 8px ${theme.accent}66`,
+            transition: `width 900ms ${ES}`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EmptyPlatforms() {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {Object.keys(PLATFORM_THEME)
+        .filter((k) => k !== "OTHER")
+        .map((k) => {
+          const theme = PLATFORM_THEME[k];
+          return (
+            <div
+              key={k}
+              className="rounded-2xl p-4"
+              style={{
+                background: "rgba(255,255,255,0.02)",
+                border: "1px dashed rgba(255,255,255,0.06)",
+              }}
+            >
+              <div className="flex items-center gap-2 opacity-50">
+                <PlatformIcon
+                  platform={k}
+                  color={theme.accent}
+                  size={13}
+                />
+                <span
+                  className="text-[10px] uppercase tracking-[0.18em] font-bold"
+                  style={{ color: theme.text }}
+                >
+                  {theme.label}
+                </span>
+              </div>
+              <p className="mt-3 text-[11px] text-white/35 tracking-tight">
+                Sin publicaciones
+              </p>
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+function TopPieceCard({
+  piece,
+  avgEr,
+  delay,
+}: {
+  piece: RadarPiece;
+  avgEr: number;
+  delay: number;
+}) {
+  const theme = PLATFORM_THEME[piece.platform] || PLATFORM_THEME.OTHER;
+  const outperforms = avgEr > 0 ? (piece.engagementRate - avgEr) / avgEr : 0;
+  const isHero = outperforms >= 0.25; // 25%+ arriba del promedio
+  return (
+    <a
+      href={piece.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group relative block rounded-2xl p-4 overflow-hidden"
+      style={{
+        background: theme.bg,
+        border: `1px solid ${theme.border}`,
+        boxShadow: isHero
+          ? `0 24px 60px -40px ${theme.accent}55, inset 0 1px 0 rgba(255,255,255,0.05)`
+          : "inset 0 1px 0 rgba(255,255,255,0.04)",
+        animation: `radarIn 620ms ${ES} ${delay}ms both`,
+      }}
+    >
+      {isHero && (
+        <div
+          aria-hidden
+          className="absolute -top-8 -right-8 w-28 h-28 pointer-events-none"
+          style={{
+            background: `radial-gradient(circle at 30% 20%, ${theme.accent}55 0%, transparent 65%)`,
+            filter: "blur(10px)",
+            animation: "shimmerPulse 3.4s ease-in-out infinite",
+          }}
+        />
+      )}
+
+      <div className="relative flex items-start gap-3">
+        {/* thumbnail / platform fallback */}
+        <div
+          className="relative flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden"
+          style={{
+            background: `${theme.accent}14`,
+            border: `1px solid ${theme.border}`,
+          }}
+        >
+          {piece.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={piece.thumbnailUrl}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <PlatformIcon
+                platform={piece.platform}
+                color={theme.accent}
+                size={20}
+              />
+            </div>
+          )}
+          <div
+            className="absolute bottom-1 left-1 w-5 h-5 rounded-md flex items-center justify-center"
+            style={{
+              background: "rgba(0,0,0,0.6)",
+              backdropFilter: "blur(6px)",
+              border: `1px solid ${theme.border}`,
+            }}
+          >
+            <PlatformIcon
+              platform={piece.platform}
+              color={theme.accent}
+              size={10}
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-[9.5px] uppercase tracking-[0.16em] font-bold"
+              style={{ color: theme.text }}
+            >
+              {piece.type}
+            </span>
+            {piece.isUGC ? (
+              <span
+                className="text-[9px] uppercase tracking-[0.14em] font-bold px-1.5 py-0.5 rounded"
+                style={{
+                  color: "#fde8bc",
+                  background: "rgba(244,215,148,0.12)",
+                  border: "1px solid rgba(244,215,148,0.25)",
+                }}
+              >
+                UGC
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-0.5 text-[12.5px] text-white/85 tracking-tight truncate">
+            {piece.creator.name}
+          </div>
+          <div className="text-[10px] text-white/35 tracking-tight truncate">
+            @{piece.creator.code}
+          </div>
+        </div>
+
+        <ExternalLink
+          size={12}
+          color="rgba(255,255,255,0.35)"
+          className="flex-shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+          strokeWidth={2}
+        />
+      </div>
+
+      {/* Big number */}
+      <div className="relative mt-3 flex items-baseline gap-1.5">
+        <span
+          className="text-[20px] tabular-nums tracking-tight"
+          style={{
+            color: theme.accent,
+            fontWeight: 600,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {fmtCompactNum(piece.views)}
+        </span>
+        <span className="text-[10.5px] text-white/40 tracking-tight">views</span>
+        {avgEr > 0 ? (
+          <span
+            className="ml-auto text-[10.5px] tabular-nums font-bold"
+            style={{ color: outperforms >= 0 ? "#86efac" : "rgba(255,255,255,0.5)" }}
+          >
+            {outperforms >= 0 ? "+" : ""}
+            {Math.round(outperforms * 100)}% vs prom.
+          </span>
+        ) : null}
+      </div>
+
+      {/* Engagement breakdown */}
+      <div
+        className="relative mt-3 pt-3 grid grid-cols-4 gap-2"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <MetricPill icon="heart" value={piece.likes} color={theme.accent} />
+        <MetricPill icon="comment" value={piece.comments} color={theme.accent} />
+        <MetricPill icon="share" value={piece.shares} color={theme.accent} />
+        <MetricPill icon="save" value={piece.saves} color={theme.accent} />
+      </div>
+    </a>
+  );
+}
+
+function MetricPill({
+  icon,
+  value,
+  color,
+}: {
+  icon: "heart" | "comment" | "share" | "save";
+  value: number;
+  color: string;
+}) {
+  const iconEl =
+    icon === "heart" ? (
+      <Heart size={10} color={color} strokeWidth={2.2} />
+    ) : icon === "comment" ? (
+      <MessageCircle size={10} color={color} strokeWidth={2.2} />
+    ) : icon === "share" ? (
+      <Share2 size={10} color={color} strokeWidth={2.2} />
+    ) : (
+      <Bookmark size={10} color={color} strokeWidth={2.2} />
+    );
+  return (
+    <div className="flex items-center gap-1 text-[10.5px] tabular-nums text-white/70">
+      {iconEl}
+      <span>{fmtCompactNum(value)}</span>
+    </div>
+  );
+}
+
+function ContentRadarZone({ state }: { state: RadarState }) {
+  if (state.status === "loading") {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="rounded-2xl h-[96px]"
+              style={{
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.05)",
+                animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite`,
+              }}
+            />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="rounded-2xl h-[170px]"
+              style={{
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.05)",
+                animation: `shimmerPulse 1.8s ease-in-out ${i * 140}ms infinite`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div
+        className="rounded-2xl p-5 text-white/70 text-[13px]"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(253,164,175,0.2)",
+        }}
+      >
+        No pude cargar el radar de contenido. {state.message}
+      </div>
+    );
+  }
+
+  const { totals, platforms, topPieces } = state;
+
+  return (
+    <div>
+      {/* Totals line */}
+      <div
+        className="mb-4 flex flex-wrap items-center gap-4 text-[12px] tracking-tight"
+        style={{ animation: `fadeIn 420ms ${ES}` }}
+      >
+        <div className="flex items-center gap-1.5">
+          <span
+            className="w-1.5 h-1.5 rounded-full"
+            style={{
+              background: "#a78bfa",
+              boxShadow: "0 0 8px rgba(167,139,250,0.6)",
+            }}
+          />
+          <span className="text-white/70">
+            <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+              {totals.pieces}
+            </span>{" "}
+            {totals.pieces === 1 ? "pieza viva" : "piezas vivas"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Eye size={12} color="rgba(255,255,255,0.5)" strokeWidth={2.2} />
+          <span className="text-white/70">
+            <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+              {fmtCompactNum(totals.views)}
+            </span>{" "}
+            views totales
+          </span>
+        </div>
+        {totals.avgEngagementRate > 0 ? (
+          <div className="flex items-center gap-1.5">
+            <Heart size={12} color="rgba(244,114,182,0.7)" strokeWidth={2.2} />
+            <span className="text-white/70">
+              <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+                {(totals.avgEngagementRate * 100).toFixed(2)}%
+              </span>{" "}
+              engagement promedio
+            </span>
+          </div>
+        ) : null}
+        {totals.ugc > 0 ? (
+          <div className="flex items-center gap-1.5">
+            <Sparkles size={12} color="#f4d794" strokeWidth={2.2} />
+            <span className="text-white/70">
+              <span
+                className="tabular-nums"
+                style={{ color: "#fde8bc", fontWeight: 600 }}
+              >
+                {totals.ugc}
+              </span>{" "}
+              {totals.ugc === 1 ? "pieza UGC lista para ads" : "piezas UGC listas para ads"}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Platform tiles */}
+      <div className="mb-5">
+        {platforms.length === 0 ? (
+          <EmptyPlatforms />
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {platforms.map((p, i) => (
+              <PlatformTile
+                key={p.platform}
+                p={p}
+                totalViews={totals.views}
+                delay={i * 80}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Top pieces header */}
+      <div className="flex items-center gap-2 mb-3">
+        <Flame size={12} color="#f4d794" strokeWidth={2.2} />
+        <span
+          className="text-[10.5px] uppercase tracking-[0.18em] font-bold"
+          style={{ color: "#e6c27a" }}
+        >
+          Piezas que están prendiendo
+        </span>
+      </div>
+
+      {topPieces.length === 0 ? (
+        <div
+          className="rounded-2xl p-6 text-center"
+          style={{
+            background: "rgba(255,255,255,0.02)",
+            border: "1px dashed rgba(244,215,148,0.18)",
+          }}
+        >
+          <p className="text-[13px] text-white/60 tracking-tight">
+            Todavía no hay piezas con métricas suficientes para rankear.
+          </p>
+          <p className="mt-1 text-[11.5px] text-white/35">
+            Cuando tus creators carguen views y likes, acá aparecen las top 3.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {topPieces.map((p, i) => (
+            <TopPieceCard
+              key={p.id}
+              piece={p}
+              avgEr={totals.avgEngagementRate}
+              delay={i * 100}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function timeAgo(d: Date) {
   const secs = Math.floor((Date.now() - d.getTime()) / 1000);
   if (secs < 60) return "hace unos segundos";
@@ -2238,6 +2815,25 @@ export default function AuraInicioPage() {
   const [podium, setPodium] = useState<PodiumState>({ status: "loading" });
   const [inbox, setInbox] = useState<InboxState>({ status: "loading" });
   const [flights, setFlights] = useState<FlightsState>({ status: "loading" });
+  const [radar, setRadar] = useState<RadarState>({ status: "loading" });
+
+  async function loadRadar() {
+    setRadar({ status: "loading" });
+    try {
+      const qs = new URLSearchParams({
+        from: toInputDate(range.from),
+        to: toInputDate(range.to),
+      });
+      const res = await fetch(`/api/aura/content/radar?${qs.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as RadarPayload;
+      setRadar({ status: "ready", ...data });
+    } catch (e: any) {
+      setRadar({ status: "error", message: e?.message || "error desconocido" });
+    }
+  }
 
   async function loadFlights() {
     setFlights({ status: "loading" });
@@ -2329,6 +2925,7 @@ export default function AuraInicioPage() {
     loadPodium();
     loadInbox();
     loadFlights();
+    loadRadar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey]);
 
@@ -2416,6 +3013,10 @@ export default function AuraInicioPage() {
         }
         @keyframes flightIn {
           from { opacity: 0; transform: translateY(16px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes radarIn {
+          from { opacity: 0; transform: translateY(12px) scale(0.98); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
         @keyframes flightSheen {
@@ -2568,6 +3169,26 @@ export default function AuraInicioPage() {
             </span>
           </div>
           <CampaignsInFlightZone state={flights} />
+        </section>
+
+        {/* ─── Zona 6: Content radar ─────────────────────────────── */}
+        <section className="mt-10">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.26em]"
+              style={{ color: "#e6c27a" }}
+            >
+              Content radar
+            </span>
+            <span
+              className="w-1 h-1 rounded-full"
+              style={{ background: "rgba(244,215,148,0.55)" }}
+            />
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+              Pulso del contenido publicado
+            </span>
+          </div>
+          <ContentRadarZone state={radar} />
         </section>
       </div>
     </div>
