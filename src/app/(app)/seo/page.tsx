@@ -336,6 +336,426 @@ function CoachCard({
 }
 
 /* ════════════════════════════════════════════════════
+   AurumOrb — mini esfera dorada reutilizable
+   ════════════════════════════════════════════════════ */
+function AurumOrbMini({ size = 28, thinking = false }: { size?: number; thinking?: boolean }) {
+  return (
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      {thinking && (
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{
+            background: "radial-gradient(circle, rgba(251,191,36,0.35) 0%, transparent 70%)",
+            animation: "aurumPulseRing 2.2s ease-in-out infinite",
+          }}
+        />
+      )}
+      <div
+        className="absolute inset-[15%] rounded-full"
+        style={{
+          background: "radial-gradient(circle at 35% 30%, #fef3c7 0%, #fde68a 20%, #fbbf24 45%, #d97706 100%)",
+          boxShadow:
+            "0 0 12px rgba(251,191,36,0.45), 0 0 22px rgba(251,191,36,0.2), inset -2px -3px 6px rgba(120,53,15,0.35), inset 1.5px 2px 5px rgba(254,243,199,0.6)",
+          animation: "aurumBreath 3.5s ease-in-out infinite",
+        }}
+      />
+      <div
+        className="absolute rounded-full"
+        style={{
+          top: "22%",
+          left: "25%",
+          width: "22%",
+          height: "18%",
+          background: "radial-gradient(circle, rgba(255,255,255,0.85) 0%, transparent 70%)",
+          filter: "blur(1px)",
+        }}
+      />
+      {thinking && (
+        <div className="absolute inset-0" style={{ animation: "aurumOrbit 3.8s linear infinite" }}>
+          <div
+            className="absolute rounded-full"
+            style={{
+              top: "-2px",
+              left: "50%",
+              width: "2.5px",
+              height: "2.5px",
+              background: "#fde68a",
+              boxShadow: "0 0 6px rgba(251,191,36,0.9)",
+              transform: "translateX(-50%)",
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════
+   AurumSectionCard — Aurum contextual por tab
+   ════════════════════════════════════════════════════ */
+type AurumMsg = { role: "user" | "assistant"; content: string };
+
+function AurumText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const blocks: React.ReactNode[] = [];
+  let buffer: string[] = [];
+  let inList = false;
+
+  const renderInline = (s: string) => {
+    const parts = s.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((p, i) => {
+      if (p.startsWith("**") && p.endsWith("**")) {
+        return <strong key={i} className="font-semibold text-slate-900">{p.slice(2, -2)}</strong>;
+      }
+      return <span key={i}>{p}</span>;
+    });
+  };
+
+  const flushPara = () => {
+    if (buffer.length > 0) {
+      const joined = buffer.join(" ");
+      blocks.push(
+        <p key={`p-${blocks.length}`} className="text-[13px] text-slate-700 leading-relaxed">
+          {renderInline(joined)}
+        </p>
+      );
+      buffer = [];
+    }
+  };
+
+  const listItems: React.ReactNode[] = [];
+  const flushList = () => {
+    if (listItems.length > 0) {
+      blocks.push(
+        <ul key={`ul-${blocks.length}`} className="space-y-1.5">
+          {listItems.map((li, i) => (
+            <React.Fragment key={i}>{li}</React.Fragment>
+          ))}
+        </ul>
+      );
+      listItems.length = 0;
+    }
+    inList = false;
+  };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) {
+      flushPara();
+      flushList();
+      continue;
+    }
+    if (line.startsWith("- ") || line.startsWith("• ")) {
+      flushPara();
+      inList = true;
+      const content = line.slice(2);
+      listItems.push(
+        <li className="flex items-start gap-2 text-[13px] text-slate-700 leading-relaxed">
+          <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: "#d97706" }} />
+          <span>{renderInline(content)}</span>
+        </li>
+      );
+    } else {
+      if (inList) flushList();
+      buffer.push(line);
+    }
+  }
+  flushPara();
+  flushList();
+
+  return <div className="space-y-2">{blocks}</div>;
+}
+
+function AurumSectionCard({
+  section,
+  contextLabel,
+  contextData,
+  suggestions,
+}: {
+  section: string;
+  contextLabel: string;
+  contextData: any;
+  suggestions: string[];
+}) {
+  const [initialInsight, setInitialInsight] = useState<string | null>(null);
+  const [insightLoading, setInsightLoading] = useState(true);
+  const [insightError, setInsightError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<AurumMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const contextKey = useMemo(() => {
+    try {
+      return JSON.stringify(contextData);
+    } catch {
+      return String(Date.now());
+    }
+  }, [contextData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setInsightLoading(true);
+    setInsightError(null);
+    setInitialInsight(null);
+    setMessages([]);
+    setExpanded(false);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/aurum/section-insight", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ section, contextLabel, contextData }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) {
+          setInitialInsight(data.reply || "");
+          setInsightLoading(false);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setInsightError(e?.message || "Error");
+          setInsightLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, contextKey]);
+
+  const sendQuestion = async (q: string) => {
+    const question = q.trim();
+    if (!question || asking) return;
+    setAsking(true);
+    setExpanded(true);
+    const currentHistory = messages;
+    const newHistory: AurumMsg[] = [...currentHistory, { role: "user", content: question }];
+    setMessages(newHistory);
+    setInput("");
+
+    try {
+      const res = await fetch("/api/aurum/section-insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section,
+          contextLabel,
+          contextData,
+          question,
+          history: currentHistory,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setMessages([...newHistory, { role: "assistant", content: data.reply || "No pude responder." }]);
+    } catch (e: any) {
+      setMessages([
+        ...newHistory,
+        { role: "assistant", content: `Ups, no pude responder ahora. ${e?.message || ""}` },
+      ]);
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  return (
+    <div
+      className="relative rounded-2xl overflow-hidden mt-4"
+      style={{
+        background: "linear-gradient(180deg, #0a0a0f 0%, #131016 100%)",
+        boxShadow:
+          "0 1px 0 rgba(251,191,36,0.08), 0 10px 30px -10px rgba(0,0,0,0.5), 0 30px 60px -30px rgba(217,119,6,0.2)",
+      }}
+    >
+      <div
+        className="absolute inset-0 opacity-60 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(600px 240px at 12% 0%, rgba(251,191,36,0.12), transparent 65%), radial-gradient(400px 200px at 90% 100%, rgba(217,119,6,0.10), transparent 60%)",
+        }}
+      />
+
+      <div className="relative p-5">
+        <div className="flex items-center gap-3">
+          <AurumOrbMini size={32} thinking={insightLoading || asking} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h4
+                className="text-[14px] font-bold tracking-tight"
+                style={{
+                  background: "linear-gradient(180deg, #fef3c7 0%, #fbbf24 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}
+              >
+                Aurum
+              </h4>
+              <span
+                className="text-[9px] font-bold uppercase tracking-[0.2em] px-1.5 py-0.5 rounded"
+                style={{
+                  color: "#fbbf24",
+                  background: "rgba(251,191,36,0.08)",
+                  border: "1px solid rgba(251,191,36,0.2)",
+                }}
+              >
+                Análisis en vivo
+              </span>
+            </div>
+            <div className="text-[11px] text-amber-200/60 mt-0.5 truncate">
+              Enfocado en: {contextLabel}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 min-h-[60px]">
+          {insightLoading ? (
+            <div className="space-y-2">
+              <div className="h-3 w-3/4 rounded bg-amber-100/10 animate-pulse" />
+              <div className="h-3 w-2/3 rounded bg-amber-100/10 animate-pulse" />
+              <div className="h-3 w-1/2 rounded bg-amber-100/10 animate-pulse" />
+            </div>
+          ) : insightError ? (
+            <div className="text-[12px] text-rose-300/80">
+              No pude leer esta tab ahora. Probá de nuevo en unos segundos.
+            </div>
+          ) : (
+            <div
+              className="rounded-xl p-3.5"
+              style={{
+                background: "rgba(254,243,199,0.95)",
+                border: "1px solid rgba(251,191,36,0.3)",
+              }}
+            >
+              <AurumText text={initialInsight || ""} />
+            </div>
+          )}
+        </div>
+
+        {expanded && messages.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                className="rounded-xl p-3"
+                style={{
+                  background:
+                    m.role === "user"
+                      ? "rgba(251,191,36,0.10)"
+                      : "rgba(254,243,199,0.95)",
+                  border:
+                    m.role === "user"
+                      ? "1px solid rgba(251,191,36,0.25)"
+                      : "1px solid rgba(251,191,36,0.3)",
+                  animation: `fadeInUp 260ms ${ES_TRANSITION}`,
+                }}
+              >
+                {m.role === "user" ? (
+                  <div className="text-[12.5px] font-medium" style={{ color: "#fde68a" }}>
+                    {m.content}
+                  </div>
+                ) : (
+                  <AurumText text={m.content} />
+                )}
+              </div>
+            ))}
+            {asking && (
+              <div className="flex items-center gap-2 text-[11px] text-amber-200/70 pl-1">
+                <AurumOrbMini size={16} thinking />
+                <span className="tracking-wider uppercase">Pensando…</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!insightLoading && !insightError && messages.length === 0 && suggestions.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => sendQuestion(s)}
+                disabled={asking}
+                className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-all"
+                style={{
+                  background: "rgba(251,191,36,0.08)",
+                  color: "#fde68a",
+                  border: "1px solid rgba(251,191,36,0.25)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.16)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.08)";
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!insightLoading && !insightError && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              sendQuestion(input);
+            }}
+            className="mt-3 flex items-center gap-2"
+          >
+            <div
+              className="flex-1 flex items-center gap-2 rounded-xl px-3 py-2"
+              style={{
+                background: "rgba(0,0,0,0.25)",
+                border: "1px solid rgba(251,191,36,0.18)",
+              }}
+            >
+              <Sparkles size={13} style={{ color: "#fbbf24" }} />
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Preguntale a Aurum sobre esta tab…"
+                disabled={asking}
+                className="flex-1 bg-transparent outline-none text-[12.5px] placeholder:text-amber-200/40"
+                style={{ color: "#fef3c7" }}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={asking || !input.trim()}
+              className="rounded-xl px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider transition-all disabled:opacity-40"
+              style={{
+                background: "linear-gradient(180deg, #fbbf24 0%, #d97706 100%)",
+                color: "#422006",
+                boxShadow: "0 2px 12px -2px rgba(251,191,36,0.4)",
+              }}
+            >
+              Preguntar
+            </button>
+          </form>
+        )}
+
+        {messages.length > 0 && (
+          <button
+            onClick={() => {
+              setMessages([]);
+              setExpanded(false);
+            }}
+            className="mt-2 text-[10.5px] text-amber-200/50 hover:text-amber-200/80 transition-colors"
+          >
+            Limpiar conversación
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════
    Main Page
    ════════════════════════════════════════════════════ */
 
@@ -623,53 +1043,24 @@ function SEOPageInner() {
           </div>
 
           {totalKws > 0 && (
-            <CoachCard
-              tone={healthColor as any}
-              headline={`Tu salud SEO es ${healthScore}/100 · ${healthLabel}`}
-              essentials={[
-                {
-                  title: `Tu punto más débil es "${weakestComponent.label}"`,
-                  detail:
-                    weakestComponent.key === "top3"
-                      ? `Tenés solo ${pctTop3.toFixed(0)}% de tus keywords en el Top 3. Es el indicador que más pesa en tu score (40 pts). Enfocate en mover 2-3 keywords de la posición 4-10 al top 3.`
-                      : weakestComponent.key === "ctr"
-                      ? `Tu CTR promedio es ${avgCtr.toFixed(1)}%. Aunque aparezcas en Google, poca gente hace click. El título y la descripción de tus páginas no están convenciendo.`
-                      : `Tu posición promedio es ${avgPosition.toFixed(1)}. Aparecés muy abajo en los resultados. Necesitás mejorar el contenido y los enlaces hacia esas páginas.`,
-                },
-                {
-                  title: "Empezá por las Oportunidades de Oro",
-                  detail: "En la sección de abajo vas a ver las keywords con más impresiones que ya están en posiciones 4-20. Mover esas al top 3 es la forma más rápida de sumar clicks reales.",
-                },
-                {
-                  title: "Medí el avance cada 2 semanas",
-                  detail: "El SEO no es instantáneo. Los cambios en títulos se ven a los 7-14 días. Los cambios de contenido a 4-8 semanas. Ten paciencia y constancia.",
-                },
-              ]}
-              extended={[
-                {
-                  title: "Cómo se calcula tu score (0-100)",
-                  detail: `Se suman tres componentes: (a) Top 3 hasta 40 puntos según el % de keywords que tenés en posiciones 1-3. (b) CTR hasta 30 puntos según tu click-through rate promedio. (c) Posición hasta 30 puntos, donde posición 1 vale 30 y posición 30+ vale 0.`,
-                },
-                {
-                  title: `Hoy: ${healthBreakdown.top3}/40 en Top 3 · ${healthBreakdown.ctr}/30 en CTR · ${healthBreakdown.pos}/30 en Posición`,
-                  detail: "Esto te dice dónde enfocarte. El componente con menos puntos relativos es la palanca más rentable para subir tu score total.",
-                },
-                {
-                  title: "Para subir +10 puntos en Top 3",
-                  detail: "Necesitás que ~7% más de tus keywords lleguen al top 3. Si tenés 1000 keywords, son 70 keywords moviendo de pos 4-10 a pos 1-3. Concentrate en las que más impresiones tienen.",
-                },
-                {
-                  title: "Para subir +10 puntos en CTR",
-                  detail: "Tenés que subir tu CTR promedio ~1.7%. Se logra mejorando los <title> (agregá el beneficio principal y un gancho emocional) y las meta descriptions (120-155 caracteres, con CTA). No uses el nombre genérico del producto, sumá contexto.",
-                },
-                {
-                  title: "Para subir +10 puntos en Posición",
-                  detail: "Tenés que bajar tu posición promedio ~10 lugares. Se logra con contenido más completo en las páginas con más potencial, mejorando velocidad del sitio (Core Web Vitals), y consiguiendo enlaces externos de calidad.",
-                },
-                {
-                  title: "Meta realista: 65-75 en 3 meses",
-                  detail: "Un score 70+ es 'muy bueno' y se considera saludable para un ecommerce en su nicho. Arriba de 85 es excepcional. No te obsesiones con llegar a 100 — no existe ecommerce real con ese score.",
-                },
+            <AurumSectionCard
+              section="seo.health"
+              contextLabel="Salud SEO"
+              contextData={{
+                score: healthScore,
+                label: healthLabel,
+                breakdown: healthBreakdown,
+                weakestComponent: weakestComponent.label,
+                totalKeywords: totalKws,
+                pctTop3: Number(pctTop3.toFixed(1)),
+                pctTop10: Number(pctTop10.toFixed(1)),
+                avgCtr: Number(avgCtr.toFixed(2)),
+                avgPosition: Number(avgPosition.toFixed(1)),
+              }}
+              suggestions={[
+                "¿Cómo subo +10 puntos rápido?",
+                "¿Por qué mi score es ese?",
+                "¿Qué componente ataco primero?",
               ]}
             />
           )}
@@ -710,56 +1101,24 @@ function SEOPageInner() {
           <OpportunitiesCard opportunities={sortedOpps} loading={loading} />
 
           {sortedOpps.length > 0 && (
-            <CoachCard
-              tone="amber"
-              headline="Cómo convertir estas oportunidades en clicks reales"
-              essentials={[
-                {
-                  title: "Elegí 3 keywords para esta semana",
-                  detail: "No intentes con todas a la vez. Ordenadas por clicks potenciales (las de arriba del listado), elegí las 3 con mayor impacto. Anotá la URL que Google te está rankeando para cada una.",
-                },
-                {
-                  title: "Reescribí el título y la meta descripción",
-                  detail: "Abrí esas 3 páginas y mejorá el <title> (55-60 caracteres, con la keyword al principio y un beneficio) y la meta description (120-155 caracteres, con la keyword y un CTA tipo 'Envío gratis hoy' o 'Stock inmediato').",
-                },
-                {
-                  title: "Agregá contenido relevante a la página",
-                  detail: "Si es una ficha de producto, sumá 200-400 palabras que respondan dudas reales: talles, materiales, edad recomendada, cómo usarlo. Si es una categoría, sumá un párrafo introductorio con la keyword objetivo.",
-                },
-                {
-                  title: "Conseguí 1-2 enlaces internos hacia esas páginas",
-                  detail: "Desde tu home o desde otras páginas importantes, agregá un link con texto ancla que contenga la keyword. Esto le dice a Google que esa página es relevante para esa búsqueda.",
-                },
-                {
-                  title: "Esperá 7-14 días y medí",
-                  detail: "Google tarda en reindexar y re-rankear. Volvé a esta sección en 2 semanas y comparás: si subió del top 10 al top 3, ya estás ganando esos clicks potenciales.",
-                },
-              ]}
-              extended={[
-                {
-                  title: "Por qué estas keywords son oro puro",
-                  detail: "Son búsquedas donde Google YA te muestra (tenés impresiones) pero en una posición baja (4-20). Significa que Google cree que tu página es relevante, solo le falta un empujón. Keywords nuevas desde cero tardan 3-6 meses. Estas las podés mover en 2-4 semanas.",
-                },
-                {
-                  title: "Regla de los 'clicks potenciales'",
-                  detail: "El CTR del top 3 en Google es ~30%, del top 10 es ~10%, del top 20 es ~2%. Si una keyword tiene 1000 impresiones/mes en posición 15, te da ~20 clicks. Esa misma keyword en top 3 te daría ~300 clicks. Ese delta es lo que mostramos como 'clicks potenciales'.",
-                },
-                {
-                  title: "Señales de intención de compra",
-                  detail: "Priorizá keywords que incluyan palabras como 'comprar', 'precio', 'online', 'envío', 'descuento', nombre de marca o modelo específico. Esas convierten mucho más que keywords informativas genéricas.",
-                },
-                {
-                  title: "Checklist de on-page SEO por página",
-                  detail: "H1 único con la keyword · Title tag optimizado · Meta description con CTA · URL corta y legible · Imágenes con alt text descriptivo · Schema markup de Product o ItemList · Enlaces internos hacia la página desde al menos 3 lugares del sitio.",
-                },
-                {
-                  title: "Si después de 3 semanas no se movió",
-                  detail: "Revisá si hay una página mejor posicionada del sitio para la misma keyword (canibalización). Revisá la velocidad de la página con PageSpeed Insights (objetivo: LCP <2.5s). Revisá si la intención de búsqueda coincide con el contenido (si buscan info y les mostrás producto, Google no te va a rankear).",
-                },
-                {
-                  title: "Herramientas útiles gratis",
-                  detail: "Google Search Console (reporte de rendimiento filtrado por keyword) · PageSpeed Insights · Rich Results Test para schema · Mobile-Friendly Test · Google Trends para ver estacionalidad.",
-                },
+            <AurumSectionCard
+              section="seo.opportunities"
+              contextLabel="Oportunidades de oro"
+              contextData={{
+                totalOpportunities: sortedOpps.length,
+                totalPotentialClicks: sortedOpps.reduce((a: number, o: any) => a + (o.potentialClicks || 0), 0),
+                top10: sortedOpps.slice(0, 10).map((o: any) => ({
+                  keyword: o.keyword,
+                  position: Number((o.position || 0).toFixed(1)),
+                  impressions: o.impressions,
+                  ctr: Number(((o.ctr || 0) * 100).toFixed(2)),
+                  potentialClicks: o.potentialClicks,
+                })),
+              }}
+              suggestions={[
+                "¿Por cuál empiezo?",
+                "¿Cuánto tarda en verse resultado?",
+                "¿Qué página trabajo primero?",
               ]}
             />
           )}
@@ -816,44 +1175,20 @@ function SEOPageInner() {
               accent="amber"
             />
             <CannibalizationCard items={cannibalization} loading={loading} />
-            <CoachCard
-              tone="amber"
-              headline="Cómo resolver la canibalización"
-              essentials={[
-                {
-                  title: "Elegí la página 'ganadora' para cada keyword",
-                  detail: "Para cada keyword canibalizada, decidí cuál de tus páginas es la que mejor responde esa búsqueda. Suele ser la que tiene más clicks o la que está mejor posicionada hoy.",
-                },
-                {
-                  title: "Consolidá el contenido relevante en la ganadora",
-                  detail: "Pasá la información más valiosa de las otras páginas a la ganadora (sin duplicar). La idea es que esa página sea la más completa y autoritativa sobre el tema.",
-                },
-                {
-                  title: "Redireccioná o diferenciá las perdedoras",
-                  detail: "Si las otras páginas ya no tienen razón de existir, aplicá redirect 301 hacia la ganadora. Si sí aportan valor (ej: variante de producto), cambiá su título/H1 para que apunten a una keyword diferente y específica.",
-                },
-              ]}
-              extended={[
-                {
-                  title: "Por qué Google se confunde",
-                  detail: "Cuando tenés 2+ páginas optimizadas para la misma keyword, Google no sabe cuál mostrar. A veces muestra una, a veces otra, y termina rankeando las dos en posiciones peores que una sola bien optimizada.",
-                },
-                {
-                  title: "Diagnóstico: cómo confirmar canibalización",
-                  detail: "En Search Console > Rendimiento, filtrá por la keyword problemática, después agrupá por 'Página'. Si ves que Google alterna entre 2-3 URLs diferentes para esa misma query, es canibalización.",
-                },
-                {
-                  title: "Estrategia A: consolidación por redirect",
-                  detail: "Usá redirect 301 de la página débil hacia la fuerte. Esto transfiere autoridad (link juice) a la página final y le dice a Google 'esta es la buena'. Ideal cuando las páginas son muy similares.",
-                },
-                {
-                  title: "Estrategia B: diferenciación temática",
-                  detail: "Si las 2 páginas aportan valor distinto, reescribí títulos, H1, URL y meta para que cada una apunte a una keyword primaria diferente (ej: 'zapatillas running hombre' vs 'zapatillas trail hombre'). Enlazalas entre sí.",
-                },
-                {
-                  title: "Canonical tag como parche temporal",
-                  detail: "Si no podés hacer redirect ni diferenciar ya mismo, agregá <link rel='canonical'> en las páginas débiles apuntando a la fuerte. No es la solución ideal pero reduce el daño mientras implementás la real.",
-                },
+            <AurumSectionCard
+              section="seo.cannibalization"
+              contextLabel="Canibalización detectada"
+              contextData={{
+                totalCases: cannibalization.length,
+                cases: cannibalization.slice(0, 8).map((c: any) => ({
+                  keyword: c.keyword,
+                  pages: (c.pages || []).slice(0, 3),
+                })),
+              }}
+              suggestions={[
+                "¿Cuál resuelvo primero?",
+                "¿Cómo sé cuál es la página ganadora?",
+                "¿Mejor redirect o diferenciar?",
               ]}
             />
           </section>
@@ -871,60 +1206,30 @@ function SEOPageInner() {
         </section>
 
         {totalDeviceClicks > 0 && (
-          <CoachCard
-            tone={pctMobile > 70 ? "rose" : pctMobile > 50 ? "blue" : "slate"}
-            headline={
-              pctMobile > 70
-                ? `¡Atención! ${pctMobile.toFixed(0)}% de tu tráfico es mobile`
-                : pctMobile > 50
-                ? `La mayoría (${pctMobile.toFixed(0)}%) viene de mobile`
-                : `Tu tráfico está más balanceado entre dispositivos`
-            }
-            essentials={[
-              {
-                title:
-                  pctMobile > 50
-                    ? "Probá TU sitio desde el celular ahora mismo"
-                    : "Optimizá primero para el dispositivo dominante",
-                detail:
-                  pctMobile > 50
-                    ? "Abrí tu web desde el teléfono y simulá la compra completa: home → categoría → producto → carrito → checkout. Si algo es incómodo, arreglarlo es más importante que cualquier otra mejora."
-                    : "Mirá qué dispositivo tiene más clicks y priorizá la experiencia ahí. Pero no descuides al otro — usuarios mobile y desktop tienen intenciones de compra distintas.",
-              },
-              {
-                title: "Chequeá Core Web Vitals en mobile",
-                detail: "Entrá a PageSpeed Insights con tu URL principal y mirá la pestaña Mobile. Objetivo: LCP <2.5s, INP <200ms, CLS <0.1. Si no cumplís, estás perdiendo ranking y ventas.",
-              },
-              {
-                title: "Simplificá formularios y checkout",
-                detail: "En mobile, cada campo extra del formulario te hace perder ventas. Usá autocompletar de dirección, detección automática de tipo de tarjeta, y mínimos campos obligatorios.",
-              },
-            ]}
-            extended={[
-              {
-                title: "Mobile-first indexing",
-                detail: "Google usa la versión mobile de tu sitio para indexar y rankear (desde 2021). Si tu versión mobile tiene menos contenido que la desktop, ese contenido faltante NO cuenta para SEO. Asegurate que todo el contenido clave esté visible en mobile.",
-              },
-              {
-                title: "Tamaños de click target",
-                detail: "Botones y enlaces deben tener al menos 48x48 píxeles y 8px de separación entre ellos. Si son más chicos, la gente hace click en el equivocado y se frustra.",
-              },
-              {
-                title: "Imágenes responsive y lazy loading",
-                detail: "Usá srcset para servir imágenes diferentes según el tamaño de pantalla, y loading='lazy' para imágenes debajo del fold. Reduce MB y mejora LCP.",
-              },
-              {
-                title: "Menu de navegación mobile",
-                detail: "El hamburger menu debe estar arriba a la izquierda (o derecha), ser tappable fácil, y las categorías principales visibles sin scroll. Si tenés 30 categorías, agrupá por 'Padres' con expansión.",
-              },
-              {
-                title: "Velocidad de conexión en Argentina",
-                detail: "Mucho tráfico móvil en Argentina es 4G lento o WiFi inestable. Optimizá para cargar rápido con 3G. Reducí JavaScript, comprimí imágenes (WebP), usá CDN.",
-              },
-              {
-                title: "Países de origen del tráfico",
-                detail: "Si ves que un % alto viene de un país donde no vendés (ej: México), chequeá si es tráfico real o bots. Si es real, evalúa si vale la pena expandir o si el contenido está mal targeteado.",
-              },
+          <AurumSectionCard
+            section="seo.device"
+            contextLabel="Dispositivos y países"
+            contextData={{
+              totalClicks: totalDeviceClicks,
+              pctMobile,
+              deviceSplit: (deviceSplit || []).map((d: any) => ({
+                device: d.device,
+                clicks: d.clicks,
+                impressions: d.impressions,
+                ctr: d.ctr,
+                position: d.position,
+              })),
+              topCountries: (countrySplit || []).slice(0, 5).map((c: any) => ({
+                country: c.country,
+                clicks: c.clicks,
+                impressions: c.impressions,
+                ctr: c.ctr,
+              })),
+            }}
+            suggestions={[
+              "¿Qué dispositivo priorizo?",
+              "¿Cómo mejoro la experiencia mobile?",
+              "¿Qué me dice el split por país?",
             ]}
           />
         )}
@@ -939,6 +1244,18 @@ function SEOPageInner() {
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(4px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes aurumBreath {
+          0%, 100% { transform: scale(1); filter: brightness(1); }
+          50% { transform: scale(1.04); filter: brightness(1.12); }
+        }
+        @keyframes aurumPulseRing {
+          0%, 100% { transform: scale(1); opacity: 0.6; }
+          50% { transform: scale(1.25); opacity: 0.2; }
+        }
+        @keyframes aurumOrbit {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
         @media (prefers-reduced-motion: reduce) {
           * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -1706,13 +2023,57 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
         )}
       </div>
 
-      {tabCoach[activeTab] && (
+      {list.length > 0 && (
         <div className="px-4 pb-4 -mt-1">
-          <CoachCard
-            tone={tabCoach[activeTab].tone}
-            headline={tabCoach[activeTab].headline}
-            essentials={tabCoach[activeTab].essentials}
-            extended={tabCoach[activeTab].extended}
+          <AurumSectionCard
+            key={`movers-${activeTab}`}
+            section={`seo.movers.${activeTab}`}
+            contextLabel={
+              activeTab === "up"
+                ? "Keywords subiendo"
+                : activeTab === "down"
+                ? "Keywords bajando"
+                : activeTab === "new"
+                ? "Keywords nuevas"
+                : "Keywords perdidas"
+            }
+            contextData={{
+              tab: activeTab,
+              total: list.length,
+              keywords: list.slice(0, 12).map((k: any) => ({
+                keyword: k.keyword,
+                position: k.position,
+                prevPosition: k.prevPosition ?? null,
+                change: k.change ?? null,
+                clicks: k.clicks,
+                impressions: k.impressions,
+              })),
+            }}
+            suggestions={
+              activeTab === "up"
+                ? [
+                    "¿Qué patrón tienen las que subieron?",
+                    "¿Cuál conviene reforzar primero?",
+                    "¿Cómo capitalizo este avance?",
+                  ]
+                : activeTab === "down"
+                ? [
+                    "¿Cuál recupero primero?",
+                    "¿Qué puede estar pasando?",
+                    "¿Cuáles dejo ir?",
+                  ]
+                : activeTab === "new"
+                ? [
+                    "¿Cuál vale la pena consolidar?",
+                    "¿Cómo aseguro que se queden?",
+                    "¿Qué tienen en común?",
+                  ]
+                : [
+                    "¿Cuál recupero y cuál dejo ir?",
+                    "¿Por qué las puedo haber perdido?",
+                    "¿Qué chequeo primero?",
+                  ]
+            }
           />
         </div>
       )}
