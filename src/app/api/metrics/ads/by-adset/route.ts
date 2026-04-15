@@ -24,16 +24,63 @@ export async function GET(req: NextRequest) {
     const dateFrom = fromParam ? new Date(fromParam + "T00:00:00") : new Date(Date.now() - 30 * 86400000);
     const dateTo = toParam ? new Date(toParam + "T23:59:59") : new Date();
 
-    const creatives = await prisma.adCreative.findMany({
-      where: { organizationId: ORG_ID, adSetId } as any,
+    // 1) Probar match directo por adSetId (cuid prisma)
+    let creatives = await prisma.adCreative.findMany({
+      where: { adSetId } as any,
       include: {
-        dailyMetrics: {
-          where: { date: { gte: dateFrom, lte: dateTo } },
-        },
+        dailyMetrics: { where: { date: { gte: dateFrom, lte: dateTo } } },
         campaign: { select: { name: true, objective: true } },
         adSet: { select: { id: true, name: true, optimizationGoal: true } },
       },
     });
+
+    // 2) Si vacio, intentar via AdSet -> resolver el cuid real desde externalId
+    let debugMatchedBy = "adSetId-direct";
+    if (creatives.length === 0) {
+      const adSet = await prisma.adSet.findFirst({
+        where: { OR: [{ id: adSetId }, { externalId: adSetId }] } as any,
+        select: { id: true, externalId: true },
+      });
+      if (adSet) {
+        creatives = await prisma.adCreative.findMany({
+          where: { adSetId: adSet.id } as any,
+          include: {
+            dailyMetrics: { where: { date: { gte: dateFrom, lte: dateTo } } },
+            campaign: { select: { name: true, objective: true } },
+            adSet: { select: { id: true, name: true, optimizationGoal: true } },
+          },
+        });
+        debugMatchedBy = `via-AdSet-lookup (resolved ${adSetId} -> ${adSet.id})`;
+      }
+    }
+
+    // 3) Si TODAVIA vacio, devolver debug detallado
+    if (creatives.length === 0) {
+      const adSetExists = await prisma.adSet.findFirst({
+        where: { OR: [{ id: adSetId }, { externalId: adSetId }] } as any,
+        select: { id: true, externalId: true, name: true, organizationId: true },
+      });
+      const totalCreativesForOrg = adSetExists
+        ? await prisma.adCreative.count({ where: { organizationId: adSetExists.organizationId } as any })
+        : 0;
+      const sampleAdSetIds = await prisma.adCreative.groupBy({
+        by: ["adSetId"],
+        where: adSetExists ? { organizationId: adSetExists.organizationId, adSetId: { not: null } } as any : {},
+        _count: { _all: true },
+        take: 5,
+      });
+      return NextResponse.json({
+        creatives: [],
+        count: 0,
+        adSetId,
+        debug: {
+          adSetExists,
+          totalCreativesForOrg,
+          sampleAdSetIdsWithCreatives: sampleAdSetIds,
+          message: "El adSet existe pero no hay AdCreative con este adSetId. Verificar sync.",
+        },
+      });
+    }
 
     const result = creatives.map((c) => {
       const spend = c.dailyMetrics.reduce((s, m) => s + Number(m.spend), 0);
@@ -73,7 +120,7 @@ export async function GET(req: NextRequest) {
       };
     }).sort((a, b) => b.spend - a.spend);
 
-    return NextResponse.json({ creatives: result, count: result.length, adSetId });
+    return NextResponse.json({ creatives: result, count: result.length, adSetId, debugMatchedBy });
   } catch (e: any) {
     console.error("[by-adset] error:", e);
     return NextResponse.json({ error: e?.message || "Internal error" }, { status: 500 });
