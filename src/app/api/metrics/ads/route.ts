@@ -410,6 +410,10 @@ export async function GET(request: Request) {
         if (classificationParam && c.classification !== classificationParam) return false;
         // Apply funnel filter
         if (funnelParam && c.funnelStage !== funnelParam) return false;
+        // Cuando se filtra por adSet (drilldown L2), mostrar todos los
+        // creativos del adSet aunque no tengan metricas a nivel creativo
+        // en el rango (Google PMax/Shopping suele no trackear ad-level).
+        if (adSetParam) return true;
         return c.spend > 0 || c.impressions > 0;
       })
       .sort((a, b) => b.spend - a.spend);
