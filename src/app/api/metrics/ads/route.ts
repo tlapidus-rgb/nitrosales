@@ -177,6 +177,7 @@ export async function GET(request: Request) {
     const toParam = searchParams.get("to");
     const platformParam = searchParams.get("platform"); // META, GOOGLE, or null
     const campaignParam = searchParams.get("campaign"); // campaignId filter
+    const adSetParam = searchParams.get("adSet"); // adSetId filter
     const funnelParam = searchParams.get("funnel"); // TOF, MOF, BOF filter
     const classificationParam = searchParams.get("classification"); // PRODUCT, UGC, etc.
     const analyzedParam = searchParams.get("analyzed"); // "true" to filter only vision-analyzed
@@ -201,6 +202,7 @@ export async function GET(request: Request) {
     // Build filters
     const platformFilter = platformParam ? { platform: platformParam as any } : {};
     const campaignFilter = campaignParam ? { campaignId: campaignParam } : {};
+    const adSetFilter = adSetParam ? { adSetId: adSetParam } : {};
     const analyzedFilter = analyzedParam === "true" ? { visionAnalyzedAt: { not: null } } : {};
 
     // Fetch creatives with their daily metrics
@@ -209,6 +211,7 @@ export async function GET(request: Request) {
         organizationId: ORG_ID,
         ...platformFilter,
         ...campaignFilter,
+        ...adSetFilter,
         ...analyzedFilter,
       } as any,
       include: {
@@ -217,6 +220,7 @@ export async function GET(request: Request) {
           orderBy: { date: "asc" },
         },
         campaign: { select: { name: true, objective: true } },
+        adSet: { select: { id: true, name: true, optimizationGoal: true } },
       },
     });
 
@@ -349,6 +353,9 @@ export async function GET(request: Request) {
           campaignId: c.campaignId,
           campaignName: c.campaign?.name,
           campaignObjective,
+          adSetId: (c as any).adSetId || null,
+          adSetName: (c as any).adSet?.name || null,
+          adSetOptimizationGoal: (c as any).adSet?.optimizationGoal || null,
           funnelStage,
           funnelLabel: FUNNEL_LABELS[funnelStage] || funnelStage,
           // Performance

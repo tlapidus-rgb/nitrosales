@@ -8,6 +8,48 @@
 
 ---
 
+## Error #NUEVO-S22-F — Pasar comandos con paths placeholder + asumir binarios locales
+
+**Cuándo pasó**: Sesión 22 (Fase 1 de /campaigns). Le pasé a Tomy dos versiones del mismo flujo de git:
+
+1. **Versión encadenada con `&&`**:
+```
+cd ~/path/a/nitrosales && git checkout main && git pull origin main && ./node_modules/.bin/tsc --noEmit && git add 'src/app/(app)/campaigns/page.tsx' && git commit -m "..." && git push origin main
+```
+
+2. **Versión multilínea** (los mismos comandos uno por uno).
+
+**Qué pasó**: la encadenada falló en el primer paso (`cd: no such file or directory: /Users/tomylapidus/path/a/nitrosales`). El `&&` cortó toda la cadena → no se ejecutó nada más. La multilínea "funcionó" porque Tomy ya estaba en el directorio correcto, así que el `cd` falló de manera silenciosa pero los siguientes comandos corrieron en el cwd actual igual.
+
+Además, `./node_modules/.bin/tsc` también tiró `zsh: no such file or directory` — ese binario no existe en su setup. En la encadenada hubiera cortado todo; en la multilínea pasó al siguiente comando sin drama.
+
+**Reacción de Tomy**: identificó que mi explicación inicial sobre por qué falló estaba mal y me hizo revisarlo. Tenía razón.
+
+### Causa raíz de mi error
+- Usé un path **placeholder** (`~/path/a/nitrosales`) en un comando que el usuario iba a pegar literal. Para un usuario no técnico, "reemplazá esto" es fricción innecesaria y fuente de errores.
+- Asumí que `./node_modules/.bin/tsc` existía en su máquina sin verificarlo (en sesiones anteriores ya había aprendido que `npx tsc` instala el paquete equivocado, pero no documenté cuál es la alternativa segura).
+- Al combinar ambos errores en un comando con `&&`, el primer fallo cortó todo y el comando se volvió inútil.
+
+### Regla
+**Comandos para que Tomy pegue en su terminal:**
+1. **NO usar paths placeholder** (`~/path/a/...`, `~/proyecto/...`). Si el path real no es conocido, **omitir el `cd`** y asumir que está en el repo. En el peor caso, decirle "asegurate de estar en el repo antes de pegar esto".
+2. **NO referenciar binarios locales con paths como `./node_modules/.bin/tsc`** sin haber confirmado que existen. Alternativa segura: si Vercel valida el build, **saltar el `tsc --noEmit` local** y confiar en el build de Vercel para el deploy preview.
+3. **Por defecto: comandos multilínea** (uno por línea, sin `&&`). Son más tolerantes a fallos parciales y permiten al usuario ver qué pasó en cada paso.
+4. **Solo usar `&&`** cuando esté 100% seguro de que cada paso va a funcionar (rara vez).
+5. **Quotear paths con paréntesis con comillas simples**: `'src/app/(app)/campaigns/page.tsx'` en lugar de `src/app/\(app\)/campaigns/page.tsx`. Más legible y robusto en zsh.
+
+### Comando estándar de push (locked) para futuras sesiones
+```
+git status
+git diff --stat 'src/app/(app)/campaigns/page.tsx'
+git add 'src/app/(app)/campaigns/page.tsx'
+git commit -m "mensaje"
+git push origin main
+```
+Sin `cd`, sin `tsc` local, sin `&&`. Asumir que Tomy está en el repo. La validación de TS la hace Vercel en el deploy.
+
+---
+
 ## Error #NUEVO-S22-A — Proponer backfill cuando el problema está en la ingesta
 
 **Cuándo pasó**: Sesión 22. Tomy notó que productos en Stock Muerto mostraban el placeholder "MO" (iniciales) en vez de foto. Armé un endpoint `/api/backfill/product-images` que iba a VTEX/MELI a traer imágenes para productos con `imageUrl=NULL`.
