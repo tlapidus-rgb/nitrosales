@@ -1,1672 +1,1864 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+// ══════════════════════════════════════════════════════════════════════
+// /campaigns/google — Rebuild sesión 21
+// ──────────────────────────────────────────────────────────────────────
+// Bloques (mismo criterio que /campaigns/meta, adaptado a Google):
+//   1. Command Bar (header + hero KPIs + breakeven chip)
+//   2. PMax Spotlight (card dedicada si hay PMax)
+//   3. Mapa por Tipo (Search / Shopping / PMax / Display / Video)
+//   4. Diagnósticos automáticos (incl. alertas específicas Google:
+//      Quality Score bajo, Impression Share bajo)
+//   5. Tabla jerárquica de campañas (expand → ad groups)
+//   6. Campaign Drawer (KPIs + ad groups + QS/IS + link a Creativos Lab)
+//
+// Premium: light mode, aurora, multi-shadow, count-up,
+// cubic-bezier (0.16, 1, 0.3, 1), tabular-nums, tracking-tight,
+// rounded-2xl, prefers-reduced-motion respetado.
+// ══════════════════════════════════════════════════════════════════════
+
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell,
-  PieChart, Pie, Legend,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { formatARS, formatCompact } from "@/lib/utils/format";
-import { KpiCard, DateRangeFilter } from "@/components/dashboard";
+import { DateRangeFilter } from "@/components/dashboard";
 import { useSyncStatus } from "@/lib/hooks/useSyncStatus";
 import { useBreakeven } from "@/lib/hooks/useBreakeven";
-import { BreakevenChip } from "@/components/campaigns/BreakevenChip";
+import { BreakevenChip, roasColorClass } from "@/components/campaigns/BreakevenChip";
 import {
-  DollarSign, Eye, MousePointer, ShoppingCart, Target, Zap,
-  ArrowUp, ArrowDown, Download, TrendingUp, BarChart3,
-  ArrowUpRight, ArrowDownRight, AlertTriangle, Search,
-  ShoppingBag, Tv, Star, GripVertical, Layers, Activity,
-  Palette, Tag, Film, Sparkles, ChevronRight, ChevronDown,
-  Megaphone, LayoutGrid, Image, RefreshCw,
+  DollarSign, Target, MousePointer, ShoppingCart, Activity,
+  ChevronRight, ChevronDown, RefreshCw, AlertTriangle,
+  TrendingDown, ArrowUpRight, ArrowDownRight,
+  Sparkles, Flame, Trophy, Hourglass, Gauge, ExternalLink,
+  Search as SearchIcon, X, Clock, BarChart3,
+  ShoppingBag, Layers, Monitor, Youtube, Zap,
+  Award, PieChart as PieIcon,
 } from "lucide-react";
 
-/* ── Constants ─────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   Constants
+   ════════════════════════════════════════════════════ */
 
 const QUICK_RANGES = [
-  { label: "7 dias", days: 7 },
-  { label: "14 dias", days: 14 },
-  { label: "30 dias", days: 30 },
-  { label: "90 dias", days: 90 },
+  { label: "7 días", days: 7 },
+  { label: "14 días", days: 14 },
+  { label: "30 días", days: 30 },
+  { label: "90 días", days: 90 },
 ];
 
-function toDateInputValue(d: Date) { return d.toISOString().split("T")[0]; }
+type GoogleType = "SEARCH" | "SHOPPING" | "PMAX" | "DISPLAY" | "VIDEO" | "OTHER";
 
-const CAMPAIGN_TYPE_ICONS: Record<string, { icon: any; color: string; label: string }> = {
-  SEARCH: { icon: Search, color: "#3b82f6", label: "Search" },
-  SHOPPING: { icon: ShoppingBag, color: "#10b981", label: "Shopping" },
-  PERFORMANCE_MAX: { icon: Zap, color: "#f59e0b", label: "PMax" },
-  DISPLAY: { icon: Tv, color: "#8b5cf6", label: "Display" },
-  VIDEO: { icon: Tv, color: "#ef4444", label: "YouTube" },
-};
-
-const FUNNEL_STAGES = [
-  { key: "TOF", label: "Top of Funnel", sublabel: "Awareness & Reach", color: "#8b5cf6", bgColor: "bg-purple-50", borderColor: "border-purple-200", textColor: "text-purple-700" },
-  { key: "MOF", label: "Mid Funnel", sublabel: "Consideration & Traffic", color: "#3b82f6", bgColor: "bg-blue-50", borderColor: "border-blue-200", textColor: "text-blue-700" },
-  { key: "BOF", label: "Bottom of Funnel", sublabel: "Conversions & Sales", color: "#10b981", bgColor: "bg-green-50", borderColor: "border-green-200", textColor: "text-green-700" },
-];
-
-/* ── Small Components ──────────────────────────────── */
-
-function RoasBadge({ value }: { value: number }) {
-  const color = value >= 3 ? "text-green-600 bg-green-50" : value >= 1.5 ? "text-amber-600 bg-amber-50" : "text-red-600 bg-red-50";
-  return <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${color}`}>{value}x</span>;
+interface TypeConfig {
+  key: GoogleType;
+  label: string;
+  sublabel: string;
+  hex: string;
+  glow: string;
+  ring: string;
+  text: string;
+  soft: string;
+  Icon: any;
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    ACTIVE: "bg-green-100 text-green-700",
-    PAUSED: "bg-amber-100 text-amber-700",
-    REMOVED: "bg-red-100 text-red-600",
-    ENABLED: "bg-green-100 text-green-700",
-  };
+const TYPE_CONFIG: TypeConfig[] = [
+  {
+    key: "SEARCH",
+    label: "Search",
+    sublabel: "Intención directa",
+    hex: "#3b82f6",
+    glow: "from-blue-500/15 to-blue-500/0",
+    ring: "ring-blue-200",
+    text: "text-blue-700",
+    soft: "bg-blue-50",
+    Icon: SearchIcon,
+  },
+  {
+    key: "SHOPPING",
+    label: "Shopping",
+    sublabel: "Catálogo de productos",
+    hex: "#10b981",
+    glow: "from-emerald-500/15 to-emerald-500/0",
+    ring: "ring-emerald-200",
+    text: "text-emerald-700",
+    soft: "bg-emerald-50",
+    Icon: ShoppingBag,
+  },
+  {
+    key: "PMAX",
+    label: "Performance Max",
+    sublabel: "AI multi-canal",
+    hex: "#f59e0b",
+    glow: "from-amber-500/15 to-amber-500/0",
+    ring: "ring-amber-200",
+    text: "text-amber-700",
+    soft: "bg-amber-50",
+    Icon: Zap,
+  },
+  {
+    key: "DISPLAY",
+    label: "Display",
+    sublabel: "Red de contenido",
+    hex: "#8b5cf6",
+    glow: "from-violet-500/15 to-violet-500/0",
+    ring: "ring-violet-200",
+    text: "text-violet-700",
+    soft: "bg-violet-50",
+    Icon: Monitor,
+  },
+  {
+    key: "VIDEO",
+    label: "Video",
+    sublabel: "YouTube",
+    hex: "#ef4444",
+    glow: "from-rose-500/15 to-rose-500/0",
+    ring: "ring-rose-200",
+    text: "text-rose-700",
+    soft: "bg-rose-50",
+    Icon: Youtube,
+  },
+];
+
+const TYPE_MAP: Record<GoogleType, TypeConfig> = TYPE_CONFIG.reduce((m, c) => {
+  m[c.key] = c;
+  return m;
+}, {} as any);
+
+function toDateInputValue(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+
+const ES_TRANSITION = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+/** Detecta el tipo Google a partir del campo objective (que almacena advertising_channel_type). */
+function detectGoogleType(objective: string | null | undefined, name: string | undefined): GoogleType {
+  const obj = (objective || "").toUpperCase();
+  const nm = (name || "").toUpperCase();
+  const combined = `${obj} ${nm}`;
+
+  if (/PERFORMANCE[ _.-]?MAX|PMAX/.test(combined)) return "PMAX";
+  if (/SHOPPING|CATALOG|PRODUCT/.test(combined)) return "SHOPPING";
+  if (/VIDEO|YOUTUBE/.test(combined)) return "VIDEO";
+  if (/DISPLAY|BANNER|GDN/.test(combined)) return "DISPLAY";
+  if (/SEARCH/.test(combined) || !obj) return "SEARCH";
+  return "OTHER";
+}
+
+/* ════════════════════════════════════════════════════
+   Hooks
+   ════════════════════════════════════════════════════ */
+
+function useCountUp(target: number, duration = 700) {
+  const [value, setValue] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  const fromRef = useRef(0);
+  useEffect(() => {
+    let start: number | null = null;
+    fromRef.current = value;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    const step = (t: number) => {
+      if (!start) start = t;
+      const p = Math.min((t - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 4);
+      setValue(fromRef.current + (target - fromRef.current) * eased);
+      if (p < 1) rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, duration]);
+  return value;
+}
+
+/* ════════════════════════════════════════════════════
+   Small Components
+   ════════════════════════════════════════════════════ */
+
+function CountARS({ value }: { value: number }) {
+  const v = useCountUp(value);
+  return <span className="tabular-nums">{formatARS(v)}</span>;
+}
+function CountX({ value }: { value: number }) {
+  const v = useCountUp(value);
+  return <span className="tabular-nums">{v.toFixed(2)}x</span>;
+}
+function CountNum({ value }: { value: number }) {
+  const v = useCountUp(value);
+  return <span className="tabular-nums">{Math.round(v).toLocaleString("es-AR")}</span>;
+}
+function CountPct({ value }: { value: number }) {
+  const v = useCountUp(value);
+  return <>{v.toFixed(2)}</>;
+}
+
+function DeltaPill({ value }: { value: number }) {
+  if (!isFinite(value) || value === 0) {
+    return <span className="text-[11px] text-slate-400 tabular-nums">—</span>;
+  }
+  const good = value > 0;
+  const Icon = good ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${colors[status] || "bg-gray-100 text-gray-700"}`}>
-      {status}
+    <span
+      className={`inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums ${
+        good ? "text-emerald-600" : "text-rose-500"
+      }`}
+    >
+      <Icon size={11} strokeWidth={2.5} />
+      {Math.abs(value).toFixed(1)}%
     </span>
   );
 }
 
-function QualityScoreBar({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-xs text-gray-400">--</span>;
-  const pct = (score / 10) * 100;
-  const color = score >= 7 ? "#10b981" : score >= 5 ? "#f59e0b" : "#ef4444";
-  const label = score >= 7 ? "Bueno" : score >= 5 ? "Regular" : "Bajo";
+function StatusDot({ status }: { status: string }) {
+  const s = (status || "").toUpperCase();
+  const cfg =
+    s === "ACTIVE" || s === "ENABLED"
+      ? { bg: "bg-emerald-500", label: "Activa", ring: "ring-emerald-200" }
+      : s === "PAUSED"
+      ? { bg: "bg-amber-400", label: "Pausada", ring: "ring-amber-200" }
+      : s === "REMOVED" || s === "ARCHIVED"
+      ? { bg: "bg-slate-400", label: "Eliminada", ring: "ring-slate-200" }
+      : { bg: "bg-slate-300", label: s || "—", ring: "ring-slate-200" };
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-16 bg-gray-100 rounded-full h-1.5">
-        <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-      <span className="text-xs font-bold" style={{ color }}>{score.toFixed(1)}</span>
-    </div>
-  );
-}
-
-function ImpressionShareBar({ share }: { share: number | null }) {
-  if (share === null) return <span className="text-xs text-gray-400">--</span>;
-  const pct = Math.min(share * 100, 100);
-  const color = pct >= 50 ? "#10b981" : pct >= 25 ? "#f59e0b" : "#ef4444";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-16 bg-gray-100 rounded-full h-1.5">
-        <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-      <span className="text-xs font-bold" style={{ color }}>{pct.toFixed(0)}%</span>
-    </div>
-  );
-}
-
-function FunnelStageBadge({ stage }: { stage: string }) {
-  const cfg = FUNNEL_STAGES.find((f) => f.key === stage);
-  if (!cfg) return <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">--</span>;
-  return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${cfg.bgColor} ${cfg.textColor}`}>
-      {cfg.key}
-    </span>
-  );
-}
-
-function CampaignTypeBadge({ objective }: { objective: string | null }) {
-  const type = detectCampaignType(objective);
-  const cfg = CAMPAIGN_TYPE_ICONS[type] || CAMPAIGN_TYPE_ICONS.SEARCH;
-  const Icon = cfg.icon;
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">
-      <Icon size={10} style={{ color: cfg.color }} />
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.bg} ring-2 ${cfg.ring}`} />
       {cfg.label}
     </span>
   );
 }
 
-function detectCampaignType(objective: string | null): string {
-  const obj = (objective || "").toUpperCase();
-  if (/SHOPPING|CATALOG|PRODUCT/.test(obj)) return "SHOPPING";
-  if (/PERFORMANCE.MAX|PMAX/.test(obj)) return "PERFORMANCE_MAX";
-  if (/DISPLAY|BANNER/.test(obj)) return "DISPLAY";
-  if (/VIDEO|YOUTUBE/.test(obj)) return "VIDEO";
-  return "SEARCH";
+function TypeChip({ type }: { type: GoogleType }) {
+  const cfg = TYPE_MAP[type];
+  if (!cfg) {
+    return (
+      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
+        —
+      </span>
+    );
+  }
+  const I = cfg.Icon;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.soft} ${cfg.text}`}
+    >
+      <I size={10} strokeWidth={2.5} />
+      {cfg.key === "PMAX" ? "PMAX" : cfg.label}
+    </span>
+  );
 }
 
-/* ── Funnel Drop Zone (same as Meta but for Google) ── */
-
-function FunnelBoard({ campaigns, funnelSummary, onAssign }: {
-  campaigns: any[];
-  funnelSummary: any[];
-  onAssign: (campaignId: string, stage: string) => void;
+function Badge({
+  Icon,
+  label,
+  soft,
+  text,
+}: {
+  Icon: any;
+  label: string;
+  soft: string;
+  text: string;
 }) {
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${soft} ${text}`}
+    >
+      <Icon size={10} strokeWidth={2.5} />
+      {label}
+    </span>
+  );
+}
 
-  const grouped = useMemo(() => {
-    const map: Record<string, any[]> = { TOF: [], MOF: [], BOF: [], UNKNOWN: [] };
-    campaigns.forEach((c) => {
-      const stage = c.funnelStage || "UNKNOWN";
-      if (!map[stage]) map[stage] = [];
-      map[stage].push(c);
+function classifyCampaign(c: {
+  status: string;
+  spend: number;
+  conversions: number;
+  roas: number;
+  daysWithData: number;
+  breakevenRoas: number;
+}): { label: string; kind: string; Icon: any; soft: string; text: string } | null {
+  const s = (c.status || "").toUpperCase();
+  const active = s === "ACTIVE" || s === "ENABLED";
+  if (!active) return null;
+
+  if (c.breakevenRoas > 0 && c.roas >= c.breakevenRoas * 1.5 && c.spend > 5000) {
+    return { label: "Ganador", kind: "win", Icon: Trophy, soft: "bg-emerald-50", text: "text-emerald-700" };
+  }
+  if (c.spend > 10000 && c.conversions === 0 && c.daysWithData >= 5) {
+    return { label: "Quemado", kind: "burn", Icon: Flame, soft: "bg-rose-50", text: "text-rose-700" };
+  }
+  if (c.daysWithData > 0 && c.daysWithData <= 3 && c.conversions < 5) {
+    return { label: "En aprendizaje", kind: "learn", Icon: Hourglass, soft: "bg-blue-50", text: "text-blue-700" };
+  }
+  if (c.breakevenRoas > 0 && c.roas < c.breakevenRoas && c.spend > 5000) {
+    return { label: "Por debajo BE", kind: "bleed", Icon: AlertTriangle, soft: "bg-amber-50", text: "text-amber-700" };
+  }
+  return null;
+}
+
+function QualityScoreBar({ score }: { score: number }) {
+  const clamped = Math.max(0, Math.min(10, score));
+  const color =
+    clamped >= 8 ? "#10b981" : clamped >= 5 ? "#f59e0b" : clamped > 0 ? "#ef4444" : "#94a3b8";
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+          Quality Score
+        </span>
+        <span className="text-[13px] font-bold tabular-nums" style={{ color }}>
+          {clamped > 0 ? clamped.toFixed(1) : "—"}
+          <span className="text-[10px] text-slate-400 font-medium ml-0.5">/10</span>
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${(clamped / 10) * 100}%`,
+            backgroundColor: color,
+            transition: `width 600ms ${ES_TRANSITION}`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ImpressionShareBar({ share }: { share: number }) {
+  // share viene en 0-1 (ratio) o 0-100 (%). Aceptamos ambos.
+  const pct = share > 1 ? share : share * 100;
+  const clamped = Math.max(0, Math.min(100, pct));
+  const color = clamped >= 60 ? "#10b981" : clamped >= 30 ? "#f59e0b" : clamped > 0 ? "#ef4444" : "#94a3b8";
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+          Impression Share
+        </span>
+        <span className="text-[13px] font-bold tabular-nums" style={{ color }}>
+          {clamped > 0 ? clamped.toFixed(0) : "—"}
+          <span className="text-[10px] text-slate-400 font-medium">%</span>
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${clamped}%`,
+            backgroundColor: color,
+            transition: `width 600ms ${ES_TRANSITION}`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════
+   Main Page
+   ════════════════════════════════════════════════════ */
+
+export default function GoogleCampaignsPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <GoogleCampaignsInner />
+    </Suspense>
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="max-w-[1400px] mx-auto animate-pulse space-y-4">
+        <div className="h-8 w-64 bg-slate-200 rounded" />
+        <div className="grid grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-32 bg-white rounded-2xl" />
+          ))}
+        </div>
+        <div className="h-64 bg-white rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+function GoogleCampaignsInner() {
+  /* ── Date range ───────────────────────────────── */
+  const now = new Date();
+  const [dateFrom, setDateFrom] = useState(
+    toDateInputValue(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000))
+  );
+  const [dateTo, setDateTo] = useState(toDateInputValue(now));
+  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
+
+  /* ── Data state ───────────────────────────────── */
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [structure, setStructure] = useState<any>(null);
+  const [structureLoading, setStructureLoading] = useState(false);
+
+  /* ── UI state ─────────────────────────────────── */
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"ALL" | GoogleType>("ALL");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+
+  /* ── Hooks: sync + breakeven ──────────────────── */
+  const { lastSyncAt, isSyncing, triggerSync, onSyncComplete } = useSyncStatus("GOOGLE_ADS");
+  const breakeven = useBreakeven(dateFrom, dateTo);
+
+  /* ── Fetching ─────────────────────────────────── */
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(
+        `/api/metrics/campaigns?platform=GOOGLE&from=${dateFrom}&to=${dateTo}`,
+        { cache: "no-store" }
+      );
+      const d = await r.json();
+      setData(d && typeof d === "object" ? d : null);
+    } catch (e) {
+      console.error("[/campaigns/google] fetchData error", e);
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFrom, dateTo]);
+
+  const fetchStructure = useCallback(async () => {
+    setStructureLoading(true);
+    try {
+      const r = await fetch(
+        `/api/metrics/ads/structure?platform=GOOGLE&from=${dateFrom}&to=${dateTo}`,
+        { cache: "no-store" }
+      );
+      const d = await r.json();
+      setStructure(d && typeof d === "object" ? d : null);
+    } catch (e) {
+      console.error("[/campaigns/google] fetchStructure error", e);
+      setStructure(null);
+    } finally {
+      setStructureLoading(false);
+    }
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => {
+    fetchData();
+    fetchStructure();
+  }, [fetchData, fetchStructure]);
+
+  useEffect(() => {
+    onSyncComplete(() => {
+      fetchData();
+      fetchStructure();
     });
-    return map;
+  }, [onSyncComplete, fetchData, fetchStructure]);
+
+  /* ── Date range handlers ──────────────────────── */
+  const handleQuickRange = (days: number) => {
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+    setDateFrom(toDateInputValue(start));
+    setDateTo(toDateInputValue(end));
+    setActiveQuickRange(days);
+  };
+  const handleDateChange = (type: "from" | "to", value: string) => {
+    if (type === "from") setDateFrom(value);
+    else setDateTo(value);
+    setActiveQuickRange(null);
+  };
+
+  /* ── Derived data ─────────────────────────────── */
+  const campaignsRaw = Array.isArray(data?.campaigns) ? data.campaigns : [];
+  const totals = data?.totals || {};
+  const changes = data?.changes || {};
+  const dailyTrend = Array.isArray(data?.dailyTrend) ? data.dailyTrend : [];
+
+  // Enrich with detected type
+  const campaigns = useMemo(
+    () =>
+      campaignsRaw
+        .filter((c: any) => c.platform === "GOOGLE")
+        .map((c: any) => ({ ...c, gType: detectGoogleType(c.objective, c.name) })),
+    [campaignsRaw]
+  );
+
+  const googleTotals = useMemo(() => {
+    return campaigns.reduce(
+      (acc: any, c: any) => ({
+        spend: acc.spend + (c.spend || 0),
+        impressions: acc.impressions + (c.impressions || 0),
+        clicks: acc.clicks + (c.clicks || 0),
+        conversions: acc.conversions + (c.conversions || 0),
+        conversionValue: acc.conversionValue + (c.conversionValue || 0),
+      }),
+      { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 }
+    );
   }, [campaigns]);
 
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-            <Layers size={18} className="text-blue-600" />
-            Funnel de Campanas Google
-          </h3>
-          <p className="text-xs text-gray-400 mt-0.5">Arrastra campanas entre etapas del funnel para clasificarlas</p>
-        </div>
-      </div>
+  const googleRoas = googleTotals.spend > 0 ? googleTotals.conversionValue / googleTotals.spend : 0;
+  const googleCtr =
+    googleTotals.impressions > 0 ? (googleTotals.clicks / googleTotals.impressions) * 100 : 0;
+  const googleCpa = googleTotals.conversions > 0 ? googleTotals.spend / googleTotals.conversions : 0;
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {FUNNEL_STAGES.map((stage) => {
-          const summary = funnelSummary.find((f: any) => f.stage === stage.key);
-          const stageCampaigns = grouped[stage.key] || [];
-          const isDragOver = dragOverStage === stage.key;
-          return (
+  // Aggregates by type
+  const typeAgg = useMemo(() => {
+    const agg: Record<string, { spend: number; conversions: number; conversionValue: number; impressions: number; clicks: number; count: number }> = {};
+    TYPE_CONFIG.forEach((t) => {
+      agg[t.key] = { spend: 0, conversions: 0, conversionValue: 0, impressions: 0, clicks: 0, count: 0 };
+    });
+    agg.OTHER = { spend: 0, conversions: 0, conversionValue: 0, impressions: 0, clicks: 0, count: 0 };
+    campaigns.forEach((c: any) => {
+      const k = c.gType || "OTHER";
+      if (!agg[k]) agg[k] = { spend: 0, conversions: 0, conversionValue: 0, impressions: 0, clicks: 0, count: 0 };
+      agg[k].spend += c.spend || 0;
+      agg[k].conversions += c.conversions || 0;
+      agg[k].conversionValue += c.conversionValue || 0;
+      agg[k].impressions += c.impressions || 0;
+      agg[k].clicks += c.clicks || 0;
+      agg[k].count += 1;
+    });
+    return agg;
+  }, [campaigns]);
+
+  // Visible types (con al menos 1 campaña)
+  const visibleTypes = useMemo(
+    () => TYPE_CONFIG.filter((t) => (typeAgg[t.key]?.count || 0) > 0),
+    [typeAgg]
+  );
+
+  // PMax detection
+  const pmaxAgg = typeAgg.PMAX || { spend: 0, conversions: 0, conversionValue: 0, impressions: 0, clicks: 0, count: 0 };
+  const hasPMax = pmaxAgg.count > 0;
+  const pmaxRoas = pmaxAgg.spend > 0 ? pmaxAgg.conversionValue / pmaxAgg.spend : 0;
+
+  // Filter + search for table
+  const displayCampaigns = useMemo(() => {
+    let list = campaigns;
+    if (typeFilter !== "ALL") list = list.filter((c: any) => c.gType === typeFilter);
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      list = list.filter((c: any) => (c.name || "").toLowerCase().includes(q));
+    }
+    return list;
+  }, [campaigns, typeFilter, query]);
+
+  // Adsets (ad groups) by campaign
+  const adsetsByCampaign = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    (structure?.campaigns || []).forEach((c: any) => {
+      m[c.id] = c.adSets || [];
+    });
+    return m;
+  }, [structure]);
+
+  // Diagnostics
+  const diagnostics = useMemo(() => {
+    const out: Array<{
+      severity: "high" | "med" | "low";
+      Icon: any;
+      title: string;
+      detail: string;
+      campaignId?: string;
+    }> = [];
+
+    const active = campaigns.filter(
+      (c: any) =>
+        (c.status || "").toUpperCase() === "ACTIVE" ||
+        (c.status || "").toUpperCase() === "ENABLED"
+    );
+
+    // No activas
+    if (campaigns.length > 0 && active.length === 0) {
+      out.push({
+        severity: "high",
+        Icon: AlertTriangle,
+        title: "Sin campañas activas",
+        detail: `Las ${campaigns.length} campañas Google están pausadas o eliminadas.`,
+      });
+    }
+
+    // Quemadas
+    const burned = campaigns.filter(
+      (c: any) =>
+        ((c.status || "").toUpperCase() === "ACTIVE" || (c.status || "").toUpperCase() === "ENABLED") &&
+        c.spend > 10000 &&
+        c.conversions === 0 &&
+        c.daysWithData >= 5
+    );
+    burned.slice(0, 3).forEach((c: any) => {
+      out.push({
+        severity: "high",
+        Icon: Flame,
+        title: "Campaña quemada",
+        detail: `${c.name} gastó ${formatARS(c.spend)} en ${c.daysWithData} días sin conversiones.`,
+        campaignId: c.id,
+      });
+    });
+
+    // QS bajo
+    const lowQS = campaigns.filter(
+      (c: any) =>
+        c.gType === "SEARCH" &&
+        c.qualityScore != null &&
+        c.qualityScore > 0 &&
+        c.qualityScore < 5 &&
+        c.spend > 3000
+    );
+    if (lowQS.length > 0) {
+      const topLowQS = [...lowQS].sort((a: any, b: any) => b.spend - a.spend)[0];
+      out.push({
+        severity: "med",
+        Icon: Award,
+        title: `${lowQS.length} Search con Quality Score bajo`,
+        detail: `Top: ${topLowQS.name} (QS ${topLowQS.qualityScore.toFixed(1)}/10, ${formatARS(topLowQS.spend)}).`,
+        campaignId: topLowQS.id,
+      });
+    }
+
+    // IS bajo con gasto alto
+    const lowIS = campaigns.filter((c: any) => {
+      if (c.impressionShare == null) return false;
+      const pct = c.impressionShare > 1 ? c.impressionShare : c.impressionShare * 100;
+      return pct > 0 && pct < 30 && c.spend > 5000 && (c.gType === "SEARCH" || c.gType === "SHOPPING");
+    });
+    if (lowIS.length > 0) {
+      out.push({
+        severity: "med",
+        Icon: TrendingDown,
+        title: `${lowIS.length} campaña${lowIS.length > 1 ? "s" : ""} con Impression Share bajo`,
+        detail: "Estás perdiendo impresiones — podés crecer subiendo budget o bids.",
+      });
+    }
+
+    // Bajo BE
+    if (breakeven.breakevenRoas > 0) {
+      const bleeding = campaigns.filter(
+        (c: any) =>
+          ((c.status || "").toUpperCase() === "ACTIVE" || (c.status || "").toUpperCase() === "ENABLED") &&
+          c.spend > 5000 &&
+          c.roas > 0 &&
+          c.roas < breakeven.breakevenRoas
+      );
+      if (bleeding.length > 0) {
+        const totalBleed = bleeding.reduce((s: number, c: any) => s + c.spend, 0);
+        out.push({
+          severity: "med",
+          Icon: TrendingDown,
+          title: `${bleeding.length} campañas bajo break-even`,
+          detail: `Gastando ${formatARS(totalBleed)} con ROAS < ${breakeven.breakevenRoas.toFixed(2)}x.`,
+        });
+      }
+    }
+
+    // Ganadoras
+    if (breakeven.breakevenRoas > 0) {
+      const winners = campaigns.filter(
+        (c: any) =>
+          ((c.status || "").toUpperCase() === "ACTIVE" || (c.status || "").toUpperCase() === "ENABLED") &&
+          c.spend > 5000 &&
+          c.roas >= breakeven.breakevenRoas * 1.5
+      );
+      if (winners.length > 0) {
+        const top = [...winners].sort((a: any, b: any) => b.roas - a.roas)[0];
+        out.push({
+          severity: "low",
+          Icon: Trophy,
+          title: `${winners.length} campaña${winners.length > 1 ? "s" : ""} ganadora${winners.length > 1 ? "s" : ""}`,
+          detail: `Top: ${top.name} con ${top.roas.toFixed(2)}x ROAS.`,
+          campaignId: top.id,
+        });
+      }
+    }
+
+    if (campaigns.length === 0 && !loading) {
+      out.push({
+        severity: "med",
+        Icon: AlertTriangle,
+        title: "Sin datos de Google Ads",
+        detail: "No hay campañas en este rango. Verificá la conexión o ampliá el período.",
+      });
+    }
+
+    return out;
+  }, [campaigns, breakeven.breakevenRoas, loading]);
+
+  // Daily Google spend last 14d
+  const spendByDay = useMemo(() => {
+    return dailyTrend
+      .slice(-14)
+      .map((d: any) => ({ date: d.date, spend: d.GOOGLE || 0 }));
+  }, [dailyTrend]);
+
+  // Drawer campaign
+  const drawerCampaign = useMemo(() => {
+    if (!drawerId) return null;
+    const c = campaigns.find((x: any) => x.id === drawerId);
+    const s = structure?.campaigns?.find((x: any) => x.id === drawerId);
+    return c ? { ...c, adSets: s?.adSets || [] } : null;
+  }, [drawerId, campaigns, structure]);
+
+  const hasData = campaigns.length > 0;
+
+  /* ════════════════════════════════════════════════════
+     Render
+     ════════════════════════════════════════════════════ */
+  return (
+    <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
+      {/* Aurora */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(1100px 600px at 15% -10%, rgba(59,130,246,0.10), transparent 60%), radial-gradient(900px 500px at 95% 10%, rgba(245,158,11,0.10), transparent 60%), radial-gradient(800px 400px at 50% 100%, rgba(16,185,129,0.06), transparent 65%)",
+        }}
+      />
+
+      <div className="max-w-[1400px] mx-auto p-5 lg:p-8 space-y-6">
+        {/* Header */}
+        <div
+          className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+          style={{ animation: `gg-enter 500ms ${ES_TRANSITION}` }}
+        >
+          <div>
+            <div className="text-xs text-slate-500 tracking-tight flex items-center gap-1.5">
+              <span>Campañas</span>
+              <ChevronRight size={12} className="text-slate-300" />
+              <span className="text-slate-700 font-medium">Google Ads</span>
+            </div>
+            <h1 className="mt-1 text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+              Google Ads
+              <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">
+                Search · Shopping · PMax · Display · Video
+              </span>
+            </h1>
+            <p className="mt-1 text-sm text-slate-500 tracking-tight">
+              Visión unificada de performance, tipo de campaña y diagnóstico para Google.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <SyncPill lastSyncAt={lastSyncAt} isSyncing={isSyncing} onTrigger={triggerSync} />
+            <DateRangeFilter
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              activeQuickRange={activeQuickRange}
+              quickRanges={QUICK_RANGES}
+              onQuickRange={handleQuickRange}
+              onDateChange={handleDateChange}
+              loading={loading}
+            />
+          </div>
+        </div>
+
+        {/* Breakeven chip */}
+        {!breakeven.loading && (
+          <div style={{ animation: `gg-enter 500ms ${ES_TRANSITION} 80ms both` }}>
+            <BreakevenChip
+              currentRoas={googleRoas}
+              breakevenRoas={breakeven.breakevenRoas}
+              contributionMargin={breakeven.contributionMargin}
+            />
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════
+            BLOCK 1 — Hero KPIs
+           ══════════════════════════════════════════════ */}
+        <section
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+          style={{ animation: `gg-enter 500ms ${ES_TRANSITION} 120ms both` }}
+        >
+          <HeroKpi
+            icon={<DollarSign size={16} className="text-slate-700" />}
+            iconBg="bg-slate-100"
+            label="Gasto"
+            value={<CountARS value={googleTotals.spend} />}
+            delta={changes?.spend}
+            sub="Total en rango"
+          />
+          <HeroKpi
+            icon={<Target size={16} className="text-emerald-700" />}
+            iconBg="bg-emerald-50"
+            label="ROAS"
+            value={<CountX value={googleRoas} />}
+            delta={changes?.roas}
+            sub={
+              breakeven.breakevenRoas > 0
+                ? `Break-even ${breakeven.breakevenRoas.toFixed(2)}x`
+                : "Sin break-even"
+            }
+            valueClass={roasColorClass(googleRoas, breakeven.breakevenRoas)}
+          />
+          <HeroKpi
+            icon={<MousePointer size={16} className="text-blue-700" />}
+            iconBg="bg-blue-50"
+            label="CTR"
+            value={
+              <span className="tabular-nums">
+                <CountPct value={googleCtr} />%
+              </span>
+            }
+            delta={null}
+            sub={`${formatCompact(googleTotals.clicks)} clicks / ${formatCompact(googleTotals.impressions)} imp`}
+          />
+          <HeroKpi
+            icon={<ShoppingCart size={16} className="text-violet-700" />}
+            iconBg="bg-violet-50"
+            label="Conversiones"
+            value={<CountNum value={googleTotals.conversions} />}
+            delta={changes?.conversions}
+            sub={googleCpa > 0 ? `CPA ${formatARS(googleCpa)}` : "—"}
+          />
+        </section>
+
+        {/* ══════════════════════════════════════════════
+            BLOCK 2 — PMax Spotlight
+           ══════════════════════════════════════════════ */}
+        {hasPMax && (
+          <section
+            className="rounded-2xl overflow-hidden relative border border-amber-100"
+            style={{
+              boxShadow:
+                "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+              animation: `gg-enter 500ms ${ES_TRANSITION} 160ms both`,
+            }}
+          >
             <div
-              key={stage.key}
-              onDragOver={(e) => { e.preventDefault(); setDragOverStage(stage.key); }}
-              onDragLeave={() => setDragOverStage(null)}
-              onDrop={(e) => { e.preventDefault(); if (draggedId) onAssign(draggedId, stage.key); setDraggedId(null); setDragOverStage(null); }}
-              className={`rounded-xl border-2 transition-all duration-200 ${
-                isDragOver ? `${stage.borderColor} shadow-lg scale-[1.01]` : "border-gray-100"
-              } ${stage.bgColor} bg-opacity-30`}
-            >
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
-                  <span className={`font-semibold text-sm ${stage.textColor}`}>{stage.label}</span>
-                  <span className="text-[10px] text-gray-400 ml-auto">{stageCampaigns.length}</span>
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(245,158,11,0) 45%, rgba(16,185,129,0.10) 100%)",
+              }}
+            />
+            <div className="relative bg-white/80 backdrop-blur p-5 lg:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-amber-50 ring-1 ring-amber-200">
+                    <Zap size={17} className="text-amber-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+                      Performance Max
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md">
+                        AI
+                      </span>
+                    </h2>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {pmaxAgg.count} campaña{pmaxAgg.count > 1 ? "s" : ""} · multi-canal (Search, YouTube, Display, Gmail, Maps)
+                    </p>
+                  </div>
                 </div>
-                <p className="text-[10px] text-gray-500">{stage.sublabel}</p>
-                {summary && (
-                  <div className="grid grid-cols-3 gap-2 mt-3 pt-2 border-t border-gray-100">
-                    <div className="text-center">
-                      <p className="text-[9px] text-gray-400 uppercase">Gasto</p>
-                      <p className="text-xs font-bold text-gray-800">{formatCompact(summary.spend)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-gray-400 uppercase">ROAS</p>
-                      <p className="text-xs font-bold" style={{ color: stage.color }}>{summary.roas}x</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-gray-400 uppercase">Conv.</p>
-                      <p className="text-xs font-bold text-gray-800">{summary.conversions}</p>
-                    </div>
-                  </div>
-                )}
+                <button
+                  onClick={() => setTypeFilter("PMAX")}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-white px-2.5 py-1 rounded-lg ring-1 ring-amber-200 hover:ring-amber-300"
+                  style={{ transition: `box-shadow 180ms ${ES_TRANSITION}` }}
+                >
+                  Ver sólo PMax
+                  <ChevronRight size={12} />
+                </button>
               </div>
-              <div className="p-3 space-y-2 max-h-[250px] overflow-y-auto">
-                {stageCampaigns.length === 0 && (
-                  <div className={`border-2 border-dashed rounded-lg p-4 text-center ${stage.borderColor}`}>
-                    <p className="text-xs text-gray-400">Arrastra campanas aqui</p>
-                  </div>
-                )}
-                {stageCampaigns.map((c: any) => (
-                  <div
-                    key={c.id}
-                    draggable
-                    onDragStart={(e) => { setDraggedId(c.id); e.dataTransfer.effectAllowed = "move"; }}
-                    onDragEnd={() => { setDraggedId(null); setDragOverStage(null); }}
-                    className={`bg-white rounded-lg border border-gray-200 p-2.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group ${
-                      draggedId === c.id ? "opacity-40 scale-95" : ""
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <PMaxStat label="Gasto" value={formatARS(pmaxAgg.spend)} />
+                <PMaxStat
+                  label="ROAS"
+                  value={`${pmaxRoas.toFixed(2)}x`}
+                  valueClass={roasColorClass(pmaxRoas, breakeven.breakevenRoas)}
+                />
+                <PMaxStat
+                  label="Conversiones"
+                  value={Math.round(pmaxAgg.conversions).toLocaleString("es-AR")}
+                />
+                <PMaxStat
+                  label="% del gasto Google"
+                  value={
+                    googleTotals.spend > 0
+                      ? `${((pmaxAgg.spend / googleTotals.spend) * 100).toFixed(0)}%`
+                      : "—"
+                  }
+                />
+              </div>
+
+              <div className="mt-4 text-[11px] text-slate-500 italic flex items-start gap-1.5">
+                <Sparkles size={11} className="mt-0.5 shrink-0 text-amber-500" />
+                <span>
+                  PMax es asset-based: los creativos individuales se agrupan en asset groups y no se sincronizan por ahora.
+                  El análisis profundo de assets requiere exportar desde Google Ads directamente.
+                </span>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ══════════════════════════════════════════════
+            BLOCK 3 — Type Map
+           ══════════════════════════════════════════════ */}
+        <section
+          className="rounded-2xl bg-white/90 backdrop-blur p-5 lg:p-6 border border-slate-100"
+          style={{
+            boxShadow:
+              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+            animation: `gg-enter 500ms ${ES_TRANSITION} 220ms both`,
+          }}
+        >
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+                <PieIcon size={15} className="text-slate-500" />
+                Mapa por tipo de campaña
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Distribución de gasto y retorno por formato de Google Ads
+              </p>
+            </div>
+            <span className="text-[11px] text-slate-400 tabular-nums">
+              Total: {formatARS(googleTotals.spend)}
+            </span>
+          </div>
+
+          {visibleTypes.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center">
+              <Gauge size={18} className="mx-auto text-slate-300 mb-1.5" />
+              <div className="text-[12px] text-slate-500 tracking-tight">
+                Sin campañas en el rango seleccionado.
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 lg:gap-4">
+              {visibleTypes.map((t) => {
+                const v = typeAgg[t.key] || {
+                  spend: 0,
+                  conversions: 0,
+                  conversionValue: 0,
+                  impressions: 0,
+                  clicks: 0,
+                  count: 0,
+                };
+                const pct = googleTotals.spend > 0 ? (v.spend / googleTotals.spend) * 100 : 0;
+                const roas = v.spend > 0 ? v.conversionValue / v.spend : 0;
+                const I = t.Icon;
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => setTypeFilter(typeFilter === t.key ? "ALL" : t.key)}
+                    className={`text-left rounded-2xl p-4 lg:p-5 bg-white ring-1 relative overflow-hidden ${
+                      typeFilter === t.key ? "ring-slate-300" : "ring-slate-100 hover:ring-slate-200"
                     }`}
+                    style={{
+                      boxShadow:
+                        "0 1px 0 rgba(15,23,42,0.04), 0 4px 12px -6px rgba(15,23,42,0.08)",
+                      transition: `box-shadow 220ms ${ES_TRANSITION}, transform 220ms ${ES_TRANSITION}`,
+                    }}
                   >
-                    <div className="flex items-start gap-2">
-                      <GripVertical size={14} className="text-gray-300 mt-0.5 flex-shrink-0 group-hover:text-gray-500" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-gray-900 truncate" title={c.name}>{c.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-gray-500">{formatARS(c.spend)}</span>
-                          <RoasBadge value={c.roas} />
-                          <CampaignTypeBadge objective={c.objective} />
+                    <div
+                      aria-hidden
+                      className={`absolute inset-0 bg-gradient-to-br ${t.glow} pointer-events-none`}
+                    />
+                    <div className="relative">
+                      <div className="flex items-center justify-between">
+                        <div className={`p-1.5 rounded-lg ${t.soft}`}>
+                          <I size={14} className={t.text} strokeWidth={2.25} />
+                        </div>
+                        <span className={`text-[10px] font-semibold ${t.text} ${t.soft} px-2 py-0.5 rounded-md`}>
+                          {v.count} camp
+                        </span>
+                      </div>
+
+                      <div className="mt-3">
+                        <div className={`text-[10px] font-bold uppercase tracking-widest ${t.text}`}>
+                          {t.key === "PMAX" ? "PMAX" : t.label}
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{t.sublabel}</div>
+                      </div>
+
+                      <div className="mt-3">
+                        <div className="text-xl font-bold text-slate-900 tabular-nums tracking-tight">
+                          {formatARS(v.spend)}
+                        </div>
+                        <div className="text-[11px] text-slate-500 tabular-nums">
+                          {pct.toFixed(1)}% del gasto
+                        </div>
+                      </div>
+
+                      <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.min(pct, 100)}%`,
+                            backgroundColor: t.hex,
+                            transition: `width 600ms ${ES_TRANSITION}`,
+                          }}
+                        />
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between">
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">ROAS</div>
+                          <div
+                            className={`text-[14px] font-bold tabular-nums ${roasColorClass(
+                              roas,
+                              breakeven.breakevenRoas
+                            )}`}
+                          >
+                            {roas.toFixed(2)}x
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Conv.</div>
+                          <div className="text-[14px] font-bold tabular-nums text-slate-900">
+                            {Math.round(v.conversions).toLocaleString("es-AR")}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* ══════════════════════════════════════════════
+            BLOCK 4 — Diagnostics
+           ══════════════════════════════════════════════ */}
+        <section
+          className="rounded-2xl bg-white/90 backdrop-blur p-5 lg:p-6 border border-slate-100"
+          style={{
+            boxShadow:
+              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+            animation: `gg-enter 500ms ${ES_TRANSITION} 280ms both`,
+          }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+                <Sparkles size={15} className="text-slate-500" />
+                Diagnósticos automáticos
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Insights específicos de tus campañas Google
+              </p>
+            </div>
+            <span className="text-[11px] text-slate-400 tabular-nums">
+              {diagnostics.length} {diagnostics.length === 1 ? "insight" : "insights"}
+            </span>
+          </div>
+
+          {diagnostics.length === 0 ? (
+            <EmptyInsight />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {diagnostics.map((d, i) => (
+                <DiagnosticCard
+                  key={i}
+                  severity={d.severity}
+                  Icon={d.Icon}
+                  title={d.title}
+                  detail={d.detail}
+                  onClick={d.campaignId ? () => setDrawerId(d.campaignId!) : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ══════════════════════════════════════════════
+            BLOCK 5 — Campaign Table
+           ══════════════════════════════════════════════ */}
+        <section
+          className="rounded-2xl bg-white border border-slate-100 overflow-hidden"
+          style={{
+            boxShadow:
+              "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+            animation: `gg-enter 500ms ${ES_TRANSITION} 340ms both`,
+          }}
+        >
+          <div className="p-4 lg:p-5 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+                <BarChart3 size={15} className="text-slate-500" />
+                Campañas
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {displayCampaigns.length} de {campaigns.length} — clic para ver detalle
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative">
+                <SearchIcon size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar campaña…"
+                  className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-52 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 tracking-tight"
+                  style={{
+                    transition: `border-color 180ms ${ES_TRANSITION}, box-shadow 180ms ${ES_TRANSITION}`,
+                  }}
+                />
+              </div>
+
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5 flex-wrap">
+                {(["ALL", "SEARCH", "SHOPPING", "PMAX", "DISPLAY", "VIDEO"] as const).map((s) => {
+                  const available =
+                    s === "ALL" ||
+                    (typeAgg[s as GoogleType] && typeAgg[s as GoogleType].count > 0);
+                  if (!available) return null;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setTypeFilter(s as any)}
+                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-md tracking-tight ${
+                        typeFilter === s
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                      style={{
+                        transition: `background-color 180ms ${ES_TRANSITION}, color 180ms ${ES_TRANSITION}`,
+                      }}
+                    >
+                      {s === "ALL"
+                        ? "Todas"
+                        : s === "PMAX"
+                        ? "PMax"
+                        : TYPE_MAP[s as GoogleType]?.label || s}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          );
-        })}
+          </div>
+
+          {loading ? (
+            <TableSkeleton />
+          ) : displayCampaigns.length === 0 ? (
+            <EmptyTable hasData={hasData} />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 border-b border-slate-100">
+                    <th className="text-left py-3 px-4 lg:px-6">Campaña</th>
+                    <th className="text-left py-3 px-2">Tipo</th>
+                    <th className="text-left py-3 px-2">Estado</th>
+                    <th className="text-right py-3 px-2">Gasto</th>
+                    <th className="text-right py-3 px-2">CTR</th>
+                    <th className="text-right py-3 px-2">CPA</th>
+                    <th className="text-right py-3 px-2">Conv.</th>
+                    <th className="text-right py-3 px-2">ROAS</th>
+                    <th className="text-right py-3 px-2">Tags</th>
+                    <th className="w-8 py-3 px-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayCampaigns.map((c: any) => {
+                    const badge = classifyCampaign({
+                      status: c.status,
+                      spend: c.spend,
+                      conversions: c.conversions,
+                      roas: c.roas,
+                      daysWithData: c.daysWithData,
+                      breakevenRoas: breakeven.breakevenRoas,
+                    });
+                    const expanded = expandedId === c.id;
+                    const adsets = adsetsByCampaign[c.id] || [];
+                    const isPMax = c.gType === "PMAX";
+                    return (
+                      <React.Fragment key={c.id}>
+                        <tr
+                          className="border-b border-slate-50 hover:bg-slate-50/60 cursor-pointer group"
+                          style={{ transition: `background-color 180ms ${ES_TRANSITION}` }}
+                          onClick={() => setDrawerId(c.id)}
+                        >
+                          <td className="py-3 px-4 lg:px-6">
+                            <div className="flex items-center gap-2">
+                              {isPMax ? (
+                                <span className="p-0.5 w-5 h-5 flex items-center justify-center text-slate-300">
+                                  <Zap size={12} />
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedId(expanded ? null : c.id);
+                                  }}
+                                  className="p-0.5 rounded hover:bg-slate-100 text-slate-400"
+                                  aria-label={expanded ? "Colapsar" : "Expandir"}
+                                >
+                                  {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                </button>
+                              )}
+                              <div className="min-w-0">
+                                <div className="text-[13px] font-medium text-slate-900 truncate max-w-[280px] tracking-tight">
+                                  {c.name}
+                                </div>
+                                <div className="text-[10px] text-slate-400 tabular-nums">
+                                  {c.daysWithData} día{c.daysWithData === 1 ? "" : "s"} con data
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2">
+                            <TypeChip type={c.gType} />
+                          </td>
+                          <td className="py-3 px-2">
+                            <StatusDot status={c.status} />
+                          </td>
+                          <td className="py-3 px-2 text-right text-[13px] text-slate-900 tabular-nums font-medium">
+                            {formatARS(c.spend)}
+                          </td>
+                          <td className="py-3 px-2 text-right text-[12px] text-slate-700 tabular-nums">
+                            {c.ctr.toFixed(2)}%
+                          </td>
+                          <td className="py-3 px-2 text-right text-[12px] text-slate-700 tabular-nums">
+                            {c.costPerConversion > 0 ? formatARS(c.costPerConversion) : "—"}
+                          </td>
+                          <td className="py-3 px-2 text-right text-[12px] text-slate-700 tabular-nums">
+                            {c.conversions.toLocaleString("es-AR")}
+                          </td>
+                          <td className="py-3 px-2 text-right text-[13px] font-bold tabular-nums">
+                            <span className={roasColorClass(c.roas, breakeven.breakevenRoas)}>
+                              {c.roas.toFixed(2)}x
+                            </span>
+                          </td>
+                          <td className="py-3 px-2 text-right">
+                            {badge ? (
+                              <Badge Icon={badge.Icon} label={badge.label} soft={badge.soft} text={badge.text} />
+                            ) : (
+                              <span className="text-[11px] text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2">
+                            <ExternalLink size={12} className="text-slate-300 group-hover:text-slate-500" />
+                          </td>
+                        </tr>
+
+                        {expanded && !isPMax && (
+                          <tr className="bg-slate-50/70 border-b border-slate-100">
+                            <td colSpan={10} className="p-4 lg:p-5">
+                              {structureLoading && adsets.length === 0 ? (
+                                <div className="text-[11px] text-slate-500">Cargando ad groups…</div>
+                              ) : adsets.length === 0 ? (
+                                <div className="text-[11px] text-slate-500">Sin ad groups en este período.</div>
+                              ) : (
+                                <AdGroupsMini adsets={adsets} breakevenRoas={breakeven.breakevenRoas} />
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* Footer chart */}
+        {spendByDay.length > 0 && (
+          <section
+            className="rounded-2xl bg-white border border-slate-100 p-5 lg:p-6"
+            style={{
+              boxShadow:
+                "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+              animation: `gg-enter 500ms ${ES_TRANSITION} 400ms both`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900 tracking-tight">
+                  Gasto diario Google · 14 días
+                </h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Tendencia de inversión en la plataforma
+                </p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={spendByDay}>
+                <defs>
+                  <linearGradient id="ggSpendGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(d) => (d || "").slice(5)}
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tickFormatter={(n) => formatCompact(n)}
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={40}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "white",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 10,
+                    fontSize: 11,
+                    boxShadow: "0 8px 24px -12px rgba(15,23,42,0.12)",
+                  }}
+                  labelStyle={{ color: "#64748b" }}
+                  formatter={(v: any) => [formatARS(v), "Gasto"]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="spend"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  fill="url(#ggSpendGrad)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </section>
+        )}
       </div>
 
-      {/* Unassigned */}
-      {(grouped.UNKNOWN || []).length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
-            <AlertTriangle size={12} className="text-amber-500" />
-            {grouped.UNKNOWN.length} sin clasificar
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {grouped.UNKNOWN.map((c: any) => (
-              <div
-                key={c.id}
-                draggable
-                onDragStart={(e) => { setDraggedId(c.id); e.dataTransfer.effectAllowed = "move"; }}
-                onDragEnd={() => { setDraggedId(null); setDragOverStage(null); }}
-                className="bg-gray-50 rounded-lg border border-gray-200 px-3 py-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all"
-              >
-                <div className="flex items-center gap-2">
-                  <GripVertical size={12} className="text-gray-300" />
-                  <span className="text-xs font-medium text-gray-700 truncate max-w-[180px]">{c.name}</span>
-                  <span className="text-[10px] text-gray-400">{formatARS(c.spend)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ══════════════════════════════════════════════
+          BLOCK 6 — Campaign Drawer
+         ══════════════════════════════════════════════ */}
+      <GoogleCampaignDrawer
+        open={!!drawerId}
+        onClose={() => setDrawerId(null)}
+        campaign={drawerCampaign}
+        breakevenRoas={breakeven.breakevenRoas}
+        loadingStructure={structureLoading}
+      />
+
+      <style jsx global>{`
+        @keyframes gg-enter {
+          0% {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes gg-slide-in {
+          0% {
+            opacity: 0;
+            transform: translateX(24px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          *,
+          *::before,
+          *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
-/* ── Campaign Type Breakdown ─────────────────────── */
+/* ════════════════════════════════════════════════════
+   Sub-components
+   ════════════════════════════════════════════════════ */
 
-function CampaignTypeBreakdown({ campaigns }: { campaigns: any[] }) {
-  const grouped = useMemo(() => {
-    const map: Record<string, { spend: number; impressions: number; clicks: number; conversions: number; conversionValue: number; count: number }> = {};
-    campaigns.forEach((c) => {
-      const type = detectCampaignType(c.objective);
-      if (!map[type]) map[type] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0, count: 0 };
-      map[type].spend += c.spend;
-      map[type].impressions += c.impressions;
-      map[type].clicks += c.clicks;
-      map[type].conversions += c.conversions;
-      map[type].conversionValue += c.conversionValue;
-      map[type].count++;
-    });
-    return Object.entries(map)
-      .map(([type, v]) => ({
-        type,
-        ...v,
-        roas: v.spend > 0 ? Math.round((v.conversionValue / v.spend) * 100) / 100 : 0,
-        ctr: v.impressions > 0 ? Math.round((v.clicks / v.impressions) * 10000) / 100 : 0,
-        cpc: v.clicks > 0 ? Math.round((v.spend / v.clicks) * 100) / 100 : 0,
-      }))
-      .sort((a, b) => b.spend - a.spend);
-  }, [campaigns]);
-
-  if (grouped.length === 0) return null;
-
-  const totalSpend = grouped.reduce((s, g) => s + g.spend, 0);
-  const pieData = grouped.map((g) => ({
-    name: (CAMPAIGN_TYPE_ICONS[g.type] || CAMPAIGN_TYPE_ICONS.SEARCH).label,
-    value: g.spend,
-    color: (CAMPAIGN_TYPE_ICONS[g.type] || CAMPAIGN_TYPE_ICONS.SEARCH).color,
-  }));
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <BarChart3 size={18} className="text-blue-600" />
-        Desglose por Tipo de Campana
-      </h3>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pie chart */}
-        <div className="flex items-center justify-center">
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={pieData} dataKey="value" nameKey="name"
-                cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                paddingAngle={2}
-              >
-                {pieData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v: number) => formatARS(v)} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        {/* Type cards */}
-        <div className="lg:col-span-2 space-y-3">
-          {grouped.map((g) => {
-            const cfg = CAMPAIGN_TYPE_ICONS[g.type] || CAMPAIGN_TYPE_ICONS.SEARCH;
-            const Icon = cfg.icon;
-            const pct = totalSpend > 0 ? ((g.spend / totalSpend) * 100).toFixed(1) : "0";
-            return (
-              <div key={g.type} className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon size={16} style={{ color: cfg.color }} />
-                  <span className="text-sm font-semibold text-gray-900">{cfg.label}</span>
-                  <span className="text-[10px] text-gray-400">{g.count} campanas</span>
-                  <span className="text-[10px] text-gray-400 ml-auto">{pct}% del gasto</span>
-                </div>
-                <div className="grid grid-cols-5 gap-3 text-center">
-                  <div>
-                    <p className="text-[9px] text-gray-400 uppercase">Gasto</p>
-                    <p className="text-xs font-bold text-gray-800">{formatCompact(g.spend)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] text-gray-400 uppercase">ROAS</p>
-                    <p className={`text-xs font-bold ${g.roas >= 2 ? "text-green-600" : g.roas >= 1 ? "text-amber-600" : "text-red-600"}`}>{g.roas}x</p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] text-gray-400 uppercase">Conv.</p>
-                    <p className="text-xs font-bold text-gray-800">{g.conversions}</p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] text-gray-400 uppercase">CTR</p>
-                    <p className="text-xs font-bold text-gray-800">{g.ctr}%</p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] text-gray-400 uppercase">CPC</p>
-                    <p className="text-xs font-bold text-gray-800">{formatARS(g.cpc)}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Quality Score Summary ──────────────────────── */
-
-function QualityScoreSummary({ campaigns }: { campaigns: any[] }) {
-  const withQS = campaigns.filter((c) => c.qualityScore !== null);
-  if (withQS.length === 0) return null;
-
-  const avgQS = withQS.reduce((s, c) => s + c.qualityScore, 0) / withQS.length;
-  const highQS = withQS.filter((c) => c.qualityScore >= 7).length;
-  const midQS = withQS.filter((c) => c.qualityScore >= 5 && c.qualityScore < 7).length;
-  const lowQS = withQS.filter((c) => c.qualityScore < 5).length;
-
-  const barData = [
-    { name: "Alto (7-10)", value: highQS, color: "#10b981" },
-    { name: "Medio (5-6)", value: midQS, color: "#f59e0b" },
-    { name: "Bajo (1-4)", value: lowQS, color: "#ef4444" },
-  ];
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <Star size={18} className="text-amber-500" />
-        Quality Score
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <div className="text-center mb-4">
-            <p className="text-4xl font-bold" style={{ color: avgQS >= 7 ? "#10b981" : avgQS >= 5 ? "#f59e0b" : "#ef4444" }}>
-              {avgQS.toFixed(1)}
-            </p>
-            <p className="text-xs text-gray-400">Promedio ({withQS.length} campanas)</p>
-          </div>
-          <div className="space-y-2">
-            {barData.map((d) => (
-              <div key={d.name} className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
-                <span className="text-xs text-gray-600 flex-1">{d.name}</span>
-                <span className="text-xs font-bold text-gray-900">{d.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={barData}>
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {barData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Bar>
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-            </BarChart>
-          </ResponsiveContainer>
-          <p className="text-[10px] text-gray-400 mt-2">
-            Quality Score alto (7+) reduce tu CPC en 30-50%. Campanas con score bajo necesitan mejoras en landing page, relevancia de anuncio o CTR esperado.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Google Creatives — components specific to Google ad types ── */
-
-const PREMIUM_SHADOW = "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)";
-
-function CreativeKpiCard({ label, value, sublabel, icon, color }: {
-  label: string; value: string; sublabel?: string; icon: any; color: string;
+function SyncPill({
+  lastSyncAt,
+  isSyncing,
+  onTrigger,
+}: {
+  lastSyncAt: string | null;
+  isSyncing: boolean;
+  onTrigger: () => void;
 }) {
-  const Icon = icon;
-  return (
-    <div
-      className="bg-white rounded-2xl p-5 transition-all duration-200 hover:translate-y-[-2px]"
-      style={{
-        border: "1px solid rgba(15,23,42,0.06)",
-        boxShadow: PREMIUM_SHADOW,
-        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-500">{label}</span>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}14` }}>
-          <Icon size={14} style={{ color }} />
-        </div>
-      </div>
-      <p className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">{value}</p>
-      {sublabel && <p className="text-xs text-slate-500 mt-1 tabular-nums">{sublabel}</p>}
-    </div>
-  );
-}
-
-function GoogleTypeChip({ type, label, count, color, active, onClick, icon }: {
-  type: string; label: string; count: number; color: string; active: boolean; onClick: () => void; icon: any;
-}) {
-  const Icon = icon;
+  const ago = useMemo(() => {
+    if (!lastSyncAt) return "Nunca";
+    const s = Math.round((Date.now() - new Date(lastSyncAt).getTime()) / 1000);
+    if (s < 60) return `${s}s`;
+    if (s < 3600) return `${Math.round(s / 60)}min`;
+    return `${Math.round(s / 3600)}h`;
+  }, [lastSyncAt]);
   return (
     <button
-      onClick={onClick}
-      className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all duration-200"
-      style={{
-        backgroundColor: active ? color : "#ffffff",
-        borderColor: active ? color : "rgba(15,23,42,0.08)",
-        color: active ? "#ffffff" : "#334155",
-        boxShadow: active
-          ? `0 4px 14px -4px ${color}40`
-          : "0 1px 0 rgba(15,23,42,0.04)",
-        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
+      onClick={onTrigger}
+      disabled={isSyncing}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white ring-1 ring-slate-200 text-[11px] text-slate-600 hover:ring-slate-300 disabled:opacity-60 tracking-tight"
+      style={{ transition: `box-shadow 180ms ${ES_TRANSITION}` }}
+      title={lastSyncAt ? `Última sync: ${new Date(lastSyncAt).toLocaleString("es-AR")}` : "Nunca sincronizado"}
     >
-      <Icon size={13} style={{ color: active ? "#ffffff" : color }} />
-      <span className="tracking-tight">{label}</span>
-      <span
-        className="text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-md"
-        style={{
-          backgroundColor: active ? "rgba(255,255,255,0.22)" : "rgba(15,23,42,0.06)",
-          color: active ? "#ffffff" : "#475569",
-        }}
-      >
-        {count}
-      </span>
+      <RefreshCw size={11} className={isSyncing ? "animate-spin" : ""} />
+      {isSyncing ? "Sincronizando…" : <>Sync · <span className="tabular-nums font-medium">{ago}</span></>}
     </button>
   );
 }
 
-function MetricChip({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div className="flex flex-col items-start min-w-0">
-      <span className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-400">{label}</span>
-      <span className="text-xs font-bold tabular-nums truncate" style={{ color: color || "#0f172a" }}>{value}</span>
-    </div>
-  );
-}
-
-/* ── Search Ad Card — looks like a Google SERP result ── */
-function SearchAdCard({ ad }: { ad: any }) {
-  const headline = ad.headline || ad.name || "Sin titulo";
-  const description = ad.description || "Sin descripcion";
-  const displayUrl = (ad.campaignName || "").toLowerCase().includes("brand") ? "elmundodeljuguete.com.ar" : "tu-sitio.com.ar";
-  const roasColor = ad.roas >= 3 ? "#10b981" : ad.roas >= 1.5 ? "#f59e0b" : "#ef4444";
-
-  return (
-    <div
-      className="bg-white rounded-2xl p-5 transition-all duration-200 hover:translate-y-[-1px]"
-      style={{
-        border: "1px solid rgba(15,23,42,0.06)",
-        boxShadow: PREMIUM_SHADOW,
-        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
-    >
-      {/* SERP preview */}
-      <div className="pb-4 mb-4 border-b border-slate-100">
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-[10px] font-bold tracking-wider text-slate-500">PATROCINADO</span>
-          <span className="text-[11px] text-slate-400">·</span>
-          <span className="text-[12px] text-slate-600">{displayUrl}</span>
-          <StatusBadge status={ad.status} />
-        </div>
-        <p
-          className="text-[18px] font-medium leading-snug tracking-tight cursor-pointer hover:underline"
-          style={{ color: "#1a0dab", fontFamily: "Inter, -apple-system, sans-serif" }}
-          title={headline}
-        >
-          {headline}
-        </p>
-        <p className="text-[13px] text-slate-700 leading-relaxed mt-1.5 line-clamp-2">{description}</p>
-      </div>
-
-      {/* Metrics row */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-        <MetricChip label="Inversion" value={formatCompact(ad.spend)} />
-        <MetricChip label="Impr." value={formatCompact(ad.impressions)} />
-        <MetricChip label="Clicks" value={formatCompact(ad.clicks)} />
-        <MetricChip label="CTR" value={`${ad.ctr}%`} />
-        <MetricChip label="Conv." value={String(ad.conversions)} />
-        <MetricChip label="ROAS" value={`${ad.roas}x`} color={roasColor} />
-      </div>
-
-      {/* Campaign + AdGroup context */}
-      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-[10px]">
-        <Search size={10} className="text-slate-400" />
-        <span className="text-slate-500 truncate flex-1" title={ad.campaignName}>{ad.campaignName}</span>
-        {ad.adSetName && (
-          <>
-            <ChevronRight size={10} className="text-slate-300" />
-            <span className="text-slate-500 truncate" title={ad.adSetName}>{ad.adSetName}</span>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ── PMax Campaign Card — asset-group oriented since PMax has no individual ads ── */
-function PMaxCampaignCard({ campaign, ads }: { campaign: any; ads: any[] }) {
-  const totalSpend = campaign.spend || 0;
-  const totalConv = campaign.conversions || 0;
-  const roas = campaign.roas || 0;
-  const ctr = campaign.ctr || 0;
-  const conv = campaign.convRate || (campaign.clicks > 0 ? Math.round((totalConv / campaign.clicks) * 10000) / 100 : 0);
-  const roasColor = roas >= 3 ? "#10b981" : roas >= 1.5 ? "#f59e0b" : "#ef4444";
-
-  return (
-    <div
-      className="bg-white rounded-2xl p-5 transition-all duration-200 hover:translate-y-[-1px]"
-      style={{
-        border: "1px solid rgba(15,23,42,0.06)",
-        boxShadow: PREMIUM_SHADOW,
-        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
-    >
-      <div className="flex items-start gap-3 mb-4">
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)" }}
-        >
-          <Zap size={18} className="text-white" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-amber-600">Performance Max</span>
-            <StatusBadge status={campaign.status || "ENABLED"} />
-          </div>
-          <p className="font-semibold text-slate-900 text-sm tracking-tight truncate" title={campaign.name}>
-            {campaign.name}
-          </p>
-        </div>
-      </div>
-
-      {/* PMax KPI grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">Inversion</p>
-          <p className="text-[15px] font-bold tabular-nums tracking-tight text-slate-900 whitespace-nowrap">{formatARS(totalSpend)}</p>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">Conversiones</p>
-          <p className="text-[15px] font-bold tabular-nums tracking-tight text-slate-900 whitespace-nowrap">{totalConv}</p>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">ROAS</p>
-          <p className="text-[15px] font-bold tabular-nums tracking-tight whitespace-nowrap" style={{ color: roasColor }}>{roas}x</p>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">CTR</p>
-          <p className="text-[15px] font-bold tabular-nums tracking-tight text-slate-900 whitespace-nowrap">{ctr}%</p>
-        </div>
-      </div>
-
-      {/* Asset insight bar */}
-      <div className="rounded-xl p-3" style={{ background: "linear-gradient(90deg, #fef3c7 0%, #ffedd5 100%)" }}>
-        <div className="flex items-start gap-2.5">
-          <Sparkles size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-amber-900 mb-0.5">Asset-based: sin anuncios individuales</p>
-            <p className="text-[10px] text-amber-800/80 leading-relaxed">
-              Performance Max optimiza assets (texto, imagen, video) en todas las superficies de Google.
-              Para mejorar performance, sumá <b>5 headlines + 5 descriptions + 4 imagenes + 1 logo + signals de audiencia</b> en Google Ads.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {ads.length > 0 && (
-        <div className="mt-3 text-[10px] text-slate-400 text-center">
-          {ads.length} asset{ads.length === 1 ? "" : "s"} sincronizado{ads.length === 1 ? "" : "s"} · {formatCompact(campaign.impressions)} impresiones
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Display Ad Card — visual grid (image + text) ── */
-function DisplayAdCard({ ad }: { ad: any }) {
-  const headline = ad.headline || ad.name || "Sin titulo";
-  const description = ad.description || "";
-  const imageUrl = Array.isArray(ad.mediaUrls) && ad.mediaUrls.length > 0 ? ad.mediaUrls[0] : null;
-  const roasColor = ad.roas >= 3 ? "#10b981" : ad.roas >= 1.5 ? "#f59e0b" : "#ef4444";
-
-  return (
-    <div
-      className="bg-white rounded-2xl overflow-hidden transition-all duration-200 hover:translate-y-[-1px]"
-      style={{
-        border: "1px solid rgba(15,23,42,0.06)",
-        boxShadow: PREMIUM_SHADOW,
-        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
-    >
-      {/* Image area */}
-      <div className="relative aspect-[4/3] bg-gradient-to-br from-violet-100 via-purple-50 to-indigo-100 flex items-center justify-center overflow-hidden">
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={headline} className="w-full h-full object-cover" />
-        ) : (
-          <div className="text-center px-5">
-            <Tv size={28} className="text-violet-400 mx-auto mb-2" />
-            <p className="text-[10px] font-medium text-violet-700/70 leading-snug line-clamp-3">{headline}</p>
-          </div>
-        )}
-        <div className="absolute top-2 left-2">
-          <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-1 rounded-md bg-violet-600 text-white">Display</span>
-        </div>
-        <div className="absolute top-2 right-2">
-          <StatusBadge status={ad.status} />
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-4">
-        <p className="text-sm font-semibold text-slate-900 tracking-tight line-clamp-2 mb-1" title={headline}>{headline}</p>
-        {description && <p className="text-[11px] text-slate-500 line-clamp-2 mb-3">{description}</p>}
-
-        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100">
-          <MetricChip label="Inversion" value={formatCompact(ad.spend)} />
-          <MetricChip label="CTR" value={`${ad.ctr}%`} />
-          <MetricChip label="ROAS" value={`${ad.roas}x`} color={roasColor} />
-        </div>
-
-        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[10px] text-slate-500">
-          <Tv size={10} className="text-violet-400" />
-          <span className="truncate" title={ad.campaignName}>{ad.campaignName}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Shopping Card — product feed style ── */
-function ShoppingAdCard({ ad }: { ad: any }) {
-  const roasColor = ad.roas >= 3 ? "#10b981" : ad.roas >= 1.5 ? "#f59e0b" : "#ef4444";
-  return (
-    <div
-      className="bg-white rounded-2xl p-4 transition-all duration-200 hover:translate-y-[-1px]"
-      style={{
-        border: "1px solid rgba(15,23,42,0.06)",
-        boxShadow: PREMIUM_SHADOW,
-        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
-    >
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
-          <ShoppingBag size={16} className="text-emerald-600" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-emerald-700">Shopping</span>
-            <StatusBadge status={ad.status} />
-          </div>
-          <p className="text-sm font-semibold text-slate-900 tracking-tight truncate mt-0.5">{ad.name || "Listing Group"}</p>
-        </div>
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        <MetricChip label="Inv." value={formatCompact(ad.spend)} />
-        <MetricChip label="Clicks" value={formatCompact(ad.clicks)} />
-        <MetricChip label="Conv." value={String(ad.conversions)} />
-        <MetricChip label="ROAS" value={`${ad.roas}x`} color={roasColor} />
-      </div>
-    </div>
-  );
-}
-
-/* ── Master Table — Google-specific columns ── */
-function GoogleCreativeMasterTable({ creatives }: { creatives: any[] }) {
-  if (creatives.length === 0) return null;
-  return (
-    <div
-      className="bg-white rounded-2xl overflow-hidden"
-      style={{ border: "1px solid rgba(15,23,42,0.06)", boxShadow: PREMIUM_SHADOW }}
-    >
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-            <Film size={14} className="text-slate-500" />
-            Tabla completa
-          </h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">{creatives.length} anuncio{creatives.length === 1 ? "" : "s"} con datos en el periodo</p>
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-100" style={{ backgroundColor: "#fbfbfd" }}>
-              <th className="px-4 py-3 text-left text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Anuncio</th>
-              <th className="px-3 py-3 text-center text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Tipo</th>
-              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Inv.</th>
-              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Impr.</th>
-              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Clicks</th>
-              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">CTR</th>
-              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">CPC</th>
-              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Conv.</th>
-              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">CPA</th>
-              <th className="px-3 py-3 text-center text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">ROAS</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {creatives.map((ad: any) => {
-              const ctype = detectCampaignType(ad.campaignObjective);
-              const cfg = CAMPAIGN_TYPE_ICONS[ctype] || CAMPAIGN_TYPE_ICONS.SEARCH;
-              const Icon = cfg.icon;
-              return (
-                <tr key={ad.id} className="hover:bg-slate-50/60 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-slate-900 tracking-tight truncate max-w-[260px]" title={ad.headline || ad.name}>
-                      {ad.headline || ad.name || "Sin titulo"}
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[260px]" title={ad.campaignName}>{ad.campaignName}</div>
-                  </td>
-                  <td className="px-3 py-3 text-center">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md" style={{ backgroundColor: `${cfg.color}14`, color: cfg.color }}>
-                      <Icon size={10} />
-                      {cfg.label}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-right text-slate-700 tabular-nums font-medium">{formatARS(ad.spend)}</td>
-                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{formatCompact(ad.impressions)}</td>
-                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{formatCompact(ad.clicks)}</td>
-                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{ad.ctr}%</td>
-                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{formatARS(ad.cpc)}</td>
-                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{ad.conversions}</td>
-                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{formatARS(ad.costPerConversion)}</td>
-                  <td className="px-3 py-3 text-center"><RoasBadge value={ad.roas} /></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-/* ── Google Creatives View — main creative tab content ── */
-function GoogleCreativesView({ adsData, campaigns }: { adsData: any; campaigns: any[] }) {
-  const [selectedType, setSelectedType] = useState<string>("ALL");
-
-  // Group creatives by campaign type
-  const byType = useMemo(() => {
-    const map: Record<string, any[]> = { SEARCH: [], PERFORMANCE_MAX: [], DISPLAY: [], SHOPPING: [], VIDEO: [] };
-    (adsData?.creatives || []).forEach((c: any) => {
-      const t = detectCampaignType(c.campaignObjective);
-      if (!map[t]) map[t] = [];
-      map[t].push(c);
-    });
-    return map;
-  }, [adsData]);
-
-  // Group campaigns by type (for PMax view which is campaign-level)
-  const campaignsByType = useMemo(() => {
-    const map: Record<string, any[]> = { SEARCH: [], PERFORMANCE_MAX: [], DISPLAY: [], SHOPPING: [], VIDEO: [] };
-    (campaigns || []).forEach((c: any) => {
-      const t = detectCampaignType(c.objective);
-      if (!map[t]) map[t] = [];
-      map[t].push(c);
-    });
-    return map;
-  }, [campaigns]);
-
-  const allCreatives = adsData?.creatives || [];
-  const totalSpend = allCreatives.reduce((s: number, c: any) => s + (c.spend || 0), 0);
-  const totalImpr = allCreatives.reduce((s: number, c: any) => s + (c.impressions || 0), 0);
-  const totalClicks = allCreatives.reduce((s: number, c: any) => s + (c.clicks || 0), 0);
-  const avgCtr = totalImpr > 0 ? Math.round((totalClicks / totalImpr) * 10000) / 100 : 0;
-  const bestRoas = allCreatives.reduce((m: number, c: any) => Math.max(m, c.roas || 0), 0);
-  const activeCount = allCreatives.filter((c: any) => c.status === "ENABLED" || c.status === "ACTIVE").length;
-
-  // Visible types (only those with ads OR campaigns)
-  const typeOrder = ["SEARCH", "PERFORMANCE_MAX", "DISPLAY", "SHOPPING", "VIDEO"];
-  const visibleTypes = typeOrder.filter((t) => (byType[t]?.length || 0) > 0 || (campaignsByType[t]?.length || 0) > 0);
-
-  const filteredCreatives = selectedType === "ALL"
-    ? allCreatives
-    : (byType[selectedType] || []);
-
-  return (
-    <div className="space-y-6">
-      {/* ── 1. KPI strip ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <CreativeKpiCard
-          label="Anuncios activos"
-          value={String(activeCount)}
-          sublabel={`${allCreatives.length} total con datos`}
-          icon={Activity}
-          color="#06b6d4"
-        />
-        <CreativeKpiCard
-          label="Inversion total"
-          value={formatARS(totalSpend)}
-          sublabel={`${formatCompact(totalImpr)} impresiones`}
-          icon={DollarSign}
-          color="#6366f1"
-        />
-        <CreativeKpiCard
-          label="Mejor ROAS"
-          value={`${bestRoas.toFixed(2)}x`}
-          sublabel={bestRoas >= 3 ? "Performance excelente" : bestRoas >= 1.5 ? "Performance positiva" : "Optimizar"}
-          icon={Target}
-          color={bestRoas >= 3 ? "#10b981" : bestRoas >= 1.5 ? "#f59e0b" : "#ef4444"}
-        />
-        <CreativeKpiCard
-          label="CTR promedio"
-          value={`${avgCtr}%`}
-          sublabel={`${formatCompact(totalClicks)} clicks`}
-          icon={MousePointer}
-          color="#f97316"
-        />
-      </div>
-
-      {/* ── 2. Type selector ── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => setSelectedType("ALL")}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all duration-200"
-          style={{
-            backgroundColor: selectedType === "ALL" ? "#0f172a" : "#ffffff",
-            borderColor: selectedType === "ALL" ? "#0f172a" : "rgba(15,23,42,0.08)",
-            color: selectedType === "ALL" ? "#ffffff" : "#334155",
-            boxShadow: selectedType === "ALL" ? "0 4px 14px -4px rgba(15,23,42,0.4)" : "0 1px 0 rgba(15,23,42,0.04)",
-            transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-          }}
-        >
-          <LayoutGrid size={13} />
-          <span className="tracking-tight">Todos</span>
-          <span
-            className="text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-md"
-            style={{
-              backgroundColor: selectedType === "ALL" ? "rgba(255,255,255,0.22)" : "rgba(15,23,42,0.06)",
-              color: selectedType === "ALL" ? "#ffffff" : "#475569",
-            }}
-          >
-            {allCreatives.length}
-          </span>
-        </button>
-        {visibleTypes.map((t) => {
-          const cfg = CAMPAIGN_TYPE_ICONS[t] || CAMPAIGN_TYPE_ICONS.SEARCH;
-          // For PMax show campaign count (since it has no ads); others show ad count
-          const count = t === "PERFORMANCE_MAX" ? (campaignsByType[t]?.length || 0) : (byType[t]?.length || 0);
-          return (
-            <GoogleTypeChip
-              key={t}
-              type={t}
-              label={cfg.label}
-              count={count}
-              color={cfg.color}
-              active={selectedType === t}
-              onClick={() => setSelectedType(t)}
-              icon={cfg.icon}
-            />
-          );
-        })}
-      </div>
-
-      {/* ── 3. Conditional render per type ── */}
-      {selectedType === "ALL" && (
-        <div className="space-y-6">
-          {/* Search */}
-          {(byType.SEARCH || []).length > 0 && (
-            <section>
-              <SectionHeader title="Search" subtitle="Anuncios de busqueda — texto puro" icon={Search} color="#3b82f6" count={byType.SEARCH.length} />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {byType.SEARCH.slice(0, 6).map((ad: any) => <SearchAdCard key={ad.id} ad={ad} />)}
-              </div>
-              {byType.SEARCH.length > 6 && (
-                <p className="text-xs text-slate-400 mt-3 text-center">
-                  +{byType.SEARCH.length - 6} mas — usá el chip <b>Search</b> arriba para verlos todos
-                </p>
-              )}
-            </section>
-          )}
-
-          {/* PMax */}
-          {(campaignsByType.PERFORMANCE_MAX || []).length > 0 && (
-            <section>
-              <SectionHeader title="Performance Max" subtitle="Asset-based — sin anuncios individuales" icon={Zap} color="#f59e0b" count={campaignsByType.PERFORMANCE_MAX.length} />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {campaignsByType.PERFORMANCE_MAX.slice(0, 4).map((c: any) => (
-                  <PMaxCampaignCard key={c.id} campaign={c} ads={byType.PERFORMANCE_MAX?.filter((a: any) => a.campaignId === c.id) || []} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Display */}
-          {(byType.DISPLAY || []).length > 0 && (
-            <section>
-              <SectionHeader title="Display" subtitle="Banners visuales en la red de Google" icon={Tv} color="#8b5cf6" count={byType.DISPLAY.length} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {byType.DISPLAY.slice(0, 8).map((ad: any) => <DisplayAdCard key={ad.id} ad={ad} />)}
-              </div>
-            </section>
-          )}
-
-          {/* Shopping */}
-          {(byType.SHOPPING || []).length > 0 && (
-            <section>
-              <SectionHeader title="Shopping" subtitle="Listings de productos del feed" icon={ShoppingBag} color="#10b981" count={byType.SHOPPING.length} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {byType.SHOPPING.slice(0, 9).map((ad: any) => <ShoppingAdCard key={ad.id} ad={ad} />)}
-              </div>
-            </section>
-          )}
-
-          {/* Master table */}
-          <GoogleCreativeMasterTable creatives={allCreatives} />
-        </div>
-      )}
-
-      {/* Filtered single-type views */}
-      {selectedType === "SEARCH" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredCreatives.length === 0
-            ? <EmptyTypeMessage type="Search" />
-            : filteredCreatives.map((ad: any) => <SearchAdCard key={ad.id} ad={ad} />)}
-        </div>
-      )}
-
-      {selectedType === "PERFORMANCE_MAX" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {(campaignsByType.PERFORMANCE_MAX || []).length === 0
-            ? <EmptyTypeMessage type="Performance Max" />
-            : campaignsByType.PERFORMANCE_MAX.map((c: any) => (
-                <PMaxCampaignCard key={c.id} campaign={c} ads={byType.PERFORMANCE_MAX?.filter((a: any) => a.campaignId === c.id) || []} />
-              ))}
-        </div>
-      )}
-
-      {selectedType === "DISPLAY" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredCreatives.length === 0
-            ? <EmptyTypeMessage type="Display" />
-            : filteredCreatives.map((ad: any) => <DisplayAdCard key={ad.id} ad={ad} />)}
-        </div>
-      )}
-
-      {selectedType === "SHOPPING" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCreatives.length === 0
-            ? <EmptyTypeMessage type="Shopping" />
-            : filteredCreatives.map((ad: any) => <ShoppingAdCard key={ad.id} ad={ad} />)}
-        </div>
-      )}
-
-      {selectedType === "VIDEO" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCreatives.length === 0
-            ? <EmptyTypeMessage type="YouTube / Video" />
-            : filteredCreatives.map((ad: any) => <DisplayAdCard key={ad.id} ad={ad} />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SectionHeader({ title, subtitle, icon, color, count }: {
-  title: string; subtitle: string; icon: any; color: string; count: number;
+function HeroKpi({
+  icon,
+  iconBg,
+  label,
+  value,
+  delta,
+  sub,
+  valueClass = "",
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  label: string;
+  value: React.ReactNode;
+  delta: number | null | undefined;
+  sub: string;
+  valueClass?: string;
 }) {
-  const Icon = icon;
   return (
-    <div className="flex items-end justify-between mb-3 pb-2" style={{ borderBottom: `2px solid ${color}22` }}>
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${color}14` }}>
-          <Icon size={15} style={{ color }} />
-        </div>
-        <div>
-          <h3 className="text-base font-bold text-slate-900 tracking-tight leading-tight">{title}</h3>
-          <p className="text-[11px] text-slate-500 leading-tight">{subtitle}</p>
-        </div>
+    <div
+      className="rounded-2xl bg-white p-5 border border-slate-100 relative overflow-hidden"
+      style={{
+        boxShadow:
+          "0 1px 0 rgba(15,23,42,0.06), 0 8px 24px -12px rgba(15,23,42,0.10), 0 22px 40px -28px rgba(15,23,42,0.08)",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`p-2 rounded-xl ${iconBg}`}>{icon}</div>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
       </div>
-      <span className="text-[10px] font-bold tracking-[0.18em] uppercase tabular-nums px-2 py-1 rounded-md" style={{ backgroundColor: `${color}14`, color }}>
-        {count}
-      </span>
+      <div className={`text-2xl lg:text-[28px] font-bold tracking-tight ${valueClass || "text-slate-900"}`}>
+        {value}
+      </div>
+      <div className="mt-1.5 flex items-center gap-2">
+        {delta !== null && delta !== undefined ? <DeltaPill value={Number(delta)} /> : null}
+        <span className="text-[11px] text-slate-500 tabular-nums">{sub}</span>
+      </div>
     </div>
   );
 }
 
-function EmptyTypeMessage({ type }: { type: string }) {
+function PMaxStat({
+  label,
+  value,
+  valueClass = "",
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
   return (
-    <div className="col-span-full text-center py-16 bg-white rounded-2xl" style={{ border: "1px dashed rgba(15,23,42,0.12)" }}>
-      <Palette className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-      <p className="text-sm font-medium text-slate-600">No hay anuncios {type} en este periodo</p>
-      <p className="text-xs text-slate-400 mt-1">Cambiá el rango de fechas o seleccioná otro tipo</p>
+    <div className="rounded-xl bg-white/70 p-3 border border-amber-100/80">
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</div>
+      <div className={`text-[17px] font-bold tabular-nums tracking-tight mt-0.5 ${valueClass || "text-slate-900"}`}>
+        {value}
+      </div>
     </div>
   );
 }
 
-/* ── Main Component ────────────────────────────────── */
+function DiagnosticCard({
+  severity,
+  Icon,
+  title,
+  detail,
+  onClick,
+}: {
+  severity: "high" | "med" | "low";
+  Icon: any;
+  title: string;
+  detail: string;
+  onClick?: () => void;
+}) {
+  const cfg =
+    severity === "high"
+      ? { border: "border-rose-100", iconBg: "bg-rose-50", iconColor: "text-rose-600", tag: "Urgente", tagColor: "text-rose-700 bg-rose-50" }
+      : severity === "med"
+      ? { border: "border-amber-100", iconBg: "bg-amber-50", iconColor: "text-amber-600", tag: "Atención", tagColor: "text-amber-700 bg-amber-50" }
+      : { border: "border-emerald-100", iconBg: "bg-emerald-50", iconColor: "text-emerald-600", tag: "Buena señal", tagColor: "text-emerald-700 bg-emerald-50" };
 
-export default function GoogleAdsPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState(toDateInputValue(new Date(Date.now() - 30 * 86400000)));
-  const [dateTo, setDateTo] = useState(toDateInputValue(new Date()));
-  const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
-  const [sortField, setSortField] = useState("spend");
-  const [sortAsc, setSortAsc] = useState(false);
-  const [chartMode, setChartMode] = useState<"spend" | "roas" | "cpc">("spend");
-  const [activeTab, setActiveTab] = useState<"funnel" | "types" | "creatives" | "campaigns">("funnel");
-  const [adsData, setAdsData] = useState<any>(null);
-  const [adsLoading, setAdsLoading] = useState(false);
-  const [classFilter, setClassFilter] = useState<string | null>(null);
-  const [draggedAdId, setDraggedAdId] = useState<string | null>(null);
-  const [dragOverType, setDragOverType] = useState<string | null>(null);
-  const { lastSyncAt, isSyncing, syncError, triggerSync: triggerGoogleSync, onSyncComplete } = useSyncStatus("GOOGLE_ADS");
-  const { breakevenRoas, contributionMargin } = useBreakeven(dateFrom, dateTo);
-  // Drill-down state
-  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
-  const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
-  const [adSetsCache, setAdSetsCache] = useState<Record<string, any>>({});
-  const [adsCache, setAdsCache] = useState<Record<string, any[]>>({});
-  const [drillLoading, setDrillLoading] = useState<Record<string, boolean>>({});
-
-  /* ── Fetch ─────────────────────────────────────── */
-  const fetchData = useCallback(() => {
-    setLoading(true);
-    fetch(`/api/metrics/campaigns?platform=GOOGLE&from=${dateFrom}&to=${dateTo}`)
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [dateFrom, dateTo]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  /* ── On-demand sync: auto-refresh data when sync completes ── */
-  useEffect(() => {
-    onSyncComplete(() => fetchData());
-  }, [onSyncComplete, fetchData]);
-
-  const fetchAds = useCallback(() => {
-    setAdsLoading(true);
-    const classParam = classFilter ? `&classification=${classFilter}` : "";
-    fetch(`/api/metrics/ads?platform=GOOGLE&from=${dateFrom}&to=${dateTo}${classParam}`)
-      .then((r) => r.json())
-      .then((d) => setAdsData(d))
-      .catch(() => {})
-      .finally(() => setAdsLoading(false));
-  }, [dateFrom, dateTo, classFilter]);
-
-  useEffect(() => {
-    if (activeTab === "creatives") fetchAds();
-  }, [activeTab, fetchAds]);
-
-  const handleClassificationChange = useCallback(async (creativeId: string, newType: string) => {
-    try {
-      await fetch("/api/metrics/ads", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creativeId, classification: newType }),
-      });
-      fetchAds();
-    } catch (e) {
-      console.error("Failed to update classification:", e);
-    }
-  }, [fetchAds]);
-
-  /* ── Drill-down handlers ─────────────────────── */
-  const toggleCampaignExpand = useCallback(async (campaignId: string) => {
-    setExpandedCampaigns((prev) => {
-      const next = new Set(prev);
-      if (next.has(campaignId)) {
-        next.delete(campaignId);
-      } else {
-        next.add(campaignId);
-        if (!adSetsCache[campaignId]) {
-          setDrillLoading((l) => ({ ...l, [campaignId]: true }));
-          fetch(`/api/metrics/campaigns/drilldown?platform=GOOGLE&campaignId=${campaignId}&from=${dateFrom}&to=${dateTo}`)
-            .then((r) => r.json())
-            .then((d) => {
-              setAdSetsCache((c) => ({ ...c, [campaignId]: d.adSets || [] }));
-            })
-            .catch(() => {})
-            .finally(() => setDrillLoading((l) => ({ ...l, [campaignId]: false })));
-        }
-      }
-      return next;
-    });
-  }, [adSetsCache, dateFrom, dateTo]);
-
-  const toggleAdSetExpand = useCallback(async (adSetId: string) => {
-    setExpandedAdSets((prev) => {
-      const next = new Set(prev);
-      if (next.has(adSetId)) {
-        next.delete(adSetId);
-      } else {
-        next.add(adSetId);
-        if (!adsCache[adSetId]) {
-          setDrillLoading((l) => ({ ...l, [adSetId]: true }));
-          fetch(`/api/metrics/campaigns/drilldown?platform=GOOGLE&adSetId=${adSetId}&from=${dateFrom}&to=${dateTo}`)
-            .then((r) => r.json())
-            .then((d) => {
-              setAdsCache((c) => ({ ...c, [adSetId]: d.ads || [] }));
-            })
-            .catch(() => {})
-            .finally(() => setDrillLoading((l) => ({ ...l, [adSetId]: false })));
-        }
-      }
-      return next;
-    });
-  }, [adsCache, dateFrom, dateTo]);
-
-  // Clear drill-down cache when dates change
-  useEffect(() => {
-    setAdSetsCache({});
-    setAdsCache({});
-    setExpandedCampaigns(new Set());
-    setExpandedAdSets(new Set());
-  }, [dateFrom, dateTo]);
-
-  const handleQuickRange = (days: number) => {
-    setDateTo(toDateInputValue(new Date()));
-    setDateFrom(toDateInputValue(new Date(Date.now() - days * 86400000)));
-    setActiveQuickRange(days);
-  };
-  const handleDateChange = (type: "from" | "to", v: string) => {
-    type === "from" ? setDateFrom(v) : setDateTo(v);
-    setActiveQuickRange(null);
-  };
-
-  const handleFunnelAssign = useCallback(async (campaignId: string, stage: string) => {
-    try {
-      await fetch("/api/metrics/campaigns", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignId, funnelStage: stage }),
-      });
-      fetchData();
-    } catch (e) { console.error(e); }
-  }, [fetchData]);
-
-  /* ── Derived data ──────────────────────────────── */
-  const campaigns = data?.campaigns || [];
-  const totals = data?.totals || {};
-  const changes = data?.changes || {};
-  const dailyTrend = data?.dailyTrend || [];
-  const funnelSummary = data?.funnelSummary || [];
-
-  const sorted = useMemo(() => {
-    return [...campaigns].sort((a: any, b: any) => {
-      const aV = a[sortField] || 0;
-      const bV = b[sortField] || 0;
-      return sortAsc ? aV - bV : bV - aV;
-    });
-  }, [campaigns, sortField, sortAsc]);
-
-  const globalRoas = totals.spend > 0 ? (totals.conversionValue / totals.spend).toFixed(2) : "0";
-  const globalCtr = totals.impressions > 0 ? ((totals.clicks / totals.impressions) * 100).toFixed(2) : "0";
-  const globalCpc = totals.clicks > 0 ? (totals.spend / totals.clicks).toFixed(0) : "0";
-  const globalCostPerConv = totals.conversions > 0 ? (totals.spend / totals.conversions).toFixed(0) : "0";
-  const globalConvRate = totals.clicks > 0 ? ((totals.conversions / totals.clicks) * 100).toFixed(2) : "0";
-
-  // Average QS and IS
-  const withQS = campaigns.filter((c: any) => c.qualityScore !== null);
-  const avgQS = withQS.length > 0 ? (withQS.reduce((s: number, c: any) => s + c.qualityScore, 0) / withQS.length).toFixed(1) : "--";
-  const withIS = campaigns.filter((c: any) => c.impressionShare !== null);
-  const avgIS = withIS.length > 0 ? ((withIS.reduce((s: number, c: any) => s + c.impressionShare, 0) / withIS.length) * 100).toFixed(0) : "--";
-
-  const activeCount = campaigns.filter((c: any) => c.status === "ACTIVE" || c.status === "ENABLED").length;
-
-  const handleSort = (field: string) => {
-    if (sortField === field) setSortAsc(!sortAsc);
-    else { setSortField(field); setSortAsc(false); }
-  };
-  const SortIcon = ({ field }: { field: string }) => {
-    if (sortField !== field) return null;
-    return sortAsc ? <ArrowUp className="w-3 h-3 inline ml-0.5" /> : <ArrowDown className="w-3 h-3 inline ml-0.5" />;
-  };
-
-  const exportCSV = () => {
-    const headers = ["Campana", "Estado", "Funnel", "Tipo", "Gasto", "Impresiones", "Clicks", "CTR%", "CPC", "Conversiones", "Revenue", "ROAS", "QualityScore", "ImprShare%"];
-    const rows = campaigns.map((c: any) => [
-      `"${c.name.replace(/"/g, '""')}"`, c.status, c.funnelStage, detectCampaignType(c.objective),
-      c.spend.toFixed(2), c.impressions, c.clicks, c.ctr, c.cpc.toFixed(2),
-      c.conversions, c.conversionValue.toFixed(2), c.roas, c.qualityScore || "", c.impressionShare ? (c.impressionShare * 100).toFixed(1) : "",
-    ].join(","));
-    const csv = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `google_ads_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
-  if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3" />
-        <span className="text-gray-500">Cargando Google Ads...</span>
+  const Component: any = onClick ? "button" : "div";
+  return (
+    <Component
+      onClick={onClick}
+      className={`text-left rounded-xl bg-white p-4 border ${cfg.border} group ${
+        onClick ? "hover:shadow-md cursor-pointer" : ""
+      }`}
+      style={{ transition: `box-shadow 220ms ${ES_TRANSITION}` }}
+    >
+      <div className="flex items-start gap-3">
+        <div className={`p-2 rounded-lg ${cfg.iconBg} shrink-0`}>
+          <Icon size={14} className={cfg.iconColor} strokeWidth={2.25} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${cfg.tagColor}`}>{cfg.tag}</span>
+            {onClick && (
+              <ChevronRight size={13} className="text-slate-300 group-hover:text-slate-500 ml-auto" />
+            )}
+          </div>
+          <div className="text-[13px] font-semibold text-slate-900 mt-1 tracking-tight">{title}</div>
+          <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{detail}</div>
+        </div>
       </div>
-    );
+    </Component>
+  );
+}
+
+function EmptyInsight() {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center">
+      <Gauge size={18} className="mx-auto text-slate-300 mb-1.5" />
+      <div className="text-[12px] text-slate-500 tracking-tight">
+        Todo en orden — sin alertas para este rango.
+      </div>
+    </div>
+  );
+}
+
+function AdGroupsMini({
+  adsets,
+  breakevenRoas,
+}: {
+  adsets: any[];
+  breakevenRoas: number;
+}) {
+  return (
+    <div className="rounded-xl bg-white border border-slate-100 overflow-hidden">
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 border-b border-slate-100">
+            <th className="text-left py-2 px-3">Ad Group</th>
+            <th className="text-left py-2 px-2">Estado</th>
+            <th className="text-right py-2 px-2">Gasto</th>
+            <th className="text-right py-2 px-2">CTR</th>
+            <th className="text-right py-2 px-2">CPA</th>
+            <th className="text-right py-2 px-2">Conv.</th>
+            <th className="text-right py-2 px-2">ROAS</th>
+            <th className="text-right py-2 px-3">Ads</th>
+          </tr>
+        </thead>
+        <tbody>
+          {adsets
+            .slice()
+            .sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0))
+            .map((a: any) => (
+              <tr key={a.id} className="border-b border-slate-50 last:border-0">
+                <td className="py-2 px-3">
+                  <div className="text-[12px] text-slate-800 truncate max-w-[260px] tracking-tight">{a.name}</div>
+                  <div className="text-[10px] text-slate-400">{a.optimizationGoal || "—"}</div>
+                </td>
+                <td className="py-2 px-2">
+                  <StatusDot status={a.status} />
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-700 font-medium">
+                  {formatARS(a.spend || 0)}
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-600">
+                  {(a.ctr || 0).toFixed(2)}%
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-600">
+                  {a.cpa > 0 ? formatARS(a.cpa) : "—"}
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums text-slate-600">
+                  {(a.conversions || 0).toLocaleString("es-AR")}
+                </td>
+                <td className="py-2 px-2 text-right tabular-nums font-bold">
+                  <span className={roasColorClass(a.roas || 0, breakevenRoas)}>
+                    {(a.roas || 0).toFixed(2)}x
+                  </span>
+                </td>
+                <td className="py-2 px-3 text-right tabular-nums text-slate-500">
+                  {a.adsCount || 0}
+                </td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EmptyTable({ hasData }: { hasData: boolean }) {
+  return (
+    <div className="p-12 text-center">
+      <BarChart3 size={28} className="mx-auto text-slate-300 mb-2" />
+      <div className="text-sm text-slate-600 font-medium tracking-tight">
+        {hasData ? "Sin resultados con los filtros actuales" : "Sin campañas Google en el rango"}
+      </div>
+      <div className="text-[11px] text-slate-400 mt-1">
+        {hasData ? "Probá ampliar el filtro o buscar otra campaña." : "Ampliá el rango de fechas o verificá la conexión Google Ads."}
+      </div>
+    </div>
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <div className="p-5 space-y-2">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="h-10 bg-slate-50 rounded animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════
+   Google Campaign Drawer
+   ════════════════════════════════════════════════════ */
+
+function GoogleCampaignDrawer({
+  open,
+  onClose,
+  campaign,
+  breakevenRoas,
+  loadingStructure,
+}: {
+  open: boolean;
+  onClose: () => void;
+  campaign: any;
+  breakevenRoas: number;
+  loadingStructure: boolean;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (open) window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open || !campaign) {
+    return <div className="fixed inset-0 z-40 pointer-events-none" aria-hidden />;
   }
 
+  const badge = classifyCampaign({
+    status: campaign.status,
+    spend: campaign.spend,
+    conversions: campaign.conversions,
+    roas: campaign.roas,
+    daysWithData: campaign.daysWithData,
+    breakevenRoas,
+  });
+
+  const adsets: any[] = Array.isArray(campaign.adSets) ? campaign.adSets : [];
+  const type = campaign.gType || detectGoogleType(campaign.objective, campaign.name);
+  const isPMax = type === "PMAX";
+  const showQSIS = type === "SEARCH" || type === "SHOPPING";
+
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-green-400 flex items-center justify-center shadow-lg">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Google Ads</h1>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Search, Shopping & Performance Max &middot; {dateFrom} a {dateTo}
-                {isSyncing ? (
-                  <span className="ml-2 inline-flex items-center gap-1 text-amber-600">
-                    <RefreshCw size={11} className="animate-spin" />
-                    Actualizando datos...
-                  </span>
-                ) : lastSyncAt ? (
-                  <button
-                    onClick={() => triggerGoogleSync()}
-                    className="ml-2 inline-flex items-center gap-1 text-green-600 hover:text-green-700 transition-colors"
-                    title="Click para actualizar"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                    Sync: {new Date(lastSyncAt).toLocaleString("es-AR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
-                  </button>
-                ) : null}
-              </p>
-            </div>
-          </div>
-        </div>
-        <DateRangeFilter
-          dateFrom={dateFrom} dateTo={dateTo}
-          activeQuickRange={activeQuickRange}
-          quickRanges={QUICK_RANGES}
-          onQuickRange={handleQuickRange}
-          onDateChange={handleDateChange}
-          loading={loading}
-        />
-      </div>
-
-      {/* Status strip */}
-      <div className="flex items-center gap-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          {activeCount} activas
-        </span>
-        <span>{campaigns.length} campanas total</span>
-        {avgQS !== "--" && (
-          <span className="flex items-center gap-1.5">
-            <Star size={12} className="text-amber-500" />
-            QS Promedio: {avgQS}/10
-          </span>
-        )}
-        {avgIS !== "--" && (
-          <span className="flex items-center gap-1.5">
-            <Activity size={12} className="text-blue-500" />
-            Impr. Share: {avgIS}%
-          </span>
-        )}
-      </div>
-
-      {/* Break-even health chip */}
-      <BreakevenChip
-        currentRoas={Number(globalRoas) || 0}
-        breakevenRoas={breakevenRoas}
-        contributionMargin={contributionMargin}
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[2px]"
+        onClick={onClose}
+        style={{ animation: `gg-enter 240ms ${ES_TRANSITION}` }}
       />
-
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-        <KpiCard icon={<DollarSign size={14} className="text-red-600" />} iconBg="bg-red-50" label="Inversion" value={formatARS(totals.spend || 0)} change={changes.spend} />
-        <KpiCard icon={<Eye size={14} className="text-blue-600" />} iconBg="bg-blue-50" label="Impresiones" value={formatCompact(totals.impressions || 0)} change={changes.impressions} />
-        <KpiCard icon={<MousePointer size={14} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Clicks" value={formatCompact(totals.clicks || 0)} change={changes.clicks} />
-        <KpiCard icon={<Target size={14} className="text-green-600" />} iconBg="bg-green-50" label="ROAS" value={`${globalRoas}x`} subtitle={breakevenRoas > 0 ? `BE ${breakevenRoas.toFixed(2)}x · CM ${(contributionMargin * 100).toFixed(0)}%` : undefined} change={breakevenRoas > 0 ? undefined : changes.roas} />
-        <KpiCard icon={<ShoppingCart size={14} className="text-purple-600" />} iconBg="bg-purple-50" label="Conversiones" value={String(totals.conversions || 0)} change={changes.conversions} />
-        <KpiCard icon={<Zap size={14} className="text-amber-600" />} iconBg="bg-amber-50" label="CTR" value={`${globalCtr}%`} subtitle={`CPC: ${formatARS(Number(globalCpc))}`} />
-        <KpiCard icon={<DollarSign size={14} className="text-cyan-600" />} iconBg="bg-cyan-50" label="CPA" value={formatARS(Number(globalCostPerConv))} subtitle={`Conv Rate: ${globalConvRate}%`} />
-        <KpiCard icon={<Star size={14} className="text-amber-500" />} iconBg="bg-amber-50" label="Quality Score" value={avgQS !== "--" ? `${avgQS}/10` : "--"} subtitle={avgIS !== "--" ? `IS: ${avgIS}%` : ""} />
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="border-b border-gray-200">
-          <div className="flex">
-            {([
-              { key: "funnel" as const, label: "Funnel & Budget", icon: <Layers size={14} /> },
-              { key: "types" as const, label: "Tipos de Campana", icon: <BarChart3 size={14} /> },
-              { key: "creatives" as const, label: "Creativos", icon: <Palette size={14} /> },
-              { key: "campaigns" as const, label: "Campanas", icon: <TrendingUp size={14} /> },
-            ]).map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-6 py-3.5 text-sm font-medium border-b-2 transition-all ${
-                  activeTab === tab.key
-                    ? "border-blue-600 text-blue-600 bg-blue-50/50"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
+      <aside
+        className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-[580px] bg-white shadow-2xl overflow-y-auto"
+        style={{
+          animation: `gg-slide-in 360ms ${ES_TRANSITION}`,
+          boxShadow: "0 0 0 1px rgba(15,23,42,0.06), -20px 0 60px -30px rgba(15,23,42,0.30)",
+        }}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-100 p-5 z-10">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <TypeChip type={type} />
+                <StatusDot status={campaign.status} />
+                {badge && <Badge Icon={badge.Icon} label={badge.label} soft={badge.soft} text={badge.text} />}
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 tracking-tight">{campaign.name}</h3>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                {campaign.objective || "Sin tipo"}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+              aria-label="Cerrar"
+            >
+              <X size={16} />
+            </button>
           </div>
         </div>
 
-        <div className="p-0">
-          {/* ── TAB: Funnel ───────────────────────────── */}
-          {activeTab === "funnel" && (
-            <div className="p-6 space-y-6">
-              <FunnelBoard campaigns={campaigns} funnelSummary={funnelSummary} onAssign={handleFunnelAssign} />
+        {/* KPIs */}
+        <div className="p-5 grid grid-cols-2 gap-3">
+          <DrawerKpi
+            icon={<DollarSign size={14} className="text-slate-700" />}
+            iconBg="bg-slate-100"
+            label="Gasto"
+            value={formatARS(campaign.spend)}
+          />
+          <DrawerKpi
+            icon={<Target size={14} className="text-emerald-700" />}
+            iconBg="bg-emerald-50"
+            label="ROAS"
+            value={`${(campaign.roas || 0).toFixed(2)}x`}
+            valueClass={roasColorClass(campaign.roas || 0, breakevenRoas)}
+          />
+          <DrawerKpi
+            icon={<ShoppingCart size={14} className="text-violet-700" />}
+            iconBg="bg-violet-50"
+            label="Conversiones"
+            value={(campaign.conversions || 0).toLocaleString("es-AR")}
+          />
+          <DrawerKpi
+            icon={<MousePointer size={14} className="text-blue-700" />}
+            iconBg="bg-blue-50"
+            label="CTR"
+            value={`${(campaign.ctr || 0).toFixed(2)}%`}
+          />
+          <DrawerKpi
+            icon={<Activity size={14} className="text-amber-700" />}
+            iconBg="bg-amber-50"
+            label="CPA"
+            value={campaign.costPerConversion > 0 ? formatARS(campaign.costPerConversion) : "—"}
+          />
+          <DrawerKpi
+            icon={<Clock size={14} className="text-slate-700" />}
+            iconBg="bg-slate-100"
+            label="Días con data"
+            value={(campaign.daysWithData || 0).toString()}
+          />
+        </div>
 
-              {/* Chart */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900">Tendencia Diaria</h3>
-                  <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
-                    {([
-                      { key: "spend" as const, label: "Gasto" },
-                      { key: "roas" as const, label: "ROAS" },
-                      { key: "cpc" as const, label: "CPC" },
-                    ]).map((m) => (
-                      <button key={m.key} onClick={() => setChartMode(m.key)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                          chartMode === m.key ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-700"
-                        }`}>
-                        {m.label}
-                      </button>
-                    ))}
+        {/* Google-specific signals (solo Search/Shopping) */}
+        {showQSIS && (campaign.qualityScore != null || campaign.impressionShare != null) && (
+          <div className="px-5 pb-2">
+            <h4 className="text-[12px] font-semibold uppercase tracking-widest text-slate-500 mb-3">
+              Señales Google
+            </h4>
+            <div className="rounded-xl bg-slate-50/60 p-4 border border-slate-100 space-y-4">
+              {campaign.qualityScore != null && (
+                <QualityScoreBar score={Number(campaign.qualityScore)} />
+              )}
+              {campaign.impressionShare != null && (
+                <ImpressionShareBar share={Number(campaign.impressionShare)} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* PMax note */}
+        {isPMax && (
+          <div className="px-5 pb-2">
+            <div className="rounded-xl bg-amber-50/60 p-4 border border-amber-100">
+              <div className="flex items-start gap-2 text-[12px] text-slate-700">
+                <Zap size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-amber-900 tracking-tight">
+                    Campaña Performance Max
+                  </div>
+                  <div className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    PMax es asset-based: los creativos se agrupan en asset groups gestionados por la AI de Google.
+                    El breakdown por asset group no está sincronizado — para ver los assets visitá Google Ads directamente.
                   </div>
                 </div>
-                {dailyTrend.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    {chartMode === "spend" ? (
-                      <AreaChart data={dailyTrend}>
-                        <defs>
-                          <linearGradient id="googleSpendGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(v)} />
-                        <Tooltip formatter={(v: number) => [formatARS(v), "Gasto Google"]} />
-                        <Area type="monotone" dataKey="GOOGLE" fill="url(#googleSpendGrad)" stroke="#3b82f6" strokeWidth={2} />
-                      </AreaChart>
-                    ) : chartMode === "roas" ? (
-                      <LineChart data={dailyTrend.map((d: any) => ({
-                        date: d.date,
-                        roas: d.GOOGLE > 0 ? Math.round((d.conversionValue / d.GOOGLE) * 100) / 100 : 0,
-                      }))}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}x`} />
-                        <Tooltip formatter={(v: number) => [`${v}x`, "ROAS"]} />
-                        <Line type="monotone" dataKey="roas" stroke="#10b981" strokeWidth={2} dot={false} />
-                      </LineChart>
-                    ) : (
-                      <LineChart data={dailyTrend.map((d: any) => ({
-                        date: d.date,
-                        cpc: d.clicks > 0 ? Math.round((d.GOOGLE / d.clicks) * 100) / 100 : 0,
-                      }))}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatARS(v)} />
-                        <Tooltip formatter={(v: number) => [formatARS(v), "CPC"]} />
-                        <Line type="monotone" dataKey="cpc" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                      </LineChart>
-                    )}
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[300px] flex items-center justify-center text-gray-400">Sin datos de tendencia</div>
-                )}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* ── TAB: Campaign Types ──────────────────── */}
-          {activeTab === "types" && (
-            <div className="p-6 space-y-6">
-              <CampaignTypeBreakdown campaigns={campaigns} />
-              <QualityScoreSummary campaigns={campaigns} />
+        {/* Ad groups (oculto para PMax) */}
+        {!isPMax && (
+          <div className="px-5 pt-3 pb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-[12px] font-semibold uppercase tracking-widest text-slate-500">
+                Ad groups ({adsets.length})
+              </h4>
             </div>
-          )}
-
-          {/* ── TAB: Creativos ──────────────────────── */}
-          {activeTab === "creatives" && (
-            <div className="p-6 space-y-6">
-              {adsLoading && !adsData ? (
-                <div className="flex items-center justify-center h-48">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3" />
-                  <span className="text-gray-500">Cargando creativos...</span>
-                </div>
-              ) : !adsData?.creatives?.length && !campaigns.some((c: any) => detectCampaignType(c.objective) === "PERFORMANCE_MAX") ? (
-                <div className="text-center py-16">
-                  <Palette className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 mb-1">No hay creativos sincronizados aun</p>
-                  <p className="text-xs text-gray-400">Los creativos se sincronizan con el proximo sync de datos</p>
-                </div>
-              ) : (
-                <GoogleCreativesView adsData={adsData} campaigns={campaigns} />
-              )}
-            </div>
-          )}
-
-          {/* ── TAB: Campaigns Drill-down Table ─────── */}
-          {activeTab === "campaigns" && (
-            <div>
-              <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-gray-900">Campanas Google ({campaigns.length})</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Hace clic en una campana para ver sus grupos de anuncios y anuncios</p>
-                </div>
-                <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
-                  <Download className="w-4 h-4" /> Exportar CSV
-                </button>
+            {loadingStructure && adsets.length === 0 ? (
+              <div className="text-[12px] text-slate-500">Cargando ad groups…</div>
+            ) : adsets.length === 0 ? (
+              <div className="text-[12px] text-slate-500 rounded-xl border border-dashed border-slate-200 p-6 text-center">
+                Sin ad groups en este período.
               </div>
-              {sorted.length === 0 ? (
-                <div className="p-12 text-center text-gray-400">No hay campanas Google con datos en este periodo.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[280px]">Nombre</th>
-                        <th className="px-3 py-3 text-center font-semibold text-gray-700">Estado</th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("spend")}>Gasto<SortIcon field="spend" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("impressions")}>Impr.<SortIcon field="impressions" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("clicks")}>Clicks<SortIcon field="clicks" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("ctr")}>CTR<SortIcon field="ctr" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("cpc")}>CPC<SortIcon field="cpc" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("conversions")}>Conv.<SortIcon field="conversions" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("conversionValue")}>Revenue<SortIcon field="conversionValue" /></th>
-                        <th className="px-3 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("roas")}>ROAS<SortIcon field="roas" /></th>
-                        <th className="px-3 py-3 text-right font-semibold text-gray-700">CPA</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sorted.map((c: any) => {
-                        const isExpanded = expandedCampaigns.has(c.id);
-                        const campaignAdSets = adSetsCache[c.id] || [];
-                        const isLoadingAdSets = drillLoading[c.id];
-                        return (
-                          <React.Fragment key={c.id}>
-                            {/* ── Campaign Row ── */}
-                            <tr
-                              className="hover:bg-blue-50/30 transition-colors cursor-pointer border-b border-gray-100 group"
-                              onClick={() => toggleCampaignExpand(c.id)}
-                            >
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                  <span className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>
-                                    <ChevronRight size={14} className="text-blue-500" />
-                                  </span>
-                                  <Megaphone size={14} className="text-blue-400 flex-shrink-0" />
-                                  <div className="min-w-0">
-                                    <div className="font-medium text-gray-900 truncate max-w-[220px]" title={c.name}>{c.name}</div>
-                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                      <CampaignTypeBadge objective={c.objective} />
-                                      <FunnelStageBadge stage={c.funnelStage} />
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-3 py-3 text-center"><StatusBadge status={c.status} /></td>
-                              <td className="px-3 py-3 text-right text-gray-900 font-semibold">{formatARS(c.spend)}</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.impressions)}</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{formatCompact(c.clicks)}</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{c.ctr}%</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{formatARS(c.cpc)}</td>
-                              <td className="px-3 py-3 text-right text-gray-700">{c.conversions}</td>
-                              <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(c.conversionValue)}</td>
-                              <td className="px-3 py-3 text-center"><RoasBadge value={c.roas} stage={c.funnelStage} /></td>
-                              <td className="px-3 py-3 text-right text-gray-700">{formatARS(c.costPerConversion)}</td>
-                            </tr>
+            ) : (
+              <div className="space-y-2">
+                {adsets
+                  .slice()
+                  .sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0))
+                  .map((a: any) => (
+                    <div key={a.id} className="rounded-xl border border-slate-100 p-3 bg-slate-50/40">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-medium text-slate-900 truncate tracking-tight">
+                            {a.name}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {a.optimizationGoal || "—"} · {a.adsCount || 0} ads
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div
+                            className={`text-[14px] font-bold tabular-nums ${roasColorClass(
+                              a.roas || 0,
+                              breakevenRoas
+                            )}`}
+                          >
+                            {(a.roas || 0).toFixed(2)}x
+                          </div>
+                          <div className="text-[10px] text-slate-500 tabular-nums">
+                            {formatARS(a.spend || 0)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
 
-                            {/* ── Ad Groups (expanded) ── */}
-                            {isExpanded && (
-                              <>
-                                {isLoadingAdSets ? (
-                                  <tr><td colSpan={11} className="bg-blue-50/20">
-                                    <div className="flex items-center gap-2 px-8 py-3 text-xs text-gray-500">
-                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500" />
-                                      Cargando grupos de anuncios...
-                                    </div>
-                                  </td></tr>
-                                ) : campaignAdSets.length === 0 ? (
-                                  <tr><td colSpan={11} className="bg-blue-50/20 px-8 py-3 text-xs text-gray-400">
-                                    Sin grupos de anuncios sincronizados para esta campana
-                                  </td></tr>
-                                ) : (
-                                  campaignAdSets.map((ag: any) => {
-                                    const isAgExpanded = expandedAdSets.has(ag.id);
-                                    const adGroupAds = adsCache[ag.id] || [];
-                                    const isLoadingAds = drillLoading[ag.id];
-                                    return (
-                                      <React.Fragment key={ag.id}>
-                                        {/* ── Ad Group Row ── */}
-                                        <tr
-                                          className="hover:bg-indigo-50/30 transition-colors cursor-pointer bg-gray-50/50 border-b border-gray-100"
-                                          onClick={(e) => { e.stopPropagation(); toggleAdSetExpand(ag.id); }}
-                                        >
-                                          <td className="pl-10 pr-4 py-2.5">
-                                            <div className="flex items-center gap-2">
-                                              <span className={`transition-transform duration-200 ${isAgExpanded ? "rotate-90" : ""}`}>
-                                                <ChevronRight size={12} className="text-indigo-500" />
-                                              </span>
-                                              <LayoutGrid size={13} className="text-indigo-400 flex-shrink-0" />
-                                              <div className="min-w-0">
-                                                <div className="font-medium text-gray-800 text-xs truncate max-w-[200px]" title={ag.name}>{ag.name}</div>
-                                                <div className="flex items-center gap-1.5 mt-0.5">
-                                                  {ag.bidStrategy && <span className="text-[9px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded">{ag.bidStrategy}</span>}
-                                                  {ag.adsCount > 0 && <span className="text-[9px] text-gray-400">{ag.adsCount} anuncios</span>}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </td>
-                                          <td className="px-3 py-2.5 text-center"><StatusBadge status={ag.status} /></td>
-                                          <td className="px-3 py-2.5 text-right text-gray-700 font-medium text-xs">{formatARS(ag.spend)}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatCompact(ag.impressions)}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatCompact(ag.clicks)}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{ag.ctr}%</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatARS(ag.cpc)}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{ag.conversions}</td>
-                                          <td className="px-3 py-2.5 text-right text-gray-700 font-medium text-xs">{formatARS(ag.conversionValue)}</td>
-                                          <td className="px-3 py-2.5 text-center"><RoasBadge value={ag.roas} /></td>
-                                          <td className="px-3 py-2.5 text-right text-gray-600 text-xs">{formatARS(ag.costPerConversion)}</td>
-                                        </tr>
-
-                                        {/* ── Ads (expanded from ad group) ── */}
-                                        {isAgExpanded && (
-                                          <>
-                                            {isLoadingAds ? (
-                                              <tr><td colSpan={11} className="bg-indigo-50/20">
-                                                <div className="flex items-center gap-2 px-14 py-2 text-xs text-gray-500">
-                                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-400" />
-                                                  Cargando anuncios...
-                                                </div>
-                                              </td></tr>
-                                            ) : adGroupAds.length === 0 ? (
-                                              <tr><td colSpan={11} className="bg-indigo-50/20 px-14 py-2 text-xs text-gray-400">
-                                                Sin anuncios sincronizados para este grupo
-                                              </td></tr>
-                                            ) : (
-                                              adGroupAds.map((ad: any) => (
-                                                <tr key={ad.id} className="bg-indigo-50/10 hover:bg-indigo-50/30 border-b border-gray-50 transition-colors">
-                                                  <td className="pl-16 pr-4 py-2">
-                                                    <div className="flex items-center gap-2">
-                                                      {ad.type === "VIDEO" ? <Film size={12} className="text-pink-400" /> : <Image size={12} className="text-emerald-400" />}
-                                                      <div className="min-w-0">
-                                                        <div className="text-xs text-gray-700 truncate max-w-[180px]" title={ad.name}>{ad.name}</div>
-                                                        {ad.classification && ad.classification !== "OTHER" && (
-                                                          <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded mt-0.5 inline-block">{ad.classification}</span>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                  </td>
-                                                  <td className="px-3 py-2 text-center"><StatusBadge status={ad.status} /></td>
-                                                  <td className="px-3 py-2 text-right text-gray-600 text-[11px]">{formatARS(ad.spend)}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatCompact(ad.impressions)}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatCompact(ad.clicks)}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{ad.ctr}%</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatARS(ad.cpc)}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{ad.conversions}</td>
-                                                  <td className="px-3 py-2 text-right text-gray-600 text-[11px]">{formatARS(ad.conversionValue)}</td>
-                                                  <td className="px-3 py-2 text-center"><RoasBadge value={ad.roas} /></td>
-                                                  <td className="px-3 py-2 text-right text-gray-500 text-[11px]">{formatARS(ad.costPerConversion)}</td>
-                                                </tr>
-                                              ))
-                                            )}
-                                          </>
-                                        )}
-                                      </React.Fragment>
-                                    );
-                                  })
-                                )}
-                              </>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="bg-gray-50 border-t-2 border-gray-300">
-                      <tr className="font-bold">
-                        <td className="px-4 py-3 text-gray-900">TOTAL</td>
-                        <td />
-                        <td className="px-3 py-3 text-right text-gray-900">{formatARS(totals.spend || 0)}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatCompact(totals.impressions || 0)}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatCompact(totals.clicks || 0)}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{globalCtr}%</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatARS(Number(globalCpc))}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{totals.conversions || 0}</td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatARS(totals.conversionValue || 0)}</td>
-                        <td className="px-3 py-3 text-center"><RoasBadge value={Number(globalRoas)} /></td>
-                        <td className="px-3 py-3 text-right text-gray-900">{formatARS(Number(globalCostPerConv))}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+        {/* Link a Creativos Lab */}
+        <div className="px-5 pb-6">
+          <a
+            href={`/campaigns/creatives?platform=GOOGLE&campaign=${encodeURIComponent(campaign.id)}`}
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blue-600 hover:text-blue-700"
+            style={{ transition: `color 180ms ${ES_TRANSITION}` }}
+          >
+            Ver creativos en Creativos Lab
+            <ExternalLink size={12} />
+          </a>
         </div>
+      </aside>
+    </>
+  );
+}
+
+function DrawerKpi({
+  icon,
+  iconBg,
+  label,
+  value,
+  valueClass = "",
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="rounded-xl bg-slate-50/60 p-3 border border-slate-100">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className={`p-1.5 rounded-lg ${iconBg}`}>{icon}</div>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
+      </div>
+      <div className={`text-[15px] font-bold tabular-nums tracking-tight ${valueClass || "text-slate-900"}`}>
+        {value}
       </div>
     </div>
   );
