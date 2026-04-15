@@ -2792,6 +2792,276 @@ function ContentRadarZone({ state }: { state: RadarState }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Zona 7 — Insights rápidos
+// ═══════════════════════════════════════════════════════════════
+
+type InsightTone = "violet" | "pink" | "amber" | "rose" | "green";
+type Insight = {
+  key: string;
+  tone: InsightTone;
+  icon: string;
+  lens: string;
+  headline: string;
+  detail: string;
+  metric: { label: string; value: string };
+  avatarUrl?: string | null;
+  action: { label: string; href: string };
+};
+type InsightsPayload = {
+  generatedAt: string;
+  period: { from: string; to: string };
+  insights: Insight[];
+};
+type InsightsState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | ({ status: "ready" } & InsightsPayload);
+
+const INSIGHT_THEME: Record<
+  InsightTone,
+  { accent: string; bg: string; border: string; text: string; glow: string }
+> = {
+  violet: {
+    accent: "#a78bfa",
+    bg: "linear-gradient(165deg, rgba(167,139,250,0.1) 0%, rgba(167,139,250,0.02) 100%)",
+    border: "rgba(167,139,250,0.26)",
+    text: "#ddd6fe",
+    glow: "rgba(167,139,250,0.32)",
+  },
+  pink: {
+    accent: "#f472b6",
+    bg: "linear-gradient(165deg, rgba(244,114,182,0.1) 0%, rgba(244,114,182,0.02) 100%)",
+    border: "rgba(244,114,182,0.26)",
+    text: "#fbcfe8",
+    glow: "rgba(244,114,182,0.32)",
+  },
+  amber: {
+    accent: "#f4d794",
+    bg: "linear-gradient(165deg, rgba(244,215,148,0.1) 0%, rgba(244,215,148,0.02) 100%)",
+    border: "rgba(244,215,148,0.28)",
+    text: "#fde8bc",
+    glow: "rgba(244,215,148,0.35)",
+  },
+  rose: {
+    accent: "#fb7185",
+    bg: "linear-gradient(165deg, rgba(251,113,133,0.1) 0%, rgba(251,113,133,0.02) 100%)",
+    border: "rgba(251,113,133,0.28)",
+    text: "#fecdd3",
+    glow: "rgba(251,113,133,0.32)",
+  },
+  green: {
+    accent: "#86efac",
+    bg: "linear-gradient(165deg, rgba(134,239,172,0.1) 0%, rgba(134,239,172,0.02) 100%)",
+    border: "rgba(134,239,172,0.28)",
+    text: "#bbf7d0",
+    glow: "rgba(134,239,172,0.32)",
+  },
+};
+
+function InsightIcon({
+  name,
+  color,
+  size = 14,
+}: {
+  name: string;
+  color: string;
+  size?: number;
+}) {
+  const p = { size, strokeWidth: 2, color } as const;
+  if (name === "sparkle") return <Sparkles {...p} />;
+  if (name === "play") return <Play {...p} />;
+  if (name === "flame") return <Flame {...p} />;
+  if (name === "alert") return <AlertCircle {...p} />;
+  if (name === "rocket") return <Rocket {...p} />;
+  if (name === "target") return <Target {...p} />;
+  return <Sparkles {...p} />;
+}
+
+function InsightCard({
+  insight,
+  delay,
+}: {
+  insight: Insight;
+  delay: number;
+}) {
+  const theme = INSIGHT_THEME[insight.tone];
+  return (
+    <Link
+      href={insight.action.href}
+      className="group relative block rounded-2xl p-5 overflow-hidden"
+      style={{
+        background: theme.bg,
+        border: `1px solid ${theme.border}`,
+        boxShadow: `0 24px 60px -42px ${theme.glow}, inset 0 1px 0 rgba(255,255,255,0.05)`,
+        animation: `insightIn 620ms ${ES} ${delay}ms both`,
+      }}
+    >
+      <div
+        aria-hidden
+        className="absolute -top-12 -right-12 w-48 h-48 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle at 30% 30%, ${theme.accent}35 0%, transparent 65%)`,
+          filter: "blur(22px)",
+          opacity: 0.65,
+          animation: "insightHalo 5s ease-in-out infinite",
+        }}
+      />
+
+      <div className="relative flex items-center gap-2">
+        <div
+          className="w-7 h-7 rounded-xl flex items-center justify-center relative"
+          style={{
+            background: `linear-gradient(145deg, ${theme.accent}22, ${theme.accent}08)`,
+            border: `1px solid ${theme.border}`,
+          }}
+        >
+          <InsightIcon name={insight.icon} color={theme.accent} size={13} />
+          <span
+            aria-hidden
+            className="absolute inset-0 rounded-xl"
+            style={{
+              boxShadow: `0 0 0 0 ${theme.accent}55`,
+              animation: "insightRing 2.8s ease-out infinite",
+            }}
+          />
+        </div>
+        <span
+          className="text-[10px] font-bold uppercase tracking-[0.22em]"
+          style={{ color: theme.text }}
+        >
+          {insight.lens}
+        </span>
+      </div>
+
+      <h3
+        className="relative mt-3 text-[15.5px] tracking-tight text-white leading-snug"
+        style={{ fontWeight: 600, letterSpacing: "-0.012em" }}
+      >
+        {insight.headline}
+      </h3>
+
+      <p className="relative mt-2 text-[12.5px] text-white/60 tracking-tight leading-relaxed">
+        {insight.detail}
+      </p>
+
+      <div
+        className="relative mt-4 flex items-center gap-3 p-3 rounded-xl"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(255,255,255,0.05)",
+        }}
+      >
+        {insight.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={insight.avatarUrl}
+            alt=""
+            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+            style={{ border: `1px solid ${theme.border}` }}
+          />
+        ) : (
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{
+              background: `${theme.accent}14`,
+              border: `1px solid ${theme.border}`,
+            }}
+          >
+            <InsightIcon name={insight.icon} color={theme.accent} size={14} />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-[9.5px] uppercase tracking-[0.16em] text-white/40 font-bold">
+            {insight.metric.label}
+          </div>
+          <div
+            className="text-[18px] tabular-nums tracking-tight truncate"
+            style={{
+              color: theme.accent,
+              fontWeight: 600,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            {insight.metric.value}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="relative mt-4 flex items-center justify-between pt-3"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <span className="text-[11.5px] tracking-tight" style={{ color: theme.text }}>
+          {insight.action.label}
+        </span>
+        <span
+          className="flex items-center justify-center w-6 h-6 rounded-full transition-all group-hover:translate-x-0.5"
+          style={{ background: `${theme.accent}18`, color: theme.accent }}
+        >
+          <ArrowRight size={12} strokeWidth={2.2} />
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function QuickInsightsZone({ state }: { state: InsightsState }) {
+  if (state.status === "loading") {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl h-[240px]"
+            style={{
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              animation: `shimmerPulse 1.8s ease-in-out ${i * 120}ms infinite`,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div
+        className="rounded-2xl p-5 text-white/70 text-[13px]"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(253,164,175,0.2)",
+        }}
+      >
+        No pude calcular insights ahora. {state.message}
+      </div>
+    );
+  }
+  const { insights } = state;
+  return (
+    <div>
+      <div
+        className="mb-4 flex items-center gap-1.5 text-[12px] tracking-tight"
+        style={{ animation: `fadeIn 420ms ${ES}` }}
+      >
+        <Sparkles size={12} color="#f4d794" strokeWidth={2.2} />
+        <span className="text-white/70">
+          Aurum procesó tus datos del período y encontró{" "}
+          <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
+            {insights.length}
+          </span>{" "}
+          {insights.length === 1 ? "patrón accionable" : "patrones accionables"}.
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {insights.map((i, idx) => (
+          <InsightCard key={i.key} insight={i} delay={idx * 100} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function timeAgo(d: Date) {
   const secs = Math.floor((Date.now() - d.getTime()) / 1000);
   if (secs < 60) return "hace unos segundos";
@@ -2816,6 +3086,25 @@ export default function AuraInicioPage() {
   const [inbox, setInbox] = useState<InboxState>({ status: "loading" });
   const [flights, setFlights] = useState<FlightsState>({ status: "loading" });
   const [radar, setRadar] = useState<RadarState>({ status: "loading" });
+  const [insights, setInsights] = useState<InsightsState>({ status: "loading" });
+
+  async function loadInsights() {
+    setInsights({ status: "loading" });
+    try {
+      const qs = new URLSearchParams({
+        from: toInputDate(range.from),
+        to: toInputDate(range.to),
+      });
+      const res = await fetch(`/api/aura/insights?${qs.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as InsightsPayload;
+      setInsights({ status: "ready", ...data });
+    } catch (e: any) {
+      setInsights({ status: "error", message: e?.message || "error desconocido" });
+    }
+  }
 
   async function loadRadar() {
     setRadar({ status: "loading" });
@@ -2926,6 +3215,7 @@ export default function AuraInicioPage() {
     loadInbox();
     loadFlights();
     loadRadar();
+    loadInsights();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey]);
 
@@ -3018,6 +3308,19 @@ export default function AuraInicioPage() {
         @keyframes radarIn {
           from { opacity: 0; transform: translateY(12px) scale(0.98); }
           to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes insightIn {
+          from { opacity: 0; transform: translateY(18px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes insightHalo {
+          0%, 100% { opacity: 0.45; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.06); }
+        }
+        @keyframes insightRing {
+          0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.25); }
+          70% { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
+          100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
         }
         @keyframes flightSheen {
           0% { transform: translateX(-40%); opacity: 0; }
@@ -3189,6 +3492,26 @@ export default function AuraInicioPage() {
             </span>
           </div>
           <ContentRadarZone state={radar} />
+        </section>
+
+        {/* ─── Zona 7: Insights rápidos ──────────────────────────── */}
+        <section className="mt-10 mb-4">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.26em]"
+              style={{ color: "#e6c27a" }}
+            >
+              Insights rápidos
+            </span>
+            <span
+              className="w-1 h-1 rounded-full"
+              style={{ background: "rgba(244,215,148,0.55)" }}
+            />
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+              Lo que Aurum detectó en tus datos
+            </span>
+          </div>
+          <QuickInsightsZone state={insights} />
         </section>
       </div>
     </div>
