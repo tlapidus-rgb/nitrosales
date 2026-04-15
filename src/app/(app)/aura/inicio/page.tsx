@@ -878,6 +878,457 @@ function EmvKpi({
   );
 }
 
+// ─── Podium types ──────────────────────────────────────────────────────
+type PodiumSlot = {
+  rank: 1 | 2 | 3;
+  id: string;
+  name: string;
+  code: string;
+  avatarUrl: string | null;
+  commissionPercent: number;
+  revenue: number;
+  conversions: number;
+  avgTicket: number;
+  vsAverage: number;
+  campaignsCount: number;
+};
+type PodiumPayload = {
+  podium: PodiumSlot[];
+  stats: { creatorsWhoSold: number; averageRevenue: number };
+};
+type PodiumState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | ({ status: "ready" } & PodiumPayload);
+
+// ─── Rank tokens ──────────────────────────────────────────────────────
+type RankTheme = {
+  label: string;
+  medal: string;
+  primary: string;
+  ring: string;
+  halo: string;
+  gradient: string;
+  nameGradient: string;
+  cardBorder: string;
+  cardGlow: string;
+};
+
+const RANK: Record<1 | 2 | 3, RankTheme> = {
+  1: {
+    label: "Rey del período",
+    medal: "🥇",
+    primary: "#f4d794",
+    ring: "rgba(244,215,148,0.55)",
+    halo: "rgba(244,215,148,0.35)",
+    gradient:
+      "linear-gradient(135deg, #fff8e6 0%, #f4d794 40%, #c9972f 100%)",
+    nameGradient:
+      "linear-gradient(120deg, #fff8e6 0%, #f4d794 50%, #e6c27a 100%)",
+    cardBorder: "rgba(244,215,148,0.28)",
+    cardGlow: "rgba(244,215,148,0.22)",
+  },
+  2: {
+    label: "Segundo escalón",
+    medal: "🥈",
+    primary: "#e5e7eb",
+    ring: "rgba(229,231,235,0.45)",
+    halo: "rgba(229,231,235,0.22)",
+    gradient:
+      "linear-gradient(135deg, #f8fafc 0%, #e5e7eb 45%, #94a3b8 100%)",
+    nameGradient:
+      "linear-gradient(120deg, #f8fafc 0%, #e5e7eb 55%, #cbd5e1 100%)",
+    cardBorder: "rgba(203,213,225,0.22)",
+    cardGlow: "rgba(203,213,225,0.15)",
+  },
+  3: {
+    label: "Tercer escalón",
+    medal: "🥉",
+    primary: "#fbc999",
+    ring: "rgba(251,201,153,0.45)",
+    halo: "rgba(251,146,60,0.22)",
+    gradient:
+      "linear-gradient(135deg, #fde4d1 0%, #fbc999 40%, #c2410c 100%)",
+    nameGradient:
+      "linear-gradient(120deg, #fde4d1 0%, #fbc999 55%, #fb923c 100%)",
+    cardBorder: "rgba(251,146,60,0.22)",
+    cardGlow: "rgba(251,146,60,0.18)",
+  },
+};
+
+// ─── Avatar grande con halo ───────────────────────────────────────────
+function PodiumAvatar({
+  name,
+  url,
+  rank,
+  size = 64,
+}: {
+  name: string;
+  url: string | null;
+  rank: 1 | 2 | 3;
+  size?: number;
+}) {
+  const theme = RANK[rank];
+  const initial = name?.[0]?.toUpperCase() ?? "?";
+  return (
+    <div
+      className="relative flex-shrink-0"
+      style={{ width: size, height: size }}
+    >
+      {/* halo anillo rotante (solo en #1) */}
+      {rank === 1 && (
+        <span
+          aria-hidden
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            inset: -5,
+            background: `conic-gradient(from 0deg, transparent 0deg, ${theme.ring} 120deg, transparent 240deg, ${theme.ring} 360deg)`,
+            animation: "haloSpin 5.5s linear infinite",
+            mask: "radial-gradient(circle, transparent 62%, black 64%)",
+            WebkitMask: "radial-gradient(circle, transparent 62%, black 64%)",
+          }}
+        />
+      )}
+      {/* halo estático #2 y #3 */}
+      {rank !== 1 && (
+        <span
+          aria-hidden
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            inset: -3,
+            border: `1.5px solid ${theme.ring}`,
+            boxShadow: `0 0 14px ${theme.halo}`,
+          }}
+        />
+      )}
+      {/* avatar */}
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt={name}
+          className="absolute inset-[3px] rounded-full object-cover"
+          style={{
+            border: `1.5px solid rgba(5,7,13,0.8)`,
+            boxShadow: `0 4px 16px ${theme.halo}`,
+          }}
+        />
+      ) : (
+        <div
+          className="absolute inset-[3px] rounded-full flex items-center justify-center font-semibold text-[#1a1406]"
+          style={{
+            fontSize: size * 0.42,
+            background: theme.gradient,
+            border: `1.5px solid rgba(5,7,13,0.8)`,
+            boxShadow: `0 4px 16px ${theme.halo}`,
+          }}
+        >
+          {initial}
+        </div>
+      )}
+      {/* medalla flotante */}
+      <span
+        aria-hidden
+        className="absolute -bottom-1 -right-1 flex items-center justify-center text-[14px]"
+        style={{
+          width: size * 0.42,
+          height: size * 0.42,
+          borderRadius: 999,
+          background: "rgba(5,7,13,0.92)",
+          border: `1px solid ${theme.ring}`,
+          boxShadow: `0 2px 8px ${theme.halo}`,
+        }}
+      >
+        {theme.medal}
+      </span>
+    </div>
+  );
+}
+
+// ─── Trading card del podio ───────────────────────────────────────────
+function PodiumCard({
+  slot,
+  delay,
+  isChampion = false,
+}: {
+  slot: PodiumSlot;
+  delay: number;
+  isChampion?: boolean;
+}) {
+  const theme = RANK[slot.rank];
+  const revenue = useCountUp(slot.revenue, isChampion ? 1200 : 900);
+  const conversions = useCountUp(slot.conversions, 800);
+
+  return (
+    <div
+      className="relative rounded-2xl overflow-hidden group"
+      style={{
+        padding: isChampion ? 22 : 18,
+        background:
+          "linear-gradient(165deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 55%, rgba(255,255,255,0.02) 100%)",
+        border: `1px solid ${theme.cardBorder}`,
+        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.35), 0 20px 50px -22px ${theme.cardGlow}`,
+        animation: `podiumIn 540ms ${ES} ${delay}ms both`,
+        transition: `transform 260ms ${ES}, border-color 260ms ${ES}`,
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = theme.ring;
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = theme.cardBorder;
+      }}
+    >
+      {/* aurora del rank en la esquina */}
+      <div
+        aria-hidden
+        className="absolute -top-32 -right-20 w-80 h-80 rounded-full pointer-events-none"
+        style={{
+          background: `radial-gradient(circle, ${theme.cardGlow} 0%, transparent 68%)`,
+          filter: "blur(38px)",
+          opacity: isChampion ? 0.85 : 0.55,
+        }}
+      />
+      {/* spotlight line top para #1 */}
+      {isChampion && (
+        <div
+          aria-hidden
+          className="absolute top-0 left-6 right-6 h-[1px] pointer-events-none"
+          style={{
+            background: `linear-gradient(90deg, transparent, ${theme.primary}, transparent)`,
+            opacity: 0.7,
+          }}
+        />
+      )}
+      {/* sparkles sutiles para #1 */}
+      {isChampion && (
+        <>
+          <span
+            aria-hidden
+            className="absolute pointer-events-none"
+            style={{
+              top: "18%",
+              left: "32%",
+              width: 3,
+              height: 3,
+              borderRadius: 999,
+              background: theme.primary,
+              boxShadow: `0 0 8px ${theme.primary}`,
+              animation: `sparkleFloat 4.2s ease-in-out infinite`,
+              animationDelay: `${delay + 200}ms`,
+            }}
+          />
+          <span
+            aria-hidden
+            className="absolute pointer-events-none"
+            style={{
+              top: "30%",
+              left: "18%",
+              width: 2,
+              height: 2,
+              borderRadius: 999,
+              background: theme.primary,
+              boxShadow: `0 0 6px ${theme.primary}`,
+              animation: `sparkleFloat 5s ease-in-out infinite`,
+              animationDelay: `${delay + 1100}ms`,
+            }}
+          />
+          <span
+            aria-hidden
+            className="absolute pointer-events-none"
+            style={{
+              top: "12%",
+              right: "14%",
+              width: 2,
+              height: 2,
+              borderRadius: 999,
+              background: theme.primary,
+              boxShadow: `0 0 6px ${theme.primary}`,
+              animation: `sparkleFloat 4.6s ease-in-out infinite`,
+              animationDelay: `${delay + 1900}ms`,
+            }}
+          />
+        </>
+      )}
+
+      <div className="relative flex items-center gap-4">
+        <PodiumAvatar
+          name={slot.name}
+          url={slot.avatarUrl}
+          rank={slot.rank}
+          size={isChampion ? 68 : 56}
+        />
+        <div className="flex-1 min-w-0">
+          <div
+            className="text-[9.5px] font-bold uppercase tracking-[0.22em]"
+            style={{ color: theme.primary }}
+          >
+            #{slot.rank} · {theme.label}
+          </div>
+          <div
+            className={`mt-1 truncate ${isChampion ? "text-[22px]" : "text-[18px]"} font-semibold tracking-tight`}
+            style={{
+              background: theme.nameGradient,
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              letterSpacing: "-0.02em",
+            }}
+            title={slot.name}
+          >
+            {slot.name}
+          </div>
+          <div className="text-[11px] text-white/40 tabular-nums truncate">
+            @{slot.code}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="relative mt-5 pt-4"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/35">
+              Revenue
+            </div>
+            <div className="mt-0.5 text-white tabular-nums font-semibold tracking-tight text-[15.5px]">
+              {fmtARSCompact(revenue)}
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/35">
+              Convs.
+            </div>
+            <div className="mt-0.5 text-white tabular-nums font-semibold tracking-tight text-[15.5px]">
+              {fmtNum(conversions)}
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/35">
+              Ticket
+            </div>
+            <div className="mt-0.5 text-white tabular-nums font-semibold tracking-tight text-[15.5px]">
+              {fmtARSCompact(slot.avgTicket)}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold tabular-nums px-2 py-0.5 rounded-full"
+            style={{
+              background:
+                slot.vsAverage >= 0
+                  ? "rgba(134,239,172,0.10)"
+                  : "rgba(253,164,175,0.10)",
+              color: slot.vsAverage >= 0 ? "#86efac" : "#fda4af",
+              border: `1px solid ${slot.vsAverage >= 0 ? "rgba(134,239,172,0.22)" : "rgba(253,164,175,0.22)"}`,
+            }}
+          >
+            {slot.vsAverage >= 0 ? (
+              <ArrowUpRight size={10} strokeWidth={2.6} />
+            ) : (
+              <ArrowDownRight size={10} strokeWidth={2.6} />
+            )}
+            {Math.abs(slot.vsAverage).toFixed(0)}% vs. promedio
+          </span>
+          <div className="flex items-center gap-2 text-[10.5px] text-white/40 tabular-nums">
+            {slot.campaignsCount > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <span
+                  className="w-1 h-1 rounded-full"
+                  style={{
+                    background: theme.primary,
+                    boxShadow: `0 0 6px ${theme.halo}`,
+                  }}
+                />
+                {slot.campaignsCount} camp.
+              </span>
+            )}
+            <span>{slot.commissionPercent.toFixed(1)}% com.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Zona 3 — Hall of flame ───────────────────────────────────────────
+function HallOfFlameZone({ state }: { state: PodiumState }) {
+  if (state.status === "loading") {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl h-[210px]"
+            style={{
+              background:
+                "linear-gradient(160deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              animation: `shimmerPulse 1.8s ease-in-out ${i * 140}ms infinite`,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div
+        className="rounded-2xl p-5 text-white/70 text-[13px]"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(253,164,175,0.2)",
+        }}
+      >
+        No pude cargar el podio. {state.message}
+      </div>
+    );
+  }
+  const { podium } = state;
+  if (podium.length === 0) {
+    return (
+      <div
+        className="rounded-2xl p-8 text-center"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          border: "1px dashed rgba(244,215,148,0.18)",
+        }}
+      >
+        <p className="text-[14px] text-white/70 tracking-tight">
+          Todavía nadie subió al podio este período.
+        </p>
+        <p className="mt-1 text-[12px] text-white/40">
+          Cuando tus creators empiecen a convertir, el Hall of flame se enciende.
+        </p>
+      </div>
+    );
+  }
+
+  // Orden visual: #2 izq · #1 centro · #3 der (estilo podio clásico)
+  const champion = podium.find((p) => p.rank === 1);
+  const second = podium.find((p) => p.rank === 2);
+  const third = podium.find((p) => p.rank === 3);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+      <div className="md:order-1 order-2">
+        {second && <PodiumCard slot={second} delay={120} />}
+      </div>
+      <div className="md:order-2 order-1 md:-mt-2">
+        {champion && <PodiumCard slot={champion} delay={0} isChampion />}
+      </div>
+      <div className="md:order-3 order-3">
+        {third && <PodiumCard slot={third} delay={220} />}
+      </div>
+    </div>
+  );
+}
+
 // ─── Zona 2 ────────────────────────────────────────────────────────────
 function HeroMetricsZone({ state }: { state: HeroState }) {
   if (state.status === "loading") {
@@ -942,6 +1393,25 @@ export default function AuraInicioPage() {
 
   const [pulse, setPulse] = useState<PulseState>({ status: "loading" });
   const [hero, setHero] = useState<HeroState>({ status: "loading" });
+  const [podium, setPodium] = useState<PodiumState>({ status: "loading" });
+
+  async function loadPodium() {
+    setPodium({ status: "loading" });
+    try {
+      const qs = new URLSearchParams({
+        from: toInputDate(range.from),
+        to: toInputDate(range.to),
+      });
+      const res = await fetch(`/api/aura/metrics/podium?${qs.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as PodiumPayload;
+      setPodium({ status: "ready", ...data });
+    } catch (e: any) {
+      setPodium({ status: "error", message: e?.message || "error desconocido" });
+    }
+  }
 
   async function loadHero() {
     setHero({ status: "loading" });
@@ -988,6 +1458,7 @@ export default function AuraInicioPage() {
   useEffect(() => {
     loadPulse(false);
     loadHero();
+    loadPodium();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey]);
 
@@ -1048,6 +1519,18 @@ export default function AuraInicioPage() {
         @keyframes shimmerPulse {
           0%, 100% { opacity: 0.55; }
           50% { opacity: 0.9; }
+        }
+        @keyframes podiumIn {
+          from { opacity: 0; transform: translateY(18px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes haloSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes sparkleFloat {
+          0%, 100% { transform: translateY(0) scale(1); opacity: 0.55; }
+          50% { transform: translateY(-6px) scale(1.18); opacity: 1; }
         }
       `}</style>
 
@@ -1134,22 +1617,24 @@ export default function AuraInicioPage() {
           <HeroMetricsZone state={hero} />
         </section>
 
-        {/* ─── Placeholder zona 3 ────────────────────────────────── */}
+        {/* ─── Zona 3: Hall of flame ─────────────────────────────── */}
         <section className="mt-10">
-          <div
-            className="rounded-3xl p-8 text-center"
-            style={{
-              background: "rgba(255,255,255,0.02)",
-              border: "1px dashed rgba(255,255,255,0.08)",
-            }}
-          >
-            <p className="text-[12px] uppercase tracking-[0.25em] text-white/35 font-bold">
-              Próxima zona
-            </p>
-            <p className="mt-2 text-white/55 text-[14px] tracking-tight">
-              Hall of flame — podio de los 3 creators top del período.
-            </p>
+          <div className="flex items-center gap-2.5 mb-4">
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.26em]"
+              style={{ color: "#e6c27a" }}
+            >
+              Hall of flame
+            </span>
+            <span
+              className="w-1 h-1 rounded-full"
+              style={{ background: "rgba(244,215,148,0.55)" }}
+            />
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+              Podio del período
+            </span>
           </div>
+          <HallOfFlameZone state={podium} />
         </section>
       </div>
     </div>
