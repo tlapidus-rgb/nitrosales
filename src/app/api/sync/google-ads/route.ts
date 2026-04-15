@@ -109,6 +109,15 @@ export async function GET(req: Request) {
       org = await getOrganization();
     }
 
+    // Step 0: Self-heal schema (idempotente; no-op si ya existe)
+    try {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "ad_creatives" ADD COLUMN IF NOT EXISTS "metadata" JSONB`
+      );
+    } catch (_) {
+      // non-fatal: si falla seguimos sin metadata
+    }
+
     // Step 1: Get access token
     const accessToken = await getAccessToken();
 
