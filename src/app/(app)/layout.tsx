@@ -92,6 +92,9 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/aura/creadores/aplicaciones", label: "Aplicaciones" },
           { href: "/aura/campanas", label: "Campañas" },
           { href: "/aura/campanas/nueva", label: "Nueva campaña" },
+          { href: "/aura/contenido", label: "Contenido" },
+          { href: "/aura/contenido/briefings", label: "Briefings" },
+          { href: "/aura/contenido/aprobaciones", label: "Aprobaciones" },
         ],
       },
       {
