@@ -82,8 +82,8 @@ const NAV_GROUPS: NavGroup[] = [
         icon: "M12 3a9 9 0 100 18 9 9 0 000-18zm0 4a5 5 0 110 10 5 5 0 010-10zm0 3a2 2 0 100 4 2 2 0 000-4z",
         premium: {
           badge: "NEW",
-          badgeColor: "#f4d794",
-          glowColor: "rgba(244,215,148,0.35)",
+          badgeColor: "#f472b6",
+          glowColor: "rgba(244,114,182,0.38)",
           description: "La nueva home del programa de creators",
         },
       },
@@ -1015,6 +1015,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const isNitropixel = pathname.startsWith("/nitropixel");
           const isJourneys = pathname.startsWith("/pixel/journeys");
           const isPixelAttribution = pathname === "/pixel";
+          const isAura = pathname.startsWith("/aura");
           return (
             <main
               className={
@@ -1026,6 +1027,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   ? "flex-1 p-0 overflow-hidden bg-[#05060a]"
                   : (isJourneys || isPixelAttribution)
                   ? "flex-1 p-0 overflow-y-auto bg-[#05060a]"
+                  : isAura
+                  ? "flex-1 p-0 overflow-y-auto bg-[#05070d]"
                   : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
               }
             >
