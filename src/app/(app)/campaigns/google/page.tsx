@@ -430,6 +430,627 @@ function QualityScoreSummary({ campaigns }: { campaigns: any[] }) {
   );
 }
 
+/* ── Google Creatives — components specific to Google ad types ── */
+
+const PREMIUM_SHADOW = "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12), 0 22px 40px -28px rgba(15,23,42,0.10)";
+
+function CreativeKpiCard({ label, value, sublabel, icon, color }: {
+  label: string; value: string; sublabel?: string; icon: any; color: string;
+}) {
+  const Icon = icon;
+  return (
+    <div
+      className="bg-white rounded-2xl p-5 transition-all duration-200 hover:translate-y-[-2px]"
+      style={{
+        border: "1px solid rgba(15,23,42,0.06)",
+        boxShadow: PREMIUM_SHADOW,
+        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-500">{label}</span>
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}14` }}>
+          <Icon size={14} style={{ color }} />
+        </div>
+      </div>
+      <p className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">{value}</p>
+      {sublabel && <p className="text-xs text-slate-500 mt-1 tabular-nums">{sublabel}</p>}
+    </div>
+  );
+}
+
+function GoogleTypeChip({ type, label, count, color, active, onClick, icon }: {
+  type: string; label: string; count: number; color: string; active: boolean; onClick: () => void; icon: any;
+}) {
+  const Icon = icon;
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all duration-200"
+      style={{
+        backgroundColor: active ? color : "#ffffff",
+        borderColor: active ? color : "rgba(15,23,42,0.08)",
+        color: active ? "#ffffff" : "#334155",
+        boxShadow: active
+          ? `0 4px 14px -4px ${color}40`
+          : "0 1px 0 rgba(15,23,42,0.04)",
+        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
+      <Icon size={13} style={{ color: active ? "#ffffff" : color }} />
+      <span className="tracking-tight">{label}</span>
+      <span
+        className="text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-md"
+        style={{
+          backgroundColor: active ? "rgba(255,255,255,0.22)" : "rgba(15,23,42,0.06)",
+          color: active ? "#ffffff" : "#475569",
+        }}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function MetricChip({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="flex flex-col items-start min-w-0">
+      <span className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-400">{label}</span>
+      <span className="text-xs font-bold tabular-nums truncate" style={{ color: color || "#0f172a" }}>{value}</span>
+    </div>
+  );
+}
+
+/* ── Search Ad Card — looks like a Google SERP result ── */
+function SearchAdCard({ ad }: { ad: any }) {
+  const headline = ad.headline || ad.name || "Sin titulo";
+  const description = ad.description || "Sin descripcion";
+  const displayUrl = (ad.campaignName || "").toLowerCase().includes("brand") ? "elmundodeljuguete.com.ar" : "tu-sitio.com.ar";
+  const roasColor = ad.roas >= 3 ? "#10b981" : ad.roas >= 1.5 ? "#f59e0b" : "#ef4444";
+
+  return (
+    <div
+      className="bg-white rounded-2xl p-5 transition-all duration-200 hover:translate-y-[-1px]"
+      style={{
+        border: "1px solid rgba(15,23,42,0.06)",
+        boxShadow: PREMIUM_SHADOW,
+        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
+      {/* SERP preview */}
+      <div className="pb-4 mb-4 border-b border-slate-100">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-[10px] font-bold tracking-wider text-slate-500">PATROCINADO</span>
+          <span className="text-[11px] text-slate-400">·</span>
+          <span className="text-[12px] text-slate-600">{displayUrl}</span>
+          <StatusBadge status={ad.status} />
+        </div>
+        <p
+          className="text-[18px] font-medium leading-snug tracking-tight cursor-pointer hover:underline"
+          style={{ color: "#1a0dab", fontFamily: "Inter, -apple-system, sans-serif" }}
+          title={headline}
+        >
+          {headline}
+        </p>
+        <p className="text-[13px] text-slate-700 leading-relaxed mt-1.5 line-clamp-2">{description}</p>
+      </div>
+
+      {/* Metrics row */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+        <MetricChip label="Inversion" value={formatCompact(ad.spend)} />
+        <MetricChip label="Impr." value={formatCompact(ad.impressions)} />
+        <MetricChip label="Clicks" value={formatCompact(ad.clicks)} />
+        <MetricChip label="CTR" value={`${ad.ctr}%`} />
+        <MetricChip label="Conv." value={String(ad.conversions)} />
+        <MetricChip label="ROAS" value={`${ad.roas}x`} color={roasColor} />
+      </div>
+
+      {/* Campaign + AdGroup context */}
+      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-[10px]">
+        <Search size={10} className="text-slate-400" />
+        <span className="text-slate-500 truncate flex-1" title={ad.campaignName}>{ad.campaignName}</span>
+        {ad.adSetName && (
+          <>
+            <ChevronRight size={10} className="text-slate-300" />
+            <span className="text-slate-500 truncate" title={ad.adSetName}>{ad.adSetName}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── PMax Campaign Card — asset-group oriented since PMax has no individual ads ── */
+function PMaxCampaignCard({ campaign, ads }: { campaign: any; ads: any[] }) {
+  const totalSpend = campaign.spend || 0;
+  const totalConv = campaign.conversions || 0;
+  const roas = campaign.roas || 0;
+  const ctr = campaign.ctr || 0;
+  const conv = campaign.convRate || (campaign.clicks > 0 ? Math.round((totalConv / campaign.clicks) * 10000) / 100 : 0);
+  const roasColor = roas >= 3 ? "#10b981" : roas >= 1.5 ? "#f59e0b" : "#ef4444";
+
+  return (
+    <div
+      className="bg-white rounded-2xl p-5 transition-all duration-200 hover:translate-y-[-1px]"
+      style={{
+        border: "1px solid rgba(15,23,42,0.06)",
+        boxShadow: PREMIUM_SHADOW,
+        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
+      <div className="flex items-start gap-3 mb-4">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)" }}
+        >
+          <Zap size={18} className="text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-amber-600">Performance Max</span>
+            <StatusBadge status={campaign.status || "ENABLED"} />
+          </div>
+          <p className="font-semibold text-slate-900 text-sm tracking-tight truncate" title={campaign.name}>
+            {campaign.name}
+          </p>
+        </div>
+      </div>
+
+      {/* PMax KPI grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="bg-slate-50 rounded-xl p-3">
+          <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">Inversion</p>
+          <p className="text-base font-bold tabular-nums tracking-tight text-slate-900">{formatARS(totalSpend)}</p>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3">
+          <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">Conversiones</p>
+          <p className="text-base font-bold tabular-nums tracking-tight text-slate-900">{totalConv}</p>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3">
+          <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">ROAS</p>
+          <p className="text-base font-bold tabular-nums tracking-tight" style={{ color: roasColor }}>{roas}x</p>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3">
+          <p className="text-[9px] font-semibold tracking-[0.16em] uppercase text-slate-500 mb-1">CTR</p>
+          <p className="text-base font-bold tabular-nums tracking-tight text-slate-900">{ctr}%</p>
+        </div>
+      </div>
+
+      {/* Asset insight bar */}
+      <div className="rounded-xl p-3" style={{ background: "linear-gradient(90deg, #fef3c7 0%, #ffedd5 100%)" }}>
+        <div className="flex items-start gap-2.5">
+          <Sparkles size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-amber-900 mb-0.5">Asset-based: sin anuncios individuales</p>
+            <p className="text-[10px] text-amber-800/80 leading-relaxed">
+              Performance Max optimiza assets (texto, imagen, video) en todas las superficies de Google.
+              Para mejorar performance, sumá <b>5 headlines + 5 descriptions + 4 imagenes + 1 logo + signals de audiencia</b> en Google Ads.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {ads.length > 0 && (
+        <div className="mt-3 text-[10px] text-slate-400 text-center">
+          {ads.length} asset{ads.length === 1 ? "" : "s"} sincronizado{ads.length === 1 ? "" : "s"} · {formatCompact(campaign.impressions)} impresiones
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Display Ad Card — visual grid (image + text) ── */
+function DisplayAdCard({ ad }: { ad: any }) {
+  const headline = ad.headline || ad.name || "Sin titulo";
+  const description = ad.description || "";
+  const imageUrl = Array.isArray(ad.mediaUrls) && ad.mediaUrls.length > 0 ? ad.mediaUrls[0] : null;
+  const roasColor = ad.roas >= 3 ? "#10b981" : ad.roas >= 1.5 ? "#f59e0b" : "#ef4444";
+
+  return (
+    <div
+      className="bg-white rounded-2xl overflow-hidden transition-all duration-200 hover:translate-y-[-1px]"
+      style={{
+        border: "1px solid rgba(15,23,42,0.06)",
+        boxShadow: PREMIUM_SHADOW,
+        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
+      {/* Image area */}
+      <div className="relative aspect-[4/3] bg-gradient-to-br from-violet-100 via-purple-50 to-indigo-100 flex items-center justify-center overflow-hidden">
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt={headline} className="w-full h-full object-cover" />
+        ) : (
+          <div className="text-center px-5">
+            <Tv size={28} className="text-violet-400 mx-auto mb-2" />
+            <p className="text-[10px] font-medium text-violet-700/70 leading-snug line-clamp-3">{headline}</p>
+          </div>
+        )}
+        <div className="absolute top-2 left-2">
+          <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-1 rounded-md bg-violet-600 text-white">Display</span>
+        </div>
+        <div className="absolute top-2 right-2">
+          <StatusBadge status={ad.status} />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4">
+        <p className="text-sm font-semibold text-slate-900 tracking-tight line-clamp-2 mb-1" title={headline}>{headline}</p>
+        {description && <p className="text-[11px] text-slate-500 line-clamp-2 mb-3">{description}</p>}
+
+        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100">
+          <MetricChip label="Inversion" value={formatCompact(ad.spend)} />
+          <MetricChip label="CTR" value={`${ad.ctr}%`} />
+          <MetricChip label="ROAS" value={`${ad.roas}x`} color={roasColor} />
+        </div>
+
+        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[10px] text-slate-500">
+          <Tv size={10} className="text-violet-400" />
+          <span className="truncate" title={ad.campaignName}>{ad.campaignName}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Shopping Card — product feed style ── */
+function ShoppingAdCard({ ad }: { ad: any }) {
+  const roasColor = ad.roas >= 3 ? "#10b981" : ad.roas >= 1.5 ? "#f59e0b" : "#ef4444";
+  return (
+    <div
+      className="bg-white rounded-2xl p-4 transition-all duration-200 hover:translate-y-[-1px]"
+      style={{
+        border: "1px solid rgba(15,23,42,0.06)",
+        boxShadow: PREMIUM_SHADOW,
+        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+          <ShoppingBag size={16} className="text-emerald-600" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-emerald-700">Shopping</span>
+            <StatusBadge status={ad.status} />
+          </div>
+          <p className="text-sm font-semibold text-slate-900 tracking-tight truncate mt-0.5">{ad.name || "Listing Group"}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        <MetricChip label="Inv." value={formatCompact(ad.spend)} />
+        <MetricChip label="Clicks" value={formatCompact(ad.clicks)} />
+        <MetricChip label="Conv." value={String(ad.conversions)} />
+        <MetricChip label="ROAS" value={`${ad.roas}x`} color={roasColor} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Master Table — Google-specific columns ── */
+function GoogleCreativeMasterTable({ creatives }: { creatives: any[] }) {
+  if (creatives.length === 0) return null;
+  return (
+    <div
+      className="bg-white rounded-2xl overflow-hidden"
+      style={{ border: "1px solid rgba(15,23,42,0.06)", boxShadow: PREMIUM_SHADOW }}
+    >
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+            <Film size={14} className="text-slate-500" />
+            Tabla completa
+          </h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">{creatives.length} anuncio{creatives.length === 1 ? "" : "s"} con datos en el periodo</p>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-100" style={{ backgroundColor: "#fbfbfd" }}>
+              <th className="px-4 py-3 text-left text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Anuncio</th>
+              <th className="px-3 py-3 text-center text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Tipo</th>
+              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Inv.</th>
+              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Impr.</th>
+              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Clicks</th>
+              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">CTR</th>
+              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">CPC</th>
+              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">Conv.</th>
+              <th className="px-3 py-3 text-right text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">CPA</th>
+              <th className="px-3 py-3 text-center text-[10px] font-semibold tracking-[0.16em] uppercase text-slate-500">ROAS</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {creatives.map((ad: any) => {
+              const ctype = detectCampaignType(ad.campaignObjective);
+              const cfg = CAMPAIGN_TYPE_ICONS[ctype] || CAMPAIGN_TYPE_ICONS.SEARCH;
+              const Icon = cfg.icon;
+              return (
+                <tr key={ad.id} className="hover:bg-slate-50/60 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-slate-900 tracking-tight truncate max-w-[260px]" title={ad.headline || ad.name}>
+                      {ad.headline || ad.name || "Sin titulo"}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[260px]" title={ad.campaignName}>{ad.campaignName}</div>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md" style={{ backgroundColor: `${cfg.color}14`, color: cfg.color }}>
+                      <Icon size={10} />
+                      {cfg.label}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-right text-slate-700 tabular-nums font-medium">{formatARS(ad.spend)}</td>
+                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{formatCompact(ad.impressions)}</td>
+                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{formatCompact(ad.clicks)}</td>
+                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{ad.ctr}%</td>
+                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{formatARS(ad.cpc)}</td>
+                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{ad.conversions}</td>
+                  <td className="px-3 py-3 text-right text-slate-600 tabular-nums">{formatARS(ad.costPerConversion)}</td>
+                  <td className="px-3 py-3 text-center"><RoasBadge value={ad.roas} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── Google Creatives View — main creative tab content ── */
+function GoogleCreativesView({ adsData, campaigns }: { adsData: any; campaigns: any[] }) {
+  const [selectedType, setSelectedType] = useState<string>("ALL");
+
+  // Group creatives by campaign type
+  const byType = useMemo(() => {
+    const map: Record<string, any[]> = { SEARCH: [], PERFORMANCE_MAX: [], DISPLAY: [], SHOPPING: [], VIDEO: [] };
+    (adsData?.creatives || []).forEach((c: any) => {
+      const t = detectCampaignType(c.campaignObjective);
+      if (!map[t]) map[t] = [];
+      map[t].push(c);
+    });
+    return map;
+  }, [adsData]);
+
+  // Group campaigns by type (for PMax view which is campaign-level)
+  const campaignsByType = useMemo(() => {
+    const map: Record<string, any[]> = { SEARCH: [], PERFORMANCE_MAX: [], DISPLAY: [], SHOPPING: [], VIDEO: [] };
+    (campaigns || []).forEach((c: any) => {
+      const t = detectCampaignType(c.objective);
+      if (!map[t]) map[t] = [];
+      map[t].push(c);
+    });
+    return map;
+  }, [campaigns]);
+
+  const allCreatives = adsData?.creatives || [];
+  const totalSpend = allCreatives.reduce((s: number, c: any) => s + (c.spend || 0), 0);
+  const totalImpr = allCreatives.reduce((s: number, c: any) => s + (c.impressions || 0), 0);
+  const totalClicks = allCreatives.reduce((s: number, c: any) => s + (c.clicks || 0), 0);
+  const avgCtr = totalImpr > 0 ? Math.round((totalClicks / totalImpr) * 10000) / 100 : 0;
+  const bestRoas = allCreatives.reduce((m: number, c: any) => Math.max(m, c.roas || 0), 0);
+  const activeCount = allCreatives.filter((c: any) => c.status === "ENABLED" || c.status === "ACTIVE").length;
+
+  // Visible types (only those with ads OR campaigns)
+  const typeOrder = ["SEARCH", "PERFORMANCE_MAX", "DISPLAY", "SHOPPING", "VIDEO"];
+  const visibleTypes = typeOrder.filter((t) => (byType[t]?.length || 0) > 0 || (campaignsByType[t]?.length || 0) > 0);
+
+  const filteredCreatives = selectedType === "ALL"
+    ? allCreatives
+    : (byType[selectedType] || []);
+
+  return (
+    <div className="space-y-6">
+      {/* ── 1. KPI strip ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <CreativeKpiCard
+          label="Anuncios activos"
+          value={String(activeCount)}
+          sublabel={`${allCreatives.length} total con datos`}
+          icon={Activity}
+          color="#06b6d4"
+        />
+        <CreativeKpiCard
+          label="Inversion total"
+          value={formatARS(totalSpend)}
+          sublabel={`${formatCompact(totalImpr)} impresiones`}
+          icon={DollarSign}
+          color="#6366f1"
+        />
+        <CreativeKpiCard
+          label="Mejor ROAS"
+          value={`${bestRoas.toFixed(2)}x`}
+          sublabel={bestRoas >= 3 ? "Performance excelente" : bestRoas >= 1.5 ? "Performance positiva" : "Optimizar"}
+          icon={Target}
+          color={bestRoas >= 3 ? "#10b981" : bestRoas >= 1.5 ? "#f59e0b" : "#ef4444"}
+        />
+        <CreativeKpiCard
+          label="CTR promedio"
+          value={`${avgCtr}%`}
+          sublabel={`${formatCompact(totalClicks)} clicks`}
+          icon={MousePointer}
+          color="#f97316"
+        />
+      </div>
+
+      {/* ── 2. Type selector ── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => setSelectedType("ALL")}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all duration-200"
+          style={{
+            backgroundColor: selectedType === "ALL" ? "#0f172a" : "#ffffff",
+            borderColor: selectedType === "ALL" ? "#0f172a" : "rgba(15,23,42,0.08)",
+            color: selectedType === "ALL" ? "#ffffff" : "#334155",
+            boxShadow: selectedType === "ALL" ? "0 4px 14px -4px rgba(15,23,42,0.4)" : "0 1px 0 rgba(15,23,42,0.04)",
+            transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+        >
+          <LayoutGrid size={13} />
+          <span className="tracking-tight">Todos</span>
+          <span
+            className="text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-md"
+            style={{
+              backgroundColor: selectedType === "ALL" ? "rgba(255,255,255,0.22)" : "rgba(15,23,42,0.06)",
+              color: selectedType === "ALL" ? "#ffffff" : "#475569",
+            }}
+          >
+            {allCreatives.length}
+          </span>
+        </button>
+        {visibleTypes.map((t) => {
+          const cfg = CAMPAIGN_TYPE_ICONS[t] || CAMPAIGN_TYPE_ICONS.SEARCH;
+          // For PMax show campaign count (since it has no ads); others show ad count
+          const count = t === "PERFORMANCE_MAX" ? (campaignsByType[t]?.length || 0) : (byType[t]?.length || 0);
+          return (
+            <GoogleTypeChip
+              key={t}
+              type={t}
+              label={cfg.label}
+              count={count}
+              color={cfg.color}
+              active={selectedType === t}
+              onClick={() => setSelectedType(t)}
+              icon={cfg.icon}
+            />
+          );
+        })}
+      </div>
+
+      {/* ── 3. Conditional render per type ── */}
+      {selectedType === "ALL" && (
+        <div className="space-y-6">
+          {/* Search */}
+          {(byType.SEARCH || []).length > 0 && (
+            <section>
+              <SectionHeader title="Search" subtitle="Anuncios de busqueda — texto puro" icon={Search} color="#3b82f6" count={byType.SEARCH.length} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {byType.SEARCH.slice(0, 6).map((ad: any) => <SearchAdCard key={ad.id} ad={ad} />)}
+              </div>
+              {byType.SEARCH.length > 6 && (
+                <p className="text-xs text-slate-400 mt-3 text-center">
+                  +{byType.SEARCH.length - 6} mas — usá el chip <b>Search</b> arriba para verlos todos
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* PMax */}
+          {(campaignsByType.PERFORMANCE_MAX || []).length > 0 && (
+            <section>
+              <SectionHeader title="Performance Max" subtitle="Asset-based — sin anuncios individuales" icon={Zap} color="#f59e0b" count={campaignsByType.PERFORMANCE_MAX.length} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {campaignsByType.PERFORMANCE_MAX.slice(0, 4).map((c: any) => (
+                  <PMaxCampaignCard key={c.id} campaign={c} ads={byType.PERFORMANCE_MAX?.filter((a: any) => a.campaignId === c.id) || []} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Display */}
+          {(byType.DISPLAY || []).length > 0 && (
+            <section>
+              <SectionHeader title="Display" subtitle="Banners visuales en la red de Google" icon={Tv} color="#8b5cf6" count={byType.DISPLAY.length} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {byType.DISPLAY.slice(0, 8).map((ad: any) => <DisplayAdCard key={ad.id} ad={ad} />)}
+              </div>
+            </section>
+          )}
+
+          {/* Shopping */}
+          {(byType.SHOPPING || []).length > 0 && (
+            <section>
+              <SectionHeader title="Shopping" subtitle="Listings de productos del feed" icon={ShoppingBag} color="#10b981" count={byType.SHOPPING.length} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {byType.SHOPPING.slice(0, 9).map((ad: any) => <ShoppingAdCard key={ad.id} ad={ad} />)}
+              </div>
+            </section>
+          )}
+
+          {/* Master table */}
+          <GoogleCreativeMasterTable creatives={allCreatives} />
+        </div>
+      )}
+
+      {/* Filtered single-type views */}
+      {selectedType === "SEARCH" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {filteredCreatives.length === 0
+            ? <EmptyTypeMessage type="Search" />
+            : filteredCreatives.map((ad: any) => <SearchAdCard key={ad.id} ad={ad} />)}
+        </div>
+      )}
+
+      {selectedType === "PERFORMANCE_MAX" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {(campaignsByType.PERFORMANCE_MAX || []).length === 0
+            ? <EmptyTypeMessage type="Performance Max" />
+            : campaignsByType.PERFORMANCE_MAX.map((c: any) => (
+                <PMaxCampaignCard key={c.id} campaign={c} ads={byType.PERFORMANCE_MAX?.filter((a: any) => a.campaignId === c.id) || []} />
+              ))}
+        </div>
+      )}
+
+      {selectedType === "DISPLAY" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredCreatives.length === 0
+            ? <EmptyTypeMessage type="Display" />
+            : filteredCreatives.map((ad: any) => <DisplayAdCard key={ad.id} ad={ad} />)}
+        </div>
+      )}
+
+      {selectedType === "SHOPPING" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredCreatives.length === 0
+            ? <EmptyTypeMessage type="Shopping" />
+            : filteredCreatives.map((ad: any) => <ShoppingAdCard key={ad.id} ad={ad} />)}
+        </div>
+      )}
+
+      {selectedType === "VIDEO" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredCreatives.length === 0
+            ? <EmptyTypeMessage type="YouTube / Video" />
+            : filteredCreatives.map((ad: any) => <DisplayAdCard key={ad.id} ad={ad} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionHeader({ title, subtitle, icon, color, count }: {
+  title: string; subtitle: string; icon: any; color: string; count: number;
+}) {
+  const Icon = icon;
+  return (
+    <div className="flex items-end justify-between mb-3 pb-2" style={{ borderBottom: `2px solid ${color}22` }}>
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${color}14` }}>
+          <Icon size={15} style={{ color }} />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-slate-900 tracking-tight leading-tight">{title}</h3>
+          <p className="text-[11px] text-slate-500 leading-tight">{subtitle}</p>
+        </div>
+      </div>
+      <span className="text-[10px] font-bold tracking-[0.18em] uppercase tabular-nums px-2 py-1 rounded-md" style={{ backgroundColor: `${color}14`, color }}>
+        {count}
+      </span>
+    </div>
+  );
+}
+
+function EmptyTypeMessage({ type }: { type: string }) {
+  return (
+    <div className="col-span-full text-center py-16 bg-white rounded-2xl" style={{ border: "1px dashed rgba(15,23,42,0.12)" }}>
+      <Palette className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+      <p className="text-sm font-medium text-slate-600">No hay anuncios {type} en este periodo</p>
+      <p className="text-xs text-slate-400 mt-1">Cambiá el rango de fechas o seleccioná otro tipo</p>
+    </div>
+  );
+}
+
 /* ── Main Component ────────────────────────────────── */
 
 export default function GoogleAdsPage() {
@@ -836,237 +1457,14 @@ export default function GoogleAdsPage() {
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3" />
                   <span className="text-gray-500">Cargando creativos...</span>
                 </div>
-              ) : !adsData?.creatives?.length ? (
+              ) : !adsData?.creatives?.length && !campaigns.some((c: any) => detectCampaignType(c.objective) === "PERFORMANCE_MAX") ? (
                 <div className="text-center py-16">
                   <Palette className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500 mb-1">No hay creativos sincronizados aun</p>
                   <p className="text-xs text-gray-400">Los creativos se sincronizan con el proximo sync de datos</p>
                 </div>
               ) : (
-                <>
-                  {/* Classification Breakdown */}
-                  {adsData.classificationBreakdown?.length > 0 && (
-                    <div className="bg-white rounded-xl border border-gray-200 p-5">
-                      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Sparkles size={16} className="text-blue-600" />
-                        Performance por Tipo de Creativo
-                      </h3>
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div>
-                          <p className="text-xs text-gray-500 mb-3 font-medium">ROAS por Tipo</p>
-                          <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={adsData.classificationBreakdown} layout="vertical">
-                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}x`} />
-                              <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={80} />
-                              <Tooltip formatter={(v: number) => [`${v}x`, "ROAS"]} />
-                              <Bar dataKey="roas" radius={[0, 4, 4, 0]}>
-                                {adsData.classificationBreakdown.map((entry: any, i: number) => (
-                                  <Cell key={i} fill={entry.color} />
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 mb-3 font-medium">Inversion por Tipo</p>
-                          <ResponsiveContainer width="100%" height={220}>
-                            <PieChart>
-                              <Pie
-                                data={adsData.classificationBreakdown}
-                                cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                                dataKey="spend" nameKey="label" paddingAngle={2}
-                              >
-                                {adsData.classificationBreakdown.map((entry: any, i: number) => (
-                                  <Cell key={i} fill={entry.color} />
-                                ))}
-                              </Pie>
-                              <Tooltip formatter={(v: number) => [formatARS(v), "Gasto"]} />
-                              <Legend verticalAlign="bottom" iconType="circle" iconSize={8}
-                                formatter={(value: string) => <span className="text-xs text-gray-600">{value}</span>}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-
-                      {/* Classification filter cards */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-5">
-                        {adsData.classificationBreakdown.map((cls: any) => (
-                          <button
-                            key={cls.type}
-                            onClick={() => setClassFilter(classFilter === cls.type ? null : cls.type)}
-                            className={`p-3 rounded-lg border transition-all text-left ${
-                              classFilter === cls.type
-                                ? "border-blue-400 bg-blue-50 shadow-sm"
-                                : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cls.color }} />
-                              <span className="text-xs font-semibold text-gray-700">{cls.label}</span>
-                              <span className="text-[10px] text-gray-400 ml-auto">{cls.count}</span>
-                            </div>
-                            <div className="text-sm font-bold text-gray-900">{formatARS(cls.spend)}</div>
-                            <div className="flex gap-3 mt-1">
-                              <span className="text-[10px] text-gray-500">ROAS: <b>{cls.roas}x</b></span>
-                              <span className="text-[10px] text-gray-500">CTR: <b>{cls.ctr}%</b></span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Classification Drag & Drop Board */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                          <Tag size={16} className="text-blue-600" />
-                          Clasificacion de Creativos
-                        </h3>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          Arrastra anuncios entre categorias para reclasificar
-                        </p>
-                      </div>
-                      {classFilter && (
-                        <button onClick={() => setClassFilter(null)} className="text-xs text-blue-600 hover:underline">Ver todos</button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                      {(adsData.classificationTypes || []).slice(0, 10).map((ct: any) => {
-                        const typeCreatives = adsData.creatives.filter((c: any) => c.classification === ct.value);
-                        const isDragOver = dragOverType === ct.value;
-                        if (classFilter && classFilter !== ct.value && typeCreatives.length === 0) return null;
-                        return (
-                          <div
-                            key={ct.value}
-                            onDragOver={(e) => { e.preventDefault(); setDragOverType(ct.value); }}
-                            onDragLeave={() => setDragOverType(null)}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              if (draggedAdId) handleClassificationChange(draggedAdId, ct.value);
-                              setDraggedAdId(null);
-                              setDragOverType(null);
-                            }}
-                            className={`rounded-xl border-2 transition-all ${
-                              isDragOver ? "border-blue-400 bg-blue-50 shadow-lg scale-[1.01]" : "border-gray-100"
-                            }`}
-                          >
-                            <div className="p-3 border-b border-gray-100">
-                              <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ct.color }} />
-                                <span className="text-xs font-semibold text-gray-700">{ct.label}</span>
-                                <span className="text-[10px] text-gray-400 ml-auto">{typeCreatives.length}</span>
-                              </div>
-                            </div>
-                            <div className="p-2 space-y-1.5 max-h-[300px] overflow-y-auto">
-                              {typeCreatives.length === 0 && (
-                                <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
-                                  <p className="text-[10px] text-gray-400">Arrastra aqui</p>
-                                </div>
-                              )}
-                              {typeCreatives.slice(0, 8).map((ad: any) => (
-                                <div
-                                  key={ad.id}
-                                  draggable
-                                  onDragStart={() => setDraggedAdId(ad.id)}
-                                  onDragEnd={() => { setDraggedAdId(null); setDragOverType(null); }}
-                                  className={`bg-white rounded-lg border border-gray-200 p-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${
-                                    draggedAdId === ad.id ? "opacity-40 scale-95" : ""
-                                  }`}
-                                >
-                                  <div className="flex items-start gap-1.5">
-                                    <GripVertical size={10} className="text-gray-300 mt-0.5 flex-shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-[10px] font-medium text-gray-900 truncate" title={ad.name}>{ad.name}</p>
-                                      <div className="flex items-center gap-1.5 mt-0.5">
-                                        <span className="text-[9px] text-gray-400">{formatARS(ad.spend)}</span>
-                                        <span className="text-[9px] text-gray-300">|</span>
-                                        <span className="text-[9px] font-medium" style={{ color: ad.roas >= 3 ? "#10b981" : ad.roas >= 1 ? "#f59e0b" : "#ef4444" }}>{ad.roas}x</span>
-                                      </div>
-                                      {ad.classificationManual && (
-                                        <span className="text-[8px] text-blue-500 mt-0.5 inline-block">manual</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                              {typeCreatives.length > 8 && (
-                                <p className="text-[9px] text-gray-400 text-center py-1">+{typeCreatives.length - 8} mas</p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Creatives Table */}
-                  <div className="bg-white rounded-xl border border-gray-200">
-                    <div className="p-5 border-b border-gray-200">
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                        <Film size={16} className="text-blue-600" />
-                        Todos los Creativos ({adsData.creatives.length})
-                      </h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Anuncio</th>
-                            <th className="px-3 py-3 text-center font-semibold text-gray-700">Tipo</th>
-                            <th className="px-3 py-3 text-center font-semibold text-gray-700">Clasificacion</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Gasto</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Impr.</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Clicks</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">CTR</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Conv.</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">Revenue</th>
-                            <th className="px-3 py-3 text-center font-semibold text-gray-700">ROAS</th>
-                            <th className="px-3 py-3 text-right font-semibold text-gray-700">CPA</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {adsData.creatives.map((ad: any) => {
-                            const clsInfo = adsData.classificationTypes?.find((ct: any) => ct.value === ad.classification);
-                            return (
-                              <tr key={ad.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-4 py-3">
-                                  <div className="font-medium text-gray-900 truncate max-w-[220px]" title={ad.name}>{ad.name}</div>
-                                  <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[220px]" title={ad.campaignName}>{ad.campaignName}</div>
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{ad.type}</span>
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <span
-                                    className="text-[10px] px-2 py-0.5 rounded-full font-medium text-white"
-                                    style={{ backgroundColor: clsInfo?.color || "#6B7280" }}
-                                  >
-                                    {clsInfo?.label || ad.classification}
-                                  </span>
-                                  {ad.classificationManual && (
-                                    <span className="ml-1 text-[8px] text-blue-500">manual</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(ad.spend)}</td>
-                                <td className="px-3 py-3 text-right text-gray-700">{formatCompact(ad.impressions)}</td>
-                                <td className="px-3 py-3 text-right text-gray-700">{formatCompact(ad.clicks)}</td>
-                                <td className="px-3 py-3 text-right text-gray-700">{ad.ctr}%</td>
-                                <td className="px-3 py-3 text-right text-gray-700">{ad.conversions}</td>
-                                <td className="px-3 py-3 text-right text-gray-700 font-medium">{formatARS(ad.conversionValue)}</td>
-                                <td className="px-3 py-3 text-center"><RoasBadge value={ad.roas} /></td>
-                                <td className="px-3 py-3 text-right text-gray-700">{formatARS(ad.costPerConversion)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
+                <GoogleCreativesView adsData={adsData} campaigns={campaigns} />
               )}
             </div>
           )}
