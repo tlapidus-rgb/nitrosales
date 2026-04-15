@@ -21,7 +21,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const org = await getOrganization();
+  // Soporte multi-tenant: si viene organizationId, usar esa; si no, getOrganization()
+  const orgIdParam = url.searchParams.get("organizationId");
+  const mode = (url.searchParams.get("mode") || "daily") as "hourly" | "daily";
+  const isHourly = mode === "hourly";
+
+  let org: { id: string };
+  if (orgIdParam) {
+    const found = await prisma.organization.findUnique({ where: { id: orgIdParam }, select: { id: true } });
+    if (!found) return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    org = found;
+  } else {
+    org = await getOrganization();
+  }
+
   let stoppedEarly = false;
 
   const metaToken = process.env.META_ADS_ACCESS_TOKEN || "";
@@ -32,8 +45,11 @@ export async function GET(req: Request) {
   }
 
   const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const since = thirtyDaysAgo.toISOString().split("T")[0];
+  // Modo hourly: solo el dia de hoy (refresh de metricas live).
+  // Modo daily: ultimos 30 dias (full reconciliation).
+  const lookbackDays = isHourly ? 0 : 30;
+  const sinceDate = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+  const since = sinceDate.toISOString().split("T")[0];
   const until = now.toISOString().split("T")[0];
 
   // ═══════════════════════════════════════════
@@ -163,9 +179,16 @@ export async function GET(req: Request) {
 
   try {
     // 3a: Fetch and upsert all ads
+    // En modo hourly skipeamos el upsert de ads (estructura no cambia entre horas)
+    // pero igual fetch para tener allAds disponible para insights mapping.
     allAds = await connector.fetchAllAds();
 
+    if (isHourly) {
+      // Skip upsert: solo construimos el map externalId -> dbId desde DB existente
+    }
+
     for (const ad of allAds) {
+      if (isHourly) break; // No upsert en hourly
       if (shouldStop()) { stoppedEarly = true; break; }
       const adCampaignId = (ad as any).campaign_id;
       const adAdSetId = (ad as any).adset_id;
@@ -311,12 +334,13 @@ export async function GET(req: Request) {
 
   // ═══════════════════════════════════════════
   // STEP 4: Ad Sets (BAJA PRIORIDAD - solo si hay tiempo)
+  // En modo hourly skipeamos: la estructura de adsets no cambia hora a hora.
   // ═══════════════════════════════════════════
   let adSetsUpserted = 0;
   let adSetMetricsUpserted = 0;
   const adSetMap: Record<string, string> = {};
 
-  if (!shouldStop()) {
+  if (!isHourly && !shouldStop()) {
     try {
       const adSetsRes = await fetch(
         `https://graph.facebook.com/v19.0/${metaAdAccount}/adsets?fields=id,name,status,campaign_id,daily_budget,bid_strategy,optimization_goal,targeting&limit=500&access_token=${metaToken}`
@@ -498,7 +522,7 @@ export async function GET(req: Request) {
   let visionAnalyzed = 0;
   let visionErrors = 0;
 
-  if (!shouldStop() && process.env.ANTHROPIC_API_KEY) {
+  if (!isHourly && !shouldStop() && process.env.ANTHROPIC_API_KEY) {
     try {
       const unanalyzed = await prisma.adCreative.findMany({
         where: {
@@ -571,6 +595,8 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     ok: true,
+    mode,
+    organizationId: org.id,
     campaignsUpserted,
     metricsUpserted,
     adsUpserted,

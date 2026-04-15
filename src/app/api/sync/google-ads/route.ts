@@ -92,8 +92,22 @@ export async function GET(req: Request) {
       });
     }
 
-    // Get org
-    const org = await getOrganization();
+    // Multi-tenant: si viene organizationId, usar esa
+    const orgIdParam = searchParams.get("organizationId");
+    const mode = (searchParams.get("mode") || "daily") as "hourly" | "daily";
+    const isHourly = mode === "hourly";
+
+    let org: { id: string };
+    if (orgIdParam) {
+      const found = await prisma.organization.findUnique({
+        where: { id: orgIdParam },
+        select: { id: true },
+      });
+      if (!found) return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      org = found;
+    } else {
+      org = await getOrganization();
+    }
 
     // Step 1: Get access token
     const accessToken = await getAccessToken();
@@ -141,10 +155,11 @@ export async function GET(req: Request) {
       campaignMap[externalId] = campaign.id;
     }
 
-    // Step 4: Fetch campaign metrics for last 30 days
+    // Step 4: Fetch campaign metrics
+    // mode=hourly: solo hoy. mode=daily: ultimos 30 dias.
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
+    startDate.setDate(startDate.getDate() - (isHourly ? 0 : 30));
 
     const formatDate = (d: Date) => d.toISOString().split("T")[0];
 
