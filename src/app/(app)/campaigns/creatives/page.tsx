@@ -375,7 +375,11 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
 
   // Video source on-demand (solo para creativos de video).
   // /api/media/video/[creativeId] resuelve el source real via Graph API.
+  // Si el source no se puede obtener (permisos del token), devolvemos
+  // permalinkUrl como fallback (link a Facebook).
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [videoPoster, setVideoPoster] = useState<string | null>(null);
+  const [videoPermalink, setVideoPermalink] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
 
@@ -384,15 +388,20 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
     let cancelled = false;
     setVideoLoading(true);
     setVideoError(null);
+    setVideoSrc(null);
+    setVideoPoster(null);
+    setVideoPermalink(null);
     fetch(`/api/media/video/${creative.id}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
+        if (data?.posterUrl) setVideoPoster(data.posterUrl);
+        if (data?.permalinkUrl) setVideoPermalink(data.permalinkUrl);
         if (data?.videoUrl) {
           // Los sources de Meta viven en video.xx.fbcdn.net → proxy obligatorio
           setVideoSrc(proxied(data.videoUrl) || data.videoUrl);
         } else {
-          setVideoError("No pudimos obtener el video de Meta");
+          setVideoError(data?.error || "No pudimos obtener el video de Meta");
         }
       })
       .catch((e) => {
@@ -439,7 +448,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                 <video
                   ref={videoRef}
                   src={videoSrc}
-                  poster={proxied(thumbUrl)}
+                  poster={proxied(videoPoster || thumbUrl)}
                   className="w-full h-full max-h-[600px] object-contain"
                   controls
                   autoPlay
@@ -449,14 +458,14 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                 />
               ) : (
                 <div className="relative w-full h-full max-h-[600px] flex items-center justify-center">
-                  {thumbUrl && (
+                  {(videoPoster || thumbUrl) && (
                     <img
-                      src={proxied(thumbUrl)}
+                      src={proxied(videoPoster || thumbUrl)}
                       alt={creative.name}
-                      className="absolute inset-0 w-full h-full object-contain opacity-50"
+                      className="absolute inset-0 w-full h-full object-contain opacity-40"
                     />
                   )}
-                  <div className="relative z-10 flex flex-col items-center gap-3 text-white">
+                  <div className="relative z-10 flex flex-col items-center gap-3 text-white px-6">
                     {videoLoading && (
                       <>
                         <RefreshCw size={36} className="animate-spin text-white/80" />
@@ -466,7 +475,17 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
                     {!videoLoading && videoError && (
                       <>
                         <Film size={48} className="text-white/60" />
-                        <span className="text-xs text-white/70 max-w-[280px] text-center">{videoError}</span>
+                        <span className="text-xs text-white/70 max-w-[320px] text-center leading-relaxed">{videoError}</span>
+                        {videoPermalink && (
+                          <a
+                            href={videoPermalink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-slate-900 text-xs font-medium uppercase tracking-[0.15em] hover:bg-white/90 transition"
+                          >
+                            Ver en Facebook
+                          </a>
+                        )}
                       </>
                     )}
                   </div>

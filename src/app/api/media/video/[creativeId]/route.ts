@@ -1,14 +1,22 @@
 // Video source resolver — devuelve la URL de video reproducible para un AdCreative.
 //
 // Por que existe:
-//   - Meta solo guarda el thumbnail (image_url/thumbnail_url) en mediaUrls[].
-//     Para reproducir el video tenemos que pedirle a Graph API el "source"
-//     usando el video_id. Esto se hace on-demand cuando el usuario abre el
-//     creativo en el modal.
-//   - Para Google, los videos de YouTube son embebibles via youtube-nocookie
-//     o via su URL de googlevideo.com — esto es mas raro, por ahora solo Meta.
+//   - Meta solo guarda el thumbnail en mediaUrls[]. Para reproducir el video
+//     hay que ir a Graph API y pedir el "source" usando el video_id.
+//   - Si Graph no devuelve source (permisos / video privado), devolvemos
+//     permalink_url como fallback (link a Facebook/Instagram).
 //
-// Respuesta: { videoUrl, posterUrl, embeddable, source: "meta"|"youtube"|"unknown" }
+// Respuesta:
+//   {
+//     source: "meta" | "youtube" | "unknown",
+//     videoUrl: string | null,        // source reproducible
+//     posterUrl: string | null,       // thumbnail de alta resolucion
+//     videoId: string | null,
+//     permalinkUrl: string | null,    // fallback: link a Facebook
+//     embeddable: boolean,
+//     error: string | null,           // diagnostico humano
+//     debug?: object                  // detalle para inspeccion en network tab
+//   }
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
@@ -21,44 +29,94 @@ interface RouteContext {
   params: Promise<{ creativeId: string }>;
 }
 
-async function resolveMetaVideo(externalAdId: string): Promise<{ videoUrl: string | null; posterUrl: string | null; videoId: string | null }> {
+interface MetaResolveResult {
+  videoUrl: string | null;
+  posterUrl: string | null;
+  videoId: string | null;
+  permalinkUrl: string | null;
+  error: string | null;
+  debug: any;
+}
+
+async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult> {
   const token = process.env.META_ADS_ACCESS_TOKEN || "";
-  if (!token) return { videoUrl: null, posterUrl: null, videoId: null };
+  const debug: any = { externalAdId, steps: [] };
 
-  // 1) Pedir el ad → adcreatives → video_id
+  if (!token) {
+    return { videoUrl: null, posterUrl: null, videoId: null, permalinkUrl: null, error: "Falta META_ADS_ACCESS_TOKEN", debug };
+  }
+
+  // ── Step 1: ad → adcreatives → video_id + image_url + thumbnail_url
+  let videoId: string | null = null;
+  let posterUrl: string | null = null;
   try {
-    const adRes = await fetch(
-      `https://graph.facebook.com/v19.0/${externalAdId}?fields=adcreatives{id,video_id,image_url,thumbnail_url,object_story_spec}&access_token=${token}`,
-      { cache: "no-store" }
-    );
+    const adUrl = `https://graph.facebook.com/v19.0/${externalAdId}?fields=adcreatives{id,video_id,image_url,thumbnail_url,object_story_spec},creative{id,video_id,image_url,thumbnail_url,object_story_spec}&access_token=${token}`;
+    const adRes = await fetch(adUrl, { cache: "no-store" });
     const ad = await adRes.json();
-    if (ad.error) return { videoUrl: null, posterUrl: null, videoId: null };
+    debug.steps.push({ step: "ad_fetch", status: adRes.status, hasError: !!ad.error, err: ad.error?.message });
 
-    const creative = ad?.adcreatives?.data?.[0];
-    let videoId: string | null = creative?.video_id || null;
-    if (!videoId && creative?.object_story_spec?.video_data?.video_id) {
-      videoId = creative.object_story_spec.video_data.video_id;
+    if (ad.error) {
+      return { videoUrl: null, posterUrl: null, videoId: null, permalinkUrl: null, error: `Graph API: ${ad.error.message}`, debug };
     }
-    const posterUrl: string | null = creative?.image_url || creative?.thumbnail_url || null;
 
-    if (!videoId) return { videoUrl: null, posterUrl, videoId: null };
+    // Buscar creative tanto en `adcreatives.data[0]` como en `creative` (depende del tipo de ad)
+    const creative = ad?.adcreatives?.data?.[0] || ad?.creative || null;
+    debug.steps.push({ step: "creative_extract", found: !!creative, hasVideoId: !!creative?.video_id });
 
-    // 2) Pedir el video source
-    const vidRes = await fetch(
-      `https://graph.facebook.com/v19.0/${videoId}?fields=source,picture,permalink_url&access_token=${token}`,
-      { cache: "no-store" }
-    );
+    if (creative) {
+      videoId = creative.video_id || creative?.object_story_spec?.video_data?.video_id || null;
+      posterUrl = creative.image_url || creative.thumbnail_url || null;
+    }
+  } catch (e: any) {
+    debug.steps.push({ step: "ad_fetch", error: e?.message });
+    return { videoUrl: null, posterUrl: null, videoId: null, permalinkUrl: null, error: `Error consultando ad: ${e?.message}`, debug };
+  }
+
+  if (!videoId) {
+    return { videoUrl: null, posterUrl, videoId: null, permalinkUrl: null, error: "El creativo no tiene video_id asociado", debug };
+  }
+
+  // ── Step 2: video → source + picture (HD) + permalink_url
+  try {
+    const vidUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=source,picture,permalink_url,format&access_token=${token}`;
+    const vidRes = await fetch(vidUrl, { cache: "no-store" });
     const vid = await vidRes.json();
-    if (vid.error) return { videoUrl: null, posterUrl, videoId };
+    debug.steps.push({ step: "video_fetch", status: vidRes.status, hasSource: !!vid.source, hasError: !!vid.error, err: vid.error?.message });
+
+    if (vid.error) {
+      // Permission error tipico: codigo 200 / mensaje sobre Page Public Content Access o ads_management
+      return {
+        videoUrl: null,
+        posterUrl: vid.picture || posterUrl,
+        videoId,
+        permalinkUrl: vid.permalink_url || null,
+        error: `Graph API video: ${vid.error.message}`,
+        debug,
+      };
+    }
+
+    // El campo `format` puede tener variantes con URLs de mayor resolucion
+    let bestSource: string | null = vid.source || null;
+    if (Array.isArray(vid.format) && vid.format.length > 0) {
+      // format: [{ embed_html, filter, width, height, picture }]
+      // No siempre incluye source, pero los hay con varios bitrates en `source` raiz
+    }
+
+    const permalinkUrl: string | null = vid.permalink_url
+      ? (vid.permalink_url.startsWith("http") ? vid.permalink_url : `https://www.facebook.com${vid.permalink_url}`)
+      : null;
 
     return {
-      videoUrl: vid.source || null,
+      videoUrl: bestSource,
       posterUrl: vid.picture || posterUrl,
       videoId,
+      permalinkUrl,
+      error: bestSource ? null : "Meta no devolvio source reproducible (permisos del token)",
+      debug,
     };
-  } catch (e) {
-    console.error("resolveMetaVideo error", e);
-    return { videoUrl: null, posterUrl: null, videoId: null };
+  } catch (e: any) {
+    debug.steps.push({ step: "video_fetch", error: e?.message });
+    return { videoUrl: null, posterUrl, videoId, permalinkUrl: null, error: `Error consultando video: ${e?.message}`, debug };
   }
 }
 
@@ -80,27 +138,31 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
 
   // META: pedir source on-demand
   if (creative.platform === "META") {
-    const { videoUrl, posterUrl, videoId } = await resolveMetaVideo(creative.externalId);
+    const result = await resolveMetaVideo(creative.externalId);
     return NextResponse.json({
       source: "meta",
-      videoUrl,
-      posterUrl: posterUrl || creative.mediaUrls?.[0] || null,
-      videoId,
-      embeddable: !!videoUrl,
+      videoUrl: result.videoUrl,
+      posterUrl: result.posterUrl || creative.mediaUrls?.[0] || null,
+      videoId: result.videoId,
+      permalinkUrl: result.permalinkUrl,
+      embeddable: !!result.videoUrl,
+      error: result.error,
+      debug: result.debug,
     });
   }
 
   // GOOGLE: por ahora no resolvemos video source (YouTube ads son raros)
-  // Devolvemos lo que tenemos en mediaUrls
   if (creative.platform === "GOOGLE") {
     const url = creative.mediaUrls?.[0] || null;
-    const isYouTube = url?.includes("youtube.com") || url?.includes("youtu.be");
+    const isYouTube = !!(url?.includes("youtube.com") || url?.includes("youtu.be"));
     return NextResponse.json({
       source: isYouTube ? "youtube" : "unknown",
       videoUrl: url,
       posterUrl: url,
       videoId: null,
+      permalinkUrl: null,
       embeddable: !!url,
+      error: null,
     });
   }
 
@@ -109,6 +171,8 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
     videoUrl: null,
     posterUrl: creative.mediaUrls?.[0] || null,
     videoId: null,
+    permalinkUrl: null,
     embeddable: false,
+    error: "Plataforma no soportada",
   });
 }
