@@ -33,7 +33,7 @@ import {
   Eye, MousePointer, Target, Trophy, Flame, AlertTriangle, Sparkles,
   HelpCircle, RefreshCw, Smartphone, Monitor, Globe, Filter,
   ChevronRight, ExternalLink, Info, Zap, BarChart3, Award, X,
-  Layers, Plus, Minus, Clock,
+  Layers, Plus, Minus, Clock, Lightbulb, ChevronDown, CheckCircle2,
 } from "lucide-react";
 
 /* ════════════════════════════════════════════════════
@@ -221,6 +221,121 @@ function DeltaPill({ value, inverse = false }: { value: number; inverse?: boolea
 }
 
 /* ════════════════════════════════════════════════════
+   CoachCard — "¿Cómo lo mejoro?" con pasos esenciales
+   + guía completa expandible. Reusable en cada bloque.
+   ════════════════════════════════════════════════════ */
+
+type CoachStep = { title: string; detail?: string };
+type CoachTone = "amber" | "emerald" | "blue" | "rose" | "violet" | "slate";
+
+const COACH_TONE: Record<CoachTone, { bg: string; border: string; icon: string; chip: string; ring: string }> = {
+  amber:   { bg: "from-amber-50 to-amber-50/0",   border: "border-amber-100",   icon: "text-amber-600",   chip: "bg-amber-100 text-amber-700",     ring: "ring-amber-200" },
+  emerald: { bg: "from-emerald-50 to-emerald-50/0", border: "border-emerald-100", icon: "text-emerald-600", chip: "bg-emerald-100 text-emerald-700", ring: "ring-emerald-200" },
+  blue:    { bg: "from-blue-50 to-blue-50/0",     border: "border-blue-100",    icon: "text-blue-600",    chip: "bg-blue-100 text-blue-700",       ring: "ring-blue-200" },
+  rose:    { bg: "from-rose-50 to-rose-50/0",     border: "border-rose-100",    icon: "text-rose-600",    chip: "bg-rose-100 text-rose-700",       ring: "ring-rose-200" },
+  violet:  { bg: "from-violet-50 to-violet-50/0", border: "border-violet-100",  icon: "text-violet-600",  chip: "bg-violet-100 text-violet-700",   ring: "ring-violet-200" },
+  slate:   { bg: "from-slate-50 to-slate-50/0",   border: "border-slate-200",   icon: "text-slate-600",   chip: "bg-slate-100 text-slate-700",     ring: "ring-slate-200" },
+};
+
+function CoachCard({
+  tone = "amber",
+  headline,
+  essentials,
+  extended,
+  footer,
+}: {
+  tone?: CoachTone;
+  headline: string;
+  essentials: CoachStep[];
+  extended?: CoachStep[];
+  footer?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const cfg = COACH_TONE[tone];
+
+  return (
+    <div
+      className={`rounded-2xl bg-gradient-to-br ${cfg.bg} border ${cfg.border} p-4 mt-4`}
+      style={{
+        boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.08)",
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={`w-8 h-8 rounded-xl bg-white flex items-center justify-center flex-shrink-0 ring-1 ${cfg.ring}`}
+          style={{ boxShadow: "0 2px 8px -2px rgba(15,23,42,0.1)" }}
+        >
+          <Lightbulb size={15} className={cfg.icon} strokeWidth={2.2} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h4 className="text-[13px] font-bold text-slate-900 tracking-tight">
+              {headline}
+            </h4>
+            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${cfg.chip}`}>
+              Coach
+            </span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {essentials.map((s, i) => (
+              <div key={i} className="flex items-start gap-2.5 text-[12px]">
+                <div className={`w-4 h-4 rounded-full bg-white ring-1 ${cfg.ring} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                  <span className={`text-[10px] font-bold tabular-nums ${cfg.icon}`}>{i + 1}</span>
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-slate-800 leading-snug">{s.title}</div>
+                  {s.detail && (
+                    <div className="text-[11px] text-slate-600 leading-relaxed mt-0.5">{s.detail}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {extended && extended.length > 0 && (
+            <div className="mt-3">
+              <button
+                onClick={() => setOpen(!open)}
+                className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${cfg.icon} hover:opacity-80 transition-opacity`}
+              >
+                <ChevronDown
+                  size={13}
+                  strokeWidth={2.5}
+                  className="transition-transform"
+                  style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)" }}
+                />
+                {open ? "Ocultar guía completa" : "Ver guía completa paso a paso"}
+              </button>
+
+              {open && (
+                <div
+                  className="mt-3 pt-3 border-t border-white/80 space-y-2"
+                  style={{ animation: `fadeInUp 220ms ${ES_TRANSITION}` }}
+                >
+                  {extended.map((s, i) => (
+                    <div key={i} className="flex items-start gap-2.5 text-[12px]">
+                      <CheckCircle2 size={13} className={`${cfg.icon} flex-shrink-0 mt-0.5`} strokeWidth={2.2} />
+                      <div className="flex-1">
+                        <div className="font-semibold text-slate-800 leading-snug">{s.title}</div>
+                        {s.detail && (
+                          <div className="text-[11px] text-slate-600 leading-relaxed mt-0.5">{s.detail}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {footer && <div className="mt-3 pt-3 border-t border-white/80">{footer}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════
    Main Page
    ════════════════════════════════════════════════════ */
 
@@ -340,17 +455,36 @@ function SEOPageInner() {
   const pctTop3 = totalKws > 0 ? (positionDist.pos1_3 / totalKws) * 100 : 0;
   const pctTop10 = totalKws > 0 ? ((positionDist.pos1_3 + positionDist.pos4_10) / totalKws) * 100 : 0;
 
-  // Health score: combinación de top3 ratio + ctr
-  const healthScore = useMemo(() => {
-    if (totalKws === 0) return 0;
-    const top3Score = Math.min((pctTop3 / 30) * 40, 40); // 30% top3 = full score 40
-    const ctrScore = Math.min((avgCtr / 5) * 30, 30); // 5% CTR = full score 30
-    const posScore = avgPosition > 0 ? Math.max(30 - avgPosition, 0) : 0; // pos 1 = 30, pos 30+ = 0
-    return Math.round(top3Score + ctrScore + posScore);
+  // Health score: combinación de top3 ratio + ctr + posición
+  const healthData = useMemo(() => {
+    if (totalKws === 0) return { score: 0, breakdown: { top3: 0, ctr: 0, pos: 0 } };
+    const top3 = Math.min((pctTop3 / 30) * 40, 40); // 30% top3 = full score 40
+    const ctr = Math.min((avgCtr / 5) * 30, 30); // 5% CTR = full score 30
+    const pos = avgPosition > 0 ? Math.max(30 - avgPosition, 0) : 0; // pos 1 = 30, pos 30+ = 0
+    return {
+      score: Math.round(top3 + ctr + pos),
+      breakdown: {
+        top3: Math.round(top3),
+        ctr: Math.round(ctr),
+        pos: Math.round(pos),
+      },
+    };
   }, [totalKws, pctTop3, avgCtr, avgPosition]);
 
+  const healthScore = healthData.score;
+  const healthBreakdown = healthData.breakdown;
   const healthLabel = healthScore >= 70 ? "Muy bueno" : healthScore >= 50 ? "Bueno" : healthScore >= 30 ? "Regular" : "A mejorar";
   const healthColor = healthScore >= 70 ? "emerald" : healthScore >= 50 ? "blue" : healthScore >= 30 ? "amber" : "rose";
+
+  // Identificar el componente más débil del health score para el coach
+  const weakestComponent = useMemo(() => {
+    const parts = [
+      { key: "top3", pct: healthBreakdown.top3 / 40, label: "Top 3" },
+      { key: "ctr", pct: healthBreakdown.ctr / 30, label: "CTR" },
+      { key: "pos", pct: healthBreakdown.pos / 30, label: "Posición" },
+    ];
+    return parts.sort((a, b) => a.pct - b.pct)[0];
+  }, [healthBreakdown]);
 
   // Filtered keywords + pages
   const filteredKeywords = useMemo(() => {
@@ -472,6 +606,7 @@ function SEOPageInner() {
               totalKws={totalKws}
               pctTop3={pctTop3}
               pctTop10={pctTop10}
+              breakdown={healthBreakdown}
               loading={loading}
             />
             <PositionDistCard
@@ -486,6 +621,58 @@ function SEOPageInner() {
               loading={loading}
             />
           </div>
+
+          {totalKws > 0 && (
+            <CoachCard
+              tone={healthColor as any}
+              headline={`Tu salud SEO es ${healthScore}/100 · ${healthLabel}`}
+              essentials={[
+                {
+                  title: `Tu punto más débil es "${weakestComponent.label}"`,
+                  detail:
+                    weakestComponent.key === "top3"
+                      ? `Tenés solo ${pctTop3.toFixed(0)}% de tus keywords en el Top 3. Es el indicador que más pesa en tu score (40 pts). Enfocate en mover 2-3 keywords de la posición 4-10 al top 3.`
+                      : weakestComponent.key === "ctr"
+                      ? `Tu CTR promedio es ${avgCtr.toFixed(1)}%. Aunque aparezcas en Google, poca gente hace click. El título y la descripción de tus páginas no están convenciendo.`
+                      : `Tu posición promedio es ${avgPosition.toFixed(1)}. Aparecés muy abajo en los resultados. Necesitás mejorar el contenido y los enlaces hacia esas páginas.`,
+                },
+                {
+                  title: "Empezá por las Oportunidades de Oro",
+                  detail: "En la sección de abajo vas a ver las keywords con más impresiones que ya están en posiciones 4-20. Mover esas al top 3 es la forma más rápida de sumar clicks reales.",
+                },
+                {
+                  title: "Medí el avance cada 2 semanas",
+                  detail: "El SEO no es instantáneo. Los cambios en títulos se ven a los 7-14 días. Los cambios de contenido a 4-8 semanas. Ten paciencia y constancia.",
+                },
+              ]}
+              extended={[
+                {
+                  title: "Cómo se calcula tu score (0-100)",
+                  detail: `Se suman tres componentes: (a) Top 3 hasta 40 puntos según el % de keywords que tenés en posiciones 1-3. (b) CTR hasta 30 puntos según tu click-through rate promedio. (c) Posición hasta 30 puntos, donde posición 1 vale 30 y posición 30+ vale 0.`,
+                },
+                {
+                  title: `Hoy: ${healthBreakdown.top3}/40 en Top 3 · ${healthBreakdown.ctr}/30 en CTR · ${healthBreakdown.pos}/30 en Posición`,
+                  detail: "Esto te dice dónde enfocarte. El componente con menos puntos relativos es la palanca más rentable para subir tu score total.",
+                },
+                {
+                  title: "Para subir +10 puntos en Top 3",
+                  detail: "Necesitás que ~7% más de tus keywords lleguen al top 3. Si tenés 1000 keywords, son 70 keywords moviendo de pos 4-10 a pos 1-3. Concentrate en las que más impresiones tienen.",
+                },
+                {
+                  title: "Para subir +10 puntos en CTR",
+                  detail: "Tenés que subir tu CTR promedio ~1.7%. Se logra mejorando los <title> (agregá el beneficio principal y un gancho emocional) y las meta descriptions (120-155 caracteres, con CTA). No uses el nombre genérico del producto, sumá contexto.",
+                },
+                {
+                  title: "Para subir +10 puntos en Posición",
+                  detail: "Tenés que bajar tu posición promedio ~10 lugares. Se logra con contenido más completo en las páginas con más potencial, mejorando velocidad del sitio (Core Web Vitals), y consiguiendo enlaces externos de calidad.",
+                },
+                {
+                  title: "Meta realista: 65-75 en 3 meses",
+                  detail: "Un score 70+ es 'muy bueno' y se considera saludable para un ecommerce en su nicho. Arriba de 85 es excepcional. No te obsesiones con llegar a 100 — no existe ecommerce real con ese score.",
+                },
+              ]}
+            />
+          )}
         </section>
 
         {/* ═══ 4. EVOLUCIÓN TEMPORAL ═══ */}
@@ -521,6 +708,61 @@ function SEOPageInner() {
             accent="amber"
           />
           <OpportunitiesCard opportunities={sortedOpps} loading={loading} />
+
+          {sortedOpps.length > 0 && (
+            <CoachCard
+              tone="amber"
+              headline="Cómo convertir estas oportunidades en clicks reales"
+              essentials={[
+                {
+                  title: "Elegí 3 keywords para esta semana",
+                  detail: "No intentes con todas a la vez. Ordenadas por clicks potenciales (las de arriba del listado), elegí las 3 con mayor impacto. Anotá la URL que Google te está rankeando para cada una.",
+                },
+                {
+                  title: "Reescribí el título y la meta descripción",
+                  detail: "Abrí esas 3 páginas y mejorá el <title> (55-60 caracteres, con la keyword al principio y un beneficio) y la meta description (120-155 caracteres, con la keyword y un CTA tipo 'Envío gratis hoy' o 'Stock inmediato').",
+                },
+                {
+                  title: "Agregá contenido relevante a la página",
+                  detail: "Si es una ficha de producto, sumá 200-400 palabras que respondan dudas reales: talles, materiales, edad recomendada, cómo usarlo. Si es una categoría, sumá un párrafo introductorio con la keyword objetivo.",
+                },
+                {
+                  title: "Conseguí 1-2 enlaces internos hacia esas páginas",
+                  detail: "Desde tu home o desde otras páginas importantes, agregá un link con texto ancla que contenga la keyword. Esto le dice a Google que esa página es relevante para esa búsqueda.",
+                },
+                {
+                  title: "Esperá 7-14 días y medí",
+                  detail: "Google tarda en reindexar y re-rankear. Volvé a esta sección en 2 semanas y comparás: si subió del top 10 al top 3, ya estás ganando esos clicks potenciales.",
+                },
+              ]}
+              extended={[
+                {
+                  title: "Por qué estas keywords son oro puro",
+                  detail: "Son búsquedas donde Google YA te muestra (tenés impresiones) pero en una posición baja (4-20). Significa que Google cree que tu página es relevante, solo le falta un empujón. Keywords nuevas desde cero tardan 3-6 meses. Estas las podés mover en 2-4 semanas.",
+                },
+                {
+                  title: "Regla de los 'clicks potenciales'",
+                  detail: "El CTR del top 3 en Google es ~30%, del top 10 es ~10%, del top 20 es ~2%. Si una keyword tiene 1000 impresiones/mes en posición 15, te da ~20 clicks. Esa misma keyword en top 3 te daría ~300 clicks. Ese delta es lo que mostramos como 'clicks potenciales'.",
+                },
+                {
+                  title: "Señales de intención de compra",
+                  detail: "Priorizá keywords que incluyan palabras como 'comprar', 'precio', 'online', 'envío', 'descuento', nombre de marca o modelo específico. Esas convierten mucho más que keywords informativas genéricas.",
+                },
+                {
+                  title: "Checklist de on-page SEO por página",
+                  detail: "H1 único con la keyword · Title tag optimizado · Meta description con CTA · URL corta y legible · Imágenes con alt text descriptivo · Schema markup de Product o ItemList · Enlaces internos hacia la página desde al menos 3 lugares del sitio.",
+                },
+                {
+                  title: "Si después de 3 semanas no se movió",
+                  detail: "Revisá si hay una página mejor posicionada del sitio para la misma keyword (canibalización). Revisá la velocidad de la página con PageSpeed Insights (objetivo: LCP <2.5s). Revisá si la intención de búsqueda coincide con el contenido (si buscan info y les mostrás producto, Google no te va a rankear).",
+                },
+                {
+                  title: "Herramientas útiles gratis",
+                  detail: "Google Search Console (reporte de rendimiento filtrado por keyword) · PageSpeed Insights · Rich Results Test para schema · Mobile-Friendly Test · Google Trends para ver estacionalidad.",
+                },
+              ]}
+            />
+          )}
         </section>
 
         {/* ═══ 6. MOVIMIENTOS ═══ */}
@@ -574,6 +816,46 @@ function SEOPageInner() {
               accent="amber"
             />
             <CannibalizationCard items={cannibalization} loading={loading} />
+            <CoachCard
+              tone="amber"
+              headline="Cómo resolver la canibalización"
+              essentials={[
+                {
+                  title: "Elegí la página 'ganadora' para cada keyword",
+                  detail: "Para cada keyword canibalizada, decidí cuál de tus páginas es la que mejor responde esa búsqueda. Suele ser la que tiene más clicks o la que está mejor posicionada hoy.",
+                },
+                {
+                  title: "Consolidá el contenido relevante en la ganadora",
+                  detail: "Pasá la información más valiosa de las otras páginas a la ganadora (sin duplicar). La idea es que esa página sea la más completa y autoritativa sobre el tema.",
+                },
+                {
+                  title: "Redireccioná o diferenciá las perdedoras",
+                  detail: "Si las otras páginas ya no tienen razón de existir, aplicá redirect 301 hacia la ganadora. Si sí aportan valor (ej: variante de producto), cambiá su título/H1 para que apunten a una keyword diferente y específica.",
+                },
+              ]}
+              extended={[
+                {
+                  title: "Por qué Google se confunde",
+                  detail: "Cuando tenés 2+ páginas optimizadas para la misma keyword, Google no sabe cuál mostrar. A veces muestra una, a veces otra, y termina rankeando las dos en posiciones peores que una sola bien optimizada.",
+                },
+                {
+                  title: "Diagnóstico: cómo confirmar canibalización",
+                  detail: "En Search Console > Rendimiento, filtrá por la keyword problemática, después agrupá por 'Página'. Si ves que Google alterna entre 2-3 URLs diferentes para esa misma query, es canibalización.",
+                },
+                {
+                  title: "Estrategia A: consolidación por redirect",
+                  detail: "Usá redirect 301 de la página débil hacia la fuerte. Esto transfiere autoridad (link juice) a la página final y le dice a Google 'esta es la buena'. Ideal cuando las páginas son muy similares.",
+                },
+                {
+                  title: "Estrategia B: diferenciación temática",
+                  detail: "Si las 2 páginas aportan valor distinto, reescribí títulos, H1, URL y meta para que cada una apunte a una keyword primaria diferente (ej: 'zapatillas running hombre' vs 'zapatillas trail hombre'). Enlazalas entre sí.",
+                },
+                {
+                  title: "Canonical tag como parche temporal",
+                  detail: "Si no podés hacer redirect ni diferenciar ya mismo, agregá <link rel='canonical'> en las páginas débiles apuntando a la fuerte. No es la solución ideal pero reduce el daño mientras implementás la real.",
+                },
+              ]}
+            />
           </section>
         )}
 
@@ -587,6 +869,65 @@ function SEOPageInner() {
           />
           <CountrySplitCard countries={countrySplit} loading={loading} />
         </section>
+
+        {totalDeviceClicks > 0 && (
+          <CoachCard
+            tone={pctMobile > 70 ? "rose" : pctMobile > 50 ? "blue" : "slate"}
+            headline={
+              pctMobile > 70
+                ? `¡Atención! ${pctMobile.toFixed(0)}% de tu tráfico es mobile`
+                : pctMobile > 50
+                ? `La mayoría (${pctMobile.toFixed(0)}%) viene de mobile`
+                : `Tu tráfico está más balanceado entre dispositivos`
+            }
+            essentials={[
+              {
+                title:
+                  pctMobile > 50
+                    ? "Probá TU sitio desde el celular ahora mismo"
+                    : "Optimizá primero para el dispositivo dominante",
+                detail:
+                  pctMobile > 50
+                    ? "Abrí tu web desde el teléfono y simulá la compra completa: home → categoría → producto → carrito → checkout. Si algo es incómodo, arreglarlo es más importante que cualquier otra mejora."
+                    : "Mirá qué dispositivo tiene más clicks y priorizá la experiencia ahí. Pero no descuides al otro — usuarios mobile y desktop tienen intenciones de compra distintas.",
+              },
+              {
+                title: "Chequeá Core Web Vitals en mobile",
+                detail: "Entrá a PageSpeed Insights con tu URL principal y mirá la pestaña Mobile. Objetivo: LCP <2.5s, INP <200ms, CLS <0.1. Si no cumplís, estás perdiendo ranking y ventas.",
+              },
+              {
+                title: "Simplificá formularios y checkout",
+                detail: "En mobile, cada campo extra del formulario te hace perder ventas. Usá autocompletar de dirección, detección automática de tipo de tarjeta, y mínimos campos obligatorios.",
+              },
+            ]}
+            extended={[
+              {
+                title: "Mobile-first indexing",
+                detail: "Google usa la versión mobile de tu sitio para indexar y rankear (desde 2021). Si tu versión mobile tiene menos contenido que la desktop, ese contenido faltante NO cuenta para SEO. Asegurate que todo el contenido clave esté visible en mobile.",
+              },
+              {
+                title: "Tamaños de click target",
+                detail: "Botones y enlaces deben tener al menos 48x48 píxeles y 8px de separación entre ellos. Si son más chicos, la gente hace click en el equivocado y se frustra.",
+              },
+              {
+                title: "Imágenes responsive y lazy loading",
+                detail: "Usá srcset para servir imágenes diferentes según el tamaño de pantalla, y loading='lazy' para imágenes debajo del fold. Reduce MB y mejora LCP.",
+              },
+              {
+                title: "Menu de navegación mobile",
+                detail: "El hamburger menu debe estar arriba a la izquierda (o derecha), ser tappable fácil, y las categorías principales visibles sin scroll. Si tenés 30 categorías, agrupá por 'Padres' con expansión.",
+              },
+              {
+                title: "Velocidad de conexión en Argentina",
+                detail: "Mucho tráfico móvil en Argentina es 4G lento o WiFi inestable. Optimizá para cargar rápido con 3G. Reducí JavaScript, comprimí imágenes (WebP), usá CDN.",
+              },
+              {
+                title: "Países de origen del tráfico",
+                detail: "Si ves que un % alto viene de un país donde no vendés (ej: México), chequeá si es tráfico real o bots. Si es real, evalúa si vale la pena expandir o si el contenido está mal targeteado.",
+              },
+            ]}
+          />
+        )}
 
         {/* ═══ FOOTER ═══ */}
         <div className="mt-10 mb-4 text-center text-[11px] text-slate-400">
@@ -775,7 +1116,7 @@ function SectionHeader({
    HealthScoreCard
    ════════════════════════════════════════════════════ */
 
-function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, loading }: any) {
+function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, breakdown, loading }: any) {
   const colorMap: Record<string, { ring: string; text: string; bg: string; soft: string }> = {
     emerald: { ring: "#10b981", text: "text-emerald-600", bg: "bg-emerald-50", soft: "from-emerald-50 to-emerald-50/0" },
     blue: { ring: "#3b82f6", text: "text-blue-600", bg: "bg-blue-50", soft: "from-blue-50 to-blue-50/0" },
@@ -789,6 +1130,8 @@ function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, loa
   const radius = 50;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (displayScore / 100) * circumference;
+
+  const bars = breakdown || { top3: 0, ctr: 0, pos: 0 };
 
   return (
     <div
@@ -828,21 +1171,44 @@ function HealthScoreCard({ score, label, color, totalKws, pctTop3, pctTop10, loa
               </div>
             </div>
           </div>
-          <div className="flex-1 space-y-2 text-[12px]">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500">Keywords totales</span>
-              <span className="font-semibold text-slate-900 tabular-nums">{fmtNum(totalKws)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500">En Top 3</span>
-              <span className="font-semibold text-emerald-600 tabular-nums">{fmtPct(pctTop3, 1)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500">En Top 10</span>
-              <span className="font-semibold text-slate-900 tabular-nums">{fmtPct(pctTop10, 1)}</span>
-            </div>
+          <div className="flex-1 space-y-1.5 text-[11px]">
+            <ScoreBar label="Top 3" detail="keywords en los 3 primeros" points={bars.top3} max={40} color="#10b981" />
+            <ScoreBar label="CTR" detail="% que te hace click" points={bars.ctr} max={30} color="#3b82f6" />
+            <ScoreBar label="Posición" detail="qué tan arriba aparecés" points={bars.pos} max={30} color="#f59e0b" />
           </div>
         </div>
+        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+          <span>Keywords totales</span>
+          <span className="font-semibold text-slate-900 tabular-nums">{fmtNum(totalKws)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScoreBar({ label, detail, points, max, color }: any) {
+  const pct = max > 0 ? Math.min((points / max) * 100, 100) : 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-0.5">
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-semibold text-slate-700">{label}</span>
+          <span className="text-[9px] text-slate-400">{detail}</span>
+        </div>
+        <span className="font-semibold tabular-nums text-slate-900">
+          <span style={{ color }}>{Math.round(points)}</span>
+          <span className="text-slate-300"> / {max}</span>
+        </span>
+      </div>
+      <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${pct}%`,
+            background: color,
+            transition: `width 900ms ${ES_TRANSITION}`,
+          }}
+        />
       </div>
     </div>
   );
@@ -1172,6 +1538,71 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
 
   const list = movers[activeTab] || [];
 
+  const tabCoach: Record<string, any> = {
+    up: {
+      tone: "emerald",
+      headline: "¡Vas bien! Así consolidás estos avances",
+      essentials: [
+        { title: "Identificá qué tienen en común las que subieron", detail: "¿Son de la misma categoría? ¿Cambiaste títulos en esas páginas? ¿Agregaste contenido nuevo? Replicá ese patrón en más páginas." },
+        { title: "Reforzá las que están cerca del top 3", detail: "Si una keyword subió del puesto 12 al 7, un pequeño empujón extra puede moverla al top 3 y ahí el CTR triplica." },
+        { title: "No toques lo que funciona", detail: "No edites por edit. Si una página está subiendo, dejala como está al menos 30 días más. Los cambios constantes confunden a Google." },
+      ],
+      extended: [
+        { title: "Analizá el 'por qué' con Search Console", detail: "Entrá a Search Console > Rendimiento > filtrá por esas queries. Compará los últimos 28 días vs 28 anteriores. Buscá patrones en páginas y dispositivos." },
+        { title: "Amplificá con enlaces internos", detail: "Agregá 2-3 enlaces internos hacia la página que está subiendo desde otras páginas relevantes del sitio. Usá texto ancla natural con variaciones de la keyword." },
+        { title: "Aprovechá para capturar keywords long-tail", detail: "Si te rankeás bien para 'zapatillas running', probablemente puedas rankear 'zapatillas running mujer talle 38'. Creá contenido específico para variantes." },
+        { title: "Compartí en redes y consegui señales", detail: "Contenido que sube orgánicamente merece amplificación. Compartilo en Instagram, en newsletter, en WhatsApp. Aunque redes sociales no dan SEO directo, sí generan tráfico y engagement que Google nota." },
+      ],
+    },
+    down: {
+      tone: "rose",
+      headline: "Keywords en caída — hay que actuar ya",
+      essentials: [
+        { title: "Abrí la página que rankea para esa keyword", detail: "Chequeá si el contenido sigue siendo relevante, si la página carga rápido, si las imágenes están rotas, si hay errores 404 o redirects raros." },
+        { title: "Buscá esa keyword en Google incógnito", detail: "Mirá quiénes son los que te están pasando. ¿Qué tienen de diferente? ¿Mejor contenido? ¿Más reseñas? ¿Precio más bajo? ¿Estructura distinta?" },
+        { title: "Actualizá la página", detail: "Añadí información nueva (fecha actual, reviews, videos, preguntas frecuentes). Google premia el contenido fresco en ecommerce. Si el último edit fue hace 6+ meses, es momento de actualizar." },
+      ],
+      extended: [
+        { title: "Checklist técnico urgente", detail: "Velocidad (PageSpeed <2.5s LCP) · Mobile-friendly · HTTPS · Sin errores 404 · Sin contenido duplicado · Schema markup correcto · Sitemap actualizado." },
+        { title: "Revisá si perdiste enlaces externos", detail: "Con herramientas como Ahrefs Webmaster Tools (gratis) o Google Search Console > Enlaces, mirá si perdiste backlinks importantes. Si sí, contactá al dueño del sitio y pedí recuperarlo." },
+        { title: "¿Cambió la intención de búsqueda?", detail: "Google a veces cambia qué cree que busca la gente. Si antes mostraba productos y ahora muestra blogs informativos para esa keyword, tu página de producto ya no encaja. Hay que crear contenido adaptado al nuevo tipo." },
+        { title: "Competencia con precio agresivo", detail: "Si tu competencia bajó precios y muestra 'envío gratis' o 'cuotas sin interés' en los resultados, revisá tu propia estrategia de pricing y rich snippets. A veces no es SEO, es conversión." },
+        { title: "Si la caída es brusca (>10 posiciones)", detail: "Puede ser una penalización manual o algorítmica. Revisá Search Console > Acciones manuales. Si no hay, probablemente fue un update de Google. Consultá searchliaison en Twitter/X y foros de SEO." },
+      ],
+    },
+    new: {
+      tone: "blue",
+      headline: "Keywords nuevas — oportunidad de consolidar",
+      essentials: [
+        { title: "Priorizá las que tienen intención de compra", detail: "De las nuevas, identificá las que son transaccionales (con 'comprar', 'precio', nombres de producto). Esas son las que te van a traer ventas." },
+        { title: "Chequeá que la página que rankea sea la correcta", detail: "A veces Google te rankea con una página que no era la mejor. Si estás rankeando la home para una keyword de producto, creá contenido específico en la ficha del producto para 'capturar' esa keyword en su lugar ideal." },
+        { title: "Ayudale a Google a entender el tema", detail: "Agregá esa keyword (y variantes) naturalmente en H1, H2, párrafo inicial y meta description. No hagas keyword stuffing — usá sinónimos y contexto." },
+      ],
+      extended: [
+        { title: "Explorá la 'familia' de esa keyword", detail: "Una keyword nueva trae otras relacionadas. Usá Google autocompletar, 'búsquedas relacionadas' al final del SERP y la pestaña 'People Also Ask' para descubrir variantes que también podrías capturar." },
+        { title: "Creá contenido de soporte", detail: "Si estás rankeando 'pañales talla 3' de forma nueva, creá un artículo de blog tipo 'Cómo elegir la talla correcta de pañales' y enlazalo a la ficha de producto. Esto refuerza la relevancia temática." },
+        { title: "Monitoreá el primer mes", detail: "Las keywords nuevas son inestables. Pueden subir mucho y después caer. Medí semanalmente durante 4 semanas para confirmar que se están asentando." },
+        { title: "Ajustá el snippet (title + meta)", detail: "Si aparecés pero el CTR es bajo (<2%), tu snippet no está llamando la atención. Reescribí el title con un beneficio claro y la meta con un CTA. A veces agregar un emoji o precio destacado aumenta mucho el CTR." },
+      ],
+    },
+    lost: {
+      tone: "slate",
+      headline: "Keywords perdidas — diagnosticá la causa",
+      essentials: [
+        { title: "¿Sigue existiendo la página?", detail: "Lo primero: confirmá que la URL que rankeaba no fue borrada o movida sin redirect 301. Es la causa #1 de perder keywords bruscamente." },
+        { title: "Buscá la keyword en Google", detail: "Si tu sitio aparece pero en página 3+ (posición 21+), no la perdiste, solo la movieron. Tratala como una 'oportunidad' y trabajala. Si no aparece para nada, es otra historia." },
+        { title: "Decidí si vale la pena recuperarla", detail: "No todas las keywords valen el esfuerzo. Si tenía <50 impresiones/mes o no tiene intención comercial, dejala ir. Enfocá energía en las que sí mueven la aguja." },
+      ],
+      extended: [
+        { title: "Auditá technical SEO de la página", detail: "Usá Screaming Frog (gratis hasta 500 URLs) para ver errores técnicos: status codes, canonicals, noindex, robots.txt bloqueando, meta tags faltantes." },
+        { title: "Revisá el índice de Google", detail: "En Search Console > Inspeccionar URL, chequeá si la página está indexada. Si dice 'No indexada', pedí indexación manual y esperá 3-7 días." },
+        { title: "Contenido desactualizado u obsoleto", detail: "Si la keyword era de un producto discontinuado, modelo viejo o stock agotado hace tiempo, es normal que se pierda. Considerá redirect 301 a un producto equivalente." },
+        { title: "Cambio de intención de búsqueda", detail: "Google puede haber decidido que para esa keyword ahora prefiere mostrar otros tipos de resultados (videos, shopping, local). En ese caso no es culpa tuya — adaptate creando ese tipo de contenido si tiene sentido." },
+        { title: "Recuperación: contenido + enlaces", detail: "Si decidís recuperarla, actualizá la página con contenido más completo que los 10 que rankean, conseguí 1-2 enlaces externos hacia ella, y compartila en redes. Dale 30-60 días para re-rankear." },
+      ],
+    },
+  };
+
   return (
     <div
       className="mt-4 rounded-2xl bg-white border border-slate-100 overflow-hidden"
@@ -1274,6 +1705,17 @@ function MoversCard({ movers, activeTab, onTabChange, loading }: any) {
           </table>
         )}
       </div>
+
+      {tabCoach[activeTab] && (
+        <div className="px-4 pb-4 -mt-1">
+          <CoachCard
+            tone={tabCoach[activeTab].tone}
+            headline={tabCoach[activeTab].headline}
+            essentials={tabCoach[activeTab].essentials}
+            extended={tabCoach[activeTab].extended}
+          />
+        </div>
+      )}
     </div>
   );
 }
