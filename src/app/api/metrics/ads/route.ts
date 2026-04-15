@@ -294,13 +294,16 @@ export async function GET(request: Request) {
         const roas = spend > 0 ? Math.round((conversionValue / spend) * 100) / 100 : 0;
 
         // ── Video metrics ──
-        const hookRate = isVideo && impressions > 0
+        // Nota: isVideo puede ser true por c.type='VIDEO' aunque videoPlays sea null
+        // (video recien lanzado sin reproducciones aun). Por eso chequeamos videoPlays
+        // explicitamente antes de dividir.
+        const hookRate = isVideo && impressions > 0 && videoPlays !== null && videoPlays > 0
           ? Math.round((videoPlays / impressions) * 10000) / 100 : null;
-        const holdRate = isVideo && videoPlays > 0 && videoP50 !== null
+        const holdRate = isVideo && videoPlays !== null && videoPlays > 0 && videoP50 !== null
           ? Math.round((videoP50 / videoPlays) * 10000) / 100 : null;
-        const actionRate = isVideo && videoPlays > 0
+        const actionRate = isVideo && videoPlays !== null && videoPlays > 0
           ? Math.round((clicks / videoPlays) * 10000) / 100 : null;
-        const completionRate = isVideo && videoPlays > 0 && videoP100 !== null
+        const completionRate = isVideo && videoPlays !== null && videoPlays > 0 && videoP100 !== null
           ? Math.round((videoP100 / videoPlays) * 10000) / 100 : null;
         const convRateFromClicks = clicks > 0
           ? Math.round((conversions / clicks) * 10000) / 100 : 0;
@@ -312,7 +315,7 @@ export async function GET(request: Request) {
 
         // ── Drop-off Analysis with funnel-aware diagnosis ──
         let dropOffAnalysis: any = null;
-        if (isVideo && videoPlays > 0) {
+        if (isVideo && videoPlays !== null && videoPlays > 0) {
           const retention25 = videoP25 !== null ? Math.round((videoP25 / videoPlays) * 100) : null;
           const retention50 = videoP50 !== null ? Math.round((videoP50 / videoPlays) * 100) : null;
           const retention75 = videoP75 !== null ? Math.round((videoP75 / videoPlays) * 100) : null;
