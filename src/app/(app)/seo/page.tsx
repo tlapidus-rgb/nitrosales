@@ -484,6 +484,13 @@ function AurumSectionCard({
   const [input, setInput] = useState("");
   const [asking, setAsking] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [messages, asking]);
 
   const contextKey = useMemo(() => {
     try {
@@ -606,8 +613,11 @@ function AurumSectionCard({
                 Análisis en vivo
               </span>
             </div>
-            <div className="text-[11px] text-amber-200/60 mt-0.5 truncate">
-              Enfocado en: {contextLabel}
+            <div className="text-[11px] text-amber-200/70 mt-0.5 truncate">
+              Enfocado en: <span className="font-semibold text-amber-100">{contextLabel}</span>
+            </div>
+            <div className="text-[10.5px] text-amber-200/50 mt-0.5 leading-snug">
+              Respuestas cortas y concretas sobre la data de esta sección. Para análisis más profundo, usá el chat completo de Aurum.
             </div>
           </div>
         </div>
@@ -637,7 +647,15 @@ function AurumSectionCard({
         </div>
 
         {expanded && messages.length > 0 && (
-          <div className="mt-3 space-y-2">
+          <div
+            ref={chatScrollRef}
+            className="mt-3 space-y-2 pr-1 aurum-scroll"
+            style={{
+              maxHeight: "320px",
+              overflowY: "auto",
+              scrollBehavior: "smooth",
+            }}
+          >
             {messages.map((m, i) => (
               <div
                 key={i}
@@ -1260,6 +1278,16 @@ function SEOPageInner() {
         @media (prefers-reduced-motion: reduce) {
           * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
         }
+        .aurum-scroll::-webkit-scrollbar { width: 6px; }
+        .aurum-scroll::-webkit-scrollbar-track { background: transparent; }
+        .aurum-scroll::-webkit-scrollbar-thumb {
+          background: rgba(251,191,36,0.25);
+          border-radius: 3px;
+        }
+        .aurum-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(251,191,36,0.45);
+        }
+        .aurum-scroll { scrollbar-width: thin; scrollbar-color: rgba(251,191,36,0.25) transparent; }
       `}</style>
     </div>
   );
