@@ -3005,3 +3005,72 @@ Pendiente de push. Cambios locales agrupados en 2 commits:
 - **Codigo en main**: todavia no tiene los cambios stage 2 — pendiente de push.
 - **URL produccion real**: `https://nitrosales.vercel.app` (CLAUDE.md tenia `app.nitrosales.io` — CORREGIDO en esta sesion).
 
+---
+
+## Sesion 22 (cont.) — 2026-04-14 tarde/noche: /campaigns premium polish + Creativos Lab Phase 1
+
+> Update agregado al arrancar Sesion 23, reflejando commits pusheados despues de que CLAUDE_STATE fuera actualizado por ultima vez (9769b45, "docs S22"). Estos 8 commits estaban en main pero no documentados aqui.
+
+### Commits pusheados a main (post 9769b45)
+
+| Commit | Mensaje | Alcance |
+|---|---|---|
+| `7180a7f` | feat(/campaigns): bloque Acciones Urgentes (3 cards) + Salud del Mix TOF/MOF/BOF en Hoy | Tab "Hoy" de `/campaigns`: 3 cards de urgencias + mini distribucion TOF/MOF/BOF |
+| `84fd33b` | feat(/campaigns): Hoy premium — 4 KPIs, Platform cards Meta/Google, chart unico + animaciones | Rediseño completo de tab "Hoy": 4 KPIs con count-up, 2 platform cards (Meta/Google), chart unico con animaciones easeOutExpo |
+| `07d18a2` | feat(/campaigns): premium polish — pulso verde titilante + shimmer + Hero Plataformas vs Realidad | Pulso verde `animate-ping` en KPIs vivos, shimmer en banner, Hero "Plataformas vs Realidad" rediseñado |
+| `0593ae9` | feat(/campaigns): fix Mix Health % + Acciones x6 + Hero suavizado + tooltips premium | Fix del calculo de % del Mix Health, Acciones ampliadas a 6 cards, tooltips custom premium |
+| `81bceea` | fix(/campaigns): alias recharts Tooltip como RechartsTooltip para evitar colision con tooltip custom | Fix TS/runtime: import colision recharts vs tooltip custom. `import { Tooltip as RechartsTooltip }` |
+| `801d144` | revert(/campaigns): vuelvo DiscrepancyBlock a diseno previo con 3 cards de colores fuertes | Revert visual a version anterior del DiscrepancyBlock (3 cards de colores, no la version "suave") |
+| `eb5f1f0` | feat(/campaigns): banner Blended ROAS premium con zone gauge nombrado y multiplicador hero | Banner superior de `/campaigns`: zone gauge con nombres (Rojo/Ambar/Verde/Azul) + multiplicador hero animado |
+| `2ff4cd9` | feat(/campaigns/creatives): Lab premium con Meta/Google separados, galeria visual, player y deteccion de fatiga | **Creativos Lab Phase 1 en main**: rewrite de `/campaigns/creatives/page.tsx` con Meta y Google separados, galeria visual, player de video y deteccion de fatiga (CTR decay) |
+
+### Estado visual actual en producción (post 2ff4cd9)
+
+- `/campaigns` (tab "Hoy"):
+  - Banner superior con Blended ROAS (VTEX-only), zone gauge con nombres, multiplicador hero animado, shimmer premium.
+  - 4 KPIs con count-up animado (Revenue, Ad Spend, Blended ROAS, CAC).
+  - Bloque "Plataformas vs Realidad" (Hero) — Meta + Google cards con pulso verde titilante en KPIs vivos.
+  - Chart unico diario con Meta / Google / Blended lines + linea break-even ROAS (ReferenceLine).
+  - Bloque "Salud del Mix" — mini distribucion TOF / MOF / BOF con porcentajes correctos.
+  - Bloque "Acciones Urgentes" — 6 cards (antes 3) con señales accionables.
+  - DiscrepancyBlock con 3 cards de colores fuertes (revert del intento suave).
+  - Tooltips custom premium reemplazando los defaults de recharts (alias `RechartsTooltip`).
+
+- `/campaigns/creatives` (Creativos Lab Phase 1):
+  - Pagina con Meta y Google separados en secciones propias.
+  - Galeria visual de creatives con thumbnails.
+  - Player de video para ads video-native.
+  - Deteccion de fatiga (CTR decay) como señal principal.
+  - **1061 lineas** en `src/app/(app)/campaigns/creatives/page.tsx` (estado al momento de 2ff4cd9).
+
+### Cambios locales sin pushear (a trabajar en Sesion 23)
+
+Archivos presentes en el working tree al arranque de S23:
+
+- **Untracked**:
+  - `src/app/api/media/proxy/route.ts` — proxy generico para thumbnails/imagenes (evita CORS y bloqueos de hotlinking de Meta/Google CDNs).
+  - `src/app/api/media/video/[creativeId]/route.ts` — endpoint lazy-load para el video de un creative Meta (streaming `video_source.source_url`).
+  - `src/app/api/metrics/ads/structure/route.ts` (298 lineas) — endpoint nuevo que devuelve la estructura jerarquica de Meta (Campaign → AdSet → Ad) y Google (por tipo de campaña: Search / Shopping / PMax / Display / Video). Alimenta el Lab reescrito.
+- **Modified**:
+  - `src/app/api/metrics/ads/route.ts` (+7 lineas) — soporte de filtro `adSet` para drilldown dentro del Lab.
+  - `ERRORES_CLAUDE_NO_REPETIR.md` (+42 lineas) — Error #NUEVO-S22-F (paths placeholder + binarios locales) ya agregado al inicio del archivo.
+- **Pendiente de rewrite**: `src/app/(app)/campaigns/creatives/page.tsx` — rewrite completo para integrar los 3 endpoints nuevos: helper `proxied()` para thumbnails via `/api/media/proxy`, vista Meta jerarquica (Campaign → AdSet → Ad) con toggle Galeria, Google por tipo de campaña (Search SERP-style, Shopping, PMax, Display, Video), modal con video lazy-load.
+
+### Pendientes concretos (Sesion 23)
+
+1. Pushear los 3 archivos untracked + los 2 modificados + rewrite del `page.tsx` en commits granulares a `main`.
+2. Validar que Vercel buildeee limpio (sin TS errors).
+3. Chequear en produccion que:
+   - Los thumbnails de Meta/Google carguen via proxy (sin CORS).
+   - El drilldown Campaign → AdSet → Ad de Meta funcione.
+   - Google se segmente correctamente por tipo de campaña.
+   - El modal de video haga lazy-load del `video_source.source_url`.
+
+### Estado final de produccion al cierre de S22
+
+- **Ultimo commit en main**: `2ff4cd9` (Creativos Lab Phase 1).
+- **URL prod**: `https://nitrosales.vercel.app`.
+- **Deploy Vercel**: verde.
+- **Docs alineados**: este bloque agregado en S23 arranque.
+
+
