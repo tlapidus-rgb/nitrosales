@@ -373,6 +373,27 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
   const score = creative.videoMetrics?.videoEfficiencyScore ?? null;
   const thumbUrl = creative.mediaUrls?.[0]; // siempre es una imagen (thumbnail)
 
+  // ── Detección por plataforma/tipo para layout condicional del panel izquierdo ──
+  const isGoogle = creative.platform === "GOOGLE";
+  const isGoogleSearch = isGoogle && creative.type === "RESPONSIVE_SEARCH";
+  const isGooglePMax = isGoogle && (
+    (creative.type || "").toUpperCase().includes("PERFORMANCE_MAX") ||
+    (creative.type || "").toUpperCase() === "PMAX"
+  );
+  // Google text-only: sin imagen, con data rica (SERP preview + headlines + descriptions + keywords)
+  const isTextOnlyAd = isGoogleSearch || isGooglePMax;
+  const md = (creative.metadata || {}) as any;
+  const headlines: string[] = Array.isArray(md.headlines) ? md.headlines : [];
+  const descriptions: string[] = Array.isArray(md.descriptions) ? md.descriptions : [];
+  const finalUrls: string[] = Array.isArray(md.finalUrls) ? md.finalUrls : [];
+  const keywords: Array<{ text: string; matchType?: string; qs?: number | null; impressions?: number; clicks?: number; conversions?: number }> =
+    Array.isArray(md.keywords) ? md.keywords : [];
+  const serpUrl = finalUrls[0] || "";
+  let serpHost = "";
+  try { if (serpUrl) serpHost = new URL(serpUrl).hostname.replace(/^www\./, ""); } catch {}
+  const serpTitle = headlines[0] || creative.headline || creative.name || "Anuncio";
+  const serpDesc = descriptions[0] || creative.description || "";
+
   // Video source on-demand (solo para creativos de video).
   // /api/media/video/[creativeId] resuelve el source real via Graph API.
   // Si el source no se puede obtener (permisos del token), devolvemos
@@ -425,6 +446,14 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
     // Solo para creativos de imagen (no video). Las URLs de imagen de Meta
     // caducan rapido, asi que las refrescamos on-demand.
     if (creative?.isVideo || !creative?.id) return;
+    // Google text-only (Search/PMax) no tiene imagen: saltamos el fetch.
+    if (isTextOnlyAd) return;
+    // Google Display/Shopping/Image ya trae la URL directa en mediaUrls:
+    // evitamos el endpoint (que es especifico de Meta).
+    if (isGoogle) {
+      if (creative.mediaUrls?.[0]) setImageSrc(creative.mediaUrls[0]);
+      return;
+    }
     let cancelled = false;
     setImageLoading(true);
     setImageError(null);
@@ -451,7 +480,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
         if (!cancelled) setImageLoading(false);
       });
     return () => { cancelled = true; };
-  }, [creative?.id, creative?.isVideo]);
+  }, [creative?.id, creative?.isVideo, isTextOnlyAd, isGoogle]);
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -478,8 +507,154 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
         className="bg-white rounded-3xl shadow-2xl max-w-6xl w-full my-8 overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* LEFT: media */}
-        <div className="bg-gradient-to-br from-slate-900 to-slate-700 relative flex flex-col">
+        {/* LEFT: media (o panel de texto rico para Google Search/PMax) */}
+        <div className={`${isTextOnlyAd ? "bg-gradient-to-br from-slate-50 to-white border-r border-slate-200" : "bg-gradient-to-br from-slate-900 to-slate-700"} relative flex flex-col`}>
+          {isTextOnlyAd ? (
+            // ══════════════════════════════════════════════════════
+            // GOOGLE TEXT-ONLY (Search / PMax):
+            // SERP preview + headlines + descriptions + keywords.
+            // ══════════════════════════════════════════════════════
+            <div className="p-6 lg:p-8 space-y-5 overflow-y-auto max-h-[90vh]">
+              {/* Badge tipo */}
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-[0.12em] border border-blue-100">
+                  {isGooglePMax ? "Performance Max" : "Google Search"}
+                </span>
+                {keywords.length > 0 && (
+                  <span className="text-[10px] text-slate-400 uppercase tracking-[0.12em]">
+                    {keywords.length} keyword{keywords.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+
+              {/* SERP preview card (estilo Google real) */}
+              {!isGooglePMax && (
+                <div className="rounded-2xl bg-white border border-slate-200 px-5 py-4 shadow-[0_1px_0_rgba(15,23,42,0.04),_0_8px_24px_-12px_rgba(15,23,42,0.12)]">
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mb-1">
+                    <span className="w-4 h-4 rounded-full bg-gradient-to-br from-blue-500 via-red-500 to-yellow-500" />
+                    {serpHost || "tusitio.com"}
+                  </div>
+                  <div className="text-[11px] font-semibold text-emerald-700 tracking-wide uppercase mb-1">Anuncio · {serpHost || "sponsored"}</div>
+                  <div className="text-[18px] leading-snug text-[#1a0dab] font-medium hover:underline cursor-pointer line-clamp-2">
+                    {serpTitle}
+                  </div>
+                  {serpDesc && (
+                    <div className="text-[13px] text-slate-700 leading-relaxed mt-1.5 line-clamp-3">
+                      {serpDesc}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isGooglePMax && (
+                <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-white border border-amber-200 px-5 py-4">
+                  <div className="flex items-center gap-2 text-amber-900 font-semibold text-sm mb-1.5">
+                    <Sparkles size={15} /> Campaña basada en assets
+                  </div>
+                  <div className="text-xs text-amber-900/80 leading-relaxed">
+                    Performance Max combina headlines, descripciones e imágenes automáticamente. No hay un creativo único: Google arma la mejor combinación por usuario.
+                  </div>
+                </div>
+              )}
+
+              {/* Headlines */}
+              {headlines.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold mb-2">
+                    Headlines ({headlines.length})
+                  </div>
+                  <div className="space-y-1.5">
+                    {headlines.map((h, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm text-slate-800">
+                        <span className="text-[10px] text-slate-400 mt-1 tabular-nums w-5 text-right">{i + 1}</span>
+                        <span className="flex-1 leading-snug">{h}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Descriptions */}
+              {descriptions.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold mb-2">
+                    Descripciones ({descriptions.length})
+                  </div>
+                  <div className="space-y-2">
+                    {descriptions.map((d, i) => (
+                      <div key={i} className="rounded-lg bg-white border border-slate-100 px-3 py-2 text-[13px] text-slate-700 leading-relaxed">
+                        {d}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Keywords (top por impresiones) */}
+              {keywords.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold">
+                      Keywords
+                    </div>
+                    <div className="text-[10px] text-slate-400 uppercase tracking-[0.1em]">top por impresiones</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                    <div className="grid grid-cols-[1fr_56px_56px] px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-400 font-semibold bg-slate-50 border-b border-slate-100">
+                      <div>Keyword</div>
+                      <div className="text-right">Impr.</div>
+                      <div className="text-right">Conv.</div>
+                    </div>
+                    <div className="max-h-[240px] overflow-y-auto">
+                      {keywords.slice(0, 15).map((k, i) => (
+                        <div key={i} className="grid grid-cols-[1fr_56px_56px] px-3 py-2 text-[12px] border-b border-slate-50 last:border-b-0 items-center hover:bg-slate-50/50 transition-colors">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {k.matchType && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
+                                {k.matchType === "EXACT" ? "[E]" : k.matchType === "PHRASE" ? '"P"' : "±B"}
+                              </span>
+                            )}
+                            <span className="truncate text-slate-800">{k.text}</span>
+                            {typeof k.qs === "number" && k.qs > 0 && (
+                              <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
+                                k.qs >= 7 ? "bg-emerald-50 text-emerald-700" :
+                                k.qs >= 5 ? "bg-amber-50 text-amber-700" :
+                                "bg-rose-50 text-rose-700"
+                              }`}>QS {k.qs}</span>
+                            )}
+                          </div>
+                          <div className="text-right tabular-nums text-slate-600">{(k.impressions || 0).toLocaleString("es-AR")}</div>
+                          <div className="text-right tabular-nums text-slate-600">{k.conversions || 0}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state: no metadata aun (pre-sync) */}
+              {headlines.length === 0 && descriptions.length === 0 && keywords.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-8 text-center">
+                  <div className="text-sm font-semibold text-slate-600 mb-1">Sin datos enriquecidos todavía</div>
+                  <div className="text-xs text-slate-500 leading-relaxed">
+                    Este anuncio aún no se sincronizó con headlines, descripciones ni keywords. Correr el sync de Google Ads para ver el detalle completo.
+                  </div>
+                </div>
+              )}
+
+              {/* Final URL link */}
+              {serpUrl && (
+                <a
+                  href={serpUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  <ExternalLink size={12} /> <span className="truncate max-w-[300px]">{serpUrl}</span>
+                </a>
+              )}
+            </div>
+          ) : (
           <div className="relative flex-1 flex items-center justify-center min-h-[400px] lg:min-h-[600px]">
             {creative.isVideo ? (
               // VIDEO: usamos el source real resuelto on-demand por /api/media/video/[creativeId].
@@ -618,8 +793,10 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
               </button>
             )}
           </div>
+          )}
 
-          {/* Caption / copy */}
+          {/* Caption / copy (solo para creativos con media: Meta + Google Display/Shopping) */}
+          {!isTextOnlyAd && (
           <div className="bg-slate-900/95 text-white p-4 space-y-2 border-t border-white/10">
             {creative.headline && (
               <div>
@@ -641,6 +818,7 @@ function CreativeDetailModal({ creative, breakeven, onClose }: { creative: any; 
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* RIGHT: detail */}
