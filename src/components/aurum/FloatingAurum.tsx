@@ -76,13 +76,76 @@ function AurumText({ text }: { text: string }) {
 /* ──────────────────────────────────────────────────
    FloatingAurum — bubble + panel contextual
    ────────────────────────────────────────────────── */
+/**
+ * Mapa de fallback: pathname → contexto mínimo.
+ * Cualquier página que NO publique su contexto vía useAurumPageContext
+ * va a caer acá, para que el bubble siga siendo útil en toda la app.
+ * Las páginas que quieran datos ricos (como SEO) siguen publicando
+ * contextData específico y este fallback queda ignorado.
+ */
+const PATHNAME_FALLBACK: Array<{
+  match: (p: string) => boolean;
+  section: string;
+  label: string;
+  suggestions: string[];
+}> = [
+  { match: (p) => p === "/dashboard", section: "dashboard", label: "Centro de Control", suggestions: ["¿Qué métrica mirar primero hoy?", "¿Cómo interpreto este panel?"] },
+  { match: (p) => p.startsWith("/orders"), section: "orders", label: "Pedidos", suggestions: ["¿Cómo detecto pedidos problemáticos?", "¿Qué filtros me ayudan acá?"] },
+  { match: (p) => p.startsWith("/products"), section: "products", label: "Productos", suggestions: ["¿Qué productos priorizar?", "¿Cómo leo el ranking?"] },
+  { match: (p) => p.startsWith("/rentabilidad"), section: "rentabilidad", label: "Rentabilidad", suggestions: ["¿Qué es margen de contribución?", "¿Cómo subo la rentabilidad?"] },
+  { match: (p) => p.startsWith("/finanzas/costos"), section: "finanzas.costos", label: "Costos", suggestions: ["¿Cómo estructuro costos?", "¿Qué costos escondidos suelo olvidar?"] },
+  { match: (p) => p.startsWith("/finanzas"), section: "finanzas", label: "Finanzas", suggestions: ["¿Cómo leo este P&L?", "¿Qué debería monitorear mensual?"] },
+  { match: (p) => p.startsWith("/campaigns/google"), section: "campaigns.google", label: "Google Ads", suggestions: ["¿Cómo bajo el CPA?", "¿Qué campaña pausar?"] },
+  { match: (p) => p.startsWith("/campaigns/meta"), section: "campaigns.meta", label: "Meta Ads", suggestions: ["¿Cómo mejoro el ROAS?", "¿Qué creatividad está muriendo?"] },
+  { match: (p) => p.startsWith("/campaigns/creatives"), section: "campaigns.creatives", label: "Creatividades", suggestions: ["¿Qué ángulo probar?", "¿Cómo detecto fatiga creativa?"] },
+  { match: (p) => p.startsWith("/campaigns"), section: "campaigns", label: "Campañas", suggestions: ["¿Dónde está fugando plata?", "¿Cómo balanceo el mix de canales?"] },
+  { match: (p) => p.startsWith("/customers/ltv"), section: "customers.ltv", label: "LTV / CLV", suggestions: ["¿Cómo subo el LTV?", "¿Qué segmento vale más?"] },
+  { match: (p) => p.startsWith("/customers"), section: "customers", label: "Clientes", suggestions: ["¿Cómo segmento mis clientes?", "¿Quiénes son VIP?"] },
+  { match: (p) => p.startsWith("/audiences"), section: "audiences", label: "Audiencias", suggestions: ["¿Qué audiencia activar primero?", "¿Cómo armo lookalikes?"] },
+  { match: (p) => p.startsWith("/mercadolibre/preguntas"), section: "ml.preguntas", label: "Preguntas ML", suggestions: ["¿Cómo respondo más rápido?", "¿Qué preguntas predicen compra?"] },
+  { match: (p) => p.startsWith("/mercadolibre/publicaciones"), section: "ml.publicaciones", label: "Publicaciones ML", suggestions: ["¿Cómo optimizo un título?", "¿Qué publicación pausar?"] },
+  { match: (p) => p.startsWith("/mercadolibre/reputacion"), section: "ml.reputacion", label: "Reputación ML", suggestions: ["¿Cómo subo mi reputación?", "¿Qué reclamos priorizar?"] },
+  { match: (p) => p.startsWith("/mercadolibre"), section: "mercadolibre", label: "MercadoLibre", suggestions: ["¿Qué mirar en ML?", "¿Cómo mejoro reputación?"] },
+  { match: (p) => p.startsWith("/competitors"), section: "competitors", label: "Competencia", suggestions: ["¿A qué competidor vigilar?", "¿Cómo leo estos precios?"] },
+  { match: (p) => p.startsWith("/influencers/leaderboard"), section: "influencers.leaderboard", label: "Leaderboard Influencers", suggestions: ["¿Quién performa mejor?", "¿A quién doblar la apuesta?"] },
+  { match: (p) => p.startsWith("/influencers/ugc"), section: "influencers.ugc", label: "UGC", suggestions: ["¿Cómo uso mejor este UGC?", "¿Qué formato convierte más?"] },
+  { match: (p) => p.startsWith("/influencers"), section: "influencers", label: "Influencers", suggestions: ["¿A quién contratar?", "¿Cómo armo un brief?"] },
+  { match: (p) => p.startsWith("/pixel/analytics"), section: "pixel.analytics", label: "NitroPixel Analytics", suggestions: ["¿Qué métricas priorizo?", "¿Cómo leo este funnel?"] },
+  { match: (p) => p.startsWith("/pixel/journeys"), section: "pixel.journeys", label: "Customer Journeys", suggestions: ["¿Qué journey optimizar?", "¿Dónde pierdo gente?"] },
+  { match: (p) => p === "/pixel", section: "pixel.attribution", label: "Atribución", suggestions: ["¿Qué canal atribuir más?", "¿Cómo leo este modelo?"] },
+  { match: (p) => p.startsWith("/nitropixel"), section: "nitropixel", label: "NitroPixel", suggestions: ["¿Cómo instalo el pixel?", "¿Qué tracking me falta?"] },
+  { match: (p) => p.startsWith("/alertas"), section: "alertas", label: "Alertas", suggestions: ["¿Cómo priorizo alertas?", "¿Qué alertas armar?"] },
+  { match: (p) => p.startsWith("/sinapsis"), section: "sinapsis", label: "Sinapsis", suggestions: ["¿Cómo uso Sinapsis?", "¿Qué me muestra?"] },
+  { match: (p) => p.startsWith("/memory"), section: "memory", label: "Memoria", suggestions: ["¿Qué recordar importante?", "¿Cómo organizo esto?"] },
+  { match: (p) => p.startsWith("/boveda"), section: "boveda", label: "Bóveda", suggestions: ["¿Qué guardo acá?", "¿Cómo uso la Bóveda?"] },
+  { match: (p) => p.startsWith("/settings"), section: "settings", label: "Configuración", suggestions: ["¿Qué debería configurar primero?", "¿Cómo integro una plataforma?"] },
+];
+
+function resolvePathnameFallback(pathname: string) {
+  const hit = PATHNAME_FALLBACK.find((r) => r.match(pathname));
+  if (!hit) return null;
+  return {
+    section: hit.section,
+    contextLabel: hit.label,
+    contextData: { page: pathname, note: "Sin datos específicos — responder general sobre esta sección." },
+    suggestions: hit.suggestions,
+  };
+}
+
 export default function FloatingAurum() {
   const pathname = usePathname() || "/";
-  const { ctx, isOpen, openPanel, closePanel, togglePanel } = useAurumContext();
+  const { ctx: rawCtx, isOpen, openPanel, closePanel, togglePanel } = useAurumContext();
 
   // Ocultar en el chat de Aurum (es el chat full, no tiene sentido duplicar).
   const hideOnRoutes = useMemo(() => ["/chat", "/login"], []);
   const shouldHide = hideOnRoutes.some((r) => pathname === r || pathname.startsWith(r + "/"));
+
+  // Si la página NO publicó contexto, usamos un fallback derivado del pathname.
+  // Así Aurum siempre tiene algo que decir, aunque sea un "estás en X, contame".
+  const ctx = useMemo(() => {
+    if (rawCtx) return rawCtx;
+    return resolvePathnameFallback(pathname);
+  }, [rawCtx, pathname]);
 
   // Estado del chat contextual
   const [initialInsight, setInitialInsight] = useState<string | null>(null);
