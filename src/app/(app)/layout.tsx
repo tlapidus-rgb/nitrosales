@@ -499,6 +499,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 if (item.premium) {
                   const isAurum = item.label === "Aurum";
                   const isPixel = item.label === "NitroPixel";
+                  const isAura = item.label === "Aura";
                   const aurumSubItems = isAurum
                     ? [
                         {
@@ -848,6 +849,90 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                       <div className="text-[9px] font-mono tracking-wider text-[#a5f3fc]/40 uppercase">
                                         {sub.sublabel}
                                       </div>
+                                    </div>
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Aura sub-items (Creator Gradient) */}
+                      {isAura && item.children && item.children.length > 0 && (
+                        <div
+                          className="overflow-hidden"
+                          style={{
+                            display: "grid",
+                            gridTemplateRows: isActive ? "1fr" : "0fr",
+                            opacity: isActive ? 1 : 0,
+                            marginTop: isActive ? "4px" : "0px",
+                            transition:
+                              "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
+                          }}
+                        >
+                          <div className="min-h-0">
+                            <div className="relative ml-5 pl-4 py-1 space-y-0.5">
+                              {/* Magenta/purple connector line */}
+                              <div
+                                className="absolute left-0 top-2 bottom-2 w-[1px]"
+                                style={{
+                                  background:
+                                    "linear-gradient(180deg, rgba(244,114,182,0.55), rgba(168,85,247,0.15))",
+                                }}
+                              />
+                              {item.children.map((sub, si) => {
+                                const subActive =
+                                  pathname === sub.href ||
+                                  (sub.href !== "/aura/inicio" && pathname.startsWith(sub.href));
+                                return (
+                                  <Link
+                                    key={sub.href}
+                                    href={sub.href}
+                                    onClick={() => setSidebarOpen(false)}
+                                    className="group/sub relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-300"
+                                    style={{
+                                      background: subActive
+                                        ? "linear-gradient(90deg, rgba(244,114,182,0.14), rgba(168,85,247,0.04))"
+                                        : "transparent",
+                                      border: subActive
+                                        ? "1px solid rgba(244,114,182,0.28)"
+                                        : "1px solid transparent",
+                                      transitionDelay: isActive ? `${si * 60}ms` : "0ms",
+                                      transform: isActive ? "translateX(0)" : "translateX(-8px)",
+                                      opacity: isActive ? 1 : 0,
+                                      transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, background 200ms, border-color 200ms`,
+                                    }}
+                                  >
+                                    <span
+                                      className="absolute -left-4 top-1/2 w-2 h-[1px]"
+                                      style={{
+                                        background: subActive
+                                          ? "#f472b6"
+                                          : "rgba(244,114,182,0.35)",
+                                        transform: "translateY(-0.5px)",
+                                      }}
+                                    />
+                                    <span
+                                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                      style={{
+                                        background: subActive
+                                          ? "linear-gradient(135deg, #ff0080, #a855f7 50%, #00d4ff)"
+                                          : "rgba(244,114,182,0.4)",
+                                        boxShadow: subActive
+                                          ? "0 0 8px rgba(244,114,182,0.6)"
+                                          : "none",
+                                      }}
+                                    />
+                                    <div
+                                      className="text-[11px] font-semibold transition-colors"
+                                      style={{
+                                        color: subActive
+                                          ? "#fbcfe8"
+                                          : "rgba(251,207,232,0.7)",
+                                      }}
+                                    >
+                                      {sub.label}
                                     </div>
                                   </Link>
                                 );
