@@ -986,16 +986,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Page content — Aurum + NitroPixel routes get full-bleed dark canvas, others get padded light bg */}
         {(() => {
-          const aurumRoutes = ["/chat", "/sinapsis", "/boveda", "/memory"];
-          const isAurum = aurumRoutes.some((r) => pathname.startsWith(r));
+          const aurumLockedRoutes = ["/chat"];
+          const aurumScrollRoutes = ["/sinapsis", "/boveda", "/memory"];
+          const isAurumLocked = aurumLockedRoutes.some((r) => pathname.startsWith(r));
+          const isAurumScroll = aurumScrollRoutes.some((r) => pathname.startsWith(r));
           const isNitropixel = pathname.startsWith("/nitropixel");
           const isJourneys = pathname.startsWith("/pixel/journeys");
           const isPixelAttribution = pathname === "/pixel";
           return (
             <main
               className={
-                isAurum
+                isAurumLocked
                   ? "flex-1 p-0 overflow-hidden bg-[#0a0a0f]"
+                  : isAurumScroll
+                  ? "flex-1 p-0 overflow-y-auto bg-[#0a0a0f]"
                   : isNitropixel
                   ? "flex-1 p-0 overflow-hidden bg-[#05060a]"
                   : (isJourneys || isPixelAttribution)
