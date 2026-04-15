@@ -171,6 +171,8 @@ export async function GET(request: Request) {
     // ── 5) Top creative por adSet (mas spend) — para preview ──
     const topAdsRaw = adSetIds.length > 0
       ? await prisma.$queryRawUnsafe<Array<{ adset_id: string; creative_id: string; media_url: string | null; type: string; name: string | null; total_spend: number }>>(
+          // Postgres exige que todas las columnas no-agregadas esten en GROUP BY.
+          // Agregamos ac."mediaUrls", ac.type, ac.name al GROUP BY.
           `SELECT DISTINCT ON (ac."adSetId")
             ac."adSetId" AS adset_id,
             ac.id AS creative_id,
@@ -183,7 +185,7 @@ export async function GET(request: Request) {
             ON acmd."creativeId" = ac.id
             AND acmd.date >= $2 AND acmd.date <= $3
           WHERE ac."organizationId" = $1 AND ac."adSetId" = ANY($4)
-          GROUP BY ac."adSetId", ac.id
+          GROUP BY ac."adSetId", ac.id, ac."mediaUrls", ac.type, ac.name
           ORDER BY ac."adSetId", total_spend DESC NULLS LAST`,
           ORG_ID, dateFrom, dateTo, adSetIds
         )
