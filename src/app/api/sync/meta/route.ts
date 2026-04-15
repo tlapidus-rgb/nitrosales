@@ -158,9 +158,12 @@ export async function GET(req: Request) {
     adAccountId: metaAdAccount,
   });
 
+  // Declarado fuera del try para que Step 4 pueda usarlo y linkear AdCreative.adSetId
+  let allAds: any[] = [];
+
   try {
     // 3a: Fetch and upsert all ads
-    const allAds = await connector.fetchAllAds();
+    allAds = await connector.fetchAllAds();
 
     for (const ad of allAds) {
       if (shouldStop()) { stoppedEarly = true; break; }
@@ -430,6 +433,43 @@ export async function GET(req: Request) {
   }
 
   // ═══════════════════════════════════════════
+  // STEP 4.5: Link AdCreative -> AdSet
+  // ═══════════════════════════════════════════
+  // Step 3a guarda los AdCreative SIN adSetId porque adSetMap todavia no
+  // existe. Aca, ya con el adSetMap completo, los linkeamos.
+  // Esto es lo que arregla el drilldown L2 vacio.
+  let creativesLinkedToAdSet = 0;
+  if (allAds.length > 0 && Object.keys(adSetMap).length > 0) {
+    try {
+      // Agrupar ads por adSet externalId para hacer 1 updateMany por adSet
+      const adsByAdSet: Record<string, string[]> = {};
+      for (const ad of allAds) {
+        const externalAdSetId = (ad as any).adset_id;
+        if (!externalAdSetId) continue;
+        if (!adSetMap[externalAdSetId]) continue;
+        if (!adsByAdSet[externalAdSetId]) adsByAdSet[externalAdSetId] = [];
+        adsByAdSet[externalAdSetId].push(ad.id);
+      }
+      for (const externalAdSetId of Object.keys(adsByAdSet)) {
+        if (shouldStop()) { stoppedEarly = true; break; }
+        const dbAdSetId = adSetMap[externalAdSetId];
+        const externalAdIds = adsByAdSet[externalAdSetId];
+        const result = await prisma.adCreative.updateMany({
+          where: {
+            organizationId: org.id,
+            platform: "META",
+            externalId: { in: externalAdIds },
+          },
+          data: { adSetId: dbAdSetId } as any,
+        });
+        creativesLinkedToAdSet += result.count;
+      }
+    } catch (e: any) {
+      console.error("[MetaSync] AdCreative->AdSet link error (non-fatal):", e.message);
+    }
+  }
+
+  // ═══════════════════════════════════════════
   // STEP 5: Cleanup + connection status
   // ═══════════════════════════════════════════
   const oldCampaign = await prisma.adCampaign.findFirst({
@@ -537,6 +577,7 @@ export async function GET(req: Request) {
     adMetricsUpserted,
     adSetsUpserted,
     adSetMetricsUpserted,
+    creativesLinkedToAdSet,
     visionAnalyzed,
     visionErrors,
     cleanedUpAllCampaigns: cleanedUp,
