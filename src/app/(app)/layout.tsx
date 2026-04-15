@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState, useMemo } from "react";
 import { AurumProvider } from "@/components/aurum/AurumContext";
 import FloatingAurum from "@/components/aurum/FloatingAurum";
+import { AurumOrb } from "@/components/aurum/AurumOrb";
 
 type NavItem = {
   href: string;
@@ -601,16 +602,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                               boxShadow: isActive ? `0 0 12px ${item.premium.glowColor}` : "none",
                             }}
                           >
-                            {isPixel ? <PixelBrainSidebar size={28} /> : <svg
-                              className="w-4 h-4 transition-colors duration-300"
-                              style={{ color: item.premium.badgeColor }}
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={1.8}
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-                            </svg>}
+                            {isPixel ? (
+                              <PixelBrainSidebar size={28} />
+                            ) : isAurum ? (
+                              <AurumOrb size={26} />
+                            ) : (
+                              <svg
+                                className="w-4 h-4 transition-colors duration-300"
+                                style={{ color: item.premium.badgeColor }}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={1.8}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                              </svg>
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">

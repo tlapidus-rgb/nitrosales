@@ -230,25 +230,14 @@ export default function FloatingAurum() {
           cursor: "pointer",
         }}
       >
-        {/* Halo exterior que respira */}
+        {/* Burbuja: fondo oscuro + halo dorado via box-shadow (siempre circular, sin artifacts) */}
         <div
-          className="absolute inset-0 rounded-full pointer-events-none"
-          style={{
-            inset: -14,
-            background:
-              "radial-gradient(circle, rgba(251,191,36,0.22) 0%, rgba(217,119,6,0.12) 45%, transparent 70%)",
-            filter: "blur(10px)",
-            animation: "aurumBreath 3.2s ease-in-out infinite",
-          }}
-        />
-        <div
-          className="relative rounded-full flex items-center justify-center transition-transform duration-300"
+          className="relative rounded-full flex items-center justify-center transition-transform duration-300 aurum-bubble-halo"
           style={{
             width: 62,
             height: 62,
             background: "linear-gradient(145deg, #0a0a0f 0%, #1a1410 100%)",
-            boxShadow:
-              "0 6px 24px -6px rgba(0,0,0,0.55), 0 18px 40px -18px rgba(217,119,6,0.55), inset 0 1px 0 rgba(251,191,36,0.3)",
+            overflow: "hidden",
           }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLDivElement).style.transform = "scale(1.06)";
@@ -267,26 +256,28 @@ export default function FloatingAurum() {
               WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
               WebkitMaskComposite: "xor",
               maskComposite: "exclude",
+              zIndex: 2,
             }}
           />
           <AurumOrb size={40} thinking={asking || insightLoading} />
-
-          {/* Dot de contexto listo */}
-          {hasContext && !isOpen && (
-            <span
-              className="absolute"
-              style={{
-                top: 6,
-                right: 6,
-                width: 9,
-                height: 9,
-                borderRadius: 999,
-                background: "#10b981",
-                boxShadow: "0 0 0 2px #0a0a0f, 0 0 8px rgba(16,185,129,0.8)",
-              }}
-            />
-          )}
         </div>
+
+        {/* Dot de contexto listo (fuera del overflow:hidden) */}
+        {hasContext && !isOpen && (
+          <span
+            className="absolute pointer-events-none"
+            style={{
+              top: 4,
+              right: 4,
+              width: 10,
+              height: 10,
+              borderRadius: 999,
+              background: "#10b981",
+              boxShadow: "0 0 0 2px #0a0a0f, 0 0 10px rgba(16,185,129,0.9)",
+              zIndex: 3,
+            }}
+          />
+        )}
 
         {/* Tooltip al hover */}
         <span
@@ -613,8 +604,45 @@ export default function FloatingAurum() {
           background: rgba(251,191,36,0.45);
         }
         .aurum-scroll { scrollbar-width: thin; scrollbar-color: rgba(251,191,36,0.25) transparent; }
+
+        /* Halo dorado de la burbuja — box-shadow siempre circular, sin artifacts.
+           Respira suave y se intensifica en hover. */
+        .aurum-bubble-halo {
+          box-shadow:
+            0 0 0 0 rgba(251,191,36,0.35),
+            0 8px 28px -6px rgba(0,0,0,0.5),
+            0 0 22px 2px rgba(251,191,36,0.28),
+            0 0 44px 4px rgba(217,119,6,0.22),
+            inset 0 1px 0 rgba(251,191,36,0.3);
+          animation: aurumBubbleHalo 3.4s ease-in-out infinite;
+        }
+        .aurum-bubble-halo:hover {
+          box-shadow:
+            0 10px 32px -6px rgba(0,0,0,0.55),
+            0 0 28px 4px rgba(251,191,36,0.45),
+            0 0 56px 8px rgba(217,119,6,0.32),
+            inset 0 1px 0 rgba(251,191,36,0.4);
+        }
+        @keyframes aurumBubbleHalo {
+          0%,100% {
+            box-shadow:
+              0 8px 28px -6px rgba(0,0,0,0.5),
+              0 0 20px 1px rgba(251,191,36,0.24),
+              0 0 40px 3px rgba(217,119,6,0.20),
+              inset 0 1px 0 rgba(251,191,36,0.3);
+          }
+          50% {
+            box-shadow:
+              0 8px 28px -6px rgba(0,0,0,0.5),
+              0 0 26px 3px rgba(251,191,36,0.36),
+              0 0 52px 6px rgba(217,119,6,0.28),
+              inset 0 1px 0 rgba(251,191,36,0.35);
+          }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .aurum-panel-enter { animation: none !important; }
+          .aurum-bubble-halo { animation: none !important; }
         }
       `}</style>
     </>
