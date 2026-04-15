@@ -538,10 +538,13 @@ export default function CreadoresPage() {
               </Link>
               <Link
                 href="/influencers/new"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold tracking-tight transition-all hover:brightness-110"
                 style={{
-                  background: THEME.textPrimary,
+                  background:
+                    "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
                   color: "#FFF",
+                  boxShadow:
+                    "0 4px 20px rgba(244,114,182,0.35), inset 0 1px 0 rgba(255,255,255,0.18)",
                 }}
               >
                 <Plus size={14} strokeWidth={2.4} />

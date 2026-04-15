@@ -550,10 +550,13 @@ export default function CreatorProfilePage() {
               </button>
               <button
                 onClick={() => setEditOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] font-semibold tracking-tight transition"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] font-semibold tracking-tight transition hover:brightness-110"
                 style={{
-                  background: THEME.textPrimary,
+                  background:
+                    "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
                   color: "#FFF",
+                  boxShadow:
+                    "0 4px 16px rgba(244,114,182,0.35), inset 0 1px 0 rgba(255,255,255,0.18)",
                 }}
               >
                 <Pencil size={13} strokeWidth={2.4} />
@@ -1380,11 +1383,14 @@ function EditModal({
           <button
             onClick={save}
             disabled={saving}
-            className="px-4 py-2 rounded-xl text-[12.5px] font-semibold tracking-tight"
+            className="px-4 py-2 rounded-xl text-[12.5px] font-semibold tracking-tight hover:brightness-110"
             style={{
-              background: THEME.textPrimary,
+              background:
+                "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
               color: "#FFF",
               opacity: saving ? 0.6 : 1,
+              boxShadow:
+                "0 4px 16px rgba(244,114,182,0.35), inset 0 1px 0 rgba(255,255,255,0.18)",
             }}
           >
             {saving ? "Guardando..." : "Guardar cambios"}
