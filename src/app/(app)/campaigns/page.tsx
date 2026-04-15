@@ -623,6 +623,158 @@ function MixHealthPanel({ funnelSummary, totalSpend }: { funnelSummary: any[]; t
   );
 }
 
+/* ── Premium KPI Card (Hoy) ────────────────────────── */
+
+function PremiumKpi({
+  label, value, subtitle, deltaPct, accent = "indigo", delay = 0,
+}: {
+  label: string; value: string; subtitle?: string | null; deltaPct?: number | null;
+  accent?: "indigo" | "emerald" | "red" | "amber" | "cyan" | "purple" | "blue";
+  delay?: number;
+}) {
+  const accents: Record<string, { bar: string; chipBg: string; chipText: string; glow: string }> = {
+    indigo:  { bar: "bg-indigo-500",  chipBg: "bg-indigo-50",  chipText: "text-indigo-700",  glow: "from-indigo-400/15" },
+    emerald: { bar: "bg-emerald-500", chipBg: "bg-emerald-50", chipText: "text-emerald-700", glow: "from-emerald-400/15" },
+    red:     { bar: "bg-red-500",     chipBg: "bg-red-50",     chipText: "text-red-700",     glow: "from-red-400/15" },
+    amber:   { bar: "bg-amber-500",   chipBg: "bg-amber-50",   chipText: "text-amber-700",   glow: "from-amber-400/15" },
+    cyan:    { bar: "bg-cyan-500",    chipBg: "bg-cyan-50",    chipText: "text-cyan-700",    glow: "from-cyan-400/15" },
+    purple:  { bar: "bg-purple-500",  chipBg: "bg-purple-50",  chipText: "text-purple-700",  glow: "from-purple-400/15" },
+    blue:    { bar: "bg-blue-500",    chipBg: "bg-blue-50",    chipText: "text-blue-700",    glow: "from-blue-400/15" },
+  };
+  const a = accents[accent];
+  const hasDelta = typeof deltaPct === "number" && deltaPct !== 0;
+  const deltaUp = (deltaPct || 0) >= 0;
+
+  return (
+    <div
+      className="group relative bg-white rounded-2xl shadow-sm ring-1 ring-slate-200/80 p-5 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ns-fade-up"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {/* Accent bar */}
+      <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${a.bar}`} />
+      {/* Soft glow */}
+      <div className={`pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-gradient-to-br ${a.glow} to-transparent blur-2xl opacity-70 group-hover:opacity-100 transition-opacity`} />
+
+      <div className="relative">
+        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+        <div className="flex items-baseline gap-2 mt-1.5">
+          <p className="text-[28px] font-bold text-slate-900 tabular-nums leading-none">{value}</p>
+          {hasDelta && (
+            <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${deltaUp ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+              {deltaUp ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
+              {Math.abs(deltaPct!).toFixed(1)}%
+            </span>
+          )}
+        </div>
+        {subtitle && <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ── Premium Platform Card ─────────────────────────── */
+
+function PlatformPremiumCard({
+  platform, data, breakevenRoas, delay = 0,
+}: { platform: "META" | "GOOGLE"; data: any; breakevenRoas: number; delay?: number }) {
+  const cfg = platform === "META"
+    ? { label: "Meta Ads", color: "#8b5cf6", from: "from-purple-500/10", ring: "ring-purple-100", dot: "bg-purple-500" }
+    : { label: "Google Ads", color: "#3b82f6", from: "from-blue-500/10", ring: "ring-blue-100", dot: "bg-blue-500" };
+
+  const roas = Number(data?.roas || 0);
+  const spend = Number(data?.spend || 0);
+  const revenue = Number(data?.conversionValue || 0);
+  const conv = Number(data?.conversions || 0);
+  const ctr = Number(data?.ctr || 0);
+  const cpc = Number(data?.cpc || 0);
+  const convRate = Number(data?.convRate || 0);
+
+  let statusLabel = "Sin datos";
+  let statusChip = "bg-slate-100 text-slate-600";
+  if (breakevenRoas > 0 && spend > 0) {
+    if (roas >= breakevenRoas * 1.5) { statusLabel = "Rentable"; statusChip = "bg-emerald-100 text-emerald-800"; }
+    else if (roas >= breakevenRoas)  { statusLabel = "En equilibrio"; statusChip = "bg-amber-100 text-amber-800"; }
+    else                              { statusLabel = "Perdiendo"; statusChip = "bg-red-100 text-red-800"; }
+  } else if (spend > 0) {
+    statusLabel = roas >= 2 ? "Rentable" : roas >= 1 ? "En equilibrio" : "Perdiendo";
+    statusChip = roas >= 2 ? "bg-emerald-100 text-emerald-800" : roas >= 1 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800";
+  }
+
+  const target = breakevenRoas > 0 ? breakevenRoas * 2 : 4;
+  const roasPct = Math.min(100, (roas / target) * 100);
+  const bePct = breakevenRoas > 0 ? Math.min(100, (breakevenRoas / target) * 100) : 50;
+
+  return (
+    <div
+      className="group relative bg-white rounded-2xl shadow-sm ring-1 ring-slate-200/80 p-5 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ns-fade-up"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className={`pointer-events-none absolute -top-16 -right-16 w-40 h-40 rounded-full bg-gradient-to-br ${cfg.from} to-transparent blur-3xl`} />
+
+      <div className="relative">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot} ring-4 ring-offset-0 ring-current/10`} style={{ color: cfg.color }} />
+            <div>
+              <h3 className="font-bold text-slate-900 text-[15px] leading-none">{cfg.label}</h3>
+              <p className="text-[11px] text-slate-500 mt-1">{data?.campaigns || 0} campañas · {formatCompact(spend)} inv.</p>
+            </div>
+          </div>
+          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusChip}`}>
+            {statusLabel}
+          </span>
+        </div>
+
+        {/* Big ROAS */}
+        <div className="mt-5 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">ROAS reportado</p>
+            <p className="text-[40px] font-bold text-slate-900 tabular-nums leading-none mt-1">{roas.toFixed(2)}<span className="text-[22px] text-slate-400">x</span></p>
+            {breakevenRoas > 0 && (
+              <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">vs BE {breakevenRoas.toFixed(2)}x · {((roas / breakevenRoas) || 0).toFixed(1)}× del punto de equilibrio</p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Revenue atrib.</p>
+            <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">{formatCompact(revenue)}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">{conv} conv.</p>
+          </div>
+        </div>
+
+        {/* Gauge */}
+        <div className="mt-5">
+          <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden ring-1 ring-slate-200">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
+              style={{ width: `${roasPct}%`, background: cfg.color }}
+            />
+            {breakevenRoas > 0 && (
+              <div className="absolute inset-y-0 w-0.5 bg-slate-900/70" style={{ left: `${bePct}%` }} />
+            )}
+          </div>
+        </div>
+
+        {/* Mini metrics */}
+        <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">CTR</p>
+            <p className="text-sm font-bold text-slate-900 tabular-nums mt-0.5">{ctr.toFixed(2)}%</p>
+          </div>
+          <div>
+            <p className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">CPC</p>
+            <p className="text-sm font-bold text-slate-900 tabular-nums mt-0.5">{formatARS(cpc)}</p>
+          </div>
+          <div>
+            <p className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Conv. Rate</p>
+            <p className="text-sm font-bold text-slate-900 tabular-nums mt-0.5">{convRate.toFixed(2)}%</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Component ────────────────────────────────── */
 
 export default function CampaignsPage() {
@@ -821,277 +973,121 @@ export default function CampaignsPage() {
       {/* Salud del Mix TOF/MOF/BOF */}
       <MixHealthPanel funnelSummary={funnelSummary} totalSpend={adSpendTotal} />
 
-      {/* Platform Filter Chips */}
-      <div className="flex items-center gap-2">
-        {([
-          { key: "ALL" as PlatformFilter, label: "Todas", count: campaigns.length, color: "indigo" },
-          { key: "GOOGLE" as PlatformFilter, label: "Google Ads", count: googleCount, color: "blue" },
-          { key: "META" as PlatformFilter, label: "Meta Ads", count: metaCount, color: "purple" },
-        ]).map((opt) => {
-          const isActive = platformFilter === opt.key;
-          const activeClass: Record<string, string> = {
-            indigo: "bg-indigo-600 text-white border-indigo-600",
-            blue: "bg-blue-600 text-white border-blue-600",
-            purple: "bg-purple-600 text-white border-purple-600",
-          };
-          const inactiveClass: Record<string, string> = {
-            indigo: "bg-white text-gray-700 border-gray-200",
-            blue: "bg-blue-50 text-blue-700 border-blue-200",
-            purple: "bg-purple-50 text-purple-700 border-purple-200",
-          };
-          return (
-            <button key={opt.key} onClick={() => setPlatformFilter(opt.key)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border transition-all ${isActive ? activeClass[opt.color] : inactiveClass[opt.color]}`}>
-              {opt.label}
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? "bg-white/20" : "bg-black/5"}`}>
-                {opt.count}
-              </span>
-            </button>
-          );
-        })}
+      {/* Premium KPI Strip — solo los 4 numeros que importan hoy */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <PremiumKpi
+          label="Inversión ads"
+          value={formatCompact(adSpendTotal)}
+          subtitle="Total gastado en ads"
+          deltaPct={typeof changes.spend === "number" ? changes.spend : null}
+          accent="red"
+          delay={0}
+        />
+        <PremiumKpi
+          label="Revenue VTEX"
+          value={formatCompact(realRevenue)}
+          subtitle="Facturado en tienda"
+          accent="emerald"
+          delay={60}
+        />
+        <PremiumKpi
+          label="Blended ROAS"
+          value={`${blendedRoas.toFixed(2)}x`}
+          subtitle={breakevenRoas > 0 ? `Break-even ${breakevenRoas.toFixed(2)}x · CM ${(contributionMargin * 100).toFixed(0)}%` : "VTEX / Inversión"}
+          accent="indigo"
+          delay={120}
+        />
+        <PremiumKpi
+          label="nCAC estimado"
+          value={nCAC > 0 ? formatARS(nCAC) : "--"}
+          subtitle={`${totalConv} conversiones · CTR ${globalCtr}%`}
+          accent="amber"
+          delay={180}
+        />
       </div>
 
-      {/* Hero KPI Row — 8 cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-        <KpiCard icon={<DollarSign size={16} className="text-red-600" />} iconBg="bg-red-50" label="Inversion ads" value={formatCompact(adSpendTotal)} change={changes.spend} />
-        <KpiCard icon={<ShoppingCart size={16} className="text-emerald-600" />} iconBg="bg-emerald-50" label="Revenue VTEX" value={formatCompact(realRevenue)} subtitle="Atribuible a ads" />
-        <KpiCard icon={<Target size={16} className="text-purple-600" />} iconBg="bg-purple-50" label="Rev. atribuido" value={formatCompact(attributedRevenue)} subtitle={`ROAS rep: ${attributedRoas.toFixed(2)}x`} />
-        <KpiCard icon={<TrendingUp size={16} className="text-indigo-600" />} iconBg="bg-indigo-50" label="Blended ROAS" value={`${blendedRoas.toFixed(2)}x`} subtitle="VTEX / Inv." />
-        <KpiCard icon={<Gauge size={16} className="text-amber-600" />} iconBg="bg-amber-50" label="Break-even" value={breakevenRoas > 0 ? `${breakevenRoas.toFixed(2)}x` : "--"} subtitle={contributionMargin > 0 ? `CM ${(contributionMargin * 100).toFixed(1)}%` : "Sin margen"} />
-        <KpiCard icon={<Activity size={16} className="text-cyan-600" />} iconBg="bg-cyan-50" label="MELI (organico)" value={formatCompact(meliRevenue)} subtitle="No atribuible" />
-        <KpiCard icon={<ShoppingCart size={16} className="text-green-600" />} iconBg="bg-green-50" label="Conversiones" value={String(totalConv)} change={changes.conversions} />
-        <KpiCard icon={<Zap size={16} className="text-orange-600" />} iconBg="bg-orange-50" label="nCAC" value={nCAC > 0 ? formatARS(nCAC) : "--"} subtitle={`CTR ${globalCtr}%`} />
+      {/* Plataformas — Meta vs Google lado a lado */}
+      {platformSummary.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+              Plataformas
+            </span>
+            <span className="text-[11px] text-slate-400">— cuál está rindiendo mejor</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <PlatformPremiumCard
+              platform="META"
+              data={platformSummary.find((p: any) => p.platform === "META") || { campaigns: 0, spend: 0, conversionValue: 0, conversions: 0, roas: 0, ctr: 0, cpc: 0, convRate: 0 }}
+              breakevenRoas={breakevenRoas}
+              delay={0}
+            />
+            <PlatformPremiumCard
+              platform="GOOGLE"
+              data={platformSummary.find((p: any) => p.platform === "GOOGLE") || { campaigns: 0, spend: 0, conversionValue: 0, conversions: 0, roas: 0, ctr: 0, cpc: 0, convRate: 0 }}
+              breakevenRoas={breakevenRoas}
+              delay={100}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Chart único — ROAS diario vs Break-even */}
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200/80 p-6 ns-fade-up">
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <h3 className="font-bold text-slate-900 text-[15px]">Tendencia de ROAS diario</h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {breakevenRoas > 0
+                ? `Línea punteada = Break-even ${breakevenRoas.toFixed(2)}x · Arriba es rentable.`
+                : "Evolución del ROAS reportado por las plataformas."}
+            </p>
+          </div>
+        </div>
+        {dailyRoasSeries.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={dailyRoasSeries} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="roasGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
+              <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}x`} width={40} />
+              <Tooltip
+                contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)", fontSize: 12 }}
+                formatter={(v: number, n: string) => [`${v}x`, n === "roas" ? "ROAS" : "Break-even"]}
+              />
+              <Area type="monotone" dataKey="roas" stroke="#6366f1" strokeWidth={2.5} fill="url(#roasGradient)" dot={false} />
+              {breakevenRoas > 0 && (
+                <ReferenceLine y={breakevenRoas} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: `BE ${breakevenRoas.toFixed(2)}x`, fill: "#ef4444", fontSize: 11, position: "insideTopRight" }} />
+              )}
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[260px] flex items-center justify-center text-slate-400 text-sm">Sin datos de tendencia</div>
+        )}
       </div>
 
-      {/* Discrepancy Block */}
+      {/* Plataformas vs Realidad VTEX (al final, contextual) */}
       <DiscrepancyBlock
         attributedRevenue={attributedRevenue}
         vtexRevenue={realRevenue}
         adSpend={adSpendTotal}
       />
 
-      {/* Platform Comparison */}
-      {platformFilter === "ALL" && platformSummary.length > 1 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {platformSummary.map((p: any) => {
-            const color = PLATFORM_COLORS[p.platform] || "#6b7280";
-            const label = PLATFORM_LABELS[p.platform] || p.platform;
-            const roasVsBreakeven = breakevenRoas > 0 ? p.roas / breakevenRoas : 0;
-            return (
-              <div key={p.platform} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                  <h3 className="font-semibold text-gray-900">{label}</h3>
-                  <span className="text-xs text-gray-400 ml-auto">{p.campaigns} campanas</span>
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-[10px] text-gray-500 uppercase">Inversion</p>
-                    <p className="text-lg font-bold text-gray-900">{formatCompact(p.spend)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-500 uppercase">ROAS</p>
-                    <p className={`text-lg font-bold ${breakevenRoas > 0 ? (p.roas >= breakevenRoas * 1.5 ? "text-green-600" : p.roas >= breakevenRoas ? "text-amber-600" : "text-red-600") : (p.roas >= 2 ? "text-green-600" : p.roas >= 1 ? "text-amber-600" : "text-red-600")}`}>
-                      {p.roas}x
-                    </p>
-                    {breakevenRoas > 0 && (
-                      <p className="text-[10px] text-gray-400 mt-0.5">vs {breakevenRoas.toFixed(2)}x BE</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-500 uppercase">Conversiones</p>
-                    <p className="text-lg font-bold text-gray-900">{p.conversions}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 gap-3 mt-3 pt-3 border-t border-gray-100 text-center">
-                  <div>
-                    <p className="text-[10px] text-gray-400">CTR</p>
-                    <p className="text-sm font-medium">{p.ctr}%</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-400">CPC</p>
-                    <p className="text-sm font-medium">{formatARS(p.cpc)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-400">Conv Rate</p>
-                    <p className="text-sm font-medium">{p.convRate}%</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-400">Revenue</p>
-                    <p className="text-sm font-medium">{formatCompact(p.conversionValue)}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Spend/ROAS Chart */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-gray-900">
-                {chartMode === "spend" ? "Inversion Diaria por Plataforma" : "ROAS Diario vs Break-even"}
-              </h3>
-              {chartMode === "roas" && breakevenRoas > 0 && (
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  Linea punteada = Break-even {breakevenRoas.toFixed(2)}x
-                </p>
-              )}
-            </div>
-            <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
-              <button onClick={() => setChartMode("roas")}
-                className={`px-3 py-1 rounded-md text-xs font-medium ${chartMode === "roas" ? "bg-white shadow-sm text-indigo-600" : "text-gray-600"}`}>
-                ROAS
-              </button>
-              <button onClick={() => setChartMode("spend")}
-                className={`px-3 py-1 rounded-md text-xs font-medium ${chartMode === "spend" ? "bg-white shadow-sm text-indigo-600" : "text-gray-600"}`}>
-                Inversion
-              </button>
-            </div>
-          </div>
-          {dailyTrend.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              {chartMode === "spend" ? (
-                <AreaChart data={dailyTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(v)} />
-                  <Tooltip formatter={(v: number, name: string) => [formatARS(v), PLATFORM_LABELS[name] || name]} labelFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`; }} />
-                  <Area type="monotone" dataKey="META" stackId="1" fill={PLATFORM_COLORS.META} stroke={PLATFORM_COLORS.META} fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="GOOGLE" stackId="1" fill={PLATFORM_COLORS.GOOGLE} stroke={PLATFORM_COLORS.GOOGLE} fillOpacity={0.6} />
-                </AreaChart>
-              ) : (
-                <LineChart data={dailyRoasSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}x`} />
-                  <Tooltip formatter={(v: number, n: string) => [`${v}x`, n === "roas" ? "ROAS" : "Break-even"]} />
-                  <Line type="monotone" dataKey="roas" stroke="#10b981" strokeWidth={2} dot={false} />
-                  {breakevenRoas > 0 && (
-                    <ReferenceLine y={breakevenRoas} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: `BE ${breakevenRoas.toFixed(2)}x`, fill: "#ef4444", fontSize: 11, position: "insideTopRight" }} />
-                  )}
-                </LineChart>
-              )}
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">Sin datos de tendencia</div>
-          )}
-        </div>
-
-        {/* Conversion Funnel */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="font-semibold text-gray-900 mb-4">Embudo de Conversion</h3>
-          <ConversionFunnel
-            impressions={totals.impressions || 0}
-            clicks={totals.clicks || 0}
-            conversions={totals.conversions || 0}
-          />
-          <div className="mt-6 pt-4 border-t border-gray-100 space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Revenue generado</span>
-              <span className="font-bold text-gray-900">{formatARS(totals.conversionValue || 0)}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Costo por conversion</span>
-              <span className="font-bold text-gray-900">{totals.conversions > 0 ? formatARS(totals.spend / totals.conversions) : "--"}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Conv. Rate</span>
-              <span className="font-bold text-gray-900">{globalConvRate}%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Campaigns Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900">
-            Campanas ({filtered.length})
-          </h3>
-          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
-            <Download className="w-4 h-4" /> Exportar CSV
-          </button>
-        </div>
-        {sorted.length === 0 ? (
-          <div className="p-12 text-center text-gray-400">
-            {platformFilter === "ALL" ? "No hay campanas con datos en este periodo." : `No hay campanas de ${platformFilter === "GOOGLE" ? "Google" : "Meta"} con datos.`}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left font-semibold text-gray-700">Campana</th>
-                  {platformFilter === "ALL" && <th className="px-4 py-3 text-center font-semibold text-gray-700">Plataforma</th>}
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("spend")}>
-                    Gasto{sortIcon("spend")}
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("impressions")}>
-                    Impr.{sortIcon("impressions")}
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("clicks")}>
-                    Clicks{sortIcon("clicks")}
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("ctr")}>
-                    CTR{sortIcon("ctr")}
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("cpc")}>
-                    CPC{sortIcon("cpc")}
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("conversions")}>
-                    Conv.{sortIcon("conversions")}
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("conversionValue")}>
-                    Revenue{sortIcon("conversionValue")}
-                  </th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-700 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("roas")}>
-                    ROAS{sortIcon("roas")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {sorted.map((c: any) => (
-                  <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-3">
-                      <div className="font-medium text-gray-900 truncate max-w-[250px]" title={c.name}>{c.name}</div>
-                      {c.objective && <div className="text-[10px] text-gray-400 mt-0.5">{c.objective}</div>}
-                    </td>
-                    {platformFilter === "ALL" && <td className="px-4 py-3 text-center"><PlatformBadge platform={c.platform} /></td>}
-                    <td className="px-4 py-3 text-right text-gray-700 font-medium">{formatARS(c.spend)}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{formatCompact(c.impressions)}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{formatCompact(c.clicks)}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{c.ctr}%</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{formatARS(c.cpc)}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{c.conversions}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 font-medium">{formatARS(c.conversionValue)}</td>
-                    <td className="px-4 py-3 text-center"><RoasBadge value={c.roas} breakeven={breakevenRoas} /></td>
-                  </tr>
-                ))}
-              </tbody>
-              {/* Totals row */}
-              <tfoot className="bg-gray-50 border-t-2 border-gray-300">
-                <tr className="font-bold">
-                  <td className="px-6 py-3 text-gray-900">TOTAL</td>
-                  {platformFilter === "ALL" && <td />}
-                  <td className="px-4 py-3 text-right text-gray-900">{formatARS(filtered.reduce((s: number, c: any) => s + c.spend, 0))}</td>
-                  <td className="px-4 py-3 text-right text-gray-900">{formatCompact(filtered.reduce((s: number, c: any) => s + c.impressions, 0))}</td>
-                  <td className="px-4 py-3 text-right text-gray-900">{formatCompact(filtered.reduce((s: number, c: any) => s + c.clicks, 0))}</td>
-                  <td className="px-4 py-3 text-right text-gray-900">{globalCtr}%</td>
-                  <td className="px-4 py-3 text-right text-gray-900">{formatARS(Number(globalCpc))}</td>
-                  <td className="px-4 py-3 text-right text-gray-900">{filtered.reduce((s: number, c: any) => s + c.conversions, 0)}</td>
-                  <td className="px-4 py-3 text-right text-gray-900">{formatARS(filtered.reduce((s: number, c: any) => s + c.conversionValue, 0))}</td>
-                  <td className="px-4 py-3 text-center"><RoasBadge value={Number(attributedRoas.toFixed(2))} breakeven={breakevenRoas} /></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Animations CSS — se inyecta una vez */}
+      <style jsx global>{`
+        @keyframes ns-fade-up {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .ns-fade-up {
+          animation: ns-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+      `}</style>
     </div>
   );
 }
