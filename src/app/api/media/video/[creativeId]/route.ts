@@ -57,7 +57,7 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
   let posterUrl: string | null = null;
   let permalinkFallback: string | null = null;
   try {
-    const adUrl = `https://graph.facebook.com/v19.0/${externalAdId}?fields=preview_shareable_link,effective_object_story_id,adcreatives{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec},creative{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec}&access_token=${adsToken}`;
+    const adUrl = `https://graph.facebook.com/v19.0/${externalAdId}?fields=preview_shareable_link,adcreatives{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec},creative{id,video_id,image_url,thumbnail_url,effective_object_story_id,object_story_spec}&access_token=${adsToken}`;
     const adRes = await fetch(adUrl, { cache: "no-store" });
     const ad = await adRes.json();
     debug.steps.push({ step: "ad_fetch", status: adRes.status, hasError: !!ad.error, err: ad.error?.message });
@@ -81,7 +81,8 @@ async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult
     if (ad.preview_shareable_link) {
       permalinkFallback = ad.preview_shareable_link;
     } else {
-      const storyId = ad.effective_object_story_id || creative?.effective_object_story_id || null;
+      // effective_object_story_id solo vive dentro de adcreatives/creative (no a nivel ad)
+      const storyId = creative?.effective_object_story_id || null;
       if (storyId && typeof storyId === "string" && storyId.includes("_")) {
         const [pageId, postId] = storyId.split("_");
         permalinkFallback = `https://www.facebook.com/${pageId}/posts/${postId}`;
