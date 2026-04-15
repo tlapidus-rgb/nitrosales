@@ -54,27 +54,29 @@ const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 // ───────────────────────── THEME (LIGHT) ─────────────────────────
 const THEME = {
-  bgPage: "#FAF8F2",
-  bgCard: "#FFFFFF",
-  bgSoft: "#F4F1E8",
-  border: "rgba(60, 48, 24, 0.08)",
-  borderStrong: "rgba(60, 48, 24, 0.14)",
-  textPrimary: "#1A1512",
-  textSecondary: "rgba(26, 21, 18, 0.62)",
-  textTertiary: "rgba(26, 21, 18, 0.42)",
-  textMuted: "rgba(26, 21, 18, 0.32)",
-  gold: "#B8912F",
-  goldSoft: "rgba(184, 145, 47, 0.10)",
-  goldBorder: "rgba(184, 145, 47, 0.28)",
-  green: "#3F9E5B",
-  greenSoft: "rgba(63, 158, 91, 0.10)",
-  greenBorder: "rgba(63, 158, 91, 0.28)",
-  rose: "#C0425A",
-  roseSoft: "rgba(192, 66, 90, 0.10)",
-  roseBorder: "rgba(192, 66, 90, 0.28)",
-  gray: "#6B6560",
-  graySoft: "rgba(107, 101, 96, 0.08)",
-  grayBorder: "rgba(107, 101, 96, 0.22)",
+  bgPage: "#0a0a14",
+  bgCard: "rgba(255, 255, 255, 0.03)",
+  bgSoft: "rgba(255, 255, 255, 0.02)",
+  border: "rgba(255, 255, 255, 0.06)",
+  borderStrong: "rgba(255, 255, 255, 0.12)",
+  textPrimary: "#f5f5f7",
+  textSecondary: "rgba(245, 245, 247, 0.62)",
+  textTertiary: "rgba(245, 245, 247, 0.42)",
+  textMuted: "rgba(245, 245, 247, 0.32)",
+  gold: "#ff0080",
+  goldSoft: "rgba(255, 0, 128, 0.10)",
+  goldBorder: "rgba(255, 0, 128, 0.28)",
+  green: "#4ade80",
+  greenSoft: "rgba(74, 222, 128, 0.10)",
+  greenBorder: "rgba(74, 222, 128, 0.28)",
+  rose: "#ff6b8a",
+  roseSoft: "rgba(255, 107, 138, 0.10)",
+  roseBorder: "rgba(255, 107, 138, 0.28)",
+  gray: "#9ca3af",
+  graySoft: "rgba(156, 163, 175, 0.08)",
+  grayBorder: "rgba(156, 163, 175, 0.22)",
+  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
+  gradientText: "linear-gradient(90deg, #ff0080, #00d4ff)",
 };
 
 // ───────────────────────── UTILS ─────────────────────────
@@ -187,7 +189,7 @@ function Avatar({ name, url, size = 80 }: { name: string; url: string | null; si
         src={url}
         alt={name}
         className="object-cover rounded-full"
-        style={{ width: size, height: size, border: `2px solid ${THEME.bgCard}`, boxShadow: "0 8px 24px rgba(184, 145, 47, 0.15)" }}
+        style={{ width: size, height: size, border: `2px solid ${THEME.bgCard}`, boxShadow: "0 8px 24px rgba(255, 0, 128, 0.15)" }}
       />
     );
   }
@@ -203,9 +205,9 @@ function Avatar({ name, url, size = 80 }: { name: string; url: string | null; si
         width: size,
         height: size,
         fontSize: size * 0.38,
-        background: "linear-gradient(135deg, #F4D794 0%, #B8912F 100%)",
+        background: "linear-gradient(135deg, #ff99c7 0%, #ff0080 100%)",
         color: "#FFF",
-        boxShadow: "0 8px 24px rgba(184, 145, 47, 0.25)",
+        boxShadow: "0 8px 24px rgba(255, 0, 128, 0.25)",
       }}
     >
       {initials || "?"}
@@ -409,7 +411,7 @@ export default function CreatorProfilePage() {
             className="absolute -top-20 -right-20 w-64 h-64 pointer-events-none"
             style={{
               background:
-                "radial-gradient(circle at 30% 30%, rgba(184, 145, 47, 0.08) 0%, transparent 65%)",
+                "radial-gradient(circle at 30% 30%, rgba(255, 0, 128, 0.18) 0%, rgba(121, 40, 202, 0.10) 35%, transparent 70%)",
             }}
           />
 
@@ -420,7 +422,12 @@ export default function CreatorProfilePage() {
                 <div className="flex items-center gap-2 mb-1">
                   <h1
                     className="text-[26px] font-semibold tracking-tight leading-none"
-                    style={{ color: THEME.textPrimary }}
+                    style={{
+                      background: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+                      WebkitBackgroundClip: "text",
+                      backgroundClip: "text",
+                      color: "transparent",
+                    }}
                   >
                     {creator.name}
                   </h1>
@@ -1273,7 +1280,7 @@ function EditModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{
-        background: "rgba(26, 21, 18, 0.4)",
+        background: "rgba(0, 0, 0, 0.55)",
         backdropFilter: "blur(8px)",
         animation: `fadeIn 220ms ${ES} both`,
       }}
@@ -1284,7 +1291,7 @@ function EditModal({
         style={{
           background: THEME.bgCard,
           border: `1px solid ${THEME.border}`,
-          boxShadow: "0 24px 72px rgba(26, 21, 18, 0.24)",
+          boxShadow: "0 24px 72px rgba(0, 0, 0, 0.5)",
         }}
         onClick={(e) => e.stopPropagation()}
       >

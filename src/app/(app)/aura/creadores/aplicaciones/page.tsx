@@ -28,27 +28,29 @@ import {
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 const THEME = {
-  bgPage: "#FAF8F2",
-  bgCard: "#FFFFFF",
-  bgSoft: "#F4F1E8",
-  border: "rgba(60, 48, 24, 0.08)",
-  borderStrong: "rgba(60, 48, 24, 0.14)",
-  textPrimary: "#1A1512",
-  textSecondary: "rgba(26, 21, 18, 0.62)",
-  textTertiary: "rgba(26, 21, 18, 0.42)",
-  textMuted: "rgba(26, 21, 18, 0.32)",
-  gold: "#B8912F",
-  goldSoft: "rgba(184, 145, 47, 0.10)",
-  goldBorder: "rgba(184, 145, 47, 0.28)",
-  green: "#3F9E5B",
-  greenSoft: "rgba(63, 158, 91, 0.10)",
-  greenBorder: "rgba(63, 158, 91, 0.28)",
-  rose: "#C0425A",
-  roseSoft: "rgba(192, 66, 90, 0.10)",
-  roseBorder: "rgba(192, 66, 90, 0.28)",
-  gray: "#6B6560",
-  graySoft: "rgba(107, 101, 96, 0.08)",
-  grayBorder: "rgba(107, 101, 96, 0.22)",
+  bgPage: "#0a0a14",
+  bgCard: "rgba(255, 255, 255, 0.03)",
+  bgSoft: "rgba(255, 255, 255, 0.02)",
+  border: "rgba(255, 255, 255, 0.06)",
+  borderStrong: "rgba(255, 255, 255, 0.12)",
+  textPrimary: "#f5f5f7",
+  textSecondary: "rgba(245, 245, 247, 0.62)",
+  textTertiary: "rgba(245, 245, 247, 0.42)",
+  textMuted: "rgba(245, 245, 247, 0.32)",
+  gold: "#ff0080",
+  goldSoft: "rgba(255, 0, 128, 0.10)",
+  goldBorder: "rgba(255, 0, 128, 0.28)",
+  green: "#4ade80",
+  greenSoft: "rgba(74, 222, 128, 0.10)",
+  greenBorder: "rgba(74, 222, 128, 0.28)",
+  rose: "#ff6b8a",
+  roseSoft: "rgba(255, 107, 138, 0.10)",
+  roseBorder: "rgba(255, 107, 138, 0.28)",
+  gray: "#9ca3af",
+  graySoft: "rgba(156, 163, 175, 0.08)",
+  grayBorder: "rgba(156, 163, 175, 0.22)",
+  gradient: "linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #00d4ff 100%)",
+  gradientText: "linear-gradient(90deg, #ff0080, #00d4ff)",
 };
 
 type Application = {
@@ -161,7 +163,12 @@ export default function AplicacionesPage() {
             </div>
             <h1
               className="text-[32px] font-semibold tracking-tight leading-none"
-              style={{ color: THEME.textPrimary }}
+              style={{
+                background: "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
             >
               Aplicaciones
             </h1>
@@ -386,7 +393,7 @@ function ApplicationCard({
             width: 36,
             height: 36,
             fontSize: 13,
-            background: "linear-gradient(135deg, #F4D794 0%, #B8912F 100%)",
+            background: "linear-gradient(135deg, #ff99c7 0%, #ff0080 100%)",
             color: "#FFF",
           }}
         >

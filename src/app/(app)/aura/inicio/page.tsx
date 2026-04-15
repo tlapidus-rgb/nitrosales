@@ -114,7 +114,7 @@ function AurumOrbMini({ size = 22, pulse = false }: { size?: number; pulse?: boo
         <div
           className="absolute inset-0 rounded-full"
           style={{
-            background: "radial-gradient(circle, rgba(244,215,148,0.45) 0%, transparent 70%)",
+            background: "radial-gradient(circle, rgba(255, 0, 128,0.45) 0%, transparent 70%)",
             animation: "auraPulseRing 2.2s ease-in-out infinite",
           }}
         />
@@ -123,9 +123,9 @@ function AurumOrbMini({ size = 22, pulse = false }: { size?: number; pulse?: boo
         className="absolute inset-[14%] rounded-full"
         style={{
           background:
-            "radial-gradient(circle at 32% 28%, #fff8e6 0%, #f7e3b0 22%, #e6c27a 50%, #8a6622 100%)",
+            "radial-gradient(circle at 32% 28%, #fff0f7 0%, #ffb8d4 22%, #ff80b8 50%, #c70068 100%)",
           boxShadow:
-            "0 0 14px rgba(244,215,148,0.55), 0 0 26px rgba(244,215,148,0.25), inset -2px -3px 6px rgba(80,45,0,0.35), inset 1.5px 2px 5px rgba(255,250,230,0.6)",
+            "0 0 14px rgba(255, 0, 128,0.55), 0 0 26px rgba(255, 0, 128,0.25), inset -2px -3px 6px rgba(80,45,0,0.35), inset 1.5px 2px 5px rgba(255,250,230,0.6)",
           animation: "auraBreath 3.6s ease-in-out infinite",
         }}
       />
@@ -180,7 +180,7 @@ function PeriodSelector({
         className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12.5px] font-medium tracking-tight"
         style={{
           background: "rgba(255,255,255,0.035)",
-          border: "1px solid rgba(244,215,148,0.18)",
+          border: "1px solid rgba(255, 0, 128,0.18)",
           color: "rgba(255,255,255,0.92)",
           boxShadow:
             "inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.3)",
@@ -190,16 +190,16 @@ function PeriodSelector({
           (e.currentTarget as HTMLButtonElement).style.background =
             "rgba(255,255,255,0.06)";
           (e.currentTarget as HTMLButtonElement).style.borderColor =
-            "rgba(244,215,148,0.32)";
+            "rgba(255, 0, 128,0.32)";
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLButtonElement).style.background =
             "rgba(255,255,255,0.035)";
           (e.currentTarget as HTMLButtonElement).style.borderColor =
-            "rgba(244,215,148,0.18)";
+            "rgba(255, 0, 128,0.18)";
         }}
       >
-        <Calendar size={13} strokeWidth={2} className="text-[#e6c27a]" />
+        <Calendar size={13} strokeWidth={2} className="text-[#ff80b8]" />
         <span className="tabular-nums">{fmtRangeLabel(value, from, to)}</span>
         <ChevronDown
           size={13}
@@ -218,9 +218,9 @@ function PeriodSelector({
           style={{
             background: "rgba(12,14,22,0.96)",
             backdropFilter: "blur(14px)",
-            border: "1px solid rgba(244,215,148,0.16)",
+            border: "1px solid rgba(255, 0, 128,0.16)",
             boxShadow:
-              "0 20px 60px -20px rgba(0,0,0,0.7), 0 8px 24px -12px rgba(244,215,148,0.08)",
+              "0 20px 60px -20px rgba(0,0,0,0.7), 0 8px 24px -12px rgba(255, 0, 128,0.08)",
             animation: `fadeInDown 180ms ${ES}`,
           }}
         >
@@ -236,8 +236,8 @@ function PeriodSelector({
                 }}
                 className="w-full text-left px-3 py-2 rounded-xl text-[12.5px] font-medium tracking-tight flex items-center justify-between"
                 style={{
-                  color: active ? "#f7e3b0" : "rgba(255,255,255,0.82)",
-                  background: active ? "rgba(244,215,148,0.08)" : "transparent",
+                  color: active ? "#ffb8d4" : "rgba(255,255,255,0.82)",
+                  background: active ? "rgba(255, 0, 128,0.08)" : "transparent",
                   transition: `all 160ms ${ES}`,
                 }}
                 onMouseEnter={(e) => {
@@ -256,8 +256,8 @@ function PeriodSelector({
                   <span
                     className="w-1.5 h-1.5 rounded-full"
                     style={{
-                      background: "#f4d794",
-                      boxShadow: "0 0 8px rgba(244,215,148,0.65)",
+                      background: "#ff99c7",
+                      boxShadow: "0 0 8px rgba(255, 0, 128,0.65)",
                     }}
                   />
                 )}
@@ -282,16 +282,16 @@ const TONE_STYLE: Record<
     labelBg: "rgba(134,239,172,0.10)",
   },
   attention: {
-    dot: "#f4d794",
-    ring: "rgba(244,215,148,0.28)",
+    dot: "#ff99c7",
+    ring: "rgba(255, 0, 128,0.28)",
     label: "Atención",
-    labelBg: "rgba(244,215,148,0.10)",
+    labelBg: "rgba(255, 0, 128,0.10)",
   },
   celebration: {
-    dot: "#f9a8d4",
-    ring: "rgba(249,168,212,0.28)",
+    dot: "#ff80b8",
+    ring: "rgba(255, 128, 184,0.28)",
     label: "Celebrar",
-    labelBg: "rgba(249,168,212,0.10)",
+    labelBg: "rgba(255, 128, 184,0.10)",
   },
   neutral: {
     dot: "rgba(255,255,255,0.55)",
@@ -332,10 +332,10 @@ function PulseCard({
       className="relative rounded-3xl px-6 py-5 overflow-hidden"
       style={{
         background:
-          "linear-gradient(135deg, rgba(244,215,148,0.055) 0%, rgba(244,215,148,0.02) 40%, rgba(255,255,255,0.02) 100%)",
-        border: "1px solid rgba(244,215,148,0.16)",
+          "linear-gradient(135deg, rgba(255, 0, 128,0.055) 0%, rgba(255, 0, 128,0.02) 40%, rgba(255,255,255,0.02) 100%)",
+        border: "1px solid rgba(255, 0, 128,0.16)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.3), 0 20px 60px -30px rgba(244,215,148,0.15)",
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.3), 0 20px 60px -30px rgba(255, 0, 128,0.15)",
       }}
     >
       {/* aurora sutil */}
@@ -344,7 +344,7 @@ function PulseCard({
         className="absolute -top-24 -left-24 w-80 h-80 rounded-full pointer-events-none"
         style={{
           background:
-            "radial-gradient(circle, rgba(244,215,148,0.14) 0%, transparent 70%)",
+            "radial-gradient(circle, rgba(255, 0, 128,0.14) 0%, transparent 70%)",
           filter: "blur(28px)",
         }}
       />
@@ -366,7 +366,7 @@ function PulseCard({
           <div className="flex items-center gap-2">
             <span
               className="text-[9.5px] font-bold uppercase tracking-[0.22em]"
-              style={{ color: "#e6c27a" }}
+              style={{ color: "#ff80b8" }}
             >
               Pulso Aurum
             </span>
@@ -404,7 +404,7 @@ function PulseCard({
                 <Sparkles
                   size={14}
                   strokeWidth={2}
-                  className="text-[#f4d794]"
+                  className="text-[#ff99c7]"
                   style={{ animation: "spin 2.4s linear infinite" }}
                 />
                 Aurum está leyendo tu programa…
@@ -427,7 +427,7 @@ function PulseCard({
               <button
                 type="button"
                 onClick={onRefresh}
-                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-white/55 hover:text-[#f4d794]"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-white/55 hover:text-[#ff99c7]"
                 style={{ transition: `color 160ms ${ES}` }}
               >
                 <RefreshCw size={11} strokeWidth={2} />
@@ -579,25 +579,25 @@ const ACCENT: Record<
     ring: "rgba(134,239,172,0.25)",
   },
   pink: {
-    text: "#f9a8d4",
-    glow: "rgba(244,114,182,0.28)",
-    border: "rgba(244,114,182,0.20)",
-    iconBg: "rgba(244,114,182,0.12)",
-    ring: "rgba(244,114,182,0.28)",
+    text: "#ff80b8",
+    glow: "rgba(255, 0, 128,0.28)",
+    border: "rgba(255, 0, 128,0.20)",
+    iconBg: "rgba(255, 0, 128,0.12)",
+    ring: "rgba(255, 0, 128,0.28)",
   },
   violet: {
     text: "#c4b5fd",
-    glow: "rgba(167,139,250,0.28)",
-    border: "rgba(167,139,250,0.18)",
-    iconBg: "rgba(167,139,250,0.10)",
-    ring: "rgba(167,139,250,0.24)",
+    glow: "rgba(168, 85, 247,0.28)",
+    border: "rgba(168, 85, 247,0.18)",
+    iconBg: "rgba(168, 85, 247,0.10)",
+    ring: "rgba(168, 85, 247,0.24)",
   },
   gold: {
-    text: "#f7e3b0",
-    glow: "rgba(244,215,148,0.25)",
-    border: "rgba(244,215,148,0.18)",
-    iconBg: "rgba(244,215,148,0.10)",
-    ring: "rgba(244,215,148,0.22)",
+    text: "#ffb8d4",
+    glow: "rgba(255, 0, 128,0.25)",
+    border: "rgba(255, 0, 128,0.18)",
+    iconBg: "rgba(255, 0, 128,0.10)",
+    ring: "rgba(255, 0, 128,0.22)",
   },
 };
 
@@ -691,13 +691,13 @@ function RevenueKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
         >
           <defs>
             <linearGradient id="revGrad" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#f4d794" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#f4d794" stopOpacity="0" />
+              <stop offset="0%" stopColor="#ff99c7" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#ff99c7" stopOpacity="0" />
             </linearGradient>
           </defs>
           <path
             d="M0 22 L10 20 L20 21 L30 16 L40 17 L50 11 L60 12 L72 4"
-            stroke="#f4d794"
+            stroke="#ff99c7"
             strokeWidth="1.6"
             fill="none"
             strokeLinecap="round"
@@ -761,9 +761,9 @@ function CreatorsKpi({
                 className="relative w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
                 style={{
                   background:
-                    "linear-gradient(135deg, #f4d794 0%, #c9a556 55%, #8a6f37 100%)",
+                    "linear-gradient(135deg, #ff99c7 0%, #ff4da3 55%, #c70068 100%)",
                   border: "1.5px solid #05070d",
-                  boxShadow: "0 2px 6px rgba(244,215,148,0.35)",
+                  boxShadow: "0 2px 6px rgba(255, 0, 128,0.35)",
                   zIndex: 10 - i,
                   animation: `avatarIn 500ms ${ES} ${delay + 300 + i * 90}ms both`,
                 }}
@@ -775,7 +775,7 @@ function CreatorsKpi({
                     aria-hidden
                     className="absolute inset-[-3px] rounded-full pointer-events-none"
                     style={{
-                      border: "1.5px solid rgba(244,215,148,0.55)",
+                      border: "1.5px solid rgba(255, 0, 128,0.55)",
                       animation: "avatarHalo 2.4s ease-in-out infinite",
                     }}
                   />
@@ -812,8 +812,8 @@ function ContentKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
             width: 34,
             height: 34,
             borderRadius: 999,
-            background: "rgba(244,215,148,0.10)",
-            border: "1px solid rgba(244,215,148,0.22)",
+            background: "rgba(255, 0, 128,0.10)",
+            border: "1px solid rgba(255, 0, 128,0.22)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -824,7 +824,7 @@ function ContentKpi({ kpi, delay }: { kpi: Kpi; delay: number }) {
             style={{
               width: 0,
               height: 0,
-              borderLeft: "9px solid #f4d794",
+              borderLeft: "9px solid #ff99c7",
               borderTop: "6px solid transparent",
               borderBottom: "6px solid transparent",
               marginLeft: 2,
@@ -877,7 +877,7 @@ function EmvKpi({
               width: "40%",
               left: "-40%",
               background:
-                "linear-gradient(100deg, transparent 0%, rgba(244,215,148,0.09) 50%, transparent 100%)",
+                "linear-gradient(100deg, transparent 0%, rgba(255, 0, 128,0.09) 50%, transparent 100%)",
               animation: "flashSweep 4.8s ease-in-out infinite",
               animationDelay: `${delay + 400}ms`,
             }}
@@ -938,15 +938,15 @@ const RANK: Record<1 | 2 | 3, RankTheme> = {
   1: {
     label: "Rey del período",
     medal: "🥇",
-    primary: "#f4d794",
-    ring: "rgba(244,215,148,0.55)",
-    halo: "rgba(244,215,148,0.35)",
+    primary: "#ff99c7",
+    ring: "rgba(255, 0, 128,0.55)",
+    halo: "rgba(255, 0, 128,0.35)",
     gradient:
-      "linear-gradient(135deg, #fff8e6 0%, #f4d794 40%, #c9972f 100%)",
+      "linear-gradient(135deg, #fff0f7 0%, #ff99c7 40%, #ff0080 100%)",
     nameGradient:
-      "linear-gradient(120deg, #fff8e6 0%, #f4d794 50%, #e6c27a 100%)",
-    cardBorder: "rgba(244,215,148,0.28)",
-    cardGlow: "rgba(244,215,148,0.22)",
+      "linear-gradient(120deg, #fff0f7 0%, #ff99c7 50%, #ff80b8 100%)",
+    cardBorder: "rgba(255, 0, 128,0.28)",
+    cardGlow: "rgba(255, 0, 128,0.22)",
   },
   2: {
     label: "Segundo escalón",
@@ -964,15 +964,15 @@ const RANK: Record<1 | 2 | 3, RankTheme> = {
   3: {
     label: "Tercer escalón",
     medal: "🥉",
-    primary: "#fbc999",
-    ring: "rgba(251,201,153,0.45)",
-    halo: "rgba(251,146,60,0.22)",
+    primary: "#ff80b8",
+    ring: "rgba(255,128,184,0.45)",
+    halo: "rgba(255, 0, 128,0.22)",
     gradient:
-      "linear-gradient(135deg, #fde4d1 0%, #fbc999 40%, #c2410c 100%)",
+      "linear-gradient(135deg, #ffd4e5 0%, #ff80b8 40%, #c70068 100%)",
     nameGradient:
-      "linear-gradient(120deg, #fde4d1 0%, #fbc999 55%, #fb923c 100%)",
-    cardBorder: "rgba(251,146,60,0.22)",
-    cardGlow: "rgba(251,146,60,0.18)",
+      "linear-gradient(120deg, #ffd4e5 0%, #ff80b8 55%, #ff0080 100%)",
+    cardBorder: "rgba(255, 0, 128,0.22)",
+    cardGlow: "rgba(255, 0, 128,0.18)",
   },
 };
 
@@ -1035,7 +1035,7 @@ function PodiumAvatar({
         />
       ) : (
         <div
-          className="absolute inset-[3px] rounded-full flex items-center justify-center font-semibold text-[#1a1406]"
+          className="absolute inset-[3px] rounded-full flex items-center justify-center font-semibold text-[#1f0a19]"
           style={{
             fontSize: size * 0.42,
             background: theme.gradient,
@@ -1316,7 +1316,7 @@ function HallOfFlameZone({ state }: { state: PodiumState }) {
         className="rounded-2xl p-8 text-center"
         style={{
           background: "rgba(255,255,255,0.02)",
-          border: "1px dashed rgba(244,215,148,0.18)",
+          border: "1px dashed rgba(255, 0, 128,0.18)",
         }}
       >
         <p className="text-[14px] text-white/70 tracking-tight">
@@ -1433,28 +1433,28 @@ const INBOX_THEME: Record<
   { accent: string; bg: string; border: string; glow: string; text: string; halo: string }
 > = {
   pink: {
-    accent: "#f4d794",
-    bg: "linear-gradient(160deg, rgba(244,215,148,0.08) 0%, rgba(244,215,148,0.02) 100%)",
-    border: "rgba(244,215,148,0.28)",
-    glow: "rgba(244,215,148,0.4)",
-    text: "#fde8bc",
-    halo: "radial-gradient(circle at 30% 20%, rgba(244,215,148,0.35) 0%, transparent 60%)",
+    accent: "#ff99c7",
+    bg: "linear-gradient(160deg, rgba(255, 0, 128,0.08) 0%, rgba(255, 0, 128,0.02) 100%)",
+    border: "rgba(255, 0, 128,0.28)",
+    glow: "rgba(255, 0, 128,0.4)",
+    text: "#ffd4e5",
+    halo: "radial-gradient(circle at 30% 20%, rgba(255, 0, 128,0.35) 0%, transparent 60%)",
   },
   violet: {
-    accent: "#f4d794",
-    bg: "linear-gradient(160deg, rgba(244,215,148,0.08) 0%, rgba(244,215,148,0.02) 100%)",
-    border: "rgba(244,215,148,0.28)",
-    glow: "rgba(244,215,148,0.4)",
-    text: "#fde8bc",
-    halo: "radial-gradient(circle at 30% 20%, rgba(244,215,148,0.35) 0%, transparent 60%)",
+    accent: "#ff99c7",
+    bg: "linear-gradient(160deg, rgba(255, 0, 128,0.08) 0%, rgba(255, 0, 128,0.02) 100%)",
+    border: "rgba(255, 0, 128,0.28)",
+    glow: "rgba(255, 0, 128,0.4)",
+    text: "#ffd4e5",
+    halo: "radial-gradient(circle at 30% 20%, rgba(255, 0, 128,0.35) 0%, transparent 60%)",
   },
   amber: {
-    accent: "#f4d794",
-    bg: "linear-gradient(160deg, rgba(244,215,148,0.08) 0%, rgba(244,215,148,0.02) 100%)",
-    border: "rgba(244,215,148,0.28)",
-    glow: "rgba(244,215,148,0.4)",
-    text: "#fde8bc",
-    halo: "radial-gradient(circle at 30% 20%, rgba(244,215,148,0.35) 0%, transparent 60%)",
+    accent: "#ff99c7",
+    bg: "linear-gradient(160deg, rgba(255, 0, 128,0.08) 0%, rgba(255, 0, 128,0.02) 100%)",
+    border: "rgba(255, 0, 128,0.28)",
+    glow: "rgba(255, 0, 128,0.4)",
+    text: "#ffd4e5",
+    halo: "radial-gradient(circle at 30% 20%, rgba(255, 0, 128,0.35) 0%, transparent 60%)",
   },
   rose: {
     accent: "#fb7185",
@@ -1700,9 +1700,9 @@ function ActionInboxZone({ state }: { state: InboxState }) {
             <span
               className="w-1.5 h-1.5 rounded-full"
               style={{
-                background: "#f4d794",
+                background: "#ff99c7",
                 animation: "countPulse 1.8s ease-in-out infinite",
-                boxShadow: "0 0 8px rgba(244,215,148,0.6)",
+                boxShadow: "0 0 8px rgba(255, 0, 128,0.6)",
               }}
             />
             <span className="text-white/75">
@@ -1793,29 +1793,29 @@ const FLIGHT_STATUS: Record<
   },
   ahead: {
     label: "Adelantada",
-    accent: "#f4d794",
-    bg: "linear-gradient(165deg, rgba(244,215,148,0.1) 0%, rgba(244,215,148,0.02) 100%)",
-    border: "rgba(244,215,148,0.3)",
-    text: "#fde8bc",
-    glow: "rgba(244,215,148,0.35)",
+    accent: "#ff99c7",
+    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
+    border: "rgba(255, 0, 128,0.3)",
+    text: "#ffd4e5",
+    glow: "rgba(255, 0, 128,0.35)",
     icon: "ahead",
   },
   on_track: {
     label: "En ritmo",
-    accent: "#f4d794",
-    bg: "linear-gradient(165deg, rgba(244,215,148,0.07) 0%, rgba(244,215,148,0.015) 100%)",
-    border: "rgba(244,215,148,0.22)",
-    text: "#fde8bc",
-    glow: "rgba(244,215,148,0.28)",
+    accent: "#ff99c7",
+    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.07) 0%, rgba(255, 0, 128,0.015) 100%)",
+    border: "rgba(255, 0, 128,0.22)",
+    text: "#ffd4e5",
+    glow: "rgba(255, 0, 128,0.28)",
     icon: "on_track",
   },
   behind: {
     label: "Atrasada",
-    accent: "#f4d794",
-    bg: "linear-gradient(165deg, rgba(244,215,148,0.05) 0%, rgba(244,215,148,0.01) 100%)",
-    border: "rgba(244,215,148,0.18)",
-    text: "#fde8bc",
-    glow: "rgba(244,215,148,0.22)",
+    accent: "#ff99c7",
+    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.05) 0%, rgba(255, 0, 128,0.01) 100%)",
+    border: "rgba(255, 0, 128,0.18)",
+    text: "#ffd4e5",
+    glow: "rgba(255, 0, 128,0.22)",
     icon: "behind",
   },
   at_risk: {
@@ -2164,7 +2164,7 @@ function CampaignsInFlightZone({ state }: { state: FlightsState }) {
         className="rounded-2xl p-8 text-center"
         style={{
           background: "rgba(255,255,255,0.02)",
-          border: "1px dashed rgba(244,215,148,0.18)",
+          border: "1px dashed rgba(255, 0, 128,0.18)",
         }}
       >
         <p className="text-[14px] text-white/70 tracking-tight">
@@ -2188,8 +2188,8 @@ function CampaignsInFlightZone({ state }: { state: FlightsState }) {
           <span
             className="w-1.5 h-1.5 rounded-full"
             style={{
-              background: "#a78bfa",
-              boxShadow: "0 0 8px rgba(167,139,250,0.6)",
+              background: "#a855f7",
+              boxShadow: "0 0 8px rgba(168, 85, 247,0.6)",
             }}
           />
           <span className="text-white/70">
@@ -2279,17 +2279,17 @@ const PLATFORM_THEME: Record<
 > = {
   INSTAGRAM: {
     label: "Instagram",
-    accent: "#f472b6",
-    bg: "linear-gradient(165deg, rgba(244,114,182,0.1) 0%, rgba(244,114,182,0.02) 100%)",
-    border: "rgba(244,114,182,0.28)",
-    text: "#fbcfe8",
+    accent: "#ff0080",
+    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
+    border: "rgba(255, 0, 128,0.28)",
+    text: "#ffb8d4",
   },
   TIKTOK: {
     label: "TikTok",
-    accent: "#22d3ee",
-    bg: "linear-gradient(165deg, rgba(34,211,238,0.1) 0%, rgba(34,211,238,0.02) 100%)",
-    border: "rgba(34,211,238,0.28)",
-    text: "#a5f3fc",
+    accent: "#00d4ff",
+    bg: "linear-gradient(165deg, rgba(0, 212, 255,0.1) 0%, rgba(0, 212, 255,0.02) 100%)",
+    border: "rgba(0, 212, 255,0.28)",
+    text: "#80eaff",
   },
   YOUTUBE: {
     label: "YouTube",
@@ -2535,9 +2535,9 @@ function TopPieceCard({
               <span
                 className="text-[9px] uppercase tracking-[0.14em] font-bold px-1.5 py-0.5 rounded"
                 style={{
-                  color: "#fde8bc",
-                  background: "rgba(244,215,148,0.12)",
-                  border: "1px solid rgba(244,215,148,0.25)",
+                  color: "#ffd4e5",
+                  background: "rgba(255, 0, 128,0.12)",
+                  border: "1px solid rgba(255, 0, 128,0.25)",
                 }}
               >
                 UGC
@@ -2685,8 +2685,8 @@ function ContentRadarZone({ state }: { state: RadarState }) {
           <span
             className="w-1.5 h-1.5 rounded-full"
             style={{
-              background: "#a78bfa",
-              boxShadow: "0 0 8px rgba(167,139,250,0.6)",
+              background: "#a855f7",
+              boxShadow: "0 0 8px rgba(168, 85, 247,0.6)",
             }}
           />
           <span className="text-white/70">
@@ -2707,7 +2707,7 @@ function ContentRadarZone({ state }: { state: RadarState }) {
         </div>
         {totals.avgEngagementRate > 0 ? (
           <div className="flex items-center gap-1.5">
-            <Heart size={12} color="rgba(244,114,182,0.7)" strokeWidth={2.2} />
+            <Heart size={12} color="rgba(255, 0, 128,0.7)" strokeWidth={2.2} />
             <span className="text-white/70">
               <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
                 {(totals.avgEngagementRate * 100).toFixed(2)}%
@@ -2718,11 +2718,11 @@ function ContentRadarZone({ state }: { state: RadarState }) {
         ) : null}
         {totals.ugc > 0 ? (
           <div className="flex items-center gap-1.5">
-            <Sparkles size={12} color="#f4d794" strokeWidth={2.2} />
+            <Sparkles size={12} color="#ff99c7" strokeWidth={2.2} />
             <span className="text-white/70">
               <span
                 className="tabular-nums"
-                style={{ color: "#fde8bc", fontWeight: 600 }}
+                style={{ color: "#ffd4e5", fontWeight: 600 }}
               >
                 {totals.ugc}
               </span>{" "}
@@ -2752,10 +2752,10 @@ function ContentRadarZone({ state }: { state: RadarState }) {
 
       {/* Top pieces header */}
       <div className="flex items-center gap-2 mb-3">
-        <Flame size={12} color="#f4d794" strokeWidth={2.2} />
+        <Flame size={12} color="#ff99c7" strokeWidth={2.2} />
         <span
           className="text-[10.5px] uppercase tracking-[0.18em] font-bold"
-          style={{ color: "#e6c27a" }}
+          style={{ color: "#ff80b8" }}
         >
           Piezas que están prendiendo
         </span>
@@ -2766,7 +2766,7 @@ function ContentRadarZone({ state }: { state: RadarState }) {
           className="rounded-2xl p-6 text-center"
           style={{
             background: "rgba(255,255,255,0.02)",
-            border: "1px dashed rgba(244,215,148,0.18)",
+            border: "1px dashed rgba(255, 0, 128,0.18)",
           }}
         >
           <p className="text-[13px] text-white/60 tracking-tight">
@@ -2823,25 +2823,25 @@ const INSIGHT_THEME: Record<
   { accent: string; bg: string; border: string; text: string; glow: string }
 > = {
   violet: {
-    accent: "#f4d794",
-    bg: "linear-gradient(165deg, rgba(244,215,148,0.1) 0%, rgba(244,215,148,0.02) 100%)",
-    border: "rgba(244,215,148,0.28)",
-    text: "#fde8bc",
-    glow: "rgba(244,215,148,0.35)",
+    accent: "#ff99c7",
+    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
+    border: "rgba(255, 0, 128,0.28)",
+    text: "#ffd4e5",
+    glow: "rgba(255, 0, 128,0.35)",
   },
   pink: {
-    accent: "#f4d794",
-    bg: "linear-gradient(165deg, rgba(244,215,148,0.1) 0%, rgba(244,215,148,0.02) 100%)",
-    border: "rgba(244,215,148,0.28)",
-    text: "#fde8bc",
-    glow: "rgba(244,215,148,0.35)",
+    accent: "#ff99c7",
+    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
+    border: "rgba(255, 0, 128,0.28)",
+    text: "#ffd4e5",
+    glow: "rgba(255, 0, 128,0.35)",
   },
   amber: {
-    accent: "#f4d794",
-    bg: "linear-gradient(165deg, rgba(244,215,148,0.1) 0%, rgba(244,215,148,0.02) 100%)",
-    border: "rgba(244,215,148,0.28)",
-    text: "#fde8bc",
-    glow: "rgba(244,215,148,0.35)",
+    accent: "#ff99c7",
+    bg: "linear-gradient(165deg, rgba(255, 0, 128,0.1) 0%, rgba(255, 0, 128,0.02) 100%)",
+    border: "rgba(255, 0, 128,0.28)",
+    text: "#ffd4e5",
+    glow: "rgba(255, 0, 128,0.35)",
   },
   rose: {
     accent: "#fb7185",
@@ -3044,7 +3044,7 @@ function QuickInsightsZone({ state }: { state: InsightsState }) {
         className="mb-4 flex items-center gap-1.5 text-[12px] tracking-tight"
         style={{ animation: `fadeIn 420ms ${ES}` }}
       >
-        <Sparkles size={12} color="#f4d794" strokeWidth={2.2} />
+        <Sparkles size={12} color="#ff99c7" strokeWidth={2.2} />
         <span className="text-white/70">
           Aurum procesó tus datos del período y encontró{" "}
           <span className="text-white tabular-nums" style={{ fontWeight: 600 }}>
@@ -3224,7 +3224,7 @@ export default function AuraInicioPage() {
       className="relative min-h-[calc(100vh-0px)]"
       style={{
         background:
-          "radial-gradient(1200px 600px at 15% -10%, rgba(244,215,148,0.06) 0%, transparent 60%), radial-gradient(900px 600px at 90% 10%, rgba(134,239,172,0.04) 0%, transparent 55%), #05070d",
+          "radial-gradient(1200px 600px at 15% -10%, rgba(255, 0, 128,0.06) 0%, transparent 60%), radial-gradient(900px 600px at 90% 10%, rgba(134,239,172,0.04) 0%, transparent 55%), #05070d",
       }}
     >
       {/* Estilos locales (animaciones Aura) */}
@@ -3265,8 +3265,8 @@ export default function AuraInicioPage() {
           50% { transform: scale(1.15); opacity: 0.3; }
         }
         @keyframes reelBeat {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(167,139,250,0.35); }
-          50% { transform: scale(1.06); box-shadow: 0 0 0 6px rgba(167,139,250,0); }
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(168, 85, 247,0.35); }
+          50% { transform: scale(1.06); box-shadow: 0 0 0 6px rgba(168, 85, 247,0); }
         }
         @keyframes flashSweep {
           0% { left: -40%; }
@@ -3342,13 +3342,13 @@ export default function AuraInicioPage() {
               <div className="flex items-center gap-2.5">
                 <span
                   className="text-[10px] font-bold uppercase tracking-[0.28em]"
-                  style={{ color: "#e6c27a" }}
+                  style={{ color: "#ff80b8" }}
                 >
                   Aura · Inicio
                 </span>
                 <span
                   className="w-1 h-1 rounded-full"
-                  style={{ background: "rgba(244,215,148,0.6)" }}
+                  style={{ background: "rgba(255,0,128,0.7)" }}
                 />
                 <span
                   className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40"
@@ -3367,7 +3367,7 @@ export default function AuraInicioPage() {
                     <span
                       style={{
                         background:
-                          "linear-gradient(120deg, #fff8e6 0%, #f4d794 45%, #e6c27a 100%)",
+                          "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
                         WebkitBackgroundClip: "text",
                         backgroundClip: "text",
                         color: "transparent",
@@ -3399,13 +3399,13 @@ export default function AuraInicioPage() {
           <div className="flex items-center gap-2.5 mb-4">
             <span
               className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#e6c27a" }}
+              style={{ color: "#ff80b8" }}
             >
               Pulso del programa
             </span>
             <span
               className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(244,215,148,0.55)" }}
+              style={{ background: "rgba(255, 0, 128,0.55)" }}
             />
             <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
               Hero metrics
@@ -3419,13 +3419,13 @@ export default function AuraInicioPage() {
           <div className="flex items-center gap-2.5 mb-4">
             <span
               className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#e6c27a" }}
+              style={{ color: "#ff80b8" }}
             >
               Hall of flame
             </span>
             <span
               className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(244,215,148,0.55)" }}
+              style={{ background: "rgba(255, 0, 128,0.55)" }}
             />
             <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
               Podio del período
@@ -3439,13 +3439,13 @@ export default function AuraInicioPage() {
           <div className="flex items-center gap-2.5 mb-4">
             <span
               className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#e6c27a" }}
+              style={{ color: "#ff80b8" }}
             >
               Bandeja de acciones
             </span>
             <span
               className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(244,215,148,0.55)" }}
+              style={{ background: "rgba(255, 0, 128,0.55)" }}
             />
             <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
               Lo que te está esperando
@@ -3459,13 +3459,13 @@ export default function AuraInicioPage() {
           <div className="flex items-center gap-2.5 mb-4">
             <span
               className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#e6c27a" }}
+              style={{ color: "#ff80b8" }}
             >
               Campañas en vuelo
             </span>
             <span
               className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(244,215,148,0.55)" }}
+              style={{ background: "rgba(255, 0, 128,0.55)" }}
             />
             <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
               Flight deck · Progreso vs bonus
@@ -3479,13 +3479,13 @@ export default function AuraInicioPage() {
           <div className="flex items-center gap-2.5 mb-4">
             <span
               className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#e6c27a" }}
+              style={{ color: "#ff80b8" }}
             >
               Content radar
             </span>
             <span
               className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(244,215,148,0.55)" }}
+              style={{ background: "rgba(255, 0, 128,0.55)" }}
             />
             <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
               Pulso del contenido publicado
@@ -3499,13 +3499,13 @@ export default function AuraInicioPage() {
           <div className="flex items-center gap-2.5 mb-4">
             <span
               className="text-[10px] font-bold uppercase tracking-[0.26em]"
-              style={{ color: "#e6c27a" }}
+              style={{ color: "#ff80b8" }}
             >
               Insights rápidos
             </span>
             <span
               className="w-1 h-1 rounded-full"
-              style={{ background: "rgba(244,215,148,0.55)" }}
+              style={{ background: "rgba(255, 0, 128,0.55)" }}
             />
             <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
               Lo que Aurum detectó en tus datos
