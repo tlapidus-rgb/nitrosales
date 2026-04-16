@@ -13,7 +13,7 @@ import {
   ChevronDown, DollarSign, ShoppingCart, RefreshCw,
 } from "lucide-react";
 import {
-  KpiCard, ChangeBadge, DateRangeFilter, SourceFilter,
+  KpiCard, ChangeBadge, DateRangeFilter,
 } from "@/components/dashboard";
 
 const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#f97316"];
@@ -45,7 +45,8 @@ export default function CustomersPage() {
   const [dateFrom, setDateFrom] = useState(toDateInputValue(defaultFrom));
   const [dateTo, setDateTo] = useState(toDateInputValue(defaultTo));
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(365);
-  const [source, setSource] = useState<string>("ALL");
+  // Bondly sólo trabaja con VTEX (tienda propia): los marketplaces no entregan
+  // identidad del cliente necesaria para segmentación, RFM y audiencias.
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +60,7 @@ export default function CustomersPage() {
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({ from: dateFrom, to: dateTo, page: currentPage.toString() });
-        if (source !== "ALL") params.set("source", source);
+        const params = new URLSearchParams({ from: dateFrom, to: dateTo, page: currentPage.toString(), source: "VTEX" });
         const res = await fetch(`/api/metrics/customers?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setData(await res.json());
@@ -71,7 +71,7 @@ export default function CustomersPage() {
       }
     };
     fetchData();
-  }, [dateFrom, dateTo, source, currentPage]);
+  }, [dateFrom, dateTo, currentPage]);
 
   const handleQuickRange = (days: number) => {
     const to = new Date();
@@ -139,7 +139,13 @@ export default function CustomersPage() {
             <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
             <p className="text-sm text-gray-500 mt-0.5">Segmentacion y comportamiento de compra</p>
           </div>
-          <SourceFilter source={source} onSourceChange={(s) => { setSource(s); setCurrentPage(1); }} />
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100"
+            title="Bondly sólo usa datos de VTEX (tienda propia). Los marketplaces no entregan identidad del cliente."
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            VTEX · Tienda propia
+          </span>
         </div>
         <DateRangeFilter
           dateFrom={dateFrom} dateTo={dateTo} activeQuickRange={activeQuickRange}

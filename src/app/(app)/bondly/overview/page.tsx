@@ -530,7 +530,7 @@ export default function BondlyOverviewPage() {
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {[
-                  "Unifica VTEX + MELI + NitroPixel",
+                  "Unifica VTEX + NitroPixel",
                   "Customer 360 enriquecido",
                   "Audiencias por comportamiento",
                   "Señales live accionables",

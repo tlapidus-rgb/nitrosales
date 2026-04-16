@@ -18,8 +18,8 @@ import { KpiCard, ChangeBadge } from "@/components/dashboard";
 // Constants
 // ─────────────────────────────────────────────
 
-// LTV analysis only uses VTEX (tienda propia) — MercadoLibre excluded
-// because ML does not share customer identity data
+// LTV analysis only uses VTEX (tienda propia) — los marketplaces
+// no comparten identidad de cliente necesaria para LTV / cohort / churn.
 const CHANNEL_COLORS: Record<string, string> = {
   "Google Ads": "#4285F4",
   "Meta Ads": "#1877F2",
