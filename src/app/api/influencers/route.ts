@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
         profileImage: body.profileImage || null,
         isPublicDashboardEnabled: body.isPublicDashboardEnabled ?? true,
         dashboardPassword: body.dashboardPassword ? hashPassword(body.dashboardPassword) : null,
+        dashboardPasswordPlain: body.dashboardPassword || null,
       },
     });
 

@@ -98,6 +98,7 @@ export async function PUT(
         }),
         ...(body.dashboardPassword !== undefined && {
           dashboardPassword: body.dashboardPassword ? hashPassword(body.dashboardPassword) : null,
+          dashboardPasswordPlain: body.dashboardPassword || null,
         }),
       },
     });

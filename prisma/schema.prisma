@@ -1219,6 +1219,7 @@ model Influencer {
   isPublicDashboardEnabled Boolean  @default(true)         // Si el dashboard público está activo
   isProductBreakdownEnabled Boolean @default(false)        // Si el influencer puede ver desglose de productos en su dashboard
   dashboardPassword       String?                          // Contraseña para acceder al dashboard público (hashed)
+  dashboardPasswordPlain  String?                          // Copia en texto plano para que el admin la vea/reenvíe (low-stakes read-only dashboard)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
