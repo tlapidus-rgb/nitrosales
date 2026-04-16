@@ -4,7 +4,7 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-15 — Sesiones 23-30**
+> **Última actualización: 2026-04-15 — Sesiones 23-36**
 
 ---
 
@@ -494,6 +494,47 @@ La documentación no es opcional. Es parte del trabajo.
 **`maxDuration` es un techo, no un target.** Subirlo no cuesta nada si las funciones terminan rápido. Bajarlo sí puede romper acciones que ocasionalmente tardan más. Nunca bajar `maxDuration` "por prolijidad" o "por las dudas" — solo bajarlo si hay una razón concreta (ej: forzar que una función no loopee infinitamente por un bug).
 
 **Pregunta previa antes de bajar maxDuration**: "¿Existe ALGUNA acción/branch de código que podría tardar más de X segundos?" Si la respuesta no es un NO rotundo, no bajarlo.
+
+---
+
+## Error #S36-SCHEMA-SIN-MIGRACION — Pushear schema.prisma con columnas nuevas sin migrar la DB
+
+**Cuándo pasó**: Sesión 35-36. Se agregaron `isAlwaysOn` (InfluencerCampaign) y `excludeFromCommission` (InfluencerDeal) al schema de Prisma, se hizo commit y push a main. Vercel deployó. Pero la DB de producción no tenía esas columnas. Resultado: **la página de detalle de cada creador se rompió completamente** ("No pudimos cargar el creador") porque Prisma generaba `SELECT ... "isAlwaysOn" ...` contra una columna inexistente.
+
+### Causa raíz
+- El build de Vercel corre `prisma generate && next build`, **NO** `prisma db push` ni `prisma migrate deploy`. Prisma generate solo genera el client JS; no toca la DB.
+- Se intentó correr `prisma db push` en el sandbox de Claude pero falló porque `DATABASE_URL_UNPOOLED` no estaba disponible. Se ignoró el error y se siguió adelante con el push.
+- **Se violó el Error #13** que ya estaba documentado: "El orden OBLIGATORIO para agregar una columna nueva es: 1) endpoint admin, 2) ejecutar en prod, 3) RECIÉN agregar al schema." Se hizo exactamente al revés.
+
+### Regla (refuerzo del Error #13 con lección nueva)
+**El orden sigue siendo el mismo de siempre:**
+1. Crear endpoint admin idempotente (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`).
+2. Deployar el endpoint (push sin tocar el schema aún).
+3. Ejecutar el endpoint en producción → columna existe.
+4. RECIÉN agregar el campo al `schema.prisma` + el código que lo usa.
+5. Pushear.
+
+**Adición nueva**: Si `prisma db push` falla en el sandbox y el schema ya tiene las columnas, **NO pushear**. Revertir el campo del schema, pushear sin él, migrar primero, y después agregar el campo.
+
+**Señal de alarma**: si ves `The column X does not exist in the current database` en producción, es casi seguro que se rompió esta regla.
+
+---
+
+## Error #S36-IGNORAR-FALLA-DB-PUSH — Ignorar que `prisma db push` falló y continuar con el deploy
+
+**Cuándo pasó**: Sesión 35. `prisma db push` falló en el sandbox por falta de `DATABASE_URL_UNPOOLED`. En vez de detenerse y buscar cómo migrar la DB antes de pushear, el flujo continuó: `tsc --noEmit` pasó, se commiteó y se pusheó a main. La DB nunca se migró → página rota en producción.
+
+### Causa raíz
+- TypeScript check (`tsc --noEmit`) no valida contra la DB real — solo valida tipos. Que TypeScript pase no significa que la DB esté sincronizada.
+- Se priorizó "el código compila" sobre "la DB tiene las columnas".
+
+### Regla
+**Si `prisma db push` falla, es un BLOCKER.** No se puede pushear código que referencia columnas nuevas hasta que la DB las tenga. Opciones válidas:
+1. Migrar la DB por otro medio (endpoint admin + curl).
+2. Sacar los campos del schema y del código, pushear sin ellos, migrar, y después re-agregar.
+3. NO pushear y reportar el bloqueo.
+
+**`tsc --noEmit` pasando ≠ DB sincronizada.** Son validaciones distintas. Ambas deben pasar antes de pushear schema changes.
 
 ---
 

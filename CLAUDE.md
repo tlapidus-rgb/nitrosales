@@ -139,6 +139,54 @@ vez", **PARAR y preguntarle a Tomy en el chat primero**.
 
 ---
 
+## Módulo Aura — Creator Economy (Sesión 31+)
+
+Aura es el módulo de creator economy de NitroSales. Vive bajo `/aura/*`.
+
+### Modelo de datos
+
+```
+Creator (Influencer) → Campaign(s) → Deal(s) → Attribution(s) → Payout(s)
+```
+
+- Cada creador tiene al menos 1 campaña **"Always On"** (`isAlwaysOn=true`),
+  creada automáticamente al aprobar la aplicación.
+- Los deals viven DENTRO de campañas (no como entidad separada en la UI).
+- Solo 1 deal de tipo comisión activo por creador
+  (COMMISSION, TIERED_COMMISSION, HYBRID). Validado en API.
+- 7 tipos de deal: `COMMISSION`, `FLAT_FEE`, `PERFORMANCE_BONUS`,
+  `TIERED_COMMISSION`, `CPM`, `GIFTING`, `HYBRID`.
+- Toggle `excludeFromCommission` en deals no-comisión para evitar doble
+  pago cuando un creador tiene comisión UTM + cupón.
+
+### Sistema visual
+
+- **Creator Gradient**: `#ff0080 → #a855f7 → #00d4ff`
+- Ver `UI_VISION_NITROSALES.md` para detalles completos.
+
+### Migraciones ejecutadas
+
+| Endpoint | Qué hace | Estado |
+|---|---|---|
+| `/api/admin/migrate-aura-payouts` | Crea tablas `influencer_deals` + `payouts` | ✅ ejecutado |
+| `/api/admin/migrate-aura-columns` | Agrega `isAlwaysOn` + `excludeFromCommission` | ✅ ejecutado |
+| `/api/admin/backfill-always-on` | Crea campaña Always On + deal base para creadores existentes | ✅ ejecutado |
+
+### REGLA: Orden de migraciones (refuerzo)
+
+**NUNCA** agregar un campo al `schema.prisma` y pushear sin que la DB
+ya tenga la columna. El build de Vercel NO migra la DB. El orden es:
+
+1. Crear endpoint admin con `ADD COLUMN IF NOT EXISTS`.
+2. Pushear el endpoint (sin tocar schema aún).
+3. Ejecutar el endpoint en producción.
+4. Recién ahí agregar el campo al schema + código que lo usa.
+5. Pushear.
+
+Ver `ERRORES_CLAUDE_NO_REPETIR.md` — errores #13, #S36.
+
+---
+
 ## Historial de modelos
 
 1. **Sesiones 1-8**: Branch por feature → múltiples URLs, confusión

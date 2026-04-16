@@ -3,7 +3,129 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-15 (Sesiones 23-30 — Creativos Lab + Google/Meta rebuild + SEO premium + Aurum flotante global)
+## Ultima actualizacion: 2026-04-15 (Sesiones 31-36 — Módulo Aura completo: Inicio → Creadores → Campañas → Contenido → Pagos → Deals reestructuración)
+
+> Este bloque consolida los 34 commits a `main` del 15-abr (tarde/noche) que construyen el módulo Aura creator economy de cero a producción completa. Sesiones anteriores (23-30) documentadas más abajo.
+
+### Sesion 31 — 2026-04-15 tarde — Aura Inicio: las 7 zonas
+
+**Objetivo**: construir `/aura/inicio` como dashboard principal del módulo creator economy, con 7 zonas bien definidas.
+
+| Commit | Qué |
+|---|---|
+| `2c68abe` | **Zona 1**: saludo personalizado + pulso Aurum + selector de periodo (7d/30d/90d). |
+| `60a0bc8` | **Zona 2**: hero metrics (revenue, órdenes, comisiones, AOV, creadores activos) + fix margen blanco. |
+| `52b3064` | **Zona 3**: Hall of Flame — podio top 3 creadores como trading cards con halo + sparkles. |
+| `55a9f55` | **Zona 4**: bandeja de acciones pendientes (apps por revisar, contenido por aprobar, campañas por cerrar, creadores silenciados). |
+| `7054b2f` | **Zona 5**: campañas en vuelo — flight deck con barra de progreso vs bonus y ETA de cierre. |
+| `ed4c027` | **Zona 6**: content radar — plataformas activas + top piezas por engagement + UGC reciente. |
+| `0bf9e12` | **Zona 7**: insights rápidos — 4 insights rule-based (top creator, mejor campaña, contenido viral, alerta). |
+| `60dd592` | Unificar color system a monochrome champagne (antes había mezcla de tonos). |
+
+### Sesion 32 — 2026-04-15 tarde — Aura Creadores + Campañas + sistema visual Creator Gradient
+
+**Objetivo**: módulos CRUD completos de creadores y campañas + definir el sistema visual de Aura.
+
+| Commit | Qué |
+|---|---|
+| `f458005` | **Creadores completo**: lista con cards + perfil individual + pipeline de aplicaciones (PENDING→APPROVED→REJECTED). APIs: `/api/aura/creators`, `/api/aura/applications`. |
+| `e1b3497` | Página `/paletas` para comparar 4 direcciones visuales (Tomy eligió Creator Gradient). |
+| `7b5ab4f` | **Creator Gradient** (#ff0080 → #a855f7 → #00d4ff) aplicado a Inicio + Creadores como sistema visual oficial de Aura. |
+| `60644c5` | **Campañas completo**: lista + crear + detalle. APIs: `/api/aura/campaigns`. 3 pantallas con Creator Gradient. |
+
+### Sesion 33 — 2026-04-15 noche — Sidebar Aura + Contenido + fixes visuales
+
+**Objetivo**: integrar Aura en el sidebar con sub-rutas agrupadas + módulo de contenido.
+
+| Commit | Qué |
+|---|---|
+| `8852f1d` | Sub-rutas de Aura en sidebar (Inicio, Creadores, Aplicaciones, Campañas, Nueva). |
+| `2a212c7` | Fix: sub-items de Aura no heredaban el estilo magenta/purple del parent premium. |
+| `ff85c75` | Fix: botones primarios de creadores eran blanco sobre blanco → aplicar gradient. |
+| `71b5cfb` | Fix: halo del header más suave, link de venta con dominio correcto del store, botón dashboard del creador. |
+| `d582c50` | **Contenido completo**: módulo briefings (crear/gestionar) + aprobaciones de contenido. |
+| `7a6518e` | Mini-headers en sidebar para agrupar sub-rutas (CREADORES / CAMPAÑAS / CONTENIDO / PAGOS). |
+| `97d411e` | Fix: doble selección en sidebar — match más específico gana sobre match parcial. |
+| `abca17c` | Sidebar Aura: estilo holográfico premium + copy "Tu nuevo canal de ventas." |
+
+### Sesion 34 — 2026-04-15 noche — Pagos v1 + Dashboard público del creador + Ventana de atribución
+
+**Objetivo**: sistema de compensación multi-modelo + dashboard público mejorado + configuración de atribución.
+
+| Commit | Qué |
+|---|---|
+| `1c8d116` | **Pagos v1**: deals (7 tipos: COMMISSION, FLAT_FEE, PERFORMANCE_BONUS, TIERED_COMMISSION, CPM, GIFTING, HYBRID) + payouts multi-estado. Schema: `influencer_deals` + `payouts`. |
+| `35f89a0` | Dashboard del creador con Creator Gradient + Deals UI + auto-cálculo de comisiones según tipo de deal. |
+| `30a0fec` | Ver y enviar por mail la contraseña del dashboard público del creador. |
+| `abf0c05` | Mover acceso/contraseña del creador a la página de detalle (no en lista). |
+| `8d42bd6` | **Ventana de atribución personalizable por creador** (1-180 días, default 14). Campo `attributionWindowDays` en schema + API PATCH. |
+| `de889d0` | Ventana de atribución visible en card del creador + KPIs en detalle. |
+| `26a8740` | Fix imagen de producto en dashboard público: fallback + upgrade a HTTPS. |
+
+### Sesion 35 — 2026-04-15 noche — Deals como entidad central de campañas (reestructuración arquitectónica)
+
+**Objetivo**: reestructurar la arquitectura para que deals vivan DENTRO de campañas (no como sección separada). Campaña "Always On" auto-creada al aprobar creador. Regla de unicidad de comisión.
+
+| Commit | Qué |
+|---|---|
+| `12badf7` | Integrar Deals en perfil del creador (inline en campaigns, no sección propia). |
+| `56319a7` | Approval + deal unificado: al aprobar un creador, se crea el deal automáticamente dentro de la aprobación. |
+| `ba0fa79` | Dashboard público adaptado al tipo de deal (muestra info relevante según COMMISSION/FLAT_FEE/etc). |
+| `7ef49f1` | **Reestructuración central**: deals → campañas como entidad central. Eliminar sección Deals del perfil del creador. Campaña "Always On" + deal base al aprobar. Toggle `excludeFromCommission`. Validación de unicidad de comisión (solo 1 deal tipo COMMISSION/TIERED/HYBRID activo por creador). Schema: `isAlwaysOn` en campaigns, `excludeFromCommission` en deals. |
+
+### Sesion 36 — 2026-04-15 noche — Fix migración DB + backfill Always On + cleanup sidebar
+
+**Objetivo**: arreglar error de producción (columnas nuevas no existían en DB) + crear campañas Always On para creadores existentes + limpiar sidebar legacy.
+
+| Commit | Qué |
+|---|---|
+| `ce92b83` | **Fix urgente**: desactivar columnas `isAlwaysOn`/`excludeFromCommission` en queries (no existían en DB). Crear endpoint `/api/admin/migrate-aura-columns` para aplicar migración. |
+| `46218b5` | Reactivar columnas post-migración + endpoint `/api/admin/backfill-always-on` que crea campañas Always On + deal base para creadores activos existentes. |
+| `11897a8` | Eliminar secciones legacy "Influencers" y "Contenido" del sidebar (todo vive dentro de Aura ahora). |
+
+**Migraciones ejecutadas en producción:**
+- `migrate-aura-columns`: `ALTER TABLE influencer_campaigns ADD COLUMN IF NOT EXISTS "isAlwaysOn"` + `ALTER TABLE influencer_deals ADD COLUMN IF NOT EXISTS "excludeFromCommission"`. ✅
+- `backfill-always-on`: creó campañas Always On + deal de comisión para todos los creadores activos sin una. ✅
+
+### Estado final en produccion al cierre de Sesion 36
+
+- **Ultimo commit en main**: `11897a8`.
+- **URL prod**: `https://nitrosales.vercel.app`.
+- **Deploys Vercel**: todos verdes.
+- **Módulo Aura completo en producción**:
+  - `/aura/inicio` — dashboard con 7 zonas (saludo, métricas, Hall of Flame, acciones, campañas en vuelo, content radar, insights).
+  - `/aura/creadores` — lista + perfil individual con deals inline en campaigns, ventana de atribución, dashboard público.
+  - `/aura/creadores/aplicaciones` — pipeline de aplicaciones (PENDING→APPROVED→REJECTED) con creación de campaña Always On + deal al aprobar.
+  - `/aura/campanas` — lista + crear campaña con deal integrado (7 tipos) + validación unicidad de comisión.
+  - `/aura/contenido` — overview + briefings + aprobaciones.
+  - `/aura/deals` — ahora redirige conceptualmente a campañas (deals viven dentro de campañas).
+  - `/aura/pagos` — gestión de payouts multi-estado.
+- **Sistema visual**: Creator Gradient (#ff0080 → #a855f7 → #00d4ff).
+- **Sidebar**: limpio, sin secciones legacy. Aura con sub-rutas agrupadas por mini-headers.
+- **Modelo de datos Aura**:
+  - Creator → Campaign(s) → Deal(s) → Attribution(s) → Payout(s)
+  - Cada creador tiene 1 campaña "Always On" (isAlwaysOn=true) con deal base.
+  - Solo 1 deal de tipo comisión activo por creador (COMMISSION/TIERED_COMMISSION/HYBRID).
+  - Toggle `excludeFromCommission` en deals no-comisión para evitar doble pago con UTM.
+
+### Decisiones arquitectonicas tomadas en estas sesiones
+
+1. **Deals dentro de campañas** (S35): no como sección separada. Simplifica la UI y la jerarquía de datos.
+2. **Always On automática** (S35): al aprobar creador, se crea campaña Always On + deal base. Toda acción con creadores debe tener campaña.
+3. **Unicidad de comisión** (S35): solo 1 deal de tipo comisión activo por creador. Evita ambigüedad de atribución UTM.
+4. **Migración via endpoints admin** (S36): pattern confirmado: SQL idempotente en endpoint protegido con NEXTAUTH_SECRET, no `prisma db push` en build.
+5. **Creator Gradient** (S32): sistema visual oficial de Aura (#ff0080 → #a855f7 → #00d4ff).
+6. **Sidebar limpio** (S36): secciones legacy eliminadas. Todo creator economy vive dentro de Aura.
+
+### Pendientes / backlog
+
+- `/aura/deals` como página standalone podría eliminarse o redirigir a `/aura/campanas` ya que deals ahora viven dentro de campañas.
+- Dashboard público del creador: podría mostrar info del deal Always On de forma más prominente.
+- Las páginas legacy `/influencers/*` siguen existiendo como rutas (aunque no están en el sidebar). Evaluar si eliminarlas o mantenerlas como redirect.
+
+---
+
+## Actualizacion previa: 2026-04-15 (Sesiones 23-30 — Creativos Lab + Google/Meta rebuild + SEO premium + Aurum flotante global)
 
 > Este bloque consolida TODOS los deploys desde el 14-abr tarde hasta el 15-abr (recien). 47 commits a `main` agrupados por sesion/alcance. Documentacion escrita en Sesion 30.
 
