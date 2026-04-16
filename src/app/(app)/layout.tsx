@@ -116,6 +116,7 @@ const NAV_GROUPS: NavGroup[] = [
         },
         children: [
           { href: "/bondly/overview", label: "Overview" },
+          { href: "/bondly/senales", label: "Señales", group: "Live" },
           { href: "/bondly/clientes", label: "Clientes", group: "Base" },
           { href: "/bondly/ltv", label: "Lifetime Value", group: "Base" },
           { href: "/bondly/audiencias", label: "Audiencias", group: "Activación" },

@@ -495,7 +495,6 @@ export default function BondlyOverviewPage() {
             accent="#8b5cf6"
             icon={Waves}
             stat={pulse ? `${pulse.pixel.eventsLast5min} eventos / 5min` : undefined}
-            comingSoon={true}
           />
         </div>
       </section>
