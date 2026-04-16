@@ -163,7 +163,15 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     `);
     const clvRank = Math.round(Number(clvRankRow[0]?.rank_pct || 0));
 
-    // 4) Pixel visitor data
+    // 4) Pixel visitor data — match por 3-way identity (customerId OR email)
+    //    Un mismo customer puede tener varios pixel_visitors (distintos devices,
+    //    antes/después de login, etc.). Los unimos por customerId directo o por
+    //    email normalizado (LOWER). Escapamos comilla simple para SQL safety.
+    const safeEmail = customer.email ? customer.email.toLowerCase().replace(/'/g, "''") : null;
+    const emailClause = safeEmail
+      ? `OR (v.email IS NOT NULL AND LOWER(v.email) = '${safeEmail}')`
+      : "";
+
     const visitorRows = await prisma.$queryRawUnsafe<Array<{
       id: string;
       email: string | null;
@@ -181,12 +189,37 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
              v."totalSessions" AS total_sessions, v."totalPageViews" AS total_pvs,
              v."deviceTypes" AS device_types, v.country, v.region, v."clickIds" AS click_ids
       FROM pixel_visitors v
-      WHERE v."customerId" = '${id}' AND v."organizationId" = '${ORG_ID}'
+      WHERE v."organizationId" = '${ORG_ID}'
+        AND (
+          v."customerId" = '${id}'
+          ${emailClause}
+        )
       ORDER BY v."lastSeenAt" DESC
-      LIMIT 1
     `);
 
+    // Agregamos stats a través de TODOS los visitors que matchean.
     const visitor = visitorRows[0] || null;
+    const visitorIds = visitorRows.map(v => v.id);
+    const aggTotalSessions = visitorRows.reduce((s, v) => s + Number(v.total_sessions || 0), 0);
+    const aggTotalPvs = visitorRows.reduce((s, v) => s + Number(v.total_pvs || 0), 0);
+    const aggFirstSeen = visitorRows.reduce<Date | null>((acc, v) => {
+      if (!v.first_seen) return acc;
+      const d = new Date(v.first_seen);
+      if (!acc || d < acc) return d;
+      return acc;
+    }, null);
+    const aggLastSeen = visitorRows.reduce<Date | null>((acc, v) => {
+      if (!v.last_seen) return acc;
+      const d = new Date(v.last_seen);
+      if (!acc || d > acc) return d;
+      return acc;
+    }, null);
+    const aggDeviceTypes = Array.from(new Set(
+      visitorRows.flatMap(v => (v.device_types || []).filter(Boolean))
+    ));
+    const aggCountry = visitorRows.find(v => v.country)?.country || null;
+    const aggRegion = visitorRows.find(v => v.region)?.region || null;
+    const aggPhone = visitorRows.find(v => v.phone)?.phone || null;
 
     // 5) Timeline: últimas 30 órdenes + últimos 50 pixel events, ordenado por fecha desc
     const ordersListPromise = prisma.$queryRawUnsafe<Array<{
@@ -212,7 +245,10 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 
     let eventsPromise: Promise<any[]> = Promise.resolve([]);
     let firstEventPromise: Promise<any[]> = Promise.resolve([]);
-    if (visitor) {
+    if (visitorIds.length > 0) {
+      // Escapamos comilla simple por si alguna ID tuviera caracteres raros (cuid, pero por las dudas)
+      const visitorIdList = visitorIds.map(v => `'${v.replace(/'/g, "''")}'`).join(",");
+
       eventsPromise = prisma.$queryRawUnsafe<Array<{
         id: string;
         type: string;
@@ -224,12 +260,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         SELECT e.id, e.type, e."pageUrl" AS page_url, e.props,
                e."deviceType" AS device_type, e.timestamp
         FROM pixel_events e
-        WHERE e."visitorId" = '${visitor.id}' AND e."organizationId" = '${ORG_ID}'
+        WHERE e."visitorId" IN (${visitorIdList}) AND e."organizationId" = '${ORG_ID}'
         ORDER BY e.timestamp DESC
         LIMIT 60
       `);
 
-      // first event para acquisition
+      // first event (acquisition) — el evento más viejo a través de TODOS los visitors
       firstEventPromise = prisma.$queryRawUnsafe<Array<{
         click_ids: any;
         utm_params: any;
@@ -238,7 +274,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       }>>(`
         SELECT e."clickIds" AS click_ids, e."utmParams" AS utm_params, e.referrer, e.timestamp
         FROM pixel_events e
-        WHERE e."visitorId" = '${visitor.id}' AND e."organizationId" = '${ORG_ID}'
+        WHERE e."visitorId" IN (${visitorIdList}) AND e."organizationId" = '${ORG_ID}'
         ORDER BY e.timestamp ASC
         LIMIT 1
       `);
@@ -288,9 +324,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       };
     }
 
-    // 8) Device breakdown (del visitor)
-    const devices = visitor?.device_types || [];
-    const deviceBreakdown = devices.reduce((acc: Record<string, number>, d: string) => {
+    // 8) Device breakdown (agregado a través de todos los visitors matching)
+    const deviceBreakdown = aggDeviceTypes.reduce((acc: Record<string, number>, d: string) => {
       if (!d) return acc;
       acc[d] = (acc[d] || 0) + 1;
       return acc;
@@ -337,8 +372,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     }
     timeline.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-    // Last visit minutes ago
-    const lastVisitAt = visitor?.last_seen ? new Date(visitor.last_seen).toISOString() : null;
+    // Last visit minutes ago — usar agregado (última visita a través de TODOS los devices)
+    const lastVisitAt = aggLastSeen ? aggLastSeen.toISOString() : null;
     const lastVisitMinutesAgo = lastVisitAt
       ? Math.floor((Date.now() - new Date(lastVisitAt).getTime()) / 60000)
       : null;
@@ -353,7 +388,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         firstName: customer.firstName,
         lastName: customer.lastName,
         email: customer.email,
-        phone: visitor?.phone || null,
+        phone: aggPhone,
         city: customer.city,
         state: customer.state,
         country: customer.country,
@@ -379,12 +414,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         lastVisitAt,
         lastVisitMinutesAgo,
         isActiveNow,
-        totalSessions: visitor?.total_sessions || 0,
-        totalPageViews: visitor?.total_pvs || 0,
-        firstSeenAt: visitor?.first_seen ? new Date(visitor.first_seen).toISOString() : null,
+        totalSessions: aggTotalSessions,
+        totalPageViews: aggTotalPvs,
+        firstSeenAt: aggFirstSeen ? aggFirstSeen.toISOString() : null,
         deviceBreakdown,
-        country: visitor?.country || null,
-        region: visitor?.region || null,
+        country: aggCountry,
+        region: aggRegion,
       },
       acquisition,
       topProducts: topProducts.map(p => ({
