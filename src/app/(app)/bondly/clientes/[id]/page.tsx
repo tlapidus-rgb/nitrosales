@@ -80,6 +80,79 @@ function eventMeta(type: string) {
   return EVENT_CONFIG[type] || EVENT_CONFIG.default;
 }
 
+// ─── Timeline label helpers ────────────────────────────────────────
+// Convierte un slug (auto-spider-man) en un título humano (Auto Spider Man).
+function slugToTitle(slug: string): string {
+  if (!slug) return "";
+  try {
+    const decoded = decodeURIComponent(slug).replace(/\?.*$/, "");
+    return decoded
+      .replace(/-+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  } catch {
+    return slug;
+  }
+}
+
+// Deriva un "qué vio exactamente" del evento, combinando type + pageUrl + productName.
+// Devuelve null si no podemos decir nada más concreto que el label del tipo.
+function describeEventSubject(item: any): string | null {
+  // 1) Si el backend ya nos dio nombre de producto desde props, usamos eso.
+  if (item.productName) return item.productName;
+
+  const raw = item.pageUrl;
+  if (!raw) return null;
+
+  let path = raw;
+  let search = "";
+  try {
+    const u = new URL(raw);
+    path = u.pathname || "/";
+    search = u.search || "";
+  } catch {
+    // raw puede ser un path relativo — lo usamos tal cual
+    const qIdx = raw.indexOf("?");
+    if (qIdx >= 0) {
+      path = raw.slice(0, qIdx);
+      search = raw.slice(qIdx);
+    }
+  }
+
+  const params = new URLSearchParams(search);
+
+  // Home
+  if (path === "/" || path === "") return "Home";
+
+  // Checkout / Carrito / Cuenta
+  if (path.startsWith("/checkout")) return "Checkout";
+  if (path.startsWith("/cart") || path === "/carrito") return "Carrito";
+  if (path.startsWith("/account") || path.startsWith("/cuenta") || path.startsWith("/login") || path.startsWith("/ingresar")) {
+    return "Mi cuenta";
+  }
+
+  // Búsqueda (VTEX usa ?_q=...; genérico usa ?q=...)
+  const q = params.get("_q") || params.get("q") || params.get("query");
+  if (q) return `Búsqueda: "${q}"`;
+  if (path.startsWith("/busqueda") || path.startsWith("/search")) return "Búsqueda";
+
+  // Producto VTEX: la URL termina en /p o /p/
+  if (/\/p\/?$/.test(path)) {
+    const segs = path.replace(/\/p\/?$/, "").split("/").filter(Boolean);
+    const slug = segs[segs.length - 1] || "";
+    return slugToTitle(slug);
+  }
+
+  // Categoría / departamento VTEX: path con segmentos que no son /p
+  const segs = path.split("/").filter(Boolean);
+  if (segs.length > 0) {
+    return slugToTitle(segs[segs.length - 1]);
+  }
+
+  return null;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════════════
@@ -1027,13 +1100,15 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
 function TimelineEvent({ item, delay }: { item: any; delay: number }) {
   const cfg = eventMeta(item.type);
   const Icon = cfg.icon;
-  const url = item.pageUrl ? safeUrlPath(item.pageUrl) : null;
+  const subject = describeEventSubject(item);
+
   return (
     <div
       className="relative rounded-lg pl-3 pr-3 py-2 border border-slate-200 bg-white"
       style={{
         animation: `bondlyFadeSlideIn 380ms ${ES} ${delay}ms both`,
       }}
+      title={item.pageUrl || undefined}
     >
       <span
         className="absolute -left-[25px] top-2.5 w-3.5 h-3.5 rounded-full flex items-center justify-center"
@@ -1051,24 +1126,20 @@ function TimelineEvent({ item, delay }: { item: any; delay: number }) {
         >
           <Icon className="w-3 h-3" />
         </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] font-semibold text-slate-800">{cfg.label}</span>
-            {item.productName && (
-              <span className="text-[11px] text-slate-600 truncate" title={item.productName}>
-                · {item.productName}
-              </span>
-            )}
-            {item.value != null && (
-              <span className="text-[11px] font-semibold text-emerald-600 tabular-nums">
-                {formatARS(item.value)}
-              </span>
-            )}
-          </div>
-          {url && (
-            <div className="text-[10px] text-slate-400 truncate" title={item.pageUrl}>
-              {url}
-            </div>
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <span className="text-[12px] font-semibold text-slate-800 flex-shrink-0">{cfg.label}</span>
+          {subject && (
+            <span
+              className="text-[12px] text-slate-600 truncate"
+              title={subject}
+            >
+              · {subject}
+            </span>
+          )}
+          {item.value != null && (
+            <span className="text-[11px] font-semibold text-emerald-600 tabular-nums flex-shrink-0">
+              {formatARS(item.value)}
+            </span>
           )}
         </div>
         <span className="text-[10px] text-slate-400 flex-shrink-0 tabular-nums">
