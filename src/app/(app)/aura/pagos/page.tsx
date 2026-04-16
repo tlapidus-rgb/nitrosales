@@ -86,6 +86,7 @@ export default function PagosPage() {
   const [status, setStatus] = useState<"all" | "PENDING" | "PAID" | "CANCELLED">("PENDING");
   const [q, setQ] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [showAutoGen, setShowAutoGen] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
   const [payModal, setPayModal] = useState<Payout | null>(null);
 
@@ -169,14 +170,24 @@ export default function PagosPage() {
               Comisiones, flat fees, bonus y gifting. Todo lo que le debés (o ya pagaste) a tu red.
             </p>
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
-            style={{ background: THEME.gradient, color: "#fff", boxShadow: "0 0 24px rgba(168,85,247,0.35)" }}
-          >
-            <Plus size={16} />
-            Registrar pago
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAutoGen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]"
+              style={{ background: THEME.bgCard, border: `1px solid ${THEME.borderStrong}`, color: THEME.textPrimary }}
+            >
+              <Sparkles size={16} style={{ color: THEME.purple }} />
+              Auto-generar
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
+              style={{ background: THEME.gradient, color: "#fff", boxShadow: "0 0 24px rgba(168,85,247,0.35)" }}
+            >
+              <Plus size={16} />
+              Registrar pago
+            </button>
+          </div>
         </div>
 
         {/* KPIs */}
@@ -294,6 +305,16 @@ export default function PagosPage() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false);
+            load();
+          }}
+        />
+      )}
+
+      {showAutoGen && (
+        <AutoGenerateModal
+          onClose={() => setShowAutoGen(false)}
+          onGenerated={() => {
+            setShowAutoGen(false);
             load();
           }}
         />
@@ -855,6 +876,219 @@ function MarkPaidModal({
             {saving ? "Guardando..." : "Confirmar pago"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AutoGenerateModal ────────────────────────────────────────
+function AutoGenerateModal({ onClose, onGenerated }: { onClose: () => void; onGenerated: () => void }) {
+  const firstOfMonth = new Date();
+  firstOfMonth.setDate(1);
+  firstOfMonth.setHours(0, 0, 0, 0);
+  const endOfMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 0, 23, 59, 59);
+
+  const [periodStart, setPeriodStart] = useState(firstOfMonth.toISOString().slice(0, 10));
+  const [periodEnd, setPeriodEnd] = useState(endOfMonth.toISOString().slice(0, 10));
+  const [preview, setPreview] = useState<any[] | null>(null);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [committing, setCommitting] = useState(false);
+
+  async function runPreview() {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/aura/payouts/auto-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodStart: new Date(periodStart).toISOString(),
+          periodEnd: new Date(periodEnd + "T23:59:59").toISOString(),
+          dryRun: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.error || "Error en preview");
+        return;
+      }
+      setPreview(data.results || []);
+      setTotalAmount(data.results.filter((r: any) => !r.skipped).reduce((s: number, r: any) => s + r.amount, 0));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function commit() {
+    setCommitting(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/aura/payouts/auto-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodStart: new Date(periodStart).toISOString(),
+          periodEnd: new Date(periodEnd + "T23:59:59").toISOString(),
+          dryRun: false,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.error || "Error al generar");
+        return;
+      }
+      onGenerated();
+    } finally {
+      setCommitting(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+        style={{ background: "#12121c", border: `1px solid ${THEME.borderStrong}` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles size={14} style={{ color: THEME.purple }} />
+              <span className="text-[11px] uppercase tracking-wider" style={{ color: THEME.textTertiary }}>
+                Auto-generar payouts
+              </span>
+            </div>
+            <h3 className="text-xl font-semibold tracking-tight">Calcular comisiones del período</h3>
+            <p className="text-xs mt-1" style={{ color: THEME.textSecondary }}>
+              Procesa todos los deals activos y genera payouts pendientes según las ventas atribuidas.
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/10">
+            <X size={18} style={{ color: THEME.textSecondary }} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <Field label="Desde">
+            <input
+              type="date"
+              value={periodStart}
+              onChange={(e) => {
+                setPeriodStart(e.target.value);
+                setPreview(null);
+              }}
+              className="w-full px-3 py-2 rounded-xl outline-none text-sm"
+              style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+            />
+          </Field>
+          <Field label="Hasta">
+            <input
+              type="date"
+              value={periodEnd}
+              onChange={(e) => {
+                setPeriodEnd(e.target.value);
+                setPreview(null);
+              }}
+              className="w-full px-3 py-2 rounded-xl outline-none text-sm"
+              style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+            />
+          </Field>
+        </div>
+
+        {!preview && (
+          <button
+            onClick={runPreview}
+            disabled={loading}
+            className="w-full px-4 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-50"
+            style={{ background: THEME.gradient }}
+          >
+            {loading ? "Calculando..." : "Ver preview"}
+          </button>
+        )}
+
+        {preview && (
+          <>
+            <div
+              className="rounded-xl p-4 mb-3"
+              style={{ background: "rgba(168, 85, 247, 0.08)", border: `1px solid rgba(168, 85, 247, 0.2)` }}
+            >
+              <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: THEME.textTertiary }}>
+                Total a generar
+              </div>
+              <div className="text-2xl font-bold tabular-nums">{fmtAR(totalAmount)}</div>
+              <div className="text-xs mt-1" style={{ color: THEME.textSecondary }}>
+                {preview.filter((r) => !r.skipped).length} payout(s) pendiente(s) ·{" "}
+                {preview.filter((r) => r.skipped).length} omitidos
+              </div>
+            </div>
+
+            <div
+              className="rounded-xl max-h-80 overflow-y-auto mb-3"
+              style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}` }}
+            >
+              {preview.map((r, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 px-4 py-3"
+                  style={{ borderBottom: i === preview.length - 1 ? "none" : `1px solid ${THEME.border}` }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{r.influencer}</div>
+                    <div className="text-[11px] truncate" style={{ color: THEME.textSecondary }}>
+                      {r.dealName} · {r.type}
+                    </div>
+                    {r.skipped && (
+                      <div className="text-[10px] mt-0.5" style={{ color: THEME.textMuted }}>
+                        {r.skipped}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    {r.skipped ? (
+                      <span className="text-xs" style={{ color: THEME.textMuted }}>
+                        —
+                      </span>
+                    ) : (
+                      <span className="text-sm font-semibold tabular-nums" style={{ color: THEME.cyan }}>
+                        {fmtAR(r.amount)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {err && <p className="text-xs mb-3" style={{ color: "#f87171" }}>{err}</p>}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPreview(null)}
+                className="px-4 py-2.5 rounded-xl text-sm"
+                style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textSecondary }}
+              >
+                Cambiar período
+              </button>
+              <button
+                onClick={commit}
+                disabled={committing || preview.filter((r) => !r.skipped).length === 0}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-50"
+                style={{ background: THEME.gradient }}
+              >
+                {committing
+                  ? "Generando..."
+                  : `Generar ${preview.filter((r) => !r.skipped).length} payout(s) pendiente(s)`}
+              </button>
+            </div>
+          </>
+        )}
+
+        {err && !preview && <p className="text-xs mt-3" style={{ color: "#f87171" }}>{err}</p>}
       </div>
     </div>
   );

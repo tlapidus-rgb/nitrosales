@@ -239,7 +239,7 @@ export default function PublicInfluencerDashboard() {
   };
 
   // ── Theme ──
-  const bg = darkMode ? "bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950" : "bg-gradient-to-br from-gray-50 via-white to-gray-100";
+  const bg = darkMode ? "bg-[#0a0714]" : "bg-gradient-to-br from-gray-50 via-white to-gray-100";
   const textPrimary = darkMode ? "text-white" : "text-gray-900";
   const textSecondary = darkMode ? "text-gray-400" : "text-gray-500";
   const textMuted = darkMode ? "text-gray-500" : "text-gray-400";
@@ -252,7 +252,7 @@ export default function PublicInfluencerDashboard() {
     const map: Record<string, string> = {
       PENDING: darkMode ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-50 text-yellow-700",
       APPROVED: darkMode ? "bg-green-500/20 text-green-400" : "bg-green-50 text-green-700",
-      REVISION: darkMode ? "bg-orange-500/20 text-orange-400" : "bg-orange-50 text-orange-700",
+      REVISION: darkMode ? "bg-fuchsia-500/20 text-fuchsia-400" : "bg-fuchsia-50 text-fuchsia-700",
       REJECTED: darkMode ? "bg-red-500/20 text-red-400" : "bg-red-50 text-red-700",
     };
     return map[status] || (darkMode ? "bg-white/10 text-gray-400" : "bg-gray-50 text-gray-500");
@@ -272,7 +272,7 @@ export default function PublicInfluencerDashboard() {
         <div className="flex flex-col items-center gap-6">
           <div className="flex items-end gap-1.5 h-10">
             {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className="w-1.5 bg-orange-500 rounded-full" style={{ animation: `pulse 1.2s ease-in-out ${i * 0.15}s infinite`, height: "40%" }} />
+              <div key={i} className="w-1.5 rounded-full" style={{ animation: `pulse 1.2s ease-in-out ${i * 0.15}s infinite`, height: "40%", background: "linear-gradient(180deg,#ff0080,#a855f7,#00d4ff)" }} />
             ))}
           </div>
           <div className="text-center">
@@ -292,9 +292,9 @@ export default function PublicInfluencerDashboard() {
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             {lockedInfo?.profileImage ? (
-              <img src={lockedInfo.profileImage} alt="" className="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-orange-500/30" />
+              <img src={lockedInfo.profileImage} alt="" className="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-fuchsia-500/40" />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#ff0080] via-[#a855f7] to-[#00d4ff] flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">
                 {lockedInfo?.name?.[0]?.toUpperCase() || "?"}
               </div>
             )}
@@ -305,12 +305,12 @@ export default function PublicInfluencerDashboard() {
             <div className={`${card} rounded-2xl p-6`}>
               <p className={`text-sm ${textSecondary} mb-4 text-center`}>Este dashboard esta protegido con contraseña</p>
               <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setPasswordError(false); }}
-                placeholder="Ingresa la contraseña" className={`w-full px-4 py-3 ${inputBg} border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500/50`} autoFocus />
+                placeholder="Ingresa la contraseña" className={`w-full px-4 py-3 ${inputBg} border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500/30 focus:border-fuchsia-500/60`} autoFocus />
               {passwordError && <p className="text-red-400 text-xs mt-2 text-center">Contraseña incorrecta</p>}
             </div>
-            <button type="submit" className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl text-sm font-medium hover:from-orange-600 hover:to-orange-700 transition-all">Ingresar</button>
+            <button type="submit" className="w-full py-3 bg-gradient-to-r from-[#ff0080] via-[#a855f7] to-[#00d4ff] text-white rounded-xl text-sm font-medium hover:brightness-110 transition-all">Ingresar</button>
           </form>
-          <p className={`text-[10px] ${textFooterBrand} text-center mt-6`}>Powered by <span className="text-orange-500 font-medium">NitroSales</span></p>
+          <p className={`text-[10px] ${textFooterBrand} text-center mt-6`}>Powered by <span className="text-fuchsia-500 font-medium">NitroSales</span></p>
         </div>
       </div>
     );
@@ -325,7 +325,7 @@ export default function PublicInfluencerDashboard() {
           <p className={`${textPrimary} text-lg font-medium`}>No pudimos cargar el dashboard</p>
           <p className={`${textSecondary} text-sm mt-2`}>Verificá el link o intentá de nuevo en unos segundos</p>
           <button onClick={() => { setError(false); setLoading(true); fetchDashboard(); }}
-            className="mt-4 px-6 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-all">Reintentar</button>
+            className="mt-4 px-6 py-2 bg-fuchsia-500 text-white rounded-xl text-sm font-medium hover:bg-fuchsia-600 transition-all">Reintentar</button>
         </div>
       </div>
     );
@@ -343,9 +343,9 @@ export default function PublicInfluencerDashboard() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               {data.influencer.profileImage ? (
-                <img src={data.influencer.profileImage} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-orange-500/30" />
+                <img src={data.influencer.profileImage} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-fuchsia-500/40" />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-lg">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ff0080] via-[#a855f7] to-[#00d4ff] flex items-center justify-center text-white font-bold text-lg">
                   {data.influencer.name[0]?.toUpperCase()}
                 </div>
               )}
@@ -354,7 +354,7 @@ export default function PublicInfluencerDashboard() {
                 <div className="flex items-center gap-2">
                   <p className={`text-xs ${textMuted}`}>{data.organization.name}</p>
                   {data.tier && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-medium">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-400 font-medium">
                       {data.tier.label || `Tier ${data.tier.commissionPercent}%`} — {data.tier.commissionPercent}%
                     </span>
                   )}
@@ -382,7 +382,7 @@ export default function PublicInfluencerDashboard() {
               onClick={() => setActiveTab("ganancias")}
               className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
                 activeTab === "ganancias"
-                  ? "bg-orange-500 text-white shadow-sm"
+                  ? "bg-fuchsia-500 text-white shadow-sm"
                   : darkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900"
               }`}
             >
@@ -392,7 +392,7 @@ export default function PublicInfluencerDashboard() {
               onClick={() => setActiveTab("contenido")}
               className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
                 activeTab === "contenido"
-                  ? "bg-orange-500 text-white shadow-sm"
+                  ? "bg-fuchsia-500 text-white shadow-sm"
                   : darkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900"
               }`}
             >
@@ -420,7 +420,7 @@ export default function PublicInfluencerDashboard() {
                 </div>
                 <div className={`${card} rounded-2xl p-4`}>
                   <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium mb-1`}>Comision hoy</p>
-                  <p className="text-2xl font-bold text-orange-400">{fmtARS(data.today.commission)}</p>
+                  <p className="text-2xl font-bold text-fuchsia-400">{fmtARS(data.today.commission)}</p>
                   <p className={`text-xs ${textSecondary} mt-0.5`}>{data.influencer.commissionPercent}%</p>
                 </div>
               </div>
@@ -435,13 +435,13 @@ export default function PublicInfluencerDashboard() {
                   <p className="text-2xl font-bold">{fmtARS(data.thisMonth.sales)}</p>
                   <p className={`text-xs ${textSecondary} mt-0.5`}>{fmt(data.thisMonth.conversions)} ventas</p>
                 </div>
-                <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 backdrop-blur-sm rounded-2xl p-4 border border-orange-500/20">
+                <div className="bg-gradient-to-br from-fuchsia-500/20 via-purple-500/10 to-cyan-500/10 backdrop-blur-sm rounded-2xl p-4 border border-fuchsia-500/25">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-[10px] text-orange-300/70 uppercase tracking-wider font-medium">Mi comision</p>
+                    <p className="text-[10px] text-fuchsia-300/80 uppercase tracking-wider font-medium">Mi comision</p>
                     <ChangeArrow value={data.comparison.commissionChange} />
                   </div>
-                  <p className="text-2xl font-bold text-orange-400">{fmtARS(data.thisMonth.commission)}</p>
-                  <p className="text-xs text-orange-300/50 mt-0.5">{data.influencer.commissionPercent}% de {fmtARS(data.thisMonth.sales)}</p>
+                  <p className="text-2xl font-bold text-fuchsia-400">{fmtARS(data.thisMonth.commission)}</p>
+                  <p className="text-xs text-fuchsia-300/60 mt-0.5">{data.influencer.commissionPercent}% de {fmtARS(data.thisMonth.sales)}</p>
                 </div>
               </div>
 
@@ -453,7 +453,7 @@ export default function PublicInfluencerDashboard() {
                     {data.dailyChart.map((d, i) => {
                       const height = (d.sales / maxSale) * 100;
                       return (
-                        <div key={i} className="flex-1 bg-orange-500/60 rounded-t-sm transition-all duration-200 hover:bg-orange-400 cursor-pointer"
+                        <div key={i} className="flex-1 bg-fuchsia-500/60 rounded-t-sm transition-all duration-200 hover:bg-fuchsia-400 cursor-pointer"
                           style={{ height: `${Math.max(height, 2)}%` }}
                           onMouseEnter={(e) => {
                             const rect = e.currentTarget.getBoundingClientRect();
@@ -493,12 +493,12 @@ export default function PublicInfluencerDashboard() {
                       <div key={i}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-medium">{c.name}</span>
-                          <span className="text-sm font-bold text-orange-400">{fmtARS(c.revenue)}</span>
+                          <span className="text-sm font-bold text-fuchsia-400">{fmtARS(c.revenue)}</span>
                         </div>
                         {c.bonusTarget && c.bonusAmount && c.progress !== null && (
                           <div>
                             <div className={`h-2 rounded-full ${darkMode ? "bg-white/10" : "bg-gray-100"} overflow-hidden`}>
-                              <div className={`h-full rounded-full transition-all duration-500 ${c.progress >= 100 ? "bg-green-400" : "bg-gradient-to-r from-orange-500 to-orange-400"}`}
+                              <div className={`h-full rounded-full transition-all duration-500 ${c.progress >= 100 ? "bg-green-400" : "bg-gradient-to-r from-fuchsia-500 via-purple-400 to-cyan-400"}`}
                                 style={{ width: `${c.progress}%` }} />
                             </div>
                             <div className="flex justify-between mt-1">
@@ -519,8 +519,8 @@ export default function PublicInfluencerDashboard() {
                   <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Mis cupones</p>
                   <div className="flex flex-wrap gap-2">
                     {data.coupons.map((c, i) => (
-                      <div key={i} className={`${darkMode ? "bg-white/10 border-white/10" : "bg-orange-50 border-orange-200"} border rounded-xl px-3 py-2 flex items-center gap-2`}>
-                        <span className="text-sm font-bold font-mono text-orange-400">{c.code}</span>
+                      <div key={i} className={`${darkMode ? "bg-white/10 border-white/10" : "bg-fuchsia-50 border-fuchsia-200"} border rounded-xl px-3 py-2 flex items-center gap-2`}>
+                        <span className="text-sm font-bold font-mono text-fuchsia-400">{c.code}</span>
                         <span className={`text-[10px] ${textMuted}`}>
                           {c.discountPercent ? `${c.discountPercent}% off` : c.discountFixed ? `${fmtARS(c.discountFixed)} off` : ""}
                         </span>
@@ -536,10 +536,10 @@ export default function PublicInfluencerDashboard() {
                   <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-2`}>Mi link de tracking</p>
                   <div className="flex items-center gap-2">
                     <div className={`flex-1 min-w-0 ${darkMode ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"} border rounded-xl px-3 py-2`}>
-                      <p className={`text-xs font-mono truncate ${darkMode ? "text-orange-400" : "text-orange-600"}`}>{data.trackingUrl}</p>
+                      <p className={`text-xs font-mono truncate ${darkMode ? "text-fuchsia-400" : "text-fuchsia-500"}`}>{data.trackingUrl}</p>
                     </div>
                     <button onClick={() => { navigator.clipboard.writeText(data.trackingUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}
-                      className={`px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${linkCopied ? "bg-green-500 text-white" : "bg-orange-500 text-white hover:bg-orange-600"}`}>
+                      className={`px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${linkCopied ? "bg-green-500 text-white" : "bg-fuchsia-500 text-white hover:bg-fuchsia-600"}`}>
                       {linkCopied ? "Copiado!" : "Copiar"}
                     </button>
                   </div>
@@ -577,7 +577,7 @@ export default function PublicInfluencerDashboard() {
                             <p className="text-sm font-medium truncate">{p.name}</p>
                             <p className={`text-[10px] ${textMuted}`}>{p.units} {p.units === 1 ? "unidad" : "unidades"}</p>
                           </div>
-                          <p className="text-sm font-bold text-orange-400">{fmtARS(p.revenue)}</p>
+                          <p className="text-sm font-bold text-fuchsia-400">{fmtARS(p.revenue)}</p>
                         </div>
                       ))}
                     </div>
@@ -622,7 +622,7 @@ export default function PublicInfluencerDashboard() {
                         </div>
                         <div className="text-right">
                           <span className="text-sm font-medium">{fmtARS(sale.amount)}</span>
-                          <span className="text-xs text-orange-400 ml-2">+{fmtARS(sale.commission)}</span>
+                          <span className="text-xs text-fuchsia-400 ml-2">+{fmtARS(sale.commission)}</span>
                         </div>
                       </div>
                     ))}
@@ -639,7 +639,7 @@ export default function PublicInfluencerDashboard() {
                     <p className={`text-[10px] ${textMuted}`}>Revenue</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold text-orange-400">{fmtARS(data.allTime.commission)}</p>
+                    <p className="text-lg font-bold text-fuchsia-400">{fmtARS(data.allTime.commission)}</p>
                     <p className={`text-[10px] ${textMuted}`}>Comision</p>
                   </div>
                   <div>
@@ -652,7 +652,7 @@ export default function PublicInfluencerDashboard() {
               {/* Footer */}
               <div className="text-center pt-4">
                 <p className={`text-[10px] ${textFooter}`}>Actualizado {lastUpdate.toLocaleTimeString("es-AR")} · Se refresca cada 30s</p>
-                <p className={`text-[10px] ${textFooterBrand} mt-1`}>Powered by <span className="text-orange-500 font-medium">NitroSales</span></p>
+                <p className={`text-[10px] ${textFooterBrand} mt-1`}>Powered by <span className="text-fuchsia-500 font-medium">NitroSales</span></p>
               </div>
             </>
           )}
@@ -664,7 +664,7 @@ export default function PublicInfluencerDashboard() {
             <>
               {!contentLoaded ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                  <div className="w-2 h-2 rounded-full bg-fuchsia-500 animate-pulse" />
                   <p className={`${textMuted} text-sm font-mono ml-3`}>Cargando contenido...</p>
                 </div>
               ) : (
@@ -678,7 +678,7 @@ export default function PublicInfluencerDashboard() {
                           <div key={b.id}>
                             <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpandedBriefId(expandedBriefId === b.id ? null : b.id)}>
                               <div className="flex items-center gap-2">
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${darkMode ? "bg-orange-500/20 text-orange-400" : "bg-orange-50 text-orange-700"}`}>{b.type}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${darkMode ? "bg-fuchsia-500/20 text-fuchsia-400" : "bg-fuchsia-50 text-fuchsia-700"}`}>{b.type}</span>
                                 <span className="text-sm font-medium">{b.title}</span>
                               </div>
                               <div className="flex items-center gap-2">
@@ -687,23 +687,23 @@ export default function PublicInfluencerDashboard() {
                               </div>
                             </div>
                             {expandedBriefId === b.id && (
-                              <div className={`mt-3 pl-2 border-l-2 ${darkMode ? "border-orange-500/30" : "border-orange-200"} space-y-2`}>
+                              <div className={`mt-3 pl-2 border-l-2 ${darkMode ? "border-fuchsia-500/40" : "border-fuchsia-200"} space-y-2`}>
                                 <p className={`text-xs ${textSecondary} whitespace-pre-wrap`}>{b.description}</p>
                                 {b.dos && <p className="text-xs text-green-400">✓ {b.dos}</p>}
                                 {b.donts && <p className="text-xs text-red-400">✗ {b.donts}</p>}
-                                {b.hashtags && <p className="text-xs text-orange-400">{b.hashtags}</p>}
+                                {b.hashtags && <p className="text-xs text-fuchsia-400">{b.hashtags}</p>}
                                 {b.mentions && <p className="text-xs text-blue-400">{b.mentions}</p>}
                                 {b.requirements && <p className={`text-[10px] ${textMuted}`}>Req: {b.requirements}</p>}
                                 {b.referenceUrls && (
                                   <div>
                                     <p className={`text-[10px] ${textMuted} mb-1`}>Referencias:</p>
                                     {b.referenceUrls.split("\n").filter(Boolean).map((url, i) => (
-                                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-orange-400 hover:text-orange-300 truncate">{url}</a>
+                                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-fuchsia-400 hover:text-fuchsia-300 truncate">{url}</a>
                                     ))}
                                   </div>
                                 )}
                                 <button onClick={() => { setContentForm({ ...contentForm, briefingId: b.id }); setShowForm(true); }}
-                                  className="mt-2 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600">
+                                  className="mt-2 px-3 py-1.5 bg-fuchsia-500 text-white rounded-lg text-xs font-medium hover:bg-fuchsia-600">
                                   Subir contenido para este brief
                                 </button>
                               </div>
@@ -742,7 +742,7 @@ export default function PublicInfluencerDashboard() {
                   {/* Submit button */}
                   {!showForm && (
                     <button onClick={() => setShowForm(true)}
-                      className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-2xl text-sm font-medium hover:from-orange-600 hover:to-orange-700 transition-all">
+                      className="w-full py-3 bg-gradient-to-r from-[#ff0080] via-[#a855f7] to-[#00d4ff] text-white rounded-2xl text-sm font-medium hover:brightness-110 transition-all">
                       + Subir contenido
                     </button>
                   )}
@@ -760,7 +760,7 @@ export default function PublicInfluencerDashboard() {
                       ) : (
                         <>
                           <input value={contentForm.contentUrl} onChange={(e) => setContentForm({ ...contentForm, contentUrl: e.target.value })}
-                            placeholder="URL del contenido publicado *" className={`w-full px-3 py-2 ${inputBg} border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30`} />
+                            placeholder="URL del contenido publicado *" className={`w-full px-3 py-2 ${inputBg} border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500/30`} />
                           <div className="grid grid-cols-2 gap-3">
                             <select value={contentForm.type} onChange={(e) => setContentForm({ ...contentForm, type: e.target.value })} className={`w-full px-3 py-2 ${inputBg} border rounded-xl text-sm`}>
                               {CONTENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -782,12 +782,12 @@ export default function PublicInfluencerDashboard() {
                           {contentForm.briefingId && (
                             <p className={`text-xs ${textMuted}`}>
                               Brief: {briefings.find((b) => b.id === contentForm.briefingId)?.title}
-                              <button onClick={() => setContentForm({ ...contentForm, briefingId: "" })} className="ml-2 text-orange-400">cambiar</button>
+                              <button onClick={() => setContentForm({ ...contentForm, briefingId: "" })} className="ml-2 text-fuchsia-400">cambiar</button>
                             </p>
                           )}
                           <div className="flex gap-2">
                             <button onClick={handleContentSubmit} disabled={submitting || !contentForm.contentUrl}
-                              className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-50">
+                              className="flex-1 py-2.5 bg-fuchsia-500 text-white rounded-xl text-sm font-medium hover:bg-fuchsia-600 disabled:opacity-50">
                               {submitting ? "Enviando..." : "Enviar contenido"}
                             </button>
                             <button onClick={() => { setShowForm(false); setContentForm({ contentUrl: "", type: "REEL", platform: "INSTAGRAM", caption: "", notes: "", briefingId: "" }); }}
@@ -814,9 +814,9 @@ export default function PublicInfluencerDashboard() {
                                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? "bg-blue-500/20 text-blue-400" : "bg-blue-50 text-blue-600"}`}>{s.briefing.title}</span>
                                 )}
                               </div>
-                              <a href={s.contentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 truncate block mt-0.5">{s.contentUrl}</a>
+                              <a href={s.contentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-fuchsia-400 truncate block mt-0.5">{s.contentUrl}</a>
                               {s.reviewNotes && (
-                                <p className={`text-[10px] mt-1 ${s.status === "APPROVED" ? "text-green-400" : s.status === "REVISION" ? "text-orange-400" : s.status === "REJECTED" ? "text-red-400" : textMuted}`}>
+                                <p className={`text-[10px] mt-1 ${s.status === "APPROVED" ? "text-green-400" : s.status === "REVISION" ? "text-fuchsia-400" : s.status === "REJECTED" ? "text-red-400" : textMuted}`}>
                                   Feedback: {s.reviewNotes}
                                 </p>
                               )}
@@ -841,7 +841,7 @@ export default function PublicInfluencerDashboard() {
 
                   {/* Footer */}
                   <div className="text-center pt-4">
-                    <p className={`text-[10px] ${textFooterBrand}`}>Powered by <span className="text-orange-500 font-medium">NitroSales</span></p>
+                    <p className={`text-[10px] ${textFooterBrand}`}>Powered by <span className="text-fuchsia-500 font-medium">NitroSales</span></p>
                   </div>
                 </>
               )}
