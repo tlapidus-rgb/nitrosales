@@ -741,6 +741,39 @@ export default function CreatorProfilePage() {
                     <Percent size={11} strokeWidth={2.4} />
                     {creator.commissionPercent}% comisión
                   </span>
+                  <button
+                    onClick={() => setEditOpen(true)}
+                    title="Ventana de atribución — click para editar"
+                    className="inline-flex items-center gap-1 px-[3px] py-[3px] rounded-lg text-[12px] tracking-tight transition hover:brightness-110"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+                      boxShadow:
+                        "0 2px 10px rgba(168,85,247,0.28), inset 0 1px 0 rgba(255,255,255,0.18)",
+                    }}
+                  >
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-[3px] rounded-[6px] font-semibold"
+                      style={{
+                        background: THEME.bgPage,
+                        color: THEME.textPrimary,
+                      }}
+                    >
+                      <Target size={11} strokeWidth={2.6} style={{ color: "#ff0080" }} />
+                      <span
+                        className="bg-clip-text text-transparent"
+                        style={{
+                          backgroundImage:
+                            "linear-gradient(90deg,#ff0080,#a855f7,#00d4ff)",
+                        }}
+                      >
+                        {creator.attributionWindowDays}d
+                      </span>
+                      <span style={{ color: THEME.textTertiary, fontWeight: 500 }}>
+                        atribución
+                      </span>
+                    </span>
+                  </button>
                   {creator.email ? (
                     <span className="text-[12px]" style={{ color: THEME.textTertiary }}>
                       {creator.email}
@@ -863,7 +896,7 @@ export default function CreatorProfilePage() {
 
         {/* ─── KPIs (period + lifetime) ──────────────────── */}
         <section
-          className="grid grid-cols-2 md:grid-cols-4 gap-px rounded-2xl overflow-hidden mb-5"
+          className="grid grid-cols-2 md:grid-cols-5 gap-px rounded-2xl overflow-hidden mb-5"
           style={{
             background: THEME.border,
             border: `1px solid ${THEME.border}`,
@@ -894,6 +927,54 @@ export default function CreatorProfilePage() {
             sub={`${fmtNum(kpis.lifetime.orders)} órdenes · ${fmtARS(kpis.lifetime.commissionEarned)} en comisiones`}
             icon={<Trophy size={14} strokeWidth={2.2} />}
           />
+          {/* Attribution window — destacado con borde gradient */}
+          <button
+            onClick={() => setEditOpen(true)}
+            className="relative p-4 text-left transition hover:brightness-110"
+            style={{
+              background: THEME.bgCard,
+            }}
+            title="Click para editar la ventana de atribución"
+          >
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(255,0,128,0.06) 0%, rgba(168,85,247,0.05) 50%, rgba(0,212,255,0.06) 100%)",
+              }}
+            />
+            <div
+              className="absolute top-0 left-0 right-0 h-[2px]"
+              style={{
+                background:
+                  "linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+              }}
+            />
+            <div className="relative">
+              <div
+                className="flex items-center gap-1.5 text-[10.5px] tracking-[0.12em] uppercase font-semibold mb-2"
+                style={{ color: THEME.textMuted }}
+              >
+                <Target size={12} strokeWidth={2.4} style={{ color: "#ff0080" }} />
+                Ventana atribución
+              </div>
+              <div
+                className="text-[22px] font-semibold leading-none tracking-tight bg-clip-text text-transparent"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(90deg,#ff0080,#a855f7,#00d4ff)",
+                }}
+              >
+                {creator.attributionWindowDays} días
+              </div>
+              <div
+                className="mt-1.5 text-[11px] tracking-tight"
+                style={{ color: THEME.textTertiary }}
+              >
+                Powered by NitroPixel
+              </div>
+            </div>
+          </button>
         </section>
 
         {/* ─── ACCESO AL DASHBOARD (contraseña + enviar por mail) ─── */}

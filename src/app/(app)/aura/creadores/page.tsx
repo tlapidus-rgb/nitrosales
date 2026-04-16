@@ -33,6 +33,7 @@ import {
   PauseCircle,
   CheckCircle2,
   SlidersHorizontal,
+  Target,
 } from "lucide-react";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -102,6 +103,7 @@ type Creator = {
   profileImage: string | null;
   status: string;
   commissionPercent: number;
+  attributionWindowDays: number;
   revenue: number;
   orders: number;
   aov: number;
@@ -342,8 +344,30 @@ function CreatorCard({ creator, delay }: { creator: Creator; delay: number }) {
             </span>
           ) : null}
         </div>
-        <div className="text-[11px] tracking-tight" style={{ color: THEME.textTertiary }}>
-          {fmtDaysAgo(creator.lastSaleAt)}
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10.5px] font-semibold tracking-tight"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(255,0,128,0.10), rgba(168,85,247,0.08), rgba(0,212,255,0.10))",
+              border: "1px solid rgba(168,85,247,0.28)",
+            }}
+            title={`Ventana de atribución personalizada: ${creator.attributionWindowDays} días (Powered by NitroPixel)`}
+          >
+            <Target size={10} strokeWidth={2.4} style={{ color: "#ff0080" }} />
+            <span
+              className="bg-clip-text text-transparent tabular-nums"
+              style={{
+                backgroundImage:
+                  "linear-gradient(90deg,#ff0080,#a855f7,#00d4ff)",
+              }}
+            >
+              {creator.attributionWindowDays}d
+            </span>
+          </span>
+          <div className="text-[11px] tracking-tight" style={{ color: THEME.textTertiary }}>
+            {fmtDaysAgo(creator.lastSaleAt)}
+          </div>
         </div>
       </div>
     </Link>
