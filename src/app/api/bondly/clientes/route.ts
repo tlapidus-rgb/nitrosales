@@ -44,9 +44,11 @@ type QuickSegmentKey =
   | "cart_abandoned"   // ADD_TO_CART últimos 14d sin PURCHASE posterior
   | "reappeared"       // activo en pixel últimos 7d pero había estado > 30d inactivo
   | "dormant"          // > 180 días sin comprar
-  | "champions";       // 4+ órdenes con recencia <= 30 días
+  | "champions"        // 4+ órdenes con recencia <= 30 días
+  | "anonymous"        // pixel visitors sin customerId
+  | "identified";      // solo clientes identificados
 
-type Tier = "VIP" | "Loyal" | "Regular" | "New" | "At Risk" | "Dormant";
+type Tier = "VIP" | "Loyal" | "Regular" | "New" | "At Risk" | "Dormant" | "Anonymous";
 
 interface EnrichedCustomer {
   id: string;
@@ -166,6 +168,8 @@ export async function GET(request: NextRequest) {
     // con source='VTEX' (los totalSpent pueden incluir MELI de antes).
 
     // 1) KPIs de la zona superior (totales globales del periodo)
+    //    total_customers = identificados (con orden en periodo) + anónimos
+    //    (pixel_visitors con customerId NULL vistos por última vez en el periodo)
     const kpisPromise = prisma.$queryRawUnsafe<Array<{
       total_customers: string;
       new_7d: string;
@@ -187,14 +191,38 @@ export async function GET(request: NextRequest) {
         SELECT percentile_cont(0.9) WITHIN GROUP (ORDER BY spent) AS p90
         FROM lifetime
       ),
-      period_customers AS (
-        SELECT DISTINCT o."customerId"
-        FROM orders o
-        WHERE o."organizationId" = '${ORG_ID}'
-          AND o."source" = 'VTEX'
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
-          AND o."customerId" IS NOT NULL
-          AND o."orderDate" >= $1 AND o."orderDate" <= $2
+      -- Identificados con última actividad (orden o visita) en el periodo
+      period_identified AS (
+        SELECT DISTINCT c.id AS customer_id
+        FROM customers c
+        LEFT JOIN (
+          SELECT o."customerId", MAX(o."orderDate") AS last_order_at
+          FROM orders o
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o."source" = 'VTEX'
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o."customerId" IS NOT NULL
+          GROUP BY o."customerId"
+        ) ord ON ord."customerId" = c.id
+        LEFT JOIN (
+          SELECT v."customerId", MAX(v."lastSeenAt") AS last_visit_at
+          FROM pixel_visitors v
+          WHERE v."organizationId" = '${ORG_ID}' AND v."customerId" IS NOT NULL
+          GROUP BY v."customerId"
+        ) px ON px."customerId" = c.id
+        WHERE c."organizationId" = '${ORG_ID}'
+          AND GREATEST(COALESCE(ord.last_order_at, '1900-01-01'::timestamp), COALESCE(px.last_visit_at, '1900-01-01'::timestamp)) >= $1
+          AND GREATEST(COALESCE(ord.last_order_at, '1900-01-01'::timestamp), COALESCE(px.last_visit_at, '1900-01-01'::timestamp)) <= $2
+      ),
+      -- Anónimos con visita en el periodo (cap 12 meses hacia atrás por seguridad)
+      period_anonymous AS (
+        SELECT COUNT(*)::int AS n
+        FROM pixel_visitors v
+        WHERE v."organizationId" = '${ORG_ID}'
+          AND v."customerId" IS NULL
+          AND v."lastSeenAt" IS NOT NULL
+          AND v."lastSeenAt" >= GREATEST($1, NOW() - INTERVAL '12 months')
+          AND v."lastSeenAt" <= $2
       ),
       new_7d AS (
         SELECT COUNT(*)::int AS n FROM customers c
@@ -202,10 +230,9 @@ export async function GET(request: NextRequest) {
           AND c."firstOrderAt" >= NOW() - INTERVAL '7 days'
       ),
       active_now AS (
-        SELECT COUNT(DISTINCT v."customerId")::int AS n
+        SELECT COUNT(DISTINCT v.id)::int AS n
         FROM pixel_visitors v
         WHERE v."organizationId" = '${ORG_ID}'
-          AND v."customerId" IS NOT NULL
           AND v."lastSeenAt" >= NOW() - INTERVAL '10 minutes'
       ),
       vip_count AS (
@@ -214,7 +241,7 @@ export async function GET(request: NextRequest) {
         WHERE l.spent >= vc.p90
       )
       SELECT
-        (SELECT COUNT(*)::text FROM period_customers) AS total_customers,
+        ((SELECT COUNT(*) FROM period_identified) + (SELECT n FROM period_anonymous))::text AS total_customers,
         (SELECT n::text FROM new_7d) AS new_7d,
         (SELECT n::text FROM active_now) AS active_now,
         (SELECT n::text FROM vip_count) AS vip_count
@@ -282,6 +309,15 @@ export async function GET(request: NextRequest) {
             WHERE e."visitorId" = v.id
               AND e.timestamp < NOW() - INTERVAL '30 days'
           )
+      UNION ALL
+      SELECT 'anonymous' AS key, COUNT(*)::text AS n
+        FROM pixel_visitors v
+        WHERE v."organizationId" = '${ORG_ID}'
+          AND v."customerId" IS NULL
+          AND v."lastSeenAt" IS NOT NULL
+          AND v."lastSeenAt" >= NOW() - INTERVAL '12 months'
+      UNION ALL
+      SELECT 'identified' AS key, COUNT(*)::text AS n FROM lifetime
     `);
 
     // 3) Ciudades top para filter dropdown
@@ -375,68 +411,19 @@ export async function GET(request: NextRequest) {
       )`;
     }
 
-    // Count query (same filters, no pagination)
+    // Lista completa (identificados + anónimos) SIN paginar — cap defensivo
+    // de 5000 + 5000 por request. El paginado y ordenamiento final los hacemos
+    // en JS sobre el array combinado, para poder unificar ambos tipos.
     //
     // NOTA: usamos DISTINCT ON (customerId) para que la CTE pixel
     // devuelva exactamente 1 fila por cliente (el visitor más reciente).
-    // Sin esto, un cliente con múltiples visitor records produciría
-    // filas duplicadas en el JOIN y rompería el COUNT.
-    const countQuery = `
-      WITH commerce AS (
-        SELECT o."customerId",
-               COUNT(*)::int AS orders_ct,
-               SUM(o."totalValue") AS spent,
-               MAX(o."orderDate") AS last_order_at,
-               MIN(o."orderDate") AS first_order_at,
-               EXTRACT(DAY FROM NOW() - MAX(o."orderDate"))::int AS recency
-        FROM orders o
-        WHERE o."organizationId" = '${ORG_ID}'
-          AND o."source" = 'VTEX'
-          AND o.status NOT IN ('CANCELLED', 'RETURNED')
-          AND o."customerId" IS NOT NULL
-        GROUP BY o."customerId"
-      ),
-      ranked AS (
-        SELECT c2.*, NTILE(10) OVER (ORDER BY c2.spent) AS decile FROM commerce c2
-      ),
-      pixel AS (
-        SELECT DISTINCT ON (v."customerId")
-               v."customerId",
-               v."lastSeenAt" AS last_visit_at,
-               (EXISTS (
-                 SELECT 1 FROM pixel_events e
-                 WHERE e."visitorId" = v.id
-                   AND e.type = 'ADD_TO_CART'
-                   AND e.timestamp >= NOW() - INTERVAL '14 days'
-                   AND NOT EXISTS (
-                     SELECT 1 FROM pixel_events ep
-                     WHERE ep."visitorId" = v.id
-                       AND ep.type = 'PURCHASE'
-                       AND ep.timestamp > e.timestamp
-                   )
-               )) AS has_open_cart,
-               (v."lastSeenAt" >= NOW() - INTERVAL '7 days'
-                AND EXISTS (
-                  SELECT 1 FROM pixel_events eo
-                  WHERE eo."visitorId" = v.id
-                    AND eo.timestamp < NOW() - INTERVAL '30 days'
-                )) AS is_reappeared
-        FROM pixel_visitors v
-        WHERE v."organizationId" = '${ORG_ID}' AND v."customerId" IS NOT NULL
-        ORDER BY v."customerId", v."lastSeenAt" DESC NULLS LAST
-      )
-      SELECT COUNT(*)::text AS n
-      FROM customers c
-      JOIN ranked r ON r."customerId" = c.id
-      LEFT JOIN pixel px ON px."customerId" = c.id
-      WHERE c."organizationId" = '${ORG_ID}'
-        ${quickClause.replace(/\bdecile\b/g, "r.decile").replace(/\borders_ct\b/g, "r.orders_ct").replace(/\brecency\b/g, "r.recency").replace(/\blast_visit_at\b/g, "px.last_visit_at").replace(/\bhas_open_cart\b/g, "px.has_open_cart").replace(/\bis_reappeared\b/g, "px.is_reappeared")}
-        ${cityClause}
-        ${searchClause}
-    `;
 
-    // Listado paginado (heavy query — single pass)
-    const listQuery = `
+    // Quick-segment aplica SOLO a identificados salvo los globales
+    // (browsing_now, cart_abandoned) que también aplican a anónimos.
+    // Para anonymous/identified usamos el filtro en JS, no SQL.
+    const applyQuickInIdentifiedSQL = !["anonymous"].includes(quickSegment);
+
+    const identifiedQuery = `
       WITH commerce AS (
         SELECT o."customerId",
                COUNT(*)::int AS orders_ct,
@@ -486,6 +473,7 @@ export async function GET(request: NextRequest) {
       )
       SELECT
         c.id,
+        'identified'::text AS kind,
         c."externalId" AS external_id,
         TRIM(COALESCE(c."firstName", '') || ' ' || COALESCE(c."lastName", '')) AS name,
         c.email,
@@ -504,30 +492,98 @@ export async function GET(request: NextRequest) {
         COALESCE(px.total_sessions, 0) AS total_sessions,
         COALESCE(px.total_pvs, 0) AS total_pvs,
         COALESCE(px.has_open_cart, FALSE) AS has_open_cart,
-        COALESCE(px.is_reappeared, FALSE) AS is_reappeared
+        COALESCE(px.is_reappeared, FALSE) AS is_reappeared,
+        GREATEST(COALESCE(r.last_order_at, '1900-01-01'::timestamp), COALESCE(px.last_visit_at, '1900-01-01'::timestamp)) AS last_activity_at
       FROM customers c
       JOIN ranked r ON r."customerId" = c.id
       LEFT JOIN pixel px ON px."customerId" = c.id
       LEFT JOIN pixel_visitors pv ON pv.id = px.visitor_id
       WHERE c."organizationId" = '${ORG_ID}'
-        ${quickClause.replace(/\bdecile\b/g, "r.decile").replace(/\borders_ct\b/g, "r.orders_ct").replace(/\brecency\b/g, "r.recency").replace(/\blast_visit_at\b/g, "px.last_visit_at").replace(/\bhas_open_cart\b/g, "px.has_open_cart").replace(/\bis_reappeared\b/g, "px.is_reappeared")}
+        AND GREATEST(COALESCE(r.last_order_at, '1900-01-01'::timestamp), COALESCE(px.last_visit_at, '1900-01-01'::timestamp)) >= $1
+        AND GREATEST(COALESCE(r.last_order_at, '1900-01-01'::timestamp), COALESCE(px.last_visit_at, '1900-01-01'::timestamp)) <= $2
+        ${quickSegment === "anonymous" ? "AND FALSE" : (applyQuickInIdentifiedSQL ? quickClause.replace(/\bdecile\b/g, "r.decile").replace(/\borders_ct\b/g, "r.orders_ct").replace(/\brecency\b/g, "r.recency").replace(/\blast_visit_at\b/g, "px.last_visit_at").replace(/\bhas_open_cart\b/g, "px.has_open_cart").replace(/\bis_reappeared\b/g, "px.is_reappeared") : "")}
         ${cityClause}
         ${searchClause}
-      ORDER BY ${orderBy}
-      LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+      ORDER BY last_activity_at DESC NULLS LAST
+      LIMIT 5000
     `;
 
-    const [countRow, listRows] = await Promise.all([
-      prisma.$queryRawUnsafe<Array<{ n: string }>>(countQuery),
-      prisma.$queryRawUnsafe<Array<any>>(listQuery),
+    // Anónimos: pixel_visitors con customerId NULL, en el periodo,
+    // capado a 12 meses hacia atrás por performance.
+    const includeAnonymous =
+      quickSegment === "all" ||
+      quickSegment === "anonymous" ||
+      quickSegment === "browsing_now" ||
+      quickSegment === "cart_abandoned";
+    const skipAnonForSearch = !!search || !!cityFilter; // anónimos no tienen email/nombre/ciudad
+    const anonymousQuery = (!includeAnonymous || skipAnonForSearch)
+      ? ""
+      : `
+      SELECT
+        ('anon_' || v.id)::text AS id,
+        'anonymous'::text AS kind,
+        v.id AS external_id,
+        'Anónimo'::text AS name,
+        NULL::text AS email,
+        NULL::text AS phone,
+        ''::text AS city,
+        NULL::text AS state,
+        0::int AS orders_ct,
+        '0'::text AS total_spent,
+        '0'::text AS avg_ticket,
+        NULL::int AS decile,
+        NULL::int AS recency,
+        NULL::timestamp AS last_order_at,
+        NULL::timestamp AS first_order_at,
+        v."lastSeenAt" AS last_visit_at,
+        v.id AS visitor_id,
+        COALESCE(v."totalSessions", 0) AS total_sessions,
+        COALESCE(v."totalPageViews", 0) AS total_pvs,
+        (EXISTS (
+          SELECT 1 FROM pixel_events e
+          WHERE e."visitorId" = v.id
+            AND e.type = 'ADD_TO_CART'
+            AND e.timestamp >= NOW() - INTERVAL '14 days'
+            AND NOT EXISTS (
+              SELECT 1 FROM pixel_events ep
+              WHERE ep."visitorId" = v.id
+                AND ep.type = 'PURCHASE'
+                AND ep.timestamp > e.timestamp
+            )
+        )) AS has_open_cart,
+        FALSE AS is_reappeared,
+        v."lastSeenAt" AS last_activity_at
+      FROM pixel_visitors v
+      WHERE v."organizationId" = '${ORG_ID}'
+        AND v."customerId" IS NULL
+        AND v."lastSeenAt" IS NOT NULL
+        AND v."lastSeenAt" >= GREATEST($1, NOW() - INTERVAL '12 months')
+        AND v."lastSeenAt" <= $2
+        ${quickSegment === "browsing_now" ? `AND v."lastSeenAt" >= NOW() - INTERVAL '10 minutes'` : ""}
+      ORDER BY v."lastSeenAt" DESC
+      LIMIT 5000
+    `;
+
+    const [identifiedRows, anonymousRows] = await Promise.all([
+      prisma.$queryRawUnsafe<Array<any>>(identifiedQuery, dateFrom, dateTo),
+      anonymousQuery
+        ? prisma.$queryRawUnsafe<Array<any>>(anonymousQuery, dateFrom, dateTo)
+        : Promise.resolve([] as Array<any>),
     ]);
 
-    const totalFiltered = Number(countRow[0]?.n || 0);
+    // Filtro adicional en JS para quickSegment=cart_abandoned sobre anónimos
+    // (el SQL ya trae has_open_cart = TRUE/FALSE, acá descartamos los FALSE).
+    const anonymousFiltered = anonymousRows.filter((r: any) => {
+      if (quickSegment === "cart_abandoned") return !!r.has_open_cart;
+      return true;
+    });
 
-    // Enriquecimiento por cliente visible: acquisition channel + favorite product
-    // (query separada sobre los visitors de esta página — eficiente)
+    const listRows = [...identifiedRows, ...anonymousFiltered];
+
+    // Enriquecimiento: acquisition channel (aplica a todos con visitor_id)
+    //                  favorite product (solo identificados con customerId)
     const visitorIds = listRows.map(r => r.visitor_id).filter(Boolean);
-    const customerIds = listRows.map(r => r.id);
+    const customerIds = listRows.filter((r: any) => r.kind === "identified").map(r => r.id);
 
     let acquisitionByVisitor: Record<string, { channel: string | null; campaign: string | null }> = {};
     let favoriteByCustomer: Record<string, { name: string | null; image: string | null }> = {};
@@ -588,11 +644,12 @@ export async function GET(request: NextRequest) {
 
     // Merge + compute derived fields in JS
     const customers: EnrichedCustomer[] = listRows.map((row: any) => {
+      const isAnon = row.kind === "anonymous";
       const totalSpent = Number(row.total_spent || 0);
       const avgTicket = Number(row.avg_ticket || 0);
       const orders = Number(row.orders_ct || 0);
       const decile = Number(row.decile || 1);
-      const clvRank = decile * 10; // rough percentile
+      const clvRank = isAnon ? 0 : decile * 10;
       const recencyDays = row.recency != null ? Number(row.recency) : null;
 
       const lastVisitAt: string | null = row.last_visit_at ? new Date(row.last_visit_at).toISOString() : null;
@@ -602,24 +659,25 @@ export async function GET(request: NextRequest) {
       const isActiveNow = lastVisitMinutesAgo != null && lastVisitMinutesAgo < 10;
 
       const acq = row.visitor_id ? acquisitionByVisitor[row.visitor_id] : null;
-      const fav = favoriteByCustomer[row.id] || { name: null, image: null };
+      const fav = isAnon ? { name: null, image: null } : (favoriteByCustomer[row.id] || { name: null, image: null });
 
-      const tier = computeTier(orders, totalSpent, clvRank, recencyDays);
-      const segment = computeSegment(orders, recencyDays);
+      const tier: Tier = isAnon ? "Anonymous" : computeTier(orders, totalSpent, clvRank, recencyDays);
+      const segment = isAnon ? "Anónimo" : computeSegment(orders, recencyDays);
 
       const flags: string[] = [];
-      if (decile === 10) flags.push("vip");
+      if (isAnon) flags.push("anonymous");
+      if (!isAnon && decile === 10) flags.push("vip");
       if (isActiveNow) flags.push("browsing_now");
       if (row.has_open_cart) flags.push("cart_abandoned");
       if (row.is_reappeared) flags.push("reappeared");
-      if (row.first_order_at && new Date(row.first_order_at).getTime() > Date.now() - 7 * MS_PER_DAY) flags.push("new_7d");
-      if (recencyDays != null && recencyDays > 180) flags.push("dormant");
-      if (recencyDays != null && recencyDays >= 60 && recencyDays <= 180 && orders >= 2) flags.push("at_risk");
+      if (!isAnon && row.first_order_at && new Date(row.first_order_at).getTime() > Date.now() - 7 * MS_PER_DAY) flags.push("new_7d");
+      if (!isAnon && recencyDays != null && recencyDays > 180) flags.push("dormant");
+      if (!isAnon && recencyDays != null && recencyDays >= 60 && recencyDays <= 180 && orders >= 2) flags.push("at_risk");
 
       return {
         id: row.id,
         externalId: row.external_id,
-        name: row.name || "Sin nombre",
+        name: isAnon ? "Anónimo" : (row.name || "Sin nombre"),
         email: row.email || null,
         phone: row.phone || null,
         city: row.city || null,
@@ -644,6 +702,7 @@ export async function GET(request: NextRequest) {
         favoriteProductName: fav.name,
         favoriteProductImage: fav.image,
         flags,
+        kind: isAnon ? "anonymous" : "identified",
       };
     });
 
@@ -653,8 +712,35 @@ export async function GET(request: NextRequest) {
       filteredCustomers = filteredCustomers.filter(c => c.acquisitionChannel === channelFilter);
     }
     if (segmentFilter) {
-      filteredCustomers = filteredCustomers.filter(c => c.segment === segmentFilter);
+      // Segmento RFM no aplica a anónimos
+      filteredCustomers = filteredCustomers.filter(c => (c as any).kind !== "anonymous" && c.segment === segmentFilter);
     }
+
+    // Sort final combinado (identificados + anónimos ya están en el mismo array)
+    filteredCustomers.sort((a, b) => {
+      switch (sort) {
+        case "last_visit":
+          return (b.lastVisitAt ? new Date(b.lastVisitAt).getTime() : 0) - (a.lastVisitAt ? new Date(a.lastVisitAt).getTime() : 0);
+        case "first_identified":
+          return (b.firstOrderAt ? new Date(b.firstOrderAt).getTime() : 0) - (a.firstOrderAt ? new Date(a.firstOrderAt).getTime() : 0);
+        case "ltv":
+          return b.totalSpent - a.totalSpent;
+        case "orders":
+          return b.totalOrders - a.totalOrders;
+        case "aov":
+          return b.avgTicket - a.avgTicket;
+        case "name":
+          return (a.name || "").localeCompare(b.name || "", "es");
+        case "last_order":
+        default:
+          return (b.lastOrderAt ? new Date(b.lastOrderAt).getTime() : 0) - (a.lastOrderAt ? new Date(a.lastOrderAt).getTime() : 0);
+      }
+    });
+
+    // Paginación en JS sobre el combined
+    const totalFiltered = filteredCustomers.length;
+    const offset = (page - 1) * pageSize;
+    const pagedCustomers = filteredCustomers.slice(offset, offset + pageSize);
 
     // Quick segments labels (for chips)
     const countsMap: Record<string, number> = { all: Number(kpisRows[0]?.total_customers || 0) };
@@ -665,6 +751,8 @@ export async function GET(request: NextRequest) {
     const quickSegments: QuickSegmentCount[] = [
       { key: "all", label: "Todos", count: countsMap.all || 0 },
       { key: "browsing_now", label: "Navegando ahora", count: countsMap.browsing_now || 0 },
+      { key: "anonymous", label: "Anónimos", count: countsMap.anonymous || 0 },
+      { key: "identified", label: "Identificados", count: countsMap.identified || 0 },
       { key: "new_7d", label: "Nuevos 7d", count: countsMap.new_7d || 0 },
       { key: "vip", label: "VIP", count: countsMap.vip || 0 },
       { key: "champions", label: "Champions", count: countsMap.champions || 0 },

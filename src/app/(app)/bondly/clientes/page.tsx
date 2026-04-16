@@ -10,6 +10,7 @@ import {
   Crown, Sparkles, Clock, Activity, Filter as FilterIcon,
   Download, X, SlidersHorizontal, CheckCircle2, Globe, Repeat,
   MessageCircle, Mail, Copy, Check, Package, Eye, Hourglass, Moon,
+  UserX, Calendar, UserCheck,
 } from "lucide-react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import { SourceLogo, CHANNEL_LABEL, CHANNEL_TINT } from "@/components/bondly/SourceLogo";
@@ -29,11 +30,14 @@ const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; lab
   New:     { icon: Sparkles,     accent: "#06b6d4", glow: "rgba(6,182,212,0.30)",   label: "NUEVO" },
   "At Risk": { icon: AlertTriangle, accent: "#f59e0b", glow: "rgba(245,158,11,0.35)", label: "EN RIESGO" },
   Dormant: { icon: Moon,         accent: "#94a3b8", glow: "rgba(148,163,184,0.25)", label: "DORMIDO" },
+  Anonymous: { icon: UserX,      accent: "#64748b", glow: "rgba(100,116,139,0.20)", label: "ANÓNIMO" },
 };
 
 const QUICK_SEGMENT_CONFIG: Record<string, { icon: any; gradient: string; solid: string; label: string }> = {
   all:            { icon: Users,          gradient: "linear-gradient(135deg, #475569 0%, #1e293b 100%)", solid: "#1e293b", label: "Todos" },
   browsing_now:   { icon: Activity,       gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", solid: "#06b6d4", label: "Navegando ahora" },
+  anonymous:      { icon: UserX,          gradient: "linear-gradient(135deg, #64748b 0%, #334155 100%)", solid: "#64748b", label: "Anónimos" },
+  identified:     { icon: UserCheck,      gradient: "linear-gradient(135deg, #10b981 0%, #0891b2 100%)", solid: "#10b981", label: "Identificados" },
   new_7d:         { icon: Sparkles,       gradient: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)", solid: "#06b6d4", label: "Nuevos 7d" },
   vip:            { icon: Crown,          gradient: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)", solid: "#a855f7", label: "VIP" },
   champions:      { icon: Star,           gradient: "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)", solid: "#f59e0b", label: "Champions" },
@@ -51,6 +55,16 @@ const SORT_OPTIONS = [
   { value: "orders",           label: "Cantidad de órdenes", hint: "Los más fieles" },
   { value: "aov",              label: "Ticket promedio", hint: "Los de compra más grande" },
   { value: "name",             label: "Alfabético", hint: "A-Z" },
+];
+
+const PERIOD_PRESETS: { key: string; label: string; days: number | null }[] = [
+  { key: "today", label: "Hoy", days: 0 },
+  { key: "7d",    label: "7 días",   days: 7 },
+  { key: "30d",   label: "30 días",  days: 30 },
+  { key: "90d",   label: "90 días",  days: 90 },
+  { key: "12m",   label: "12 meses", days: 365 },
+  { key: "all",   label: "Todo",     days: null },
+  { key: "custom", label: "Custom",  days: -1 },
 ];
 
 const CHANNEL_OPTIONS = [
@@ -164,6 +178,31 @@ export default function ClientesPage() {
   const defaultFrom = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
   const [dateFrom, setDateFrom] = useState(toDateInputValue(defaultFrom));
   const [dateTo, setDateTo] = useState(toDateInputValue(defaultTo));
+  const [periodPreset, setPeriodPreset] = useState<string>("12m");
+
+  const applyPreset = useCallback((key: string) => {
+    const preset = PERIOD_PRESETS.find((p) => p.key === key);
+    if (!preset) return;
+    setPeriodPreset(key);
+    if (preset.days === null) {
+      // "Todo" → rango muy amplio para no filtrar (5 años)
+      const from = new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000);
+      setDateFrom(toDateInputValue(from));
+      setDateTo(toDateInputValue(new Date()));
+    } else if (preset.days === -1) {
+      // Custom → no toca fechas, el usuario elige abajo
+      return;
+    } else if (preset.days === 0) {
+      // Hoy
+      const today = new Date();
+      setDateFrom(toDateInputValue(today));
+      setDateTo(toDateInputValue(today));
+    } else {
+      const from = new Date(Date.now() - preset.days * 24 * 60 * 60 * 1000);
+      setDateFrom(toDateInputValue(from));
+      setDateTo(toDateInputValue(new Date()));
+    }
+  }, []);
 
   const [quickSegment, setQuickSegment] = useState<string>("all");
   const [sort, setSort] = useState<string>("last_order");
@@ -333,7 +372,7 @@ export default function ClientesPage() {
           {/* KPI tiles */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             <KpiTile icon={Users}      iconBg="#eef2ff" iconColor="#6366f1"
-              label="CLIENTES EN PERÍODO" value={kpis.totalCustomers} loading={loading && !data} />
+              label="PERSONAS EN PERÍODO" value={kpis.totalCustomers} loading={loading && !data} />
             <KpiTile icon={Sparkles}   iconBg="#ecfeff" iconColor="#06b6d4"
               label="NUEVOS 7 DÍAS"      value={kpis.new7d}        loading={loading && !data} />
             <KpiTile icon={Activity}   iconBg="#ecfdf5" iconColor="#10b981"
@@ -342,6 +381,69 @@ export default function ClientesPage() {
               label="VIP (DECIL TOP)"   value={kpis.vipCount}     loading={loading && !data} />
           </div>
         </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/*  PERIOD PICKER · presets + custom range                       */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <div
+        className="rounded-2xl bg-white px-3 py-2.5 flex flex-col lg:flex-row lg:items-center gap-3"
+        style={{
+          border: "1px solid rgba(15,23,42,0.06)",
+          boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 12px 30px -18px rgba(15,23,42,0.12)",
+        }}
+      >
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Calendar size={14} className="text-slate-500" />
+          <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-500">
+            PERÍODO · Última actividad
+          </span>
+        </div>
+        <div
+          className="flex gap-1.5 overflow-x-auto flex-1 min-w-0"
+          style={{ scrollbarWidth: "thin" }}
+        >
+          {PERIOD_PRESETS.map((p) => {
+            const active = periodPreset === p.key;
+            return (
+              <button
+                key={p.key}
+                onClick={() => applyPreset(p.key)}
+                className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold whitespace-nowrap"
+                style={{
+                  background: active ? "#0f172a" : "#f8fafc",
+                  color: active ? "#ffffff" : "#475569",
+                  border: active ? "1px solid transparent" : "1px solid rgba(15,23,42,0.06)",
+                  transition: `all 200ms ${ES}`,
+                }}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+        {periodPreset === "custom" && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-lg px-2 py-1.5 text-[12px] bg-slate-50 text-slate-900 outline-none"
+              style={{ border: "1px solid rgba(15,23,42,0.08)" }}
+            />
+            <span className="text-slate-400 text-xs">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom}
+              max={toDateInputValue(new Date())}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-lg px-2 py-1.5 text-[12px] bg-slate-50 text-slate-900 outline-none"
+              style={{ border: "1px solid rgba(15,23,42,0.08)" }}
+            />
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════ */}
@@ -601,7 +703,15 @@ export default function ClientesPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {customers.map((c: any, idx: number) => (
-            <CustomerCard key={c.id} customer={c} index={idx} onClick={() => router.push(`/bondly/clientes/${c.id}`)} />
+            <CustomerCard
+              key={c.id}
+              customer={c}
+              index={idx}
+              onClick={() => {
+                if (c.kind === "anonymous" || c.tier === "Anonymous") return;
+                router.push(`/bondly/clientes/${c.id}`);
+              }}
+            />
           ))}
         </div>
       )}
@@ -722,28 +832,45 @@ function KpiTile({ icon: Icon, iconBg, iconColor, label, value, loading, live }:
 // CustomerCard — la unidad visual premium
 // ═══════════════════════════════════════════════════════════════════
 function CustomerCard({ customer: c, index, onClick }: any) {
+  const isAnon = c.kind === "anonymous" || c.tier === "Anonymous";
   const tier = TIER_CONFIG[c.tier] || TIER_CONFIG.Regular;
   const TierIcon = tier.icon;
-  const avatarGrad = avatarGradientFor(c.id);
+  const avatarGrad = isAnon
+    ? "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)"
+    : avatarGradientFor(c.id);
 
   const primaryFlag = c.flags?.find((f: string) => ["vip", "browsing_now", "cart_abandoned", "reappeared", "new_7d"].includes(f));
 
+  // Anon id short hash for display
+  const anonTag = isAnon
+    ? (() => {
+        const raw = String(c.id || "").replace(/^anon:/, "");
+        const short = raw.slice(-6).toUpperCase();
+        return `#${short || "VISITOR"}`;
+      })()
+    : null;
+
   return (
     <button
-      onClick={onClick}
+      onClick={isAnon ? undefined : onClick}
+      disabled={isAnon}
       className="group relative text-left w-full rounded-2xl bg-white p-4 overflow-hidden"
       style={{
         border: `1px solid rgba(15,23,42,0.06)`,
         boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 10px 30px -22px rgba(15,23,42,0.20)",
         transition: `all 220ms ${ES}`,
         animation: `bondlyFadeSlideIn 420ms ${ES} ${Math.min(index * 30, 400)}ms both`,
+        cursor: isAnon ? "default" : "pointer",
+        opacity: isAnon ? 0.88 : 1,
       }}
       onMouseEnter={(e) => {
+        if (isAnon) return;
         e.currentTarget.style.transform = "translateY(-2px)";
         e.currentTarget.style.boxShadow = `0 1px 0 rgba(15,23,42,0.06), 0 20px 40px -18px ${tier.glow}, 0 30px 60px -30px rgba(15,23,42,0.20)`;
         e.currentTarget.style.borderColor = `${tier.accent}33`;
       }}
       onMouseLeave={(e) => {
+        if (isAnon) return;
         e.currentTarget.style.transform = "";
         e.currentTarget.style.boxShadow = "0 1px 0 rgba(15,23,42,0.04), 0 10px 30px -22px rgba(15,23,42,0.20)";
         e.currentTarget.style.borderColor = "rgba(15,23,42,0.06)";
@@ -791,7 +918,9 @@ function CustomerCard({ customer: c, index, onClick }: any) {
         <div className="flex-1 min-w-0">
           {/* Name + segment chip */}
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-semibold text-slate-900 truncate">{c.name}</h3>
+            <h3 className="text-sm font-semibold text-slate-900 truncate">
+              {isAnon ? "Visitante anónimo" : c.name}
+            </h3>
             <span
               className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold tracking-[0.12em] uppercase flex-shrink-0"
               style={{
@@ -805,34 +934,60 @@ function CustomerCard({ customer: c, index, onClick }: any) {
             </span>
           </div>
 
-          {/* Email + city */}
+          {/* Email + city / anon tag */}
           <div className="flex items-center gap-2 text-[11px] text-slate-500 mb-2.5">
-            {c.email && <span className="truncate">{c.email}</span>}
-            {c.city && (
-              <>
+            {isAnon ? (
+              <span className="inline-flex items-center gap-1 font-mono tracking-[0.12em] text-slate-400">
+                <UserX size={10} />
+                {anonTag}
                 <span className="text-slate-300">·</span>
-                <span className="inline-flex items-center gap-0.5 flex-shrink-0">
-                  <MapPin size={10} />
-                  {c.city}
-                </span>
+                <span className="normal-case tracking-normal text-slate-500">Sin identificar (sólo pixel)</span>
+              </span>
+            ) : (
+              <>
+                {c.email && <span className="truncate">{c.email}</span>}
+                {c.city && (
+                  <>
+                    <span className="text-slate-300">·</span>
+                    <span className="inline-flex items-center gap-0.5 flex-shrink-0">
+                      <MapPin size={10} />
+                      {c.city}
+                    </span>
+                  </>
+                )}
               </>
             )}
           </div>
 
           {/* Commerce metrics row */}
-          <div className="grid grid-cols-3 gap-2 mb-2.5">
-            <Metric label="Gastado" value={formatCompact(c.totalSpent)} accent="#10b981" />
-            <Metric label="Órdenes" value={c.totalOrders.toString()} accent="#6366f1" />
-            <Metric label="Ticket" value={formatCompact(c.avgTicket)} accent="#f59e0b" />
-          </div>
+          {isAnon ? (
+            <div
+              className="rounded-lg px-2.5 py-2 mb-2.5 text-[11px] text-slate-500"
+              style={{
+                background: "#f8fafc",
+                border: "1px dashed rgba(15,23,42,0.08)",
+              }}
+            >
+              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-slate-400">COMMERCE</span>
+              <span className="ml-2">Sin compras — sólo tracking de pixel</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 mb-2.5">
+              <Metric label="Gastado" value={formatCompact(c.totalSpent)} accent="#10b981" />
+              <Metric label="Órdenes" value={c.totalOrders.toString()} accent="#6366f1" />
+              <Metric label="Ticket" value={formatCompact(c.avgTicket)} accent="#f59e0b" />
+            </div>
+          )}
 
           {/* Footer: dates + channel logo */}
           <div className="flex items-center justify-between gap-2 text-[10px]">
             <div className="flex items-center gap-3 text-slate-500">
-              <span className="inline-flex items-center gap-1" title="Última compra">
-                <ShoppingCart size={10} />
-                <span className="font-medium text-slate-700">{formatRelative(c.lastOrderAt)}</span>
-              </span>
+              {!isAnon && (
+                <span className="inline-flex items-center gap-1" title="Última compra">
+                  <ShoppingCart size={10} />
+                  <span className="font-medium text-slate-700">{formatRelative(c.lastOrderAt)}</span>
+                </span>
+              )}
               {c.lastVisitAt && (
                 <span className="inline-flex items-center gap-1" title="Última visita al sitio">
                   <Eye size={10} />
@@ -844,8 +999,10 @@ function CustomerCard({ customer: c, index, onClick }: any) {
               {c.acquisitionChannel && (
                 <SourceLogo channel={c.acquisitionChannel} size={12} withLabel dense />
               )}
-              <ArrowRight size={12} className="text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5"
-                style={{ transition: `all 220ms ${ES}` }} />
+              {!isAnon && (
+                <ArrowRight size={12} className="text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5"
+                  style={{ transition: `all 220ms ${ES}` }} />
+              )}
             </div>
           </div>
 
