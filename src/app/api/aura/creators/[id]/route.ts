@@ -65,6 +65,7 @@ export async function GET(
       recentAttrs,
       recentSubs,
       coupons,
+      deals,
     ] = await Promise.all([
       // KPIs del período
       prisma.influencerAttribution.aggregate({
@@ -152,6 +153,15 @@ export async function GET(
       prisma.influencerCoupon.findMany({
         where: { organizationId: org.id, influencerId: id, isActive: true },
         select: { id: true, code: true, discountPercent: true, discountFixed: true },
+      }).catch(() => []),
+      // Deals (acuerdos de compensación) — todos, ordenados por createdAt desc
+      prisma.influencerDeal.findMany({
+        where: { organizationId: org.id, influencerId: id },
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        include: {
+          campaign: { select: { id: true, name: true } },
+          _count: { select: { payouts: true } },
+        },
       }).catch(() => []),
     ]);
 
@@ -317,6 +327,29 @@ export async function GET(
         },
       },
       campaigns: campaignsEnriched,
+      deals: (deals as any[]).map((d) => ({
+        id: d.id,
+        name: d.name,
+        type: d.type,
+        status: d.status,
+        currency: d.currency,
+        commissionPercent: d.commissionPercent != null ? Number(d.commissionPercent) : null,
+        flatAmount: d.flatAmount != null ? Number(d.flatAmount) : null,
+        flatUnit: d.flatUnit ?? null,
+        bonusAmount: d.bonusAmount != null ? Number(d.bonusAmount) : null,
+        bonusMetric: d.bonusMetric ?? null,
+        bonusTarget: d.bonusTarget != null ? Number(d.bonusTarget) : null,
+        tiers: d.tiers ?? null,
+        cpmRate: d.cpmRate != null ? Number(d.cpmRate) : null,
+        productValue: d.productValue != null ? Number(d.productValue) : null,
+        productDescription: d.productDescription ?? null,
+        startDate: d.startDate ? d.startDate.toISOString() : null,
+        endDate: d.endDate ? d.endDate.toISOString() : null,
+        notes: d.notes ?? null,
+        createdAt: d.createdAt.toISOString(),
+        campaign: d.campaign ? { id: d.campaign.id, name: d.campaign.name } : null,
+        payoutsCount: d._count?.payouts ?? 0,
+      })),
       content: {
         items: contentEnriched,
         totalViews: totalContentViews,

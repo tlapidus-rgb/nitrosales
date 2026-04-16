@@ -52,6 +52,12 @@ import {
   Play,
   ShoppingBag,
   Percent,
+  Handshake,
+  Plus,
+  Layers,
+  Shuffle,
+  Gift,
+  X,
 } from "lucide-react";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -177,6 +183,29 @@ type ContentItem = {
 type Activity =
   | { kind: "sale"; at: string; amount: number; commission: number; campaign: { id: string; name: string } | null }
   | { kind: "content"; at: string; type: string; platform: string; status: string };
+type Deal = {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  currency: string;
+  commissionPercent: number | null;
+  flatAmount: number | null;
+  flatUnit: string | null;
+  bonusAmount: number | null;
+  bonusMetric: string | null;
+  bonusTarget: number | null;
+  tiers: unknown;
+  cpmRate: number | null;
+  productValue: number | null;
+  productDescription: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  notes: string | null;
+  createdAt: string;
+  campaign: { id: string; name: string } | null;
+  payoutsCount: number;
+};
 type ProfileState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -185,6 +214,7 @@ type ProfileState =
       creator: CreatorInfo;
       kpis: Kpis;
       campaigns: Campaign[];
+      deals: Deal[];
       content: { items: ContentItem[]; totalViews: number; avgEngagement: number };
       activity: Activity[];
     };
@@ -527,6 +557,7 @@ export default function CreatorProfilePage() {
   const id = params?.id as string;
   const [state, setState] = useState<ProfileState>({ status: "loading" });
   const [editOpen, setEditOpen] = useState(false);
+  const [dealModalOpen, setDealModalOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedDashboard, setCopiedDashboard] = useState(false);
@@ -624,7 +655,7 @@ export default function CreatorProfilePage() {
     );
   }
 
-  const { creator, kpis, campaigns, content, activity } = state;
+  const { creator, kpis, campaigns, content, activity, deals } = state;
 
   return (
     <div
@@ -982,8 +1013,89 @@ export default function CreatorProfilePage() {
 
         {/* ─── MAIN GRID: 2 cols en desktop ───────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* ─── COL IZQUIERDA (2/3): CAMPAÑAS + CONTENIDO ─── */}
+          {/* ─── COL IZQUIERDA (2/3): DEALS + CAMPAÑAS + CONTENIDO ─── */}
           <div className="lg:col-span-2 space-y-5">
+            {/* DEALS (acuerdos de compensación) */}
+            <section
+              className="rounded-2xl p-5"
+              style={{
+                background: THEME.bgCard,
+                border: `1px solid ${THEME.border}`,
+                animation: `cardIn 580ms ${ES} 100ms both`,
+              }}
+            >
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: THEME.goldSoft,
+                      border: `1px solid ${THEME.goldBorder}`,
+                      color: THEME.gold,
+                    }}
+                  >
+                    <Handshake size={16} strokeWidth={2.2} />
+                  </div>
+                  <div className="min-w-0">
+                    <h2
+                      className="text-[16px] font-semibold tracking-tight"
+                      style={{ color: THEME.textPrimary }}
+                    >
+                      Deals · Acuerdos de compensación
+                    </h2>
+                    <p
+                      className="text-[11.5px] tracking-tight mt-0.5"
+                      style={{ color: THEME.textTertiary }}
+                    >
+                      {deals.length === 0
+                        ? "Sin acuerdos cargados. Sumá el primero para formalizar la relación."
+                        : `${deals.filter((d) => d.status === "ACTIVE").length} activos · ${deals.length} totales`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/aura/deals?influencerId=${creator.id}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-medium tracking-tight"
+                    style={{
+                      background: THEME.bgSoft,
+                      color: THEME.textSecondary,
+                      border: `1px solid ${THEME.border}`,
+                    }}
+                  >
+                    Ver todos
+                    <ExternalLink size={12} strokeWidth={2.4} />
+                  </Link>
+                  <button
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold tracking-tight"
+                    style={{
+                      background: THEME.gradient,
+                      color: "#fff",
+                      boxShadow: "0 4px 14px rgba(255, 0, 128, 0.28)",
+                    }}
+                    onClick={() => setDealModalOpen(true)}
+                  >
+                    <Plus size={12} strokeWidth={2.8} />
+                    Nuevo deal
+                  </button>
+                </div>
+              </div>
+
+              {deals.length === 0 ? (
+                <EmptyBlock
+                  icon={<Handshake size={24} strokeWidth={1.6} style={{ color: THEME.textMuted }} />}
+                  title="Aún no hay deals formalizados"
+                  subtitle="Un deal define cómo se compensa al creador: comisión %, monto fijo, bonos por objetivos, tramos, CPM, gifting o híbridos. Cargalo para que los pagos queden claros desde el arranque."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {deals.map((d) => (
+                    <DealCard key={d.id} deal={d} />
+                  ))}
+                </div>
+              )}
+            </section>
+
             {/* CAMPAÑAS */}
             <section
               className="rounded-2xl p-5"
@@ -1196,6 +1308,17 @@ export default function CreatorProfilePage() {
           onClose={() => setEditOpen(false)}
           onSaved={() => {
             setEditOpen(false);
+            load();
+          }}
+        />
+      ) : null}
+
+      {dealModalOpen ? (
+        <DealModal
+          creator={creator}
+          onClose={() => setDealModalOpen(false)}
+          onSaved={() => {
+            setDealModalOpen(false);
             load();
           }}
         />
@@ -1846,6 +1969,542 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </div>
       {children}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DEAL CARD
+// ═══════════════════════════════════════════════════════════════════
+const DEAL_TYPE_META: Record<
+  string,
+  { label: string; icon: React.ReactNode; tone: { color: string; bg: string; border: string } }
+> = {
+  COMMISSION: {
+    label: "Comisión %",
+    icon: <Percent size={12} strokeWidth={2.4} />,
+    tone: { color: "#a855f7", bg: "rgba(168, 85, 247, 0.10)", border: "rgba(168, 85, 247, 0.26)" },
+  },
+  FLAT_FEE: {
+    label: "Monto fijo",
+    icon: <DollarSign size={12} strokeWidth={2.4} />,
+    tone: { color: "#00d4ff", bg: "rgba(0, 212, 255, 0.10)", border: "rgba(0, 212, 255, 0.26)" },
+  },
+  PERFORMANCE_BONUS: {
+    label: "Bono por objetivo",
+    icon: <Trophy size={12} strokeWidth={2.4} />,
+    tone: { color: "#ffb84d", bg: "rgba(255, 184, 77, 0.10)", border: "rgba(255, 184, 77, 0.26)" },
+  },
+  TIERED_COMMISSION: {
+    label: "Comisión escalonada",
+    icon: <Layers size={12} strokeWidth={2.4} />,
+    tone: { color: "#ff0080", bg: "rgba(255, 0, 128, 0.10)", border: "rgba(255, 0, 128, 0.26)" },
+  },
+  CPM: {
+    label: "CPM",
+    icon: <Eye size={12} strokeWidth={2.4} />,
+    tone: { color: "#4ade80", bg: "rgba(74, 222, 128, 0.10)", border: "rgba(74, 222, 128, 0.26)" },
+  },
+  GIFTING: {
+    label: "Gifting",
+    icon: <Gift size={12} strokeWidth={2.4} />,
+    tone: { color: "#ff6b8a", bg: "rgba(255, 107, 138, 0.10)", border: "rgba(255, 107, 138, 0.26)" },
+  },
+  HYBRID: {
+    label: "Híbrido",
+    icon: <Shuffle size={12} strokeWidth={2.4} />,
+    tone: { color: "#f5f5f7", bg: "rgba(245, 245, 247, 0.06)", border: "rgba(245, 245, 247, 0.18)" },
+  },
+};
+
+function dealSummaryLines(d: Deal): string[] {
+  const out: string[] = [];
+  if (d.commissionPercent != null) out.push(`${d.commissionPercent}% sobre ventas`);
+  if (d.flatAmount != null) out.push(`${fmtARS(d.flatAmount)}${d.flatUnit ? ` por ${d.flatUnit.toLowerCase()}` : ""}`);
+  if (d.bonusAmount != null) {
+    const tgt = d.bonusTarget != null ? fmtARSCompact(d.bonusTarget) : "meta";
+    const metric = d.bonusMetric ? ` (${d.bonusMetric.toLowerCase()})` : "";
+    out.push(`Bono ${fmtARS(d.bonusAmount)} al superar ${tgt}${metric}`);
+  }
+  if (d.cpmRate != null) out.push(`${fmtARS(d.cpmRate)} / 1K views`);
+  if (d.productValue != null)
+    out.push(`Producto${d.productDescription ? ` — ${d.productDescription}` : ""} · ${fmtARSCompact(d.productValue)}`);
+  if (Array.isArray(d.tiers) && d.tiers.length > 0) {
+    out.push(`${d.tiers.length} tramos escalonados`);
+  }
+  return out;
+}
+
+function DealCard({ deal }: { deal: Deal }) {
+  const meta = DEAL_TYPE_META[deal.type] ?? DEAL_TYPE_META.HYBRID;
+  const lines = dealSummaryLines(deal);
+  const active = deal.status === "ACTIVE";
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{
+        background: THEME.bgSoft,
+        border: `1px solid ${THEME.border}`,
+        opacity: active ? 1 : 0.72,
+      }}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3
+              className="text-[14px] font-semibold tracking-tight truncate"
+              style={{ color: THEME.textPrimary }}
+            >
+              {deal.name}
+            </h3>
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold tracking-tight flex-shrink-0"
+              style={{
+                color: meta.tone.color,
+                background: meta.tone.bg,
+                border: `1px solid ${meta.tone.border}`,
+              }}
+            >
+              {meta.icon}
+              {meta.label}
+            </span>
+            {!active ? (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold tracking-tight"
+                style={{
+                  color: THEME.gray,
+                  background: THEME.graySoft,
+                  border: `1px solid ${THEME.grayBorder}`,
+                }}
+              >
+                {deal.status === "ENDED" ? "Finalizado" : "Pausado"}
+              </span>
+            ) : null}
+          </div>
+          {deal.campaign ? (
+            <div
+              className="text-[11.5px] tracking-tight mt-0.5"
+              style={{ color: THEME.textTertiary }}
+            >
+              Campaña · {deal.campaign.name}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {lines.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {lines.map((l, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center px-2 py-1 rounded-lg text-[11.5px] tabular-nums tracking-tight"
+              style={{
+                color: THEME.textPrimary,
+                background: THEME.bgCard,
+                border: `1px solid ${THEME.border}`,
+              }}
+            >
+              {l}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div
+        className="flex items-center justify-between text-[11px] tracking-tight mt-2 pt-2"
+        style={{ borderTop: `1px dashed ${THEME.border}`, color: THEME.textTertiary }}
+      >
+        <span>
+          {deal.startDate ? fmtDate(deal.startDate) : "Sin inicio"}
+          {deal.endDate ? ` → ${fmtDate(deal.endDate)}` : deal.startDate ? " (sin fin)" : ""}
+        </span>
+        <span>
+          {deal.payoutsCount} {deal.payoutsCount === 1 ? "pago" : "pagos"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DEAL MODAL — creación rápida
+// ═══════════════════════════════════════════════════════════════════
+function DealModal({
+  creator,
+  onClose,
+  onSaved,
+}: {
+  creator: CreatorInfo;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [type, setType] = useState<string>("COMMISSION");
+  const [name, setName] = useState<string>(`Deal ${creator.name}`);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [commissionPercent, setCommissionPercent] = useState<string>(
+    String(creator.commissionPercent ?? "10")
+  );
+  const [flatAmount, setFlatAmount] = useState<string>("");
+  const [flatUnit, setFlatUnit] = useState<string>("CAMPAIGN");
+  const [bonusAmount, setBonusAmount] = useState<string>("");
+  const [bonusMetric, setBonusMetric] = useState<string>("REVENUE");
+  const [bonusTarget, setBonusTarget] = useState<string>("");
+  const [cpmRate, setCpmRate] = useState<string>("");
+  const [productValue, setProductValue] = useState<string>("");
+  const [productDescription, setProductDescription] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
+
+  const TYPE_OPTS: Array<{ value: string; label: string; desc: string; icon: React.ReactNode }> = [
+    { value: "COMMISSION", label: "Comisión %", desc: "Porcentaje sobre ventas atribuidas", icon: <Percent size={14} strokeWidth={2.2} /> },
+    { value: "FLAT_FEE", label: "Monto fijo", desc: "Pago fijo por pieza / mes / campaña", icon: <DollarSign size={14} strokeWidth={2.2} /> },
+    { value: "PERFORMANCE_BONUS", label: "Bono por objetivo", desc: "Bono al alcanzar meta de revenue/órdenes", icon: <Trophy size={14} strokeWidth={2.2} /> },
+    { value: "CPM", label: "CPM", desc: "Pago por cada 1.000 views/impresiones", icon: <Eye size={14} strokeWidth={2.2} /> },
+    { value: "GIFTING", label: "Gifting", desc: "Compensación en producto (sin cash)", icon: <Gift size={14} strokeWidth={2.2} /> },
+    { value: "HYBRID", label: "Híbrido", desc: "Combiná varios modelos en un solo deal", icon: <Shuffle size={14} strokeWidth={2.2} /> },
+  ];
+
+  async function submit() {
+    setSaving(true);
+    setError(null);
+    try {
+      const body: any = {
+        name: name.trim(),
+        type,
+        influencerId: creator.id,
+        currency: "ARS",
+        notes: notes.trim() || null,
+        startDate: startDate || null,
+        endDate: endDate || null,
+      };
+      if (type === "COMMISSION" || type === "HYBRID") {
+        if (commissionPercent) body.commissionPercent = Number(commissionPercent);
+      }
+      if (type === "FLAT_FEE" || type === "HYBRID") {
+        if (flatAmount) body.flatAmount = Number(flatAmount);
+        if (flatUnit) body.flatUnit = flatUnit;
+      }
+      if (type === "PERFORMANCE_BONUS" || type === "HYBRID") {
+        if (bonusAmount) body.bonusAmount = Number(bonusAmount);
+        if (bonusMetric) body.bonusMetric = bonusMetric;
+        if (bonusTarget) body.bonusTarget = Number(bonusTarget);
+      }
+      if (type === "CPM" || type === "HYBRID") {
+        if (cpmRate) body.cpmRate = Number(cpmRate);
+      }
+      if (type === "GIFTING" || type === "HYBRID") {
+        if (productValue) body.productValue = Number(productValue);
+        if (productDescription) body.productDescription = productDescription.trim();
+      }
+      const res = await fetch("/api/aura/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data?.error || "No se pudo crear el deal");
+      }
+      onSaved();
+    } catch (e: any) {
+      setError(e?.message || "Error al guardar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const needs = (t: string) => type === t || type === "HYBRID";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0, 0, 0, 0.72)", animation: `fadeIn 160ms ${ES} both` }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-2xl w-full max-w-[640px] max-h-[92vh] overflow-y-auto"
+        style={{
+          background: "#12121a",
+          border: `1px solid ${THEME.borderStrong}`,
+          animation: `cardIn 220ms ${ES} both`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center justify-between px-6 py-4 sticky top-0 z-10"
+          style={{ background: "#12121a", borderBottom: `1px solid ${THEME.border}` }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: THEME.goldSoft, border: `1px solid ${THEME.goldBorder}`, color: THEME.gold }}
+            >
+              <Handshake size={16} strokeWidth={2.2} />
+            </div>
+            <div>
+              <div className="text-[15px] font-semibold tracking-tight" style={{ color: THEME.textPrimary }}>
+                Nuevo deal
+              </div>
+              <div className="text-[11.5px] tracking-tight" style={{ color: THEME.textTertiary }}>
+                {creator.name} · @{creator.code}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg"
+            style={{ color: THEME.textSecondary, background: THEME.bgSoft }}
+          >
+            <X size={16} strokeWidth={2.2} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Type picker */}
+          <Field label="Tipo de compensación">
+            <div className="grid grid-cols-2 gap-2">
+              {TYPE_OPTS.map((opt) => {
+                const sel = opt.value === type;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setType(opt.value)}
+                    className="text-left rounded-xl px-3 py-2.5 transition"
+                    style={{
+                      background: sel ? THEME.goldSoft : THEME.bgSoft,
+                      border: `1px solid ${sel ? THEME.goldBorder : THEME.border}`,
+                      color: sel ? THEME.gold : THEME.textPrimary,
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5 text-[12.5px] font-semibold tracking-tight">
+                      {opt.icon}
+                      {opt.label}
+                    </div>
+                    <div
+                      className="text-[11px] tracking-tight mt-0.5"
+                      style={{ color: sel ? THEME.gold : THEME.textTertiary }}
+                    >
+                      {opt.desc}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+
+          <Field label="Nombre del deal">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg text-[13px]"
+              style={{
+                background: THEME.bgSoft,
+                border: `1px solid ${THEME.border}`,
+                color: THEME.textPrimary,
+              }}
+              placeholder="Ej: Deal Q2 — Comisión + Bono"
+            />
+          </Field>
+
+          {needs("COMMISSION") ? (
+            <Field label="Comisión sobre ventas (%)">
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="100"
+                value={commissionPercent}
+                onChange={(e) => setCommissionPercent(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-[13px] tabular-nums"
+                style={{
+                  background: THEME.bgSoft,
+                  border: `1px solid ${THEME.border}`,
+                  color: THEME.textPrimary,
+                }}
+              />
+            </Field>
+          ) : null}
+
+          {needs("FLAT_FEE") ? (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Monto fijo (ARS)">
+                <input
+                  type="number"
+                  min="0"
+                  value={flatAmount}
+                  onChange={(e) => setFlatAmount(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-[13px] tabular-nums"
+                  style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+                  placeholder="0"
+                />
+              </Field>
+              <Field label="Unidad">
+                <select
+                  value={flatUnit}
+                  onChange={(e) => setFlatUnit(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-[13px]"
+                  style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+                >
+                  <option value="CAMPAIGN">Por campaña</option>
+                  <option value="REEL">Por Reel</option>
+                  <option value="POST">Por Post</option>
+                  <option value="STORY">Por Story</option>
+                  <option value="UGC">Por UGC</option>
+                </select>
+              </Field>
+            </div>
+          ) : null}
+
+          {needs("PERFORMANCE_BONUS") ? (
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Bono (ARS)">
+                <input
+                  type="number"
+                  min="0"
+                  value={bonusAmount}
+                  onChange={(e) => setBonusAmount(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-[13px] tabular-nums"
+                  style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+                />
+              </Field>
+              <Field label="Métrica">
+                <select
+                  value={bonusMetric}
+                  onChange={(e) => setBonusMetric(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-[13px]"
+                  style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+                >
+                  <option value="REVENUE">Revenue</option>
+                  <option value="ORDERS">Órdenes</option>
+                  <option value="VIEWS">Views</option>
+                  <option value="ENGAGEMENT">Engagement</option>
+                </select>
+              </Field>
+              <Field label="Meta">
+                <input
+                  type="number"
+                  min="0"
+                  value={bonusTarget}
+                  onChange={(e) => setBonusTarget(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-[13px] tabular-nums"
+                  style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+                />
+              </Field>
+            </div>
+          ) : null}
+
+          {needs("CPM") ? (
+            <Field label="Tarifa CPM (ARS por 1.000 views)">
+              <input
+                type="number"
+                min="0"
+                value={cpmRate}
+                onChange={(e) => setCpmRate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-[13px] tabular-nums"
+                style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+              />
+            </Field>
+          ) : null}
+
+          {needs("GIFTING") ? (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Valor del producto (ARS)">
+                <input
+                  type="number"
+                  min="0"
+                  value={productValue}
+                  onChange={(e) => setProductValue(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-[13px] tabular-nums"
+                  style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+                />
+              </Field>
+              <Field label="Descripción">
+                <input
+                  type="text"
+                  value={productDescription}
+                  onChange={(e) => setProductDescription(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-[13px]"
+                  style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+                  placeholder="Ej: Kit bloques Rasti 70pz"
+                />
+              </Field>
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Inicio">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-[13px]"
+                style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+              />
+            </Field>
+            <Field label="Fin (opcional)">
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-[13px]"
+                style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+              />
+            </Field>
+          </div>
+
+          <Field label="Notas (opcional)">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg text-[13px]"
+              style={{ background: THEME.bgSoft, border: `1px solid ${THEME.border}`, color: THEME.textPrimary }}
+              placeholder="Condiciones, exclusividad, entregables…"
+            />
+          </Field>
+
+          {error ? (
+            <div
+              className="rounded-lg px-3 py-2 text-[12px]"
+              style={{ background: THEME.roseSoft, color: THEME.rose, border: `1px solid ${THEME.roseBorder}` }}
+            >
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          className="flex items-center justify-end gap-2 px-6 py-4 sticky bottom-0"
+          style={{ background: "#12121a", borderTop: `1px solid ${THEME.border}` }}
+        >
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl text-[13px] font-medium"
+            style={{ background: THEME.bgSoft, color: THEME.textSecondary, border: `1px solid ${THEME.border}` }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={submit}
+            disabled={saving || !name.trim()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold"
+            style={{
+              background: saving ? THEME.bgSoft : THEME.gradient,
+              color: saving ? THEME.textMuted : "#fff",
+              boxShadow: saving ? "none" : "0 4px 14px rgba(255, 0, 128, 0.28)",
+              opacity: saving || !name.trim() ? 0.6 : 1,
+            }}
+          >
+            <Sparkles size={13} strokeWidth={2.2} />
+            {saving ? "Creando…" : "Crear deal"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
