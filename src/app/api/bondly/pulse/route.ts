@@ -95,29 +95,37 @@ export async function GET() {
       pixelTimelineRows,
       liveSignalsRaw,
     ] = await Promise.all([
-      // Primera orden registrada
+      // Primera orden registrada (solo VTEX: MELI no trae info de cliente para Bondly)
       prisma.$queryRaw<Array<{ first_at: Date | null }>>`
         SELECT MIN("orderDate") AS first_at FROM orders
         WHERE "organizationId" = ${orgId}
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "source" = 'VTEX'
+          AND "customerId" IS NOT NULL
       `,
       // Última orden registrada
       prisma.$queryRaw<Array<{ last_at: Date | null }>>`
         SELECT MAX("orderDate") AS last_at FROM orders
         WHERE "organizationId" = ${orgId}
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "source" = 'VTEX'
+          AND "customerId" IS NOT NULL
       `,
       // Total órdenes válidas
       prisma.$queryRaw<Array<{ cnt: bigint }>>`
         SELECT COUNT(*)::bigint AS cnt FROM orders
         WHERE "organizationId" = ${orgId}
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "source" = 'VTEX'
+          AND "customerId" IS NOT NULL
       `,
       // Órdenes últimas 24h
       prisma.$queryRaw<Array<{ cnt: bigint }>>`
         SELECT COUNT(*)::bigint AS cnt FROM orders
         WHERE "organizationId" = ${orgId}
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "source" = 'VTEX'
+          AND "customerId" IS NOT NULL
           AND "orderDate" >= ${ago24h}
       `,
       // Órdenes últimos 60min
@@ -125,6 +133,8 @@ export async function GET() {
         SELECT COUNT(*)::bigint AS cnt FROM orders
         WHERE "organizationId" = ${orgId}
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "source" = 'VTEX'
+          AND "customerId" IS NOT NULL
           AND "orderDate" >= ${ago60m}
       `,
       // Commerce timeline 30d
@@ -133,6 +143,8 @@ export async function GET() {
         FROM orders
         WHERE "organizationId" = ${orgId}
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND "source" = 'VTEX'
+          AND "customerId" IS NOT NULL
           AND "orderDate" >= ${ago30d}
         GROUP BY day
         ORDER BY day ASC

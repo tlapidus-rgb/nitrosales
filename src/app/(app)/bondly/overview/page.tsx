@@ -632,7 +632,7 @@ function PulseBanner({ pulse, loading, liveSecondsAgo }: { pulse: PulseResp | nu
         <TimelineBar
           kind="commerce"
           label="Datos de ventas"
-          helper="VTEX + MercadoLibre"
+          helper="VTEX · órdenes con cliente"
           startIso={commerceStart}
           endLabel={pulse?.commerce.lastOrderAt ? formatAgoMinutes(pulse.commerce.lastOrderMinutesAgo) : null}
           daysCovered={pulse?.commerce.daysCovered ?? 0}
