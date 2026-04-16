@@ -628,20 +628,42 @@ export default function PublicInfluencerDashboard() {
                   <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Productos vendidos (este mes)</p>
                   {data.topProducts.length > 0 ? (
                     <div className="space-y-3">
-                      {data.topProducts.map((p, i) => (
-                        <div key={i} className="flex items-center gap-3">
-                          {p.imageUrl ? (
-                            <img src={p.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-white/10" />
-                          ) : (
-                            <div className={`w-9 h-9 rounded-lg ${darkMode ? "bg-white/10" : "bg-gray-100"} flex items-center justify-center text-xs`}>📦</div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{p.name}</p>
-                            <p className={`text-[10px] ${textMuted}`}>{p.units} {p.units === 1 ? "unidad" : "unidades"}</p>
+                      {data.topProducts.map((p, i) => {
+                        const src = (p.imageUrl || "").trim();
+                        const httpsSrc = src.startsWith("http://")
+                          ? src.replace(/^http:\/\//i, "https://")
+                          : src;
+                        return (
+                          <div key={i} className="flex items-center gap-3">
+                            {httpsSrc ? (
+                              <img
+                                src={httpsSrc}
+                                alt=""
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                                className="w-9 h-9 rounded-lg object-cover border border-white/10 bg-white/5"
+                                onError={(e) => {
+                                  const img = e.currentTarget;
+                                  img.style.display = "none";
+                                  const fallback = img.nextElementSibling as HTMLElement | null;
+                                  if (fallback) fallback.style.display = "flex";
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className={`w-9 h-9 rounded-lg ${darkMode ? "bg-white/10" : "bg-gray-100"} items-center justify-center text-xs`}
+                              style={{ display: httpsSrc ? "none" : "flex" }}
+                            >
+                              📦
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{p.name}</p>
+                              <p className={`text-[10px] ${textMuted}`}>{p.units} {p.units === 1 ? "unidad" : "unidades"}</p>
+                            </div>
+                            <p className="text-sm font-bold text-fuchsia-400">{fmtARS(p.revenue)}</p>
                           </div>
-                          <p className="text-sm font-bold text-fuchsia-400">{fmtARS(p.revenue)}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-4">
