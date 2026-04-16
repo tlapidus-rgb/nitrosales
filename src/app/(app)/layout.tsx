@@ -84,7 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
           badge: "NEW",
           badgeColor: "#f472b6",
           glowColor: "rgba(244,114,182,0.38)",
-          description: "La nueva home del programa de creators",
+          description: "Tu nuevo canal de ventas.",
         },
         children: [
           { href: "/aura/inicio", label: "Inicio" },
@@ -407,6 +407,48 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139,92,246,0.5); }
           50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(139,92,246,0); }
         }
+        /* ═══ Aura holográfico ═══ */
+        @keyframes auraHoloRotate {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+        @keyframes auraTitleShift {
+          0%, 100% { background-position: 0% 50%; }
+          50%      { background-position: 100% 50%; }
+        }
+        .aura-holo-card { position: relative; isolation: isolate; }
+        .aura-holo-conic::before {
+          content: '';
+          position: absolute;
+          inset: -40%;
+          background: conic-gradient(from 0deg at 50% 50%,
+            rgba(255,0,128,0.18),
+            rgba(168,85,247,0.18),
+            rgba(0,212,255,0.18),
+            rgba(168,85,247,0.18),
+            rgba(255,0,128,0.18));
+          opacity: 0.55;
+          animation: auraHoloRotate 14s linear infinite;
+          pointer-events: none;
+          z-index: 0;
+        }
+        .aura-holo-veil::after {
+          content: '';
+          position: absolute;
+          inset: 1px;
+          background: linear-gradient(180deg, rgba(10,7,20,0.82) 0%, rgba(10,7,20,0.94) 100%);
+          border-radius: 11px;
+          pointer-events: none;
+          z-index: 1;
+        }
+        .aura-holo-title {
+          background: linear-gradient(90deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%);
+          background-size: 220% 100%;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: auraTitleShift 7s ease-in-out infinite;
+        }
       `}</style>
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -547,11 +589,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       ]
                     : [];
                   return (
-                    <div key={item.href} className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""} ${isPixel ? "pixel-card-wrapper" : ""}`}>
+                    <div key={item.href} className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""} ${isPixel ? "pixel-card-wrapper" : ""} ${isAura ? "aura-holo-card" : ""}`}>
                       <Link
                         href={item.href}
                         onClick={() => setSidebarOpen(false)}
-                        className="group block relative rounded-xl overflow-hidden transition-all duration-500"
+                        className={`group block relative rounded-xl overflow-hidden transition-all duration-500 ${isAura ? "aura-holo-conic aura-holo-veil" : ""}`}
                         style={{
                           background: isAurum
                             ? (isActive
@@ -561,6 +603,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             ? (isActive
                                 ? "linear-gradient(135deg, rgba(6,182,212,0.20), rgba(139,92,246,0.10) 50%, rgba(6,182,212,0.04))"
                                 : "linear-gradient(135deg, rgba(6,182,212,0.10), rgba(139,92,246,0.04) 50%, rgba(255,255,255,0.02))")
+                            : isAura
+                            ? "#0a0714"
                             : (isActive
                                 ? `linear-gradient(135deg, ${item.premium.glowColor}, rgba(255,255,255,0.03))`
                                 : "rgba(255,255,255,0.02)"),
@@ -568,6 +612,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             ? (isActive ? "1px solid rgba(251,191,36,0.45)" : "1px solid rgba(251,191,36,0.22)")
                             : isPixel
                             ? (isActive ? "1px solid rgba(6,182,212,0.50)" : "1px solid rgba(6,182,212,0.25)")
+                            : isAura
+                            ? (isActive ? "1px solid rgba(168,85,247,0.40)" : "1px solid rgba(168,85,247,0.18)")
                             : (isActive ? `1px solid ${item.premium.badgeColor}33` : "1px solid rgba(255,255,255,0.06)"),
                           boxShadow: isAurum
                             ? (isActive
@@ -577,6 +623,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             ? (isActive
                                 ? "0 0 32px rgba(6,182,212,0.25), inset 0 1px 0 rgba(165,243,252,0.15)"
                                 : "0 0 18px rgba(6,182,212,0.10), inset 0 1px 0 rgba(165,243,252,0.08)")
+                            : isAura
+                            ? (isActive
+                                ? "0 0 28px rgba(168,85,247,0.22), inset 0 1px 0 rgba(255,255,255,0.06)"
+                                : "0 0 16px rgba(168,85,247,0.10), inset 0 1px 0 rgba(255,255,255,0.04)")
                             : undefined,
                         }}
                       >
@@ -615,13 +665,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           className="absolute top-0 left-2 right-2 h-[1px] opacity-60 group-hover:opacity-100 transition-opacity duration-500"
                           style={{ background: `linear-gradient(90deg, transparent, ${item.premium.badgeColor}, transparent)` }}
                         />
-                        <div className="px-3 py-2.5 flex items-center gap-3">
+                        <div className="px-3 py-2.5 flex items-center gap-3" style={isAura ? { position: "relative", zIndex: 2 } : undefined}>
                           {/* Icon with glow background */}
                           <div
                             className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-105"
                             style={{
-                              background: `linear-gradient(135deg, ${item.premium.glowColor}, ${item.premium.badgeColor}15)`,
-                              boxShadow: isActive ? `0 0 12px ${item.premium.glowColor}` : "none",
+                              background: isAura
+                                ? "linear-gradient(135deg, rgba(255,0,128,0.22), rgba(168,85,247,0.18), rgba(0,212,255,0.20))"
+                                : `linear-gradient(135deg, ${item.premium.glowColor}, ${item.premium.badgeColor}15)`,
+                              boxShadow: isAura
+                                ? (isActive ? "0 0 14px rgba(168,85,247,0.45)" : "0 0 8px rgba(168,85,247,0.25)")
+                                : (isActive ? `0 0 12px ${item.premium.glowColor}` : "none"),
                             }}
                           >
                             {isPixel ? (
@@ -643,28 +697,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className={`text-sm font-semibold transition-colors duration-300 ${isActive ? "text-white" : "text-nitro-text2 group-hover:text-white"}`}>
+                              <span
+                                className={`text-sm font-semibold transition-colors duration-300 ${isAura ? "aura-holo-title" : isActive ? "text-white" : "text-nitro-text2 group-hover:text-white"}`}
+                              >
                                 {item.label}
                               </span>
                               <span
                                 className="px-1.5 py-0.5 rounded-md text-[8px] font-bold font-mono uppercase tracking-widest flex items-center gap-1"
-                                style={{
-                                  background: `${item.premium.badgeColor}20`,
-                                  color: item.premium.badgeColor,
-                                  border: `1px solid ${item.premium.badgeColor}30`,
-                                  textShadow: `0 0 8px ${item.premium.badgeColor}40`,
-                                }}
+                                style={
+                                  isAura
+                                    ? {
+                                        background: "rgba(255,255,255,0.06)",
+                                        color: "rgba(255,255,255,0.85)",
+                                        border: "1px solid rgba(255,255,255,0.12)",
+                                        backdropFilter: "blur(8px)",
+                                        WebkitBackdropFilter: "blur(8px)",
+                                      }
+                                    : {
+                                        background: `${item.premium.badgeColor}20`,
+                                        color: item.premium.badgeColor,
+                                        border: `1px solid ${item.premium.badgeColor}30`,
+                                        textShadow: `0 0 8px ${item.premium.badgeColor}40`,
+                                      }
+                                }
                               >
                                 {item.premium.badge === "LIVE" && (
                                   <span
                                     className="w-1 h-1 rounded-full animate-pulse"
-                                    style={{ backgroundColor: item.premium.badgeColor }}
+                                    style={{ backgroundColor: isAura ? "#a855f7" : item.premium.badgeColor }}
                                   />
                                 )}
                                 {item.premium.badge}
                               </span>
                             </div>
-                            <p className="text-[10px] text-nitro-muted mt-0.5 font-mono tracking-wide">
+                            <p className={`text-[10px] mt-0.5 font-mono tracking-wide ${isAura ? "text-white/55" : "text-nitro-muted"}`}>
                               {item.premium.description}
                             </p>
                           </div>
