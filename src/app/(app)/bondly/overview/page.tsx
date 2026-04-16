@@ -4,11 +4,17 @@
 // Bondly — Overview (hub)
 // ──────────────────────────────────────────────────────────────────────
 // Entry-point del módulo de clientes y fidelización.
-// Zona 1 — Hero identidad (gradient emerald → cyan → indigo).
-// Zona 2 — KPI strip (clientes, LTV, recompra, audiencias).
-// Zona 3 — Mapa RFM clickeable (7 segmentos).
-// Zona 4 — Quick access cards (Clientes / LTV / Audiencias).
-// Light mode premium. Benchmark: Linear / Stripe / Vercel.
+//
+// Zonas:
+//  1. Hero (gradient emerald → cyan → indigo + aurora + prism delimiter)
+//  2. Pulse Banner (2 timelines: Commerce + Pixel Live — el differentiator)
+//  3. KPI strip (clientes / LTV / recompra / audiencias)
+//  4. Señales live preview (top 5 eventos pixel de última hora)
+//  5. Mapa RFM clickeable (7 segmentos)
+//  6. Quick access (Clientes / LTV / Audiencias / Señales)
+//  7. Value statement (footer emocional orientado a resultados)
+//
+// Benchmark: Linear / Stripe / Vercel. First-class product.
 // ══════════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,12 +22,15 @@ import Link from "next/link";
 import {
   Users, Heart, Sparkles, TrendingUp, ArrowRight, Star,
   AlertTriangle, UserPlus, XCircle, Zap, Target, Layers,
-  DollarSign, RefreshCw, Radio,
+  DollarSign, RefreshCw, Radio, ShoppingCart, Eye, UserCheck,
+  Globe, Smartphone, Laptop, Activity, Waves,
 } from "lucide-react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 const BONDLY_GRAD = "linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #6366f1 100%)";
+const COMMERCE_GRAD = "linear-gradient(90deg, #10b981 0%, #059669 100%)";
+const PIXEL_GRAD = "linear-gradient(90deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%)";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -47,6 +56,36 @@ function computeRange(key: RangeKey): { from: Date; to: Date } {
   return { from, to };
 }
 
+function formatShortDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function formatMonthLabel(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("es-AR", { month: "short", year: "2-digit" });
+}
+
+function formatAgoSeconds(secs: number | null): string {
+  if (secs === null || secs === undefined) return "sin actividad";
+  if (secs < 60) return `hace ${secs}s`;
+  if (secs < 3600) return `hace ${Math.floor(secs / 60)}min`;
+  if (secs < 86400) return `hace ${Math.floor(secs / 3600)}h`;
+  return `hace ${Math.floor(secs / 86400)}d`;
+}
+
+function formatAgoMinutes(mins: number | null): string {
+  if (mins === null || mins === undefined) return "sin actividad";
+  if (mins < 1) return "ahora";
+  if (mins < 60) return `hace ${mins}min`;
+  if (mins < 1440) return `hace ${Math.floor(mins / 60)}h`;
+  return `hace ${Math.floor(mins / 1440)}d`;
+}
+
 // ─── Count-up hook ────────────────────────────────────────────────────
 function useCountUp(target: number, duration = 900) {
   const [value, setValue] = useState(0);
@@ -69,6 +108,22 @@ function useCountUp(target: number, duration = 900) {
   return value;
 }
 
+// ─── Live "hace X segundos" ticker ────────────────────────────────────
+function useLiveSecondsAgo(lastEventIso: string | null) {
+  const [seconds, setSeconds] = useState<number | null>(null);
+  useEffect(() => {
+    if (!lastEventIso) { setSeconds(null); return; }
+    const compute = () => {
+      const diff = Math.max(0, Math.floor((Date.now() - new Date(lastEventIso).getTime()) / 1000));
+      setSeconds(diff);
+    };
+    compute();
+    const id = window.setInterval(compute, 1000);
+    return () => window.clearInterval(id);
+  }, [lastEventIso]);
+  return seconds;
+}
+
 // ─── Segment metadata ─────────────────────────────────────────────────
 
 const SEGMENTS: Array<{
@@ -77,17 +132,65 @@ const SEGMENTS: Array<{
   icon: any;
   desc: string;
   color: string;
-  bg: string;
-  border: string;
 }> = [
-  { key: "Champions", label: "Champions", icon: Star, desc: "Gastan mucho, compran siempre", color: "#10b981", bg: "bg-emerald-50", border: "border-emerald-200" },
-  { key: "Leales", label: "Leales", icon: Heart, desc: "Clientes recurrentes fieles", color: "#6366f1", bg: "bg-indigo-50", border: "border-indigo-200" },
-  { key: "Potenciales", label: "Potenciales", icon: TrendingUp, desc: "Segunda compra reciente", color: "#f59e0b", bg: "bg-amber-50", border: "border-amber-200" },
-  { key: "Nuevos", label: "Nuevos", icon: UserPlus, desc: "Primera compra este mes", color: "#06b6d4", bg: "bg-cyan-50", border: "border-cyan-200" },
-  { key: "En riesgo", label: "En riesgo", icon: AlertTriangle, desc: "No compran hace 90+ días", color: "#ef4444", bg: "bg-rose-50", border: "border-rose-200" },
-  { key: "Ocasionales", label: "Ocasionales", icon: Users, desc: "Compran esporádicamente", color: "#94a3b8", bg: "bg-slate-50", border: "border-slate-200" },
-  { key: "Perdidos", label: "Perdidos", icon: XCircle, desc: "Sin actividad hace 180+ días", color: "#6b7280", bg: "bg-gray-50", border: "border-gray-200" },
+  { key: "Champions", label: "Champions", icon: Star, desc: "Gastan mucho, compran siempre", color: "#10b981" },
+  { key: "Leales", label: "Leales", icon: Heart, desc: "Clientes recurrentes fieles", color: "#6366f1" },
+  { key: "Potenciales", label: "Potenciales", icon: TrendingUp, desc: "Segunda compra reciente", color: "#f59e0b" },
+  { key: "Nuevos", label: "Nuevos", icon: UserPlus, desc: "Primera compra este mes", color: "#06b6d4" },
+  { key: "En riesgo", label: "En riesgo", icon: AlertTriangle, desc: "No compran hace 90+ días", color: "#ef4444" },
+  { key: "Ocasionales", label: "Ocasionales", icon: Users, desc: "Compran esporádicamente", color: "#94a3b8" },
+  { key: "Perdidos", label: "Perdidos", icon: XCircle, desc: "Sin actividad hace 180+ días", color: "#6b7280" },
 ];
+
+// ─── Event type metadata ──────────────────────────────────────────────
+
+function eventMeta(type: string): { label: string; icon: any; color: string } {
+  switch (type) {
+    case "PURCHASE": return { label: "Compró", icon: ShoppingCart, color: "#10b981" };
+    case "ADD_TO_CART": return { label: "Agregó al carrito", icon: ShoppingCart, color: "#f59e0b" };
+    case "VIEW_PRODUCT": return { label: "Vio producto", icon: Eye, color: "#06b6d4" };
+    case "IDENTIFY": return { label: "Se identificó", icon: UserCheck, color: "#8b5cf6" };
+    case "PAGE_VIEW": return { label: "Navega", icon: Eye, color: "#64748b" };
+    default: return { label: type, icon: Activity, color: "#64748b" };
+  }
+}
+
+// ─── Types ────────────────────────────────────────────────────────────
+
+type PulseResp = {
+  ok: boolean;
+  commerce: {
+    firstOrderAt: string | null;
+    lastOrderAt: string | null;
+    daysCovered: number;
+    totalOrders: number;
+    ordersLast24h: number;
+    ordersLast60min: number;
+    lastOrderMinutesAgo: number | null;
+    timeline30d: Array<{ day: string; count: number }>;
+  };
+  pixel: {
+    firstEventAt: string | null;
+    lastEventAt: string | null;
+    daysCovered: number;
+    totalEvents: number;
+    eventsLast24h: number;
+    eventsLast5min: number;
+    activeVisitors5min: number;
+    lastEventSecondsAgo: number | null;
+    timeline30d: Array<{ day: string; count: number }>;
+  };
+  signalsPreview: Array<{
+    id: string;
+    type: string;
+    visitorLabel: string;
+    identified: boolean;
+    country: string | null;
+    deviceType: string | null;
+    pageUrl: string | null;
+    receivedAt: string;
+  }>;
+};
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
@@ -95,6 +198,7 @@ export default function BondlyOverviewPage() {
   const [rangeKey, setRangeKey] = useState<RangeKey>("ultimos_365");
   const [data, setData] = useState<any>(null);
   const [audienceSummary, setAudienceSummary] = useState<any>(null);
+  const [pulse, setPulse] = useState<PulseResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,16 +212,19 @@ export default function BondlyOverviewPage() {
       try {
         const from = toInputDate(range.from);
         const to = toInputDate(range.to);
-        const [custRes, audRes] = await Promise.all([
+        const [custRes, audRes, pulseRes] = await Promise.all([
           fetch(`/api/metrics/customers?from=${from}&to=${to}`, { cache: "no-store" }),
           fetch(`/api/audiences`, { cache: "no-store" }).catch(() => null),
+          fetch(`/api/bondly/pulse`, { cache: "no-store" }).catch(() => null),
         ]);
         if (!custRes.ok) throw new Error(`customers ${custRes.status}`);
         const custJson = await custRes.json();
         const audJson = audRes && audRes.ok ? await audRes.json() : null;
+        const pulseJson = pulseRes && pulseRes.ok ? await pulseRes.json() : null;
         if (cancel) return;
         setData(custJson);
         setAudienceSummary(audJson?.summary ?? null);
+        setPulse(pulseJson?.ok ? pulseJson : null);
       } catch (e: any) {
         if (!cancel) setError(e?.message || "Error cargando datos");
       } finally {
@@ -127,6 +234,20 @@ export default function BondlyOverviewPage() {
     fetchAll();
     return () => { cancel = true; };
   }, [range.from, range.to]);
+
+  // Refresh pulse silently every 15s
+  useEffect(() => {
+    const id = window.setInterval(async () => {
+      try {
+        const r = await fetch(`/api/bondly/pulse`, { cache: "no-store" });
+        if (r.ok) {
+          const j = await r.json();
+          if (j?.ok) setPulse(j);
+        }
+      } catch { /* noop */ }
+    }, 15000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // KPI derivations ─────────────────────────────────────────────────
   const totalCustomers = Number(data?.kpis?.totalCustomers ?? 0) || 0;
@@ -147,7 +268,6 @@ export default function BondlyOverviewPage() {
   const repeatCount = useCountUp(repeatPct, 900);
   const audienceCount = useCountUp(totalAudiences, 900);
 
-  // Sparkline peak accent based on rfm revenue
   const topSegment = useMemo(() => {
     let best: { key: string; customers: number; revenue: number } | null = null;
     for (const [k, v] of rfmMap.entries()) {
@@ -156,9 +276,11 @@ export default function BondlyOverviewPage() {
     return best;
   }, [rfmMap]);
 
+  const liveSecondsAgo = useLiveSecondsAgo(pulse?.pixel?.lastEventAt ?? null);
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-white via-[#fbfbfd] to-[#f4f5f8]">
-      {/* ───── Zona 1: Hero ───── */}
+      {/* ═════════ Zona 1: HERO ═════════ */}
       <section className="relative overflow-hidden border-b border-slate-900/[0.06]">
         {/* Aurora gradients */}
         <div aria-hidden className="absolute inset-0 pointer-events-none">
@@ -184,14 +306,14 @@ export default function BondlyOverviewPage() {
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500">Módulo</span>
                   <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15), rgba(99,102,241,0.15))", color: "#0f766e", letterSpacing: "0.05em" }}>
-                    <Sparkles className="w-3 h-3" /> LOYALTY
+                    <Sparkles className="w-3 h-3" /> LOYALTY · CDP
                   </span>
                 </div>
                 <h1 className="text-[44px] leading-[1.05] font-semibold tracking-tight text-slate-900">
                   <span style={{ background: BONDLY_GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Bondly</span>
                 </h1>
                 <p className="mt-2 max-w-xl text-[15px] text-slate-600 leading-relaxed">
-                  Inteligencia de clientes, lifetime value y activación de audiencias en un solo lugar. Entendé quién te compra, por qué vuelven y cómo convertir cada segmento en ventas.
+                  El único lugar donde tus ventas y el comportamiento real de cada cliente viven juntos. Entendé quién compra, qué mira, cuándo vuelve y activalo todo.
                 </p>
               </div>
             </div>
@@ -217,12 +339,18 @@ export default function BondlyOverviewPage() {
         </div>
       </section>
 
-      {/* ───── Zona 2: KPI strip ───── */}
+      {/* ═════════ Zona 2: PULSE BANNER (el differentiator) ═════════ */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-8">
+        <PulseBanner pulse={pulse} loading={loading} liveSecondsAgo={liveSecondsAgo} />
+      </section>
+
+      {/* ═════════ Zona 3: KPI strip ═════════ */}
       <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <BondlyKpi
             label="Clientes totales"
             value={formatCompact(Math.round(totalCustomersCount))}
+            subvalue={pulse && pulse.pixel.activeVisitors5min > 0 ? `${pulse.pixel.activeVisitors5min} activos ahora` : undefined}
             accent="#10b981"
             icon={Users}
             delayMs={0}
@@ -231,6 +359,7 @@ export default function BondlyOverviewPage() {
           <BondlyKpi
             label="LTV promedio"
             value={formatARS(Math.round(ltvCount))}
+            subvalue={pulse && pulse.commerce.ordersLast24h > 0 ? `${pulse.commerce.ordersLast24h} órdenes 24h` : undefined}
             accent="#06b6d4"
             icon={DollarSign}
             delayMs={60}
@@ -256,7 +385,12 @@ export default function BondlyOverviewPage() {
         </div>
       </section>
 
-      {/* ───── Zona 3: RFM map ───── */}
+      {/* ═════════ Zona 4: SEÑALES LIVE preview ═════════ */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-10">
+        <SignalsPreview pulse={pulse} />
+      </section>
+
+      {/* ═════════ Zona 5: RFM map ═════════ */}
       <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-10">
         <div className="flex items-end justify-between mb-4">
           <div>
@@ -284,14 +418,13 @@ export default function BondlyOverviewPage() {
               <Link
                 key={seg.key}
                 href={`/bondly/clientes?segment=${encodeURIComponent(seg.key)}`}
-                className={`group relative rounded-2xl bg-white border border-slate-900/[0.06] p-4 overflow-hidden transition-[transform,box-shadow,border-color] duration-[260ms] hover:-translate-y-0.5 hover:border-slate-900/10`}
+                className="group relative rounded-2xl bg-white border border-slate-900/[0.06] p-4 overflow-hidden transition-[transform,box-shadow,border-color] duration-[260ms] hover:-translate-y-0.5 hover:border-slate-900/10"
                 style={{
                   transitionTimingFunction: ES,
                   animation: `bondlyStagger 520ms ${ES} ${idx * 55}ms both`,
                   boxShadow: "0 1px 0 rgba(15,23,42,0.05), 0 8px 24px -16px rgba(15,23,42,0.18)",
                 }}
               >
-                {/* Accent corner */}
                 <div aria-hidden className="absolute -top-8 -right-8 w-20 h-20 rounded-full opacity-30 group-hover:opacity-60 transition-opacity duration-[260ms]" style={{ background: `radial-gradient(circle, ${seg.color}55 0%, transparent 60%)`, transitionTimingFunction: ES }} />
                 <div className="relative flex items-center justify-between">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${seg.color}14`, color: seg.color }}>
@@ -318,15 +451,15 @@ export default function BondlyOverviewPage() {
         </div>
       </section>
 
-      {/* ───── Zona 4: Quick access ───── */}
-      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-10 pb-16">
+      {/* ═════════ Zona 6: QUICK ACCESS ═════════ */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-10">
         <div>
           <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500">Explorar</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
             Entrá al detalle
           </h2>
         </div>
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <QuickAccessCard
             href="/bondly/clientes"
             badge="CLIENTES"
@@ -354,6 +487,70 @@ export default function BondlyOverviewPage() {
             icon={Layers}
             stat={totalAudiences > 0 ? `${totalAudiences} audiencias` : "Crear primera"}
           />
+          <QuickAccessCard
+            href="/bondly/senales"
+            badge="SEÑALES"
+            title="Señales en vivo"
+            desc="Feed real-time de momentos de oportunidad por cliente."
+            accent="#8b5cf6"
+            icon={Waves}
+            stat={pulse ? `${pulse.pixel.eventsLast5min} eventos / 5min` : undefined}
+            comingSoon={true}
+          />
+        </div>
+      </section>
+
+      {/* ═════════ Zona 7: VALUE STATEMENT (footer emocional) ═════════ */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-14 pb-16">
+        <div
+          className="relative overflow-hidden rounded-3xl border border-slate-900/[0.06] p-8 lg:p-12"
+          style={{
+            background: "linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0f172a 100%)",
+            boxShadow: "0 1px 0 rgba(15,23,42,0.08), 0 20px 60px -24px rgba(15,23,42,0.45)",
+          }}
+        >
+          {/* Aurora en el footer */}
+          <div aria-hidden className="absolute inset-0 pointer-events-none">
+            <div style={{ position: "absolute", top: "-40%", left: "-10%", width: "60%", height: "180%", background: "radial-gradient(circle, rgba(16,185,129,0.22) 0%, transparent 60%)", filter: "blur(60px)" }} />
+            <div style={{ position: "absolute", top: "-30%", right: "-10%", width: "55%", height: "160%", background: "radial-gradient(circle, rgba(99,102,241,0.28) 0%, transparent 60%)", filter: "blur(70px)" }} />
+          </div>
+          {/* Prism top */}
+          <div aria-hidden className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: BONDLY_GRAD }} />
+
+          <div className="relative grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-8 items-center">
+            <div>
+              <span className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.28em] uppercase text-emerald-300/80">
+                <Sparkles className="w-3 h-3" /> Qué hace único a Bondly
+              </span>
+              <h3 className="mt-3 text-[28px] lg:text-[32px] font-semibold tracking-tight text-white leading-[1.15]">
+                Commerce <span style={{ background: "linear-gradient(90deg,#34d399,#22d3ee)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>+</span> comportamiento,<br/>por primera vez en un mismo lugar.
+              </h3>
+              <p className="mt-3 text-[15px] text-slate-300 leading-relaxed max-w-2xl">
+                Los CDPs muestran eventos. Los CRMs muestran compras. Bondly muestra <span className="text-white font-medium">la historia completa</span>: cómo llegó cada cliente, qué lo enamoró, cuándo va a volver, y cómo activarlo hoy —en tiempo real.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {[
+                  "Unifica VTEX + MELI + NitroPixel",
+                  "Customer 360 enriquecido",
+                  "Audiencias por comportamiento",
+                  "Señales live accionables",
+                ].map((chip) => (
+                  <span key={chip} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium text-slate-200 bg-white/5 border border-white/10 backdrop-blur-sm">
+                    <span className="w-1 h-1 rounded-full" style={{ background: "#34d399" }} />
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Stat proof grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <StatProof label="Días de datos" value={pulse?.commerce.daysCovered ?? 0} suffix="d" accent="#34d399" />
+              <StatProof label="Eventos trackeados" value={pulse?.pixel.totalEvents ?? 0} accent="#22d3ee" />
+              <StatProof label="Órdenes procesadas" value={pulse?.commerce.totalOrders ?? 0} accent="#a78bfa" />
+              <StatProof label="Clientes únicos" value={totalCustomers} accent="#f472b6" />
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -371,6 +568,18 @@ export default function BondlyOverviewPage() {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.04); }
         }
+        @keyframes bondlyPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(1.35); }
+        }
+        @keyframes bondlyShimmer {
+          0% { transform: translateX(-120%); }
+          100% { transform: translateX(120%); }
+        }
+        @keyframes bondlyLiveDot {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+          50% { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+        }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after {
             animation-duration: 0.01ms !important;
@@ -382,7 +591,339 @@ export default function BondlyOverviewPage() {
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════
+// Sub-components
+// ═════════════════════════════════════════════════════════════════════
+
+// ─── PulseBanner: las 2 timelines ─────────────────────────────────────
+
+function PulseBanner({ pulse, loading, liveSecondsAgo }: { pulse: PulseResp | null; loading: boolean; liveSecondsAgo: number | null }) {
+  const commerceStart = pulse?.commerce.firstOrderAt ?? null;
+  const pixelStart = pulse?.pixel.firstEventAt ?? null;
+  const hasCommerce = !!commerceStart;
+  const hasPixel = !!pixelStart;
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl bg-white border border-slate-900/[0.06] p-6"
+      style={{
+        boxShadow: "0 1px 0 rgba(15,23,42,0.06), 0 10px 28px -16px rgba(15,23,42,0.2), 0 28px 48px -32px rgba(15,23,42,0.16)",
+        animation: `bondlyStagger 560ms ${ES} both`,
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500">Pulso de Bondly</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80">
+            <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "bondlyLiveDot 2s infinite" }} />
+            LIVE
+          </span>
+        </div>
+        {pulse && liveSecondsAgo !== null && (
+          <p className="text-[11px] text-slate-500 tabular-nums">
+            Último evento <span className="text-slate-900 font-medium">{formatAgoSeconds(liveSecondsAgo)}</span>
+          </p>
+        )}
+      </div>
+
+      {/* Grid: 2 barras lado a lado */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <TimelineBar
+          kind="commerce"
+          label="Datos de ventas"
+          helper="VTEX + MercadoLibre"
+          startIso={commerceStart}
+          endLabel={pulse?.commerce.lastOrderAt ? formatAgoMinutes(pulse.commerce.lastOrderMinutesAgo) : null}
+          daysCovered={pulse?.commerce.daysCovered ?? 0}
+          total={pulse?.commerce.totalOrders ?? 0}
+          totalLabel="órdenes"
+          last24hLabel={`${pulse?.commerce.ordersLast24h ?? 0} en 24h`}
+          accent={COMMERCE_GRAD}
+          accentSolid="#10b981"
+          timeline={pulse?.commerce.timeline30d ?? []}
+          loading={loading}
+          exists={hasCommerce}
+        />
+        <TimelineBar
+          kind="pixel"
+          label="Datos de comportamiento"
+          helper="NitroPixel"
+          startIso={pixelStart}
+          endLabel={liveSecondsAgo !== null ? formatAgoSeconds(liveSecondsAgo) : null}
+          daysCovered={pulse?.pixel.daysCovered ?? 0}
+          total={pulse?.pixel.totalEvents ?? 0}
+          totalLabel="eventos"
+          last24hLabel={`${formatCompact(pulse?.pixel.eventsLast24h ?? 0)} en 24h`}
+          accent={PIXEL_GRAD}
+          accentSolid="#06b6d4"
+          timeline={pulse?.pixel.timeline30d ?? []}
+          loading={loading}
+          exists={hasPixel}
+          liveActive={!!pulse && (pulse.pixel.eventsLast5min > 0)}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── TimelineBar: una barra con sparkline + mini-stats ────────────────
+
+function TimelineBar({
+  kind, label, helper, startIso, endLabel, daysCovered, total, totalLabel, last24hLabel,
+  accent, accentSolid, timeline, loading, exists, liveActive,
+}: {
+  kind: "commerce" | "pixel";
+  label: string;
+  helper: string;
+  startIso: string | null;
+  endLabel: string | null;
+  daysCovered: number;
+  total: number;
+  totalLabel: string;
+  last24hLabel: string;
+  accent: string;
+  accentSolid: string;
+  timeline: Array<{ day: string; count: number }>;
+  loading: boolean;
+  exists: boolean;
+  liveActive?: boolean;
+}) {
+  const maxCount = useMemo(() => Math.max(1, ...timeline.map((t) => t.count)), [timeline]);
+
+  return (
+    <div
+      className="relative rounded-xl border border-slate-900/[0.06] p-5 overflow-hidden"
+      style={{
+        background: kind === "pixel" ? "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)" : "linear-gradient(180deg, #ffffff 0%, #fbfefb 100%)",
+        boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 6px 18px -14px rgba(15,23,42,0.18)",
+      }}
+    >
+      {/* Subtle decorative corner */}
+      <div aria-hidden className="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-30" style={{ background: `radial-gradient(circle, ${accentSolid}33 0%, transparent 60%)` }} />
+
+      {/* Top row: label + LIVE indicator */}
+      <div className="relative flex items-start justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-mono tracking-[0.26em] uppercase text-slate-500">{label}</p>
+          <p className="mt-0.5 text-xs text-slate-400">{helper}</p>
+        </div>
+        {kind === "pixel" && exists && (
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-cyan-700 bg-cyan-50 border border-cyan-200/80">
+            <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-cyan-500" style={{ animation: liveActive ? "bondlyLiveDot 2s infinite" : undefined }} />
+            {liveActive ? "LIVE" : "pausado"}
+          </span>
+        )}
+      </div>
+
+      {/* Sparkline */}
+      <div className="relative mt-4 h-12">
+        {loading ? (
+          <div className="absolute inset-0 rounded-md bg-slate-100 animate-pulse" />
+        ) : exists ? (
+          <svg width="100%" height="100%" viewBox="0 0 300 48" preserveAspectRatio="none" className="absolute inset-0">
+            <defs>
+              <linearGradient id={`spark-${kind}`} x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stopColor={kind === "pixel" ? "#06b6d4" : "#10b981"} stopOpacity="0.9" />
+                <stop offset="100%" stopColor={kind === "pixel" ? "#8b5cf6" : "#059669"} stopOpacity="0.9" />
+              </linearGradient>
+              <linearGradient id={`spark-fill-${kind}`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor={kind === "pixel" ? "#06b6d4" : "#10b981"} stopOpacity="0.25" />
+                <stop offset="100%" stopColor={kind === "pixel" ? "#06b6d4" : "#10b981"} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {(() => {
+              if (timeline.length === 0) return null;
+              const w = 300;
+              const h = 48;
+              const step = w / Math.max(1, timeline.length - 1);
+              const points = timeline.map((t, i) => {
+                const x = i * step;
+                const y = h - 2 - ((t.count / maxCount) * (h - 6));
+                return `${x},${y}`;
+              });
+              const pathLine = `M ${points.join(" L ")}`;
+              const pathFill = `${pathLine} L ${w},${h} L 0,${h} Z`;
+              return (
+                <>
+                  <path d={pathFill} fill={`url(#spark-fill-${kind})`} />
+                  <path d={pathLine} fill="none" stroke={`url(#spark-${kind})`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </>
+              );
+            })()}
+          </svg>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50/50">
+            <span className="text-[11px] text-slate-400">Sin datos todavía</span>
+          </div>
+        )}
+        {/* Shimmer overlay en pixel (real-time feel) */}
+        {kind === "pixel" && exists && liveActive && (
+          <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div
+              className="absolute top-0 bottom-0 w-1/3"
+              style={{
+                background: "linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.18) 50%, transparent 100%)",
+                animation: "bondlyShimmer 2.4s linear infinite",
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Timeline bar ("Desde X ———— Hasta ahora") */}
+      <div className="relative mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+        {exists && (
+          <>
+            <div className="absolute inset-0 rounded-full" style={{ background: accent, opacity: 0.9 }} />
+            {kind === "pixel" && liveActive && (
+              <div
+                aria-hidden
+                className="absolute top-0 bottom-0 w-20 rounded-full"
+                style={{
+                  background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%)",
+                  animation: "bondlyShimmer 3.2s linear infinite",
+                }}
+              />
+            )}
+            {/* End dot live */}
+            <div
+              aria-hidden
+              className="absolute -top-1 w-3.5 h-3.5 rounded-full border-2 border-white"
+              style={{
+                right: "-3px",
+                background: accentSolid,
+                animation: liveActive ? "bondlyLiveDot 2s infinite" : undefined,
+                boxShadow: `0 0 0 2px ${accentSolid}22`,
+              }}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Endpoints labels */}
+      <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500 tabular-nums">
+        <span>{exists ? `Desde ${formatShortDate(startIso)}` : "—"}</span>
+        <span className="text-slate-900 font-medium">{exists ? (endLabel ?? "Ahora") : "—"}</span>
+      </div>
+
+      {/* Stats row */}
+      <div className="mt-4 flex items-baseline gap-4 flex-wrap">
+        <div>
+          <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-slate-400">{daysCovered} días</p>
+          <p className="mt-0.5 text-[20px] font-semibold tabular-nums tracking-tight text-slate-900">
+            {exists ? formatCompact(total) : "—"} <span className="text-xs font-normal text-slate-500">{totalLabel}</span>
+          </p>
+        </div>
+        <div className="flex-1" />
+        <div className="text-right">
+          <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-slate-400">24h</p>
+          <p className="mt-0.5 text-xs font-medium text-slate-700 tabular-nums">{last24hLabel}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SignalsPreview: top eventos live ─────────────────────────────────
+
+function SignalsPreview({ pulse }: { pulse: PulseResp | null }) {
+  const signals = pulse?.signalsPreview ?? [];
+  const hasSignals = signals.length > 0;
+
+  return (
+    <div>
+      <div className="flex items-end justify-between mb-4">
+        <div>
+          <p className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-500 flex items-center gap-2">
+            <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-cyan-500" style={{ animation: hasSignals ? "bondlyLiveDot 2s infinite" : undefined }} />
+            Señales en tiempo real
+          </p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
+            Lo que está pasando ahora mismo
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Eventos capturados por NitroPixel en la última hora.
+          </p>
+        </div>
+        <Link
+          href="/bondly/senales"
+          className="hidden md:inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 transition-colors"
+          style={{ transitionTimingFunction: ES }}
+        >
+          Ver todas <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+
+      <div
+        className="relative overflow-hidden rounded-2xl bg-white border border-slate-900/[0.06]"
+        style={{ boxShadow: "0 1px 0 rgba(15,23,42,0.05), 0 10px 24px -18px rgba(15,23,42,0.18)" }}
+      >
+        {hasSignals ? (
+          <ul className="divide-y divide-slate-100">
+            {signals.slice(0, 5).map((s, i) => {
+              const meta = eventMeta(s.type);
+              const Icon = meta.icon;
+              const DeviceIcon = s.deviceType === "mobile" ? Smartphone : Laptop;
+              const ageSecs = Math.floor((Date.now() - new Date(s.receivedAt).getTime()) / 1000);
+              return (
+                <li
+                  key={s.id}
+                  className="relative flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/60 transition-colors"
+                  style={{
+                    transitionTimingFunction: ES,
+                    animation: `bondlyStagger 420ms ${ES} ${i * 45}ms both`,
+                  }}
+                >
+                  <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center" style={{ background: `${meta.color}14`, color: meta.color }}>
+                    <Icon className="w-4 h-4" strokeWidth={2.2} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-slate-900 truncate">{s.visitorLabel}</span>
+                      {s.identified && (
+                        <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/80">
+                          <UserCheck className="w-2.5 h-2.5" /> identificado
+                        </span>
+                      )}
+                      <span className="text-sm text-slate-600">{meta.label.toLowerCase()}</span>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
+                      {s.country && (
+                        <span className="inline-flex items-center gap-1"><Globe className="w-3 h-3" /> {s.country}</span>
+                      )}
+                      {s.deviceType && (
+                        <span className="inline-flex items-center gap-1"><DeviceIcon className="w-3 h-3" /> {s.deviceType}</span>
+                      )}
+                      {s.pageUrl && (
+                        <span className="truncate max-w-[280px]">· {s.pageUrl}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <p className="text-[11px] text-slate-500 tabular-nums">{formatAgoSeconds(ageSecs)}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="flex items-center justify-center py-10 px-6">
+            <div className="text-center max-w-md">
+              <div className="mx-auto w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 text-slate-400">
+                <Activity className="w-5 h-5" />
+              </div>
+              <p className="mt-3 text-sm font-medium text-slate-700">Esperando la próxima señal</p>
+              <p className="mt-1 text-xs text-slate-500">Cuando un visitante interactúe con tu tienda, vas a verlo acá en tiempo real.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── KPI card ─────────────────────────────────────────────────────────
 
 function BondlyKpi({
   label, value, subvalue, accent, icon: Icon, delayMs = 0, loading,
@@ -421,8 +962,10 @@ function BondlyKpi({
   );
 }
 
+// ─── Quick access card ───────────────────────────────────────────────
+
 function QuickAccessCard({
-  href, badge, title, desc, accent, icon: Icon, stat,
+  href, badge, title, desc, accent, icon: Icon, stat, comingSoon,
 }: {
   href: string;
   badge: string;
@@ -431,11 +974,11 @@ function QuickAccessCard({
   accent: string;
   icon: any;
   stat?: string;
+  comingSoon?: boolean;
 }) {
-  return (
-    <Link
-      href={href}
-      className="group relative rounded-2xl bg-white border border-slate-900/[0.06] p-6 overflow-hidden transition-[transform,box-shadow,border-color] duration-[320ms] hover:-translate-y-1 hover:border-slate-900/10"
+  const content = (
+    <div
+      className="group relative rounded-2xl bg-white border border-slate-900/[0.06] p-6 overflow-hidden transition-[transform,box-shadow,border-color] duration-[320ms] hover:-translate-y-1 hover:border-slate-900/10 h-full"
       style={{
         transitionTimingFunction: ES,
         boxShadow: "0 1px 0 rgba(15,23,42,0.05), 0 10px 28px -18px rgba(15,23,42,0.2)",
@@ -446,16 +989,46 @@ function QuickAccessCard({
         <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: `${accent}14`, color: accent }}>
           <Icon className="w-5 h-5" strokeWidth={2.2} />
         </div>
-        <span className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-400">{badge}</span>
+        <div className="flex items-center gap-1.5">
+          {comingSoon && (
+            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200">
+              pronto
+            </span>
+          )}
+          <span className="text-[10px] font-mono tracking-[0.28em] uppercase text-slate-400">{badge}</span>
+        </div>
       </div>
       <h3 className="relative mt-4 text-lg font-semibold tracking-tight text-slate-900">{title}</h3>
       <p className="relative mt-1 text-sm text-slate-600 leading-relaxed">{desc}</p>
       <div className="relative mt-5 flex items-center justify-between">
         <span className="text-xs text-slate-500 tabular-nums">{stat ?? " "}</span>
         <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-900 group-hover:gap-2 transition-all duration-200" style={{ transitionTimingFunction: ES }}>
-          Ver <ArrowRight className="w-3.5 h-3.5" />
+          {comingSoon ? "Próximamente" : "Ver"} <ArrowRight className="w-3.5 h-3.5" />
         </span>
       </div>
-    </Link>
+    </div>
+  );
+
+  if (comingSoon) {
+    return <div className="opacity-[0.78]">{content}</div>;
+  }
+  return <Link href={href} className="block h-full">{content}</Link>;
+}
+
+// ─── StatProof (footer grid) ─────────────────────────────────────────
+
+function StatProof({ label, value, accent, suffix }: { label: string; value: number; accent: string; suffix?: string }) {
+  const animated = useCountUp(value, 1100);
+  return (
+    <div
+      className="relative overflow-hidden rounded-xl border border-white/10 p-4"
+      style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(12px)" }}
+    >
+      <div aria-hidden className="absolute -top-8 -right-8 w-20 h-20 rounded-full opacity-30" style={{ background: `radial-gradient(circle, ${accent}66 0%, transparent 60%)` }} />
+      <p className="relative text-[10px] font-mono tracking-[0.24em] uppercase text-slate-400">{label}</p>
+      <p className="relative mt-1 text-[22px] font-semibold tabular-nums tracking-tight text-white">
+        {formatCompact(Math.round(animated))}{suffix ? <span className="text-sm text-slate-400 font-normal">{suffix}</span> : null}
+      </p>
+    </div>
   );
 }
