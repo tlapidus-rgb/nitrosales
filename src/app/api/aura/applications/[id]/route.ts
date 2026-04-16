@@ -106,7 +106,7 @@ export async function PATCH(
               name: `Always On · ${existing.name}`,
               description: "Campaña base creada automáticamente al aprobar al creador.",
               startDate: new Date(),
-              // isAlwaysOn: true,  // TODO: habilitar post-migración migrate-aura-columns
+              isAlwaysOn: true,
               status: "ACTIVE",
             },
             select: { id: true },
