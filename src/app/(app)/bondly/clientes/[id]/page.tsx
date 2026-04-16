@@ -63,17 +63,24 @@ const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; gra
 };
 
 const EVENT_CONFIG: Record<string, { icon: any; color: string; label: string }> = {
-  PAGE_VIEW:       { icon: Eye,               color: "#64748b", label: "Vio página" },
-  VIEW_ITEM:       { icon: Eye,               color: "#3b82f6", label: "Vio producto" },
-  VIEW_ITEM_LIST:  { icon: Layers,            color: "#6366f1", label: "Exploró listado" },
-  ADD_TO_CART:     { icon: ShoppingCart,      color: "#f97316", label: "Agregó al carrito" },
-  REMOVE_FROM_CART:{ icon: ShoppingCart,      color: "#94a3b8", label: "Quitó del carrito" },
-  BEGIN_CHECKOUT:  { icon: CreditCard,        color: "#a855f7", label: "Inició checkout" },
-  PURCHASE:        { icon: Zap,               color: "#10b981", label: "Compró" },
-  SEARCH:          { icon: Compass,           color: "#0891b2", label: "Buscó" },
-  SESSION_START:   { icon: CircleDot,         color: "#06b6d4", label: "Sesión iniciada" },
-  CLICK:           { icon: MousePointerClick, color: "#6366f1", label: "Click" },
-  default:         { icon: Activity,          color: "#64748b", label: "Actividad" },
+  // Tipos reales que escribe el píxel de NitroSales
+  PAGE_VIEW:         { icon: Eye,               color: "#64748b", label: "Vio página" },
+  VIEW_PRODUCT:      { icon: Eye,               color: "#3b82f6", label: "Vio producto" },
+  ADD_TO_CART:       { icon: ShoppingCart,      color: "#f97316", label: "Agregó al carrito" },
+  INITIATE_CHECKOUT: { icon: CreditCard,        color: "#a855f7", label: "Inició checkout" },
+  CHECKOUT_SHIPPING: { icon: CreditCard,        color: "#a855f7", label: "Eligió envío" },
+  CHECKOUT_PAYMENT:  { icon: CreditCard,        color: "#a855f7", label: "Eligió pago" },
+  PURCHASE:          { icon: Zap,               color: "#10b981", label: "Compró" },
+  IDENTIFY:          { icon: Users,             color: "#14b8a6", label: "Se identificó" },
+  // Variantes GA4-style (por si alguna integración las usa)
+  VIEW_ITEM:         { icon: Eye,               color: "#3b82f6", label: "Vio producto" },
+  VIEW_ITEM_LIST:    { icon: Layers,            color: "#6366f1", label: "Exploró listado" },
+  REMOVE_FROM_CART:  { icon: ShoppingCart,      color: "#94a3b8", label: "Quitó del carrito" },
+  BEGIN_CHECKOUT:    { icon: CreditCard,        color: "#a855f7", label: "Inició checkout" },
+  SEARCH:            { icon: Compass,           color: "#0891b2", label: "Buscó" },
+  SESSION_START:     { icon: CircleDot,         color: "#06b6d4", label: "Sesión iniciada" },
+  CLICK:             { icon: MousePointerClick, color: "#6366f1", label: "Click" },
+  default:           { icon: Activity,          color: "#64748b", label: "Actividad" },
 };
 
 function eventMeta(type: string) {

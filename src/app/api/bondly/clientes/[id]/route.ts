@@ -370,7 +370,48 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         value: props.value != null ? Number(props.value) : null,
       });
     }
-    timeline.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // Dedupe events: el píxel suele disparar PAGE_VIEW + VIEW_PRODUCT en el mismo
+    // instante cuando el usuario abre una ficha de producto (y lo mismo con
+    // PAGE_VIEW + INITIATE_CHECKOUT, etc.). Colapsamos por (minuto + sujeto) y
+    // nos quedamos con el evento más específico del grupo. Las órdenes nunca se
+    // tocan.
+    const EVENT_SPECIFICITY: Record<string, number> = {
+      PURCHASE: 100,
+      CHECKOUT_PAYMENT: 90,
+      CHECKOUT_SHIPPING: 85,
+      INITIATE_CHECKOUT: 80,
+      BEGIN_CHECKOUT: 80,
+      ADD_TO_CART: 70,
+      REMOVE_FROM_CART: 65,
+      VIEW_PRODUCT: 60,
+      VIEW_ITEM: 60,
+      VIEW_ITEM_LIST: 50,
+      SEARCH: 45,
+      IDENTIFY: 40,
+      SESSION_START: 30,
+      CLICK: 20,
+      PAGE_VIEW: 10,
+    };
+    const specificityOf = (t: string) => EVENT_SPECIFICITY[t] ?? 0;
+    const dedupedTimeline: any[] = [];
+    const seenKeys = new Map<string, any>();
+    for (const item of timeline) {
+      if (item.kind !== "event") {
+        dedupedTimeline.push(item);
+        continue;
+      }
+      // Bucket de 1 minuto + sujeto (productId / productName / pageUrl)
+      const minuteBucket = Math.floor(new Date(item.timestamp).getTime() / 60000);
+      const subject = (item.productId || item.productName || item.pageUrl || "").toString();
+      const key = `${minuteBucket}::${subject}`;
+      const prev = seenKeys.get(key);
+      if (!prev || specificityOf(item.type) > specificityOf(prev.type)) {
+        seenKeys.set(key, item);
+      }
+    }
+    for (const ev of seenKeys.values()) dedupedTimeline.push(ev);
+    dedupedTimeline.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     // Last visit minutes ago — usar agregado (última visita a través de TODOS los devices)
     const lastVisitAt = aggLastSeen ? aggLastSeen.toISOString() : null;
@@ -431,7 +472,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         totalSpent: Math.round(Number(p.total_spent || 0)),
         lastOrdered: p.last_ordered ? new Date(p.last_ordered).toISOString() : null,
       })),
-      timeline: timeline.slice(0, 80),
+      timeline: dedupedTimeline.slice(0, 80),
     });
   } catch (error: any) {
     console.error("[/api/bondly/clientes/[id]] error:", error);
