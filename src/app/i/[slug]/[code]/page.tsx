@@ -40,7 +40,7 @@ interface Coupon { code: string; discountPercent: number | null; discountFixed: 
 interface Tier { label: string | null; commissionPercent: number; minRevenue: number; maxRevenue: number | null; }
 
 interface DashboardData {
-  influencer: { name: string; profileImage: string | null; commissionPercent: number };
+  influencer: { name: string; profileImage: string | null; commissionPercent: number; attributionWindowDays: number };
   organization: { name: string };
   trackingUrl: string;
   today: { sales: number; conversions: number; commission: number };
@@ -398,6 +398,68 @@ export default function PublicInfluencerDashboard() {
             >
               Mi Contenido
             </button>
+          </div>
+
+          {/* ── Attribution window badge — trust signal ── */}
+          <div className="mt-3">
+            <div
+              className="relative rounded-xl p-[1px] overflow-hidden"
+              style={{
+                background:
+                  "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+              }}
+            >
+              <div
+                className={`rounded-[11px] px-3 py-2.5 flex items-center gap-3 ${
+                  darkMode ? "bg-black/85" : "bg-white"
+                }`}
+              >
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(255,0,128,0.18), rgba(0,212,255,0.18))",
+                    border: "1px solid rgba(168,85,247,0.35)",
+                  }}
+                >
+                  <span className="text-base">🎯</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={`text-[10px] uppercase tracking-[0.14em] font-semibold ${
+                      darkMode ? "text-white/55" : "text-gray-500"
+                    }`}
+                  >
+                    Tu ventana de atribución
+                  </div>
+                  <div
+                    className={`text-[13px] font-semibold leading-tight ${
+                      darkMode ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    <span
+                      className="bg-clip-text text-transparent"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(90deg,#ff0080,#a855f7,#00d4ff)",
+                      }}
+                    >
+                      {data.influencer.attributionWindowDays} días
+                    </span>{" "}
+                    <span className={darkMode ? "text-white/70" : "text-gray-600"}>
+                      de comisión garantizada
+                    </span>
+                  </div>
+                  <div
+                    className={`text-[10.5px] mt-0.5 leading-snug ${
+                      darkMode ? "text-white/45" : "text-gray-500"
+                    }`}
+                  >
+                    Tus fans compran hasta {data.influencer.attributionWindowDays}d después del click y la venta sigue siendo tuya. Powered by NitroPixel.
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </header>

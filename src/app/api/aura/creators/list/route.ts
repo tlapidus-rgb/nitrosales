@@ -35,6 +35,7 @@ type CreatorRow = {
   status: string;
   dashboardPasswordPlain: string | null;
   commissionPercent: number;
+  attributionWindowDays: number;
   revenue: number;
   orders: number;
   aov: number;
@@ -75,6 +76,7 @@ export async function GET(req: NextRequest) {
         status: true,
         commissionPercent: true,
         dashboardPasswordPlain: true,
+        attributionWindowDays: true,
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },
@@ -187,6 +189,7 @@ export async function GET(req: NextRequest) {
         status: inf.status,
         dashboardPasswordPlain: inf.dashboardPasswordPlain ?? null,
         commissionPercent: Number(inf.commissionPercent),
+        attributionWindowDays: inf.attributionWindowDays ?? 14,
         revenue: a.revenue,
         orders: a.orders,
         aov: a.orders > 0 ? a.revenue / a.orders : 0,

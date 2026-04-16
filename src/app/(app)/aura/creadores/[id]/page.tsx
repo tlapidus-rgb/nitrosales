@@ -132,6 +132,7 @@ type CreatorInfo = {
   publicName: string | null;
   isPublicDashboardEnabled: boolean;
   dashboardPasswordPlain: string | null;
+  attributionWindowDays: number;
   createdAt: string;
   whatsapp: string | null;
   trackingLink?: string;
@@ -1550,8 +1551,14 @@ function EditModal({
   const [email, setEmail] = useState(creator.email ?? "");
   const [commissionPercent, setCommissionPercent] = useState(creator.commissionPercent);
   const [publicName, setPublicName] = useState(creator.publicName ?? "");
+  const [attributionWindowDays, setAttributionWindowDays] = useState<number>(
+    creator.attributionWindowDays ?? 14
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const WINDOW_PRESETS = [7, 14, 30, 45, 60, 90];
+  const isPreset = WINDOW_PRESETS.includes(attributionWindowDays);
 
   const save = async () => {
     setSaving(true);
@@ -1564,6 +1571,7 @@ function EditModal({
           email,
           commissionPercent: Number(commissionPercent),
           publicName,
+          attributionWindowDays: Number(attributionWindowDays),
         }),
       });
       const data = await r.json();
@@ -1655,6 +1663,55 @@ function EditModal({
                 color: THEME.textPrimary,
               }}
             />
+          </Field>
+          <Field label="Ventana de atribución">
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {WINDOW_PRESETS.map((d) => {
+                const active = attributionWindowDays === d;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setAttributionWindowDays(d)}
+                    className="px-3 py-1.5 rounded-lg text-[12px] font-semibold tracking-tight transition-all"
+                    style={{
+                      background: active ? THEME.gradient : THEME.bgSoft,
+                      border: `1px solid ${active ? "transparent" : THEME.border}`,
+                      color: active ? "#fff" : THEME.textSecondary,
+                      boxShadow: active
+                        ? "0 2px 10px rgba(255,0,128,0.25), inset 0 1px 0 rgba(255,255,255,0.16)"
+                        : "none",
+                    }}
+                  >
+                    {d}d
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              type="number"
+              min={1}
+              max={180}
+              step={1}
+              value={attributionWindowDays}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                if (Number.isFinite(n)) setAttributionWindowDays(Math.max(1, Math.min(180, n)));
+              }}
+              placeholder="Custom (1-180 días)"
+              className="w-full px-3 py-2 rounded-lg text-[13px] tracking-tight outline-none"
+              style={{
+                background: THEME.bgCard,
+                border: `1px solid ${isPreset ? THEME.border : THEME.goldBorder}`,
+                color: THEME.textPrimary,
+              }}
+            />
+            <div
+              className="mt-1.5 text-[11px] leading-relaxed"
+              style={{ color: THEME.textMuted }}
+            >
+              Cuántos días puede pasar desde que el usuario hace clic en el link del creador hasta que compra. Default 14d. NitroPixel rompe la limitación de las UTMs (solo primera sesión).
+            </div>
           </Field>
           {error ? (
             <div

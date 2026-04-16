@@ -85,7 +85,12 @@ export async function attributeOrderToInfluencer(
   // 2. Get the order (needed for both UTM and coupon paths)
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { totalValue: true, externalId: true, couponCode: true },
+    select: {
+      totalValue: true,
+      externalId: true,
+      couponCode: true,
+      orderDate: true,
+    },
   });
   if (!order) {
     return { attributed: false };
@@ -93,12 +98,15 @@ export async function attributeOrderToInfluencer(
 
   // ──────────────────────────────────────────────────────
   // PATH A: UTM-based attribution (PRIORITY)
+  // Busca el touchpoint inf_<code> más reciente cuya ventana
+  // de atribución personalizada cubra la fecha de la orden.
   // ──────────────────────────────────────────────────────
   let influencerCode: string | null = null;
   let campaignSlug: string | null = null;
   let attributionSource: "UTM" | "COUPON" = "UTM";
   let touchpoints: any[] | null = null;
   let pixelAttributionId: string | null = null;
+  let touchpointTimestamp: Date | null = null;
 
   const pixelAttribution = await prisma.pixelAttribution.findFirst({
     where: { orderId, organizationId, model: "LAST_CLICK" },
@@ -116,13 +124,48 @@ export async function attributeOrderToInfluencer(
       touchpoints = tps;
       pixelAttributionId = pixelAttribution.id;
 
+      // Iterar del más reciente al más viejo; validar ventana contra el creador.
+      const orderTime = order.orderDate?.getTime() ?? Date.now();
+      const DAY_MS = 24 * 60 * 60 * 1000;
+
+      // Recolectar candidates inf_ con su timestamp
+      const candidates: Array<{ code: string; campaign: string | null; ts: number }> = [];
       for (const tp of tps) {
         const source = tp.source || "";
         if (source.startsWith("inf_")) {
-          influencerCode = source.replace("inf_", "");
-          campaignSlug = tp.campaign || null;
-          break;
+          const ts = tp.timestamp ? new Date(tp.timestamp).getTime() : NaN;
+          if (!Number.isFinite(ts)) continue;
+          candidates.push({
+            code: source.replace("inf_", ""),
+            campaign: tp.campaign || null,
+            ts,
+          });
         }
+      }
+      // Ordenar por timestamp DESC (último touch primero — last-click)
+      candidates.sort((a, b) => b.ts - a.ts);
+
+      for (const cand of candidates) {
+        // Buscar al creador para leer su ventana
+        const infRow = await prisma.influencer.findUnique({
+          where: { organizationId_code: { organizationId, code: cand.code } },
+          select: { attributionWindowDays: true, status: true },
+        });
+        if (!infRow || infRow.status === "INACTIVE") continue;
+
+        const windowDays = infRow.attributionWindowDays ?? 14;
+        const ageDays = (orderTime - cand.ts) / DAY_MS;
+        if (ageDays < 0 || ageDays > windowDays) {
+          console.log(
+            `[Influencer Attribution] Touchpoint inf_${cand.code} fuera de ventana (${ageDays.toFixed(1)}d > ${windowDays}d), omitido.`
+          );
+          continue;
+        }
+
+        influencerCode = cand.code;
+        campaignSlug = cand.campaign;
+        touchpointTimestamp = new Date(cand.ts);
+        break;
       }
     }
   }
@@ -215,8 +258,11 @@ export async function attributeOrderToInfluencer(
   });
 
   const tierInfo = tierLabel ? ` [Tier: ${tierLabel}]` : "";
+  const windowInfo = touchpointTimestamp
+    ? ` [window ${influencer.attributionWindowDays ?? 14}d ok]`
+    : "";
   console.log(
-    `[Influencer Attribution] Order ${order.externalId} → ${influencer.name} (@${influencer.code}) via ${attributionSource} | $${orderValue} → commission $${commissionAmount.toFixed(2)} (${effectivePercent}%)${tierInfo}`
+    `[Influencer Attribution] Order ${order.externalId} → ${influencer.name} (@${influencer.code}) via ${attributionSource} | $${orderValue} → commission $${commissionAmount.toFixed(2)} (${effectivePercent}%)${tierInfo}${windowInfo}`
   );
 
   return { attributed: true, influencerCode };

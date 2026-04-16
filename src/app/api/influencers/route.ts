@@ -16,6 +16,12 @@ function hashPassword(password: string): string {
   return createHash("sha256").update(password).digest("hex");
 }
 
+function clampWindow(v: unknown): number {
+  const n = typeof v === "number" ? v : parseInt(String(v ?? ""), 10);
+  if (!Number.isFinite(n)) return 14;
+  return Math.max(1, Math.min(180, Math.round(n)));
+}
+
 export const revalidate = 0;
 
 // Generate a unique alphanumeric code for the influencer
@@ -106,6 +112,7 @@ export async function POST(req: NextRequest) {
         isPublicDashboardEnabled: body.isPublicDashboardEnabled ?? true,
         dashboardPassword: body.dashboardPassword ? hashPassword(body.dashboardPassword) : null,
         dashboardPasswordPlain: body.dashboardPassword || null,
+        attributionWindowDays: clampWindow(body.attributionWindowDays),
       },
     });
 

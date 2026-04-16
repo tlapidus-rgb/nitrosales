@@ -307,6 +307,7 @@ export async function GET(
         name: influencer.publicName || influencer.name,
         profileImage: influencer.profileImage,
         commissionPercent: activeTier ? activeTier.commissionPercent : Number(influencer.commissionPercent),
+        attributionWindowDays: influencer.attributionWindowDays ?? 14,
       },
       organization: {
         name: org.name,

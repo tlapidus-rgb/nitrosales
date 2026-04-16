@@ -49,6 +49,7 @@ export async function GET(
         publicName: true,
         isPublicDashboardEnabled: true,
         dashboardPasswordPlain: true,
+        attributionWindowDays: true,
         createdAt: true,
       },
     });
@@ -289,6 +290,7 @@ export async function GET(
         publicName: influencer.publicName,
         isPublicDashboardEnabled: influencer.isPublicDashboardEnabled,
         dashboardPasswordPlain: influencer.dashboardPasswordPlain ?? null,
+        attributionWindowDays: influencer.attributionWindowDays ?? 14,
         createdAt: influencer.createdAt.toISOString(),
         whatsapp,
         trackingLink,
@@ -365,6 +367,17 @@ export async function PATCH(
     }
     if (typeof body.profileImage === "string")
       allowed.profileImage = body.profileImage.trim() || null;
+    if (body.attributionWindowDays !== undefined) {
+      const raw = body.attributionWindowDays;
+      const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
+      if (!Number.isFinite(n) || n < 1 || n > 180) {
+        return NextResponse.json(
+          { error: "attributionWindowDays must be 1-180" },
+          { status: 400 }
+        );
+      }
+      allowed.attributionWindowDays = Math.round(n);
+    }
 
     const existing = await prisma.influencer.findFirst({
       where: { id, organizationId: org.id },
@@ -386,6 +399,7 @@ export async function PATCH(
         commissionPercent: true,
         publicName: true,
         profileImage: true,
+        attributionWindowDays: true,
       },
     });
 
@@ -394,6 +408,7 @@ export async function PATCH(
       creator: {
         ...updated,
         commissionPercent: Number(updated.commissionPercent),
+        attributionWindowDays: updated.attributionWindowDays ?? 14,
       },
     });
   } catch (e: any) {

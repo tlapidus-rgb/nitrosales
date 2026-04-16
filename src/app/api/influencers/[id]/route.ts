@@ -17,6 +17,12 @@ function hashPassword(password: string): string {
   return createHash("sha256").update(password).digest("hex");
 }
 
+function clampWindow(v: unknown): number {
+  const n = typeof v === "number" ? v : parseInt(String(v ?? ""), 10);
+  if (!Number.isFinite(n)) return 14;
+  return Math.max(1, Math.min(180, Math.round(n)));
+}
+
 export const revalidate = 0;
 
 export async function GET(
@@ -99,6 +105,9 @@ export async function PUT(
         ...(body.dashboardPassword !== undefined && {
           dashboardPassword: body.dashboardPassword ? hashPassword(body.dashboardPassword) : null,
           dashboardPasswordPlain: body.dashboardPassword || null,
+        }),
+        ...(body.attributionWindowDays !== undefined && {
+          attributionWindowDays: clampWindow(body.attributionWindowDays),
         }),
       },
     });

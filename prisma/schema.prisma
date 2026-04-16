@@ -1220,6 +1220,7 @@ model Influencer {
   isProductBreakdownEnabled Boolean @default(false)        // Si el influencer puede ver desglose de productos en su dashboard
   dashboardPassword       String?                          // Contraseña para acceder al dashboard público (hashed)
   dashboardPasswordPlain  String?                          // Copia en texto plano para que el admin la vea/reenvíe (low-stakes read-only dashboard)
+  attributionWindowDays   Int       @default(14)            // Ventana de atribución personalizada del creador (días). Default 14. Min 1, Max 180.
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
