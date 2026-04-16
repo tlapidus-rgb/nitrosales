@@ -47,6 +47,7 @@ export async function PATCH(
 
     let createdInfluencerId: string | null = null;
     let createdDealId: string | null = null;
+    let createdCampaignId: string | null = null;
     if (status === "APPROVED" && existing.status !== "APPROVED") {
       // generar código único a partir del nombre
       const base = slugifyCode(existing.name) || "creator";
@@ -85,7 +86,7 @@ export async function PATCH(
       });
       createdInfluencerId = created.id;
 
-      // Si se pasó un deal, lo creamos atado al nuevo influencer
+      // Crear campaña "Always On" + deal principal atado a esa campaña
       if (deal && typeof deal === "object") {
         const ALLOWED_DEAL_TYPES = [
           "COMMISSION",
@@ -97,10 +98,26 @@ export async function PATCH(
           "HYBRID",
         ];
         if (deal.type && ALLOWED_DEAL_TYPES.includes(deal.type)) {
+          // 1. Crear la campaña Always On
+          const campaign = await prisma.influencerCampaign.create({
+            data: {
+              organizationId: org.id,
+              influencerId: created.id,
+              name: `Always On · ${existing.name}`,
+              description: "Campaña base creada automáticamente al aprobar al creador.",
+              startDate: new Date(),
+              isAlwaysOn: true,
+              status: "ACTIVE",
+            },
+            select: { id: true },
+          });
+          createdCampaignId = campaign.id;
+
+          // 2. Crear el deal principal dentro de esa campaña
           const dealData: any = {
             organizationId: org.id,
             influencerId: created.id,
-            campaignId: deal.campaignId || null,
+            campaignId: campaign.id,
             name: (deal.name || "").trim() || `Deal inicial · ${existing.name}`,
             type: deal.type,
             status: "ACTIVE",
@@ -147,6 +164,7 @@ export async function PATCH(
       },
       createdInfluencerId,
       createdDealId,
+      createdCampaignId: createdCampaignId ?? null,
     });
   } catch (e: any) {
     console.error("[aura/applications/[id] PATCH] error:", e);

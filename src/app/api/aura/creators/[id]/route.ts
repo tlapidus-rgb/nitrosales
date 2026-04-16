@@ -83,7 +83,7 @@ export async function GET(
         _sum: { attributedValue: true, commissionAmount: true },
         _count: { _all: true },
       }),
-      // Campañas (todas)
+      // Campañas (todas) — incluir deals inline
       prisma.influencerCampaign.findMany({
         where: { organizationId: org.id, influencerId: id },
         orderBy: { startDate: "desc" },
@@ -96,11 +96,38 @@ export async function GET(
           description: true,
           bonusAmount: true,
           bonusTarget: true,
+          isAlwaysOn: true,
           attributions: {
             select: {
               attributedValue: true,
               commissionAmount: true,
               createdAt: true,
+            },
+          },
+          deals: {
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              status: true,
+              currency: true,
+              commissionPercent: true,
+              flatAmount: true,
+              flatUnit: true,
+              bonusAmount: true,
+              bonusMetric: true,
+              bonusTarget: true,
+              tiers: true,
+              cpmRate: true,
+              productValue: true,
+              productDescription: true,
+              excludeFromCommission: true,
+              startDate: true,
+              endDate: true,
+              notes: true,
+              createdAt: true,
+              _count: { select: { payouts: true } },
             },
           },
         },
@@ -165,7 +192,7 @@ export async function GET(
       }).catch(() => []),
     ]);
 
-    // agregar performance por campaña (reducir las attributions)
+    // agregar performance por campaña (reducir las attributions) + deals inline
     const campaignsEnriched = campaigns.map((c) => {
       const revenue = c.attributions.reduce(
         (s, a) => s + Number(a.attributedValue),
@@ -189,10 +216,34 @@ export async function GET(
         description: c.description,
         bonusAmount: c.bonusAmount ? Number(c.bonusAmount) : null,
         bonusTarget: bonusTargetNum,
+        isAlwaysOn: (c as any).isAlwaysOn ?? false,
         revenue,
         commission,
         orders,
         progressPct,
+        deals: (c.deals || []).map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          type: d.type,
+          status: d.status,
+          currency: d.currency,
+          commissionPercent: d.commissionPercent != null ? Number(d.commissionPercent) : null,
+          flatAmount: d.flatAmount != null ? Number(d.flatAmount) : null,
+          flatUnit: d.flatUnit ?? null,
+          bonusAmount: d.bonusAmount != null ? Number(d.bonusAmount) : null,
+          bonusMetric: d.bonusMetric ?? null,
+          bonusTarget: d.bonusTarget != null ? Number(d.bonusTarget) : null,
+          tiers: d.tiers ?? null,
+          cpmRate: d.cpmRate != null ? Number(d.cpmRate) : null,
+          productValue: d.productValue != null ? Number(d.productValue) : null,
+          productDescription: d.productDescription ?? null,
+          excludeFromCommission: d.excludeFromCommission ?? false,
+          startDate: d.startDate ? d.startDate.toISOString() : null,
+          endDate: d.endDate ? d.endDate.toISOString() : null,
+          notes: d.notes ?? null,
+          createdAt: d.createdAt.toISOString(),
+          payoutsCount: d._count?.payouts ?? 0,
+        })),
       };
     });
 

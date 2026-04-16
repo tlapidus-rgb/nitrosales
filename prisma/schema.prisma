@@ -1273,6 +1273,7 @@ model InfluencerCampaign {
   description     String?
   bonusAmount     Decimal?  @db.Decimal(12, 2)    // Monto fijo de bono al alcanzar el target
   bonusTarget     Decimal?  @db.Decimal(12, 2)    // Revenue target para desbloquear el bono
+  isAlwaysOn      Boolean   @default(false)       // true = campaña base creada al aprobar al creador
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -1482,6 +1483,10 @@ model InfluencerDeal {
   // Ventana temporal
   startDate           DateTime? @db.Date
   endDate             DateTime? @db.Date
+
+  // Exclusión de atribución: si true, ventas de este deal (ej cupón)
+  // no suman a la comisión UTM del deal principal del creador.
+  excludeFromCommission Boolean @default(false)
 
   notes               String?  @db.Text
   createdAt           DateTime @default(now())

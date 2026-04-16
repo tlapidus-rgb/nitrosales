@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     const influencer = await prisma.influencer.findFirst({
       where: { organizationId: org.id, id: influencerId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     if (!influencer) {
       return NextResponse.json(
@@ -71,6 +71,37 @@ export async function POST(req: NextRequest) {
         ? Number(body.bonusTarget)
         : null;
 
+    // ── Deal fields (opcional) ──
+    const deal = body.deal && typeof body.deal === "object" ? body.deal : null;
+    const ALLOWED_DEAL_TYPES = [
+      "COMMISSION", "FLAT_FEE", "PERFORMANCE_BONUS",
+      "TIERED_COMMISSION", "CPM", "GIFTING", "HYBRID",
+    ];
+    const COMMISSION_TYPES = ["COMMISSION", "TIERED_COMMISSION", "HYBRID"];
+
+    // Validar uniqueness de comisión activa
+    if (deal && COMMISSION_TYPES.includes(deal.type)) {
+      const existingCommissionDeal = await prisma.influencerDeal.findFirst({
+        where: {
+          organizationId: org.id,
+          influencerId: influencer.id,
+          status: "ACTIVE",
+          type: { in: COMMISSION_TYPES },
+        },
+        select: { id: true, name: true, type: true },
+      });
+      if (existingCommissionDeal) {
+        return NextResponse.json(
+          {
+            error: "commission_conflict",
+            message: `Este creador ya tiene un deal de comisión activo ("${existingCommissionDeal.name}"). Desactivá el existente antes de crear uno nuevo.`,
+            existingDealId: existingCommissionDeal.id,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const created = await prisma.influencerCampaign.create({
       data: {
         organizationId: org.id,
@@ -89,7 +120,41 @@ export async function POST(req: NextRequest) {
       select: { id: true, name: true },
     });
 
-    return NextResponse.json({ ok: true, campaign: created });
+    // Crear el deal dentro de la campaña si se pasaron datos
+    let createdDealId: string | null = null;
+    if (deal && deal.type && ALLOWED_DEAL_TYPES.includes(deal.type)) {
+      const dealData: any = {
+        organizationId: org.id,
+        influencerId: influencer.id,
+        campaignId: created.id,
+        name: (deal.name || "").trim() || `${name} · ${influencer.name}`,
+        type: deal.type,
+        status: "ACTIVE",
+        currency: deal.currency || "ARS",
+        notes: deal.notes || null,
+        startDate: startDate,
+        endDate: endDate,
+        excludeFromCommission: !!deal.excludeFromCommission,
+      };
+      if (deal.commissionPercent != null) dealData.commissionPercent = Number(deal.commissionPercent);
+      if (deal.flatAmount != null) dealData.flatAmount = Number(deal.flatAmount);
+      if (deal.flatUnit) dealData.flatUnit = deal.flatUnit;
+      if (deal.bonusAmount != null) dealData.bonusAmount = Number(deal.bonusAmount);
+      if (deal.bonusMetric) dealData.bonusMetric = deal.bonusMetric;
+      if (deal.bonusTarget != null) dealData.bonusTarget = Number(deal.bonusTarget);
+      if (deal.tiers) dealData.tiers = deal.tiers;
+      if (deal.cpmRate != null) dealData.cpmRate = Number(deal.cpmRate);
+      if (deal.productValue != null) dealData.productValue = Number(deal.productValue);
+      if (deal.productDescription) dealData.productDescription = deal.productDescription;
+
+      const d = await prisma.influencerDeal.create({
+        data: dealData,
+        select: { id: true },
+      });
+      createdDealId = d.id;
+    }
+
+    return NextResponse.json({ ok: true, campaign: created, createdDealId });
   } catch (error) {
     console.error("[aura/campaigns POST] error:", error);
     return NextResponse.json(
