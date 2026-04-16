@@ -394,23 +394,95 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       PAGE_VIEW: 10,
     };
     const specificityOf = (t: string) => EVENT_SPECIFICITY[t] ?? 0;
-    const dedupedTimeline: any[] = [];
-    const seenKeys = new Map<string, any>();
-    for (const item of timeline) {
-      if (item.kind !== "event") {
-        dedupedTimeline.push(item);
-        continue;
+
+    // Normalizador de URL: saca host/protocolo, query, hash, trailing slash y
+    // pasa a lowercase. Así "/juego-quarto/p" y "https://site.com/juego-quarto/p?utm=x"
+    // colapsan a la misma clave.
+    const normalizeUrl = (raw: any): string => {
+      if (!raw) return "";
+      try {
+        const s = String(raw).trim();
+        // Si viene como URL absoluta, extraer pathname; si es path, usar tal cual
+        let path = s;
+        if (/^https?:\/\//i.test(s)) {
+          try {
+            path = new URL(s).pathname;
+          } catch { /* noop */ }
+        }
+        // Cortar query y hash
+        path = path.split("?")[0].split("#")[0];
+        // Sacar trailing slash (salvo el root)
+        if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+        return path.toLowerCase();
+      } catch {
+        return String(raw).toLowerCase();
       }
-      // Bucket de 1 minuto + sujeto (productId / productName / pageUrl)
-      const minuteBucket = Math.floor(new Date(item.timestamp).getTime() / 60000);
-      const subject = (item.productId || item.productName || item.pageUrl || "").toString();
-      const key = `${minuteBucket}::${subject}`;
-      const prev = seenKeys.get(key);
-      if (!prev || specificityOf(item.type) > specificityOf(prev.type)) {
-        seenKeys.set(key, item);
+    };
+
+    const normalizeText = (raw: any): string => {
+      if (!raw) return "";
+      return String(raw).trim().toLowerCase().replace(/\s+/g, " ");
+    };
+
+    // Sujeto canónico de un evento:
+    //  1) URL normalizada si existe (junta PAGE_VIEW + VIEW_PRODUCT de la misma ficha)
+    //  2) productId normalizado
+    //  3) productName normalizado
+    const canonicalSubject = (item: any): string => {
+      const url = normalizeUrl(item.pageUrl);
+      if (url) return `url:${url}`;
+      const pid = normalizeText(item.productId);
+      if (pid) return `pid:${pid}`;
+      const pname = normalizeText(item.productName);
+      if (pname) return `pname:${pname}`;
+      return `type:${item.type || ""}`;
+    };
+
+    // Ventana de 3 minutos: ráfagas típicas del píxel (PAGE_VIEW + VIEW_PRODUCT +
+    // reloads rápidos de la misma categoría) quedan como un único evento.
+    const WINDOW_MS = 3 * 60 * 1000;
+
+    const eventItems: any[] = [];
+    const nonEventItems: any[] = [];
+    for (const item of timeline) {
+      if (item.kind !== "event") nonEventItems.push(item);
+      else eventItems.push(item);
+    }
+
+    // Ordenar eventos ascendente por timestamp para poder agrupar por ventana
+    eventItems.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    // Para cada sujeto canónico, llevar el último timestamp bucketizado; si el
+    // evento nuevo cae dentro de WINDOW_MS del último visto del mismo sujeto,
+    // se considera el mismo "momento" y se queda el más específico.
+    const lastSeenBySubject = new Map<string, { item: any; ts: number }>();
+    const keptEvents: any[] = [];
+
+    for (const item of eventItems) {
+      const subj = canonicalSubject(item);
+      const ts = new Date(item.timestamp).getTime();
+      const prev = lastSeenBySubject.get(subj);
+      if (prev && ts - prev.ts <= WINDOW_MS) {
+        // Mismo sujeto dentro de la ventana → colapsar
+        const prevSpec = specificityOf(prev.item.type);
+        const newSpec = specificityOf(item.type);
+        if (newSpec > prevSpec) {
+          // Reemplazar el anterior por el nuevo (más específico) en keptEvents
+          const idx = keptEvents.indexOf(prev.item);
+          if (idx !== -1) keptEvents.splice(idx, 1);
+          keptEvents.push(item);
+          lastSeenBySubject.set(subj, { item, ts });
+        } else {
+          // Mantener el anterior, avanzar el timestamp de referencia
+          lastSeenBySubject.set(subj, { item: prev.item, ts });
+        }
+      } else {
+        keptEvents.push(item);
+        lastSeenBySubject.set(subj, { item, ts });
       }
     }
-    for (const ev of seenKeys.values()) dedupedTimeline.push(ev);
+
+    const dedupedTimeline: any[] = [...nonEventItems, ...keptEvents];
     dedupedTimeline.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     // Last visit minutes ago — usar agregado (última visita a través de TODOS los devices)
