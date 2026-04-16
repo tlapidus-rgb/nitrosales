@@ -46,6 +46,7 @@ export async function PATCH(
     }
 
     let createdInfluencerId: string | null = null;
+    let createdDealId: string | null = null;
     if (status === "APPROVED" && existing.status !== "APPROVED") {
       // generar código único a partir del nombre
       const base = slugifyCode(existing.name) || "creator";
@@ -63,18 +64,69 @@ export async function PATCH(
         code = `${base}${tries}`;
       }
 
+      // Si viene un deal, la commissionPercent del influencer la dejamos
+      // alineada con la del deal (si es COMMISSION/HYBRID); si no, 10%.
+      const deal = body.deal;
+      const infCommission =
+        deal && (deal.type === "COMMISSION" || deal.type === "HYBRID") && deal.commissionPercent != null
+          ? Number(deal.commissionPercent)
+          : 10;
+
       const created = await prisma.influencer.create({
         data: {
           organizationId: org.id,
           name: existing.name,
           code,
           email: existing.email,
-          commissionPercent: 10,
+          commissionPercent: infCommission,
           status: "ACTIVE",
         },
         select: { id: true },
       });
       createdInfluencerId = created.id;
+
+      // Si se pasó un deal, lo creamos atado al nuevo influencer
+      if (deal && typeof deal === "object") {
+        const ALLOWED_DEAL_TYPES = [
+          "COMMISSION",
+          "FLAT_FEE",
+          "PERFORMANCE_BONUS",
+          "TIERED_COMMISSION",
+          "CPM",
+          "GIFTING",
+          "HYBRID",
+        ];
+        if (deal.type && ALLOWED_DEAL_TYPES.includes(deal.type)) {
+          const dealData: any = {
+            organizationId: org.id,
+            influencerId: created.id,
+            campaignId: deal.campaignId || null,
+            name: (deal.name || "").trim() || `Deal inicial · ${existing.name}`,
+            type: deal.type,
+            status: "ACTIVE",
+            currency: deal.currency || "ARS",
+            notes: deal.notes || null,
+            startDate: deal.startDate ? new Date(deal.startDate) : new Date(),
+            endDate: deal.endDate ? new Date(deal.endDate) : null,
+          };
+          if (deal.commissionPercent != null) dealData.commissionPercent = Number(deal.commissionPercent);
+          if (deal.flatAmount != null) dealData.flatAmount = Number(deal.flatAmount);
+          if (deal.flatUnit) dealData.flatUnit = deal.flatUnit;
+          if (deal.bonusAmount != null) dealData.bonusAmount = Number(deal.bonusAmount);
+          if (deal.bonusMetric) dealData.bonusMetric = deal.bonusMetric;
+          if (deal.bonusTarget != null) dealData.bonusTarget = Number(deal.bonusTarget);
+          if (deal.tiers) dealData.tiers = deal.tiers;
+          if (deal.cpmRate != null) dealData.cpmRate = Number(deal.cpmRate);
+          if (deal.productValue != null) dealData.productValue = Number(deal.productValue);
+          if (deal.productDescription) dealData.productDescription = deal.productDescription;
+
+          const createdDeal = await prisma.influencerDeal.create({
+            data: dealData,
+            select: { id: true },
+          });
+          createdDealId = createdDeal.id;
+        }
+      }
     }
 
     const updated = await prisma.influencerApplication.update({
@@ -94,6 +146,7 @@ export async function PATCH(
         reviewedAt: updated.reviewedAt ? updated.reviewedAt.toISOString() : null,
       },
       createdInfluencerId,
+      createdDealId,
     });
   } catch (e: any) {
     console.error("[aura/applications/[id] PATCH] error:", e);
