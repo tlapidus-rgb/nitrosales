@@ -96,7 +96,7 @@ export async function GET(
           description: true,
           bonusAmount: true,
           bonusTarget: true,
-          isAlwaysOn: true,
+          // isAlwaysOn: true,  // TODO: habilitar post-migración migrate-aura-columns
           attributions: {
             select: {
               attributedValue: true,
@@ -122,7 +122,7 @@ export async function GET(
               cpmRate: true,
               productValue: true,
               productDescription: true,
-              excludeFromCommission: true,
+              // excludeFromCommission: true,  // TODO: habilitar post-migración migrate-aura-columns
               startDate: true,
               endDate: true,
               notes: true,
@@ -216,7 +216,7 @@ export async function GET(
         description: c.description,
         bonusAmount: c.bonusAmount ? Number(c.bonusAmount) : null,
         bonusTarget: bonusTargetNum,
-        isAlwaysOn: (c as any).isAlwaysOn ?? false,
+        isAlwaysOn: false, // TODO: usar (c as any).isAlwaysOn post-migración
         revenue,
         commission,
         orders,

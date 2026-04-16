@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
         notes: deal.notes || null,
         startDate: startDate,
         endDate: endDate,
-        excludeFromCommission: !!deal.excludeFromCommission,
+        // excludeFromCommission: !!deal.excludeFromCommission,  // TODO: habilitar post-migración migrate-aura-columns
       };
       if (deal.commissionPercent != null) dealData.commissionPercent = Number(deal.commissionPercent);
       if (deal.flatAmount != null) dealData.flatAmount = Number(deal.flatAmount);
