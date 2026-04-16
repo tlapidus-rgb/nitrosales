@@ -105,11 +105,20 @@ const NAV_GROUPS: NavGroup[] = [
     label: "CLIENTES",
     items: [
       {
-        href: "/customers",
-        label: "Clientes",
-        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+        href: "/bondly/overview",
+        label: "Bondly",
+        icon: "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
+        premium: {
+          badge: "LOYALTY",
+          badgeColor: "#10b981",
+          glowColor: "rgba(16,185,129,0.32)",
+          description: "Clientes, LTV y audiencias.",
+        },
         children: [
-          { href: "/customers", label: "Segmentacion" },
+          { href: "/bondly/overview", label: "Overview" },
+          { href: "/bondly/clientes", label: "Clientes", group: "Base" },
+          { href: "/bondly/ltv", label: "Lifetime Value", group: "Base" },
+          { href: "/bondly/audiencias", label: "Audiencias", group: "Activación" },
         ],
       },
     ],
@@ -149,23 +158,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Aurum",
         icon: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 4v12M8 10l4-4 4 4M8 14l4 4 4-4",
         premium: { badge: "INTELLIGENCE", badgeColor: "#fbbf24", glowColor: "rgba(251,191,36,0.22)", description: "Inteligencia dorada del negocio" },
-      },
-    ],
-  },
-  {
-    label: "HERRAMIENTAS",
-    items: [
-      {
-        href: "/customers/ltv",
-        label: "Lifetime Value",
-        icon: "M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
-        premium: { badge: "AI", badgeColor: "var(--nitro-orange)", glowColor: "rgba(255,94,26,0.12)", description: "Prediccion inteligente" },
-      },
-      {
-        href: "/audiences",
-        label: "Audience Sync",
-        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
-        premium: { badge: "SYNC", badgeColor: "#8b5cf6", glowColor: "rgba(139,92,246,0.12)", description: "Meta & Google audiences" },
       },
     ],
   },
