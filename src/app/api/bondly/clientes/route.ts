@@ -376,6 +376,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Count query (same filters, no pagination)
+    //
+    // NOTA: usamos DISTINCT ON (customerId) para que la CTE pixel
+    // devuelva exactamente 1 fila por cliente (el visitor más reciente).
+    // Sin esto, un cliente con múltiples visitor records produciría
+    // filas duplicadas en el JOIN y rompería el COUNT.
     const countQuery = `
       WITH commerce AS (
         SELECT o."customerId",
@@ -395,9 +400,10 @@ export async function GET(request: NextRequest) {
         SELECT c2.*, NTILE(10) OVER (ORDER BY c2.spent) AS decile FROM commerce c2
       ),
       pixel AS (
-        SELECT v."customerId",
-               MAX(v."lastSeenAt") AS last_visit_at,
-               EXISTS (
+        SELECT DISTINCT ON (v."customerId")
+               v."customerId",
+               v."lastSeenAt" AS last_visit_at,
+               (EXISTS (
                  SELECT 1 FROM pixel_events e
                  WHERE e."visitorId" = v.id
                    AND e.type = 'ADD_TO_CART'
@@ -408,15 +414,16 @@ export async function GET(request: NextRequest) {
                        AND ep.type = 'PURCHASE'
                        AND ep.timestamp > e.timestamp
                    )
-               ) AS has_open_cart,
-               EXISTS (
-                 SELECT 1 FROM pixel_events eo
-                 WHERE eo."visitorId" = v.id
-                   AND eo.timestamp < NOW() - INTERVAL '30 days'
-               ) AND v."lastSeenAt" >= NOW() - INTERVAL '7 days' AS is_reappeared
+               )) AS has_open_cart,
+               (v."lastSeenAt" >= NOW() - INTERVAL '7 days'
+                AND EXISTS (
+                  SELECT 1 FROM pixel_events eo
+                  WHERE eo."visitorId" = v.id
+                    AND eo.timestamp < NOW() - INTERVAL '30 days'
+                )) AS is_reappeared
         FROM pixel_visitors v
         WHERE v."organizationId" = '${ORG_ID}' AND v."customerId" IS NOT NULL
-        GROUP BY v.id, v."customerId"
+        ORDER BY v."customerId", v."lastSeenAt" DESC NULLS LAST
       )
       SELECT COUNT(*)::text AS n
       FROM customers c
@@ -449,12 +456,13 @@ export async function GET(request: NextRequest) {
         SELECT c2.*, NTILE(10) OVER (ORDER BY c2.spent) AS decile FROM commerce c2
       ),
       pixel AS (
-        SELECT v."customerId",
+        SELECT DISTINCT ON (v."customerId")
+               v."customerId",
                v.id AS visitor_id,
                v."lastSeenAt" AS last_visit_at,
                v."totalSessions" AS total_sessions,
                v."totalPageViews" AS total_pvs,
-               EXISTS (
+               (EXISTS (
                  SELECT 1 FROM pixel_events e
                  WHERE e."visitorId" = v.id
                    AND e.type = 'ADD_TO_CART'
@@ -465,7 +473,7 @@ export async function GET(request: NextRequest) {
                        AND ep.type = 'PURCHASE'
                        AND ep.timestamp > e.timestamp
                    )
-               ) AS has_open_cart,
+               )) AS has_open_cart,
                (v."lastSeenAt" >= NOW() - INTERVAL '7 days'
                 AND EXISTS (
                   SELECT 1 FROM pixel_events eo
@@ -474,6 +482,7 @@ export async function GET(request: NextRequest) {
                 )) AS is_reappeared
         FROM pixel_visitors v
         WHERE v."organizationId" = '${ORG_ID}' AND v."customerId" IS NOT NULL
+        ORDER BY v."customerId", v."lastSeenAt" DESC NULLS LAST
       )
       SELECT
         c.id,

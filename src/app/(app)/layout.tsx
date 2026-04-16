@@ -516,6 +516,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   const isAurum = item.label === "Aurum";
                   const isPixel = item.label === "NitroPixel";
                   const isAura = item.label === "Aura";
+                  const isBondly = item.label === "Bondly";
                   const aurumSubItems = isAurum
                     ? [
                         {
@@ -560,7 +561,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       ]
                     : [];
                   return (
-                    <div key={item.href} className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""} ${isPixel ? "pixel-card-wrapper" : ""} ${isAura ? "aura-holo-card" : ""}`}>
+                    <div key={item.href} className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""} ${isPixel ? "pixel-card-wrapper" : ""} ${isAura ? "aura-holo-card" : ""} ${isBondly ? "bondly-card-wrapper" : ""}`}>
                       <Link
                         href={item.href}
                         onClick={() => setSidebarOpen(false)}
@@ -576,6 +577,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                 : "linear-gradient(135deg, rgba(6,182,212,0.10), rgba(139,92,246,0.04) 50%, rgba(255,255,255,0.02))")
                             : isAura
                             ? "#0a0714"
+                            : isBondly
+                            ? (isActive
+                                ? "linear-gradient(135deg, rgba(16,185,129,0.18), rgba(6,182,212,0.10) 50%, rgba(99,102,241,0.04))"
+                                : "linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.04) 50%, rgba(99,102,241,0.02))")
                             : (isActive
                                 ? `linear-gradient(135deg, ${item.premium.glowColor}, rgba(255,255,255,0.03))`
                                 : "rgba(255,255,255,0.02)"),
@@ -585,6 +590,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             ? (isActive ? "1px solid rgba(6,182,212,0.50)" : "1px solid rgba(6,182,212,0.25)")
                             : isAura
                             ? (isActive ? "1px solid rgba(168,85,247,0.40)" : "1px solid rgba(168,85,247,0.18)")
+                            : isBondly
+                            ? (isActive ? "1px solid rgba(16,185,129,0.45)" : "1px solid rgba(16,185,129,0.22)")
                             : (isActive ? `1px solid ${item.premium.badgeColor}33` : "1px solid rgba(255,255,255,0.06)"),
                           boxShadow: isAurum
                             ? (isActive
@@ -598,6 +605,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             ? (isActive
                                 ? "0 0 28px rgba(168,85,247,0.22), inset 0 1px 0 rgba(255,255,255,0.06)"
                                 : "0 0 16px rgba(168,85,247,0.10), inset 0 1px 0 rgba(255,255,255,0.04)")
+                            : isBondly
+                            ? (isActive
+                                ? "0 0 28px rgba(16,185,129,0.22), inset 0 1px 0 rgba(110,231,183,0.15)"
+                                : "0 0 16px rgba(16,185,129,0.10), inset 0 1px 0 rgba(110,231,183,0.08)")
                             : undefined,
                         }}
                       >
@@ -1014,6 +1025,128 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                       {sub.label}
                                     </div>
                                   </Link>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Bondly sub-items (emerald → cyan → indigo gradient) */}
+                      {isBondly && item.children && item.children.length > 0 && (
+                        <div
+                          className="overflow-hidden"
+                          style={{
+                            display: "grid",
+                            gridTemplateRows: isActive ? "1fr" : "0fr",
+                            opacity: isActive ? 1 : 0,
+                            marginTop: isActive ? "4px" : "0px",
+                            transition:
+                              "grid-template-rows 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), margin-top 400ms cubic-bezier(0.16, 1, 0.3, 1)",
+                          }}
+                        >
+                          <div className="min-h-0">
+                            <div className="relative ml-5 pl-4 py-1 space-y-0.5">
+                              {/* Emerald/cyan connector line */}
+                              <div
+                                className="absolute left-0 top-2 bottom-2 w-[1px]"
+                                style={{
+                                  background:
+                                    "linear-gradient(180deg, rgba(16,185,129,0.55), rgba(6,182,212,0.25) 50%, rgba(99,102,241,0.12))",
+                                }}
+                              />
+                              {item.children.map((sub, si) => {
+                                const children = item.children!;
+                                const matchingHrefs = children
+                                  .filter(
+                                    (c) =>
+                                      pathname === c.href ||
+                                      (c.href !== "/bondly/overview" &&
+                                        pathname.startsWith(c.href + "/")),
+                                  )
+                                  .map((c) => c.href);
+                                const bestMatch = matchingHrefs.reduce(
+                                  (best, h) => (h.length > best.length ? h : best),
+                                  "",
+                                );
+                                const subActive = sub.href === bestMatch;
+                                const prevGroup = si > 0 ? item.children![si - 1].group : undefined;
+                                const showGroupHeader = sub.group && sub.group !== prevGroup;
+                                return (
+                                  <div key={sub.href}>
+                                    {showGroupHeader ? (
+                                      <div
+                                        className="relative flex items-center gap-2 px-2.5 pt-3 pb-1 select-none"
+                                        style={{
+                                          transform: isActive ? "translateX(0)" : "translateX(-8px)",
+                                          opacity: isActive ? 1 : 0,
+                                          transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms`,
+                                        }}
+                                      >
+                                        <span
+                                          className="text-[9px] font-semibold tracking-[0.18em] uppercase"
+                                          style={{ color: "rgba(167,243,208,0.42)" }}
+                                        >
+                                          {sub.group}
+                                        </span>
+                                        <span
+                                          className="flex-1 h-[1px]"
+                                          style={{
+                                            background:
+                                              "linear-gradient(90deg, rgba(16,185,129,0.22), rgba(16,185,129,0) 80%)",
+                                          }}
+                                        />
+                                      </div>
+                                    ) : null}
+                                    <Link
+                                      href={sub.href}
+                                      onClick={() => setSidebarOpen(false)}
+                                      className="group/sub relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-300"
+                                      style={{
+                                        background: subActive
+                                          ? "linear-gradient(90deg, rgba(16,185,129,0.14), rgba(6,182,212,0.04))"
+                                          : "transparent",
+                                        border: subActive
+                                          ? "1px solid rgba(16,185,129,0.28)"
+                                          : "1px solid transparent",
+                                        transitionDelay: isActive ? `${si * 60}ms` : "0ms",
+                                        transform: isActive ? "translateX(0)" : "translateX(-8px)",
+                                        opacity: isActive ? 1 : 0,
+                                        transition: `transform 400ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, opacity 300ms cubic-bezier(0.16, 1, 0.3, 1) ${isActive ? si * 60 : 0}ms, background 200ms, border-color 200ms`,
+                                      }}
+                                    >
+                                      <span
+                                        className="absolute -left-4 top-1/2 w-2 h-[1px]"
+                                        style={{
+                                          background: subActive
+                                            ? "#10b981"
+                                            : "rgba(16,185,129,0.35)",
+                                          transform: "translateY(-0.5px)",
+                                        }}
+                                      />
+                                      <span
+                                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                        style={{
+                                          background: subActive
+                                            ? "linear-gradient(135deg, #10b981, #06b6d4 50%, #6366f1)"
+                                            : "rgba(16,185,129,0.4)",
+                                          boxShadow: subActive
+                                            ? "0 0 8px rgba(16,185,129,0.6)"
+                                            : "none",
+                                        }}
+                                      />
+                                      <div
+                                        className="text-[11px] font-semibold transition-colors"
+                                        style={{
+                                          color: subActive
+                                            ? "#d1fae5"
+                                            : "rgba(209,250,229,0.7)",
+                                        }}
+                                      >
+                                        {sub.label}
+                                      </div>
+                                    </Link>
                                   </div>
                                 );
                               })}
