@@ -48,6 +48,7 @@ export async function GET(
         commissionPercent: true,
         publicName: true,
         isPublicDashboardEnabled: true,
+        dashboardPasswordPlain: true,
         createdAt: true,
       },
     });
@@ -287,6 +288,7 @@ export async function GET(
         commissionPercent: Number(influencer.commissionPercent),
         publicName: influencer.publicName,
         isPublicDashboardEnabled: influencer.isPublicDashboardEnabled,
+        dashboardPasswordPlain: influencer.dashboardPasswordPlain ?? null,
         createdAt: influencer.createdAt.toISOString(),
         whatsapp,
         trackingLink,

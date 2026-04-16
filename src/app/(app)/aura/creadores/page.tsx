@@ -33,12 +33,6 @@ import {
   PauseCircle,
   CheckCircle2,
   SlidersHorizontal,
-  Eye,
-  EyeOff,
-  Mail,
-  RefreshCw,
-  Copy,
-  Check,
 } from "lucide-react";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -223,146 +217,6 @@ function StateBadge({ state }: { state: CreatorState }) {
   );
 }
 
-// ─────────────────── PASSWORD ROW ─────────────────────────────
-function PasswordRow({ creator }: { creator: Creator }) {
-  const [reveal, setReveal] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [sending, setSending] = useState<"send" | "regen" | null>(null);
-  const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
-
-  const stop = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  async function copyPwd(e: React.MouseEvent) {
-    stop(e);
-    if (!creator.dashboardPasswordPlain) return;
-    try {
-      await navigator.clipboard.writeText(creator.dashboardPasswordPlain);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {}
-  }
-
-  async function send(e: React.MouseEvent, regenerate: boolean) {
-    stop(e);
-    if (!creator.email) {
-      setToast({ ok: false, msg: "Sin email configurado" });
-      setTimeout(() => setToast(null), 2500);
-      return;
-    }
-    const label = regenerate ? "regen" : "send";
-    if (regenerate && !confirm(`¿Generar contraseña nueva y enviársela a ${creator.email}? La anterior dejará de funcionar.`)) return;
-    setSending(label);
-    try {
-      const res = await fetch(`/api/aura/creators/${creator.id}/send-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ regenerate }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setToast({ ok: true, msg: regenerate ? "Contraseña nueva enviada ✓" : "Email enviado ✓" });
-        if (regenerate) setTimeout(() => window.location.reload(), 1200);
-      } else {
-        setToast({ ok: false, msg: data.error || "No se pudo enviar" });
-      }
-    } catch (err: any) {
-      setToast({ ok: false, msg: err?.message || "Error de red" });
-    } finally {
-      setSending(null);
-      setTimeout(() => setToast(null), 2500);
-    }
-  }
-
-  const pwd = creator.dashboardPasswordPlain;
-  const masked = pwd ? "•".repeat(pwd.length) : "sin contraseña";
-
-  return (
-    <div
-      className="relative px-4 py-2.5 flex items-center gap-2"
-      style={{
-        background: THEME.bgSoft,
-        borderTop: `1px solid ${THEME.border}`,
-      }}
-    >
-      <div
-        className="text-[10px] tracking-[0.12em] uppercase font-medium"
-        style={{ color: THEME.textMuted }}
-      >
-        Pass
-      </div>
-      <div
-        className="flex-1 font-mono text-[12.5px] tabular-nums select-all truncate"
-        style={{ color: pwd ? THEME.textPrimary : THEME.textMuted, letterSpacing: reveal ? "0.05em" : "0.15em" }}
-        onClick={stop}
-      >
-        {reveal && pwd ? pwd : masked}
-      </div>
-
-      {pwd && (
-        <>
-          <button
-            onClick={(e) => { stop(e); setReveal((v) => !v); }}
-            className="p-1.5 rounded-md transition-colors"
-            style={{ color: THEME.textSecondary, background: "transparent" }}
-            title={reveal ? "Ocultar" : "Ver contraseña"}
-            aria-label={reveal ? "Ocultar" : "Ver contraseña"}
-          >
-            {reveal ? <EyeOff size={13} strokeWidth={2.2} /> : <Eye size={13} strokeWidth={2.2} />}
-          </button>
-          <button
-            onClick={copyPwd}
-            className="p-1.5 rounded-md transition-colors"
-            style={{ color: copied ? THEME.green : THEME.textSecondary }}
-            title={copied ? "Copiado" : "Copiar"}
-            aria-label="Copiar contraseña"
-          >
-            {copied ? <Check size={13} strokeWidth={2.4} /> : <Copy size={13} strokeWidth={2.2} />}
-          </button>
-        </>
-      )}
-
-      <button
-        onClick={(e) => send(e, false)}
-        disabled={sending !== null || !creator.email}
-        className="p-1.5 rounded-md transition-colors disabled:opacity-40"
-        style={{ color: THEME.textSecondary }}
-        title={creator.email ? `Enviar credenciales a ${creator.email}` : "Sin email"}
-        aria-label="Enviar por email"
-      >
-        <Mail size={13} strokeWidth={2.2} className={sending === "send" ? "animate-pulse" : ""} />
-      </button>
-
-      <button
-        onClick={(e) => send(e, true)}
-        disabled={sending !== null || !creator.email}
-        className="p-1.5 rounded-md transition-colors disabled:opacity-40"
-        style={{ color: THEME.textSecondary }}
-        title="Generar nueva contraseña y enviarla"
-        aria-label="Regenerar contraseña"
-      >
-        <RefreshCw size={13} strokeWidth={2.2} className={sending === "regen" ? "animate-spin" : ""} />
-      </button>
-
-      {toast && (
-        <div
-          className="absolute right-3 -top-8 text-[11px] px-2.5 py-1 rounded-md font-medium whitespace-nowrap"
-          style={{
-            background: toast.ok ? THEME.greenSoft : THEME.roseSoft,
-            color: toast.ok ? THEME.green : THEME.rose,
-            border: `1px solid ${toast.ok ? THEME.greenBorder : THEME.roseBorder}`,
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          {toast.msg}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─────────────────── CREATOR CARD ─────────────────────────────
 function CreatorCard({ creator, delay }: { creator: Creator; delay: number }) {
   return (
@@ -462,9 +316,6 @@ function CreatorCard({ creator, delay }: { creator: Creator; delay: number }) {
           </div>
         </div>
       </div>
-
-      {/* Password row */}
-      <PasswordRow creator={creator} />
 
       {/* Footer meta */}
       <div

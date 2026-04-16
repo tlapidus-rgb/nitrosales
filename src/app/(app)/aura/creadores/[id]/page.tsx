@@ -38,6 +38,10 @@ import {
   Youtube,
   Music2,
   Eye,
+  EyeOff,
+  Mail,
+  RefreshCw,
+  KeyRound,
   Heart,
   TrendingUp,
   DollarSign,
@@ -127,6 +131,7 @@ type CreatorInfo = {
   commissionPercent: number;
   publicName: string | null;
   isPublicDashboardEnabled: boolean;
+  dashboardPasswordPlain: string | null;
   createdAt: string;
   whatsapp: string | null;
   trackingLink?: string;
@@ -268,6 +273,248 @@ function campaignTone(c: Campaign): {
     color: THEME.gold, bg: THEME.goldSoft, border: THEME.goldBorder,
     icon: <Rocket size={11} strokeWidth={2.2} />,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DASHBOARD ACCESS SECTION (contraseña + acciones)
+// ═══════════════════════════════════════════════════════════════════
+function DashboardAccessSection({
+  creator,
+  onReload,
+}: {
+  creator: CreatorInfo;
+  onReload: () => void;
+}) {
+  const [reveal, setReveal] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState<"send" | "regen" | null>(null);
+  const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const pwd = creator.dashboardPasswordPlain;
+
+  async function copyPwd() {
+    if (!pwd) return;
+    try {
+      await navigator.clipboard.writeText(pwd);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  }
+
+  async function send(regenerate: boolean) {
+    if (!creator.email) {
+      setToast({ ok: false, msg: "El creador no tiene email configurado" });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    if (
+      regenerate &&
+      !confirm(
+        `¿Generar contraseña nueva y enviársela a ${creator.email}? La anterior va a dejar de funcionar.`
+      )
+    ) {
+      return;
+    }
+    setSending(regenerate ? "regen" : "send");
+    try {
+      const res = await fetch(`/api/aura/creators/${creator.id}/send-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regenerate }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setToast({
+          ok: true,
+          msg: regenerate
+            ? `Contraseña nueva enviada a ${creator.email} ✓`
+            : `Email enviado a ${creator.email} ✓`,
+        });
+        if (regenerate) onReload();
+      } else {
+        setToast({ ok: false, msg: data.error || "No se pudo enviar el email" });
+      }
+    } catch (err: any) {
+      setToast({ ok: false, msg: err?.message || "Error de red" });
+    } finally {
+      setSending(null);
+      setTimeout(() => setToast(null), 3000);
+    }
+  }
+
+  const masked = pwd ? "•".repeat(pwd.length) : "—";
+
+  return (
+    <section
+      className="rounded-2xl p-5 mb-5 relative"
+      style={{
+        background: THEME.bgCard,
+        border: `1px solid ${THEME.border}`,
+        animation: `cardIn 600ms ${ES} 100ms both`,
+      }}
+    >
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2.5">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{
+              background: THEME.goldSoft,
+              border: `1px solid ${THEME.goldBorder}`,
+              color: THEME.gold,
+            }}
+          >
+            <KeyRound size={16} strokeWidth={2.2} />
+          </div>
+          <div>
+            <h2
+              className="text-[16px] font-semibold tracking-tight"
+              style={{ color: THEME.textPrimary }}
+            >
+              Acceso al dashboard
+            </h2>
+            <p
+              className="text-[11.5px] tracking-tight mt-0.5"
+              style={{ color: THEME.textTertiary }}
+            >
+              {creator.email
+                ? `Credenciales que puede usar el creador · email registrado: ${creator.email}`
+                : "Sin email configurado — no se pueden enviar las credenciales"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="rounded-xl p-4 flex items-center gap-3 flex-wrap"
+        style={{
+          background: THEME.bgSoft,
+          border: `1px solid ${THEME.border}`,
+        }}
+      >
+        <div
+          className="text-[10px] tracking-[0.14em] uppercase font-semibold"
+          style={{ color: THEME.textMuted }}
+        >
+          Contraseña
+        </div>
+        <div
+          className="flex-1 min-w-[140px] font-mono text-[15px] tabular-nums select-all"
+          style={{
+            color: pwd ? THEME.textPrimary : THEME.textMuted,
+            letterSpacing: reveal && pwd ? "0.08em" : "0.2em",
+          }}
+        >
+          {pwd ? (reveal ? pwd : masked) : "sin contraseña configurada"}
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {pwd && (
+            <>
+              <button
+                onClick={() => setReveal((v) => !v)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition"
+                style={{
+                  background: THEME.bgCard,
+                  border: `1px solid ${THEME.border}`,
+                  color: THEME.textSecondary,
+                }}
+                title={reveal ? "Ocultar contraseña" : "Ver contraseña"}
+              >
+                {reveal ? (
+                  <EyeOff size={13} strokeWidth={2.2} />
+                ) : (
+                  <Eye size={13} strokeWidth={2.2} />
+                )}
+                {reveal ? "Ocultar" : "Ver"}
+              </button>
+              <button
+                onClick={copyPwd}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition"
+                style={{
+                  background: THEME.bgCard,
+                  border: `1px solid ${THEME.border}`,
+                  color: copied ? THEME.green : THEME.textSecondary,
+                }}
+                title="Copiar contraseña"
+              >
+                {copied ? (
+                  <>
+                    <Check size={13} strokeWidth={2.4} />
+                    Copiado
+                  </>
+                ) : (
+                  <>
+                    <Copy size={13} strokeWidth={2.2} />
+                    Copiar
+                  </>
+                )}
+              </button>
+            </>
+          )}
+
+          <button
+            onClick={() => send(false)}
+            disabled={sending !== null || !creator.email}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: THEME.bgCard,
+              border: `1px solid ${THEME.border}`,
+              color: THEME.textPrimary,
+            }}
+            title={
+              creator.email
+                ? `Reenviar credenciales a ${creator.email}`
+                : "Sin email"
+            }
+          >
+            <Mail
+              size={13}
+              strokeWidth={2.2}
+              className={sending === "send" ? "animate-pulse" : ""}
+            />
+            {sending === "send" ? "Enviando..." : "Enviar por mail"}
+          </button>
+
+          <button
+            onClick={() => send(true)}
+            disabled={sending !== null || !creator.email}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110"
+            style={{
+              background:
+                "linear-gradient(135deg, #ff0080 0%, #a855f7 50%, #00d4ff 100%)",
+              color: "#fff",
+              boxShadow: "0 4px 12px rgba(255,0,128,0.25)",
+            }}
+            title="Genera una contraseña nueva y la envía por mail"
+          >
+            <RefreshCw
+              size={13}
+              strokeWidth={2.4}
+              className={sending === "regen" ? "animate-spin" : ""}
+            />
+            {sending === "regen"
+              ? "Generando..."
+              : pwd
+                ? "Generar nueva"
+                : "Crear y enviar"}
+          </button>
+        </div>
+      </div>
+
+      {toast && (
+        <div
+          className="mt-3 text-[12px] px-3 py-2 rounded-lg font-medium"
+          style={{
+            background: toast.ok ? THEME.greenSoft : THEME.roseSoft,
+            color: toast.ok ? THEME.green : THEME.rose,
+            border: `1px solid ${toast.ok ? THEME.greenBorder : THEME.roseBorder}`,
+          }}
+        >
+          {toast.msg}
+        </div>
+      )}
+    </section>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -647,6 +894,9 @@ export default function CreatorProfilePage() {
             icon={<Trophy size={14} strokeWidth={2.2} />}
           />
         </section>
+
+        {/* ─── ACCESO AL DASHBOARD (contraseña + enviar por mail) ─── */}
+        <DashboardAccessSection creator={creator} onReload={load} />
 
         {/* ─── MAIN GRID: 2 cols en desktop ───────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
