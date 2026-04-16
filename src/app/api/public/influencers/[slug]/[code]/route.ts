@@ -172,6 +172,53 @@ export async function GET(
         AND "utmParams"->>'source' = ${"inf_" + influencer.code}
     `);
 
+    // Active deal (el deal activo más reciente determina cómo se le paga al creador)
+    const activeDealRaw = await prisma.influencerDeal.findFirst({
+      where: {
+        influencerId: influencer.id,
+        organizationId: org.id,
+        status: "ACTIVE",
+      },
+      orderBy: [{ createdAt: "desc" }],
+      select: {
+        id: true,
+        type: true,
+        commissionPercent: true,
+        flatAmount: true,
+        flatUnit: true,
+        bonusAmount: true,
+        bonusMetric: true,
+        bonusTarget: true,
+        tiers: true,
+        cpmRate: true,
+        productValue: true,
+        productDescription: true,
+        currency: true,
+        startDate: true,
+        endDate: true,
+      },
+    });
+
+    const activeDeal = activeDealRaw
+      ? {
+          id: activeDealRaw.id,
+          type: activeDealRaw.type,
+          currency: activeDealRaw.currency || "ARS",
+          commissionPercent: activeDealRaw.commissionPercent != null ? Number(activeDealRaw.commissionPercent) : null,
+          flatAmount: activeDealRaw.flatAmount != null ? Number(activeDealRaw.flatAmount) : null,
+          flatUnit: activeDealRaw.flatUnit || null,
+          bonusAmount: activeDealRaw.bonusAmount != null ? Number(activeDealRaw.bonusAmount) : null,
+          bonusMetric: activeDealRaw.bonusMetric || null,
+          bonusTarget: activeDealRaw.bonusTarget != null ? Number(activeDealRaw.bonusTarget) : null,
+          tiers: activeDealRaw.tiers || null,
+          cpmRate: activeDealRaw.cpmRate != null ? Number(activeDealRaw.cpmRate) : null,
+          productValue: activeDealRaw.productValue != null ? Number(activeDealRaw.productValue) : null,
+          productDescription: activeDealRaw.productDescription || null,
+          startDate: activeDealRaw.startDate ? activeDealRaw.startDate.toISOString() : null,
+          endDate: activeDealRaw.endDate ? activeDealRaw.endDate.toISOString() : null,
+        }
+      : null;
+
     // Commission tiers
     const tiers = await prisma.influencerCommissionTier.findMany({
       where: { influencerId: influencer.id },
@@ -338,6 +385,7 @@ export async function GET(
         uniqueVisitors,
       },
       tier: activeTier,
+      activeDeal,
       campaigns: activeCampaigns.map((c) => {
         const rev = campaignRevenueMap.get(c.id) || 0;
         const target = c.bonusTarget ? Number(c.bonusTarget) : null;

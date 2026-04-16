@@ -39,6 +39,24 @@ interface Campaign { name: string; revenue: number; bonusTarget: number | null; 
 interface Coupon { code: string; discountPercent: number | null; discountFixed: number | null; }
 interface Tier { label: string | null; commissionPercent: number; minRevenue: number; maxRevenue: number | null; }
 
+interface ActiveDeal {
+  id: string;
+  type: "COMMISSION" | "FLAT_FEE" | "PERFORMANCE_BONUS" | "TIERED_COMMISSION" | "CPM" | "GIFTING" | "HYBRID";
+  currency: string;
+  commissionPercent: number | null;
+  flatAmount: number | null;
+  flatUnit: string | null;
+  bonusAmount: number | null;
+  bonusMetric: string | null;
+  bonusTarget: number | null;
+  tiers: any;
+  cpmRate: number | null;
+  productValue: number | null;
+  productDescription: string | null;
+  startDate: string | null;
+  endDate: string | null;
+}
+
 interface DashboardData {
   influencer: { name: string; profileImage: string | null; commissionPercent: number; attributionWindowDays: number };
   organization: { name: string };
@@ -49,6 +67,7 @@ interface DashboardData {
   comparison: { salesChange: number; commissionChange: number };
   stats: { conversionRate: number; avgOrderValue: number; uniqueVisitors: number };
   tier: Tier | null;
+  activeDeal: ActiveDeal | null;
   campaigns: Campaign[];
   coupons: Coupon[];
   bestDays: Array<{ date: string; sales: number }>;
@@ -56,6 +75,40 @@ interface DashboardData {
   dailyChart: Array<{ date: string; sales: number; conversions: number }>;
   topProducts?: Array<{ name: string; imageUrl: string | null; units: number; revenue: number }>;
   updatedAt: string;
+}
+
+// Helper: determina si el deal activo genera "comisión" monetaria
+function isCommissionBased(deal: ActiveDeal | null): boolean {
+  if (!deal) return true; // backward compat: influencers sin deal usan comisión fija
+  return deal.type === "COMMISSION" || deal.type === "TIERED_COMMISSION" || deal.type === "HYBRID";
+}
+
+function flatUnitLabel(unit: string | null): string {
+  switch (unit) {
+    case "PER_POST":
+      return "por post";
+    case "PER_MONTH":
+      return "por mes";
+    case "PER_CAMPAIGN":
+      return "por campaña";
+    default:
+      return "";
+  }
+}
+
+function bonusMetricLabel(metric: string | null): string {
+  switch (metric) {
+    case "REVENUE":
+      return "en ventas";
+    case "ORDERS":
+      return "ventas";
+    case "VIEWS":
+      return "views";
+    case "FOLLOWERS":
+      return "seguidores nuevos";
+    default:
+      return "";
+  }
 }
 
 interface Briefing {
@@ -447,7 +500,7 @@ export default function PublicInfluencerDashboard() {
                       {data.influencer.attributionWindowDays} días
                     </span>{" "}
                     <span className={darkMode ? "text-white/70" : "text-gray-600"}>
-                      de comisión garantizada
+                      {isCommissionBased(data.activeDeal) ? "de comisión garantizada" : "de atribución garantizada"}
                     </span>
                   </div>
                   <div
@@ -480,11 +533,61 @@ export default function PublicInfluencerDashboard() {
                   <p className="text-2xl font-bold">{fmtARS(data.today.sales)}</p>
                   <p className={`text-xs ${textSecondary} mt-0.5`}>{fmt(data.today.conversions)} ventas</p>
                 </div>
-                <div className={`${card} rounded-2xl p-4`}>
-                  <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium mb-1`}>Comision hoy</p>
-                  <p className="text-2xl font-bold text-fuchsia-400">{fmtARS(data.today.commission)}</p>
-                  <p className={`text-xs ${textSecondary} mt-0.5`}>{data.influencer.commissionPercent}%</p>
-                </div>
+                {(() => {
+                  const deal = data.activeDeal;
+                  // GIFTING: mostrar el valor del producto acordado
+                  if (deal && deal.type === "GIFTING") {
+                    return (
+                      <div className={`${card} rounded-2xl p-4`}>
+                        <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium mb-1`}>Tu acuerdo</p>
+                        <p className="text-2xl font-bold text-fuchsia-400">Gifting</p>
+                        <p className={`text-xs ${textSecondary} mt-0.5 truncate`}>
+                          {deal.productValue ? `Valor ${fmtARS(deal.productValue)}` : "Producto acordado"}
+                        </p>
+                      </div>
+                    );
+                  }
+                  // FLAT_FEE: mostrar el fee fijo acordado
+                  if (deal && deal.type === "FLAT_FEE") {
+                    return (
+                      <div className={`${card} rounded-2xl p-4`}>
+                        <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium mb-1`}>Fee pactado</p>
+                        <p className="text-2xl font-bold text-fuchsia-400">{deal.flatAmount ? fmtARS(deal.flatAmount) : "—"}</p>
+                        <p className={`text-xs ${textSecondary} mt-0.5`}>{flatUnitLabel(deal.flatUnit)}</p>
+                      </div>
+                    );
+                  }
+                  // PERFORMANCE_BONUS: mostrar bonus + target
+                  if (deal && deal.type === "PERFORMANCE_BONUS") {
+                    return (
+                      <div className={`${card} rounded-2xl p-4`}>
+                        <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium mb-1`}>Bonus objetivo</p>
+                        <p className="text-2xl font-bold text-fuchsia-400">{deal.bonusAmount ? fmtARS(deal.bonusAmount) : "—"}</p>
+                        <p className={`text-xs ${textSecondary} mt-0.5 truncate`}>
+                          {deal.bonusTarget ? `al llegar a ${fmt(deal.bonusTarget)} ${bonusMetricLabel(deal.bonusMetric)}` : ""}
+                        </p>
+                      </div>
+                    );
+                  }
+                  // CPM: tarifa por mil views
+                  if (deal && deal.type === "CPM") {
+                    return (
+                      <div className={`${card} rounded-2xl p-4`}>
+                        <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium mb-1`}>Tarifa CPM</p>
+                        <p className="text-2xl font-bold text-fuchsia-400">{deal.cpmRate ? fmtARS(deal.cpmRate) : "—"}</p>
+                        <p className={`text-xs ${textSecondary} mt-0.5`}>por 1.000 views</p>
+                      </div>
+                    );
+                  }
+                  // COMMISSION / TIERED_COMMISSION / HYBRID / default: comisión
+                  return (
+                    <div className={`${card} rounded-2xl p-4`}>
+                      <p className={`text-[10px] ${textMuted} uppercase tracking-wider font-medium mb-1`}>Comision hoy</p>
+                      <p className="text-2xl font-bold text-fuchsia-400">{fmtARS(data.today.commission)}</p>
+                      <p className={`text-xs ${textSecondary} mt-0.5`}>{data.influencer.commissionPercent}%</p>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Month KPIs */}
@@ -497,14 +600,75 @@ export default function PublicInfluencerDashboard() {
                   <p className="text-2xl font-bold">{fmtARS(data.thisMonth.sales)}</p>
                   <p className={`text-xs ${textSecondary} mt-0.5`}>{fmt(data.thisMonth.conversions)} ventas</p>
                 </div>
-                <div className="bg-gradient-to-br from-fuchsia-500/20 via-purple-500/10 to-cyan-500/10 backdrop-blur-sm rounded-2xl p-4 border border-fuchsia-500/25">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-[10px] text-fuchsia-300/80 uppercase tracking-wider font-medium">Mi comision</p>
-                    <ChangeArrow value={data.comparison.commissionChange} />
-                  </div>
-                  <p className="text-2xl font-bold text-fuchsia-400">{fmtARS(data.thisMonth.commission)}</p>
-                  <p className="text-xs text-fuchsia-300/60 mt-0.5">{data.influencer.commissionPercent}% de {fmtARS(data.thisMonth.sales)}</p>
-                </div>
+                {(() => {
+                  const deal = data.activeDeal;
+                  // GIFTING: info del producto, sin plata mensual
+                  if (deal && deal.type === "GIFTING") {
+                    return (
+                      <div className="bg-gradient-to-br from-pink-500/20 via-fuchsia-500/10 to-purple-500/10 backdrop-blur-sm rounded-2xl p-4 border border-pink-500/25">
+                        <p className="text-[10px] text-pink-300/80 uppercase tracking-wider font-medium mb-1">Tu colaboración</p>
+                        <p className="text-2xl font-bold text-pink-300">Gifting</p>
+                        <p className="text-xs text-pink-200/70 mt-0.5 line-clamp-2">
+                          {deal.productDescription || "Recibís el producto sin pago en efectivo."}
+                        </p>
+                      </div>
+                    );
+                  }
+                  // FLAT_FEE: fee del mes
+                  if (deal && deal.type === "FLAT_FEE") {
+                    return (
+                      <div className="bg-gradient-to-br from-blue-500/20 via-cyan-500/10 to-sky-500/10 backdrop-blur-sm rounded-2xl p-4 border border-blue-500/25">
+                        <p className="text-[10px] text-blue-300/80 uppercase tracking-wider font-medium mb-1">Fee pactado</p>
+                        <p className="text-2xl font-bold text-blue-300">{deal.flatAmount ? fmtARS(deal.flatAmount) : "—"}</p>
+                        <p className="text-xs text-blue-200/70 mt-0.5">{flatUnitLabel(deal.flatUnit)}</p>
+                      </div>
+                    );
+                  }
+                  // PERFORMANCE_BONUS: barra de progreso hacia el target
+                  if (deal && deal.type === "PERFORMANCE_BONUS") {
+                    const target = deal.bonusTarget || 0;
+                    const actual =
+                      deal.bonusMetric === "ORDERS"
+                        ? data.thisMonth.conversions
+                        : data.thisMonth.sales; // REVENUE/otros → usar ventas como proxy
+                    const progress = target > 0 ? Math.min((actual / target) * 100, 100) : 0;
+                    return (
+                      <div className="bg-gradient-to-br from-yellow-500/20 via-amber-500/10 to-orange-500/10 backdrop-blur-sm rounded-2xl p-4 border border-yellow-500/25">
+                        <p className="text-[10px] text-yellow-300/80 uppercase tracking-wider font-medium mb-1">Progreso al bonus</p>
+                        <p className="text-2xl font-bold text-yellow-300">{progress.toFixed(0)}%</p>
+                        <div className="mt-1.5 h-1.5 rounded-full bg-yellow-500/20 overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-yellow-400 to-orange-400" style={{ width: `${progress}%` }} />
+                        </div>
+                        <p className="text-xs text-yellow-200/70 mt-1">
+                          {deal.bonusAmount ? `+${fmtARS(deal.bonusAmount)} al llegar al target` : ""}
+                        </p>
+                      </div>
+                    );
+                  }
+                  // CPM: tarifa + leyenda
+                  if (deal && deal.type === "CPM") {
+                    return (
+                      <div className="bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-fuchsia-500/10 backdrop-blur-sm rounded-2xl p-4 border border-violet-500/25">
+                        <p className="text-[10px] text-violet-300/80 uppercase tracking-wider font-medium mb-1">Tu acuerdo</p>
+                        <p className="text-2xl font-bold text-violet-300">CPM</p>
+                        <p className="text-xs text-violet-200/70 mt-0.5">
+                          {deal.cpmRate ? `${fmtARS(deal.cpmRate)} cada 1.000 views` : "Pago por views"}
+                        </p>
+                      </div>
+                    );
+                  }
+                  // COMMISSION / TIERED / HYBRID / default
+                  return (
+                    <div className="bg-gradient-to-br from-fuchsia-500/20 via-purple-500/10 to-cyan-500/10 backdrop-blur-sm rounded-2xl p-4 border border-fuchsia-500/25">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[10px] text-fuchsia-300/80 uppercase tracking-wider font-medium">Mi comision</p>
+                        <ChangeArrow value={data.comparison.commissionChange} />
+                      </div>
+                      <p className="text-2xl font-bold text-fuchsia-400">{fmtARS(data.thisMonth.commission)}</p>
+                      <p className="text-xs text-fuchsia-300/60 mt-0.5">{data.influencer.commissionPercent}% de {fmtARS(data.thisMonth.sales)}</p>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Chart */}
@@ -706,7 +870,9 @@ export default function PublicInfluencerDashboard() {
                         </div>
                         <div className="text-right">
                           <span className="text-sm font-medium">{fmtARS(sale.amount)}</span>
-                          <span className="text-xs text-fuchsia-400 ml-2">+{fmtARS(sale.commission)}</span>
+                          {isCommissionBased(data.activeDeal) && sale.commission > 0 ? (
+                            <span className="text-xs text-fuchsia-400 ml-2">+{fmtARS(sale.commission)}</span>
+                          ) : null}
                         </div>
                       </div>
                     ))}
@@ -717,20 +883,33 @@ export default function PublicInfluencerDashboard() {
               {/* All-time */}
               <div className={`${card} rounded-2xl p-5`}>
                 <p className={`text-xs ${textSecondary} uppercase tracking-wider font-medium mb-3`}>Total historico</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-lg font-bold">{fmtARS(data.allTime.sales)}</p>
-                    <p className={`text-[10px] ${textMuted}`}>Revenue</p>
+                {isCommissionBased(data.activeDeal) ? (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-lg font-bold">{fmtARS(data.allTime.sales)}</p>
+                      <p className={`text-[10px] ${textMuted}`}>Revenue</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-fuchsia-400">{fmtARS(data.allTime.commission)}</p>
+                      <p className={`text-[10px] ${textMuted}`}>Comision</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">{fmt(data.allTime.conversions)}</p>
+                      <p className={`text-[10px] ${textMuted}`}>Ventas</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-lg font-bold text-fuchsia-400">{fmtARS(data.allTime.commission)}</p>
-                    <p className={`text-[10px] ${textMuted}`}>Comision</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-lg font-bold">{fmtARS(data.allTime.sales)}</p>
+                      <p className={`text-[10px] ${textMuted}`}>Revenue generado</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">{fmt(data.allTime.conversions)}</p>
+                      <p className={`text-[10px] ${textMuted}`}>Ventas</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-lg font-bold">{fmt(data.allTime.conversions)}</p>
-                    <p className={`text-[10px] ${textMuted}`}>Ventas</p>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Footer */}
