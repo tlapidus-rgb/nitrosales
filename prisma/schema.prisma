@@ -72,6 +72,8 @@ model Organization {
   influencerBriefings      InfluencerBriefing[]
   contentSubmissions       ContentSubmission[]
   productSeedings          ProductSeeding[]
+  influencerDeals          InfluencerDeal[]
+  payouts                  Payout[]
   // Audience Sync
   audiences                Audience[]
 
@@ -1229,6 +1231,8 @@ model Influencer {
   briefings               InfluencerBriefing[]
   contentSubmissions      ContentSubmission[]
   productSeedings         ProductSeeding[]
+  deals                   InfluencerDeal[]
+  payouts                 Payout[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -1276,6 +1280,8 @@ model InfluencerCampaign {
   influencer      Influencer @relation(fields: [influencerId], references: [id])
   attributions    InfluencerAttribution[]
   briefings       InfluencerBriefing[]
+  deals           InfluencerDeal[]
+  payouts         Payout[]
 
   @@index([organizationId, influencerId])
   @@map("influencer_campaigns")
@@ -1434,6 +1440,99 @@ model ProductSeeding {
   @@index([organizationId, influencerId])
   @@index([organizationId, status])
   @@map("product_seedings")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 6: PAGOS A CREADORES (Aura)
+// ─────────────────────────────────────────────
+
+// Acuerdo de compensación entre la empresa y un creador (puede ser por campaña o general)
+// Soporta múltiples modelos: comisión %, flat fee, bonus por performance, tiered, CPM, gifting, híbrido
+model InfluencerDeal {
+  id                  String   @id @default(cuid())
+  name                String                              // "Deal Q1 Sofía - Commission + Flat"
+  type                String                              // COMMISSION, FLAT_FEE, PERFORMANCE_BONUS, TIERED_COMMISSION, CPM, GIFTING, HYBRID
+  status              String   @default("ACTIVE")         // ACTIVE, PAUSED, ENDED
+  currency            String   @default("ARS")            // ARS, USD
+
+  // COMMISSION: % sobre ventas atribuidas
+  commissionPercent   Decimal? @db.Decimal(5, 2)          // ej: 10.00 = 10%
+
+  // FLAT_FEE: monto fijo (por campaña o por pieza de contenido)
+  flatAmount          Decimal? @db.Decimal(12, 2)
+  flatUnit            String?                             // "CAMPAIGN", "REEL", "POST", "STORY", "UGC"
+
+  // PERFORMANCE_BONUS: bonus condicional
+  bonusAmount         Decimal? @db.Decimal(12, 2)
+  bonusMetric         String?                             // "REVENUE", "ORDERS", "VIEWS", "ENGAGEMENT"
+  bonusTarget         Decimal? @db.Decimal(12, 2)         // valor a superar para desbloquear bonus
+
+  // TIERED_COMMISSION: tramos JSON [{min, max, pct}, ...]
+  tiers               Json?
+
+  // CPM: pago por cada 1000 views
+  cpmRate             Decimal? @db.Decimal(12, 2)
+
+  // GIFTING: solo producto (sin cash)
+  productValue        Decimal? @db.Decimal(12, 2)         // valor estimado del producto
+  productDescription  String?  @db.Text
+
+  // Ventana temporal
+  startDate           DateTime? @db.Date
+  endDate             DateTime? @db.Date
+
+  notes               String?  @db.Text
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  influencerId        String
+  influencer          Influencer @relation(fields: [influencerId], references: [id])
+  campaignId          String?
+  campaign            InfluencerCampaign? @relation(fields: [campaignId], references: [id])
+  payouts             Payout[]
+
+  @@index([organizationId, influencerId, status])
+  @@index([organizationId, campaignId])
+  @@map("influencer_deals")
+}
+
+// Pago concreto al creador (Pendiente → Pagado)
+// Puede derivar de un deal o ser ad-hoc (cargado a mano sin deal previo)
+model Payout {
+  id                  String   @id @default(cuid())
+  concept             String                              // "Comisión Marzo 2026", "Reel Día del Niño", etc.
+  amount              Decimal  @db.Decimal(12, 2)
+  currency            String   @default("ARS")
+  status              String   @default("PENDING")        // PENDING, PAID, CANCELLED
+
+  // Periodo que cubre el payout (opcional, útil para comisiones mensuales)
+  periodStart         DateTime? @db.Date
+  periodEnd           DateTime? @db.Date
+
+  // Registro del pago efectivo
+  method              String?                             // TRANSFER, CASH, MERCADOPAGO, CRYPTO, PRODUCT, OTHER
+  paidAt              DateTime?
+  reference           String?                             // Nro de transferencia, ID MP, etc.
+  proofUrl            String?                             // URL del comprobante (OPCIONAL)
+  notes               String?  @db.Text                   // Notas libres
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  influencerId        String
+  influencer          Influencer @relation(fields: [influencerId], references: [id])
+  dealId              String?
+  deal                InfluencerDeal? @relation(fields: [dealId], references: [id])
+  campaignId          String?
+  campaign            InfluencerCampaign? @relation(fields: [campaignId], references: [id])
+
+  @@index([organizationId, influencerId, status])
+  @@index([organizationId, status, createdAt])
+  @@map("payouts")
 }
 
 // ─────────────────────────────────────────────
