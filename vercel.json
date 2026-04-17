@@ -44,6 +44,14 @@
     {
       "path": "/api/cron/ads-utm-audit?key=nitrosales-secret-key-2024-production",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/exchange-rates?key=nitrosales-secret-key-2024-production",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/inflation-index?key=nitrosales-secret-key-2024-production",
+      "schedule": "0 13 16 * *"
     }
   ]
 }

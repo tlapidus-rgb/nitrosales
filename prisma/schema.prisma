@@ -1603,3 +1603,52 @@ model AudienceSyncLog {
   @@index([audienceId, createdAt])
   @@map("audience_sync_logs")
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// FINANZAS · CURRENCY & INFLATION (Fase 0 P&L redesign)
+// ═══════════════════════════════════════════════════════════════════
+// Tablas GLOBALES (sin organizationId) porque el dolar MEP del
+// 15/04/2026 y el IPC de marzo 2026 son identicos para cualquier
+// empresa argentina. Cache compartido entre orgs.
+// Tablas creadas por /api/admin/migrate-finanzas-fx-indices.
+// ═══════════════════════════════════════════════════════════════════
+
+/// Cotizacion diaria del dolar (oficial / MEP / CCL / blue).
+/// Poblada por cron /api/cron/exchange-rates (1x/dia ~09:00 ART).
+/// Una fila por dia; las 4 cotizaciones son opcionales para tolerar
+/// fuentes que solo publiquen algunas.
+model ExchangeRateDaily {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  oficial   Decimal? @db.Decimal(12, 4)
+  mep       Decimal? @db.Decimal(12, 4)
+  ccl       Decimal? @db.Decimal(12, 4)
+  blue      Decimal? @db.Decimal(12, 4)
+  source    String   @default("dolarapi.com")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date], map: "ExchangeRateDaily_date_key")
+  @@index([date(sort: Desc)], map: "ExchangeRateDaily_date_desc_idx")
+  @@map("ExchangeRateDaily")
+}
+
+/// Indice de inflacion mensual publicado por INDEC.
+/// Poblada por cron /api/cron/inflation-index (1x/mes dia 15 ~10:00 ART,
+/// cuando INDEC suele publicar el dato del mes anterior).
+/// - ipc: variacion % mensual (ej: 2.45 = 2.45% en el mes)
+/// - ipcAcumulado: indice base 100 desde baseDate (para deflactar series)
+model InflationIndexMonthly {
+  id           String    @id @default(cuid())
+  month        DateTime  @db.Date
+  ipc          Decimal?  @db.Decimal(8, 4)
+  ipcAcumulado Decimal?  @db.Decimal(12, 4)
+  baseDate     DateTime? @db.Date
+  source       String    @default("INDEC")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([month], map: "InflationIndexMonthly_month_key")
+  @@index([month(sort: Desc)], map: "InflationIndexMonthly_month_desc_idx")
+  @@map("InflationIndexMonthly")
+}
