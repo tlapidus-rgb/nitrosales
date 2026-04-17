@@ -212,15 +212,69 @@ export function useCurrencyView() {
         return amountARS / rate;
       }
 
-      // ARS_ADJ: ajustar al poder adquisitivo del ultimo mes disponible
+      // ARS_ADJ: ajustar al poder adquisitivo de HOY
+      //
+      // Semantica:
+      //   amountARS esta "en plata del mes X" → lo queremos ver "en plata de hoy".
+      //   factor = IPC_hoy / IPC_mes_X.
+      //
+      // Detalles importantes:
+      //   - Si no tenemos fecha: factor = 1 (asumimos que el monto ya es "de hoy").
+      //   - Si el mes del monto no esta en ipcByMonth (ej: abril 2026 cuando
+      //     solo tenemos hasta marzo), usamos el ultimo mes disponible como
+      //     punto de partida (el mas cercano <= monthKey).
+      //   - "IPC_hoy" se extrapola desde el ultimo IPC mensual publicado,
+      //     sumando los dias transcurridos del mes actual * inflacion mensual.
+      //     Asi un monto del mes actual todavia ve un ajuste ~1-2%.
       if (state.mode === "ARS_ADJ") {
         if (!payload || payload.currentIpcAcumulado === null) return amountARS;
         if (!dateOfAmount) return amountARS;
-        // Buscar el primer dia del mes del dateOfAmount
+
+        // Buscar row del mes del dateOfAmount. Si no existe, caer al
+        // mes disponible mas cercano hacia atras.
         const monthKey = `${dateOfAmount.substring(0, 7)}-01`;
-        const row = payload.ipcByMonth[monthKey];
-        if (!row || row.ipcAcumulado === null || row.ipcAcumulado <= 0) return amountARS;
-        const factor = payload.currentIpcAcumulado / row.ipcAcumulado;
+        let row = payload.ipcByMonth[monthKey];
+        if (!row || row.ipcAcumulado === null || row.ipcAcumulado <= 0) {
+          const allKeys = Object.keys(payload.ipcByMonth).sort();
+          const fallbackKey = allKeys.filter((k) => k <= monthKey).pop();
+          if (!fallbackKey) return amountARS;
+          row = payload.ipcByMonth[fallbackKey];
+          if (!row || row.ipcAcumulado === null || row.ipcAcumulado <= 0) {
+            return amountARS;
+          }
+        }
+
+        // Extrapolar IPC de hoy desde el ultimo mes publicado.
+        // Ejemplo: si latestIpcMonth = "2026-03-31", hoy = 2026-04-17,
+        // y IPC mensual de marzo = 3.4%, entonces para abril asumimos
+        // 3.4% prorrateado por dia → ~1.9% al dia 17 de abril.
+        let ipcToday = payload.currentIpcAcumulado;
+        if (payload.latestIpcMonth) {
+          const latestKey = payload.latestIpcMonth.substring(0, 10);
+          const lastRow = payload.ipcByMonth[latestKey];
+          const lastIpcMensual = lastRow?.ipc;
+          if (lastIpcMensual !== undefined && lastIpcMensual !== null && lastIpcMensual > 0) {
+            const today = new Date();
+            const lastYear = Number(latestKey.substring(0, 4));
+            const lastMonth0 = Number(latestKey.substring(5, 7)) - 1;
+            // dias transcurridos desde fin del ultimo mes IPC
+            const lastMonthEnd = new Date(Date.UTC(lastYear, lastMonth0 + 1, 0));
+            const daysSince = Math.max(
+              0,
+              Math.floor((today.getTime() - lastMonthEnd.getTime()) / 86_400_000)
+            );
+            // Dias del mes actual (para prorratear la inflacion mensual)
+            const daysInCurMonth = new Date(
+              today.getUTCFullYear(),
+              today.getUTCMonth() + 1,
+              0
+            ).getUTCDate();
+            const extraFactor = 1 + (lastIpcMensual / 100) * (daysSince / daysInCurMonth);
+            ipcToday = payload.currentIpcAcumulado * extraFactor;
+          }
+        }
+
+        const factor = ipcToday / row.ipcAcumulado;
         return amountARS * factor;
       }
 
