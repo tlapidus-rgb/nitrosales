@@ -14,38 +14,16 @@ import {
 } from "lucide-react";
 import { formatARS, formatCompact } from "@/lib/utils/format";
 import { SourceLogo, CHANNEL_LABEL, CHANNEL_TINT } from "@/components/bondly/SourceLogo";
-
-// ═══════════════════════════════════════════════════════════════════
-// Constantes visuales — biblia Bondly
-// ═══════════════════════════════════════════════════════════════════
-const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
-const BONDLY_GRAD = "linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #6366f1 100%)";
-const GOLD_GRAD = "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)";
-const VIP_GRAD = "linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f97316 100%)";
-
-const TIER_CONFIG: Record<string, { icon: any; accent: string; glow: string; label: string }> = {
-  VIP:     { icon: Crown,        accent: "#a855f7", glow: "rgba(168,85,247,0.35)",  label: "VIP" },
-  Loyal:   { icon: Heart,        accent: "#ec4899", glow: "rgba(236,72,153,0.30)",  label: "LEAL" },
-  Regular: { icon: Users,        accent: "#6366f1", glow: "rgba(99,102,241,0.25)",  label: "REGULAR" },
-  New:     { icon: Sparkles,     accent: "#06b6d4", glow: "rgba(6,182,212,0.30)",   label: "NUEVO" },
-  "At Risk": { icon: AlertTriangle, accent: "#f59e0b", glow: "rgba(245,158,11,0.35)", label: "EN RIESGO" },
-  Dormant: { icon: Moon,         accent: "#94a3b8", glow: "rgba(148,163,184,0.25)", label: "DORMIDO" },
-  Anonymous: { icon: UserX,      accent: "#64748b", glow: "rgba(100,116,139,0.20)", label: "ANÓNIMO" },
-};
-
-const QUICK_SEGMENT_CONFIG: Record<string, { icon: any; gradient: string; solid: string; label: string }> = {
-  all:            { icon: Users,          gradient: "linear-gradient(135deg, #475569 0%, #1e293b 100%)", solid: "#1e293b", label: "Todos" },
-  browsing_now:   { icon: Activity,       gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)", solid: "#06b6d4", label: "Navegando ahora" },
-  anonymous:      { icon: UserX,          gradient: "linear-gradient(135deg, #64748b 0%, #334155 100%)", solid: "#64748b", label: "Anónimos" },
-  identified:     { icon: UserCheck,      gradient: "linear-gradient(135deg, #10b981 0%, #0891b2 100%)", solid: "#10b981", label: "Identificados" },
-  new_7d:         { icon: Sparkles,       gradient: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)", solid: "#06b6d4", label: "Nuevos 7d" },
-  vip:            { icon: Crown,          gradient: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)", solid: "#a855f7", label: "VIP" },
-  champions:      { icon: Star,           gradient: "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)", solid: "#f59e0b", label: "Champions" },
-  cart_abandoned: { icon: ShoppingCart,   gradient: "linear-gradient(135deg, #f97316 0%, #ef4444 100%)", solid: "#f97316", label: "Carrito abandonado" },
-  reappeared:     { icon: Repeat,         gradient: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)", solid: "#10b981", label: "Reaparecidos" },
-  at_risk:        { icon: AlertTriangle,  gradient: "linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)", solid: "#f59e0b", label: "En riesgo" },
-  dormant:        { icon: Moon,           gradient: "linear-gradient(135deg, #64748b 0%, #334155 100%)", solid: "#64748b", label: "Dormidos" },
-};
+import {
+  ES,
+  BONDLY_GRAD,
+  TIER_CONFIG,
+  QUICK_SEGMENT_CONFIG,
+} from "@/components/bondly/constants";
+import {
+  KpiTile,
+  BondlyKeyframes,
+} from "@/components/bondly/primitives";
 
 const SORT_OPTIONS = [
   { value: "last_order",       label: "Última compra", hint: "Los que compraron más reciente" },
@@ -142,30 +120,6 @@ function formatDateShort(iso: string | null): string {
   } catch {
     return "—";
   }
-}
-
-// Count-up animation hook
-function useCountUp(target: number, durationMs: number = 900): number {
-  const [value, setValue] = useState(0);
-  const rafRef = useRef<number | null>(null);
-  const startRef = useRef<number>(0);
-  const fromRef = useRef<number>(0);
-
-  useEffect(() => {
-    fromRef.current = value;
-    startRef.current = performance.now();
-    const animate = (now: number) => {
-      const t = Math.min(1, (now - startRef.current) / durationMs);
-      const eased = 1 - Math.pow(1 - t, 4);
-      setValue(Math.round(fromRef.current + (target - fromRef.current) * eased));
-      if (t < 1) rafRef.current = requestAnimationFrame(animate);
-    };
-    rafRef.current = requestAnimationFrame(animate);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
-
-  return value;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -801,79 +755,8 @@ export default function ClientesPage() {
         </div>
       )}
 
-      {/* Global styles */}
-      <style jsx global>{`
-        @keyframes bondlyFadeSlideIn {
-          0% { opacity: 0; transform: translateY(6px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes bondlySlideIn {
-          0% { opacity: 0; transform: translateY(4px) scale(0.98); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes bondlyShimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        @keyframes bondlyLivePulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(6,182,212,0.45); }
-          50%      { box-shadow: 0 0 0 6px rgba(6,182,212,0.0); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          *, *::before, *::after {
-            animation-duration: 0.01ms !important;
-            transition-duration: 0.01ms !important;
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// KpiTile
-// ═══════════════════════════════════════════════════════════════════
-function KpiTile({ icon: Icon, iconBg, iconColor, label, value, loading, live }: any) {
-  const displayValue = useCountUp(value || 0, 800);
-  return (
-    <div
-      className="relative rounded-2xl bg-white p-5 overflow-hidden"
-      style={{
-        border: "1px solid rgba(15,23,42,0.06)",
-        boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 12px 30px -18px rgba(15,23,42,0.12)",
-        animation: `bondlyFadeSlideIn 420ms ${ES}`,
-      }}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: iconBg }}>
-          <Icon size={16} style={{ color: iconColor }} strokeWidth={2.2} />
-        </div>
-        {live && (
-          <span
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono tracking-[0.15em] uppercase"
-            style={{
-              background: "rgba(6,182,212,0.10)",
-              color: "#0891b2",
-              animation: `bondlyLivePulse 2.4s ${ES} infinite`,
-            }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
-            LIVE
-          </span>
-        )}
-      </div>
-      <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-slate-400 mb-1">{label}</p>
-      {loading ? (
-        <div className="h-10 w-24 rounded bg-slate-100" style={{
-          backgroundImage: "linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)",
-          backgroundSize: "200% 100%",
-          animation: `bondlyShimmer 1.6s ease-in-out infinite`,
-        }} />
-      ) : (
-        <p className="text-[32px] font-semibold tabular-nums tracking-tight text-slate-900 leading-none">
-          {displayValue.toLocaleString("es-AR")}
-        </p>
-      )}
+      {/* Global styles (keyframes compartidos del módulo Bondly) */}
+      <BondlyKeyframes />
     </div>
   );
 }
