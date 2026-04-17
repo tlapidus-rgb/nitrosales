@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
 import { DateRangeFilter } from "@/components/dashboard";
+import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
 
 /* ── Types ──────────────────────────────────── */
 interface PnlSummary {
@@ -871,6 +872,11 @@ export default function FinanzasPage() {
           onDateChange={handleDateChange}
           loading={loading}
         />
+      </div>
+
+      {/* Currency toggle (Fase 0 P&L redesign — se aplicara a los numeros en Fase 1+) */}
+      <div className="mb-6">
+        <CurrencyToggle />
       </div>
 
       {/* Conditional View */}
