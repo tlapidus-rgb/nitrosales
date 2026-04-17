@@ -21,6 +21,7 @@ import { getVtexConfig } from "@/lib/vtex-credentials";
 import { calculateAttribution } from "@/lib/pixel/attribution";
 import { sendCapiPurchase } from "@/lib/pixel/capi";
 import { normalizePhone } from "@/lib/pixel/identity";
+import { linkVisitorToCustomer } from "@/lib/pixel/link-visitor";
 import { verifyWebhookSignature } from "@/lib/webhooks/signature";
 
 export const dynamic = "force-dynamic";
@@ -312,6 +313,23 @@ export async function POST(req: NextRequest) {
         where: { id: order.id },
         data: { customerId: customer.id },
       });
+
+      // ── Link pixel_visitors anonimos → customer (por email/phone) ──
+      // Este hook vive FUERA del bloque CORE PROTEGIDO de atribucion.
+      // Non-fatal: si falla, no rompe el webhook ni afecta el order processing.
+      // Idempotente: si el visitor ya esta linkeado, no hace nada.
+      try {
+        await linkVisitorToCustomer(
+          { id: customer.id, email: customer.email },
+          org.id,
+          {
+            attributionLimit: 5,
+            additionalPhone: normalizePhone(profile?.phone || null),
+          }
+        );
+      } catch (linkError) {
+        console.error("[Webhook:Orders] linkVisitorToCustomer error (non-fatal):", linkError);
+      }
     }
 
     // ── Upsert Products + OrderItems ──
