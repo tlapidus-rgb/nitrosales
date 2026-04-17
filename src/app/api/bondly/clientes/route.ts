@@ -21,7 +21,7 @@ import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 50;
 
 // ──────────────────────────────────────────────────────────────────
 // Tipos
@@ -786,7 +786,7 @@ export async function GET(request: NextRequest) {
       filters: {
         cities: citiesRows.map(c => ({ city: c.city, count: Number(c.n) })),
       },
-      customers: filteredCustomers,
+      customers: pagedCustomers,
       pagination: {
         page,
         pageSize,

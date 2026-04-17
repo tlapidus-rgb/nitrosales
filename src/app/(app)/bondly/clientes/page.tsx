@@ -231,7 +231,7 @@ export default function ClientesPage() {
       const params = new URLSearchParams({
         from: dateFrom, to: dateTo,
         page: String(page),
-        pageSize: "25",
+        pageSize: "50",
         sort,
         quickSegment,
       });
@@ -721,7 +721,7 @@ export default function ClientesPage() {
       {/* ═══════════════════════════════════════════════════════════ */}
       {pagination && pagination.totalPages > 1 && (
         <div
-          className="rounded-2xl bg-white px-4 py-3 flex items-center justify-between"
+          className="rounded-2xl bg-white px-4 py-3 flex items-center justify-between flex-wrap gap-3"
           style={{
             border: "1px solid rgba(15,23,42,0.06)",
             boxShadow: "0 1px 0 rgba(15,23,42,0.04)",
@@ -729,23 +729,73 @@ export default function ClientesPage() {
         >
           <p className="text-xs text-slate-500 tabular-nums">
             Página <span className="font-semibold text-slate-900">{page}</span> de <span className="font-semibold text-slate-900">{pagination.totalPages}</span>
+            <span className="hidden sm:inline"> · <span className="font-semibold text-slate-900">{pagination.totalFiltered.toLocaleString("es-AR")}</span> clientes</span>
           </p>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page === 1}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              aria-label="Página anterior"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
               style={{ border: "1px solid rgba(15,23,42,0.08)", transition: `all 200ms ${ES}` }}
             >
-              Anterior
+              ‹
             </button>
+            {(() => {
+              const total = pagination.totalPages;
+              const current = page;
+              const pages: (number | "ellipsis")[] = [];
+              // Algoritmo: siempre 1 y total; current ± 1; ellipsis en los gaps
+              if (total <= 7) {
+                for (let i = 1; i <= total; i++) pages.push(i);
+              } else {
+                pages.push(1);
+                if (current <= 4) {
+                  pages.push(2, 3, 4, 5, "ellipsis", total);
+                } else if (current >= total - 3) {
+                  pages.push("ellipsis", total - 4, total - 3, total - 2, total - 1, total);
+                } else {
+                  pages.push("ellipsis", current - 1, current, current + 1, "ellipsis", total);
+                }
+              }
+              return pages.map((p, idx) => {
+                if (p === "ellipsis") {
+                  return (
+                    <span key={`e-${idx}`} className="h-8 w-8 flex items-center justify-center text-xs text-slate-400 select-none">
+                      …
+                    </span>
+                  );
+                }
+                const isActive = p === current;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    aria-label={`Ir a página ${p}`}
+                    aria-current={isActive ? "page" : undefined}
+                    className="h-8 min-w-[32px] px-2 flex items-center justify-center rounded-lg text-xs font-medium tabular-nums"
+                    style={{
+                      border: "1px solid rgba(15,23,42,0.08)",
+                      background: isActive ? "#0f172a" : "transparent",
+                      color: isActive ? "#ffffff" : "#0f172a",
+                      transition: `all 200ms ${ES}`,
+                    }}
+                    onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#f8fafc"; }}
+                    onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                  >
+                    {p}
+                  </button>
+                );
+              });
+            })()}
             <button
               onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
               disabled={page >= pagination.totalPages}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: "#0f172a", transition: `all 200ms ${ES}` }}
+              aria-label="Página siguiente"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              style={{ border: "1px solid rgba(15,23,42,0.08)", transition: `all 200ms ${ES}` }}
             >
-              Siguiente
+              ›
             </button>
           </div>
         </div>
