@@ -94,7 +94,23 @@ const PATHNAME_FALLBACK: Array<{
   { match: (p) => p.startsWith("/products"), section: "products", label: "Productos", suggestions: ["¿Qué productos priorizar?", "¿Cómo leo el ranking?"] },
   { match: (p) => p.startsWith("/rentabilidad"), section: "rentabilidad", label: "Rentabilidad", suggestions: ["¿Qué es margen de contribución?", "¿Cómo subo la rentabilidad?"] },
   { match: (p) => p.startsWith("/finanzas/costos"), section: "finanzas.costos", label: "Costos", suggestions: ["¿Cómo estructuro costos?", "¿Qué costos escondidos suelo olvidar?"] },
+  { match: (p) => p.startsWith("/finanzas/escenarios"), section: "finanzas.escenarios", label: "Escenarios", suggestions: ["¿Qué escenario es más realista?", "¿Cómo modelo un bajón de 20%?"] },
   { match: (p) => p.startsWith("/finanzas"), section: "finanzas", label: "Finanzas", suggestions: ["¿Cómo leo este P&L?", "¿Qué debería monitorear mensual?"] },
+  { match: (p) => p.startsWith("/bondly/overview"), section: "bondly.overview", label: "Bondly · Overview", suggestions: ["¿Qué cliente vale más?", "¿Cómo subo la retención?"] },
+  { match: (p) => p.startsWith("/bondly/senales"), section: "bondly.senales", label: "Bondly · Señales", suggestions: ["¿Qué señal priorizo hoy?", "¿Cómo interpreto este feed?"] },
+  { match: (p) => p.startsWith("/bondly/clientes"), section: "bondly.clientes", label: "Bondly · Clientes", suggestions: ["¿Quiénes son mis VIP?", "¿Cómo segmento mejor?"] },
+  { match: (p) => p.startsWith("/bondly/ltv"), section: "bondly.ltv", label: "Bondly · LTV", suggestions: ["¿Cómo subo el LTV?", "¿Qué canal rinde mejor en LTV?"] },
+  { match: (p) => p.startsWith("/bondly/audiencias"), section: "bondly.audiencias", label: "Bondly · Audiencias", suggestions: ["¿Qué audiencia activar primero?", "¿Cómo mido esta audiencia?"] },
+  { match: (p) => p.startsWith("/bondly"), section: "bondly", label: "Bondly", suggestions: ["¿Qué ver primero en Bondly?", "¿Cómo uso esta sección?"] },
+  { match: (p) => p.startsWith("/aura/creadores"), section: "aura.creadores", label: "Aura · Creadores", suggestions: ["¿A quién doblar la apuesta?", "¿Cómo evalúo un creador?"] },
+  { match: (p) => p.startsWith("/aura/campanas"), section: "aura.campanas", label: "Aura · Campañas", suggestions: ["¿Qué campaña está rindiendo mejor?", "¿Cómo armo una nueva?"] },
+  { match: (p) => p.startsWith("/aura/contenido"), section: "aura.contenido", label: "Aura · Contenido", suggestions: ["¿Qué contenido aprobar?", "¿Cómo doy feedback rápido?"] },
+  { match: (p) => p.startsWith("/aura/deals"), section: "aura.deals", label: "Aura · Deals", suggestions: ["¿Qué tipo de deal me conviene?", "¿Cuándo uso comisión vs flat fee?"] },
+  { match: (p) => p.startsWith("/aura/pagos"), section: "aura.pagos", label: "Aura · Pagos", suggestions: ["¿Qué pagos me quedan pendientes?", "¿Cómo priorizo pagos?"] },
+  { match: (p) => p.startsWith("/aura/inicio") || p === "/aura", section: "aura.inicio", label: "Aura · Inicio", suggestions: ["¿Qué es Aura?", "¿Por dónde arranco?"] },
+  { match: (p) => p.startsWith("/aura"), section: "aura", label: "Aura", suggestions: ["¿Qué hace Aura?", "¿Cómo uso esta sección?"] },
+  { match: (p) => p.startsWith("/admin/usage"), section: "admin.usage", label: "Admin · Usage", suggestions: ["¿Qué consumo estoy viendo?", "¿Cómo leo este uso?"] },
+  { match: (p) => p.startsWith("/admin"), section: "admin", label: "Admin", suggestions: ["¿Qué está pasando acá?", "¿Cómo uso esta sección?"] },
   { match: (p) => p.startsWith("/campaigns/google"), section: "campaigns.google", label: "Google Ads", suggestions: ["¿Cómo bajo el CPA?", "¿Qué campaña pausar?"] },
   { match: (p) => p.startsWith("/campaigns/meta"), section: "campaigns.meta", label: "Meta Ads", suggestions: ["¿Cómo mejoro el ROAS?", "¿Qué creatividad está muriendo?"] },
   { match: (p) => p.startsWith("/campaigns/creatives"), section: "campaigns.creatives", label: "Creatividades", suggestions: ["¿Qué ángulo probar?", "¿Cómo detecto fatiga creativa?"] },
@@ -123,12 +139,27 @@ const PATHNAME_FALLBACK: Array<{
 
 function resolvePathnameFallback(pathname: string) {
   const hit = PATHNAME_FALLBACK.find((r) => r.match(pathname));
-  if (!hit) return null;
+  if (hit) {
+    return {
+      section: hit.section,
+      contextLabel: hit.label,
+      contextData: { page: pathname, note: "Sin datos específicos — responder general sobre esta sección." },
+      suggestions: hit.suggestions,
+    };
+  }
+  // Fallback universal — garantiza que Aurum siempre se pueda usar,
+  // aunque sea una página nueva que todavía no está mapeada arriba.
   return {
-    section: hit.section,
-    contextLabel: hit.label,
-    contextData: { page: pathname, note: "Sin datos específicos — responder general sobre esta sección." },
-    suggestions: hit.suggestions,
+    section: "general",
+    contextLabel: "NitroSales",
+    contextData: {
+      page: pathname,
+      note: "Consulta general sobre NitroSales o esta pantalla — no hay data específica todavía.",
+    },
+    suggestions: [
+      "¿Qué debería mirar primero acá?",
+      "¿Qué datos necesitás para analizar esto?",
+    ],
   };
 }
 
@@ -146,6 +177,27 @@ export default function FloatingAurum() {
     if (rawCtx) return rawCtx;
     return resolvePathnameFallback(pathname);
   }, [rawCtx, pathname]);
+
+  // hasRichContext = la página publicó su propio contexto específico
+  // (no solo el fallback por pathname). Se usa para el dot verde
+  // "data lista específica de esta pantalla".
+  const hasRichContext = !!rawCtx;
+
+  // pageReady controla la aparición del botón:
+  //   - Si la página publicó contexto rico → aparece inmediato.
+  //   - Si no → esperamos 220ms tras cambiar de pathname para dejar
+  //     que la página se asiente antes de mostrar el botón.
+  // Así el botón aparece "cuando la data está lista", no antes.
+  const [pageReady, setPageReady] = useState(false);
+  useEffect(() => {
+    if (hasRichContext) {
+      setPageReady(true);
+      return;
+    }
+    setPageReady(false);
+    const t = setTimeout(() => setPageReady(true), 220);
+    return () => clearTimeout(t);
+  }, [pathname, hasRichContext]);
 
   // Estado del chat contextual
   const [initialInsight, setInitialInsight] = useState<string | null>(null);
@@ -172,8 +224,10 @@ export default function FloatingAurum() {
     setMessages([]);
     setInitialInsight(null);
     setInsightError(null);
-    setHasContext(!!ctx);
-  }, [ctxKey]);
+    // El dot verde "data lista" aparece solo cuando la página publicó
+    // su contexto específico, no con el fallback genérico.
+    setHasContext(hasRichContext);
+  }, [ctxKey, hasRichContext]);
 
   // Cuando abrimos el panel por primera vez (y hay contexto) → generamos insight inicial.
   useEffect(() => {
@@ -290,7 +344,13 @@ export default function FloatingAurum() {
           background: "transparent",
           border: "none",
           padding: 0,
-          cursor: "pointer",
+          cursor: pageReady ? "pointer" : "default",
+          opacity: pageReady ? 1 : 0,
+          pointerEvents: pageReady ? "auto" : "none",
+          transform: pageReady
+            ? "translateY(0) scale(1)"
+            : "translateY(10px) scale(0.92)",
+          transition: `opacity 420ms ${ES_TRANSITION}, transform 420ms ${ES_TRANSITION}`,
         }}
       >
         {/* Burbuja: fondo oscuro + halo dorado via box-shadow (siempre circular, sin artifacts) */}
