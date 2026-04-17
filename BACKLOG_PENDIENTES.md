@@ -8,7 +8,7 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-17 — Sesión 40 (creación del archivo + primer ítem crítico).
+> **Última actualización**: 2026-04-17 — Sesión 40 (creación + BP-001 escalado a "versión más robusta" + BP-005 mensajería multi-canal + BP-006 Aura marketplace afiliados).
 
 ---
 
@@ -89,11 +89,121 @@ Esfuerzo: 4-6 semanas cuando llegue el momento.
 
 **Decisión de Tomy (Sesión 40)**: avanzar Fase 1 cuando se retome el tema, no ahora. La Fase 2 se revisa con documento aparte antes de implementar.
 
+**Actualización de ambición (Sesión 40, segundo pase)**: Tomy explícitamente dice que quiere "implementar el más potente para que NitroSales sea más robusto". O sea, la ambición explícita del ítem es ejecutar **las 4 fases completas** y posicionar este módulo como **la versión más robusta de pLTV predictivo del ecommerce argentino**. No limitarse a Fase 1. Cuando llegue el momento, se abre documento de arquitectura detallado con:
+
+- Fases 1-3 implementadas en secuencia como ruta crítica.
+- Fase 4 planificada con checkpoints claros de "¿ya tenemos data madura suficiente?" (criterio: 3-5k clientes con ≥12 meses de historia digital limpia).
+- Uso completo del retail Mundo del Juguete como base de conocimiento (no training): arquetipos, benchmarks, curvas estacionales, grafo de afinidades por edad del niño.
+- Señales externas dinámicas integradas al prompt de la capa contextual: Google Trends por IP/categoría, calendario cinematográfico infantil, TikTok trends, macro INDEC/BCRA/Di Tella, calendario escolar, paritarias, aguinaldos, clima, tipo de cambio, competencia MELI.
+- Reasoning text expuesto en la ficha del cliente (auditable) + badges de archetype (regalo único / reponedor frecuente / estacional / heavy user / comprador impulso).
+- Drift monitor con alertas automáticas en Slack/email cuando MAE sube sobre threshold.
+- Posible API propia (`/api/ltv/predict/v2`) para que agencias/partners puedan consumir predicciones con cliente autorizado. Diferenciador comercial.
+
 ---
 
 ## 🟡 Prioridad ALTA
 
-_(vacío por ahora)_
+### BP-005 — Motor de mensajería multi-canal hiperpersonalizada (push + email + WhatsApp) alimentado por NitroPixel
+
+**Entró al backlog**: 2026-04-17 (Sesión 40)
+**Estado**: 📝 pendiente
+**Trigger**: idea estratégica de Tomy. Activar el valor de NitroPixel convirtiendo sus señales de comportamiento en mensajes accionables que impacten ventas en tiempo real.
+
+**Concepto**:
+Un sistema de triggers que escucha en tiempo real las señales de comportamiento que NitroPixel captura —productos vistos, carrito abandonado, tiempo en página, intent score behavioral, recencia de visita, categorías de interés, scoring, etapa del funnel— y dispara mensajes **altamente personalizados** a través de 3 canales: push notifications web, email y WhatsApp. La diferencia con "email marketing tradicional" es que la personalización es **cliente → mensaje único**, no segmento → blast.
+
+**Casos de uso concretos**:
+- **Abandono de carrito inteligente**: WhatsApp si el cliente abrió un WhatsApp en los últimos 7 días, email si no. Mensaje menciona el producto específico + cuánto tiempo hace que lo vio + intent score ("parece que te interesó mucho").
+- **Reposición predictiva**: si el cliente compró un producto de consumo repetitivo hace X días (pañales, pilas, etc.), dispara recordatorio en el canal de mayor engagement histórico.
+- **Noticia de producto que miró**: si un producto que el cliente vio 3+ veces tiene stock bajo / vuelve al stock / baja de precio → push notification con deep link.
+- **Win-back contextual**: cliente con behavioral score cayendo + antigüedad >60d sin compra → mensaje con el "archetype" identificado (regalo único vs. reponedor vs. estacional) y oferta ajustada.
+- **Bienvenida behavioral**: nuevo visitante identificado, mensaje de onboarding diferente según categorías visitadas y hora del día.
+- **Lanzamiento segmentado**: producto nuevo solo se anuncia a usuarios cuya historia behavioral predice interés real (no blast masivo).
+
+**Requisitos técnicos** (high level):
+- Orquestador de triggers (evaluación en tiempo real o near-real-time via cron de 5-10 min).
+- Rules engine: condiciones compuestas (IF behavioral_score > 70 AND last_visit > 3d AND category_interest = 'juguetes_educativos' THEN dispara trigger X).
+- Proveedores:
+  - Web push: navegador nativo + service worker (gratis, sin proveedor externo).
+  - Email: SendGrid / Resend / Postmark.
+  - WhatsApp: WhatsApp Business API (Meta directo o via 360dialog / Twilio). Requiere templates aprobados.
+- Templates dinámicos con merge fields por cliente (productos vistos, última visita, score, archetype).
+- Consent & opt-out management por canal (fundamental para WhatsApp y legal por Ley 25.326).
+- Frecuencia capping: no más de N mensajes por cliente por día / semana para evitar fatiga.
+- Attribution: trackear qué trigger generó qué venta vía UTM + cookie matching.
+- Dashboard operativo: volumen enviado / abierto / click / convertido por trigger, por canal, por arquetipo.
+- Integración con Bondly Segmentos y Aura (los mismos clientes identificados).
+
+**Por qué tiene sentido ahora**:
+- NitroPixel ya captura las señales (implementado en sesiones 37-39).
+- Bondly ya identifica clientes y scoring behavioral (sesión 40).
+- El motor convierte datos observados → plata, que es la razón existencial de todo el stack.
+- WhatsApp tiene tasas de apertura de 95%+ en Argentina — canal dominante para ecommerce retail.
+
+**Skills relevantes para cuando se implemente**: `channels-whatsapp`, `email-automations`, `segmentation-clv`, `backend-api`, `gtm-master`, `legal-compliance` (consent).
+
+**Riesgos/consideraciones**:
+- **Fatiga de canal**: si se abusa, el cliente bloquea push/WhatsApp y se pierde el canal para siempre. Frecuencia capping es mandatorio.
+- **Costos de WhatsApp**: la API cobra por conversación iniciada (~$0,05-0,15 por conversación en AR). Hay que calcular unit economics del trigger.
+- **Compliance**: WhatsApp Business exige opt-in explícito + templates pre-aprobados + ventana de 24h para mensajes no-template. La implementación tiene burocracia.
+- **Personalización genuina vs. creepy**: un mensaje que diga "vimos que viste esto 3 veces" es transparente. Uno que implique tracking sin decirlo es inquietante. Balance.
+
+**Ambición**: motor nivel Klaviyo/Braze pero nativo a NitroSales, alimentado por NitroPixel (que un Klaviyo no tiene) y Bondly scoring. Diferencial competitivo fuerte.
+
+---
+
+### BP-006 — Aura como marketplace de afiliados cross-NitroSales (efecto red entre tiendas de la red)
+
+**Entró al backlog**: 2026-04-17 (Sesión 40)
+**Estado**: 📝 pendiente
+**Trigger**: idea estratégica de Tomy. Transformar Aura de "módulo de creator economy de una marca" a "backbone de afiliación de toda la red NitroSales".
+
+**Concepto**:
+Hoy Aura vive dentro de una marca: cada tenant tiene sus propios creadores, campañas y deals aislados. La propuesta es abrirlo a marketplace multi-tenant donde:
+
+- **Cualquier cliente** de cualquier tienda que use NitroSales aparece automáticamente en Aura como **afiliado potencial** (previa opción de opt-in obviamente).
+- **Del lado oferta**: cada marca publica sus campañas de afiliación con comisiones, ventana de atribución, términos, y requisitos mínimos (ej: "solo para afiliados con score >70").
+- **Del lado demanda**: creadores + clientes recurrentes + afiliados eligibles aplican y se matchean con marcas relevantes a su perfil (categoría de consumo, geografía, reach social si lo declaran, trust score interno).
+- Aura deja de ser módulo cerrado → se vuelve el **sistema nervioso de afiliación de toda la red NitroSales**.
+
+**Cómo crea efecto red**:
+- Cada nueva tienda que se suma a NitroSales **aporta oferta** (campañas) + **aporta demanda** (su base de clientes como afiliados potenciales).
+- Más tiendas = más ofertas para los afiliados = más afiliados activos = más ventas para todas las tiendas = más tiendas quieren entrar.
+- Clásico two-sided marketplace con flywheel positivo.
+- Diferencial contra plataformas genéricas (ShareASale, Impact): la data del comportamiento de compra real (vía NitroPixel + histórico de orders) hace que el matching sea muchísimo más preciso que un formulario de "me interesa la categoría X".
+
+**Ejemplos de uso**:
+- Cliente VIP de Mundo del Juguete que compra muñecos mensualmente aparece como afiliado recomendado para una marca nueva de accesorios de muñecas que entró a NitroSales.
+- Creador ya activo en una marca puede aplicar a 5 campañas más de marcas complementarias sin pasar por otra curva de alta.
+- Una marca chica que entra nueva a la red arranca con acceso a la base completa de afiliados activos (no tiene que empezar a construir audiencia desde cero).
+
+**Requisitos técnicos** (high level):
+- **Modelo multi-tenant real en Aura**: hoy `creatorId` vive bajo `organizationId`. Hay que agregar la noción de "afiliado global de la red" que puede operar contra múltiples `organizationId`.
+- **Consent cross-tenant**: cada cliente de tenant A debe consentir que aparezca en Aura como afiliado potencial visible a otros tenants (GDPR-ish / Ley 25.326 requirement).
+- **Matching engine**: recomendador que empareje afiliados con campañas según afinidad de categoría, historial de conversión, tamaño de audiencia declarado, geografía, arquetipo.
+- **Browsing de campañas estilo marketplace**: UI donde un afiliado ve campañas disponibles, filtros por comisión/categoría/marca.
+- **Dashboard de afiliado global**: el afiliado ve TODAS las campañas activas suyas en una sola vista, no tenant por tenant.
+- **Liquidación cross-tenant**: un afiliado recibe payouts de múltiples tenants, posiblemente con estructuras fiscales distintas. Hay que modelar bien.
+- **Trust score interno**: para evitar fraude / fake conversions, score de reputación basado en histórico de cumplimiento, tasa de conversión real, tasa de contracargo, etc.
+- **Attribution cross-domain**: cookie / fingerprint / deterministic matching (email) para trackear conversions que cruzan de tienda A (donde el afiliado promociona) a tienda B (donde se concreta), sin romper atribución.
+- **Dispute resolution**: marco para resolver conflictos de atribución entre marcas cuando 2 afiliados reclaman la misma venta.
+
+**Por qué tiene sentido ahora**:
+- Aura ya tiene la base de creator economy (sesiones 31-36).
+- Bondly ya identifica y scorea clientes (sesión 40).
+- El paso natural es abrir la puerta entre módulos y entre tenants.
+- Un afiliado que conoce una marca porque fue su cliente probablemente la vende mejor que un desconocido con seguidores.
+
+**Skills relevantes para cuando se implemente**: `loyalty-referral`, `marketplace-master`, `legal-compliance`, `backend-api`, `database-infra` (multi-tenant schema).
+
+**Riesgos/consideraciones**:
+- **Fricción de consent**: clientes pueden ver "querés ser afiliado de otras marcas" como invasivo. Propuesta de valor y UI de opt-in tienen que ser muy claras.
+- **Competencia interna**: si 2 tiendas compiten en la misma categoría, ¿pueden verse los afiliados entre sí? Necesita reglas de exclusividad opcional por categoría o a criterio de la marca origen.
+- **Escalabilidad de liquidación**: cuando haya 100+ tenants x 1000+ afiliados x múltiples monedas/AFIP, el módulo de payouts se pone complejo. Planear arquitectura desde el día 1.
+- **Quality control**: afiliados con mal desempeño bajan la percepción de la red entera. Sistema de rating + baja automática requerido.
+- **Pricing del feature**: ¿cobra NitroSales una comisión sobre comisiones? ¿Es gratis y se monetiza vía otros módulos? Decisión estratégica importante.
+
+**Ambición**: volver a NitroSales el **"Shopify Collabs" del ecommerce LATAM** pero con data de comportamiento real en el core. Moat muy fuerte — cuanto más grande la red, más difícil de replicar.
 
 ---
 
