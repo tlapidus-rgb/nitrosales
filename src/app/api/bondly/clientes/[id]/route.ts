@@ -19,6 +19,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { getPixelInstallDate, isPrePixelOrder } from "@/lib/pixel/pre-pixel";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -341,12 +342,17 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     const nextCategory = topProducts[0]?.category || null;
 
     // 11) Unified timeline (orders + events)
+    // Cargamos la pixel install date UNA VEZ (cacheada in-memory 1h).
+    // Las ordenes anteriores se marcan prePixel=true para que la UI
+    // muestre "Pre-pixel" en vez de "Sin canal".
+    const pixelInstallDate = await getPixelInstallDate(ORG_ID);
     const timeline: Array<any> = [];
     for (const o of orderList) {
+      const orderDate = new Date(o.order_date);
       timeline.push({
         kind: "order",
         id: o.id,
-        timestamp: new Date(o.order_date).toISOString(),
+        timestamp: orderDate.toISOString(),
         externalId: o.external_id,
         status: o.status,
         total: Math.round(Number(o.total_value)),
@@ -354,6 +360,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         channel: o.channel,
         trafficSource: o.traffic_source,
         paymentMethod: o.payment_method,
+        prePixel: isPrePixelOrder(orderDate, pixelInstallDate),
       });
     }
     for (const e of events) {

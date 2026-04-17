@@ -1076,7 +1076,7 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
               · {item.itemCount} {item.itemCount === 1 ? "producto" : "productos"}
             </span>
           </div>
-          {(item.paymentMethod || item.trafficSource) && (
+          {(item.paymentMethod || item.trafficSource || item.prePixel) && (
             <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
               {item.paymentMethod && (
                 <span className="inline-flex items-center gap-1">
@@ -1084,13 +1084,27 @@ function TimelineOrder({ item, delay }: { item: any; delay: number }) {
                   {item.paymentMethod}
                 </span>
               )}
-              {item.paymentMethod && item.trafficSource && <span className="text-slate-300">·</span>}
-              {item.trafficSource && (
+              {item.paymentMethod && (item.trafficSource || item.prePixel) && (
+                <span className="text-slate-300">·</span>
+              )}
+              {item.trafficSource ? (
                 <span className="inline-flex items-center gap-1">
                   <Compass className="w-3 h-3" />
                   {item.trafficSource}
                 </span>
-              )}
+              ) : item.prePixel ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                  style={{
+                    background: "rgba(148,163,184,0.12)",
+                    color: "#64748b",
+                    border: "1px solid rgba(148,163,184,0.25)",
+                  }}
+                  title="Compra anterior a la instalación de NitroPixel. No hay datos de canal para estas órdenes."
+                >
+                  Pre-pixel
+                </span>
+              ) : null}
             </div>
           )}
         </div>
