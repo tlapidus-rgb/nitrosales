@@ -79,6 +79,7 @@ Si `git branch --show-current` devuelve algo distinto de `main`,
 Además, leer al inicio de toda sesión nueva:
 - `CLAUDE_STATE.md`
 - `ERRORES_CLAUDE_NO_REPETIR.md` (si existe)
+- `BACKLOG_PENDIENTES.md` — tracker de temas pendientes priorizados que Tomy decidió no abordar ahora pero no hay que perder de vista. Si Tomy pide "agregá este pendiente" o "resolvamos BP-XXX", se maneja desde este archivo.
 - Este archivo (`CLAUDE.md`)
 
 **Y si la tarea involucra UI/UX/visual/animaciones/componentes/estilos/layout, leer ADEMÁS (obligatorio):**

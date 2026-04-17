@@ -3,7 +3,111 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-15 (Sesiones 31-36 — Módulo Aura completo: Inicio → Creadores → Campañas → Contenido → Pagos → Deals reestructuración)
+## Ultima actualizacion: 2026-04-17 madrugada (Sesiones 37-40 — Módulo Bondly completo: unificación + Pulse + Señales + Customer 360 + pixel linking + LTV rediseño premium de 8 commits)
+
+> Este bloque consolida los **26 commits** a `main` entre el 2026-04-16 00:58 y el 2026-04-17 02:46 que construyen el módulo **Bondly** de cero a producción completa, y rematan con el rediseño premium de la sección LTV (triple capa: histórico / predicho post-compra / behavioral pre-compra).
+
+### Sesion 37 — 2026-04-16 madrugada — Módulo Bondly: unificación + Pulse + Señales + Customer 360
+
+**Objetivo**: unificar Clientes + LTV + Audiencias en un módulo nuevo llamado **Bondly**, con pulso en vivo, módulo de señales (Moments + Live Feed) y Customer 360.
+
+| Commit | Qué |
+|---|---|
+| `7349481` | **Fase 1 Bondly**: unificar Clientes + LTV + Audiencias en un módulo. Estructura de navegación y páginas base. |
+| `e484438` | **Pulse banner** en `/bondly` con 2 timelines LIVE (commerce + NitroPixel). |
+| `5a499c8` | Fix: excluir MercadoLibre del timeline commerce de Pulse. |
+| `3725e94` | Fix: eliminar MELI de todo el módulo Bondly. **Bondly es VTEX-only** (Aura cubre creators, Bondly cubre customer intelligence VTEX). |
+| `f0d35f1` | **Fase 2 Bondly/Señales**: módulo Señales con Moments + Live Feed. |
+| `631e113` | **Fase 3 Bondly/Clientes**: Customer 360 con lista enriquecida + ficha detalle. |
+| `aa8d898` | Fix: sidebar sub-items de Bondly + error 500 en `/bondly/clientes`. |
+
+### Sesion 38 — 2026-04-16 tarde — Timeline y 3-way identity en ficha del cliente
+
+**Objetivo**: que la timeline de cada cliente en Customer 360 muestre info real y dedupeada, resolviendo 3-way identity (customerId OR email).
+
+| Commit | Qué |
+|---|---|
+| `4dac1f2` | Fix: resolver pixel data con 3-way identity (customerId OR email). |
+| `ed955a5` | Feat: timeline con títulos humanos en vez de URL cruda. |
+| `d57b2de` | Feat: mapear tipos reales de eventos + deduplicar timeline. |
+| `a68ca32` | Fix: dedupe timeline robusto por URL normalizada + ventana de 3 min. |
+
+### Sesion 39 — 2026-04-16 noche — Anónimos + linking visitor-customer + backfill
+
+**Objetivo**: mostrar visitantes anónimos en la lista, linkear visitors de NitroPixel con customers nuevos en tiempo real (via webhook VTEX), backfill de la relación para data pre-existente.
+
+| Commit | Qué |
+|---|---|
+| `c04dec6` | Feat: anónimos en la lista `/bondly/clientes` + filtro por período. |
+| `6bbea18` | Feat: utilidades `link-visitor` + pre-pixel (sin side-effects todavía). |
+| `84509af` | **Endpoint admin**: `/api/admin/backfill-visitor-customer-link` + ajuste de match. |
+| `c3c9750` | Feat: hook `linkVisitorToCustomer` en webhook VTEX tras customer upsert. |
+| `b553dce` | Fix: anti-dupe en anonymousQuery via `NOT EXISTS`. |
+| `934461b` | Feat: badge "Pre-pixel" en timeline de órdenes (para órdenes anteriores al deploy del pixel). |
+| `ca18a28` | Feat: paginación numerada en `/bondly/clientes` + fix bug que traía toda la lista. |
+
+**Endpoints admin ejecutados en producción (Sesion 39):**
+- `backfill-visitor-customer-link`: linkea visitantes pixel con customers pre-existentes por email. ✅
+
+### Sesion 40 — 2026-04-17 madrugada — Bondly LTV rediseño premium (8 commits)
+
+**Objetivo**: rediseñar `/bondly/ltv` para que sea "el producto de LTV más robusto del ecommerce argentino". **Triple capa** (histórico / predicho post-compra con BG/NBD + Gamma-Gamma de Fader & Hardie / behavioral pre-compra desde NitroPixel) + Insights Engine + Churn Risk Scoreboard + Customer Journey drawer + Product Affinity Matrix + Top clientes tier-aware. **Sin tocar schema ni BG/NBD.**
+
+| Commit | Qué |
+|---|---|
+| `fc94ab3` | **Commit 1**: extract shared Bondly primitives — constants (colors, `BONDLY_GRAD`, `GOLD_GRAD`, `VIP_GRAD`, easing `ES = cubic-bezier(0.16,1,0.3,1)`), `KpiTile` con count-up animado, `BondlyKeyframes` global. |
+| `5553a43` | **Commit 2**: backend LTV expandido +5 queries (`deciles`, `sparkline12m`, `cohortRevenueCumulative`, `productAffinity`, `periodChanges` expandido). Respeta `§REGLA #3b`: pool ≤ 3 paralelas, sin JOIN a customers desde orders, sin CAST riesgoso. |
+| `1e7a80c` | **Commit 3**: behavioral LTV engine + customer journey timeline. Endpoints: `/api/bondly/behavioral-ltv` (scoring 0-100 desde NitroPixel) + `/api/bondly/customer-journey/:id`. **READ-ONLY** sobre NitroPixel. |
+| `dccf1e0` | **Commit 4**: insights engine + churn risk. Endpoints: `/api/bondly/ltv-insights` (5 detectores: canal tóxico, sweet spot, cohorte estrella, visitantes VIP, whales en riesgo) + `/api/bondly/churn-risk` (scoring 0-100 con tiers crítico/alto/medio/bajo, cutoffs 75/55/30). |
+| `0723af3` | **Commit 5**: UI rewrite — hero premium con aurora `BONDLY_GRAD` + 7 `KpiTile` animados (3 capas de LTV: histórico/predicho/behavioral + 4 secundarios: LTV:CAC, recompra 30d, mediana, concentración Pareto con alerta ≥60%) + panel pLTV con **Trust Strip** "Compatible con Meta · Google · Basado en investigación de Wharton" + intervalos P10/P50/P90. |
+| `e7db3a3` | **Commit 6**: 4 secciones nuevas inline — Insights Engine cards (3 accionables), Behavioral LTV Explorer (filtros anónimos/identificados/clientes), Customer Journey Drawer expandible por cliente, Deciles + Pareto visualization. |
+| `757eda8` | **Commit 7**: Product Affinity Matrix (cross-sell categoría→categoría con gradient emerald por intensidad de LTV), Churn Risk Scoreboard (dark panel con rose accents, tier badges, CTA "Ver journey"), Top Clientes tier-aware (VIP/GOLD/BRONZE para top 3 + columna Journey). |
+| `a7e73ed` | **Commit 8**: columna "Acción" en tabla de canales — CTAs tier-aware por LTV:CAC. LTV:CAC ≥ 3 → "Escalar inversión" (verde, linkea `/campaigns/meta` o `/campaigns/google`); < 1 → "Revisar audiencia" (rojo); repeat rate > 40% → "Crear lookalike" (indigo, disabled con tooltip "Próximamente"). |
+
+**Nuevos endpoints API agregados en producción (Sesion 40):**
+- `/api/bondly/behavioral-ltv` — scoring behavioral 0-100 desde NitroPixel (READ-ONLY).
+- `/api/bondly/customer-journey/:id` — timeline unificado commerce + pixel + email.
+- `/api/bondly/ltv-insights` — 5 detectores de insights rule-based sobre la data de LTV.
+- `/api/bondly/churn-risk` — scoring de churn con tiers + razones humanas por cliente.
+- `/api/metrics/ltv` expandido con `deciles`, `sparkline12m`, `cohortRevenueCumulative`, `productAffinity`, `periodChanges`.
+
+**Cero migraciones de DB en la Sesion 40.** El rediseño entero NO tocó `schema.prisma` ni agregó tablas. Todo es lectura sobre datos existentes. Respeta el compromiso explícito pre-sesión.
+
+### Estado final en produccion al cierre de Sesion 40
+
+- **Ultimo commit en main**: `a7e73ed`.
+- **URL prod**: `https://nitrosales.vercel.app`.
+- **Deploys Vercel**: todos verdes.
+- **Módulo Bondly completo en producción**:
+  - `/bondly` — overview con Pulse banner (2 timelines LIVE commerce + pixel).
+  - `/bondly/clientes` — Customer 360 con anónimos + paginación + 3-way identity + filtro por período.
+  - `/bondly/clientes/:id` — ficha con timeline de eventos + ventas unificados (pixel + commerce).
+  - `/bondly/ltv` — **rediseño premium**: hero con 7 KPI + pLTV con Trust Strip + Insights + Behavioral Explorer + Journey drawer + Deciles + Affinity Matrix + Churn Scoreboard + Top tier-aware + canales con CTAs.
+  - `/bondly/senales` — Moments + Live Feed.
+  - `/bondly/audiencias` — base sin contenido todavía (próxima sección del rediseño Bondly).
+- **Bondly es VTEX-only**: MELI excluido explícitamente de todo el módulo.
+- **Pixel linking activo**: el webhook VTEX auto-linkea visitors con customers al upsert. Backfill histórico ejecutado.
+
+### Decisiones arquitectonicas tomadas en Sesion 40 (rediseño LTV)
+
+1. **Triple capa de LTV** (histórico / predicho post-compra con BG/NBD / behavioral pre-compra desde pixel): cada capa con método propio, número propio y UI propia. No mezclar en un solo número compuesto.
+2. **BG/NBD + Gamma-Gamma intacto** en `/api/ltv/predict`: el modelo matemático no se tocó en el rediseño. (Ver `BACKLOG_PENDIENTES.md` → "pLTV predictivo: piso de antigüedad + cap sanidad + IA contextual" para el fix pendiente.)
+3. **Trust Strip honesto** ("Compatible con" en vez de "Validado por"): mostrar integraciones reales + fuente académica, sin prometer validación que no existe.
+4. **Customer Journey Drawer** como overlay en vez de pantalla nueva: mantiene contexto del ranking (churn + top clientes). Accesible desde múltiples lugares.
+5. **Disabled CTAs con tooltip "Próximamente"** para features del roadmap no implementadas (Crear audiencia, Crear lookalike, Activar retargeting): transparencia > falsa promesa.
+6. **Pool ≤ 3 queries paralelas** + sin JOIN customers desde orders + sin CAST riesgoso (§REGLA #3b): protege la página en blanco.
+7. **@ts-nocheck en `/bondly/ltv/page.tsx`**: pragma pre-existente respetado. No se refactorizó a tipado estricto para no bloquear la iteración rápida.
+
+### Pendientes / backlog (ver `BACKLOG_PENDIENTES.md` para tracking detallado)
+
+- **[CRÍTICO] pLTV predictivo — credibilidad**: clientes con T<30 días reciben predicciones absurdas (ej: 2 compras en 4 días → pLTV 365d = $4,8M con 54% confianza). Fix Fase 1 priorizado: hard rules + cap de sanidad + piso de antigüedad. Expansión Fase 2: capa contextual LLM + señales macro. Detalles completos en `BACKLOG_PENDIENTES.md`.
+- `/bondly/audiencias` sin contenido todavía — próxima sección del rediseño Bondly.
+- Row expansions en tabla de cohortes de LTV (click en mes → drill de clientes del cohorte).
+- Feed de Behavioral Explorer podría pasar a cursor pagination si la tabla crece.
+
+---
+
+## Actualizacion previa: 2026-04-15 (Sesiones 31-36 — Módulo Aura completo: Inicio → Creadores → Campañas → Contenido → Pagos → Deals reestructuración)
 
 > Este bloque consolida los 34 commits a `main` del 15-abr (tarde/noche) que construyen el módulo Aura creator economy de cero a producción completa. Sesiones anteriores (23-30) documentadas más abajo.
 

@@ -4,7 +4,7 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-15 — Sesiones 23-36**
+> **Última actualización: 2026-04-17 — Sesiones 23-40**
 
 ---
 
@@ -535,6 +535,31 @@ La documentación no es opcional. Es parte del trabajo.
 3. NO pushear y reportar el bloqueo.
 
 **`tsc --noEmit` pasando ≠ DB sincronizada.** Son validaciones distintas. Ambas deben pasar antes de pushear schema changes.
+
+---
+
+## Error #S40-MODELO-SIN-BARANDAS — Exponer salidas crudas de modelo estadistico sin rails de sanidad
+
+**Cuándo pasó**: Sesión 40, al cierre del rediseño `/bondly/ltv`. Tomy abre la tabla "Top clientes por pLTV predicho" y ve al cliente Ariel Lizárraga con **2 compras en 4 días** ($157k total) proyectado a **pLTV 365d = $4.874.306** con 54% de confianza. El modelo BG/NBD + Gamma-Gamma es matemáticamente correcto dado el input, pero el input es inadecuado: `x = 2 compras, T = 4 días` → frecuencia estimada = 0,5 compras/día → extrapolada a 365 días = ~182 compras/año × $78k ticket promedio = absurdo. El problema no es el modelo — es la falta de **rails de sanidad** alrededor del modelo. La UI está mostrando predicciones indefendibles que destruyen la credibilidad del producto entero.
+
+### Causa raíz
+- En la Sesión 40 el compromiso explícito fue "no tocar BG/NBD" para acotar el alcance del rediseño a UI + endpoints de lectura. Se respetó, pero nadie agregó rails de sanidad alrededor del modelo.
+- **BG/NBD fue diseñado por Fader & Hardie (Wharton) para clientes con meses/años de historia.** Con T < 30 días y n ≤ 2, el prior bayesiano no aplana los extremos suficiente. El modelo devuelve lo que le pediste, pero lo que le pediste no tiene sentido.
+- Se mostró el "punto estimado" directamente en la tabla sin bandas de confianza visibles en el ranking ni caps duros. El badge de 54% de confianza no alcanza para compensar un número que es 30x más alto que el gasto real.
+- No se implementó un piso de antigüedad mínima (T ≥ 30 días) para activar BG/NBD vs. caer a segmento.
+
+### Regla
+**Cualquier modelo estadístico o ML expuesto en UI de producto necesita 3 capas de defensa obligatorias:**
+
+1. **Piso de aplicabilidad**: criterios mínimos para que el modelo se active. Debajo de esos mínimos, fallback a método simple (promedio de segmento). Para BG/NBD de LTV: `T ≥ 30 días` y `n ≥ 2 compras` como mínimo. Si no cumple, usar segmento.
+2. **Cap duro de sanidad**: ningún output del modelo puede exceder un techo razonable calculado independientemente. Para pLTV 365d: `cap = avgTicket × freqP95_segmento × 365`. El modelo puede decir $4.8M, pero nunca se expone más de lo que el cap permite.
+3. **Confianza recalibrada al contexto**: un 54% de confianza con 4 días de historia es mentira matemática. Regla: `confianza_máxima = min(modelo_confianza, f(T))` donde `f(T)` crece con la antigüedad (ej: T<30d → 20%, T<90d → 50%, T<180d → 75%).
+
+**Además**: cuando se fallback a segmento, mostrarlo explícitamente en la UI ("Historia insuficiente · promedio del segmento") para que quien mira sepa que no es una predicción personal.
+
+**Señal de alarma**: si un cliente no-técnico (ej: Tomy) ve el output del modelo y dice "eso es imposible", es porque faltan rails. El modelo puede tener razón matemáticamente y estar mal expuesto.
+
+**Antipatrón**: "el modelo dice X, entonces mostramos X". Correcto: "el modelo dice X, los rails dicen min(X, cap, sanity_check), eso es lo que mostramos".
 
 ---
 
