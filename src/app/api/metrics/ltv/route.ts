@@ -97,14 +97,23 @@ export async function GET(request: NextRequest) {
 
       // 2. LTV Summary — previous period (for comparison)
       prisma.$queryRawUnsafe<
-        [{ total_customers: string; avg_ltv: string; repeat_customers: string }]
+        [{
+          total_customers: string;
+          avg_ltv: string;
+          median_ltv: string;
+          repeat_customers: string;
+          avg_orders: string;
+          avg_ticket: string;
+          total_revenue: string;
+        }]
       >(
         `
         WITH customer_stats AS (
           SELECT
             o."customerId",
             COUNT(*)::int AS order_count,
-            SUM(o."totalValue") AS total_spent
+            SUM(o."totalValue") AS total_spent,
+            AVG(o."totalValue") AS avg_ticket
           FROM orders o
           WHERE o."organizationId" = '${ORG_ID}'
             AND o.status NOT IN ('CANCELLED', 'RETURNED')
@@ -116,7 +125,11 @@ export async function GET(request: NextRequest) {
         SELECT
           COUNT(*)::text AS total_customers,
           COALESCE(AVG(total_spent), 0)::text AS avg_ltv,
-          COUNT(*) FILTER (WHERE order_count >= 2)::text AS repeat_customers
+          COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_spent), 0)::text AS median_ltv,
+          COUNT(*) FILTER (WHERE order_count >= 2)::text AS repeat_customers,
+          COALESCE(AVG(order_count), 0)::text AS avg_orders,
+          COALESCE(AVG(avg_ticket), 0)::text AS avg_ticket,
+          COALESCE(SUM(total_spent), 0)::text AS total_revenue
         FROM customer_stats
       `,
         prevFrom,
@@ -424,6 +437,224 @@ export async function GET(request: NextRequest) {
     ]);
 
     // ─────────────────────────────────────────────
+    // Batch 2 — queries extendidas (fallback-safe via allSettled)
+    // Se ejecuta después del batch principal para respetar §REGLA #3b
+    // (pool = 8, agregamos como un batch separado con 4 queries).
+    // Si alguna falla, el resto del endpoint sigue funcionando.
+    // ─────────────────────────────────────────────
+    const extendedResults = await Promise.allSettled([
+      // 8. LTV deciles — Pareto concentration
+      prisma.$queryRawUnsafe<
+        Array<{
+          decile: string;
+          customers: string;
+          revenue: string;
+          min_ltv: string;
+          max_ltv: string;
+          avg_ltv: string;
+          repeat_rate: string;
+        }>
+      >(
+        `
+        WITH customer_totals AS (
+          SELECT
+            o."customerId",
+            COUNT(*)::int AS order_count,
+            SUM(o."totalValue") AS total_spent
+          FROM orders o
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o."customerId" IS NOT NULL
+            ${srcWhere}
+          GROUP BY o."customerId"
+          HAVING MIN(o."orderDate") >= $1 AND MIN(o."orderDate") <= $2
+        ),
+        deciles AS (
+          SELECT
+            "customerId",
+            total_spent,
+            order_count,
+            NTILE(10) OVER (ORDER BY total_spent DESC) AS decile
+          FROM customer_totals
+        )
+        SELECT
+          decile::text,
+          COUNT(*)::text AS customers,
+          COALESCE(SUM(total_spent), 0)::text AS revenue,
+          COALESCE(MIN(total_spent), 0)::text AS min_ltv,
+          COALESCE(MAX(total_spent), 0)::text AS max_ltv,
+          COALESCE(AVG(total_spent), 0)::text AS avg_ltv,
+          COALESCE((COUNT(*) FILTER (WHERE order_count >= 2) * 100.0 / NULLIF(COUNT(*), 0)), 0)::text AS repeat_rate
+        FROM deciles
+        GROUP BY decile
+        ORDER BY decile
+      `,
+        dateFrom,
+        dateTo
+      ),
+
+      // 9. Sparkline 12m — avg LTV by cohort month (last 12 months)
+      prisma.$queryRawUnsafe<
+        Array<{ month: string; avg_ltv: string; customers: string }>
+      >(
+        `
+        WITH customer_first AS (
+          SELECT
+            o."customerId",
+            TO_CHAR(MIN(o."orderDate") AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM') AS cohort_month
+          FROM orders o
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o."customerId" IS NOT NULL
+            ${srcWhere}
+          GROUP BY o."customerId"
+          HAVING MIN(o."orderDate") >= (NOW() - INTERVAL '12 months')
+        ),
+        cohort_ltv AS (
+          SELECT
+            cf.cohort_month,
+            cf."customerId",
+            SUM(o."totalValue") AS total_spent
+          FROM customer_first cf
+          JOIN orders o ON o."customerId" = cf."customerId"
+            AND o."organizationId" = '${ORG_ID}'
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          GROUP BY cf.cohort_month, cf."customerId"
+        )
+        SELECT
+          cohort_month AS month,
+          COALESCE(AVG(total_spent), 0)::text AS avg_ltv,
+          COUNT(*)::text AS customers
+        FROM cohort_ltv
+        GROUP BY cohort_month
+        ORDER BY cohort_month
+      `
+      ),
+
+      // 10. Cohort revenue cumulative — $ per cohort x month (M0-M12)
+      prisma.$queryRawUnsafe<
+        Array<{ cohort_month: string; months_since: string; revenue: string }>
+      >(
+        `
+        WITH customer_first AS (
+          SELECT
+            o."customerId",
+            MIN(o."orderDate") AS first_order_date,
+            TO_CHAR(MIN(o."orderDate") AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM') AS cohort_month
+          FROM orders o
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o."customerId" IS NOT NULL
+            ${srcWhere}
+          GROUP BY o."customerId"
+          HAVING MIN(o."orderDate") >= $1 AND MIN(o."orderDate") <= $2
+        ),
+        revenue_by_month AS (
+          SELECT
+            cf.cohort_month,
+            EXTRACT(MONTH FROM AGE(o."orderDate", cf.first_order_date))::int
+              + EXTRACT(YEAR FROM AGE(o."orderDate", cf.first_order_date))::int * 12 AS months_since,
+            SUM(o."totalValue") AS revenue
+          FROM customer_first cf
+          JOIN orders o ON o."customerId" = cf."customerId"
+            AND o."organizationId" = '${ORG_ID}'
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          GROUP BY cf.cohort_month, months_since
+        )
+        SELECT
+          cohort_month,
+          months_since::text,
+          COALESCE(revenue, 0)::text AS revenue
+        FROM revenue_by_month
+        WHERE months_since BETWEEN 0 AND 12
+        ORDER BY cohort_month, months_since
+      `,
+        dateFrom,
+        dateTo
+      ),
+
+      // 11. Product Affinity — first-to-second category transitions
+      prisma.$queryRawUnsafe<
+        Array<{ cat1: string; cat2: string; customers: string; avg_ltv: string }>
+      >(
+        `
+        WITH order_primary_category AS (
+          SELECT DISTINCT ON (oi."orderId")
+            oi."orderId",
+            p.category
+          FROM order_items oi
+          JOIN products p ON p.id = oi."productId"
+          WHERE p.category IS NOT NULL
+            AND p."organizationId" = '${ORG_ID}'
+          ORDER BY oi."orderId", oi."totalPrice" DESC
+        ),
+        customer_order_seq AS (
+          SELECT
+            o."customerId",
+            o.id AS order_id,
+            ROW_NUMBER() OVER (PARTITION BY o."customerId" ORDER BY o."orderDate") AS rn
+          FROM orders o
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o."customerId" IS NOT NULL
+            ${srcWhere}
+        ),
+        customer_ltv_local AS (
+          SELECT
+            o."customerId",
+            SUM(o."totalValue") AS total_ltv
+          FROM orders o
+          WHERE o."organizationId" = '${ORG_ID}'
+            AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND o."customerId" IS NOT NULL
+            ${srcWhere}
+          GROUP BY o."customerId"
+        ),
+        pairs AS (
+          SELECT
+            opc1.category AS cat1,
+            opc2.category AS cat2,
+            cltv.total_ltv
+          FROM customer_order_seq s1
+          JOIN customer_order_seq s2 ON s2."customerId" = s1."customerId" AND s2.rn = 2
+          JOIN order_primary_category opc1 ON opc1."orderId" = s1.order_id
+          JOIN order_primary_category opc2 ON opc2."orderId" = s2.order_id
+          JOIN customer_ltv_local cltv ON cltv."customerId" = s1."customerId"
+          WHERE s1.rn = 1
+            AND opc1.category IS NOT NULL
+            AND opc2.category IS NOT NULL
+        )
+        SELECT
+          cat1,
+          cat2,
+          COUNT(*)::text AS customers,
+          COALESCE(AVG(total_ltv), 0)::text AS avg_ltv
+        FROM pairs
+        GROUP BY cat1, cat2
+        ORDER BY COUNT(*) DESC
+        LIMIT 64
+      `
+      ),
+    ]);
+
+    const ltvDeciles =
+      extendedResults[0].status === "fulfilled" ? extendedResults[0].value : [];
+    const sparkline12m =
+      extendedResults[1].status === "fulfilled" ? extendedResults[1].value : [];
+    const cohortRevenueCumulative =
+      extendedResults[2].status === "fulfilled" ? extendedResults[2].value : [];
+    const productAffinity =
+      extendedResults[3].status === "fulfilled" ? extendedResults[3].value : [];
+
+    // Log fallos para debugging sin romper la respuesta
+    extendedResults.forEach((r, i) => {
+      if (r.status === "rejected") {
+        const names = ["ltvDeciles", "sparkline12m", "cohortRevenueCumulative", "productAffinity"];
+        console.warn(`[LTV API] Extended query ${names[i]} failed:`, r.reason?.message || r.reason);
+      }
+    });
+
+    // ─────────────────────────────────────────────
     // Process results
     // ─────────────────────────────────────────────
     const summary = ltvSummary[0];
@@ -432,7 +663,15 @@ export async function GET(request: NextRequest) {
     const totalCustomers = Number(summary.total_customers);
     const repeatCustomers = Number(summary.repeat_customers);
     const avgLtv = Math.round(Number(summary.avg_ltv));
+    const medianLtv = Math.round(Number(summary.median_ltv));
+    const avgOrders = Math.round(Number(summary.avg_orders) * 10) / 10;
+    const avgTicket = Math.round(Number(summary.avg_ticket));
+    const totalRevenue = Math.round(Number(summary.total_revenue));
     const prevAvgLtv = Math.round(Number(prevSummary.avg_ltv));
+    const prevMedianLtv = Math.round(Number(prevSummary.median_ltv || 0));
+    const prevAvgOrders = Math.round(Number(prevSummary.avg_orders || 0) * 10) / 10;
+    const prevAvgTicket = Math.round(Number(prevSummary.avg_ticket || 0));
+    const prevTotalRevenue = Math.round(Number(prevSummary.total_revenue || 0));
     const prevTotalCustomers = Number(prevSummary.total_customers);
     const prevRepeatCustomers = Number(prevSummary.repeat_customers);
     const repeatRate =
@@ -483,22 +722,102 @@ export async function GET(request: NextRequest) {
     const globalLtvCac =
       globalCac > 0 ? Math.round((avgLtv / globalCac) * 10) / 10 : 0;
 
+    // ─────────────────────────────────────────────
+    // Procesar nuevos datasets (commit 2)
+    // ─────────────────────────────────────────────
+
+    // Deciles con revenue share (para Pareto alert)
+    const decilesTotal = (ltvDeciles as Array<{ revenue: string }>)
+      .reduce((sum, d) => sum + Number(d.revenue), 0);
+
+    const deciles = (ltvDeciles as Array<{
+      decile: string; customers: string; revenue: string;
+      min_ltv: string; max_ltv: string; avg_ltv: string; repeat_rate: string;
+    }>).map((d) => {
+      const revenue = Number(d.revenue);
+      const revenueShare = decilesTotal > 0
+        ? Math.round((revenue / decilesTotal) * 1000) / 10
+        : 0;
+      return {
+        decile: Number(d.decile),
+        customers: Number(d.customers),
+        revenue: Math.round(revenue),
+        revenueShare, // % del revenue total
+        minLtv: Math.round(Number(d.min_ltv)),
+        maxLtv: Math.round(Number(d.max_ltv)),
+        avgLtv: Math.round(Number(d.avg_ltv)),
+        repeatRate: Math.round(Number(d.repeat_rate) * 10) / 10,
+      };
+    });
+
+    const topDecileRevenueShare = deciles.length > 0 ? deciles[0].revenueShare : 0;
+    const paretoAlert = topDecileRevenueShare > 60;
+
+    // Sparkline 12m — serie temporal para el hero
+    const sparkline = (sparkline12m as Array<{
+      month: string; avg_ltv: string; customers: string;
+    }>).map((s) => ({
+      month: s.month,
+      avgLtv: Math.round(Number(s.avg_ltv)),
+      customers: Number(s.customers),
+    }));
+
+    // Cohort revenue cumulative — $ por cohort x month (M0-M12)
+    // Reshape de filas (cohort, month, revenue) -> { cohort_month: string, values: number[13] }
+    const cohortRevMap = new Map<string, number[]>();
+    for (const row of cohortRevenueCumulative as Array<{
+      cohort_month: string; months_since: string; revenue: string;
+    }>) {
+      const cm = row.cohort_month;
+      if (!cohortRevMap.has(cm)) cohortRevMap.set(cm, Array(13).fill(0));
+      const idx = Number(row.months_since);
+      if (idx >= 0 && idx <= 12) {
+        cohortRevMap.get(cm)![idx] = Math.round(Number(row.revenue));
+      }
+    }
+    const cohortRevenue = Array.from(cohortRevMap.entries())
+      .map(([cohort_month, values]) => {
+        // Transformar a cumulativo
+        const cumulative: number[] = [];
+        let acc = 0;
+        for (const v of values) {
+          acc += v;
+          cumulative.push(acc);
+        }
+        return { month: cohort_month, values, cumulative };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    // Product Affinity — formato {cat1, cat2, customers, avgLtv}
+    const affinity = (productAffinity as Array<{
+      cat1: string; cat2: string; customers: string; avg_ltv: string;
+    }>).map((p) => ({
+      from: p.cat1,
+      to: p.cat2,
+      customers: Number(p.customers),
+      avgLtv: Math.round(Number(p.avg_ltv)),
+    }));
+
     return NextResponse.json({
       summary: {
         totalCustomers,
         repeatCustomers,
         repeatRate,
         avgLtv,
-        medianLtv: Math.round(Number(summary.median_ltv)),
-        avgOrders: Math.round(Number(summary.avg_orders) * 10) / 10,
-        avgTicket: Math.round(Number(summary.avg_ticket)),
+        medianLtv,
+        avgOrders,
+        avgTicket,
         avgDaysToRepurchase: Math.round(Number(summary.avg_days_to_repurchase)),
-        totalRevenue: Math.round(Number(summary.total_revenue)),
+        totalRevenue,
         globalCac,
         globalLtvCac,
         changes: {
           customers: pctChange(totalCustomers, prevTotalCustomers),
           avgLtv: pctChange(avgLtv, prevAvgLtv),
+          medianLtv: pctChange(medianLtv, prevMedianLtv),
+          avgOrders: pctChange(avgOrders, prevAvgOrders),
+          avgTicket: pctChange(avgTicket, prevAvgTicket),
+          totalRevenue: pctChange(totalRevenue, prevTotalRevenue),
           repeatRate: Math.round((repeatRate - prevRepeatRate) * 10) / 10, // pp change
         },
       },
@@ -529,6 +848,13 @@ export async function GET(request: NextRequest) {
         lastOrder: c.last_order,
         daysAsCustomer: Number(c.days_as_customer),
       })),
+      // Nuevo en commit 2
+      deciles,
+      paretoAlert,
+      topDecileRevenueShare,
+      sparkline,
+      cohortRevenue,
+      productAffinity: affinity,
       meta: {
         dateFrom: dateFrom.toISOString(),
         dateTo: dateTo.toISOString(),
