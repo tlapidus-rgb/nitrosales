@@ -19,7 +19,18 @@ import { normalizePhone } from "@/lib/pixel/identity";
 interface LinkInput {
   id: string;
   email?: string | null;
-  phone?: string | null;
+}
+
+interface LinkOpts {
+  /** Cuantas ordenes recientes re-atribuir (default 5) */
+  attributionLimit?: number;
+  /**
+   * Phone adicional para ampliar el match (tipicamente viene de la
+   * clientProfileData de la orden VTEX cuando el Customer no lo tiene
+   * persistido en su row). El backfill historico no lo usa porque el
+   * Customer no guarda phone en el schema actual.
+   */
+  additionalPhone?: string | null;
 }
 
 interface LinkResult {
@@ -29,20 +40,21 @@ interface LinkResult {
 }
 
 /**
- * Linkea pixel_visitors que matchean el email/phone del customer y
- * no tienen customerId seteado todavia.
+ * Linkea pixel_visitors que matchean el email (y opcionalmente phone)
+ * del customer y no tienen customerId seteado todavia.
  *
  * Idempotente: si no hay visitors matcheables, no hace nada.
  * Non-fatal: cualquier error se loguea y se devuelve un resultado vacio.
  *
- * @param customer objeto con id, email, phone
+ * @param customer objeto con id y email
  * @param organizationId org del customer
  * @param opts.attributionLimit cuantas ordenes recientes re-atribuir (default 5)
+ * @param opts.additionalPhone phone opcional (ej. desde order.profile.phone)
  */
 export async function linkVisitorToCustomer(
   customer: LinkInput,
   organizationId: string,
-  opts: { attributionLimit?: number } = {}
+  opts: LinkOpts = {}
 ): Promise<LinkResult> {
   const result: LinkResult = {
     linked: 0,
@@ -54,7 +66,7 @@ export async function linkVisitorToCustomer(
     // Normalizar identifiers
     const rawEmail = customer.email ? customer.email.toLowerCase().trim() : null;
     const emailForMatch = rawEmail && rawEmail.includes("@") ? rawEmail : null;
-    const phoneForMatch = normalizePhone(customer.phone);
+    const phoneForMatch = normalizePhone(opts.additionalPhone ?? null);
 
     if (!emailForMatch && !phoneForMatch) {
       result.skippedReasons["no-identifiers"] =
