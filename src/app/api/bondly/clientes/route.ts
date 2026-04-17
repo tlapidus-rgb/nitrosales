@@ -559,6 +559,17 @@ export async function GET(request: NextRequest) {
         AND v."lastSeenAt" IS NOT NULL
         AND v."lastSeenAt" >= GREATEST($1, NOW() - INTERVAL '12 months')
         AND v."lastSeenAt" <= $2
+        -- Anti-dupe: si el email del visitor YA existe en customers, es un
+        -- linkeo pendiente (lo resuelve el backfill/webhook). No mostrar
+        -- como "anonimo" mientras tanto.
+        AND NOT (
+          v.email IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM customers c
+            WHERE c."organizationId" = v."organizationId"
+              AND c.email = v.email
+          )
+        )
         ${quickSegment === "browsing_now" ? `AND v."lastSeenAt" >= NOW() - INTERVAL '10 minutes'` : ""}
       ORDER BY v."lastSeenAt" DESC
       LIMIT 5000
