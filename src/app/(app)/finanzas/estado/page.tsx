@@ -6,9 +6,10 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { formatARS, formatCompact, formatDateShort } from "@/lib/utils/format";
+import { formatCompact, formatDateShort } from "@/lib/utils/format";
 import { DateRangeFilter } from "@/components/dashboard";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
+import { useCurrencyView } from "@/hooks/useCurrencyView";
 
 /* ── Types ──────────────────────────────────── */
 interface PnlSummary {
@@ -160,6 +161,10 @@ function ExecutiveView({
   dailyTrend: DailyTrend[];
   bySource: SourceBreakdown[];
 }) {
+  // Currency conversion hook (USD / ARS / ARS_ADJ)
+  const { convert, format } = useCurrencyView();
+  const fm = (v: number, d?: string) => format(convert(v, d));
+
   const netProfit = summary.netOperatingProfit ?? summary.operatingProfit;
   const netMargin = summary.netOperatingMargin ?? summary.operatingMargin;
   const health = getHealthStatus(netMargin);
@@ -198,14 +203,14 @@ function ExecutiveView({
               </span>
             </div>
             <p className="text-3xl font-bold text-gray-900 mt-2">
-              {formatARS(netProfit)}
+              {fm(netProfit)}
             </p>
             <p className="text-sm text-gray-500 mt-1">
               Beneficio neto — {netMargin}% de margen
               <InfoTip text="El beneficio neto es lo que te queda despues de restar TODOS los costos: mercaderia, publicidad, envios, comisiones y gastos operativos. El margen indica que porcentaje de cada peso facturado es ganancia real." />
             </p>
             <p className="text-xs text-gray-400 mt-2">
-              De {formatARS(summary.revenue)} facturados, te quedan {formatARS(netProfit)} despues de todos los costos
+              De {fm(summary.revenue)} facturados, te quedan {fm(netProfit)} despues de todos los costos
             </p>
           </div>
           <div className="text-right">
@@ -225,7 +230,7 @@ function ExecutiveView({
         {/* Facturación */}
         <div className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-blue-500">
           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Facturacion <InfoTip text="Total cobrado por tus ventas, incluyendo IVA. Es el dinero bruto que entra antes de descontar cualquier costo." /></span>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{formatARS(summary.revenue)}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-2">{fm(summary.revenue)}</p>
           <p className="text-sm text-gray-500 mt-1">{summary.orders.toLocaleString("es-AR")} ordenes</p>
           {changes && (
             <div className="mt-2">
@@ -237,21 +242,21 @@ function ExecutiveView({
         {/* Costos totales */}
         <div className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-red-400">
           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Costos Totales <InfoTip text="Suma de todo lo que gastas para operar: costo de productos (COGS), publicidad, envios, comisiones de plataformas, medios de pago y gastos fijos." /></span>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{formatARS(totalCosts)}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-2">{fm(totalCosts)}</p>
           <p className="text-sm text-gray-500 mt-1">{costPct.toFixed(1)}% del revenue</p>
           <div className="mt-3 space-y-1">
             <div className="flex justify-between text-xs">
               <span className="text-gray-400">COGS <InfoTip text="Cost of Goods Sold: lo que te cuesta comprar o fabricar los productos que vendiste." /></span>
-              <span className="text-gray-600 font-mono">{formatARS(summary.cogs)}</span>
+              <span className="text-gray-600 font-mono">{fm(summary.cogs)}</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-gray-400">Publicidad</span>
-              <span className="text-gray-600 font-mono">{formatARS(summary.adSpend)}</span>
+              <span className="text-gray-600 font-mono">{fm(summary.adSpend)}</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-gray-400">Envios + Comisiones + Otros</span>
               <span className="text-gray-600 font-mono">
-                {formatARS(summary.shipping + (summary.platformFees || 0) + (summary.paymentFees || 0) + (summary.manualCostsTotal || 0))}
+                {fm(summary.shipping + (summary.platformFees || 0) + (summary.paymentFees || 0) + (summary.manualCostsTotal || 0))}
               </span>
             </div>
           </div>
@@ -261,7 +266,7 @@ function ExecutiveView({
         <div className={`bg-white rounded-xl p-5 shadow-sm border-l-4 ${netProfit >= 0 ? "border-green-500" : "border-red-500"}`}>
           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resultado <InfoTip text="Lo que realmente ganas (o perdes) despues de pagar todos los costos. Si es verde, tu negocio es rentable. Si es rojo, estas operando a perdida." /></span>
           <p className={`text-2xl font-bold mt-2 ${netProfit >= 0 ? "text-green-700" : "text-red-600"}`}>
-            {formatARS(netProfit)}
+            {fm(netProfit)}
           </p>
           <p className="text-sm text-gray-500 mt-1">{netMargin}% margen neto <InfoTip text="El porcentaje de cada peso de facturacion que queda como ganancia neta. Ej: 18% significa que de cada $100 facturados, te quedan $18." /></p>
           {changes && (
@@ -292,7 +297,7 @@ function ExecutiveView({
               />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "11px" }}
-                formatter={(value: number, name: string) => [formatARS(value), name]}
+                formatter={(value: number, name: string) => [fm(value), name]}
                 labelFormatter={formatDateShort}
               />
             </AreaChart>
@@ -325,7 +330,7 @@ function ExecutiveView({
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   <div>
                     <span className="text-xs text-gray-400 block">Revenue</span>
-                    <span className="text-sm font-bold text-gray-800">{formatARS(s.revenue)}</span>
+                    <span className="text-sm font-bold text-gray-800">{fm(s.revenue)}</span>
                   </div>
                   <div>
                     <span className="text-xs text-gray-400 block">Ordenes</span>
@@ -367,6 +372,10 @@ function DetailedView({
   chartMode: "waterfall" | "trend";
   setChartMode: (m: "waterfall" | "trend") => void;
 }) {
+  // Currency conversion hook (USD / ARS / ARS_ADJ)
+  const { convert, format } = useCurrencyView();
+  const fm = (v: number, d?: string) => format(convert(v, d));
+
   const netOp = summary.netOperatingProfit ?? summary.operatingProfit;
 
   const waterfallData = [
@@ -466,8 +475,8 @@ function DetailedView({
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Revenue <InfoTip text="Facturacion total: todo lo que cobraste por tus ventas en el periodo seleccionado, incluyendo IVA." /></span>
             {changes && <ChangeIndicator value={changes.revenue} />}
           </div>
-          <p className="text-lg font-bold text-gray-800">{formatARS(summary.revenue)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{summary.orders} ordenes | AOV {formatARS(summary.aov)} <InfoTip text="AOV (Average Order Value) es el ticket promedio: cuanto gasta en promedio cada cliente por pedido." /></p>
+          <p className="text-lg font-bold text-gray-800">{fm(summary.revenue)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{summary.orders} ordenes | AOV {fm(summary.aov)} <InfoTip text="AOV (Average Order Value) es el ticket promedio: cuanto gasta en promedio cada cliente por pedido." /></p>
         </div>
         {/* COGS / Margen Bruto */}
         <div className="bg-white rounded-xl p-4 border-l-4 border-green-500 shadow-sm">
@@ -475,8 +484,8 @@ function DetailedView({
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Margen Bruto <InfoTip text="Lo que queda despues de restar solo el costo de la mercaderia (COGS). Es tu primer indicador de rentabilidad: si es bajo, estas vendiendo con poco margen sobre el costo del producto." /></span>
             {changes && <ChangeIndicator value={changes.grossProfit} />}
           </div>
-          <p className="text-lg font-bold text-gray-800">{formatARS(summary.grossProfit)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{summary.grossMargin}% | COGS: {formatARS(summary.cogs)}</p>
+          <p className="text-lg font-bold text-gray-800">{fm(summary.grossProfit)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{summary.grossMargin}% | COGS: {fm(summary.cogs)}</p>
         </div>
         {/* Ads */}
         <div className="bg-white rounded-xl p-4 border-l-4 border-orange-400 shadow-sm">
@@ -484,17 +493,17 @@ function DetailedView({
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Publicidad <InfoTip text="Inversion total en anuncios pagos: Meta (Facebook/Instagram) y Google (Search/Shopping/Display). A diferencia de otros costos, la flecha verde aca significa que gastaste MENOS." /></span>
             {changes && <ChangeIndicator value={changes.adSpend} inverse />}
           </div>
-          <p className="text-lg font-bold text-gray-800">{formatARS(summary.adSpend)}</p>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">Meta {formatARS(summary.metaSpend)} | Google {formatARS(summary.googleSpend)}</p>
+          <p className="text-lg font-bold text-gray-800">{fm(summary.adSpend)}</p>
+          <p className="text-xs text-gray-400 mt-0.5 truncate">Meta {fm(summary.metaSpend)} | Google {fm(summary.googleSpend)}</p>
         </div>
         {/* Costos operativos (envíos + comisiones + payment + otros) */}
         <div className="bg-white rounded-xl p-4 border-l-4 border-indigo-400 shadow-sm">
           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Costos Operativos <InfoTip text="Todos los costos de operar ademas de productos y publicidad: envios, comisiones de MercadoLibre/VTEX, comisiones de medios de pago (tarjetas, MercadoPago), y gastos fijos que cargaste manualmente." /></span>
           <p className="text-lg font-bold text-gray-800 mt-1">
-            {formatARS(summary.shipping + (summary.platformFees || 0) + (summary.paymentFees || 0) + (summary.manualCostsTotal || 0))}
+            {fm(summary.shipping + (summary.platformFees || 0) + (summary.paymentFees || 0) + (summary.manualCostsTotal || 0))}
           </p>
           <p className="text-xs text-gray-400 mt-0.5 truncate">
-            Envios {formatARS(summary.shipping)} | Comis. {formatARS((summary.platformFees || 0) + (summary.paymentFees || 0))}
+            Envios {fm(summary.shipping)} | Comis. {fm((summary.platformFees || 0) + (summary.paymentFees || 0))}
           </p>
         </div>
         {/* Beneficio Neto */}
@@ -503,7 +512,7 @@ function DetailedView({
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Beneficio Neto <InfoTip text="La linea final: lo que realmente te queda despues de TODOS los costos. Es el numero mas importante del P&L — indica si tu negocio es rentable o no." /></span>
             {changes && <ChangeIndicator value={changes.operatingProfit} />}
           </div>
-          <p className={`text-lg font-bold ${netOp >= 0 ? "text-green-700" : "text-red-600"}`}>{formatARS(netOp)}</p>
+          <p className={`text-lg font-bold ${netOp >= 0 ? "text-green-700" : "text-red-600"}`}>{fm(netOp)}</p>
           <p className="text-xs text-gray-400 mt-0.5">{summary.netOperatingMargin ?? summary.operatingMargin}% margen neto</p>
         </div>
       </div>
@@ -512,7 +521,7 @@ function DetailedView({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <span className="text-xs font-medium text-gray-500 uppercase">Ticket Promedio <InfoTip text="Cuanto gasta en promedio cada cliente por pedido. Un ticket mas alto generalmente mejora tu rentabilidad porque los costos fijos se diluyen." /></span>
-          <p className="text-lg font-bold text-gray-800 mt-1">{formatARS(summary.aov)}</p>
+          <p className="text-lg font-bold text-gray-800 mt-1">{fm(summary.aov)}</p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <span className="text-xs font-medium text-gray-500 uppercase">Unidades</span>
@@ -521,13 +530,13 @@ function DetailedView({
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <span className="text-xs font-medium text-gray-500 uppercase">Costo x Unidad <InfoTip text="Cuanto te cuesta en promedio cada producto vendido. Se calcula dividiendo el COGS total por la cantidad de unidades." /></span>
           <p className="text-lg font-bold text-gray-800 mt-1">
-            {summary.units > 0 ? formatARS(summary.cogs / summary.units) : "\u2014"}
+            {summary.units > 0 ? fm(summary.cogs / summary.units) : "\u2014"}
           </p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <span className="text-xs font-medium text-gray-500 uppercase">Margen x Unidad <InfoTip text="Cuanto ganas en promedio por cada unidad vendida (precio de venta menos costo del producto). Sirve para comparar rentabilidad entre productos." /></span>
           <p className="text-lg font-bold text-gray-800 mt-1">
-            {summary.units > 0 ? formatARS(summary.grossProfit / summary.units) : "\u2014"}
+            {summary.units > 0 ? fm(summary.grossProfit / summary.units) : "\u2014"}
           </p>
         </div>
       </div>
@@ -556,8 +565,8 @@ function DetailedView({
             <BarChart data={waterfallData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(Math.abs(v))} />
-              <Tooltip {...tooltipStyle} formatter={(value: number) => [formatARS(Math.abs(value)), ""]} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(Math.abs(convert(v) ?? 0))} />
+              <Tooltip {...tooltipStyle} formatter={(value: number) => [fm(Math.abs(value)), ""]} />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {waterfallData.map((entry, index) => (
                   <rect key={index} fill={entry.fill} />
@@ -568,8 +577,8 @@ function DetailedView({
             <AreaChart data={dailyTrend} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={formatDateShort} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(v)} />
-              <Tooltip {...tooltipStyle} formatter={(value: number, name: string) => [formatARS(value), name]} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(convert(v) ?? 0)} />
+              <Tooltip {...tooltipStyle} formatter={(value: number, name: string) => [fm(value), name]} />
               <Legend />
               <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} strokeWidth={2} />
               <Area type="monotone" dataKey="grossProfit" name="Margen Bruto" stroke="#22c55e" fill="#22c55e" fillOpacity={0.1} strokeWidth={2} />
@@ -598,7 +607,7 @@ function DetailedView({
               </span>
               <div className="flex items-center gap-3">
                 <span className={`${row.small ? "text-xs" : "text-sm"} font-mono ${row.bold ? "font-bold" : "font-medium"} ${row.color}`}>
-                  {row.value < 0 ? "-" : ""}{formatARS(Math.abs(row.value))}
+                  {row.value < 0 ? "-" : ""}{fm(Math.abs(row.value))}
                 </span>
                 {row.pct !== undefined && (
                   <span className="text-xs text-gray-400 font-mono w-14 text-right">{row.pct}%</span>
@@ -649,7 +658,7 @@ function DetailedView({
                       let display = "";
                       if (row.format === "pct") display = `${val}%`;
                       else if (row.format === "num") display = val.toLocaleString("es-AR");
-                      else display = formatARS(Math.abs(val));
+                      else display = fm(Math.abs(val));
                       const isNeg = row.negative && val > 0;
                       return (
                         <td key={s.source} className={`px-5 py-2 text-right font-mono ${row.bold ? "font-bold" : "font-medium"} ${
@@ -694,7 +703,7 @@ function DetailedView({
                 <div key={i} className="px-5 py-3">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm text-gray-700 font-medium truncate max-w-[60%]">{cat.category}</span>
-                    <span className="text-xs text-gray-500">{formatARS(cat.revenue)} | {cat.grossMargin}%</span>
+                    <span className="text-xs text-gray-500">{fm(cat.revenue)} | {cat.grossMargin}%</span>
                   </div>
                   <MarginBar value={cat.grossMargin} color={cat.grossMargin >= 40 ? "bg-green-400" : cat.grossMargin >= 25 ? "bg-yellow-400" : "bg-red-400"} />
                 </div>
@@ -714,7 +723,7 @@ function DetailedView({
                 <div key={i} className="px-5 py-3">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm text-gray-700 font-medium truncate max-w-[60%]">{brand.brand}</span>
-                    <span className="text-xs text-gray-500">{formatARS(brand.revenue)} | {brand.grossMargin}%</span>
+                    <span className="text-xs text-gray-500">{fm(brand.revenue)} | {brand.grossMargin}%</span>
                   </div>
                   <MarginBar value={brand.grossMargin} color={brand.grossMargin >= 40 ? "bg-green-400" : brand.grossMargin >= 25 ? "bg-yellow-400" : "bg-red-400"} />
                 </div>
@@ -874,7 +883,7 @@ export default function FinanzasPage() {
         />
       </div>
 
-      {/* Currency toggle (Fase 0 P&L redesign — se aplicara a los numeros en Fase 1+) */}
+      {/* Currency toggle — convierte todos los montos de esta pagina (USD / ARS / ARS_ADJ) */}
       <div className="mb-6">
         <CurrencyToggle />
       </div>
