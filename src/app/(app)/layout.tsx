@@ -173,12 +173,15 @@ const NAV_GROUPS: NavGroup[] = [
     label: "FINANZAS",
     items: [
       {
-        href: "/finanzas",
+        href: "/finanzas/pulso",
         label: "P&L",
         icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
         children: [
-          { href: "/finanzas", label: "Estado de Resultados" },
+          { href: "/finanzas/pulso", label: "Pulso" },
+          { href: "/finanzas/estado", label: "Estado de Resultados" },
           { href: "/finanzas/costos", label: "Costos Operativos" },
+          { href: "/finanzas/escenarios", label: "Escenarios" },
+          { href: "/finanzas/fiscal", label: "Fiscal" },
         ],
       },
     ],
