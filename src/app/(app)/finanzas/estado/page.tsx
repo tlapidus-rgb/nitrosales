@@ -154,16 +154,18 @@ const COST_CATEGORIES = [
    VISTA EJECUTIVA — "¿Cómo voy?"
    ══════════════════════════════════════════════ */
 function ExecutiveView({
-  summary, changes, dailyTrend, bySource,
+  summary, changes, dailyTrend, bySource, midDate,
 }: {
   summary: PnlSummary;
   changes: Changes | null;
   dailyTrend: DailyTrend[];
   bySource: SourceBreakdown[];
+  midDate: string;
 }) {
   // Currency conversion hook (USD / ARS / ARS_ADJ)
+  // midDate = punto medio del periodo, usado para el ajuste IPC en ARS_ADJ.
   const { convert, format } = useCurrencyView();
-  const fm = (v: number, d?: string) => format(convert(v, d));
+  const fm = (v: number, d?: string) => format(convert(v, d ?? midDate));
 
   const netProfit = summary.netOperatingProfit ?? summary.operatingProfit;
   const netMargin = summary.netOperatingMargin ?? summary.operatingMargin;
@@ -359,7 +361,7 @@ function ExecutiveView({
    ══════════════════════════════════════════════ */
 function DetailedView({
   summary, changes, dailyTrend, categories, brands, bySource, manualCosts,
-  paymentFeeDetails, chartMode, setChartMode,
+  paymentFeeDetails, chartMode, setChartMode, midDate,
 }: {
   summary: PnlSummary;
   changes: Changes | null;
@@ -371,10 +373,12 @@ function DetailedView({
   paymentFeeDetails: PaymentFeeDetail[];
   chartMode: "waterfall" | "trend";
   setChartMode: (m: "waterfall" | "trend") => void;
+  midDate: string;
 }) {
   // Currency conversion hook (USD / ARS / ARS_ADJ)
+  // midDate = punto medio del periodo, usado para el ajuste IPC en ARS_ADJ.
   const { convert, format } = useCurrencyView();
-  const fm = (v: number, d?: string) => format(convert(v, d));
+  const fm = (v: number, d?: string) => format(convert(v, d ?? midDate));
 
   const netOp = summary.netOperatingProfit ?? summary.operatingProfit;
 
@@ -839,6 +843,13 @@ export default function FinanzasPage() {
 
   if (!summary) return null;
 
+  // midDate = punto medio del rango seleccionado, en formato "YYYY-MM-DD".
+  // Lo usamos como "fecha de referencia" para el ajuste IPC cuando el usuario
+  // ve el P&L en modo ARS_ADJ. Con un rango de 30 dias, el ajuste aplica al
+  // mes central del periodo (ajuste razonable para un numero agregado).
+  const midMs = (new Date(dateFrom).getTime() + new Date(dateTo).getTime()) / 2;
+  const midDate = new Date(midMs).toISOString().split("T")[0];
+
   return (
     <div className="light-canvas min-h-screen">
       {/* Header */}
@@ -895,6 +906,7 @@ export default function FinanzasPage() {
           changes={changes}
           dailyTrend={dailyTrend}
           bySource={bySource}
+          midDate={midDate}
         />
       ) : (
         <DetailedView
@@ -908,6 +920,7 @@ export default function FinanzasPage() {
           paymentFeeDetails={paymentFeeDetails}
           chartMode={chartMode}
           setChartMode={setChartMode}
+          midDate={midDate}
         />
       )}
     </div>
