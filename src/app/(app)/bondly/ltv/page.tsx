@@ -126,6 +126,10 @@ export default function LtvPage() {
   const [journeyData, setJourneyData] = useState<any | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(false);
 
+  // Commit 7: churn risk scoreboard
+  const [churnRisk, setChurnRisk] = useState<any | null>(null);
+  const [churnLoading, setChurnLoading] = useState(true);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -211,6 +215,24 @@ export default function LtvPage() {
     };
     fetchBehavioral();
   }, [behavioralFilter]);
+
+  // Churn risk scoreboard
+  useEffect(() => {
+    const fetchChurn = async () => {
+      setChurnLoading(true);
+      try {
+        const res = await fetch("/api/bondly/churn-risk?limit=20&minLtv=0");
+        if (res.ok) {
+          setChurnRisk(await res.json());
+        }
+      } catch {
+        setChurnRisk(null);
+      } finally {
+        setChurnLoading(false);
+      }
+    };
+    fetchChurn();
+  }, []);
 
   // Customer Journey timeline
   const handleOpenJourney = async (customerId: string) => {
@@ -1897,12 +1919,300 @@ export default function LtvPage() {
         )}
       </div>
 
-      {/* ── Top Clientes por LTV ── */}
+      {/* ══ PRODUCT AFFINITY MATRIX ═════════════════════════════════════ */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+        <div className="p-4 lg:p-5 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-800">
+            Product Affinity — cross-sell por categoría
+            <InfoTip text="Muestra qué compraron los clientes después de su primera compra. Cada fila es una categoría de primera compra; cada columna, la siguiente compra. El LTV resultante te dice qué combinaciones generan clientes de más valor." />
+          </h2>
+          <p className="text-xs text-gray-500 mt-1">
+            De la categoría inicial a la siguiente compra · LTV promedio
+            resultante
+          </p>
+        </div>
+        <div className="p-4 lg:p-6">
+          {Array.isArray(data.productAffinity) &&
+          data.productAffinity.length > 0 ? (
+            (() => {
+              const top = data.productAffinity.slice(0, 24);
+              const maxLtv = Math.max(
+                ...top.map((p: any) => Number(p.avgLtv) || 0),
+                1
+              );
+              const maxCustomers = Math.max(
+                ...top.map((p: any) => Number(p.customers) || 0),
+                1
+              );
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {top.map((p: any, i: number) => {
+                    const ltv = Number(p.avgLtv) || 0;
+                    const customers = Number(p.customers) || 0;
+                    const intensity = ltv / maxLtv;
+                    const bgOpacity = 0.1 + intensity * 0.35;
+                    return (
+                      <div
+                        key={`${p.from}-${p.to}-${i}`}
+                        className="rounded-lg p-3 transition-all hover:shadow-md"
+                        style={{
+                          background: `linear-gradient(135deg, rgba(16,185,129,${bgOpacity}) 0%, rgba(6,182,212,${
+                            bgOpacity * 0.6
+                          }) 100%)`,
+                          border: `1px solid rgba(16,185,129,${
+                            0.15 + intensity * 0.3
+                          })`,
+                        }}
+                      >
+                        <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-2">
+                          <span className="truncate max-w-[100px]">
+                            {p.from}
+                          </span>
+                          <ArrowUpRight className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate max-w-[100px]">
+                            {p.to}
+                          </span>
+                        </div>
+                        <div className="flex items-end justify-between gap-2">
+                          <div>
+                            <div className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">
+                              LTV promedio
+                            </div>
+                            <div className="text-base font-semibold text-emerald-900 tabular-nums">
+                              {formatARS(ltv)}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">
+                              Clientes
+                            </div>
+                            <div className="text-sm font-medium text-gray-700 tabular-nums">
+                              {customers.toLocaleString("es-AR")}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-2 h-1 rounded-full bg-white/50 overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${(customers / maxCustomers) * 100}%`,
+                              background:
+                                "linear-gradient(to right, #10b981, #06b6d4)",
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
+          ) : (
+            <div className="p-6 text-center text-sm text-gray-400">
+              No hay suficientes patrones de cross-sell detectados aún.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ══ CHURN RISK SCOREBOARD ═════════════════════════════════════════ */}
+      <div
+        className="relative overflow-hidden rounded-2xl"
+        style={{
+          background:
+            "linear-gradient(135deg, #140a15 0%, #0f0810 60%, #140a15 100%)",
+          border: "1px solid rgba(239,68,68,0.15)",
+          boxShadow:
+            "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(239,68,68,0.25)",
+        }}
+      >
+        <BondlyAuroras variant="bondly" />
+        <div className="relative z-10 px-5 lg:px-7 py-6">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-5">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.22em] uppercase text-rose-300/80">
+                  <TrendingDown className="w-3 h-3" />
+                  CHURN RISK · SCOREBOARD
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-rose-500/15 text-rose-300 border border-rose-400/30">
+                  Composite score
+                </span>
+              </div>
+              <h2
+                className="text-xl lg:text-2xl font-semibold tracking-tight text-white"
+              >
+                Clientes en riesgo de churn
+              </h2>
+              <p className="text-xs text-zinc-400 mt-1.5 max-w-2xl">
+                Score 0-100 que combina recency, frecuencia, engagement pixel
+                y tendencia de AOV. Crítico ≥75, Alto ≥55.
+                <BondlyInfoTip
+                  text="El score se renormaliza automáticamente cuando falta alguna señal. Las razones son texto humano, no pesos del modelo."
+                  title="Cómo se calcula"
+                />
+              </p>
+            </div>
+            {churnRisk?.summary && (
+              <div className="flex flex-wrap gap-2">
+                <div className="px-3 py-1.5 rounded-lg bg-rose-500/15 border border-rose-400/30">
+                  <div className="text-[9px] font-mono tracking-widest uppercase text-rose-300/70">
+                    Crítico
+                  </div>
+                  <div className="text-sm font-semibold text-rose-200">
+                    {churnRisk.summary.critico}
+                  </div>
+                </div>
+                <div className="px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-400/30">
+                  <div className="text-[9px] font-mono tracking-widest uppercase text-amber-300/70">
+                    Alto
+                  </div>
+                  <div className="text-sm font-semibold text-amber-200">
+                    {churnRisk.summary.alto}
+                  </div>
+                </div>
+                <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                  <div className="text-[9px] font-mono tracking-widest uppercase text-zinc-500">
+                    Analizados
+                  </div>
+                  <div className="text-sm font-semibold text-white">
+                    {churnRisk.summary.total}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-black/20 border border-white/5 overflow-hidden">
+            {churnLoading ? (
+              <div className="p-6 space-y-2">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="h-10 rounded bg-white/5 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : churnRisk?.clients?.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-white/[0.03] border-b border-white/5">
+                    <tr className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                      <th className="text-left px-4 py-2.5 font-medium">
+                        Cliente
+                      </th>
+                      <th className="text-left px-4 py-2.5 font-medium">
+                        Tier
+                      </th>
+                      <th className="text-left px-4 py-2.5 font-medium">
+                        Score
+                      </th>
+                      <th className="text-left px-4 py-2.5 font-medium">
+                        Razón principal
+                      </th>
+                      <th className="text-right px-4 py-2.5 font-medium">
+                        LTV
+                      </th>
+                      <th className="text-right px-4 py-2.5 font-medium">
+                        Último
+                      </th>
+                      <th className="text-right px-4 py-2.5 font-medium">
+                        Acción
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {churnRisk.clients.map((c: any) => {
+                      const tierColor =
+                        c.churnTier === "critico"
+                          ? "bg-rose-500/20 text-rose-200 border-rose-400/40"
+                          : c.churnTier === "alto"
+                          ? "bg-amber-500/20 text-amber-200 border-amber-400/40"
+                          : c.churnTier === "medio"
+                          ? "bg-yellow-500/15 text-yellow-200 border-yellow-400/30"
+                          : "bg-emerald-500/15 text-emerald-200 border-emerald-400/30";
+                      const scoreBg =
+                        c.churnTier === "critico"
+                          ? "linear-gradient(to right, #f43f5e, #f97316)"
+                          : c.churnTier === "alto"
+                          ? "linear-gradient(to right, #f59e0b, #eab308)"
+                          : "linear-gradient(to right, #10b981, #06b6d4)";
+                      return (
+                        <tr
+                          key={c.customerId}
+                          className="border-t border-white/5 hover:bg-white/[0.02] transition-colors"
+                        >
+                          <td className="px-4 py-2.5">
+                            <div className="text-xs font-medium text-zinc-200 truncate max-w-[220px]">
+                              {c.displayName}
+                            </div>
+                            {c.email && (
+                              <div className="text-[10px] text-zinc-500 truncate max-w-[220px]">
+                                {c.email}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium border ${tierColor}`}
+                            >
+                              {c.churnTierLabel}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${c.churnScore}%`,
+                                    background: scoreBg,
+                                  }}
+                                />
+                              </div>
+                              <span className="text-xs font-semibold text-white tabular-nums">
+                                {c.churnScore}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-zinc-400 max-w-[260px] truncate">
+                            {(c.reasons && c.reasons[0]) || "—"}
+                          </td>
+                          <td className="text-right px-4 py-2.5 text-xs text-zinc-300 tabular-nums">
+                            {formatARS(Number(c.totalLtv) || 0)}
+                          </td>
+                          <td className="text-right px-4 py-2.5 text-xs text-zinc-500 tabular-nums">
+                            {c.daysSinceLastOrder}d
+                          </td>
+                          <td className="text-right px-4 py-2.5">
+                            <button
+                              onClick={() => handleOpenJourney(c.customerId)}
+                              className="text-[11px] font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
+                            >
+                              Ver journey
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-6 text-center text-xs text-zinc-500">
+                No hay clientes en riesgo de churn con los criterios actuales.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Top Clientes por LTV — tier-aware ── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
         <div className="p-4 lg:p-5 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-800">
             Top 20 Clientes por Valor de Vida
-            <InfoTip text="Los 20 clientes que mas gastaron en total desde su primera compra. Muestra el canal por el que llegaron, para entender de donde vienen tus mejores clientes." />
+            <InfoTip text="Los 20 clientes que mas gastaron en total desde su primera compra. Los 3 primeros tienen tier oro/plata/bronce. Click para ver su journey completo." />
           </h2>
         </div>
         {topCustomers.length > 0 ? (
@@ -1918,29 +2228,98 @@ export default function LtvPage() {
                   <th className="text-right px-4 py-2 font-medium">Primera Compra</th>
                   <th className="text-right px-4 py-2 font-medium">Ultima Compra</th>
                   <th className="text-right px-4 py-2 font-medium">Dias</th>
+                  <th className="text-right px-4 py-2 font-medium">Journey</th>
                 </tr>
               </thead>
               <tbody>
-                {topCustomers.map((c: any, i: number) => (
-                  <tr key={c.id} className="border-t border-gray-50 hover:bg-gray-50/50">
-                    <td className="px-4 py-2.5 text-gray-400 text-xs">{i + 1}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="font-medium text-gray-800 text-sm">{c.name}</div>
-                      {c.email && <div className="text-[11px] text-gray-400">{c.email}</div>}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span className="inline-flex items-center gap-1.5 text-xs">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHANNEL_COLORS[c.channel] || "#6366f1" }} />
-                        {c.channel}
-                      </span>
-                    </td>
-                    <td className="text-right px-4 py-2.5 text-gray-600">{c.orders}</td>
-                    <td className="text-right px-4 py-2.5 font-medium text-gray-800">{formatARS(c.totalSpent)}</td>
-                    <td className="text-right px-4 py-2.5 text-gray-500 text-xs">{c.firstOrder}</td>
-                    <td className="text-right px-4 py-2.5 text-gray-500 text-xs">{c.lastOrder}</td>
-                    <td className="text-right px-4 py-2.5 text-gray-500 text-xs">{c.daysAsCustomer}d</td>
-                  </tr>
-                ))}
+                {topCustomers.map((c: any, i: number) => {
+                  const tierStyle =
+                    i === 0
+                      ? {
+                          label: "VIP",
+                          bg: "bg-gradient-to-br from-amber-400 to-orange-500 text-white",
+                          glow: "shadow-[0_0_15px_rgba(251,191,36,0.3)]",
+                        }
+                      : i === 1
+                      ? {
+                          label: "GOLD",
+                          bg: "bg-gradient-to-br from-yellow-400 to-amber-500 text-white",
+                          glow: "",
+                        }
+                      : i === 2
+                      ? {
+                          label: "BRONZE",
+                          bg: "bg-gradient-to-br from-orange-400 to-amber-600 text-white",
+                          glow: "",
+                        }
+                      : null;
+                  return (
+                    <tr
+                      key={c.id}
+                      className="border-t border-gray-50 hover:bg-gray-50/50"
+                    >
+                      <td className="px-4 py-2.5">
+                        {tierStyle ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 text-xs">{i + 1}</span>
+                            <span
+                              className={`text-[9px] font-mono font-semibold tracking-wider px-1.5 py-0.5 rounded ${tierStyle.bg} ${tierStyle.glow}`}
+                            >
+                              {tierStyle.label}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs">{i + 1}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="font-medium text-gray-800 text-sm">
+                          {c.name}
+                        </div>
+                        {c.email && (
+                          <div className="text-[11px] text-gray-400">
+                            {c.email}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="inline-flex items-center gap-1.5 text-xs">
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{
+                              backgroundColor:
+                                CHANNEL_COLORS[c.channel] || "#6366f1",
+                            }}
+                          />
+                          {c.channel}
+                        </span>
+                      </td>
+                      <td className="text-right px-4 py-2.5 text-gray-600">
+                        {c.orders}
+                      </td>
+                      <td className="text-right px-4 py-2.5 font-medium text-gray-800">
+                        {formatARS(c.totalSpent)}
+                      </td>
+                      <td className="text-right px-4 py-2.5 text-gray-500 text-xs">
+                        {c.firstOrder}
+                      </td>
+                      <td className="text-right px-4 py-2.5 text-gray-500 text-xs">
+                        {c.lastOrder}
+                      </td>
+                      <td className="text-right px-4 py-2.5 text-gray-500 text-xs">
+                        {c.daysAsCustomer}d
+                      </td>
+                      <td className="text-right px-4 py-2.5">
+                        <button
+                          onClick={() => handleOpenJourney(c.id)}
+                          className="text-[11px] font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+                        >
+                          Ver
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
