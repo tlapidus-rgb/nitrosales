@@ -112,6 +112,20 @@ export default function LtvPage() {
   const [customerDetail, setCustomerDetail] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Commit 6 additions: insights, behavioral explorer, customer journey
+  const [insights, setInsights] = useState<any[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [behavioral, setBehavioral] = useState<any | null>(null);
+  const [behavioralLoading, setBehavioralLoading] = useState(true);
+  const [behavioralFilter, setBehavioralFilter] = useState<
+    "all" | "anonymous_high" | "identified_no_purchase" | "customer_low_score"
+  >("anonymous_high");
+  const [journeyCustomerId, setJourneyCustomerId] = useState<string | null>(
+    null
+  );
+  const [journeyData, setJourneyData] = useState<any | null>(null);
+  const [journeyLoading, setJourneyLoading] = useState(false);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -155,6 +169,72 @@ export default function LtvPage() {
     fetchPredictions();
     fetchThresholds();
   }, []);
+
+  // Insights engine
+  useEffect(() => {
+    const fetchInsights = async () => {
+      setInsightsLoading(true);
+      try {
+        const res = await fetch("/api/bondly/ltv-insights");
+        if (res.ok) {
+          const d = await res.json();
+          setInsights(Array.isArray(d.insights) ? d.insights : []);
+        }
+      } catch {
+        setInsights([]);
+      } finally {
+        setInsightsLoading(false);
+      }
+    };
+    fetchInsights();
+  }, []);
+
+  // Behavioral LTV Explorer (re-fetch al cambiar filtro)
+  useEffect(() => {
+    const fetchBehavioral = async () => {
+      setBehavioralLoading(true);
+      try {
+        const params = new URLSearchParams({
+          filter: behavioralFilter,
+          limit: "50",
+        });
+        const res = await fetch(`/api/bondly/behavioral-ltv?${params}`);
+        if (res.ok) {
+          const d = await res.json();
+          setBehavioral(d);
+        }
+      } catch {
+        setBehavioral(null);
+      } finally {
+        setBehavioralLoading(false);
+      }
+    };
+    fetchBehavioral();
+  }, [behavioralFilter]);
+
+  // Customer Journey timeline
+  const handleOpenJourney = async (customerId: string) => {
+    if (journeyCustomerId === customerId) {
+      setJourneyCustomerId(null);
+      setJourneyData(null);
+      return;
+    }
+    setJourneyCustomerId(customerId);
+    setJourneyData(null);
+    setJourneyLoading(true);
+    try {
+      const res = await fetch(
+        `/api/bondly/customer-journey/${customerId}?eventsLimit=200`
+      );
+      if (res.ok) {
+        setJourneyData(await res.json());
+      }
+    } catch {
+      setJourneyData(null);
+    } finally {
+      setJourneyLoading(false);
+    }
+  };
 
   const handleRunPrediction = async () => {
     setPredRunning(true);
@@ -993,6 +1073,640 @@ export default function LtvPage() {
             </button>
           </div>
         )}
+      </div>
+
+      {/* ══ INSIGHTS ENGINE — cards accionables ══════════════════════════ */}
+      <div
+        className="relative overflow-hidden rounded-2xl"
+        style={{
+          background:
+            "linear-gradient(135deg, #0b1020 0%, #0a0f1c 60%, #0b1020 100%)",
+          border: "1px solid rgba(255,255,255,0.06)",
+          boxShadow:
+            "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(139,92,246,0.35)",
+        }}
+      >
+        <BondlyAuroras variant="bondly" />
+        <div className="relative z-10 px-5 lg:px-7 py-5 lg:py-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(139,92,246,0.22), rgba(236,72,153,0.18))",
+                border: "1px solid rgba(139,92,246,0.35)",
+              }}
+            >
+              <Sparkles className="w-4 h-4 text-fuchsia-300" />
+            </div>
+            <div>
+              <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-fuchsia-300/80">
+                INSIGHTS ENGINE
+              </p>
+              <h2
+                className="text-xl lg:text-2xl font-semibold tracking-tight"
+                style={{
+                  backgroundImage: BONDLY_GRAD,
+                  backgroundClip: "text",
+                  WebkitBackgroundClip: "text",
+                  color: "transparent",
+                }}
+              >
+                Patrones accionables
+              </h2>
+            </div>
+          </div>
+
+          {insightsLoading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-32 rounded-xl bg-white/5 border border-white/5"
+                />
+              ))}
+            </div>
+          ) : insights.length === 0 ? (
+            <div className="px-4 py-6 rounded-xl bg-white/5 border border-white/10 text-center">
+              <div className="text-2xl mb-2">💡</div>
+              <p className="text-sm text-zinc-300">
+                Sin patrones fuertes en este período
+              </p>
+              <p className="text-xs text-zinc-500 mt-1">
+                Probá ampliar el rango para dejar que el motor encuentre señales.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {insights.map((card: any) => {
+                const toneColor =
+                  card.tone === "critical"
+                    ? "rgba(239,68,68,0.5)"
+                    : card.tone === "opportunity"
+                    ? "rgba(16,185,129,0.5)"
+                    : card.tone === "whale"
+                    ? "rgba(59,130,246,0.5)"
+                    : card.tone === "behavioral"
+                    ? "rgba(168,85,247,0.5)"
+                    : "rgba(234,179,8,0.5)";
+                return (
+                  <div
+                    key={card.id}
+                    className="rounded-xl p-4 bg-white/[0.04] hover:bg-white/[0.06] transition-colors"
+                    style={{
+                      border: `1px solid ${toneColor}`,
+                      backdropFilter: "blur(8px)",
+                    }}
+                  >
+                    <div className="flex items-start gap-2 mb-2">
+                      <span className="text-xl leading-none">{card.icon}</span>
+                      <h3 className="text-sm font-semibold text-white leading-snug">
+                        {card.title}
+                      </h3>
+                    </div>
+                    <p className="text-xs text-zinc-400 leading-relaxed mb-3">
+                      {card.body}
+                    </p>
+                    {card.cta?.href ? (
+                      <a
+                        href={card.cta.href}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
+                      >
+                        {card.cta.label}
+                        <ArrowUpRight className="w-3 h-3" />
+                      </a>
+                    ) : (
+                      <button
+                        disabled
+                        title="Próximamente"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 cursor-not-allowed"
+                      >
+                        {card.cta?.label ?? "Ver más"}
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-400">
+                          Próximamente
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ══ BEHAVIORAL LTV EXPLORER ══════════════════════════════════════ */}
+      <div
+        className="relative overflow-hidden rounded-2xl"
+        style={{
+          background:
+            "linear-gradient(135deg, #0b1020 0%, #0a0f1c 60%, #0b1020 100%)",
+          border: "1px solid rgba(255,255,255,0.06)",
+          boxShadow:
+            "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(16,185,129,0.25)",
+        }}
+      >
+        <BondlyAuroras variant="bondly" />
+        <div className="relative z-10 px-5 lg:px-7 py-6">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-5">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.22em] uppercase text-emerald-300/80">
+                  <Activity className="w-3 h-3" />
+                  BEHAVIORAL LTV · PRE-COMPRA
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-violet-500/15 text-violet-300 border border-violet-400/30">
+                  Modelo estadístico
+                </span>
+              </div>
+              <h2
+                className="text-xl lg:text-2xl font-semibold tracking-tight"
+                style={{
+                  backgroundImage: BONDLY_GRAD,
+                  backgroundClip: "text",
+                  WebkitBackgroundClip: "text",
+                  color: "transparent",
+                }}
+              >
+                Visitantes con perfil de futuro VIP
+              </h2>
+              <p className="text-xs text-zinc-400 mt-1.5 max-w-2xl leading-relaxed">
+                Score 0-100 calculado server-side sobre señales pixel (sesiones,
+                navegación, intención, origen, consistencia). Recalibración
+                semanal contra conversiones reales.
+                <BondlyInfoTip
+                  text="Basado en investigación de marketing digital sobre señales tempranas de intención de compra (McKinsey, HBR, Google Research) aplicada a tu propio funnel con NitroPixel. El score es una estimación probabilística, no una garantía."
+                  title="Cómo se calcula"
+                />
+              </p>
+            </div>
+
+            {/* Stats rápidas */}
+            {behavioral?.stats && (
+              <div className="flex flex-wrap gap-2">
+                <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                  <div className="text-[9px] font-mono tracking-widest uppercase text-zinc-500">
+                    Anónimos high
+                  </div>
+                  <div className="text-sm font-semibold text-white">
+                    {(behavioral.stats.anonymousHighScore || 0).toLocaleString(
+                      "es-AR"
+                    )}
+                  </div>
+                </div>
+                <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                  <div className="text-[9px] font-mono tracking-widest uppercase text-zinc-500">
+                    Identif. sin compra
+                  </div>
+                  <div className="text-sm font-semibold text-white">
+                    {(
+                      behavioral.stats.identifiedNoPurchase || 0
+                    ).toLocaleString("es-AR")}
+                  </div>
+                </div>
+                <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                  <div className="text-[9px] font-mono tracking-widest uppercase text-zinc-500">
+                    Total analizado
+                  </div>
+                  <div className="text-sm font-semibold text-white">
+                    {(behavioral.stats.total || 0).toLocaleString("es-AR")}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Filtros */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {[
+              { key: "anonymous_high", label: "Anónimos high-score" },
+              {
+                key: "identified_no_purchase",
+                label: "Identificados sin compra",
+              },
+              { key: "customer_low_score", label: "Clientes behavioral bajo" },
+              { key: "all", label: "Todos" },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setBehavioralFilter(f.key as any)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  behavioralFilter === f.key
+                    ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/40"
+                    : "bg-white/5 text-zinc-400 border border-white/10 hover:bg-white/10 hover:text-zinc-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tabla */}
+          <div className="rounded-xl bg-black/20 border border-white/5 overflow-hidden">
+            {behavioralLoading ? (
+              <div className="p-6 space-y-2">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="h-8 rounded bg-white/5 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : behavioral?.visitors?.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-white/[0.03] border-b border-white/5">
+                    <tr className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                      <th className="text-left px-4 py-2.5 font-medium">
+                        Visitor
+                      </th>
+                      <th className="text-left px-4 py-2.5 font-medium">
+                        Status
+                      </th>
+                      <th className="text-left px-4 py-2.5 font-medium">
+                        Score
+                      </th>
+                      <th className="text-left px-4 py-2.5 font-medium">
+                        Drivers
+                      </th>
+                      <th className="text-right px-4 py-2.5 font-medium">
+                        Última visita
+                      </th>
+                      <th className="text-right px-4 py-2.5 font-medium">
+                        Acción
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {behavioral.visitors
+                      .slice(0, 20)
+                      .map((v: any) => (
+                        <tr
+                          key={v.visitorId}
+                          className="border-t border-white/5 hover:bg-white/[0.02] transition-colors"
+                        >
+                          <td className="px-4 py-2.5">
+                            <div className="text-xs font-medium text-zinc-200 truncate max-w-[240px]">
+                              {v.displayId}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                v.status === "customer"
+                                  ? "bg-emerald-500/15 text-emerald-300"
+                                  : v.status === "identified_no_purchase"
+                                  ? "bg-amber-500/15 text-amber-300"
+                                  : "bg-zinc-500/15 text-zinc-300"
+                              }`}
+                            >
+                              {v.status === "customer"
+                                ? "Cliente"
+                                : v.status === "identified_no_purchase"
+                                ? "Identificado"
+                                : "Anónimo"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${v.score}%`,
+                                    background: BONDLY_GRAD,
+                                  }}
+                                />
+                              </div>
+                              <span className="text-xs font-semibold text-white tabular-nums">
+                                {v.score}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex flex-wrap gap-1">
+                              {(v.drivers || [])
+                                .slice(0, 2)
+                                .map((d: string, i: number) => (
+                                  <span
+                                    key={i}
+                                    className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-300 border border-white/10"
+                                  >
+                                    {d}
+                                  </span>
+                                ))}
+                            </div>
+                          </td>
+                          <td className="text-right px-4 py-2.5 text-xs text-zinc-400 tabular-nums">
+                            {v.daysSinceLastSeen}d
+                          </td>
+                          <td className="text-right px-4 py-2.5">
+                            {v.customerId ? (
+                              <button
+                                onClick={() =>
+                                  handleOpenJourney(v.customerId!)
+                                }
+                                className="text-[11px] font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
+                              >
+                                Ver journey
+                              </button>
+                            ) : (
+                              <button
+                                disabled
+                                title="Próximamente"
+                                className="text-[11px] font-medium text-zinc-600 cursor-not-allowed"
+                              >
+                                Retargeting
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-6 text-center text-xs text-zinc-500">
+                No hay visitantes para este filtro.
+              </div>
+            )}
+          </div>
+
+          {/* Trust Strip */}
+          <div className="mt-5">
+            <BondlyTrustStrip variant="predictive-pre" />
+          </div>
+        </div>
+      </div>
+
+      {/* ══ JOURNEY DRAWER — conditional ════════════════════════════════ */}
+      {journeyCustomerId && (
+        <div
+          className="relative overflow-hidden rounded-2xl"
+          style={{
+            background:
+              "linear-gradient(135deg, #0b1020 0%, #0a0f1c 60%, #0b1020 100%)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            boxShadow:
+              "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(59,130,246,0.25)",
+          }}
+        >
+          <BondlyAuroras variant="bondly" />
+          <div className="relative z-10 px-5 lg:px-7 py-6">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <p className="text-[10px] font-mono tracking-[0.22em] uppercase text-cyan-300/80 mb-1">
+                  CUSTOMER JOURNEY
+                </p>
+                <h2
+                  className="text-xl font-semibold tracking-tight"
+                  style={{
+                    backgroundImage: BONDLY_GRAD,
+                    backgroundClip: "text",
+                    WebkitBackgroundClip: "text",
+                    color: "transparent",
+                  }}
+                >
+                  {journeyData?.customer?.firstName ||
+                    journeyData?.customer?.email ||
+                    "Cargando..."}
+                </h2>
+              </div>
+              <button
+                onClick={() => {
+                  setJourneyCustomerId(null);
+                  setJourneyData(null);
+                }}
+                className="text-xs text-zinc-400 hover:text-white transition-colors"
+              >
+                Cerrar ✕
+              </button>
+            </div>
+
+            {journeyLoading ? (
+              <div className="space-y-2">
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-10 rounded bg-white/5 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : journeyData?.timeline?.length > 0 ? (
+              <>
+                {/* Summary chips */}
+                <div className="flex flex-wrap gap-2 mb-4 text-xs">
+                  <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-zinc-300">
+                    {journeyData.summary.totalSessions} sesiones
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-zinc-300">
+                    {journeyData.summary.totalPageViews} pageviews
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-zinc-300">
+                    {journeyData.summary.totalOrders} órdenes
+                  </span>
+                  {journeyData.summary.daysBetweenFirstVisitAndFirstOrder !=
+                    null && (
+                    <span className="px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-400/20 text-cyan-300">
+                      {
+                        journeyData.summary
+                          .daysBetweenFirstVisitAndFirstOrder
+                      }
+                      d de anónimo a cliente
+                    </span>
+                  )}
+                </div>
+
+                {/* Timeline */}
+                <div className="relative pl-6 max-h-[500px] overflow-y-auto">
+                  <div
+                    className="absolute left-2 top-2 bottom-2 w-px"
+                    style={{
+                      background:
+                        "linear-gradient(to bottom, rgba(16,185,129,0.5), rgba(6,182,212,0.2))",
+                    }}
+                  />
+                  {journeyData.timeline.slice(-80).map((item: any) => {
+                    const dotColor =
+                      item.type === "order"
+                        ? "#10b981"
+                        : item.type === "cart_add"
+                        ? "#f59e0b"
+                        : item.type === "identify"
+                        ? "#a855f7"
+                        : item.type === "product_view"
+                        ? "#06b6d4"
+                        : "#64748b";
+                    const date = new Date(item.timestamp);
+                    return (
+                      <div
+                        key={item.id}
+                        className="relative mb-3 flex items-start gap-3"
+                      >
+                        <span
+                          className="absolute -left-[22px] top-1 w-2.5 h-2.5 rounded-full ring-2 ring-black/40"
+                          style={{ backgroundColor: dotColor }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="font-medium text-zinc-200">
+                              {item.title}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 font-mono">
+                              {date.toLocaleDateString("es-AR", {
+                                day: "2-digit",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          {item.subtitle && (
+                            <p className="text-[11px] text-zinc-500 truncate max-w-[90%]">
+                              {item.subtitle}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="p-6 text-center text-xs text-zinc-500">
+                No hay eventos para este cliente.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ DECILES DE LTV + CONCENTRACIÓN PARETO ════════════════════════ */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+        <div className="p-4 lg:p-5 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+            Deciles de LTV y concentración Pareto
+            <InfoTip text="Segmenta tus clientes en 10 grupos iguales ordenados por LTV. El decil 10 es tu top 10% de clientes. La concentración te dice cuánto del revenue total generan los mejores deciles." />
+          </h2>
+        </div>
+        <div className="p-4 lg:p-6">
+          {Array.isArray(data.ltvDeciles) && data.ltvDeciles.length > 0 ? (
+            <>
+              {/* Barra horizontal 10 segmentos */}
+              <div className="mb-6">
+                <div className="flex h-8 rounded-lg overflow-hidden border border-gray-200">
+                  {data.ltvDeciles.map((d: any) => {
+                    const share = Math.max(
+                      0,
+                      Math.min(1, Number(d.revenueShare) || 0)
+                    );
+                    const isTop = d.decile === 10;
+                    return (
+                      <div
+                        key={d.decile}
+                        title={`Decil ${d.decile} — ${Math.round(
+                          share * 100
+                        )}% del revenue`}
+                        className="relative flex items-center justify-center text-[10px] font-mono"
+                        style={{
+                          width: `${Math.max(share * 100, 3)}%`,
+                          background: isTop
+                            ? "linear-gradient(135deg, #10b981, #06b6d4)"
+                            : `rgba(16,185,129,${0.15 + d.decile * 0.07})`,
+                          color: isTop ? "white" : "#064e3b",
+                          borderRight:
+                            d.decile < 10
+                              ? "1px solid rgba(255,255,255,0.4)"
+                              : undefined,
+                          minWidth: "20px",
+                        }}
+                      >
+                        D{d.decile}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-mono uppercase tracking-wider">
+                  <span>Menor LTV</span>
+                  <span>Mayor LTV</span>
+                </div>
+              </div>
+
+              {/* Tabla detallada */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr className="text-[10px] font-mono uppercase tracking-widest text-gray-500">
+                      <th className="text-left px-3 py-2 font-medium">
+                        Decil
+                      </th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        Clientes
+                      </th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        LTV Range
+                      </th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        Revenue
+                      </th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        Share
+                      </th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        Repeat Rate
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...data.ltvDeciles]
+                      .sort((a: any, b: any) => b.decile - a.decile)
+                      .map((d: any) => (
+                        <tr
+                          key={d.decile}
+                          className="border-t border-gray-50 hover:bg-gray-50/40"
+                        >
+                          <td className="px-3 py-2 font-medium text-gray-800">
+                            D{d.decile}
+                            {d.decile === 10 && (
+                              <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-mono uppercase tracking-wider">
+                                Top
+                              </span>
+                            )}
+                          </td>
+                          <td className="text-right px-3 py-2 text-gray-600 tabular-nums">
+                            {Number(d.customers).toLocaleString("es-AR")}
+                          </td>
+                          <td className="text-right px-3 py-2 text-gray-500 text-xs tabular-nums">
+                            {formatARS(Number(d.minLtv) || 0)} —{" "}
+                            {formatARS(Number(d.maxLtv) || 0)}
+                          </td>
+                          <td className="text-right px-3 py-2 text-gray-700 tabular-nums">
+                            {formatARS(Number(d.totalRevenue) || 0)}
+                          </td>
+                          <td className="text-right px-3 py-2 font-medium text-gray-800 tabular-nums">
+                            {Math.round(
+                              (Number(d.revenueShare) || 0) * 100
+                            )}
+                            %
+                          </td>
+                          <td className="text-right px-3 py-2 text-gray-500 text-xs tabular-nums">
+                            {Math.round(
+                              (Number(d.repeatRate) || 0) * 100
+                            )}
+                            %
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="p-6 text-center text-sm text-gray-400">
+              No hay data suficiente de deciles para este período.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── LTV por Canal de Adquisicion ── */}
