@@ -22,8 +22,27 @@ type NavGroup = {
 };
 
 const NAV_GROUPS: NavGroup[] = [
+  // ─── Tier 1 — ACTIVOS DIGITALES (el corazón vivo) ───
   {
-    label: "OPERACIONES",
+    label: "ACTIVOS DIGITALES",
+    items: [
+      {
+        href: "/nitropixel",
+        label: "NitroPixel",
+        icon: "M13 10V3L4 14h7v7l9-11h-7z",
+        premium: { badge: "ASSET", badgeColor: "#06b6d4", glowColor: "rgba(6,182,212,0.22)", description: "Tu activo digital vivo" },
+      },
+      {
+        href: "/chat",
+        label: "Aurum",
+        icon: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 4v12M8 10l4-4 4 4M8 14l4 4 4-4",
+        premium: { badge: "INTELLIGENCE", badgeColor: "#fbbf24", glowColor: "rgba(251,191,36,0.22)", description: "Inteligencia dorada del negocio" },
+      },
+    ],
+  },
+  // ─── Tier 2 — CONTROL DE GESTIÓN (día a día ejecutivo) ───
+  {
+    label: "CONTROL DE GESTIÓN",
     items: [
       {
         href: "/dashboard",
@@ -35,47 +54,35 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Pedidos",
         icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01",
       },
-    ],
-  },
-  {
-    label: "COMERCIAL",
-    items: [
       {
-        href: "/products",
-        label: "Productos",
-        icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
-      },
-      {
-        href: "/rentabilidad",
-        label: "Rentabilidad",
-        icon: "M3 3v18h18M7 14l4-4 4 4 6-6",
+        href: "/alertas",
+        label: "Alertas",
+        icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
       },
     ],
   },
+  // ─── Tier 3 — FIDELIZACIÓN Y COMUNIDAD (clientes + creadores) ───
   {
-    label: "MARKETING Y ADQUISICION",
+    label: "FIDELIZACIÓN Y COMUNIDAD",
     items: [
       {
-        href: "/campaigns",
-        label: "Campanas",
-        icon: "M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z",
+        href: "/bondly/overview",
+        label: "Bondly",
+        icon: "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
+        premium: {
+          badge: "LOYALTY",
+          badgeColor: "#10b981",
+          glowColor: "rgba(16,185,129,0.32)",
+          description: "Clientes, LTV y audiencias.",
+        },
         children: [
-          { href: "/campaigns", label: "Overview" },
-          { href: "/campaigns/creatives", label: "Creativos" },
-          { href: "/campaigns/meta", label: "Meta Ads" },
-          { href: "/campaigns/google", label: "Google Ads" },
+          { href: "/bondly/overview", label: "Overview" },
+          { href: "/bondly/senales", label: "Señales", group: "Live" },
+          { href: "/bondly/clientes", label: "Clientes", group: "Base" },
+          { href: "/bondly/ltv", label: "Lifetime Value", group: "Base" },
+          { href: "/bondly/audiencias", label: "Audiencias", group: "Activación" },
         ],
       },
-      {
-        href: "/seo",
-        label: "SEO",
-        icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-      },
-    ],
-  },
-  {
-    label: "NITRO CREATORS",
-    items: [
       {
         href: "/aura/inicio",
         label: "Aura",
@@ -101,31 +108,52 @@ const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
+  // ─── Tier 4 — MARKETING DIGITAL (cómo traigo ventas) ───
   {
-    label: "CLIENTES",
+    label: "MARKETING DIGITAL",
     items: [
       {
-        href: "/bondly/overview",
-        label: "Bondly",
-        icon: "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
-        premium: {
-          badge: "LOYALTY",
-          badgeColor: "#10b981",
-          glowColor: "rgba(16,185,129,0.32)",
-          description: "Clientes, LTV y audiencias.",
-        },
+        href: "/campaigns",
+        label: "Campanas",
+        icon: "M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z",
         children: [
-          { href: "/bondly/overview", label: "Overview" },
-          { href: "/bondly/senales", label: "Señales", group: "Live" },
-          { href: "/bondly/clientes", label: "Clientes", group: "Base" },
-          { href: "/bondly/ltv", label: "Lifetime Value", group: "Base" },
-          { href: "/bondly/audiencias", label: "Audiencias", group: "Activación" },
+          { href: "/campaigns", label: "Overview" },
+          { href: "/campaigns/creatives", label: "Creativos" },
+          { href: "/campaigns/meta", label: "Meta Ads" },
+          { href: "/campaigns/google", label: "Google Ads" },
         ],
+      },
+      {
+        href: "/seo",
+        label: "SEO",
+        icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+      },
+      {
+        href: "/competitors",
+        label: "Competencia",
+        icon: "M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3",
       },
     ],
   },
+  // ─── Tier 5 — COMERCIAL (catálogo + rentabilidad) ───
   {
-    label: "CANALES",
+    label: "COMERCIAL",
+    items: [
+      {
+        href: "/products",
+        label: "Productos",
+        icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
+      },
+      {
+        href: "/rentabilidad",
+        label: "Rentabilidad",
+        icon: "M3 3v18h18M7 14l4-4 4 4 6-6",
+      },
+    ],
+  },
+  // ─── Tier 6 — MARKETPLACES (venta externa) ───
+  {
+    label: "MARKETPLACES",
     items: [
       {
         href: "/mercadolibre",
@@ -138,30 +166,9 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/mercadolibre/preguntas", label: "Preguntas" },
         ],
       },
-      {
-        href: "/competitors",
-        label: "Competencia",
-        icon: "M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3",
-      },
     ],
   },
-  {
-    label: "ACTIVOS DIGITALES",
-    items: [
-      {
-        href: "/nitropixel",
-        label: "NitroPixel",
-        icon: "M13 10V3L4 14h7v7l9-11h-7z",
-        premium: { badge: "ASSET", badgeColor: "#06b6d4", glowColor: "rgba(6,182,212,0.22)", description: "Tu activo digital vivo" },
-      },
-      {
-        href: "/chat",
-        label: "Aurum",
-        icon: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 4v12M8 10l4-4 4 4M8 14l4 4 4-4",
-        premium: { badge: "INTELLIGENCE", badgeColor: "#fbbf24", glowColor: "rgba(251,191,36,0.22)", description: "Inteligencia dorada del negocio" },
-      },
-    ],
-  },
+  // ─── Tier 7 — FINANZAS ───
   {
     label: "FINANZAS",
     items: [
@@ -176,14 +183,10 @@ const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
+  // ─── Tier 8 — utilitarios (footer) ───
   {
     label: null,
     items: [
-      {
-        href: "/alertas",
-        label: "Alertas",
-        icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
-      },
       {
         href: "/settings",
         label: "Configuracion",
@@ -387,6 +390,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           0%, 100% { background-position: 0% 50%; }
           50%      { background-position: 100% 50%; }
         }
+        @keyframes livePulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%      { opacity: 0.45; transform: scale(0.82); }
+        }
         .aura-holo-card { position: relative; isolation: isolate; }
         .aura-holo-conic::before {
           content: '';
@@ -458,24 +465,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {gi > 0 && <div className="my-3 mx-3 border-t border-nitro-border/40" />}
               {group.label && (
                 <p
-                  className={`px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] select-none ${
-                    group.label === "HERRAMIENTAS" || group.label === "NITRO CREATORS"
-                      ? "text-nitro-orange/70"
-                      : group.label === "ACTIVOS DIGITALES"
+                  className={`px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] select-none flex items-center gap-2 ${
+                    group.label === "ACTIVOS DIGITALES"
                       ? "text-cyan-400/80"
+                      : group.label === "FIDELIZACIÓN Y COMUNIDAD"
+                      ? "text-emerald-400/80"
                       : "text-nitro-muted/60"
                   }`}
                   style={
-                    group.label === "HERRAMIENTAS" || group.label === "NITRO CREATORS"
-                      ? {
-                          background: "linear-gradient(90deg, var(--nitro-orange), #f59e0b)",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
-                          letterSpacing: "0.2em",
-                        }
-                      : group.label === "ACTIVOS DIGITALES"
+                    group.label === "ACTIVOS DIGITALES"
                       ? {
                           background: "linear-gradient(90deg, #06b6d4, #8b5cf6)",
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          letterSpacing: "0.22em",
+                        }
+                      : group.label === "FIDELIZACIÓN Y COMUNIDAD"
+                      ? {
+                          background: "linear-gradient(90deg, #10b981, #ec4899)",
                           WebkitBackgroundClip: "text",
                           WebkitTextFillColor: "transparent",
                           letterSpacing: "0.22em",
@@ -484,6 +491,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   }
                 >
                   {group.label}
+                  {group.label === "ACTIVOS DIGITALES" && (
+                    <span
+                      aria-hidden
+                      className="inline-block w-1.5 h-1.5 rounded-full"
+                      style={{
+                        background: "#22d3ee",
+                        boxShadow: "0 0 8px rgba(34, 211, 238, 0.8)",
+                        animation: "livePulse 2s ease-in-out infinite",
+                      }}
+                    />
+                  )}
                 </p>
               )}
               {group.items.map((item) => {
