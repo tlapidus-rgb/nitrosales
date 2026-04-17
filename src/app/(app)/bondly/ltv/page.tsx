@@ -1774,11 +1774,38 @@ export default function LtvPage() {
                       <InfoTip text="Costo de Adquisicion de Cliente. Cuanto gastaste en ads dividido la cantidad de clientes nuevos de ese canal." />
                     </th>
                     <th className="text-right px-4 py-2 font-medium">LTV:CAC</th>
+                    <th className="text-right px-4 py-2 font-medium">Acción</th>
                   </tr>
                 </thead>
                 <tbody>
                   {byChannel.map((ch: any, i: number) => {
                     const h = ltvCacHealth(ch.ltvCac);
+                    const channelLower = String(ch.channel || "").toLowerCase();
+                    const campaignHref = channelLower.includes("meta") || channelLower.includes("facebook") || channelLower.includes("instagram")
+                      ? "/campaigns/meta"
+                      : channelLower.includes("google")
+                      ? "/campaigns/google"
+                      : null;
+                    let actionLabel: string | null = null;
+                    let actionTone: "scale" | "review" | "lookalike" | null = null;
+                    if (ch.ltvCac > 0 && ch.ltvCac >= 3) {
+                      actionLabel = "Escalar inversión";
+                      actionTone = "scale";
+                    } else if (ch.ltvCac > 0 && ch.ltvCac < 1) {
+                      actionLabel = "Revisar audiencia";
+                      actionTone = "review";
+                    } else if (ch.repeatRate > 40) {
+                      actionLabel = "Crear lookalike";
+                      actionTone = "lookalike";
+                    }
+                    const actionClass =
+                      actionTone === "scale"
+                        ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200"
+                        : actionTone === "review"
+                        ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200"
+                        : actionTone === "lookalike"
+                        ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200"
+                        : "bg-gray-50 text-gray-400 border-gray-200";
                     return (
                       <tr key={i} className="border-t border-gray-50 hover:bg-gray-50/50">
                         <td className="px-4 py-2.5 font-medium text-gray-800 flex items-center gap-2">
@@ -1798,6 +1825,30 @@ export default function LtvPage() {
                             </span>
                           ) : (
                             <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="text-right px-4 py-2.5">
+                          {actionLabel ? (
+                            campaignHref && (actionTone === "scale" || actionTone === "review") ? (
+                              <a
+                                href={campaignHref}
+                                className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md border transition-colors ${actionClass}`}
+                              >
+                                {actionLabel}
+                                <ArrowUpRight className="w-3 h-3" />
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                title="Próximamente"
+                                className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md border cursor-not-allowed opacity-70 ${actionClass}`}
+                              >
+                                {actionLabel}
+                              </button>
+                            )
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
                       </tr>
