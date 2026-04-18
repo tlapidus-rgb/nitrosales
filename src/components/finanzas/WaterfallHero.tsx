@@ -53,6 +53,12 @@ export interface WaterfallHeroProps {
   ariaLabel?: string;
   /** Callback al hacer clic / Enter sobre una barra (sub-fase 2b). */
   onItemClick?: (item: WaterfallItem, index: number) => void;
+  /** Modo de visualizacion (sub-fase 2c). "abs" = valores monetarios;
+   *  "pct" = porcentaje de `baseValue` (usualmente revenue). */
+  mode?: "abs" | "pct";
+  /** Divisor para porcentaje cuando mode = "pct". Si es 0 o ausente,
+   *  cae a modo absoluto. Debe ser el revenue del periodo. */
+  baseValue?: number;
 }
 
 const CHART_PADDING_TOP = 48; // espacio para valor arriba de la barra
@@ -155,8 +161,19 @@ export default function WaterfallHero({
   height = 380,
   ariaLabel = "Waterfall del estado de resultados",
   onItemClick,
+  mode = "abs",
+  baseValue,
 }: WaterfallHeroProps) {
   const isClickable = typeof onItemClick === "function";
+  // Sub-fase 2c: si mode === pct y baseValue valido, formateamos como %
+  const pctActive = mode === "pct" && typeof baseValue === "number" && baseValue > 0;
+  const formatPct = (v: number) => {
+    if (!pctActive) return format(v);
+    const pct = (v / (baseValue as number)) * 100;
+    const sign = pct > 0 ? "" : pct < 0 ? "-" : "";
+    return `${sign}${Math.abs(pct).toFixed(1)}%`;
+  };
+  const displayFormat = pctActive ? formatPct : format;
   const gradientId = useId();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -343,7 +360,7 @@ export default function WaterfallHero({
               }
               tabIndex={0}
               role="button"
-              aria-label={`${g.item.name}: ${format(g.item.value)}${isClickable ? ". Clic para ver desglose." : ""}`}
+              aria-label={`${g.item.name}: ${displayFormat(g.item.value)}${isClickable ? ". Clic para ver desglose." : ""}`}
             >
               {/* barra propia */}
               <rect
@@ -379,7 +396,7 @@ export default function WaterfallHero({
                   pointerEvents: "none",
                 }}
               >
-                {format(g.item.value)}
+                {displayFormat(g.item.value)}
               </text>
 
               {/* Nombre debajo */}
@@ -464,8 +481,21 @@ export default function WaterfallHero({
               marginTop: 2,
             }}
           >
-            {format(hoveredValue)}
+            {displayFormat(hoveredValue)}
           </div>
+          {pctActive && (
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 500,
+                color: "#64748b",
+                marginTop: 2,
+                fontFeatureSettings: '"tnum" 1',
+              }}
+            >
+              = {format(hoveredValue)}
+            </div>
+          )}
           {typeof hoveredPrev === "number" && Number.isFinite(hoveredPrev) && (
             (() => {
               const delta = formatDelta(hoveredValue, hoveredPrev, format);

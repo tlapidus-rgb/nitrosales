@@ -387,6 +387,8 @@ function DetailedView({
   // Sub-fase 2b: drill-down lateral state + builder
   const [drillData, setDrillData] = useState<DrillData | null>(null);
   const [drillOpen, setDrillOpen] = useState(false);
+  // Sub-fase 2c: toggle $ vs % en waterfall
+  const [displayMode, setDisplayMode] = useState<"abs" | "pct">("abs");
 
   const waterfallData = [
     { name: "Revenue", value: summary.revenue, kind: "positive" as const },
@@ -712,19 +714,50 @@ function DetailedView({
       <div className="bg-white rounded-xl p-5 shadow-sm mb-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-gray-700">Estado de Resultados <InfoTip text="Grafico visual del P&L. 'Cascada' muestra como cada costo reduce tu facturacion hasta llegar al beneficio neto. 'Tendencia' muestra la evolucion dia a dia." /></h3>
-          <div className="flex gap-1">
-            <button
-              onClick={() => setChartMode("waterfall")}
-              className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                chartMode === "waterfall" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:bg-gray-100"
-              }`}
-            >Cascada</button>
-            <button
-              onClick={() => setChartMode("trend")}
-              className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                chartMode === "trend" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:bg-gray-100"
-              }`}
-            >Tendencia</button>
+          <div className="flex items-center gap-3">
+            {/* Sub-fase 2c: toggle $ vs % — solo visible en modo Cascada */}
+            {chartMode === "waterfall" && (
+              <div
+                className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs"
+                role="group"
+                aria-label="Tipo de visualización"
+              >
+                <button
+                  type="button"
+                  onClick={() => setDisplayMode("abs")}
+                  className={`px-2.5 py-1 rounded-md font-medium transition ${
+                    displayMode === "abs"
+                      ? "bg-white text-gray-800 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                  aria-pressed={displayMode === "abs"}
+                >$</button>
+                <button
+                  type="button"
+                  onClick={() => setDisplayMode("pct")}
+                  className={`px-2.5 py-1 rounded-md font-medium transition ${
+                    displayMode === "pct"
+                      ? "bg-white text-gray-800 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                  aria-pressed={displayMode === "pct"}
+                >%</button>
+              </div>
+            )}
+            <div className="flex gap-1">
+              <button
+                onClick={() => setChartMode("waterfall")}
+                className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                  chartMode === "waterfall" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:bg-gray-100"
+                }`}
+              >Cascada</button>
+              <button
+                onClick={() => setChartMode("trend")}
+                className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                  chartMode === "trend" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:bg-gray-100"
+                }`}
+              >Tendencia</button>
+            </div>
           </div>
         </div>
         {chartMode === "waterfall" ? (
@@ -733,6 +766,8 @@ function DetailedView({
             format={fm}
             height={340}
             onItemClick={handleWaterfallClick}
+            mode={displayMode}
+            baseValue={summary.revenue}
           />
         ) : (
           <ResponsiveContainer width="100%" height={300}>
