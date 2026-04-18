@@ -3,7 +3,85 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-17 madrugada (Sesiones 37-40 — Módulo Bondly completo: unificación + Pulse + Señales + Customer 360 + pixel linking + LTV rediseño premium de 8 commits)
+## Ultima actualizacion: 2026-04-18 madrugada (Sesion 41 — Backlog + sidebar reorg + Aurum fallback + Finanzas P&L Fase 0 completa con tri-currency toggle)
+
+> Este bloque consolida los **11 commits** a `main` del 2026-04-17 (tarde y noche) hasta el 2026-04-18 madrugada, que redondean el backlog priorizado, reorganizan el sidebar a 8 tiers con vocabulario ecommerce, agregan fallback universal + fade-in a Aurum, y construyen la **Fase 0 completa del rediseño de Finanzas P&L** (5 pestañas premium + 2 crons nacionales FX/IPC + hook de conversión tri-moneda USD/ARS/ARS_ADJ con toggle premium cableado a las KPI cards de `/finanzas/estado`).
+
+### Sesion 41 — 2026-04-17 tarde → 2026-04-18 madrugada — Backlog housekeeping + sidebar reorg + Aurum polish + Finanzas P&L Fase 0
+
+**Objetivo**: cerrar housekeeping pendiente de Bondly (backlog priorizado escalado + sidebar reorganizado con lenguaje ecommerce + polish final de Aurum) y entregar la **Fase 0 del rediseño de Finanzas P&L** con foundations para tri-currency view (USD/ARS/ARS_ADJ) y datos nacionales FX+IPC en DB alimentados por crons diarios/mensuales, todo sin tocar el P&L actual.
+
+#### 1. Backlog + sidebar + Aurum polish
+
+| Commit | Qué |
+|---|---|
+| `07c2b00` | **Backlog**: BP-001 escalado a "Bondly — el producto de LTV más robusto del mercado" (no solo fix del pLTV sino plan de plataforma LTV premium). Agrega BP-005 "Mensajería multi-canal (WhatsApp/email/SMS) nativa" + BP-006 "Aura marketplace de afiliados" como pendientes estratégicos priorizados. |
+| `b4131bc` | **Sidebar reorg a 8 tiers con vocabulario ecommerce**: ACTIVOS DIGITALES arriba (dominios/pixel/data), luego OPERACIÓN (órdenes/inventario/customers), GROWTH, FINANZAS, INTELIGENCIA, CONFIGURACIÓN. Nueva `PROPUESTA_SIDEBAR_REORG.md` con el racional completo. Orden + copy alineado a como piensa un fundador de ecommerce. |
+| `d57065c` | **Aurum polish**: fallback universal para rutas sin contenido contextual específico (antes quedaban vacías) + botón flotante con fade-in `opacity 0→1` al cargar data para evitar pop-in. Comportamiento uniforme en todo el app. |
+
+#### 2. Finanzas P&L — Fase 0 (foundations, sin tocar el P&L actual)
+
+| Commit | Qué |
+|---|---|
+| `c278c47` | **Fase 0a — 5 pestañas premium**: `/finanzas` redirige a `/finanzas/pulso`. El P&L actual completo se movió **tal cual** (git rename, cero cambios funcionales) a `/finanzas/estado/page.tsx`. Layout compartido `/finanzas/layout.tsx` con tabs premium UI_VISION (gradient dorado activo, dot pulsante, prism delimiter, aurora radial, easing `cubic-bezier(0.16,1,0.3,1)`). Sub-rutas con placeholders elegantes: `/finanzas/pulso` (Fase 1), `/finanzas/escenarios` (Fase 4), `/finanzas/fiscal` (Fase 5). Sidebar muestra los 5 children. Aurum con fallbacks contextuales por pestaña. **Cero tabla de DB tocada, cero query cambiada.** |
+| `9660a95` | **Fase 0b — endpoint admin `migrate-finanzas-fx-indices`**: crea 2 tablas **globales** (sin organizationId porque FX e IPC son nacionales): `ExchangeRateDaily` (oficial/MEP/CCL/blue, DECIMAL(12,4), unique por fecha) + `InflationIndexMonthly` (ipc% mensual + ipcAcumulado base 100, unique por mes). Patrón `CREATE TABLE IF NOT EXISTS` protegido con NEXTAUTH_SECRET. No toca schema Prisma todavía (ese es 0c.1, después de ejecutar). |
+| `e140d3e` | **Fase 0c.1 — schema + 2 crons**: modelos Prisma `ExchangeRateDaily` + `InflationIndexMonthly`. Cron `/api/cron/exchange-rates` (15 UTC = 12 ART diario) con fetch paralelo a dolarapi.com (oficial/bolsa/CCL/blue) tolerante a fallas parciales. Cron `/api/cron/inflation-index` (13 UTC = 10 ART día 16 mensual) con fetch a argentinadatos.com (serie INDEC) + cálculo iterativo de `ipcAcumulado` base 100. Ambos idempotentes, auth via SYNC_KEY. `vercel.json` actualizado con los 2 schedules. |
+| `13ce791` | **Fase 0c.2 — hook + toggle premium**: endpoint `/api/finanzas/fx-ipc` sirve la última FX + todo el IPC listo para el cliente. Hook `/src/hooks/useCurrencyView` con persistencia en localStorage (`nitrosales.finanzas.currencyView`), cache global del payload (10 min TTL) para evitar refetch, event bus de listeners para sincronizar entre instancias. Funciones `convert(amountARS, dateOfAmount)` + `format(value)`. **3 modos**: USD (default MEP) / ARS nominal / ARS ajustado a hoy. **4 fuentes USD**: oficial / MEP / CCL / blue. Componente `/components/finanzas/CurrencyToggle` pill premium dorado con sub-pills cuando USD, caption con la cotización activa y fecha. Montado al tope de `/finanzas/estado`. En este commit es **solo visual + persistencia** — la conversión efectiva se cablea en 0c.4. |
+| `2f8e7b4` | **Fase 0c.3 hotfix — rebase IPC a 2017-01-01**: el seed del cron IPC tiró **539 errores `numeric field overflow`** en `ipcAcumulado` DECIMAL(12,4). Causa: la serie INDEC arranca en 1943 y la hiperinflación 1975-1991 llevó el índice acumulado a 3.55e18 para 2026 (tope DECIMAL(12,4) = 10^8). Fix: filtrar serie desde **2017-01-01** (post-normalización INDEC). `ipcAcumulado` 2017-2026 ronda 10-20M, holgado. Data práctica para un negocio post-2023 (nadie ajusta ticket 2026 contra precios de 1950). Cleanup automático al inicio del cron borra cualquier mes `< baseDate` de corridas previas fallidas. Idempotente: re-correr limpia y re-popula coherente. **Sin migración de schema.** |
+| `de981ff` | **Fase 0c.4 — cablear KPI cards al hook**: bug reportado — el toggle aparecía pero los números no cambiaban al switchear (era puramente cosmético). Fix: importar `useCurrencyView` en `/finanzas/estado/page.tsx`, llamarlo en cada subvista (`ExecutiveView` + `DetailedView`), crear helper local `fm(v,d) = format(convert(v,d))`, reemplazar las ~30 llamadas `formatARS(x)` por `fm(x)` (replace_all seguro). Los YAxis `tickFormatter` wrappean con `convert(v)` antes del `formatCompact`. Arquitectura multi-instancia: `useCurrencyView()` se llama en 3 lugares (ExecutiveView, DetailedView, CurrencyToggle); el hook tiene cache modular + event bus (`listeners` Set) + `notifyAll()` que sincroniza toggle entre las 3 instancias. Limitaciones conocidas aceptables para el primer cut: tooltips de charts no pasan fecha del punto (muestra nominal en ARS_ADJ); `bySource` usa el modo actual sin date. |
+| `5189b27` | **Fase 0c.5 — midDate a sub-views**: bug — `USD ↔ ARS` andaba, pero `ARS_ADJ` no cambiaba los números. Causa: `fm()` no le pasaba fecha a `convert()`, y en modo ARS_ADJ sin `dateOfAmount` el hook hace early return sin ajuste. Fix: `FinanzasPage` calcula `midDate = punto medio entre dateFrom y dateTo` y lo pasa como prop a `ExecutiveView` + `DetailedView`. `fm()` de cada sub-view usa `midDate` como fallback cuando el caller no pasa fecha: `format(convert(v, d ?? midDate))`. Con esto, al mover el toggle a "ARS ajustado" los números se inflan por factor IPC acumulado del mes central del periodo (~1-2% arriba del nominal para 30 días con inflación mensual 3.4%). |
+| `8c997b5` | **Fase 0c.6 — fix ARS_ADJ con rangos recientes**: 2 bugs adicionales tras 0c.5. **(1) Fallback silencioso**: si el mes del monto no estaba en `ipcByMonth` (ej: abril 2026 con último cron hasta marzo), `convert()` retornaba el nominal. Ahora cae al mes disponible más cercano hacia atrás (`allKeys.filter(k => k <= monthKey).pop()`). **(2) IPC "actual" = último mes publicado**: para un monto del último mes el factor quedaba 1.0 (sin ajuste visible). Ahora `ipcToday` se extrapola desde el último mes prorrateando la inflación mensual por días transcurridos: `extraFactor = 1 + (lastIpcMensual/100) × (daysSince / daysInCurMonth)`. Con esto, un monto del 1 de abril 2026 (hoy 17/abr, último IPC marzo con 3.4%) ve factor ~1.019 en vez de ~1.0. |
+
+**Endpoints admin ejecutados en producción (Sesion 41):**
+- `/api/admin/migrate-finanzas-fx-indices?key=<NEXTAUTH_SECRET>` — creó las 2 tablas globales FX + IPC. ✅
+- `/api/cron/exchange-rates` — seed inicial FX (oficial/MEP/CCL/blue para el día). ✅
+- `/api/cron/inflation-index` — seed post-hotfix 0c.3 con serie INDEC desde 2017-01. ✅
+
+**Crons programados (nuevos en `vercel.json`):**
+- `exchange-rates`: diario 15:00 UTC (12:00 ART).
+- `inflation-index`: mensual día 16 a las 13:00 UTC (10:00 ART).
+
+### Estado final en produccion al cierre de Sesion 41
+
+- **Último commit en `main`**: `8c997b5`.
+- **URL prod**: `https://nitrosales.vercel.app`.
+- **Deploys Vercel**: todos verdes.
+- **Finanzas P&L con 5 pestañas premium en producción**:
+  - `/finanzas` → redirect automático a `/finanzas/pulso`.
+  - `/finanzas/pulso` — placeholder (Fase 1).
+  - `/finanzas/estado` — **P&L completo actual funcionando** + toggle tri-currency premium (USD/ARS/ARS_ADJ con 4 fuentes USD) cableado a todos los KPI cards + ejes de charts. Persistencia en localStorage.
+  - `/finanzas/costos` — intacto (pre-existía).
+  - `/finanzas/escenarios` — placeholder (Fase 4).
+  - `/finanzas/fiscal` — placeholder (Fase 5).
+- **2 tablas nuevas globales en DB** (sin organizationId — FX e IPC son nacionales):
+  - `ExchangeRateDaily`: oficial/MEP/CCL/blue, DECIMAL(12,4), unique por fecha, alimentada diaria 12 ART.
+  - `InflationIndexMonthly`: IPC mensual + ipcAcumulado base 100 desde 2017-01-01, unique por mes, alimentada mensual día 16 10 ART.
+- **Sidebar reorganizado a 8 tiers** con vocabulario ecommerce (ACTIVOS DIGITALES → OPERACIÓN → GROWTH → FINANZAS → INTELIGENCIA → CONFIGURACIÓN).
+- **Aurum FloatingAurum** con fallback universal para rutas sin contenido contextual + fade-in al cargar data.
+- **Backlog actualizado** (`BACKLOG_PENDIENTES.md`): BP-001 escalado a plataforma LTV más robusta del mercado; BP-005 mensajería multi-canal; BP-006 Aura marketplace de afiliados.
+
+### Decisiones arquitectonicas tomadas en Sesion 41
+
+1. **Git rename para mover el P&L actual a `/finanzas/estado`**: cero cambios de contenido (byte-por-byte), git diff muestra rename puro. Garantiza zero-risk en el primer paso del rediseño.
+2. **FX + IPC como tablas globales sin organizationId**: son datos nacionales compartidos por todos los tenants. Un solo fetch alimenta a todo el multi-tenant.
+3. **2 crons separados con cadencias distintas** (FX diario 12 ART, IPC mensual día 16 10 ART): FX cambia todos los días; IPC se publica una vez al mes por INDEC. Idempotentes para re-corrida segura.
+4. **Rebase IPC a 2017-01-01 en vez de escalar DECIMAL**: DECIMAL(12,4) alcanza para la serie post-hiperinflación. La data práctica para un negocio ecommerce post-2023 arranca en 2017. Evita migración de schema.
+5. **Extrapolación IPC de hoy por prorrateo diario de la inflación del último mes**: permite ver ajuste visible (~1-2%) en montos recientes del mes actual, sin esperar la publicación mensual de INDEC.
+6. **Hook multi-instancia con cache módulo-level + event bus**: `useCurrencyView()` se llama 3+ veces en la misma página sin refetch ni desincronización. Patrón reutilizable.
+7. **`midDate` como fallback de fecha en `fm()`**: cuando el caller no tiene una fecha específica por dato (KPIs agregados de un rango), usar el punto medio del rango en ARS_ADJ da un ajuste razonable y consistente entre KPI cards.
+8. **Fase 0 es puramente foundations**: 0 cambios en queries/calculations del P&L actual. El P&L sigue siendo el mismo código, solo vive en `/finanzas/estado` y ahora está envuelto por un toggle de vista.
+
+### Pendientes / backlog de Sesion 41
+
+- **Fase 1 Pulso**: portada narrativa de `/finanzas/pulso` con insights y visualizaciones de alto nivel (pendiente de diseño/plan).
+- **Tooltips de charts en ARS_ADJ**: pasar la fecha del punto al `convert()` para que el ajuste sea por mes exacto y no por `midDate`. Refinable pre-convirtiendo `dailyTrend` antes del `AreaChart`.
+- **`bySource` revenue en ARS_ADJ**: hoy usa el modo actual sin date, ajusta al valor nominal del breakdown (no al mes de venta individual).
+- **Fase 2 Costos Premium / Fase 3 Reconstrucción P&L / Fase 4 Escenarios / Fase 5 Fiscal**: pendientes de plan detallado.
+- **Tomy verifica** el toggle ARS_ADJ con rango 30 días y rango largo (6-12 meses) para confirmar que los números cambian y el ajuste es razonable tras 0c.6.
+
+---
+
+## Actualizacion previa: 2026-04-17 madrugada (Sesiones 37-40 — Módulo Bondly completo: unificación + Pulse + Señales + Customer 360 + pixel linking + LTV rediseño premium de 8 commits)
 
 > Este bloque consolida los **26 commits** a `main` entre el 2026-04-16 00:58 y el 2026-04-17 02:46 que construyen el módulo **Bondly** de cero a producción completa, y rematan con el rediseño premium de la sección LTV (triple capa: histórico / predicho post-compra / behavioral pre-compra).
 
