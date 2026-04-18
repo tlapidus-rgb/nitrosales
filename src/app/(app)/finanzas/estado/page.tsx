@@ -152,6 +152,53 @@ const COST_CATEGORIES = [
   { key: "OTROS", label: "Otros", placeholder: "Ej: Gastos varios" },
 ];
 
+/* ── Cost behavior taxonomy (Fase 2d) ───────────
+ * Clasifica cada categoria como VARIABLE (escala con ventas),
+ * FIJO (recurrente mensual independiente del volumen) o
+ * SEMIFIJO (mixto o periodico pero no estrictamente fijo).
+ * Fase 3 reemplazara este mapeo con un campo en ManualCost.
+ * ──────────────────────────────────────────── */
+type CostBehavior = "VARIABLE" | "FIJO" | "SEMIFIJO";
+const CATEGORY_BEHAVIOR: Record<string, CostBehavior> = {
+  LOGISTICA: "VARIABLE",
+  EQUIPO: "FIJO",
+  PLATAFORMAS: "FIJO",
+  FISCAL: "FIJO",
+  INFRAESTRUCTURA: "FIJO",
+  MARKETING: "SEMIFIJO",
+  MERMA: "VARIABLE",
+  OTROS: "SEMIFIJO",
+};
+
+function BehaviorBadge({ type }: { type: CostBehavior }) {
+  const styles: Record<CostBehavior, { cls: string; label: string; tip: string }> = {
+    VARIABLE: {
+      cls: "bg-cyan-50 text-cyan-700 border-cyan-200",
+      label: "Variable",
+      tip: "Costo variable: escala con las ventas. Si vendes mas, gastas mas.",
+    },
+    FIJO: {
+      cls: "bg-violet-50 text-violet-700 border-violet-200",
+      label: "Fijo",
+      tip: "Costo fijo: es el mismo cada mes sin importar cuanto vendas.",
+    },
+    SEMIFIJO: {
+      cls: "bg-amber-50 text-amber-700 border-amber-200",
+      label: "Semi-fijo",
+      tip: "Costo semi-fijo: tiene base fija pero escala por tramos o decision.",
+    },
+  };
+  const s = styles[type];
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase rounded border ml-2 ${s.cls}`}
+      title={s.tip}
+    >
+      {s.label}
+    </span>
+  );
+}
+
 /* ══════════════════════════════════════════════
    VISTA EJECUTIVA — "¿Cómo voy?"
    ══════════════════════════════════════════════ */
@@ -414,13 +461,13 @@ function DetailedView({
       { label: "    IVA Debito Fiscal (21%)", value: -(summary.ivaDebitoFiscal), color: "text-gray-400", indent: true, small: true, tip: "El IVA que cobras en tus ventas y debes pagar a AFIP. No es ingreso tuyo, sino un impuesto que el cliente paga a traves tuyo." },
       { label: "    Revenue Neto IVA", value: summary.revenueNetoIVA || 0, color: "text-blue-400", indent: true, small: true, tip: "Tu facturacion real sin el IVA. Este es el verdadero ingreso de tu negocio si sos Responsable Inscripto." },
     ] : []),
-    { label: "(-) Costo de Mercaderia (COGS)", value: -summary.cogs, color: "text-red-500", tip: "Lo que te costo comprar todos los productos que vendiste. Es tu costo mas grande y el que mas impacta en la rentabilidad." },
+    { label: "(-) Costo de Mercaderia (COGS)", value: -summary.cogs, color: "text-red-500", behavior: "VARIABLE" as CostBehavior, tip: "Lo que te costo comprar todos los productos que vendiste. Es tu costo mas grande y el que mas impacta en la rentabilidad." },
     { label: "= Ganancia Bruta", value: summary.grossProfit, bold: true, color: summary.grossProfit >= 0 ? "text-green-600" : "text-red-600", pct: summary.grossMargin, tip: "Revenue menos COGS. Muestra cuanto ganas solo por la diferencia entre precio de venta y costo del producto, sin considerar otros gastos." },
-    { label: "(-) Inversion Publicitaria", value: -summary.adSpend, color: "text-orange-500", indent: true, tip: "Lo que invertiste en publicidad paga (Meta Ads + Google Ads). Es un costo variable: mientras mas invertis, mas ventas generas (idealmente)." },
+    { label: "(-) Inversion Publicitaria", value: -summary.adSpend, color: "text-orange-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que invertiste en publicidad paga (Meta Ads + Google Ads). Es un costo variable: mientras mas invertis, mas ventas generas (idealmente)." },
     { label: "    Meta Ads", value: -summary.metaSpend, color: "text-gray-400", indent: true, small: true },
     { label: "    Google Ads", value: -summary.googleSpend, color: "text-gray-400", indent: true, small: true },
-    { label: "(-) Costos de Envio", value: -summary.shipping, color: "text-purple-500", indent: true, tip: "Lo que pagaste en logistica para enviar los pedidos. Incluye envios gratis que absorbes vos y el costo real del flete." },
-    { label: "(-) Comisiones de Plataforma", value: -(summary.platformFees || 0), color: "text-indigo-500", indent: true, tip: "Lo que te cobran los marketplaces por vender ahi. MercadoLibre cobra un porcentaje por venta, y VTEX puede tener un fee fijo o variable." },
+    { label: "(-) Costos de Envio", value: -summary.shipping, color: "text-purple-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que pagaste en logistica para enviar los pedidos. Incluye envios gratis que absorbes vos y el costo real del flete." },
+    { label: "(-) Comisiones de Plataforma", value: -(summary.platformFees || 0), color: "text-indigo-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que te cobran los marketplaces por vender ahi. MercadoLibre cobra un porcentaje por venta, y VTEX puede tener un fee fijo o variable." },
     ...(bySource.map(s => ({
       label: `    ${s.source === "MELI" ? "MercadoLibre" : s.source}: ${s.platformFeeLabel}`,
       value: -s.platformFee,
@@ -430,7 +477,7 @@ function DetailedView({
     }))),
     // Payment fees (NEW)
     ...(summary.paymentFees ? [
-      { label: "(-) Comisiones Medios de Pago", value: -(summary.paymentFees), color: "text-sky-500", indent: true, tip: "Lo que te cobran por procesar pagos: tarjetas de credito/debito, MercadoPago, transferencias. Cada medio tiene su porcentaje." },
+      { label: "(-) Comisiones Medios de Pago", value: -(summary.paymentFees), color: "text-sky-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Lo que te cobran por procesar pagos: tarjetas de credito/debito, MercadoPago, transferencias. Cada medio tiene su porcentaje." },
       ...(paymentFeeDetails.filter(pf => pf.fee > 0).map(pf => ({
         label: `    ${pf.method} (${pf.source}): ${pf.feeRate}%`,
         value: -pf.fee,
@@ -441,25 +488,54 @@ function DetailedView({
     ] : []),
     // Discounts (NEW)
     ...(summary.discounts ? [
-      { label: "(-) Descuentos y Promociones", value: -(summary.discounts), color: "text-pink-500", indent: true, tip: "Cupones, descuentos y promociones que aplicaste. Es plata que dejaste de cobrar para incentivar ventas." },
+      { label: "(-) Descuentos y Promociones", value: -(summary.discounts), color: "text-pink-500", indent: true, behavior: "VARIABLE" as CostBehavior, tip: "Cupones, descuentos y promociones que aplicaste. Es plata que dejaste de cobrar para incentivar ventas." },
     ] : []),
     // Manual costs
     ...(summary.manualCostsTotal ? [
       { label: "(-) Otros Costos Operativos", value: -(summary.manualCostsTotal), color: "text-teal-600", indent: true, tip: "Gastos fijos y variables que cargaste manualmente: sueldos, alquileres, herramientas, impuestos, etc. Son los costos que no vienen automaticamente de las plataformas." },
       ...(manualCosts.filter(mc => mc.total > 0).map(mc => {
         const cat = COST_CATEGORIES.find(c => c.key === mc.category);
+        const behavior = CATEGORY_BEHAVIOR[mc.category] ?? null;
         return {
           label: `    ${cat?.label || mc.category}`,
           value: -mc.total,
           color: "text-gray-400",
           indent: true,
           small: true,
+          behavior,
         };
       })),
     ] : []),
     // Bottom line
     { label: "= Beneficio Neto Operativo", value: netOp, bold: true, color: netOp >= 0 ? "text-green-700" : "text-red-700", pct: (summary.netOperatingMargin ?? summary.operatingMargin), highlight: true, tip: "LA LINEA FINAL. Lo que realmente gana tu negocio. Si es positivo (verde), tu operacion es rentable. Si es negativo (rojo), estas perdiendo plata y hay que actuar." },
   ];
+
+  // ──────────────────────────────────────────────────────────────
+  // Sub-fase 2d — totales Variable/Fijo/Semifijo
+  // ──────────────────────────────────────────────────────────────
+  const manualVariable = manualCosts.reduce((acc, mc) => {
+    return acc + (CATEGORY_BEHAVIOR[mc.category] === "VARIABLE" ? mc.total : 0);
+  }, 0);
+  const manualFixed = manualCosts.reduce((acc, mc) => {
+    return acc + (CATEGORY_BEHAVIOR[mc.category] === "FIJO" ? mc.total : 0);
+  }, 0);
+  const manualSemiFixed = manualCosts.reduce((acc, mc) => {
+    return acc + (CATEGORY_BEHAVIOR[mc.category] === "SEMIFIJO" ? mc.total : 0);
+  }, 0);
+  const variableTotal =
+    summary.cogs +
+    summary.adSpend +
+    summary.shipping +
+    (summary.platformFees || 0) +
+    (summary.paymentFees || 0) +
+    (summary.discounts || 0) +
+    manualVariable;
+  const fixedTotal = manualFixed;
+  const semiFixedTotal = manualSemiFixed;
+  const totalOpsCosts = variableTotal + fixedTotal + semiFixedTotal;
+  const vfRatio = totalOpsCosts > 0
+    ? { v: Math.round((variableTotal / totalOpsCosts) * 100), f: Math.round((fixedTotal / totalOpsCosts) * 100), sf: Math.round((semiFixedTotal / totalOpsCosts) * 100) }
+    : { v: 0, f: 0, sf: 0 };
 
   // ──────────────────────────────────────────────────────────────
   // Sub-fase 2b — builder de drill-down por nombre del item
@@ -798,9 +874,10 @@ function DetailedView({
                 row.highlight ? "bg-gray-50" : ""
               } ${row.indent ? "pl-8" : ""}`}
             >
-              <span className={`${row.small ? "text-xs" : "text-sm"} ${row.bold ? "font-semibold text-gray-800" : "text-gray-600"}`}>
+              <span className={`${row.small ? "text-xs" : "text-sm"} ${row.bold ? "font-semibold text-gray-800" : "text-gray-600"} flex items-center`}>
                 {row.label}
                 {row.tip && <InfoTip text={row.tip} />}
+                {row.behavior && <BehaviorBadge type={row.behavior as CostBehavior} />}
               </span>
               <div className="flex items-center gap-3">
                 <span className={`${row.small ? "text-xs" : "text-sm"} font-mono ${row.bold ? "font-bold" : "font-medium"} ${row.color}`}>
@@ -813,6 +890,45 @@ function DetailedView({
             </div>
           ))}
         </div>
+        {/* Sub-fase 2d — ratio Variables / Fijos / Semifijos */}
+        {totalOpsCosts > 0 && (
+          <div className="border-t border-gray-100 bg-slate-50/50 px-5 py-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Composición</span>
+                <InfoTip text="Separación de los costos según cómo se comportan: Variables escalan con las ventas, Fijos son recurrentes mensuales, y Semifijos tienen parte fija y parte que escala por tramos." />
+              </div>
+              <div className="flex items-center gap-4 text-xs tabular-nums" style={{ fontFeatureSettings: '"tnum" 1' }}>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-cyan-500" aria-hidden="true" />
+                  <span className="text-slate-500">Variables</span>
+                  <span className="font-semibold text-slate-700">{fm(variableTotal)}</span>
+                  <span className="text-slate-400">({vfRatio.v}%)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-violet-500" aria-hidden="true" />
+                  <span className="text-slate-500">Fijos</span>
+                  <span className="font-semibold text-slate-700">{fm(fixedTotal)}</span>
+                  <span className="text-slate-400">({vfRatio.f}%)</span>
+                </div>
+                {semiFixedTotal > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-amber-500" aria-hidden="true" />
+                    <span className="text-slate-500">Semi-fijos</span>
+                    <span className="font-semibold text-slate-700">{fm(semiFixedTotal)}</span>
+                    <span className="text-slate-400">({vfRatio.sf}%)</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Barra de ratio visual */}
+            <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+              <div className="bg-cyan-500 h-full" style={{ width: `${vfRatio.v}%` }} title={`Variables ${vfRatio.v}%`} />
+              <div className="bg-violet-500 h-full" style={{ width: `${vfRatio.f}%` }} title={`Fijos ${vfRatio.f}%`} />
+              <div className="bg-amber-500 h-full" style={{ width: `${vfRatio.sf}%` }} title={`Semifijos ${vfRatio.sf}%`} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── P&L por Canal ─── */}
