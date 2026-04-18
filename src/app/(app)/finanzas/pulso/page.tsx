@@ -1,113 +1,165 @@
-// @ts-nocheck
+// ═══════════════════════════════════════════════════════════════════
+// /finanzas/pulso — portada del módulo Finanzas (Fase 1)
+// ═══════════════════════════════════════════════════════════════════
+// En 10 segundos respondemos: "¿cómo estoy hoy?"
+//
+// Layout (Fase 1a):
+//   [Header: título + CurrencyToggle]
+//   [CashRunwayHero]
+//
+// Próximas sub-fases van completando:
+//   1b → MarketingFinanceCard
+//   1c → Revenue12mSparkline + costos YTD
+//   1d → NarrativeHero + FinancialAlertsCard
+//   1e → override manual + Aurum context
+//
+// Ver PROPUESTA_PNL_REORG.md §5.1 y plan linear-pondering-lemur.md
+// ═══════════════════════════════════════════════════════════════════
+
 "use client";
 
-/**
- * /finanzas/pulso — portada del módulo Finanzas.
- *
- * En Fase 0 es un placeholder elegante. En Fase 1 va a tener:
- *   - Cash Runway hero
- *   - Marketing Financiero (bridge con ad_metrics_daily + Bondly)
- *   - Narrativa auto-generada con Aurum
- *   - Sparkline 12 meses
- *   - Alertas card
- *
- * Ver PROPUESTA_PNL_REORG.md, sección 5.1.
- */
-
-import React from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import CashRunwayHero from "@/components/finanzas/CashRunwayHero";
+import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
+import type { PulsoPageData } from "@/types/finanzas";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 export default function PulsoPage() {
-  return (
-    <div className="relative">
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-10 shadow-sm">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse at 80% 0%, rgba(251,191,36,0.10) 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(139,92,246,0.06) 0%, transparent 55%)",
-          }}
-        />
+  const [data, setData] = useState<PulsoPageData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="relative">
-          {/* Badge próximamente */}
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/finanzas/pulso", { cache: "no-store" });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.message || `HTTP ${res.status}`);
+        }
+        const json = (await res.json()) as PulsoPageData;
+        if (!active) return;
+        setData(json);
+        setLoading(false);
+      } catch (e: unknown) {
+        if (!active) return;
+        setError(e instanceof Error ? e.message : "Error desconocido");
+        setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="relative space-y-6">
+      {/* ═══════ Header: título + moneda ═══════ */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1">
             <span
               className="h-1.5 w-1.5 rounded-full"
               style={{
-                background:
-                  "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)",
-                animation: "pulsoPing 1.8s ease-in-out infinite",
-                boxShadow: "0 0 10px rgba(251,191,36,0.7)",
+                background: "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)",
+                boxShadow: "0 0 10px rgba(251,191,36,0.65)",
+                animation: "pulsoHeaderDot 2s ease-in-out infinite",
               }}
             />
             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-              Próximamente · Fase 1
+              Pulso · Fase 1a
             </span>
           </div>
 
-          <h1 className="mt-5 text-4xl font-bold tracking-tight text-slate-900">
+          <h1
+            className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl"
+            style={{ letterSpacing: "-0.025em" }}
+          >
             Pulso
           </h1>
-          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-slate-600">
-            La portada narrativa de Finanzas. Abrís la app y entendés tu
-            negocio en 10 segundos: <strong className="text-slate-800">cash
-            runway</strong>, <strong className="text-slate-800">marketing
-            financiero</strong> (CAC / LTV / ROAS cruzado con el P&amp;L) y una{" "}
-            <strong className="text-slate-800">narrativa generada por Aurum</strong>{" "}
-            que te dice qué mirar hoy.
+          <p className="mt-1 max-w-xl text-[14px] leading-relaxed text-slate-500">
+            Cómo estás hoy. Cash runway, salud financiera, narrativa del negocio
+            en 10 segundos.
           </p>
-
-          {/* Sketch preview de lo que va a venir */}
-          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <SketchCard
-              label="Cash Runway"
-              lines={["$ 8.3M", "≈ 4.2 meses", "↑ vs mes pasado"]}
-            />
-            <SketchCard
-              label="Marketing Financiero"
-              lines={["CAC $ 4.2k", "LTV $ 38k", "Payback 2.8 meses"]}
-            />
-            <SketchCard
-              label="Narrativa Aurum"
-              lines={[
-                "Abril arrancó +14% en",
-                "margen neto. El driver",
-                "fue caída de shipping.",
-              ]}
-              italic
-            />
-          </div>
-
-          {/* Mientras tanto */}
-          <div className="mt-8 flex items-center gap-3 text-sm text-slate-600">
-            <span>Mientras, podés ir a:</span>
-            <Link
-              href="/finanzas/estado"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-amber-300 hover:text-amber-700"
-              style={{ transition: `all 220ms ${ES}` }}
-            >
-              Estado de Resultados
-              <span aria-hidden>→</span>
-            </Link>
-            <Link
-              href="/finanzas/costos"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-amber-300 hover:text-amber-700"
-              style={{ transition: `all 220ms ${ES}` }}
-            >
-              Costos
-              <span aria-hidden>→</span>
-            </Link>
-          </div>
         </div>
+
+        <CurrencyToggle />
+      </header>
+
+      {/* ═══════ Error state ═══════ */}
+      {error && (
+        <div
+          className="rounded-xl border p-4 text-sm"
+          style={{
+            borderColor: "rgba(239,68,68,0.25)",
+            background: "rgba(239,68,68,0.04)",
+            color: "#991b1b",
+          }}
+        >
+          <div className="font-semibold">No se pudieron cargar los datos del Pulso</div>
+          <div className="mt-1 text-xs opacity-80">{error}</div>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+            style={{ transition: `all 200ms ${ES}` }}
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {/* ═══════ Cash Runway Hero ═══════ */}
+      <CashRunwayHero
+        runway={data?.runway ?? null}
+        loading={loading}
+        asOfDate={data?.meta.ytdTo}
+      />
+
+      {/* ═══════ Placeholders de próximas sub-fases ═══════ */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <PlaceholderCard
+          label="Marketing Financiero"
+          sub="Fase 1b · CAC vs LTV por canal"
+        />
+        <PlaceholderCard
+          label="Revenue 12m"
+          sub="Fase 1c · tendencia + contexto"
+        />
+        <PlaceholderCard
+          label="Narrativa + Alertas"
+          sub="Fase 1d · auto-generado"
+        />
+      </div>
+
+      {/* Atajos a otras tabs */}
+      <div className="flex flex-wrap items-center gap-2 pt-2 text-sm text-slate-500">
+        <span className="text-xs uppercase tracking-wider text-slate-400">
+          Ir a
+        </span>
+        <Link
+          href="/finanzas/estado"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-amber-300 hover:text-amber-700"
+          style={{ transition: `all 220ms ${ES}` }}
+        >
+          Estado de Resultados
+          <span aria-hidden>→</span>
+        </Link>
+        <Link
+          href="/finanzas/costos"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-amber-300 hover:text-amber-700"
+          style={{ transition: `all 220ms ${ES}` }}
+        >
+          Costos
+          <span aria-hidden>→</span>
+        </Link>
       </div>
 
       <style jsx global>{`
-        @keyframes pulsoPing {
+        @keyframes pulsoHeaderDot {
           0%,
           100% {
             transform: scale(1);
@@ -115,7 +167,7 @@ export default function PulsoPage() {
           }
           50% {
             transform: scale(1.5);
-            opacity: 0.6;
+            opacity: 0.55;
           }
         }
       `}</style>
@@ -123,36 +175,37 @@ export default function PulsoPage() {
   );
 }
 
-function SketchCard({
-  label,
-  lines,
-  italic = false,
-}: {
-  label: string;
-  lines: string[];
-  italic?: boolean;
-}) {
+function PlaceholderCard({ label, sub }: { label: string; sub: string }) {
   return (
     <div
-      className="rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-sm"
+      className="rounded-xl border border-dashed bg-white/60 p-5"
       style={{
+        borderColor: "rgba(15,23,42,0.12)",
         boxShadow:
-          "0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03)",
+          "inset 0 1px 0 rgba(255,255,255,0.5), 0 1px 2px rgba(15,23,42,0.02)",
       }}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+      <div
+        className="text-[10px] font-semibold uppercase tracking-[0.14em]"
+        style={{ color: "rgba(15,23,42,0.45)" }}
+      >
         {label}
       </div>
-      <div className="mt-2 space-y-1">
-        {lines.map((l, i) => (
+      <div className="mt-1 text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>
+        {sub}
+      </div>
+      <div className="mt-6 flex h-16 items-end gap-1">
+        {[38, 52, 31, 64, 48, 72, 46, 58].map((h, i) => (
           <div
             key={i}
-            className={`text-sm tabular-nums tracking-tight ${
-              italic ? "italic text-slate-500" : "font-semibold text-slate-700"
-            }`}
-          >
-            {l}
-          </div>
+            style={{
+              flex: 1,
+              height: `${h}%`,
+              background:
+                "linear-gradient(180deg, rgba(15,23,42,0.08) 0%, rgba(15,23,42,0.02) 100%)",
+              borderRadius: 2,
+            }}
+          />
         ))}
       </div>
     </div>
