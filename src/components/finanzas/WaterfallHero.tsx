@@ -51,6 +51,8 @@ export interface WaterfallHeroProps {
   height?: number;
   /** Texto accesible alternativo. */
   ariaLabel?: string;
+  /** Callback al hacer clic / Enter sobre una barra (sub-fase 2b). */
+  onItemClick?: (item: WaterfallItem, index: number) => void;
 }
 
 const CHART_PADDING_TOP = 48; // espacio para valor arriba de la barra
@@ -152,7 +154,9 @@ export default function WaterfallHero({
   previousValues,
   height = 380,
   ariaLabel = "Waterfall del estado de resultados",
+  onItemClick,
 }: WaterfallHeroProps) {
+  const isClickable = typeof onItemClick === "function";
   const gradientId = useId();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -320,14 +324,26 @@ export default function WaterfallHero({
                 transformOrigin: `${x + barWidth / 2}px ${bottomY}px`,
                 opacity: 0,
                 animation: `whBarIn ${ANIM_DURATION_MS}ms ${ES_EASING} ${g.index * STAGGER_MS}ms forwards`,
+                cursor: isClickable ? "pointer" : "default",
               }}
               onMouseEnter={() => setHoveredIndex(g.index)}
               onMouseLeave={() => setHoveredIndex((c) => (c === g.index ? null : c))}
               onFocus={() => setHoveredIndex(g.index)}
               onBlur={() => setHoveredIndex((c) => (c === g.index ? null : c))}
+              onClick={isClickable ? () => onItemClick!(g.item, g.index) : undefined}
+              onKeyDown={
+                isClickable
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onItemClick!(g.item, g.index);
+                      }
+                    }
+                  : undefined
+              }
               tabIndex={0}
               role="button"
-              aria-label={`${g.item.name}: ${format(g.item.value)}`}
+              aria-label={`${g.item.name}: ${format(g.item.value)}${isClickable ? ". Clic para ver desglose." : ""}`}
             >
               {/* barra propia */}
               <rect

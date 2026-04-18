@@ -10,6 +10,7 @@ import { formatCompact, formatDateShort } from "@/lib/utils/format";
 import { DateRangeFilter } from "@/components/dashboard";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
 import WaterfallHero from "@/components/finanzas/WaterfallHero";
+import WaterfallDrillPanel, { DrillData, DrillRow } from "@/components/finanzas/WaterfallDrillPanel";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
 
 /* ── Types ──────────────────────────────────── */
@@ -383,6 +384,10 @@ function DetailedView({
 
   const netOp = summary.netOperatingProfit ?? summary.operatingProfit;
 
+  // Sub-fase 2b: drill-down lateral state + builder
+  const [drillData, setDrillData] = useState<DrillData | null>(null);
+  const [drillOpen, setDrillOpen] = useState(false);
+
   const waterfallData = [
     { name: "Revenue", value: summary.revenue, kind: "positive" as const },
     { name: "COGS", value: -summary.cogs, kind: "negative" as const },
@@ -453,6 +458,163 @@ function DetailedView({
     // Bottom line
     { label: "= Beneficio Neto Operativo", value: netOp, bold: true, color: netOp >= 0 ? "text-green-700" : "text-red-700", pct: (summary.netOperatingMargin ?? summary.operatingMargin), highlight: true, tip: "LA LINEA FINAL. Lo que realmente gana tu negocio. Si es positivo (verde), tu operacion es rentable. Si es negativo (rojo), estas perdiendo plata y hay que actuar." },
   ];
+
+  // ──────────────────────────────────────────────────────────────
+  // Sub-fase 2b — builder de drill-down por nombre del item
+  // ──────────────────────────────────────────────────────────────
+  function buildDrillData(name: string, value: number, kind: "positive" | "negative" | "subtotal" | "total"): DrillData {
+    const rev = summary.revenue || 0;
+    const revenueShare = rev > 0 ? (Math.abs(value) / rev) * 100 : 0;
+    const base: DrillData = { name, value, kind, revenueShare, rows: [] };
+
+    if (name === "Revenue") {
+      base.description = "Todo lo que cobraste por ventas en el período. Desglose por canal.";
+      base.rows = bySource.map((s) => ({
+        label: s.source === "MELI" ? "MercadoLibre" : s.source,
+        value: s.revenue,
+        hint: `${s.orders.toLocaleString("es-AR")} órdenes · AOV ${fm(s.aov)}`,
+        pct: rev > 0 ? (s.revenue / rev) * 100 : 0,
+        originIcon: "auto",
+      }));
+      return base;
+    }
+
+    if (name === "COGS") {
+      base.description = `Costo de mercadería vendida. Cobertura actual: ${summary.cogsCoverage}% de las unidades tienen precio de costo cargado.`;
+      const totalAbs = Math.abs(value) || 1;
+      base.rows = bySource
+        .filter((s) => s.cogs > 0)
+        .map((s) => ({
+          label: s.source === "MELI" ? "MercadoLibre" : s.source,
+          value: -s.cogs,
+          hint: `${s.orders.toLocaleString("es-AR")} órdenes · ${s.units.toLocaleString("es-AR")} unidades`,
+          pct: (s.cogs / totalAbs) * 100,
+          originIcon: "auto",
+        }));
+      return base;
+    }
+
+    if (name === "Margen Bruto") {
+      base.description = `Revenue ${fm(summary.revenue)} − COGS ${fm(summary.cogs)} = ${fm(summary.grossProfit)} (${summary.grossMargin}% margen).`;
+      base.rows = bySource.map((s) => ({
+        label: s.source === "MELI" ? "MercadoLibre" : s.source,
+        value: s.grossProfit,
+        hint: `Margen ${s.grossMargin}% · Revenue ${fm(s.revenue)}`,
+        pct: s.revenue > 0 ? (s.grossProfit / s.revenue) * 100 : 0,
+        originIcon: "calc",
+      }));
+      return base;
+    }
+
+    if (name === "Ads") {
+      base.description = "Inversión publicitaria total en Meta (Facebook + Instagram) y Google (Search, Shopping, Display, YouTube).";
+      const total = (summary.metaSpend || 0) + (summary.googleSpend || 0) || 1;
+      base.rows = [
+        { label: "Meta Ads", value: -summary.metaSpend, hint: "Facebook + Instagram", pct: (summary.metaSpend / total) * 100, originIcon: "auto" },
+        { label: "Google Ads", value: -summary.googleSpend, hint: "Search, Shopping, Display, YouTube", pct: (summary.googleSpend / total) * 100, originIcon: "auto" },
+      ].filter((r) => Math.abs(r.value) > 0);
+      return base;
+    }
+
+    if (name === "Envios") {
+      if (summary.hasRealShipping && typeof summary.realShipping === "number") {
+        const real = summary.realShipping || 0;
+        const charged = summary.customerShipping || 0;
+        const subsidy = real - charged;
+        base.description = "Costo real de la logística menos lo que cobraste al cliente. El subsidio es lo que absorbés.";
+        base.rows = [
+          { label: "Costo real de envíos", value: -real, hint: "Lo que pagaste a couriers (Andreani, OCA, etc.)", originIcon: "auto" },
+          { label: "Cobrado al cliente", value: charged, hint: "Revenue de envío capturado en el checkout", originIcon: "auto" },
+          { label: "Subsidio neto", value: -Math.max(0, subsidy), hint: "Lo que vos absorbés (envío gratis, delta por promos)", originIcon: "calc" },
+        ];
+      } else {
+        base.description = "Costo de logística por canal.";
+        base.rows = bySource
+          .filter((s) => s.shipping > 0)
+          .map((s) => ({
+            label: s.source === "MELI" ? "MercadoLibre" : s.source,
+            value: -s.shipping,
+            hint: `${s.orders.toLocaleString("es-AR")} órdenes`,
+            originIcon: "auto",
+          }));
+      }
+      return base;
+    }
+
+    if (name === "Comisiones") {
+      base.description = "Lo que te cobran los marketplaces por vender en su plataforma.";
+      const total = summary.platformFees || 1;
+      base.rows = bySource
+        .filter((s) => s.platformFee > 0)
+        .map((s) => ({
+          label: `${s.source === "MELI" ? "MercadoLibre" : s.source} (${s.platformFeeLabel})`,
+          value: -s.platformFee,
+          hint: `Revenue ${fm(s.revenue)}`,
+          pct: (s.platformFee / total) * 100,
+          originIcon: "calc",
+        }));
+      return base;
+    }
+
+    if (name === "Medios Pago") {
+      base.description = "Comisiones de procesadores de pago: tarjetas, MercadoPago, transferencias.";
+      const total = summary.paymentFees || 1;
+      base.rows = (paymentFeeDetails || [])
+        .filter((p) => p.fee > 0)
+        .map((p) => ({
+          label: `${p.method}`,
+          value: -p.fee,
+          hint: `${p.source} · ${p.feeRate}% sobre ${fm(p.revenue)}`,
+          pct: (p.fee / total) * 100,
+          originIcon: "calc",
+        }));
+      return base;
+    }
+
+    if (name === "Otros") {
+      base.description = "Gastos operativos cargados manualmente: sueldos, alquileres, herramientas, impuestos, etc.";
+      const total = summary.manualCostsTotal || 1;
+      base.rows = (manualCosts || [])
+        .filter((m) => m.total > 0)
+        .map((m) => {
+          const cat = COST_CATEGORIES.find((c) => c.key === m.category);
+          return {
+            label: cat?.label || m.category,
+            value: -m.total,
+            pct: (m.total / total) * 100,
+            originIcon: "manual" as const,
+          };
+        });
+      return base;
+    }
+
+    if (name === "Neto") {
+      base.description = `Lo que realmente queda después de todos los costos. Margen neto ${summary.netOperatingMargin ?? summary.operatingMargin}%.`;
+      base.rows = [
+        { label: "Revenue", value: summary.revenue, originIcon: "auto" },
+        { label: "− COGS", value: -summary.cogs, originIcon: "auto" },
+        { label: "= Margen Bruto", value: summary.grossProfit, hint: `${summary.grossMargin}% margen`, originIcon: "calc" },
+        { label: "− Publicidad", value: -summary.adSpend, originIcon: "auto" },
+        { label: "− Envíos", value: -summary.shipping, originIcon: "auto" },
+        ...(summary.platformFees ? [{ label: "− Comisiones plataforma", value: -summary.platformFees, originIcon: "calc" as const }] : []),
+        ...(summary.paymentFees ? [{ label: "− Medios de pago", value: -summary.paymentFees, originIcon: "calc" as const }] : []),
+        ...(summary.manualCostsTotal ? [{ label: "− Otros costos", value: -summary.manualCostsTotal, originIcon: "manual" as const }] : []),
+        { label: "= Beneficio Neto Operativo", value: netOp, hint: `${summary.netOperatingMargin ?? summary.operatingMargin}% margen`, originIcon: "calc" },
+      ] as DrillRow[];
+      return base;
+    }
+
+    // Fallback
+    base.rows = [];
+    base.description = "Sin desglose adicional disponible para este ítem.";
+    return base;
+  }
+
+  function handleWaterfallClick(item: { name: string; value: number; kind?: "positive" | "negative" | "subtotal" | "total" }) {
+    const drill = buildDrillData(item.name, item.value, item.kind ?? "positive");
+    setDrillData(drill);
+    setDrillOpen(true);
+  }
 
   return (
     <>
@@ -570,6 +732,7 @@ function DetailedView({
             data={waterfallData}
             format={fm}
             height={340}
+            onItemClick={handleWaterfallClick}
           />
         ) : (
           <ResponsiveContainer width="100%" height={300}>
@@ -731,6 +894,14 @@ function DetailedView({
           </div>
         </div>
       </div>
+
+      {/* Sub-fase 2b: drill-down lateral */}
+      <WaterfallDrillPanel
+        open={drillOpen}
+        data={drillData}
+        format={fm}
+        onClose={() => setDrillOpen(false)}
+      />
     </>
   );
 }
