@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, TrendingUp, TrendingDown } from "lucide-react";
 
 /* ══════════════════════════════════════════════
@@ -76,6 +77,13 @@ export default function WaterfallDrillPanel({
 }: WaterfallDrillPanelProps) {
   const styleId = useId().replace(/:/g, "");
 
+  // Portal mount guard — evita hydration mismatch en SSR.
+  // Al hacer portal a document.body el panel escapa de cualquier stacking
+  // context (ej: el z-10 del layout de Finanzas) y se renderiza on top
+  // del header global de la app.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // ESC cierra el panel
   useEffect(() => {
     if (!open) return;
@@ -89,6 +97,7 @@ export default function WaterfallDrillPanel({
   const kindClasses = useMemo(() => classForKind(data?.kind ?? "positive"), [data?.kind]);
 
   if (!data) return null;
+  if (!mounted) return null;
 
   const absValue = Math.abs(data.value);
   const isCost = data.kind === "negative" || (data.kind === "total" && data.value < 0);
@@ -103,11 +112,11 @@ export default function WaterfallDrillPanel({
         : "text-rose-600"
     : "";
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`fixed inset-0 z-[60] bg-slate-900/20 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         style={{ transitionDuration: `${PANEL_ANIM_MS}ms`, transitionTimingFunction: ES_EASING }}
         onClick={onClose}
         aria-hidden="true"
@@ -118,7 +127,7 @@ export default function WaterfallDrillPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby={`drill-title-${styleId}`}
-        className={`fixed top-0 right-0 h-full w-full sm:w-[440px] z-50 bg-white shadow-2xl ${open ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
+        className={`fixed top-0 right-0 h-full w-full sm:w-[440px] z-[70] bg-white shadow-2xl ${open ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
         style={{
           transitionProperty: "transform",
           transitionDuration: `${PANEL_ANIM_MS}ms`,
@@ -274,6 +283,7 @@ export default function WaterfallDrillPanel({
           }
         }
       `}</style>
-    </>
+    </>,
+    document.body
   );
 }
