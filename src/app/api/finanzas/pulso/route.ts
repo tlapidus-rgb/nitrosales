@@ -12,7 +12,8 @@
 // Fase 1b: + marketingFinance.
 // Fase 1c: + sparkline12m.
 // Fase 1d: + narrative + alerts.
-// Fase 1e: + manualOverride para el cashBalance.
+// Fase 1e: + manualOverride para el cashBalance (lectura de
+//          cash_balance_overrides para el mes corriente).
 //
 // IMPORTANTE (CLAUDE.md §REGLA #3b):
 //   - Pool = 8, máximo 3 queries paralelas por batch.
@@ -236,6 +237,49 @@ async function load24MonthRevenue(params: {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Cash balance override del mes corriente (Fase 1e)
+//
+// Tabla `cash_balance_overrides` creada por
+// `/api/admin/migrate-cash-balance-override`. No está modelada en
+// schema.prisma todavía — leemos vía $queryRaw.
+// ─────────────────────────────────────────────────────────────
+async function loadCashOverride(params: {
+  orgId: string;
+  month: string; // "YYYY-MM"
+}): Promise<RunwayInputs["manualOverride"]> {
+  const { orgId, month } = params;
+  try {
+    const rows = await prisma.$queryRaw<
+      { amount: string; note: string | null; updatedAt: Date }[]
+    >`
+      SELECT "amount"::text as "amount", "note", "updatedAt"
+      FROM "cash_balance_overrides"
+      WHERE "organizationId" = ${orgId}
+        AND "month" = ${month}
+      LIMIT 1
+    `;
+    if (rows.length === 0) return null;
+    const row = rows[0];
+    const amount = toNumber(row.amount);
+    if (!Number.isFinite(amount)) return null;
+    return {
+      amount,
+      month,
+      note: row.note ?? null,
+      updatedAt:
+        row.updatedAt instanceof Date
+          ? row.updatedAt.toISOString()
+          : String(row.updatedAt ?? new Date().toISOString()),
+    };
+  } catch {
+    // Si la tabla no existe todavía (no se corrió la migración) o cualquier
+    // otro error, devolvemos null para que el Pulso siga funcionando con
+    // el cálculo automático. La migración se corre manualmente una vez.
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Handler
 // ─────────────────────────────────────────────────────────────
 export async function GET() {
@@ -245,11 +289,13 @@ export async function GET() {
     const ytd = ytdBoundariesBA(today);
     const w90 = window90dBoundariesBA(today);
 
-    // Corremos las 2 ventanas + el agregado de 24 meses en paralelo.
-    // Cada ventana hace 5 queries internas en 2 batches respetando el
-    // pool de 8. La query del sparkline es 1 sola ligera agrupada por
-    // mes (sin JOIN), así que está holgado.
-    const [ytdTotals, w90Totals, sparkline] = await Promise.all([
+    // Corremos las 2 ventanas + el agregado de 24 meses + el override
+    // del mes corriente en paralelo. Cada ventana hace 5 queries internas
+    // en 2 batches respetando el pool de 8. La query del sparkline es 1
+    // sola ligera agrupada por mes (sin JOIN). La query del override es
+    // una lectura por PK compuesta (org, month). Total paralelo: bajo.
+    const monthIso = today.toISOString().substring(0, 7); // "YYYY-MM"
+    const [ytdTotals, w90Totals, sparkline, overrideRows] = await Promise.all([
       loadWindowTotals({
         orgId,
         fromDate: ytd.from,
@@ -265,6 +311,7 @@ export async function GET() {
         toStr: w90.toStr,
       }),
       load24MonthRevenue({ orgId, today }),
+      loadCashOverride({ orgId, month: monthIso }),
     ]);
 
     const runwayInputs: RunwayInputs = {
@@ -277,8 +324,7 @@ export async function GET() {
       shipping90d: w90Totals.shipping,
       adSpend90d: w90Totals.adSpend,
       manualCosts90d: w90Totals.manualCosts,
-      // manualOverride: se agrega en Fase 1e
-      manualOverride: null,
+      manualOverride: overrideRows,
     };
 
     const runway = calculateCashRunway(runwayInputs);
@@ -302,7 +348,6 @@ export async function GET() {
     };
 
     // Narrativa + alertas — 100% determinista, sin DB, sin LLM.
-    const monthIso = today.toISOString().substring(0, 7); // "YYYY-MM"
     const narrative = buildNarrative({
       runway,
       sparkline: sparkline12m,

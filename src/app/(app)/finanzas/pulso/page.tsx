@@ -3,29 +3,31 @@
 // ═══════════════════════════════════════════════════════════════════
 // En 10 segundos respondemos: "¿cómo estoy hoy?"
 //
-// Layout (Fase 1a):
+// Layout final (Fase 1e):
 //   [Header: título + CurrencyToggle]
-//   [CashRunwayHero]
-//
-// Próximas sub-fases van completando:
-//   1b → MarketingFinanceCard
-//   1c → Revenue12mSparkline + costos YTD
-//   1d → NarrativeHero + FinancialAlertsCard
-//   1e → override manual + Aurum context
+//   [NarrativeHero]           ← Fase 1d · narrativa determinista
+//   [CashRunwayHero]          ← Fase 1a · con override manual (1e)
+//   [MarketingFinanceCard]    ← Fase 1b · CAC vs LTV por canal
+//   [Revenue12mSparkline]     ← Fase 1c · sparkline + costos + margen
+//   [FinancialAlertsCard]     ← Fase 1d · alertas accionables
+//   + Modal CashBalanceOverride (abre desde el hero)
+//   + useAurumPageContext     ← publica runway/alertas al bubble
 //
 // Ver PROPUESTA_PNL_REORG.md §5.1 y plan linear-pondering-lemur.md
 // ═══════════════════════════════════════════════════════════════════
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import CashRunwayHero from "@/components/finanzas/CashRunwayHero";
+import CashBalanceOverride from "@/components/finanzas/CashBalanceOverride";
 import MarketingFinanceCard from "@/components/finanzas/MarketingFinanceCard";
 import Revenue12mSparkline from "@/components/finanzas/Revenue12mSparkline";
 import NarrativeHero from "@/components/finanzas/NarrativeHero";
 import FinancialAlertsCard from "@/components/finanzas/FinancialAlertsCard";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
+import { useAurumPageContext } from "@/components/aurum/AurumContext";
 import type { PulsoPageData } from "@/types/finanzas";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -34,6 +36,8 @@ export default function PulsoPage() {
   const [data, setData] = useState<PulsoPageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -57,7 +61,68 @@ export default function PulsoPage() {
     return () => {
       active = false;
     };
+  }, [refreshTick]);
+
+  const handleOverrideSuccess = useCallback(() => {
+    // Refetch del Pulso para que el runway recalcule con el override nuevo.
+    setLoading(true);
+    setRefreshTick((n) => n + 1);
   }, []);
+
+  // ── Publicar contexto al bubble Aurum ────────────────────────────────
+  // Snapshot JSON-serializable. Si está loading, publicamos null para que
+  // Aurum no muestre contexto a medio cargar.
+  useAurumPageContext(
+    loading || !data
+      ? null
+      : {
+          section: "finanzas.pulso",
+          contextLabel: "Pulso financiero",
+          contextData: {
+            runway: {
+              source: data.runway.source,
+              monthsRemaining: data.runway.monthsRemaining,
+              cashBalance: data.runway.cashBalance,
+              cashBalanceAuto: data.runway.cashBalanceAuto,
+              burnRate30d: data.runway.burnRate30d,
+              status: data.runway.status,
+              asOfDate: data.runway.asOfDate,
+              breakdown: data.runway.breakdown,
+            },
+            sparkline12m: data.sparkline12m
+              ? {
+                  revenue12mTotal: data.sparkline12m.revenue12mTotal,
+                  revenueDeltaPct: data.sparkline12m.revenueDeltaPct,
+                  costosYTD: data.sparkline12m.costosYTD,
+                  grossMarginYTD: data.sparkline12m.grossMarginYTD,
+                }
+              : null,
+            narrative: data.narrative
+              ? {
+                  title: data.narrative.title,
+                  body: data.narrative.body,
+                  severity: data.narrative.severity,
+                  rule: data.narrative.rule,
+                }
+              : null,
+            alerts: (data.alerts ?? []).map((a) => ({
+              id: a.id,
+              priority: a.priority,
+              type: a.type,
+              title: a.title,
+              body: a.body,
+            })),
+            meta: data.meta,
+          },
+          suggestions: [
+            "¿Cuántos meses de runway tengo?",
+            "¿Qué canal es menos rentable?",
+            "¿Cómo mejoro mi margen?",
+            "Dame el resumen del Pulso hoy",
+          ],
+        },
+    [loading, data]
+  );
 
   return (
     <div className="relative space-y-6">
@@ -74,7 +139,7 @@ export default function PulsoPage() {
               }}
             />
             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-              Pulso · Fase 1d
+              Pulso · Fase 1e
             </span>
           </div>
 
@@ -119,11 +184,12 @@ export default function PulsoPage() {
       {/* ═══════ Narrativa determinista (Fase 1d) ═══════ */}
       <NarrativeHero narrative={data?.narrative ?? null} loading={loading} />
 
-      {/* ═══════ Cash Runway Hero ═══════ */}
+      {/* ═══════ Cash Runway Hero (con override Fase 1e) ═══════ */}
       <CashRunwayHero
         runway={data?.runway ?? null}
         loading={loading}
         asOfDate={data?.meta.ytdTo}
+        onAdjust={() => setOverrideOpen(true)}
       />
 
       {/* ═══════ Marketing Financiero (Fase 1b) ═══════ */}
@@ -142,13 +208,13 @@ export default function PulsoPage() {
       {/* ═══════ Alertas financieras (Fase 1d) ═══════ */}
       <FinancialAlertsCard alerts={data?.alerts ?? null} loading={loading} />
 
-      {/* ═══════ Placeholders de próximas sub-fases ═══════ */}
-      <div className="grid grid-cols-1 gap-4">
-        <PlaceholderCard
-          label="Override manual + Aurum"
-          sub="Fase 1e · cockpit completo"
-        />
-      </div>
+      {/* ═══════ Modal de override del cash balance (Fase 1e) ═══════ */}
+      <CashBalanceOverride
+        open={overrideOpen}
+        onClose={() => setOverrideOpen(false)}
+        onSuccess={handleOverrideSuccess}
+        runway={data?.runway ?? null}
+      />
 
       {/* Atajos a otras tabs */}
       <div className="flex flex-wrap items-center gap-2 pt-2 text-sm text-slate-500">
@@ -190,39 +256,4 @@ export default function PulsoPage() {
   );
 }
 
-function PlaceholderCard({ label, sub }: { label: string; sub: string }) {
-  return (
-    <div
-      className="rounded-xl border border-dashed bg-white/60 p-5"
-      style={{
-        borderColor: "rgba(15,23,42,0.12)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.5), 0 1px 2px rgba(15,23,42,0.02)",
-      }}
-    >
-      <div
-        className="text-[10px] font-semibold uppercase tracking-[0.14em]"
-        style={{ color: "rgba(15,23,42,0.45)" }}
-      >
-        {label}
-      </div>
-      <div className="mt-1 text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>
-        {sub}
-      </div>
-      <div className="mt-6 flex h-16 items-end gap-1">
-        {[38, 52, 31, 64, 48, 72, 46, 58].map((h, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              height: `${h}%`,
-              background:
-                "linear-gradient(180deg, rgba(15,23,42,0.08) 0%, rgba(15,23,42,0.02) 100%)",
-              borderRadius: 2,
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
+// Fase 1e — Pulso completo. Todos los placeholders removidos.

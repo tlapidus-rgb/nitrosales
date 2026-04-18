@@ -34,6 +34,7 @@ interface CashRunwayHeroProps {
   runway: RunwayData | null;
   loading?: boolean;
   asOfDate?: string; // "YYYY-MM-DD" — fecha del dato para la conversión FX
+  onAdjust?: () => void; // abre el modal CashBalanceOverride (Fase 1e)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ export default function CashRunwayHero({
   runway,
   loading = false,
   asOfDate,
+  onAdjust,
 }: CashRunwayHeroProps) {
   const { convert, format, mode, ready } = useCurrencyView();
   const [expanded, setExpanded] = useState(false);
@@ -249,17 +251,27 @@ export default function CashRunwayHero({
 
           <button
             type="button"
-            disabled
-            title="Disponible en Fase 1e"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium"
+            onClick={onAdjust}
+            disabled={!onAdjust || loading}
+            title={
+              runway?.source === "manual"
+                ? "Actualizar o volver al cálculo automático"
+                : "Corregir con tu saldo real de banco"
+            }
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed"
             style={{
-              borderColor: "rgba(15,23,42,0.1)",
-              color: "rgba(15,23,42,0.45)",
-              background: "rgba(15,23,42,0.02)",
-              cursor: "not-allowed",
+              background:
+                "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)",
+              color: "#ffffff",
+              boxShadow:
+                "0 1px 2px rgba(217,119,6,0.2), 0 6px 16px -10px rgba(217,119,6,0.4)",
+              opacity: !onAdjust || loading ? 0.5 : 1,
+              transition: `transform 160ms ${ES}, box-shadow 160ms ${ES}`,
             }}
           >
-            Ajustar saldo real
+            {runway?.source === "manual"
+              ? "Actualizar saldo"
+              : "Ajustar saldo real"}
             <span aria-hidden>→</span>
           </button>
         </div>
