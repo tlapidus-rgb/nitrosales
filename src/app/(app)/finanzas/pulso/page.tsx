@@ -21,6 +21,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import CashRunwayHero from "@/components/finanzas/CashRunwayHero";
+import MarketingFinanceCard from "@/components/finanzas/MarketingFinanceCard";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
 import type { PulsoPageData } from "@/types/finanzas";
 
@@ -119,12 +120,14 @@ export default function PulsoPage() {
         asOfDate={data?.meta.ytdTo}
       />
 
+      {/* ═══════ Marketing Financiero (Fase 1b) ═══════ */}
+      <MarketingFinanceCard
+        ytdFrom={data?.meta.ytdFrom}
+        ytdTo={data?.meta.ytdTo}
+      />
+
       {/* ═══════ Placeholders de próximas sub-fases ═══════ */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <PlaceholderCard
-          label="Marketing Financiero"
-          sub="Fase 1b · CAC vs LTV por canal"
-        />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <PlaceholderCard
           label="Revenue 12m"
           sub="Fase 1c · tendencia + contexto"
