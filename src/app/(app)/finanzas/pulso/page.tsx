@@ -23,6 +23,8 @@ import Link from "next/link";
 import CashRunwayHero from "@/components/finanzas/CashRunwayHero";
 import MarketingFinanceCard from "@/components/finanzas/MarketingFinanceCard";
 import Revenue12mSparkline from "@/components/finanzas/Revenue12mSparkline";
+import NarrativeHero from "@/components/finanzas/NarrativeHero";
+import FinancialAlertsCard from "@/components/finanzas/FinancialAlertsCard";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
 import type { PulsoPageData } from "@/types/finanzas";
 
@@ -72,7 +74,7 @@ export default function PulsoPage() {
               }}
             />
             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-              Pulso · Fase 1a
+              Pulso · Fase 1d
             </span>
           </div>
 
@@ -114,6 +116,9 @@ export default function PulsoPage() {
         </div>
       )}
 
+      {/* ═══════ Narrativa determinista (Fase 1d) ═══════ */}
+      <NarrativeHero narrative={data?.narrative ?? null} loading={loading} />
+
       {/* ═══════ Cash Runway Hero ═══════ */}
       <CashRunwayHero
         runway={data?.runway ?? null}
@@ -134,12 +139,11 @@ export default function PulsoPage() {
         asOfDate={data?.meta.ytdTo}
       />
 
+      {/* ═══════ Alertas financieras (Fase 1d) ═══════ */}
+      <FinancialAlertsCard alerts={data?.alerts ?? null} loading={loading} />
+
       {/* ═══════ Placeholders de próximas sub-fases ═══════ */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <PlaceholderCard
-          label="Narrativa + Alertas"
-          sub="Fase 1d · auto-generado"
-        />
+      <div className="grid grid-cols-1 gap-4">
         <PlaceholderCard
           label="Override manual + Aurum"
           sub="Fase 1e · cockpit completo"

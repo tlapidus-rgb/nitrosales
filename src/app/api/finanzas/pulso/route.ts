@@ -26,6 +26,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { calculateCashRunway } from "@/lib/finanzas/runway";
+import { buildNarrative, buildAlerts } from "@/lib/finanzas/narrative";
 import type {
   PulsoPageData,
   RunwayInputs,
@@ -300,10 +301,29 @@ export async function GET() {
       grossMarginYTD,
     };
 
+    // Narrativa + alertas — 100% determinista, sin DB, sin LLM.
+    const monthIso = today.toISOString().substring(0, 7); // "YYYY-MM"
+    const narrative = buildNarrative({
+      runway,
+      sparkline: sparkline12m,
+      revenueYTD: ytdTotals.revenue,
+      adSpendYTD: ytdTotals.adSpend,
+      monthIso,
+    });
+    const alerts = buildAlerts({
+      runway,
+      sparkline: sparkline12m,
+      revenueYTD: ytdTotals.revenue,
+      adSpendYTD: ytdTotals.adSpend,
+      monthIso,
+    });
+
     const payload: PulsoPageData = {
       runway,
       sparkline12m,
-      // marketingFinance, narrative, alerts → se agregan en 1b/1d.
+      narrative,
+      alerts,
+      // marketingFinance → se trae desde el cliente (MarketingFinanceCard).
       meta: {
         generatedAt: today.toISOString(),
         ytdFrom: ytd.fromStr,
