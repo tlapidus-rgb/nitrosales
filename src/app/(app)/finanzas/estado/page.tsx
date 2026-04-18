@@ -3,12 +3,13 @@
 
 import { useEffect, useState } from "react";
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis,
+  AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { formatCompact, formatDateShort } from "@/lib/utils/format";
 import { DateRangeFilter } from "@/components/dashboard";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
+import WaterfallHero from "@/components/finanzas/WaterfallHero";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
 
 /* ── Types ──────────────────────────────────── */
@@ -383,15 +384,15 @@ function DetailedView({
   const netOp = summary.netOperatingProfit ?? summary.operatingProfit;
 
   const waterfallData = [
-    { name: "Revenue", value: summary.revenue, fill: "#3b82f6" },
-    { name: "COGS", value: -summary.cogs, fill: "#ef4444" },
-    { name: "Margen Bruto", value: summary.grossProfit, fill: "#22c55e" },
-    { name: "Ads", value: -summary.adSpend, fill: "#f97316" },
-    { name: "Envios", value: -summary.shipping, fill: "#8b5cf6" },
-    ...(summary.platformFees ? [{ name: "Comisiones", value: -(summary.platformFees), fill: "#6366f1" }] : []),
-    ...(summary.paymentFees ? [{ name: "Medios Pago", value: -(summary.paymentFees), fill: "#0ea5e9" }] : []),
-    ...(summary.manualCostsTotal ? [{ name: "Otros", value: -(summary.manualCostsTotal), fill: "#14b8a6" }] : []),
-    { name: "Neto", value: netOp, fill: netOp >= 0 ? "#22c55e" : "#ef4444" },
+    { name: "Revenue", value: summary.revenue, kind: "positive" as const },
+    { name: "COGS", value: -summary.cogs, kind: "negative" as const },
+    { name: "Margen Bruto", value: summary.grossProfit, kind: "subtotal" as const },
+    { name: "Ads", value: -summary.adSpend, kind: "negative" as const },
+    { name: "Envios", value: -summary.shipping, kind: "negative" as const },
+    ...(summary.platformFees ? [{ name: "Comisiones", value: -(summary.platformFees), kind: "negative" as const }] : []),
+    ...(summary.paymentFees ? [{ name: "Medios Pago", value: -(summary.paymentFees), kind: "negative" as const }] : []),
+    ...(summary.manualCostsTotal ? [{ name: "Otros", value: -(summary.manualCostsTotal), kind: "negative" as const }] : []),
+    { name: "Neto", value: netOp, kind: "total" as const },
   ];
 
   const tooltipStyle = {
@@ -564,20 +565,14 @@ function DetailedView({
             >Tendencia</button>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={300}>
-          {chartMode === "waterfall" ? (
-            <BarChart data={waterfallData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(Math.abs(convert(v) ?? 0))} />
-              <Tooltip {...tooltipStyle} formatter={(value: number) => [fm(Math.abs(value)), ""]} />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {waterfallData.map((entry, index) => (
-                  <rect key={index} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          ) : (
+        {chartMode === "waterfall" ? (
+          <WaterfallHero
+            data={waterfallData}
+            format={fm}
+            height={340}
+          />
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={dailyTrend} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={formatDateShort} />
@@ -588,8 +583,8 @@ function DetailedView({
               <Area type="monotone" dataKey="grossProfit" name="Margen Bruto" stroke="#22c55e" fill="#22c55e" fillOpacity={0.1} strokeWidth={2} />
               <Area type="monotone" dataKey="operatingProfit" name="Beneficio Op." stroke="#f97316" fill="#f97316" fillOpacity={0.1} strokeWidth={1.5} />
             </AreaChart>
-          )}
-        </ResponsiveContainer>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* ── P&L Table (Statement) ─── */}
