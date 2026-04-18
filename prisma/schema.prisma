@@ -76,6 +76,8 @@ model Organization {
   payouts                  Payout[]
   // Audience Sync
   audiences                Audience[]
+  // Finanzas Pulso — override manual del cash balance
+  cashBalanceOverrides     CashBalanceOverride[]
 
   @@map("organizations")
 }
@@ -1651,4 +1653,26 @@ model InflationIndexMonthly {
   @@unique([month], map: "InflationIndexMonthly_month_key")
   @@index([month(sort: Desc)], map: "InflationIndexMonthly_month_desc_idx")
   @@map("InflationIndexMonthly")
+}
+
+/// Override manual del cash balance para el Pulso financiero.
+/// Permite que Tomy corrija el saldo calculado automaticamente con
+/// el saldo real de su banco, 1 override vigente por (org, mes).
+/// Consumida por /api/finanzas/pulso (runway) y /api/finanzas/cash-balance/override (CRUD).
+/// Tabla creada via /api/admin/migrate-cash-balance-override (Sesion 42, Fase 1e).
+model CashBalanceOverride {
+  id             String   @id @default(cuid())
+  organizationId String
+  month          String   // formato "YYYY-MM" (texto para match directo con monthIso del Pulso)
+  amount         Decimal  @db.Decimal(15, 2)
+  currency       String   @default("ARS")
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, month], map: "cash_balance_overrides_org_month_key")
+  @@index([organizationId, month(sort: Desc)], map: "cash_balance_overrides_org_month_desc_idx")
+  @@map("cash_balance_overrides")
 }

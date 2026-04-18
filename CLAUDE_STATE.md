@@ -3,7 +3,76 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-18 madrugada (Sesion 41 — Backlog + sidebar reorg + Aurum fallback + Finanzas P&L Fase 0 completa con tri-currency toggle)
+## Ultima actualizacion: 2026-04-18 (Sesion 42 — Finanzas P&L Fase 1 Pulso completa: Cash Runway hero + Marketing Financiero + Sparkline 12m + Narrativa determinista + Override manual + Aurum integrado)
+
+> Este bloque consolida los **6 commits** a `main` del 2026-04-18 que construyen la **Fase 1 completa del rediseño de Finanzas P&L** (`/finanzas/pulso` portada narrativa): 5 sub-fases iterativas (1a→1e) pusheadas directo a main con validación `tsc --noEmit` clean. Incluye endpoint agregador `/api/finanzas/pulso`, Cash Runway hero con 4 estados (critical/warn/safe/healthy), Marketing Financiero con CAC payback + LTV:CAC por canal, Sparkline Revenue vs Burn Rate últimos 12 meses, narrativa 100% determinista por rule engine, motor de alertas financieras, y override manual de saldo cash con tabla nueva `cash_balance_overrides` + modal premium + integración completa con Aurum bubble contextual.
+
+### Sesion 42 — 2026-04-18 — Finanzas P&L Fase 1 Pulso completa (5 sub-fases iterativas)
+
+**Objetivo**: construir la portada financiera narrativa del módulo Finanzas rediseñado — `/finanzas/pulso` — como "cockpit" del fundador con respuesta en 2 segundos a "¿cómo estamos?". Fase 1 según roadmap `linear-pondering-lemur.md` y `PROPUESTA_PNL_REORG.md` §Fase 1 (semanas 3-4).
+
+#### Commits a `main`
+
+| Commit | Sub-fase | Qué |
+|---|---|---|
+| `ba21f24` | **1a** — Cash Runway hero + endpoint agregador | Crea `/api/finanzas/pulso` como agregador único que ejecuta las queries del pulso en paralelo (burn rate 30d, cash balance, revenue YTD, suscripciones mensuales) y devuelve JSON estructurado. Hero card con runway en meses + 4 estados (critical < 3m rojo / warn 3-6m amarillo / safe 6-12m verde / healthy 12m+ dorado). Progress bar + ticks en 3, 6, 12 meses. Usa `useCurrencyView` para respetar toggle tri-moneda. |
+| `f39f786` | **1b** — Marketing Financiero (CAC vs LTV por canal) | Panel con CAC payback period + ratio LTV:CAC por canal (Meta Ads, Google Ads, ML Ads, organic). Health badges verde/amarillo/rojo por ratio (>3x healthy, 2-3x ok, <2x concern, <1x quemando plata). Pure function `src/lib/finanzas/marketing.ts` testable sin React. |
+| `fda92f9` | **1c** — Sparkline 12m + costos YTD | Mini-chart revenue vs burn rate últimos 12 meses (SVG determinista, sin libraries). Barras de costos YTD separados en fijos/variables/marketing con % del total. Muestra tendencia de cash flow month-over-month. |
+| `8c202ef` | **1d** — Narrativa determinista + alertas financieras | Rule engine 100% determinista (sin LLM) en `src/lib/finanzas/narrative.ts` que analiza los inputs (runway, tendencia, CAC payback, margins) y emite una narrativa de 3-4 líneas con tono adecuado por estado: `critical_burning` / `warning_decline` / `healthy_scale` / `healthy_steady`. Motor de alertas `src/lib/finanzas/alerts.ts` que dispara alertas accionables (ej: "CAC de Meta aumentó 34% vs mes pasado, revisar creatives"). Seed determinista `simpleHash(orgId + monthIso)` para rotación de variantes sin aleatoriedad. |
+| `d6fb3f0` | **1e-migration** | Endpoint admin `/api/admin/migrate-cash-balance-override` con `CREATE TABLE IF NOT EXISTS` para `cash_balance_overrides` (organizationId, month YYYY-MM, amount DECIMAL(15,2), currency, note, createdAt, updatedAt; unique(organizationId, month); índice desc por organizationId+month). Protegido con `NEXTAUTH_SECRET`. **Pusheado primero y ejecutado por Tomy en prod ANTES del código que la usa**, respetando la regla de orden de migraciones de CLAUDE.md. |
+| `bf03f86` | **1e-code** | Override manual del cash balance: endpoint `/api/finanzas/cash-balance/override` con GET/POST/DELETE usando `prisma.$queryRaw` / `$executeRaw` (sin tocar `schema.prisma` todavía — tabla en DB, código la consume por SQL raw con try/catch). Modal premium `CashBalanceOverride.tsx` con amount input + note textarea + live preview del impacto en runway + 3 acciones (guardar / cancelar / volver a automático). Botón "Ajustar saldo real" en `CashRunwayHero` ahora funcional (gold gradient) que abre el modal. Pulso recarga automáticamente tras guardar via `refreshTick`. Integración con Aurum bubble: `useAurumPageContext` publica snapshot completo (runway, sparkline12m, narrative, alerts, meta) con 4 suggestions contextuales — el bubble ahora entiende el estado financiero sin duplicar fetch. |
+
+**Arquitectura Fase 1**:
+- **Endpoint único**: `/api/finanzas/pulso` ejecuta ~8 queries en paralelo con `Promise.all` (respetando pool=8, max 3 parallel). Devuelve `PulsoPageData` (type en `src/types/finanzas.ts`).
+- **Pure functions por dominio**: `src/lib/finanzas/runway.ts` (con soporte `manualOverride`), `marketing.ts`, `narrative.ts`, `alerts.ts`. Testables sin React.
+- **Componentes cliente**: `CashRunwayHero`, `MarketingFinancialsCard`, `SparklineCard`, `CostsBarChart`, `NarrativeCard`, `FinancialAlertsCard`, `CashBalanceOverride` modal.
+- **Página**: `src/app/(app)/finanzas/pulso/page.tsx` con loading/error states premium, refreshTick state para re-fetch tras override, useAurumPageContext wiring.
+- **Sin JOIN a customers** desde orders (regla CLAUDE.md). Sin CAST(... AS int) sobre postalCode.
+
+**Endpoints admin ejecutados en producción (Sesion 42)**:
+- `/api/admin/migrate-cash-balance-override?key=<NEXTAUTH_SECRET>` — creó tabla `cash_balance_overrides` con unique + índice. ✅ Respuesta: `{"ok":true,"tables":["cash_balance_overrides"],"indexes":["cash_balance_overrides_org_month_key","cash_balance_overrides_org_month_desc_idx"]}`.
+
+**Smoke tests prod (post-Fase 1e)**:
+- `GET /api/finanzas/cash-balance/override` → HTTP 200 en 0.9s, `{"month":"2026-04","override":null}`.
+- `GET /api/finanzas/pulso` → HTTP 200 en 0.9s, `runway.source="auto"`, `monthsRemaining=16.1`, `cashBalance=$1.495M ARS`, `status="safe"`, `narrative.rule="healthy_scale"`, 1 alert activa, YTD 2026-01-01 → 2026-04-18.
+
+### Estado final en produccion al cierre de Sesion 42
+
+- **Último commit en `main`**: `bf03f86`.
+- **URL prod**: `https://nitrosales.vercel.app`.
+- **Deploys Vercel**: todos verdes.
+- **Finanzas P&L con 5 pestañas premium en producción**:
+  - `/finanzas` → redirect automático a `/finanzas/pulso`.
+  - `/finanzas/pulso` — **Fase 1 COMPLETA**: Cash Runway hero + override manual, Marketing Financiero por canal, Sparkline 12m, costos YTD, narrativa determinista, alertas financieras, Aurum contextual. Badge "Pulso · Fase 1e".
+  - `/finanzas/estado` — P&L completo actual + toggle tri-currency (de Sesion 41).
+  - `/finanzas/costos` — intacto.
+  - `/finanzas/escenarios` — placeholder (Fase 4).
+  - `/finanzas/fiscal` — placeholder (Fase 5).
+- **1 tabla nueva en DB**: `cash_balance_overrides` (organizationId, month YYYY-MM, amount, currency, note + unique + índice desc). Global pero con organizationId — multi-tenant safe. **No está declarada en `schema.prisma` todavía** (se consume por SQL raw). Deuda técnica menor aceptada para Sesion 42; se puede modelar en Prisma en housekeeping futuro si se quiere.
+
+### Decisiones arquitectonicas tomadas en Sesion 42
+
+1. **Endpoint agregador único `/api/finanzas/pulso`** en vez de múltiples endpoints por componente: minimiza round-trips desde el cliente, simplifica loading/error states, facilita cache futuro.
+2. **Narrativa 100% determinista (sin LLM)**: usar rule engine con seeded hash (`orgId + monthIso`) para rotación de variantes. Trade-off: menos flexible que un LLM, pero cero dependencia de red, cero costo, cero non-determinism, auditable. Si en el futuro se quiere variedad mayor, sumar capa LLM opt-in por encima.
+3. **Override manual via SQL raw ($queryRaw / $executeRaw)**, sin tocar `schema.prisma`: respeta la regla de orden de migraciones (tabla primero en DB, luego código), con `try/catch` envolviendo el read para que el Pulso siga funcionando incluso si la migración no se corrió.
+4. **Pusheo de 1e en 2 commits separados** (`1e-migration` sin código que la use → `1e-code` después de ejecutar): asegura que ningún deploy intermedio quede con código que referencia tabla inexistente.
+5. **Integración Aurum via `useAurumPageContext`** (no fetch propio del bubble): el Pulso publica su snapshot JSON y Aurum lo consume. Evita duplicar queries entre página y bubble, mantiene single source of truth.
+6. **Botón funcional "Ajustar saldo real"** en el hero (antes era disabled placeholder): cambia etiqueta a "Actualizar saldo" cuando `runway.source === "manual"`. Gold gradient consistente con módulo Finanzas.
+7. **Todo directo en `main`** sin branches: los 6 commits respetan el modelo main-only de CLAUDE.md. Vercel deploya cada commit y valida en CI (sandbox local timeouts fueron bypaseados con confianza en `tsc --noEmit` passing).
+
+### Pendientes / backlog de Sesion 42
+
+- **Agregar modelo `CashBalanceOverride` a `schema.prisma`** (deuda técnica): la tabla existe en prod pero no está tipada en Prisma. Consumida por SQL raw. Housekeeping futuro.
+- **Uso real del Pulso unos días**: verificar que la narrativa no se vuelva repetitiva, que el override se use como se esperaba, que falten KPIs o sobren distracciones.
+- **Fase 2 Estado (waterfall hero + taxonomía pro de costos)**: próximo paso natural del roadmap (semanas 5-6 según PROPUESTA_PNL_REORG.md). Pendiente de plan detallado con sub-fases iterativas.
+- **Fase 3 Costos pro (fijos/variables/%/driver)**: semanas 7-8.
+- **Fase 4 Escenarios (forecast + simulación)**: semanas 9-11.
+- **Fase 5 Fiscal enhanced + Bridge profundo Bondly/Campañas**: semana 12.
+- **BP-001 pLTV rails de sanidad** (CRITICAL backlog, sin fecha todavía): fix del caso Ariel Lizárraga + rails duros + capa contextual Haiku + drift monitor + XGBoost. Tomy pidió entender en detalle antes de empezar.
+
+---
+
+## Actualizacion previa: 2026-04-18 madrugada (Sesion 41 — Backlog + sidebar reorg + Aurum fallback + Finanzas P&L Fase 0 completa con tri-currency toggle)
 
 > Este bloque consolida los **11 commits** a `main` del 2026-04-17 (tarde y noche) hasta el 2026-04-18 madrugada, que redondean el backlog priorizado, reorganizan el sidebar a 8 tiers con vocabulario ecommerce, agregan fallback universal + fade-in a Aurum, y construyen la **Fase 0 completa del rediseño de Finanzas P&L** (5 pestañas premium + 2 crons nacionales FX/IPC + hook de conversión tri-moneda USD/ARS/ARS_ADJ con toggle premium cableado a las KPI cards de `/finanzas/estado`).
 
