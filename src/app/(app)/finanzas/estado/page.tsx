@@ -11,6 +11,8 @@ import { DateRangeFilter } from "@/components/dashboard";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
 import WaterfallHero from "@/components/finanzas/WaterfallHero";
 import WaterfallDrillPanel, { DrillData, DrillRow } from "@/components/finanzas/WaterfallDrillPanel";
+import ExportMenu from "@/components/finanzas/ExportMenu";
+import { exportPnLToExcel, ExportRow, ExportManualCost } from "@/lib/finanzas/export";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
 
 /* ── Types ──────────────────────────────────── */
@@ -410,7 +412,7 @@ function ExecutiveView({
    ══════════════════════════════════════════════ */
 function DetailedView({
   summary, changes, dailyTrend, categories, brands, bySource, manualCosts,
-  paymentFeeDetails, chartMode, setChartMode, midDate,
+  paymentFeeDetails, chartMode, setChartMode, midDate, dateFrom, dateTo,
 }: {
   summary: PnlSummary;
   changes: Changes | null;
@@ -423,10 +425,12 @@ function DetailedView({
   chartMode: "waterfall" | "trend";
   setChartMode: (m: "waterfall" | "trend") => void;
   midDate: string;
+  dateFrom: string;
+  dateTo: string;
 }) {
   // Currency conversion hook (USD / ARS / ARS_ADJ)
   // midDate = punto medio del periodo, usado para el ajuste IPC en ARS_ADJ.
-  const { convert, format } = useCurrencyView();
+  const { convert, format, mode } = useCurrencyView();
   const fm = (v: number, d?: string) => format(convert(v, d ?? midDate));
 
   const netOp = summary.netOperatingProfit ?? summary.operatingProfit;
@@ -536,6 +540,84 @@ function DetailedView({
   const vfRatio = totalOpsCosts > 0
     ? { v: Math.round((variableTotal / totalOpsCosts) * 100), f: Math.round((fixedTotal / totalOpsCosts) * 100), sf: Math.round((semiFixedTotal / totalOpsCosts) * 100) }
     : { v: 0, f: 0, sf: 0 };
+
+  // ──────────────────────────────────────────────────────────────
+  // Sub-fase 2e — handlers de export (PDF via print, Excel via exceljs)
+  // ──────────────────────────────────────────────────────────────
+  const handlePrint = () => {
+    if (typeof window !== "undefined") window.print();
+  };
+
+  const currencyLabel = mode === "USD" ? "USD (MEP)" : mode === "ARS_ADJ" ? "ARS ajustado por IPC" : "ARS";
+
+  const handleExcel = async () => {
+    // Convierto los pnlRows a ExportRow aplicando la conversion de moneda vigente.
+    const exportRows: ExportRow[] = pnlRows.map((row: any) => {
+      const convertedValue = convert(row.value, midDate) ?? row.value;
+      const display = format(convertedValue);
+      // Mapear color Tailwind a color semantico del lib.
+      let mappedColor: ExportRow["color"] = undefined;
+      if (row.color?.includes("blue")) mappedColor = "blue";
+      else if (row.color?.includes("green") || row.color?.includes("emerald")) mappedColor = "green";
+      else if (row.color?.includes("rose") || row.color?.includes("red")) mappedColor = "rose";
+      else if (row.color?.includes("violet") || row.color?.includes("purple")) mappedColor = "violet";
+      else if (row.color?.includes("gray")) mappedColor = "gray";
+      return {
+        label: row.label,
+        value: convertedValue,
+        display,
+        pct: typeof row.pct === "number" ? row.pct : undefined,
+        bold: !!row.bold,
+        highlight: !!row.highlight,
+        indent: !!row.indent,
+        behavior: (row.behavior as ExportRow["behavior"]) ?? null,
+        color: mappedColor,
+      };
+    });
+
+    const exportManualCosts: ExportManualCost[] = manualCosts.map((mc) => {
+      const cat = COST_CATEGORIES[mc.category as keyof typeof COST_CATEGORIES];
+      const convertedValue = convert(mc.total, midDate) ?? mc.total;
+      return {
+        category: cat?.label ?? mc.category,
+        total: convertedValue,
+        display: format(convertedValue),
+        behavior: CATEGORY_BEHAVIOR[mc.category] ?? null,
+      };
+    });
+
+    const composition = {
+      variableTotal: convert(variableTotal, midDate) ?? variableTotal,
+      variableDisplay: fm(variableTotal),
+      variablePct: vfRatio.v,
+      fixedTotal: convert(fixedTotal, midDate) ?? fixedTotal,
+      fixedDisplay: fm(fixedTotal),
+      fixedPct: vfRatio.f,
+      semiFixedTotal: convert(semiFixedTotal, midDate) ?? semiFixedTotal,
+      semiFixedDisplay: fm(semiFixedTotal),
+      semiFixedPct: vfRatio.sf,
+    };
+
+    // Label del rango en formato corto espanol.
+    const fmtDate = (s: string) => {
+      try {
+        return new Date(s + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" });
+      } catch {
+        return s;
+      }
+    };
+    const rangeLabel = `${fmtDate(dateFrom)} → ${fmtDate(dateTo)}`;
+    const generatedAtLabel = new Date().toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+    await exportPnLToExcel({
+      rangeLabel,
+      currencyLabel,
+      generatedAtLabel,
+      rows: exportRows,
+      manualCosts: exportManualCosts,
+      composition,
+    }, `NitroSales_PnL_${dateFrom}_${dateTo}.xlsx`);
+  };
 
   // ──────────────────────────────────────────────────────────────
   // Sub-fase 2b — builder de drill-down por nombre del item
@@ -787,7 +869,7 @@ function DetailedView({
       </div>
 
       {/* ── P&L Chart ─── */}
-      <div className="bg-white rounded-xl p-5 shadow-sm mb-6">
+      <div className="bg-white rounded-xl p-5 shadow-sm mb-6 print:hidden">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-gray-700">Estado de Resultados <InfoTip text="Grafico visual del P&L. 'Cascada' muestra como cada costo reduce tu facturacion hasta llegar al beneficio neto. 'Tendencia' muestra la evolucion dia a dia." /></h3>
           <div className="flex items-center gap-3">
@@ -862,9 +944,13 @@ function DetailedView({
       </div>
 
       {/* ── P&L Table (Statement) ─── */}
-      <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700">Estado de Resultados Detallado <InfoTip text="El P&L (Profit & Loss) muestra paso a paso como se compone tu resultado: arranca con lo que facturaste y va restando cada tipo de costo hasta llegar a lo que realmente ganas. Los numeros negativos (-) son costos." /></h3>
+      <div className="bg-white rounded-xl shadow-sm mb-6 overflow-hidden pnl-statement-block">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-gray-700 flex items-center">
+            Estado de Resultados Detallado
+            <InfoTip text="El P&L (Profit & Loss) muestra paso a paso como se compone tu resultado: arranca con lo que facturaste y va restando cada tipo de costo hasta llegar a lo que realmente ganas. Los numeros negativos (-) son costos." />
+          </h3>
+          <ExportMenu onPDF={handlePrint} onExcel={handleExcel} />
         </div>
         <div className="divide-y divide-gray-50">
           {pnlRows.map((row, i) => (
@@ -1177,7 +1263,7 @@ export default function FinanzasPage() {
             <p className="text-sm text-gray-500 mt-0.5">P&L — Estado de Resultados</p>
           </div>
           {/* View Mode Toggle */}
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
+          <div className="flex bg-gray-100 rounded-lg p-0.5 print:hidden">
             <button
               onClick={() => setViewMode("executive")}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
@@ -1200,20 +1286,29 @@ export default function FinanzasPage() {
             </button>
           </div>
         </div>
-        <DateRangeFilter
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          activeQuickRange={activeQuickRange}
-          quickRanges={FIN_QUICK_RANGES}
-          onQuickRange={handleQuickRange}
-          onDateChange={handleDateChange}
-          loading={loading}
-        />
+        <div className="print:hidden">
+          <DateRangeFilter
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            activeQuickRange={activeQuickRange}
+            quickRanges={FIN_QUICK_RANGES}
+            onQuickRange={handleQuickRange}
+            onDateChange={handleDateChange}
+            loading={loading}
+          />
+        </div>
       </div>
 
       {/* Currency toggle — convierte todos los montos de esta pagina (USD / ARS / ARS_ADJ) */}
-      <div className="mb-6">
+      <div className="mb-6 print:hidden">
         <CurrencyToggle />
+      </div>
+
+      {/* Header visible solo en impresion — compact print meta */}
+      <div className="hidden print:block mb-4 pb-3 border-b border-slate-200">
+        <p className="text-[11px] text-slate-500">
+          <strong>Periodo:</strong> {dateFrom} → {dateTo}
+        </p>
       </div>
 
       {/* Conditional View */}
@@ -1238,8 +1333,60 @@ export default function FinanzasPage() {
           chartMode={chartMode}
           setChartMode={setChartMode}
           midDate={midDate}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
         />
       )}
+
+      {/* Sub-fase 2e — estilos @media print globales para exportar el P&L como PDF */}
+      <style jsx global>{`
+        @media print {
+          /* Ocultar sidebar del layout (app) */
+          aside {
+            display: none !important;
+          }
+          /* Ocultar backdrop mobile */
+          .lg\\:hidden.fixed.inset-0 {
+            display: none !important;
+          }
+          /* Main container full width y sin overflow */
+          .h-screen.overflow-hidden {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          /* Fondo blanco para impresion */
+          html, body {
+            background: #ffffff !important;
+          }
+          .bg-nitro-bg, .light-canvas, .bg-gray-50, .bg-slate-50 {
+            background: #ffffff !important;
+          }
+          /* Remover sombras */
+          .shadow-sm, .shadow, .shadow-lg, .shadow-xl, .shadow-2xl {
+            box-shadow: none !important;
+          }
+          /* Tarjetas con borde sutil para imprimir */
+          .bg-white {
+            border: 1px solid #e2e8f0 !important;
+          }
+          /* Forzar margen cero en containers */
+          main, [class*="p-6"], [class*="p-8"] {
+            padding: 12px !important;
+          }
+          /* Tamaño de pagina y page-breaks */
+          @page {
+            margin: 1.5cm 1cm;
+            size: A4;
+          }
+          /* Evitar cortar el P&L statement en dos paginas */
+          .pnl-statement-block {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          /* Tipografia mas compacta */
+          h1, h2, h3 { margin: 0 0 4px 0 !important; }
+        }
+      `}</style>
     </div>
   );
 }
