@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import CashRunwayHero from "@/components/finanzas/CashRunwayHero";
 import MarketingFinanceCard from "@/components/finanzas/MarketingFinanceCard";
+import Revenue12mSparkline from "@/components/finanzas/Revenue12mSparkline";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
 import type { PulsoPageData } from "@/types/finanzas";
 
@@ -126,15 +127,22 @@ export default function PulsoPage() {
         ytdTo={data?.meta.ytdTo}
       />
 
+      {/* ═══════ Revenue 12m + Costos YTD + Margen (Fase 1c) ═══════ */}
+      <Revenue12mSparkline
+        data={data?.sparkline12m ?? null}
+        loading={loading}
+        asOfDate={data?.meta.ytdTo}
+      />
+
       {/* ═══════ Placeholders de próximas sub-fases ═══════ */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <PlaceholderCard
-          label="Revenue 12m"
-          sub="Fase 1c · tendencia + contexto"
-        />
-        <PlaceholderCard
           label="Narrativa + Alertas"
           sub="Fase 1d · auto-generado"
+        />
+        <PlaceholderCard
+          label="Override manual + Aurum"
+          sub="Fase 1e · cockpit completo"
         />
       </div>
 

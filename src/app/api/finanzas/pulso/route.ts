@@ -26,7 +26,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { calculateCashRunway } from "@/lib/finanzas/runway";
-import type { PulsoPageData, RunwayInputs } from "@/types/finanzas";
+import type {
+  PulsoPageData,
+  RunwayInputs,
+  Sparkline12mBucket,
+  Sparkline12mData,
+} from "@/types/finanzas";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -150,6 +155,86 @@ async function loadWindowTotals(params: {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Revenue mensual últimos 24 meses → se divide en:
+//   - últimos 12 meses   → sparkline principal
+//   - 12 meses anteriores → base para delta YoY
+//
+// 1 sola query agrupada por mes Buenos Aires. Liviana (sin JOIN).
+// ─────────────────────────────────────────────────────────────
+async function load24MonthRevenue(params: {
+  orgId: string;
+  today: Date;
+}): Promise<Sparkline12mData> {
+  const { orgId, today } = params;
+
+  // Rango: primer día del mes 23 meses atrás → hoy
+  const fromMonth = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 23, 1)
+  );
+  const fromDate = new Date(
+    `${fromMonth.toISOString().substring(0, 10)}T00:00:00.000-03:00`
+  );
+  const toDate = new Date(
+    `${today.toISOString().substring(0, 10)}T23:59:59.999-03:00`
+  );
+
+  const rows = await prisma.$queryRaw<{ month: string; revenue: string }[]>`
+    SELECT
+      TO_CHAR(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM') as month,
+      COALESCE(SUM(o."totalValue"), 0)::text as revenue
+    FROM orders o
+    WHERE o."organizationId" = ${orgId}
+      AND o.status NOT IN ('CANCELLED', 'RETURNED')
+      AND o."orderDate" >= ${fromDate}
+      AND o."orderDate" <= ${toDate}
+    GROUP BY month
+    ORDER BY month ASC
+  `;
+
+  // Map mes → revenue
+  const byMonth = new Map<string, number>();
+  for (const r of rows) byMonth.set(r.month, toNumber(r.revenue));
+
+  // Generar 24 buckets continuos (rellenar ceros donde no hay ventas)
+  const buckets24: Sparkline12mBucket[] = [];
+  for (let i = 23; i >= 0; i--) {
+    const d = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1)
+    );
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    buckets24.push({
+      month: key,
+      revenue: byMonth.get(key) ?? 0,
+      costos: 0, // reservado para futuras fases
+      grossMargin: 0, // reservado para futuras fases
+    });
+  }
+
+  const last12 = buckets24.slice(12);
+  const prev12 = buckets24.slice(0, 12);
+
+  const revenue12mTotal = last12.reduce((s, b) => s + b.revenue, 0);
+  const revenuePrev12mTotal = prev12.reduce((s, b) => s + b.revenue, 0);
+  const revenueDeltaPct =
+    revenuePrev12mTotal > 0
+      ? Math.round(
+          ((revenue12mTotal - revenuePrev12mTotal) / revenuePrev12mTotal) *
+            1000
+        ) / 10
+      : null;
+
+  return {
+    buckets: last12,
+    revenue12mTotal,
+    revenuePrev12mTotal,
+    revenueDeltaPct,
+    // Se completan en el handler principal con los valores YTD ya cargados
+    costosYTD: 0,
+    grossMarginYTD: 0,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
 // Handler
 // ─────────────────────────────────────────────────────────────
 export async function GET() {
@@ -159,9 +244,11 @@ export async function GET() {
     const ytd = ytdBoundariesBA(today);
     const w90 = window90dBoundariesBA(today);
 
-    // Corremos las 2 ventanas en paralelo. Cada una hace 5 queries
-    // internas divididas en 2 batches respetando el pool de 8.
-    const [ytdTotals, w90Totals] = await Promise.all([
+    // Corremos las 2 ventanas + el agregado de 24 meses en paralelo.
+    // Cada ventana hace 5 queries internas en 2 batches respetando el
+    // pool de 8. La query del sparkline es 1 sola ligera agrupada por
+    // mes (sin JOIN), así que está holgado.
+    const [ytdTotals, w90Totals, sparkline] = await Promise.all([
       loadWindowTotals({
         orgId,
         fromDate: ytd.from,
@@ -176,6 +263,7 @@ export async function GET() {
         fromStr: w90.fromStr,
         toStr: w90.toStr,
       }),
+      load24MonthRevenue({ orgId, today }),
     ]);
 
     const runwayInputs: RunwayInputs = {
@@ -194,10 +282,28 @@ export async function GET() {
 
     const runway = calculateCashRunway(runwayInputs);
 
+    // Completar costosYTD + grossMarginYTD con los valores ya cargados.
+    const costosYTD =
+      ytdTotals.cogs +
+      ytdTotals.shipping +
+      ytdTotals.adSpend +
+      ytdTotals.manualCosts;
+    const grossProfitYTD = ytdTotals.revenue - ytdTotals.cogs;
+    const grossMarginYTD =
+      ytdTotals.revenue > 0
+        ? Math.round((grossProfitYTD / ytdTotals.revenue) * 1000) / 10
+        : 0;
+
+    const sparkline12m: Sparkline12mData = {
+      ...sparkline,
+      costosYTD,
+      grossMarginYTD,
+    };
+
     const payload: PulsoPageData = {
       runway,
-      // marketingFinance, sparkline12m, narrative, alerts → se agregan
-      // en sub-fases 1b/1c/1d.
+      sparkline12m,
+      // marketingFinance, narrative, alerts → se agregan en 1b/1d.
       meta: {
         generatedAt: today.toISOString(),
         ytdFrom: ytd.fromStr,
