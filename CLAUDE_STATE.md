@@ -3,9 +3,40 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-18 (Sesion 42 — Finanzas P&L Fase 1 Pulso completa: Cash Runway hero + Marketing Financiero + Sparkline 12m + Narrativa determinista + Override manual + Aurum integrado)
+## Ultima actualizacion: 2026-04-18 (Sesion 43 — Finanzas P&L Fase 2 Estado completa: Waterfall hero premium + Drill-down lateral + Toggle $/% + Variables vs Fijos + Export PDF/Excel)
 
-> Este bloque consolida los **6 commits** a `main` del 2026-04-18 que construyen la **Fase 1 completa del rediseño de Finanzas P&L** (`/finanzas/pulso` portada narrativa): 5 sub-fases iterativas (1a→1e) pusheadas directo a main con validación `tsc --noEmit` clean. Incluye endpoint agregador `/api/finanzas/pulso`, Cash Runway hero con 4 estados (critical/warn/safe/healthy), Marketing Financiero con CAC payback + LTV:CAC por canal, Sparkline Revenue vs Burn Rate últimos 12 meses, narrativa 100% determinista por rule engine, motor de alertas financieras, y override manual de saldo cash con tabla nueva `cash_balance_overrides` + modal premium + integración completa con Aurum bubble contextual.
+> Este bloque consolida los **5 commits** a `main` del 2026-04-18 (segunda ronda) que construyen la **Fase 2 completa del rediseño de Finanzas P&L** (`/finanzas/estado` vista narrativa detallada): 5 sub-fases iterativas (2a→2e) pusheadas directo a main con validación `tsc --noEmit` clean. Incluye Waterfall SVG custom premium con stagger animations + tooltip con mini-barra comparativa, drill-down lateral deslizable al clickear cualquier barra, toggle $ vs % en el waterfall, taxonomía Variables/Fijos/Semi-fijos con badges por línea + strip de composición, y sistema completo de export PDF (vía `window.print()` + CSS dedicado) y Excel (vía `exceljs` dynamic import con 3 hojas: P&L, Composición, Costos manuales).
+
+### Sesion 43 — 2026-04-18 — Finanzas P&L Fase 2 Estado completa (5 sub-fases iterativas)
+
+**Objetivo**: convertir `/finanzas/estado` de un P&L estático a una experiencia narrativa y accionable que permita interrogar los números (drill-down), entender la composición del costo (Variables/Fijos) y exportar la vista completa (PDF/Excel) sin salir de la app. Fase 2 según roadmap `linear-pondering-lemur.md` y `PROPUESTA_PNL_REORG.md` §Fase 2.
+
+#### Commits a `main`
+
+| Commit | Sub-fase | Qué |
+|---|---|---|
+| `fe4190f` | **2a** — Waterfall hero premium (SVG custom) | Reemplaza el waterfall de recharts por un componente SVG custom `WaterfallHero.tsx` con: responsive viewport, 2-line labels (valor abs + Δ vs prev), barras con gradients por kind (positive/negative/subtotal/total), stagger animation 60ms/bar con ES easing, tooltip custom con backdrop-blur premium, mini-barra comparativa con periodo anterior, `@media (prefers-reduced-motion)` respetado, colores del sistema NitroSales (cyan/rose/violet/emerald). Tabular-nums en todos los números. |
+| `0c5a259` | **2b** — Drill-down lateral | Panel deslizable desde la derecha al clickear cualquier barra del waterfall. Muestra desglose del ítem (ej: Revenue → VTEX + MELI con órdenes/AOV; COGS → por canal; Ads → Meta vs Google; Envios → real vs cobrado vs subsidio cuando hay datos reales; Medios Pago → desglose por método; Otros → categorías de costos manuales con labels humanos). Incluye badges de origen del dato (auto/calc/manual) para transparencia. ESC key + backdrop click cierran. Stagger 40ms por row. |
+| `938895d` | **2c** — Toggle $ vs % en waterfall | Segmented control ($/%) en el header del chart mode Cascada. Cuando `%` activo, cada barra muestra su peso relativo al revenue (ej: "COGS = 42.3%"), y el tooltip además muestra el valor absoluto para contexto. Fuera del modo Cascada el toggle no se renderiza. Accesible: role="group", aria-pressed. |
+| `b1d39c7` | **2d** — Variables vs Fijos + badges behavior | Taxonomía `CostBehavior` (VARIABLE / FIJO / SEMIFIJO) con mapping `CATEGORY_BEHAVIOR` client-side (sin DB migration). Badge visual por línea del P&L: cyan Variable, violet Fijo, amber Semi-fijo. COGS, Ads, Envios, Comisiones, Medios Pago, Descuentos marcados como VARIABLE; costos manuales derivan según su categoría (LOGISTICA→VARIABLE, EQUIPO/PLATAFORMAS/FISCAL/INFRAESTRUCTURA→FIJO, MARKETING/OTROS→SEMIFIJO). Strip de Composición al pie del P&L con totales + barra ratio tricolor. |
+| `0babd6a` | **2e** — Export PDF + Excel del P&L | `ExportMenu` dropdown (PDF / Excel) en el header del P&L. PDF: `window.print()` + CSS `@media print` dedicado (oculta sidebar/backdrop/toggles/filtros/chart, force white bg, page-break-inside:avoid sobre el bloque P&L, banner print-only con el periodo). Excel: `src/lib/finanzas/export.ts` con dynamic import de `exceljs` (ya instalado, tree-shakeable). 3 hojas: **P&L** (formato numérico, colores por fila, frozen pane 4), **Composición** (Variables/Fijos/Semi-fijos con totales + %), **Costos manuales** (categoría + comportamiento). Respeta el view de moneda actual (USD / ARS / ARS_ADJ). Archivo: `NitroSales_PnL_{from}_{to}.xlsx`. |
+
+**Arquitectura Fase 2**:
+- **Componentes nuevos**: `WaterfallHero.tsx` (SVG custom), `WaterfallDrillPanel.tsx` (aside slide-in), `ExportMenu.tsx` (dropdown PDF/Excel).
+- **Lib pura nueva**: `src/lib/finanzas/export.ts` con `exportPnLToExcel({ rows, manualCosts, composition, rangeLabel, currencyLabel, generatedAtLabel })` usando exceljs. Pure function, no React.
+- **Página editada**: `src/app/(app)/finanzas/estado/page.tsx` — extiende `DetailedView` con props `dateFrom/dateTo`, hooks de export, ExportMenu montado en el header del P&L, `print:hidden` selectivo, `<style jsx global>{@media print}` con 11 reglas para imprimir limpio.
+- **Sin migración DB**. Toda la taxonomía Variables/Fijos/Semi-fijos es client-side hasta que Fase 3 la mueva a `ManualCost` schema si hace falta persistirla por organización.
+- **Sin deps nuevas**. `exceljs` ya estaba instalado; para PDF se usa `window.print()` nativo del browser (zero-dep, calidad nativa, user elige "Save as PDF" en el dialog).
+
+**Checklist de cierre Fase 2**:
+- ✅ `npx tsc --noEmit` clean después de cada sub-fase.
+- ✅ 5 commits separados en `main` para revert granular.
+- ✅ Waterfall clickeable desde teclado (Enter/Space) + aria-labels completos.
+- ✅ Drill panel con ESC + backdrop click + focus trap implícito + `prefers-reduced-motion`.
+- ✅ Toggle $/% solo en Cascada; Tendencia no tiene toggle porque no aplica.
+- ✅ Badges Variables/Fijos en el render del P&L + strip de composición al pie del bloque.
+- ✅ ExportMenu con `print:hidden` (no aparece en el PDF) + busy state en el botón mientras genera el XLSX.
+- ✅ Print CSS oculta sidebar `<aside>`, toggles, filtros, y el chart; muestra banner meta "Periodo: X → Y".
 
 ### Sesion 42 — 2026-04-18 — Finanzas P&L Fase 1 Pulso completa (5 sub-fases iterativas)
 
