@@ -78,6 +78,8 @@ model Organization {
   audiences                Audience[]
   // Finanzas Pulso — override manual del cash balance
   cashBalanceOverrides     CashBalanceOverride[]
+  // Finanzas Escenarios (Fase 5)
+  financialScenarios       FinancialScenario[]
 
   @@map("organizations")
 }
@@ -1688,4 +1690,41 @@ model CashBalanceOverride {
   @@unique([organizationId, month], map: "cash_balance_overrides_org_month_key")
   @@index([organizationId, month(sort: Desc)], map: "cash_balance_overrides_org_month_desc_idx")
   @@map("cash_balance_overrides")
+}
+
+/// Escenarios financieros (Fase 5 — Escenarios what-if).
+/// Cada org tiene N escenarios (default: Conservador / Base / Optimista).
+/// Solo 1 escenario activo por org (unique index parcial en DB, ver
+/// /api/admin/migrate-scenarios-fase5).
+///
+/// Drivers guardados en JSONB con DSL uniforme:
+///   { trafficPerDay: { value, min?, max?, unit? }, conversionRate: {...}, ... }
+///
+/// Keys conocidas (ver src/lib/finanzas/scenario-engine.ts):
+///   trafficPerDay, conversionRate, aov, adSpendPerDay, roas, cogsPct,
+///   headcount, opexBase, inflationMonthly, fxMonthly
+///
+/// `lastComputedJson` cachea el ultimo forecast 12 meses (evita recomputar
+/// si el cliente solo quiere re-render sin cambiar drivers).
+model FinancialScenario {
+  id               String    @id @default(cuid())
+  organizationId   String
+  name             String
+  kind             String    @default("CUSTOM")   // "BASE" | "OPTIMIST" | "CONSERVATIVE" | "CUSTOM"
+  color            String?                         // hex opcional para UI
+  description      String?
+  isActive         Boolean   @default(false)
+  drivers          Json      @default("{}")
+  horizonMonths    Int       @default(12)
+  lastComputedAt   DateTime?
+  lastComputedJson Json?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId], map: "financial_scenarios_org_idx")
+  @@index([organizationId, kind], map: "financial_scenarios_org_kind_idx")
+  @@map("financial_scenarios")
 }
