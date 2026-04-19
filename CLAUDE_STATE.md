@@ -3,7 +3,56 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-19 (Sesion 44 — Finanzas P&L Fase 3 Costos pro completa: schema + chips Fijo/Variable + bulk edit + copy-from-prev con IPC + editor de formula DRIVER_BASED)
+## Ultima actualizacion: 2026-04-19 (Sesion 45 — Finanzas P&L Fase 4 Costos UI premium: 5 sub-fases de polish visual world-class segun UI_VISION_NITROSALES.md)
+
+> Este bloque consolida los **5 commits** a `main` del 2026-04-19 (segunda ronda del dia) que llevan `/finanzas/costos` del nivel "funcional Fase 3" al nivel **visual premium world-class** definido en `UI_VISION_NITROSALES.md` (Linear / Stripe / Vercel / Notion). 5 sub-fases iterativas (4a→4e) pusheadas directo a `main` con validacion `tsc --noEmit` clean despues de cada una. Sin migracion de DB, sin cambios de API, sin deps nuevas — solo rewiring de UI sobre el codigo de Fase 3. Diff neto: **+662 / -170 lineas** en un solo archivo (`src/app/(app)/finanzas/costos/page.tsx`).
+
+### Sesion 45 — 2026-04-19 — Finanzas P&L Fase 4 Costos UI premium (5 sub-fases iterativas)
+
+**Objetivo**: llevar `/finanzas/costos` al nivel visual de `/pulso` y `/estado` (Fase 0/1/2 premium) aplicando la biblia `UI_VISION_NITROSALES.md`: aurora radial + prism delimiters, tipografia tracking-tight, multi-layer shadows con hover lift, lucide-react icons (cero emojis en chrome), count-up cubic ease, skeleton shimmer, empty states con CTA, toast bottom-right con pulse-dot, modal con backdrop-blur + aurora interno. Todo respeta `prefers-reduced-motion` y mantiene accesibilidad (role=dialog, aria-modal, aria-checked, aria-live).
+
+Fase 4 segun roadmap `PROPUESTA_PNL_REORG.md` §Fase 4 UI Polish y checklist de calidad visual en `UI_VISION_NITROSALES.md` §Premium Tier.
+
+#### Commits a `main`
+
+| Commit | Sub-fase | Que |
+|---|---|---|
+| `78603c3` | **4a** — Hero + KPI strip premium | Header con aurora radial (teal + violet) + prism delimiter bottom (teal→indigo→violet). Titulo 28px font-semibold tracking-tight. Controles (input month, checkbox IPC, boton copy) con backdrop-blur + multi-layer shadow + hover lift. Componente `CountUp` con easing cubic out-quart (4ta potencia), `prefers-reduced-motion` respect, `performance.now()` + `requestAnimationFrame` cleanup. 4 KPI cards (Total Mensual teal, % Fijo teal, % Variable amber, Con ajuste IPC violet) con prism gradient top bar, CountUp animado (700ms), tabular-nums, hover lift. |
+| `c8abbf7` | **4b** — Category cards premium | Imports `lucide-react`: `Truck, Users, Wrench, FileText, Building2, Camera, TrendingDown, Package, ChevronDown, Sparkles`. Maps `CATEGORY_ICONS` (emoji → lucide component) + `CATEGORY_ACCENTS` ({icon textClass, bg, bar hex}) para las 8 categorias. Rebuild del header de cada card: icon en contenedor 36x36 rounded-xl con bg accent, multi-layer shadow reposo/hover, prism delimiter top con accent color, pre-resumen "N items · $X · Y% del total" cuando collapsed, ChevronDown con rotate transition, Sparkles icon para badges "Auto:". Stagger entrance: `animate-fade-in-up` existente + inline `animationDelay: ${idx * 45}ms`. |
+| `35b94e5` | **4c** — Header controls premium | Helpers `formatMonthLabel(monthStr)` (es-AR "Abril de 2026") y `addMonthsToStr(monthStr, delta)`. Selector de mes custom: `<ChevronLeft />` + label clickeable con native `<input type="month">` invisible encima + `<ChevronRight />` (disabled si `>= nowMonth`). Toggle IPC convertido a pill `role="switch"` con `aria-checked`, fondo teal-500 cuando on, dot blanco que desliza `translate-x-4 ↔ translate-x-0`. Boton "Copiar mes anterior" con icon lucide `Copy` + hover lift. |
+| `f8ad579` | **4d** — Empty states + skeleton shimmer + toast premium | Empty state per categoria: contenedor 48x48 con gradient de la categoria + lucide icon, heading "Sin costos en {label}", hint, CTA "Agregar primer costo" con accent teal. Toast movido a bottom-right con `animate-fade-in-up 260ms`, `role="status"`, `aria-live="polite"`, bg gray-900, pulse-dot teal, multi-layer shadow ambient. Loading state reemplazado de spinner a **full skeleton shimmer**: hero skeleton (titulo + subtitulo + 3 controles) + KPI strip skeleton (4 cards) + 3 category cards skeleton (icon + label + sublabel + amount). Usa keyframe `shimmer` existente de `globals.css` via `::before` pseudo-element con translate-x animado. |
+| `e1aa8e6` | **4e** — Modal DRIVER_BASED premium | Imports lucide: `X, Plus, Trash2, Calculator`. `useEffect` global con handler Escape key + cleanup para cerrar modal. Rewrite completo: overlay `bg-black/50 + backdrop-blur-md + animate-fade-in-up`, container `rounded-3xl` con shadow 32px ambient + 12px medium, aurora interno (indigo + violet radial gradients), header con Calculator icon en contenedor 40x40 gradient + titulo tracking-tight + prism delimiter bottom + close X lucide. Body Notion-style: drivers table con column labels + cards individuales con hover border-indigo + Trash2 delete, textarea con shadow + focus ring indigo-100, Preview destacada con pill "Formula valida"/"Sin resultado" + `CountUp 420ms` + tabular-nums. Footer glassmorphism (bg-white/60 + backdrop-blur) con `<kbd>Esc</kbd>` hint, cancel + save (gradient + hover lift + custom border-spinner). `role="dialog"`, `aria-modal="true"`, `aria-labelledby="formula-modal-title"`. |
+
+**Arquitectura Fase 4**:
+- **Zero cambios de API o DB**. Todo es rewiring de UI sobre la estructura de Fase 3. Los endpoints (`/api/finance/manual-costs`, `/bulk-update`, `copyFrom con IPC`, driver-formula lib) siguen intactos — se tocan sus consumers unicamente.
+- **Reuso de primitivas existentes**: `animate-fade-in-up`, `animate-pulse-live`, keyframe `shimmer`, `var(--ease-nitro)` — todo de `globals.css` ya montado en Fase 0. Se evito crear clases nuevas excepto donde inline styles eran mas claros (delays de stagger por index).
+- **lucide-react como unico sistema de iconos**: confirmado ya instalado (`0.383.0`). Prohibido emojis en chrome (se mantuvieron emojis solo en datos historicos de categorias como display secundario opcional). Maps `CATEGORY_ICONS` + `CATEGORY_ACCENTS` en modulo-scope para referencia estable en renders.
+- **CountUp reutilizable**: componente puro con API `{ value, duration, format, className }`, respeta `prefers-reduced-motion: reduce` (setea al valor final sin animar), cleanup de `requestAnimationFrame`. Se usa en KPI strip + Preview del modal.
+- **Skeleton shimmer modular**: reproduce la estructura real de la pagina (hero + 4 KPIs + 3 cards) — no es un spinner generico. Reduce CLS percibido cuando llega data real.
+- **Month selector hibrido**: el `<input type="month">` nativo queda debajo del label custom (opacity-0, cubriendo el area del label). Asi se conserva la UX nativa de calendario del browser pero el visual luce custom.
+- **Accesibilidad preservada**: toggle es `role="switch"` con `aria-checked`, modal es `role="dialog"` con `aria-modal` + `aria-labelledby`, toast es `role="status"` + `aria-live="polite"`, botones de mes tienen `aria-label` explicito.
+
+**Checklist de cierre Fase 4**:
+- ✅ `npx tsc --noEmit` clean despues de cada sub-fase (4a/4b/4c/4d/4e).
+- ✅ 5 commits separados en `main` para revert granular por sub-fase.
+- ✅ Sin cambios de schema, API ni deps nuevas — rewiring puro de UI.
+- ✅ Todos los numeros financieros pasan por `tabular-nums` para alineacion perfecta.
+- ✅ `prefers-reduced-motion` respetado en `CountUp` (y heredado de `animate-*` de globals).
+- ✅ Modal cierra con Escape key + click en backdrop + boton X (3 rutas de salida).
+- ✅ Month selector respeta el limite del mes actual (ChevronRight disabled si `current >= nowMonth`).
+- ✅ Empty states con CTA accionable ("Agregar primer costo") en vez de mensaje pasivo.
+- ✅ Toast no tapa el content (bottom-right en vez de bottom-center).
+- ✅ Diff neto `+662 / -170` lineas en un solo archivo — cirugia quirurgica, no rewrite completo.
+
+**Proximos pasos sugeridos (fuera de Fase 4)**:
+- **Fase 5 Escenarios (what-if)**: combinar Fase 3 (comportamiento + formulas) con sliders de revenue/volumen y ver como escalan los costos automaticamente. La taxonomia Variable/Fijo/Semi-fijo de Fase 3 + los drivers de formulas DRIVER_BASED + los chips visuales de Fase 4 dan la base para que un slider impacte `CountUp` en vivo.
+- **Consolidar taxonomia de `CostBehavior`** entre client (`/finanzas/estado` usa mapping hardcoded por categoria) y server (`ManualCost.behavior`). Idealmente `/finanzas/estado` leeria `behavior` real en vez del mapping.
+- **Tests unitarios de `driver-formula.ts`** (casos: formula valida, division por cero, identificador prohibido, formula muy larga, drivers con key invalida).
+- **Extraer componentes del archivo**: `page.tsx` va creciendo (~2750 lineas despues de Fase 4). Sacar `CountUp`, `CategoryCard`, `FormulaModal` a `src/components/finanzas/costos/` cuando haya bandwidth.
+
+---
+
+## Ultima actualizacion previa: 2026-04-19 (Sesion 44 — Finanzas P&L Fase 3 Costos pro completa: schema + chips Fijo/Variable + bulk edit + copy-from-prev con IPC + editor de formula DRIVER_BASED)
 
 > Este bloque consolida los **6 commits** a `main` del 2026-04-19 que construyen la **Fase 3 completa del rediseño de Finanzas P&L** (`/finanzas/costos` — Costos pro). 6 sub-fases iterativas (3a→3f) pusheadas directo a main con validación `tsc --noEmit` clean. Incluye migración de schema (4 campos nuevos en `ManualCost`), chips visibles FIJO/VARIABLE/SEMI-FIJO con ratio en header, edición masiva por categoría (aumento %, comportamiento, clasificación fiscal), copia del mes anterior con ajuste por IPC opcional, y editor de fórmulas DRIVER_BASED con drivers editables y preview en vivo.
 
