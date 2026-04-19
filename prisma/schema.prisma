@@ -86,6 +86,8 @@ model Organization {
   teamInvitations          TeamInvitation[]
   // Settings Fase 7 QA — API Keys para integracion externa
   apiKeys                  ApiKey[]
+  // Settings Fase 7 QA — Roles custom per-org
+  customRoles              CustomRole[]
 
   @@map("organizations")
 }
@@ -111,7 +113,11 @@ model User {
   botChats       BotChat[]
   loginEvents    LoginEvent[]
   createdApiKeys ApiKey[]
+  customRoleId   String?
+  customRole     CustomRole? @relation("UserCustomRole", fields: [customRoleId], references: [id], onDelete: SetNull)
+  createdCustomRoles CustomRole[] @relation("CreatedCustomRoles")
 
+  @@index([customRoleId], map: "users_customRoleId_idx")
   @@map("users")
 }
 
@@ -1850,4 +1856,36 @@ model ApiKey {
   @@index([organizationId], map: "api_keys_org_idx")
   @@index([prefix], map: "api_keys_prefix_idx")
   @@map("api_keys")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Settings Fase 7 QA — Custom Roles per-org
+// ═══════════════════════════════════════════════════════════════════
+// Roles definidos por Owner/Admin para su organizacion. Overriden la
+// matriz de permisos del base role (OWNER/ADMIN/MEMBER) pero NO lo
+// reemplazan — un user siempre tiene un base role + opcionalmente un
+// custom role.
+// ═══════════════════════════════════════════════════════════════════
+model CustomRole {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String                            // display name
+  slug           String                            // URL-safe unique por org
+  description    String?
+  color          String?                           // hex para UI (ej #8b5cf6)
+  icon           String?                           // nombre del icon lucide (ej "Briefcase")
+  permissions    Json      @default("{}")          // Record<Section, AccessLevel>
+  isActive       Boolean   @default(true)
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("CreatedCustomRoles", fields: [createdById], references: [id], onDelete: SetNull)
+  users        User[]       @relation("UserCustomRole")
+
+  @@unique([organizationId, slug], map: "custom_roles_org_slug_unique")
+  @@index([organizationId], map: "custom_roles_org_idx")
+  @@index([organizationId, isActive], map: "custom_roles_org_active_idx")
+  @@map("custom_roles")
 }

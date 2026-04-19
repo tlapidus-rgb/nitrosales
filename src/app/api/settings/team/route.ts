@@ -1,8 +1,8 @@
 // @ts-nocheck
 // ═══════════════════════════════════════════════════════════════════
-// /api/settings/team — Fase 7d
+// /api/settings/team — Fase 7d + Fase 7 QA (custom roles)
 // ═══════════════════════════════════════════════════════════════════
-// GET: lista miembros activos + invitaciones pendientes.
+// GET: lista miembros + invitaciones + roles custom activos.
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextResponse } from "next/server";
@@ -15,7 +15,7 @@ export async function GET() {
   try {
     const orgId = await getOrganizationId();
 
-    const [members, invitations] = await Promise.all([
+    const [members, invitations, customRoles] = await Promise.all([
       prisma.user.findMany({
         where: { organizationId: orgId },
         select: {
@@ -24,6 +24,10 @@ export async function GET() {
           name: true,
           role: true,
           createdAt: true,
+          customRoleId: true,
+          customRole: {
+            select: { id: true, name: true, color: true, icon: true },
+          },
         },
         orderBy: [{ role: "asc" }, { createdAt: "asc" }],
       }),
@@ -44,14 +48,28 @@ export async function GET() {
         },
         orderBy: { createdAt: "desc" },
       }),
+      prisma.customRole.findMany({
+        where: { organizationId: orgId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          color: true,
+          icon: true,
+          description: true,
+        },
+        orderBy: { createdAt: "asc" },
+      }),
     ]);
 
     return NextResponse.json({
       members,
       invitations,
+      customRoles,
       counts: {
         members: members.length,
         pending: invitations.filter((i) => i.status === "PENDING").length,
+        customRoles: customRoles.length,
       },
     });
   } catch (error: any) {

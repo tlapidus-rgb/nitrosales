@@ -178,3 +178,83 @@ export function getVisibleSections(
 export function validateLevel(v: unknown): v is AccessLevel {
   return v === "none" || v === "read" || v === "write" || v === "admin";
 }
+
+// ─────────────────────────────────────────────────────────────
+// Custom roles — helpers
+// ─────────────────────────────────────────────────────────────
+export interface CustomRolePermissions {
+  [section: string]: AccessLevel;
+}
+
+/**
+ * Resuelve la matriz de permisos efectiva para un user, considerando
+ * su baseRole + opcional customRoleId.
+ *
+ * Prioridad:
+ *   1. OWNER siempre admin en todo (invariante).
+ *   2. Si tiene customRoleId y el rol existe y esta activo, usa esa
+ *      matriz (secciones faltantes -> "none").
+ *   3. Fallback: matriz del sistema para el base role.
+ */
+export function resolveUserPermissions(params: {
+  baseRole: Role;
+  customRoleId?: string | null;
+  systemMatrix: PermissionsMatrix;
+  customRoles: Array<{
+    id: string;
+    isActive: boolean;
+    permissions: CustomRolePermissions;
+  }>;
+}): Record<Section, AccessLevel> {
+  const { baseRole, customRoleId, systemMatrix, customRoles } = params;
+
+  if (baseRole === "OWNER") {
+    return systemMatrix.OWNER;
+  }
+
+  if (customRoleId) {
+    const custom = customRoles.find(
+      (c) => c.id === customRoleId && c.isActive
+    );
+    if (custom) {
+      const out: Record<Section, AccessLevel> = {} as any;
+      for (const sec of SECTIONS) {
+        const v = custom.permissions[sec.key];
+        out[sec.key] = validateLevel(v) ? v : "none";
+      }
+      return out;
+    }
+  }
+
+  return systemMatrix[baseRole];
+}
+
+/**
+ * Genera un slug URL-safe desde un nombre de rol.
+ */
+export function sanitizeRoleSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
+}
+
+/**
+ * Valida que un objeto permissions tenga shape correcto y devuelve
+ * una version normalizada (secciones faltantes -> "none").
+ */
+export function normalizeCustomPermissions(
+  input: Record<string, unknown> | null | undefined
+): CustomRolePermissions {
+  const out: CustomRolePermissions = {};
+  for (const sec of SECTIONS) {
+    const v = input?.[sec.key];
+    out[sec.key] = validateLevel(v) ? v : "none";
+  }
+  return out;
+}

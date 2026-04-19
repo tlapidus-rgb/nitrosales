@@ -24,17 +24,12 @@ export async function PATCH(
     const { userId } = params;
     const body = await req.json();
     const role = body?.role;
-
-    if (!VALID_ROLES.has(role)) {
-      return NextResponse.json(
-        { error: "Rol inválido (OWNER/ADMIN/MEMBER)" },
-        { status: 400 }
-      );
-    }
+    const hasCustomRoleKey = Object.prototype.hasOwnProperty.call(body ?? {}, "customRoleId");
+    const customRoleId = body?.customRoleId;
 
     const target = await prisma.user.findFirst({
       where: { id: userId, organizationId: orgId },
-      select: { id: true, role: true },
+      select: { id: true, role: true, customRoleId: true },
     });
     if (!target) {
       return NextResponse.json(
@@ -43,27 +38,80 @@ export async function PATCH(
       );
     }
 
-    // Si estamos bajando el unico OWNER a algo distinto, bloquear
-    if (target.role === "OWNER" && role !== "OWNER") {
-      const otherOwners = await prisma.user.count({
-        where: {
-          organizationId: orgId,
-          role: "OWNER",
-          id: { not: userId },
-        },
-      });
-      if (otherOwners === 0) {
+    const updateData: any = {};
+
+    if (role !== undefined) {
+      if (!VALID_ROLES.has(role)) {
         return NextResponse.json(
-          { error: "La organización debe tener al menos un OWNER" },
+          { error: "Rol inválido (OWNER/ADMIN/MEMBER)" },
+          { status: 400 }
+        );
+      }
+      if (target.role === "OWNER" && role !== "OWNER") {
+        const otherOwners = await prisma.user.count({
+          where: {
+            organizationId: orgId,
+            role: "OWNER",
+            id: { not: userId },
+          },
+        });
+        if (otherOwners === 0) {
+          return NextResponse.json(
+            { error: "La organización debe tener al menos un OWNER" },
+            { status: 400 }
+          );
+        }
+      }
+      updateData.role = role;
+    }
+
+    if (hasCustomRoleKey) {
+      if (customRoleId === null) {
+        updateData.customRoleId = null;
+      } else if (typeof customRoleId === "string") {
+        const cr = await prisma.customRole.findFirst({
+          where: {
+            id: customRoleId,
+            organizationId: orgId,
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        if (!cr) {
+          return NextResponse.json(
+            { error: "Rol custom no encontrado o inactivo" },
+            { status: 404 }
+          );
+        }
+        updateData.customRoleId = customRoleId;
+      } else {
+        return NextResponse.json(
+          { error: "customRoleId debe ser string o null" },
           { status: 400 }
         );
       }
     }
 
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: "Nada para actualizar" },
+        { status: 400 }
+      );
+    }
+
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: { role },
-      select: { id: true, email: true, name: true, role: true },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        customRoleId: true,
+        customRole: {
+          select: { id: true, name: true, color: true, icon: true },
+        },
+      },
     });
 
     return NextResponse.json({ ok: true, user: updated });
