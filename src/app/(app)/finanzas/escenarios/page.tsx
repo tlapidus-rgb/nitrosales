@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
 import ScenarioDriversDrawer from "@/components/finanzas/ScenarioDriversDrawer";
+import ScenarioForecastChart from "@/components/finanzas/ScenarioForecastChart";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
@@ -228,6 +229,16 @@ export default function EscenariosPage() {
     [scenarios]
   );
 
+  // Para el chart: prioridad activo > Base > primero disponible
+  const chartScenario = useMemo(() => {
+    if (!scenarios || scenarios.length === 0) return null;
+    const active = scenarios.find((s) => s.isActive);
+    if (active) return active;
+    const base = scenarios.find((s) => s.kind === "BASE");
+    if (base) return base;
+    return scenarios[0];
+  }, [scenarios]);
+
   return (
     <div className="relative space-y-8">
       {/* ── Hero ───────────────────────────────────────────── */}
@@ -315,6 +326,27 @@ export default function EscenariosPage() {
               />
             ))}
           </div>
+        </section>
+      )}
+
+      {/* ── Forecast chart del escenario activo (Fase 5e) ─── */}
+      {scenarios && chartScenario && chartScenario.forecast && (
+        <section>
+          <ScenarioForecastChart
+            forecast={chartScenario.forecast}
+            color={
+              chartScenario.color ??
+              (chartScenario.kind === "CONSERVATIVE"
+                ? "#ef4444"
+                : chartScenario.kind === "OPTIMIST"
+                ? "#10b981"
+                : chartScenario.kind === "CUSTOM"
+                ? "#8b5cf6"
+                : "#0ea5e9")
+            }
+            fm={fm}
+            scenarioName={chartScenario.name}
+          />
         </section>
       )}
 
