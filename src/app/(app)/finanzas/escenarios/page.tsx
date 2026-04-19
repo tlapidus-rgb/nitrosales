@@ -27,6 +27,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
+import ScenarioDriversDrawer from "@/components/finanzas/ScenarioDriversDrawer";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
@@ -155,6 +156,7 @@ export default function EscenariosPage() {
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(
     null
   );
+  const [driversOpenId, setDriversOpenId] = useState<string | null>(null);
 
   const { convert, format, mode } = useCurrencyView();
   const today = new Date().toISOString().slice(0, 10);
@@ -308,6 +310,7 @@ export default function EscenariosPage() {
                 onClone={() =>
                   doAction(s.id, "clone", `"${s.name}" clonado como custom`)
                 }
+                onOpenDrivers={() => setDriversOpenId(s.id)}
                 onDelete={null}
               />
             ))}
@@ -336,6 +339,7 @@ export default function EscenariosPage() {
                 onClone={() =>
                   doAction(s.id, "clone", `"${s.name}" clonado`)
                 }
+                onOpenDrivers={() => setDriversOpenId(s.id)}
                 onDelete={() =>
                   doAction(s.id, "delete", `"${s.name}" borrado`)
                 }
@@ -366,6 +370,25 @@ export default function EscenariosPage() {
           </div>
         </footer>
       )}
+
+      {/* ── Drivers Drawer (Fase 5d) ───────────────────────── */}
+      {driversOpenId &&
+        (() => {
+          const s = scenarios?.find((x) => x.id === driversOpenId) ?? null;
+          if (!s) return null;
+          return (
+            <ScenarioDriversDrawer
+              scenario={s}
+              fm={fm}
+              onClose={() => setDriversOpenId(null)}
+              onSaved={async () => {
+                setToast({ msg: `"${s.name}" actualizado`, kind: "ok" });
+                setDriversOpenId(null);
+                await reload();
+              }}
+            />
+          );
+        })()}
 
       {/* ── Toast ───────────────────────────────────────────── */}
       {toast && (
@@ -422,6 +445,7 @@ function ScenarioCard({
   fm,
   onActivate,
   onClone,
+  onOpenDrivers,
   onDelete,
 }: {
   scenario: Scenario;
@@ -429,6 +453,7 @@ function ScenarioCard({
   fm: (v: number | null | undefined, d?: string) => string;
   onActivate: () => void;
   onClone: () => void;
+  onOpenDrivers: () => void;
   onDelete: (() => void) | null;
 }) {
   const meta = KIND_META[scenario.kind] ?? KIND_META.CUSTOM;
@@ -616,6 +641,27 @@ function ScenarioCard({
             {busy ? "…" : "Activar"}
           </button>
         )}
+
+        <button
+          onClick={onOpenDrivers}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+          style={{ transition: `all 220ms ${ES}` }}
+          aria-label="Ajustar drivers"
+        >
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden>
+            <path
+              d="M3 4h8M3 7h8M3 10h8"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+            <circle cx="5" cy="4" r="1.4" fill="#fff" stroke="currentColor" strokeWidth="1.4" />
+            <circle cx="9" cy="7" r="1.4" fill="#fff" stroke="currentColor" strokeWidth="1.4" />
+            <circle cx="5" cy="10" r="1.4" fill="#fff" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+          Drivers
+        </button>
 
         <button
           onClick={onClone}
