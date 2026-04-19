@@ -163,7 +163,7 @@ export default function SeguridadPage() {
               type="password"
               value={currentPwd}
               onChange={(e) => setCurrentPwd(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
               placeholder="••••••••"
               autoComplete="current-password"
             />
@@ -174,7 +174,7 @@ export default function SeguridadPage() {
               value={newPwd}
               onChange={(e) => setNewPwd(e.target.value)}
               minLength={8}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
               placeholder="••••••••"
               autoComplete="new-password"
             />
@@ -185,7 +185,7 @@ export default function SeguridadPage() {
               value={confirmPwd}
               onChange={(e) => setConfirmPwd(e.target.value)}
               minLength={8}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
               placeholder="••••••••"
               autoComplete="new-password"
             />

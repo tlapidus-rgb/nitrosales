@@ -408,7 +408,7 @@ function CreateKeyModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={80}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
                 placeholder="Ej: Zapier producción"
                 autoFocus
               />
@@ -457,7 +457,7 @@ function CreateKeyModal({
               <select
                 value={expiresInDays}
                 onChange={(e) => setExpiresInDays(e.target.value)}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
               >
                 <option value="0">Nunca expira</option>
                 <option value="30">30 días</option>

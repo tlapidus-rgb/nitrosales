@@ -569,7 +569,7 @@ export default function PermisosPage() {
                               onChange={(e) =>
                                 setEditedCustom({ ...editedCustom, name: e.target.value })
                               }
-                              className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                              className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
                             />
                             <div className="flex items-center gap-1">
                               {COLOR_PALETTE.map((c) => (
@@ -865,7 +865,7 @@ function CreateRoleModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={60}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
                 placeholder="Ej: Contador, Marketing Manager, Operaciones"
                 autoFocus
               />
@@ -880,7 +880,7 @@ function CreateRoleModal({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={280}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
                 placeholder="Qué tipo de usuario usa este rol"
               />
             </div>
@@ -915,7 +915,7 @@ function CreateRoleModal({
               <select
                 value={copyFrom}
                 onChange={(e) => setCopyFrom(e.target.value as any)}
-                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
               >
                 <option value="blank">Empezar en blanco (Sin acceso en todo)</option>
                 <option value="MEMBER">Copiar de Editor (default Member)</option>
