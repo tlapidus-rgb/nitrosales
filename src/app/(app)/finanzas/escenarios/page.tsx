@@ -29,6 +29,7 @@ import Link from "next/link";
 import { useCurrencyView } from "@/hooks/useCurrencyView";
 import ScenarioDriversDrawer from "@/components/finanzas/ScenarioDriversDrawer";
 import ScenarioForecastChart from "@/components/finanzas/ScenarioForecastChart";
+import ScenarioCompareView from "@/components/finanzas/ScenarioCompareView";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
 
@@ -158,6 +159,10 @@ export default function EscenariosPage() {
     null
   );
   const [driversOpenId, setDriversOpenId] = useState<string | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [realityConfirm, setRealityConfirm] = useState<{
+    scenario: Scenario;
+  } | null>(null);
 
   const { convert, format, mode } = useCurrencyView();
   const today = new Date().toISOString().slice(0, 10);
@@ -276,6 +281,31 @@ export default function EscenariosPage() {
             resto del P&amp;L use sus drivers, o cloná cualquiera para jugar
             con sliders.
           </p>
+
+          {scenarios && scenarios.filter((s) => s.forecast).length >= 2 && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                onClick={() => setCompareOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-white"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
+                  boxShadow: "0 4px 14px -4px rgba(124,58,237,0.55)",
+                  transition: `all 220ms ${ES}`,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                  <path
+                    d="M3 2.5v9M7 2.5v9M11 2.5v9M1.5 5.5H4.5M5.5 5.5H8.5M9.5 5.5H12.5M1.5 8.5H4.5M5.5 8.5H8.5M9.5 8.5H12.5"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                Comparar escenarios
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -315,13 +345,14 @@ export default function EscenariosPage() {
                 scenario={s}
                 busy={busyId === s.id}
                 fm={fm}
-                onActivate={() =>
-                  doAction(s.id, "activate", `"${s.name}" es el escenario activo`)
-                }
+                onActivate={() => setRealityConfirm({ scenario: s })}
                 onClone={() =>
                   doAction(s.id, "clone", `"${s.name}" clonado como custom`)
                 }
                 onOpenDrivers={() => setDriversOpenId(s.id)}
+                onExportPdf={() =>
+                  window.open(`/print/escenarios/${s.id}`, "_blank")
+                }
                 onDelete={null}
               />
             ))}
@@ -365,13 +396,14 @@ export default function EscenariosPage() {
                 scenario={s}
                 busy={busyId === s.id}
                 fm={fm}
-                onActivate={() =>
-                  doAction(s.id, "activate", `"${s.name}" es el escenario activo`)
-                }
+                onActivate={() => setRealityConfirm({ scenario: s })}
                 onClone={() =>
                   doAction(s.id, "clone", `"${s.name}" clonado`)
                 }
                 onOpenDrivers={() => setDriversOpenId(s.id)}
+                onExportPdf={() =>
+                  window.open(`/print/escenarios/${s.id}`, "_blank")
+                }
                 onDelete={() =>
                   doAction(s.id, "delete", `"${s.name}" borrado`)
                 }
@@ -421,6 +453,33 @@ export default function EscenariosPage() {
             />
           );
         })()}
+
+      {/* ── Compare modal (Fase 5f) ─────────────────────────── */}
+      {compareOpen && scenarios && (
+        <ScenarioCompareView
+          scenarios={scenarios}
+          fm={fm}
+          onClose={() => setCompareOpen(false)}
+        />
+      )}
+
+      {/* ── Reality confirm modal (Fase 5f) ─────────────────── */}
+      {realityConfirm && (
+        <RealityConfirmModal
+          scenario={realityConfirm.scenario}
+          busy={busyId === realityConfirm.scenario.id}
+          onCancel={() => setRealityConfirm(null)}
+          onConfirm={async () => {
+            const s = realityConfirm.scenario;
+            setRealityConfirm(null);
+            await doAction(
+              s.id,
+              "activate",
+              `"${s.name}" es ahora el escenario real · todo el P&L usa sus drivers`
+            );
+          }}
+        />
+      )}
 
       {/* ── Toast ───────────────────────────────────────────── */}
       {toast && (
@@ -478,6 +537,7 @@ function ScenarioCard({
   onActivate,
   onClone,
   onOpenDrivers,
+  onExportPdf,
   onDelete,
 }: {
   scenario: Scenario;
@@ -486,6 +546,7 @@ function ScenarioCard({
   onActivate: () => void;
   onClone: () => void;
   onOpenDrivers: () => void;
+  onExportPdf: () => void;
   onDelete: (() => void) | null;
 }) {
   const meta = KIND_META[scenario.kind] ?? KIND_META.CUSTOM;
@@ -669,8 +730,21 @@ function ScenarioCard({
               boxShadow: `0 4px 14px -4px ${color}88`,
               transition: `all 220ms ${ES}`,
             }}
+            title="Convertí este escenario en la base real del negocio"
           >
-            {busy ? "…" : "Activar"}
+            {busy ? (
+              "…"
+            ) : (
+              <>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                  <path
+                    d="M6 1.5l1.5 3 3.3.5-2.4 2.3.6 3.3L6 9.1l-3 1.5.6-3.3L1.2 5l3.3-.5L6 1.5z"
+                    fill="currentColor"
+                  />
+                </svg>
+                Hacerlo realidad
+              </>
+            )}
           </button>
         )}
 
@@ -702,6 +776,28 @@ function ScenarioCard({
           style={{ transition: `all 220ms ${ES}` }}
         >
           Clonar
+        </button>
+
+        <button
+          onClick={onExportPdf}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+          style={{ transition: `all 220ms ${ES}` }}
+          aria-label="Exportar PDF"
+          title="Abre una vista imprimible en una nueva pestaña"
+        >
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden>
+            <path
+              d="M4 2.5h5l2 2V11a.5.5 0 0 1-.5.5h-6.5A.5.5 0 0 1 3.5 11V3a.5.5 0 0 1 .5-.5z"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinejoin="round"
+              fill="none"
+            />
+            <path d="M9 2.5V4.5h2" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="none" />
+            <path d="M5.2 7.5h3.6M5.2 9.2h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          </svg>
+          PDF
         </button>
 
         {onDelete && (
@@ -843,4 +939,200 @@ function shortMonth(m: string): string {
   ];
   const idx = Math.max(0, Math.min(11, parseInt(mo, 10) - 1));
   return `${names[idx]} ${y.slice(2)}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Reality Confirm Modal (Fase 5f)
+// ─────────────────────────────────────────────────────────────
+function RealityConfirmModal({
+  scenario,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  scenario: Scenario;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const meta = KIND_META[scenario.kind] ?? KIND_META.CUSTOM;
+  const color = scenario.color ?? meta.color;
+  const totals = scenario.forecast?.totals;
+  const runway = scenario.forecast?.runway;
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+      if (e.key === "Enter" && !busy) onConfirm();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onCancel, onConfirm, busy]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      style={{
+        background: "rgba(15,23,42,0.6)",
+        backdropFilter: "blur(6px)",
+        animation: `realityFade 220ms ${ES}`,
+      }}
+      onClick={onCancel}
+    >
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-2xl border bg-white shadow-2xl"
+        style={{
+          borderColor: `${color}44`,
+          animation: `realityIn 280ms ${ES}`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -top-10 h-32"
+          style={{
+            background: `radial-gradient(ellipse at 50% 0%, ${color}33 0%, transparent 70%)`,
+          }}
+        />
+        <div className="relative p-6">
+          <div className="inline-flex items-center gap-2 rounded-full border bg-white px-2.5 py-1"
+            style={{ borderColor: `${color}55` }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+            />
+            <span
+              className="text-[10px] font-semibold uppercase tracking-[0.14em]"
+              style={{ color }}
+            >
+              Hacer realidad · {meta.label}
+            </span>
+          </div>
+
+          <h3 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
+            Activar “{scenario.name}”
+          </h3>
+          <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
+            Este escenario pasa a ser la <strong>base real</strong> del
+            negocio. Todo el P&amp;L, el Pulso y los reportes van a usar los
+            drivers de este escenario para calcular KPIs y forecasts.
+          </p>
+
+          {/* Mini resumen de lo que va a pasar */}
+          <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-[12px]">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Revenue 12M esperado
+              </div>
+              <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                {totals?.revenue !== undefined
+                  ? new Intl.NumberFormat("es-AR", {
+                      style: "currency",
+                      currency: "ARS",
+                      maximumFractionDigits: 0,
+                    }).format(totals.revenue)
+                  : "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Margen neto
+              </div>
+              <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                {pct(totals?.marginPct, 1)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Runway
+              </div>
+              <div
+                className="mt-0.5 font-semibold tabular-nums"
+                style={{
+                  color:
+                    runway?.status === "critical"
+                      ? "#dc2626"
+                      : runway?.status === "warn"
+                      ? "#d97706"
+                      : "#0f172a",
+                }}
+              >
+                {monthsText(runway?.monthsRemaining)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Horizonte
+              </div>
+              <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                {scenario.horizonMonths} meses
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button
+              onClick={onCancel}
+              disabled={busy}
+              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+              style={{ transition: `all 200ms ${ES}` }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              style={{
+                background: `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)`,
+                boxShadow: `0 4px 14px -4px ${color}aa`,
+                transition: `all 200ms ${ES}`,
+              }}
+            >
+              {busy ? (
+                "Activando…"
+              ) : (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 12 12" fill="none" aria-hidden>
+                    <path
+                      d="M6 1.5l1.5 3 3.3.5-2.4 2.3.6 3.3L6 9.1l-3 1.5.6-3.3L1.2 5l3.3-.5L6 1.5z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  Sí, hacerlo realidad
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes realityFade {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        @keyframes realityIn {
+          from {
+            opacity: 0;
+            transform: translateY(14px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
+    </div>
+  );
 }
