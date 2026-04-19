@@ -8,7 +8,7 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-17 — Sesión 40 (creación + BP-001 escalado a "versión más robusta" + BP-005 mensajería multi-canal + BP-006 Aura marketplace afiliados).
+> **Última actualización**: 2026-04-19 — Sesión 48 (BP-007 sub-permisos por tipo de dato agregado a Prioridad MEDIA).
 
 ---
 
@@ -208,6 +208,39 @@ Hoy Aura vive dentro de una marca: cada tenant tiene sus propios creadores, camp
 ---
 
 ## 🟢 Prioridad MEDIA
+
+### BP-007 — Permisos granulares por tipo de dato dentro de cada sección (sub-permisos)
+
+**Entró al backlog**: 2026-04-19 (Sesión 48 — fase Permisos / enforcement)
+**Estado**: 📝 pendiente
+**Trigger**: Tomy planteó caso real: "un analista de ecommerce entra a /productos para ver qué vende, pero NO debería ver márgenes ni costos". Sistema actual de permisos es binario por sección: ve toda la sección o no la ve.
+
+**Contexto**:
+- Hoy (commit `4ef1a52`) cada sección tiene 1 permiso con 4 niveles (none/read/write/admin). Funciona bien pero no separa data sensible de data operativa dentro de la misma página.
+- Casos reales que aparecerán:
+  - Analista de ecommerce ve productos pero NO márgenes/costos.
+  - Contador externo ve Fiscal y Costos pero NO márgenes estratégicos.
+  - Marketing manager ve Campañas (ROAS, spend) pero NO costos COGS del producto.
+  - Jefe de ventas ve Órdenes (totales, clientes) pero NO márgen por orden.
+
+**Opción acordada con Tomy (Opción B)**: sub-permisos por tipo de dato.
+- Dividir secciones en sub-secciones lógicas:
+  - `products` → `products_basico` (catálogo, SKU, stock, ventas unitarias) + `products_financiero` (costos, márgenes, rentabilidad)
+  - `orders` → `orders_basico` (totales, clientes, productos) + `orders_financiero` (márgen, comisiones detalladas)
+  - `bondly_clientes` → `bondly_basico` (contacto, compras) + `bondly_financiero` (LTV, revenue acumulado)
+  - `campaigns` → `campaigns_basico` (spend, impresiones) + `campaigns_financiero` (ROAS, márgen por campaña)
+- La matriz de permisos suma ~5-8 columnas nuevas.
+- Cada card/columna sensible se envuelve con `<PermissionGate section="products_financiero" level="read">`.
+
+**Esfuerzo estimado**: 2-3 sesiones.
+
+**Cuándo implementarlo**: cuando algún cliente real (Arredo, TV Compras o posteriores) pida específicamente este nivel de control. No antes. Mientras tanto, si no querés que alguien vea márgenes → no le das acceso a Productos. Punto.
+
+**Opción descartada**: field-level permissions completo (cada columna/card con permiso individual tipo Salesforce). Overkill para <30 personas por org. Se reconsiderará cuando haya 10+ clientes pagando con auditoría formal.
+
+---
+
+
 
 ### BP-002 — `/bondly/audiencias` sin contenido
 
