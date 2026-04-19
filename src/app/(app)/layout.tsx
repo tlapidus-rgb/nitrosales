@@ -7,7 +7,7 @@ import { useState, useMemo } from "react";
 import { AurumProvider } from "@/components/aurum/AurumContext";
 import FloatingAurum from "@/components/aurum/FloatingAurum";
 import { AurumOrb } from "@/components/aurum/AurumOrb";
-import { PermissionsProvider, NavItemGate, PathnameGuard } from "@/hooks/usePermissions";
+import { PermissionsProvider, NavItemGate, NavGroupGate, PathnameGuard } from "@/hooks/usePermissions";
 
 type NavItem = {
   href: string;
@@ -464,8 +464,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {NAV_GROUPS.map((group, gi) => (
-            <div key={gi}>
+          {NAV_GROUPS.map((group, gi) => {
+            // Recolecto todos los hrefs del grupo (item principal + children)
+            // para que NavGroupGate decida si al menos uno es accesible.
+            const groupHrefs: string[] = group.items.flatMap((it) => [
+              it.href,
+              ...(it.children?.map((c) => c.href) ?? []),
+            ]);
+            return (
+            <NavGroupGate key={gi} itemHrefs={groupHrefs}>
+            <div>
               {/* Group separator + label */}
               {gi > 0 && <div className="my-3 mx-3 border-t border-nitro-border/40" />}
               {group.label && (
@@ -1291,7 +1299,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 );
               })}
             </div>
-          ))}
+            </NavGroupGate>
+            );
+          })}
         </nav>
 
         {/* User section */}

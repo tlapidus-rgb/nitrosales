@@ -237,7 +237,13 @@ export function NavItemGate({
   childHrefs?: string[];
   children: React.ReactNode;
 }) {
-  const { canAccess } = usePermissions();
+  const { canAccess, loading } = usePermissions();
+
+  // Durante loading, no renderizamos nada. Evita flash de items que
+  // despues se ocultan. El sidebar aparece "de una" cuando los
+  // permisos terminan de cargar.
+  if (loading) return null;
+
   const parentSection = hrefToSection(href);
 
   // 1. Parent tiene section y el user lo puede ver -> mostrar
@@ -261,4 +267,30 @@ export function NavItemGate({
   }
 
   return null;
+}
+
+/**
+ * Wrapper para grupos de nav (con titulo + items). Si ninguno de los
+ * hrefs del grupo es accesible, oculta el grupo ENTERO (incluido el
+ * titulo). Durante loading, tambien oculta.
+ */
+export function NavGroupGate({
+  itemHrefs,
+  children,
+}: {
+  itemHrefs: string[];
+  children: React.ReactNode;
+}) {
+  const { canAccess, loading } = usePermissions();
+
+  if (loading) return null;
+
+  const anyVisible = itemHrefs.some((h) => {
+    const sec = hrefToSection(h);
+    if (sec === null) return true; // item publico
+    return canAccess(sec, "read");
+  });
+
+  if (!anyVisible) return null;
+  return <>{children}</>;
 }
