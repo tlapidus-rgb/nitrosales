@@ -122,6 +122,56 @@ function effectiveBehavior(item) {
   return "FIXED";
 }
 
+/* ── Fase 4a — CountUp premium ─────────────────
+// Anima de 0 (o valor anterior) al valor nuevo con easing cubic-bezier.
+// Respeta prefers-reduced-motion: si el user lo pide, mostramos el
+// numero final sin animacion. Formatea con un render fn inyectable
+// para soportar ARS ($X), % (X%) o texto plano.
+*/
+function CountUp({
+  value,
+  duration = 700,
+  format = (n: number) => n.toLocaleString("es-AR"),
+  className = "",
+}: {
+  value: number;
+  duration?: number;
+  format?: (n: number) => string;
+  className?: string;
+}) {
+  const [displayed, setDisplayed] = useState(value);
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      setDisplayed(value);
+      return;
+    }
+    // Respeta prefers-reduced-motion: salta directo al valor final
+    const reduce =
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || duration <= 0) {
+      setDisplayed(value);
+      return;
+    }
+    const start = performance.now();
+    const from = displayed;
+    const delta = value - from;
+    let raf = 0;
+    // cubic-bezier(0.16, 1, 0.3, 1) approx -> easeOutExpo friendly
+    const ease = (t: number) => 1 - Math.pow(1 - t, 4);
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const t = Math.min(1, elapsed / duration);
+      setDisplayed(from + delta * ease(t));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, duration]);
+  return <span className={className}>{format(displayed)}</span>;
+}
+
 /* ── Main Component ──────────────────────────── */
 export default function CostosPage() {
   const nowMonth = new Date().toISOString().substring(0, 7);
@@ -820,40 +870,62 @@ export default function CostosPage() {
 
   return (
     <div className="light-canvas min-h-screen">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Costos Operativos</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Costos que no vienen del ecommerce — mensajerias, sueldos, herramientas, impuestos
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="month"
-            value={costMonth}
-            onChange={e => setCostMonth(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none"
-          />
-          {/* Fase 3e — toggle de ajuste IPC aplicado al copy-from-prev */}
-          <label
-            className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer"
-            title="Si esta activo, los items marcados como 'ajusta por inflacion' se copian con IPC aplicado"
-          >
+      {/* Fase 4a — Premium hero con aurora radial + prism delimiter */}
+      <div className="relative overflow-hidden rounded-3xl mb-6">
+        {/* Aurora radial background — sutil, no estridente */}
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(1200px circle at 10% -10%, rgba(20,184,166,0.10), transparent 40%), radial-gradient(900px circle at 90% 110%, rgba(168,85,247,0.08), transparent 45%), linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)",
+          }}
+        />
+        {/* Prism delimiter — fina linea con gradient bajo */}
+        <div
+          aria-hidden
+          className="absolute bottom-0 left-6 right-6 h-px pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent 0%, rgba(20,184,166,0.35) 18%, rgba(99,102,241,0.45) 50%, rgba(168,85,247,0.35) 82%, transparent 100%)",
+          }}
+        />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6">
+          <div>
+            <h2 className="text-[28px] font-semibold tracking-tight text-gray-900 leading-tight">
+              Costos Operativos
+            </h2>
+            <p className="text-sm text-gray-500 mt-1 max-w-xl">
+              Costos que no vienen del ecommerce — mensajerias, sueldos, herramientas, impuestos.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
             <input
-              type="checkbox"
-              checked={adjustByInflation}
-              onChange={(e) => setAdjustByInflation(e.target.checked)}
-              className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+              type="month"
+              value={costMonth}
+              onChange={e => setCostMonth(e.target.value)}
+              className="text-sm bg-white/80 backdrop-blur border border-gray-200 rounded-xl px-3 py-2 text-gray-700 font-medium tabular-nums shadow-[0_1px_2px_rgba(15,23,42,0.04),0_1px_1px_rgba(15,23,42,0.02)] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)] focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100 transition-all"
             />
-            Ajustar por IPC
-          </label>
-          <button
-            onClick={copyPreviousMonth}
-            className="text-sm px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors"
-          >
-            Copiar mes anterior
-          </button>
+            {/* Fase 3e — toggle de ajuste IPC aplicado al copy-from-prev */}
+            <label
+              className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer bg-white/80 backdrop-blur border border-gray-200 rounded-xl px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)] transition-all"
+              title="Si esta activo, los items marcados como 'ajusta por inflacion' se copian con IPC aplicado"
+            >
+              <input
+                type="checkbox"
+                checked={adjustByInflation}
+                onChange={(e) => setAdjustByInflation(e.target.checked)}
+                className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+              />
+              Ajustar por IPC
+            </label>
+            <button
+              onClick={copyPreviousMonth}
+              className="text-sm font-medium px-4 py-2 bg-white/80 backdrop-blur border border-gray-200 rounded-xl text-gray-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-[0_4px_12px_rgba(15,23,42,0.08),0_2px_4px_rgba(15,23,42,0.04)] hover:-translate-y-[1px] active:translate-y-0 transition-all"
+            >
+              Copiar mes anterior
+            </button>
+          </div>
         </div>
       </div>
 
@@ -879,23 +951,130 @@ export default function CostosPage() {
         </div>
       )}
 
-      {/* Summary cards */}
-      {data && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-teal-500">
-            <span className="text-xs font-medium text-gray-500 uppercase">Total Mensual</span>
-            <p className="text-xl font-bold text-gray-800 mt-1">{formatARS(data.grandTotal)}</p>
-            <p className="text-xs text-gray-400">{costMonth}</p>
-          </div>
-          {data.categories.filter(c => c.total > 0).slice(0, 3).map(c => (
-            <div key={c.category} className="bg-white rounded-xl p-4 shadow-sm">
-              <span className="text-xs font-medium text-gray-500 uppercase">{c.label}</span>
-              <p className="text-lg font-bold text-gray-800 mt-1">{formatARS(c.total)}</p>
-              <p className="text-xs text-gray-400">{c.items.length} items</p>
+      {/* Fase 4a — KPI strip premium (4 cards: Total, Fijo%, Variable%, Items con IPC) */}
+      {data && (() => {
+        const sFixed = data.summary?.fixed || 0;
+        const sVar = data.summary?.variable || 0;
+        const sSemi = data.summary?.semiFixed || 0;
+        const sTot = sFixed + sVar + sSemi;
+        const fixedPct = sTot > 0 ? Math.round((sFixed / sTot) * 100) : 0;
+        const variablePct = sTot > 0 ? Math.round((sVar / sTot) * 100) : 0;
+        // Items con autoInflationAdjust=true en el mes
+        const ipcItems = (data.categories || []).reduce(
+          (acc, c) => acc + (c.items || []).filter((i) => i.autoInflationAdjust).length,
+          0
+        );
+        const totalItems = (data.categories || []).reduce(
+          (acc, c) => acc + (c.items || []).length,
+          0
+        );
+
+        const kpiCardBase =
+          "relative overflow-hidden bg-white rounded-2xl p-5 border border-gray-100/80 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_1px_1px_rgba(15,23,42,0.02)] hover:shadow-[0_4px_16px_rgba(15,23,42,0.06),0_2px_4px_rgba(15,23,42,0.04)] hover:-translate-y-[1px] transition-all";
+
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            {/* KPI 1 — Total Mensual (accent teal) */}
+            <div className={kpiCardBase}>
+              <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-[2px]"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, #14b8a6 35%, #14b8a6 65%, transparent 100%)",
+                }}
+              />
+              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+                Total Mensual
+              </span>
+              <p className="text-2xl font-semibold tracking-tight text-gray-900 mt-1.5 tabular-nums">
+                <CountUp
+                  value={Number(data.grandTotal) || 0}
+                  format={(n) => formatARS(Math.round(n))}
+                />
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1 tabular-nums">
+                {costMonth} · {totalItems} items
+              </p>
             </div>
-          ))}
-        </div>
-      )}
+
+            {/* KPI 2 — % Fijo (accent teal) */}
+            <div className={kpiCardBase}>
+              <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-[2px]"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, #14b8a6 35%, #14b8a6 65%, transparent 100%)",
+                }}
+              />
+              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+                % Fijo
+              </span>
+              <p className="text-2xl font-semibold tracking-tight text-gray-900 mt-1.5 tabular-nums">
+                <CountUp
+                  value={fixedPct}
+                  format={(n) => `${Math.round(n)}%`}
+                />
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1 tabular-nums">
+                {formatARS(sFixed)}
+              </p>
+            </div>
+
+            {/* KPI 3 — % Variable (accent amber) */}
+            <div className={kpiCardBase}>
+              <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-[2px]"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, #f59e0b 35%, #f59e0b 65%, transparent 100%)",
+                }}
+              />
+              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+                % Variable
+              </span>
+              <p className="text-2xl font-semibold tracking-tight text-gray-900 mt-1.5 tabular-nums">
+                <CountUp
+                  value={variablePct}
+                  format={(n) => `${Math.round(n)}%`}
+                />
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1 tabular-nums">
+                {formatARS(sVar)}
+              </p>
+            </div>
+
+            {/* KPI 4 — Items con IPC (accent violet) */}
+            <div className={kpiCardBase}>
+              <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-[2px]"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, #a855f7 35%, #a855f7 65%, transparent 100%)",
+                }}
+              />
+              <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+                Con ajuste IPC
+              </span>
+              <p className="text-2xl font-semibold tracking-tight text-gray-900 mt-1.5 tabular-nums">
+                <CountUp
+                  value={ipcItems}
+                  format={(n) => `${Math.round(n)}`}
+                />
+                <span className="text-sm font-normal text-gray-400 ml-1">
+                  / {totalItems}
+                </span>
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">
+                {ipcItems === 0 ? "Ningun item auto-ajusta" : "Copiar aplica IPC"}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Fase 3c — Ratio Fijo vs Variable vs Semi-fijo */}
       {data && data.summary && data.grandTotal > 0 && (() => {
