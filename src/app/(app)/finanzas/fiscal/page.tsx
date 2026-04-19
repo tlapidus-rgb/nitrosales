@@ -34,6 +34,7 @@ import {
   Info,
   ClipboardList,
   Clock,
+  Download,
 } from "lucide-react";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -372,6 +373,16 @@ function Hero({
               <RefreshCw className="h-3.5 w-3.5" />
               Refrescar
             </button>
+            <a
+              href="/print/fiscal"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              style={{ transition: `all 180ms ${ES}` }}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportar PDF
+            </a>
             <Link
               href="/finanzas/costos"
               className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100"
