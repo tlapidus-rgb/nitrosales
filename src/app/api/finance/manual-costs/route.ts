@@ -13,7 +13,66 @@ export const dynamic = "force-dynamic";
  * DELETE ?id=xxx                 → delete
  *
  * Optional: POST with copyFrom=2025-02 copies all FIXED costs from that month
+ *
+ * Fase 3 — campos nuevos expuestos:
+ *   - fiscalType           ("DEDUCTIBLE_WITH_IVA" | "DEDUCTIBLE_NO_IVA" | "NON_DEDUCTIBLE")
+ *   - behavior             ("FIXED" | "VARIABLE" | "SEMI_FIXED" | null)
+ *   - driverFormula        (JSON DSL para rate type DRIVER_BASED)
+ *   - autoInflationAdjust  (boolean)
  */
+
+// ── Fase 3 — valores válidos para nuevos campos ────────
+const FISCAL_TYPES = [
+  "DEDUCTIBLE_WITH_IVA",
+  "DEDUCTIBLE_NO_IVA",
+  "NON_DEDUCTIBLE",
+] as const;
+
+const BEHAVIORS = ["FIXED", "VARIABLE", "SEMI_FIXED"] as const;
+
+const RATE_TYPES = [
+  "FIXED_MONTHLY",
+  "PER_SHIPMENT",
+  "PERCENTAGE",
+  "DRIVER_BASED",
+] as const;
+
+// Valida estructura mínima del DSL del driverFormula.
+// Shape: { drivers: [{key,label,value,unit?}], formula, lastComputedAmount?, lastComputedAt? }
+function validateDriverFormula(raw: unknown): {
+  ok: boolean;
+  error?: string;
+  value?: Record<string, unknown>;
+} {
+  if (raw === null || raw === undefined) return { ok: true, value: undefined };
+  if (typeof raw !== "object") {
+    return { ok: false, error: "driverFormula debe ser un objeto JSON" };
+  }
+  const obj = raw as Record<string, unknown>;
+  const drivers = obj.drivers;
+  if (!Array.isArray(drivers) || drivers.length === 0) {
+    return { ok: false, error: "driverFormula.drivers debe ser un array no vacío" };
+  }
+  for (const d of drivers) {
+    if (!d || typeof d !== "object") {
+      return { ok: false, error: "cada driver debe ser objeto" };
+    }
+    const dd = d as Record<string, unknown>;
+    if (typeof dd.key !== "string" || !dd.key.trim()) {
+      return { ok: false, error: "driver.key requerido (string)" };
+    }
+    if (typeof dd.label !== "string") {
+      return { ok: false, error: "driver.label requerido (string)" };
+    }
+    if (typeof dd.value !== "number" || !Number.isFinite(dd.value)) {
+      return { ok: false, error: `driver.value inválido para ${dd.key}` };
+    }
+  }
+  if (typeof obj.formula !== "string" || !obj.formula.trim()) {
+    return { ok: false, error: "driverFormula.formula requerida (string)" };
+  }
+  return { ok: true, value: obj };
+}
 
 // ── Valid categories ──────────────────────────
 const CATEGORIES = [
@@ -88,11 +147,33 @@ export async function GET(req: NextRequest) {
 
     const grandTotal = categoryTotals.reduce((sum, c) => sum + c.total, 0);
 
+    // Fase 3 — resumen Fijo vs Variable vs SEMI_FIXED para el header
+    // Prioridad: behavior (nuevo) > type legacy (si behavior null).
+    // SEMI_FIXED cae al bucket "variable" para el ratio simple.
+    const summary = { fixed: 0, variable: 0, semiFixed: 0 };
+    for (const cat of categoryTotals) {
+      for (const c of cat.items) {
+        const base = Number(c.amount);
+        const effectiveAmount = c.socialCharges
+          ? base * (1 + c.socialCharges / 100)
+          : base;
+        const eff = (c as any).behavior ?? c.type ?? "FIXED";
+        if (eff === "VARIABLE") summary.variable += effectiveAmount;
+        else if (eff === "SEMI_FIXED") summary.semiFixed += effectiveAmount;
+        else summary.fixed += effectiveAmount;
+      }
+    }
+
     return NextResponse.json({
       month,
       categories: categoryTotals,
       grandTotal: Math.round(grandTotal),
       categoryLabels: CATEGORY_LABELS,
+      summary: {
+        fixed: Math.round(summary.fixed),
+        variable: Math.round(summary.variable),
+        semiFixed: Math.round(summary.semiFixed),
+      },
     });
   } catch (error: any) {
     console.error("Manual costs GET error:", error);
@@ -142,6 +223,11 @@ export async function POST(req: NextRequest) {
               type: c.type,
               month: body.targetMonth,
               notes: c.notes,
+              // Fase 3 — preservar taxonomía al copiar; el ajuste IPC real se hace en 3e.
+              fiscalType: c.fiscalType,
+              behavior: c.behavior,
+              driverFormula: c.driverFormula ?? undefined,
+              autoInflationAdjust: c.autoInflationAdjust,
             },
           })
         )
@@ -152,7 +238,9 @@ export async function POST(req: NextRequest) {
 
     // Create single cost
     const { category, name, amount, type, month, notes,
-            subcategory, serviceCode, rateType, rateBase, socialCharges } = body;
+            subcategory, serviceCode, rateType, rateBase, socialCharges,
+            // Fase 3 — nuevos campos
+            fiscalType, behavior, driverFormula, autoInflationAdjust } = body;
 
     if (!category || !name || amount === undefined || !month) {
       return NextResponse.json(
@@ -164,6 +252,39 @@ export async function POST(req: NextRequest) {
     if (!CATEGORIES.includes(category)) {
       return NextResponse.json(
         { error: `Invalid category. Valid: ${CATEGORIES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    // Fase 3 — validaciones de campos nuevos
+    if (rateType && !RATE_TYPES.includes(rateType)) {
+      return NextResponse.json(
+        { error: `Invalid rateType. Valid: ${RATE_TYPES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    if (fiscalType && !FISCAL_TYPES.includes(fiscalType)) {
+      return NextResponse.json(
+        { error: `Invalid fiscalType. Valid: ${FISCAL_TYPES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    if (behavior && !BEHAVIORS.includes(behavior)) {
+      return NextResponse.json(
+        { error: `Invalid behavior. Valid: ${BEHAVIORS.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    const dfCheck = validateDriverFormula(driverFormula);
+    if (!dfCheck.ok) {
+      return NextResponse.json(
+        { error: `driverFormula inválida: ${dfCheck.error}` },
+        { status: 400 }
+      );
+    }
+    if (rateType === "DRIVER_BASED" && !dfCheck.value) {
+      return NextResponse.json(
+        { error: "rateType DRIVER_BASED requiere driverFormula" },
         { status: 400 }
       );
     }
@@ -182,6 +303,13 @@ export async function POST(req: NextRequest) {
         type: type || "FIXED",
         month,
         notes: notes || null,
+        // Fase 3 — nuevos campos (defaults razonables si no vienen)
+        fiscalType: fiscalType || "DEDUCTIBLE_WITH_IVA",
+        behavior: behavior || null,
+        // Prisma tipa JSON input de forma estricta; casteamos porque ya
+        // validamos la estructura con validateDriverFormula().
+        driverFormula: (dfCheck.value ?? undefined) as any,
+        autoInflationAdjust: Boolean(autoInflationAdjust),
       },
     });
 
@@ -215,6 +343,45 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Cost not found" }, { status: 404 });
     }
 
+    // Fase 3 — validar campos nuevos si vienen en el update
+    if (updates.rateType !== undefined && !RATE_TYPES.includes(updates.rateType)) {
+      return NextResponse.json(
+        { error: `Invalid rateType. Valid: ${RATE_TYPES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    if (updates.fiscalType !== undefined && !FISCAL_TYPES.includes(updates.fiscalType)) {
+      return NextResponse.json(
+        { error: `Invalid fiscalType. Valid: ${FISCAL_TYPES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    if (
+      updates.behavior !== undefined &&
+      updates.behavior !== null &&
+      !BEHAVIORS.includes(updates.behavior)
+    ) {
+      return NextResponse.json(
+        { error: `Invalid behavior. Valid: ${BEHAVIORS.join(", ")} or null` },
+        { status: 400 }
+      );
+    }
+    let dfValidated: Record<string, unknown> | undefined | null = undefined;
+    if (updates.driverFormula !== undefined) {
+      if (updates.driverFormula === null) {
+        dfValidated = null;
+      } else {
+        const check = validateDriverFormula(updates.driverFormula);
+        if (!check.ok) {
+          return NextResponse.json(
+            { error: `driverFormula inválida: ${check.error}` },
+            { status: 400 }
+          );
+        }
+        dfValidated = check.value;
+      }
+    }
+
     const cost = await prisma.manualCost.update({
       where: { id },
       data: {
@@ -228,6 +395,17 @@ export async function PUT(req: NextRequest) {
         ...(updates.socialCharges !== undefined && { socialCharges: updates.socialCharges !== null ? parseFloat(updates.socialCharges) : null }),
         ...(updates.type !== undefined && { type: updates.type }),
         ...(updates.notes !== undefined && { notes: updates.notes }),
+        // Fase 3 — campos nuevos
+        ...(updates.fiscalType !== undefined && { fiscalType: updates.fiscalType }),
+        ...(updates.behavior !== undefined && { behavior: updates.behavior }),
+        ...(dfValidated !== undefined && {
+          // Prisma tipa JSON input de forma estricta; casteamos porque
+          // ya validamos la estructura con validateDriverFormula().
+          driverFormula: (dfValidated === null ? null : dfValidated) as any,
+        }),
+        ...(updates.autoInflationAdjust !== undefined && {
+          autoInflationAdjust: Boolean(updates.autoInflationAdjust),
+        }),
       },
     });
 

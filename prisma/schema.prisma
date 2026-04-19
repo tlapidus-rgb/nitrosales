@@ -1128,12 +1128,25 @@ model ManualCost {
                            // "FIXED_MONTHLY": monto fijo por mes (default)
                            // "PER_SHIPMENT": tarifa por envío (logística)
                            // "PERCENTAGE": % de una base (fiscal, plataformas, merma)
+                           // "DRIVER_BASED": fórmula calculada con drivers (Fase 3f)
   rateBase        String?                         // Solo PERCENTAGE: "GROSS_REVENUE", "COGS", "MELI_REVENUE", "VTEX_REVENUE"
   socialCharges   Float?                          // Solo EQUIPO: % cargas sociales sobre bruto (ej: 35 = 35%)
-  type            String   @default("FIXED")      // "FIXED" (recurrente) o "VARIABLE"
+  type            String   @default("FIXED")      // Legacy: "FIXED" (recurrente) o "VARIABLE" — se mantiene por compat
   month           String                          // "2025-03" — mes al que aplica
   notes           String?                         // Notas opcionales
   isActive        Boolean  @default(true)         // Para desactivar sin borrar
+
+  // ── Fase 3 — Costos pro (added 2026-04-18) ──
+  fiscalType            String  @default("DEDUCTIBLE_WITH_IVA")
+                                // "DEDUCTIBLE_WITH_IVA" (default) | "DEDUCTIBLE_NO_IVA" | "NON_DEDUCTIBLE"
+                                // Usado por Fase 5 (Fiscal) para armar bridge contable + IVA crédito fiscal.
+  behavior              String?                           // "FIXED" | "VARIABLE" | "SEMI_FIXED"
+                                                           // null = cae al campo `type` legacy o al mapeo por categoría.
+  driverFormula         Json?                             // DSL: { drivers: [{key,label,value,unit?}], formula, lastComputedAmount?, lastComputedAt? }
+                                                           // Solo tiene sentido cuando rateType = "DRIVER_BASED".
+  autoInflationAdjust   Boolean @default(false)           // Si true, copy-from-prev ajusta `amount` por IPC del mes anterior.
+  // ────────────────────────────────────────────
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
