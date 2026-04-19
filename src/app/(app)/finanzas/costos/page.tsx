@@ -23,6 +23,10 @@ import {
   ChevronRight,
   Sparkles,
   Copy,
+  X,
+  Plus,
+  Trash2,
+  Calculator,
 } from "lucide-react";
 
 // Fase 4c — Helpers para el custom month selector
@@ -296,6 +300,16 @@ export default function CostosPage() {
       return { ok: false, error: "Escribi una formula para ver el resultado" };
     }
     return evaluateDriverFormula(formula, drivers);
+  }, [formulaModal]);
+
+  // Fase 4e — Cerrar modal con Escape
+  useEffect(() => {
+    if (!formulaModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeFormulaEditor();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [formulaModal]);
 
   function openFormulaEditor(item: any, categoryKey: string) {
@@ -2494,96 +2508,145 @@ export default function CostosPage() {
       {/* Fase 3f — Modal de editor de formula driver-based */}
       {formulaModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md animate-fade-in-up"
+          style={{ animationDuration: "220ms" }}
           onClick={(e) => {
-            // click en el backdrop cierra el modal
             if (e.target === e.currentTarget) closeFormulaEditor();
           }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="formula-modal-title"
         >
-          <div className="bg-white rounded-2xl shadow-2xl w-[720px] max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
+          <div
+            className="relative overflow-hidden bg-white rounded-3xl shadow-[0_32px_80px_rgba(15,23,42,0.25),0_12px_32px_rgba(15,23,42,0.15)] w-[760px] max-w-[95vw] max-h-[92vh] flex flex-col animate-fade-in-up"
+            style={{ animationDuration: "340ms" }}
+          >
+            {/* Fase 4e — Aurora interno sutil */}
             <div
-              className="px-6 py-4 border-b border-gray-100 flex items-center justify-between"
-              style={{ background: "linear-gradient(135deg, #6366f110, #8b5cf610)" }}
-            >
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">
-                  {formulaModal.mode === "edit" ? "Editar formula" : "Nueva formula"}
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Defini variables (drivers) y una expresion matematica para calcular el monto
-                </p>
+              aria-hidden
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  "radial-gradient(800px circle at 15% -10%, rgba(99,102,241,0.10), transparent 40%), radial-gradient(600px circle at 100% 110%, rgba(168,85,247,0.08), transparent 45%)",
+              }}
+            />
+
+            {/* Header premium con icon + prism delimiter */}
+            <div className="relative px-6 pt-5 pb-4 border-b border-gray-100/80">
+              <div
+                aria-hidden
+                className="absolute bottom-0 left-6 right-6 h-px pointer-events-none"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.45) 30%, rgba(168,85,247,0.45) 70%, transparent 100%)",
+                }}
+              />
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15))",
+                    }}
+                  >
+                    <Calculator className="w-5 h-5 text-indigo-600" strokeWidth={2} />
+                  </div>
+                  <div>
+                    <h3
+                      id="formula-modal-title"
+                      className="text-lg font-semibold text-gray-900 tracking-tight"
+                    >
+                      {formulaModal.mode === "edit" ? "Editar formula" : "Nueva formula"}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Defini variables (drivers) y una expresion matematica para calcular el monto.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeFormulaEditor}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0"
+                  title="Cerrar (Esc)"
+                  aria-label="Cerrar modal"
+                >
+                  <X className="w-4 h-4" strokeWidth={2.2} />
+                </button>
               </div>
-              <button
-                onClick={closeFormulaEditor}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-                title="Cerrar"
-              >
-                ×
-              </button>
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              {/* Drivers */}
+            <div className="relative flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              {/* Drivers — Notion-style table */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Drivers (variables)
+                  <label className="text-sm font-medium text-gray-800 tracking-tight">
+                    Drivers <span className="text-gray-400 font-normal">(variables nombradas)</span>
                   </label>
                   <button
                     onClick={addFormulaDriver}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                    className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 font-medium px-2 py-1 rounded-md transition-colors"
                   >
-                    + Agregar driver
+                    <Plus className="w-3 h-3" strokeWidth={2.4} />
+                    Agregar driver
                   </button>
                 </div>
-                <div className="space-y-2">
+                {/* Column labels */}
+                <div className="hidden md:flex items-center gap-2 px-2 mb-1 text-[10px] uppercase tracking-wide text-gray-400 font-medium">
+                  <span className="w-36">Clave</span>
+                  <span className="flex-1">Etiqueta</span>
+                  <span className="w-28 text-right">Valor</span>
+                  <span className="w-24">Unidad</span>
+                  <span className="w-6" />
+                </div>
+                <div className="space-y-1.5 bg-gray-50/50 rounded-xl p-2 border border-gray-100">
                   {formulaModal.drivers.map((d: Driver, idx: number) => (
-                    <div key={idx} className="flex items-center gap-2">
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 bg-white rounded-lg border border-gray-100 px-1.5 py-1 hover:border-indigo-200 transition-colors"
+                    >
                       <input
                         type="text"
-                        placeholder="clave (ej: headcount)"
+                        placeholder="headcount"
                         value={d.key}
                         onChange={(e) =>
                           updateFormulaDriver(idx, {
                             key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"),
                           })
                         }
-                        className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 w-36 font-mono focus:border-indigo-400 focus:outline-none"
+                        className="text-sm bg-transparent px-2 py-1.5 w-36 font-mono text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
                       />
                       <input
                         type="text"
-                        placeholder="etiqueta (ej: Headcount)"
+                        placeholder="Headcount"
                         value={d.label || ""}
                         onChange={(e) => updateFormulaDriver(idx, { label: e.target.value })}
-                        className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-400 focus:outline-none"
+                        className="flex-1 text-sm bg-transparent px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
                       />
                       <input
                         type="number"
-                        placeholder="valor"
+                        placeholder="0"
                         value={d.value}
                         onChange={(e) =>
-                          updateFormulaDriver(idx, {
-                            value: parseFloat(e.target.value) || 0,
-                          })
+                          updateFormulaDriver(idx, { value: parseFloat(e.target.value) || 0 })
                         }
-                        className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 w-28 text-right font-mono focus:border-indigo-400 focus:outline-none"
+                        className="text-sm bg-transparent px-2 py-1.5 w-28 text-right font-mono tabular-nums text-gray-900 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
                       />
                       <input
                         type="text"
-                        placeholder="unidad"
+                        placeholder="ARS"
                         value={d.unit || ""}
                         onChange={(e) => updateFormulaDriver(idx, { unit: e.target.value })}
-                        className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 w-24 focus:border-indigo-400 focus:outline-none"
+                        className="text-sm bg-transparent px-2 py-1.5 w-24 text-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-200 rounded"
                       />
                       <button
                         onClick={() => removeFormulaDriver(idx)}
                         disabled={formulaModal.drivers.length <= 1}
-                        className="text-gray-300 hover:text-red-500 disabled:opacity-20 disabled:cursor-not-allowed transition-colors px-1"
+                        className="w-6 h-6 rounded-md flex items-center justify-center text-gray-300 hover:text-rose-500 hover:bg-rose-50 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-300 transition-colors"
                         title="Eliminar driver"
+                        aria-label="Eliminar driver"
                       >
-                        ✕
+                        <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
                       </button>
                     </div>
                   ))}
@@ -2592,7 +2655,7 @@ export default function CostosPage() {
 
               {/* Formula textarea */}
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-2">
+                <label className="text-sm font-medium text-gray-800 tracking-tight block mb-2">
                   Formula
                 </label>
                 <textarea
@@ -2602,55 +2665,95 @@ export default function CostosPage() {
                     setFormulaModal((prev: any) => ({ ...prev, formula: e.target.value }))
                   }
                   rows={3}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 font-mono focus:border-indigo-400 focus:outline-none"
+                  spellCheck={false}
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-gray-900 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none transition-all resize-none"
                 />
-                <p className="text-xs text-gray-400 mt-1">
-                  Operadores: + - * / ( ) · Funciones: min, max, abs, round, ceil, floor, sqrt, pow
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Operadores: <span className="font-mono text-gray-700">+ - * / ( )</span>
+                  {" · "}
+                  Funciones: <span className="font-mono text-gray-700">min, max, abs, round, ceil, floor, sqrt, pow</span>
                 </p>
               </div>
 
-              {/* Preview */}
-              <div
-                className={`rounded-xl p-4 border ${
-                  formulaPreview?.ok
-                    ? "bg-emerald-50 border-emerald-200"
-                    : "bg-rose-50 border-rose-200"
-                }`}
-              >
-                <div className="text-xs font-medium text-gray-600 mb-1">Preview</div>
-                {formulaPreview?.ok ? (
-                  <div className="text-2xl font-semibold text-emerald-700 font-mono">
-                    {formatARS(Number(formulaPreview.value))}
+              {/* Preview destacada con count-up */}
+              <div className="relative overflow-hidden rounded-2xl border border-gray-100">
+                <div
+                  aria-hidden
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: formulaPreview?.ok
+                      ? "linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(20,184,166,0.04) 100%)"
+                      : "linear-gradient(135deg, rgba(244,63,94,0.06) 0%, rgba(239,68,68,0.03) 100%)",
+                  }}
+                />
+                <div className="relative p-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                      Preview
+                    </span>
+                    <span
+                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                        formulaPreview?.ok
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-rose-50 text-rose-700 border-rose-200"
+                      }`}
+                    >
+                      {formulaPreview?.ok ? "Formula valida" : "Sin resultado"}
+                    </span>
                   </div>
-                ) : (
-                  <div className="text-sm text-rose-700">
-                    {formulaPreview?.error || "Completa drivers y formula"}
-                  </div>
-                )}
+                  {formulaPreview?.ok ? (
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-semibold tracking-tight text-emerald-700 tabular-nums">
+                        <CountUp
+                          value={Number(formulaPreview.value) || 0}
+                          duration={420}
+                          format={(n) => formatARS(Math.round(n))}
+                        />
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        (se recalcula al tipear)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-rose-700">
+                      {formulaPreview?.error || "Completa drivers y formula"}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-end gap-2">
-              <button
-                onClick={closeFormulaEditor}
-                disabled={formulaSaving}
-                className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={saveFormulaEditor}
-                disabled={!formulaPreview?.ok || formulaSaving}
-                className="text-sm px-4 py-2 rounded-lg font-medium text-white disabled:opacity-40 transition-opacity"
-                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
-              >
-                {formulaSaving
-                  ? "Guardando..."
-                  : formulaModal.mode === "edit"
-                  ? "Guardar cambios"
-                  : "Crear costo"}
-              </button>
+            <div className="relative px-6 py-4 border-t border-gray-100/80 bg-white/60 backdrop-blur-sm flex items-center justify-between gap-2">
+              <span className="text-[11px] text-gray-400">
+                Atajos: <kbd className="px-1 py-0.5 text-[10px] bg-gray-100 border border-gray-200 rounded">Esc</kbd> para cerrar
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={closeFormulaEditor}
+                  disabled={formulaSaving}
+                  className="text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg disabled:opacity-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={saveFormulaEditor}
+                  disabled={!formulaPreview?.ok || formulaSaving}
+                  className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium text-white shadow-[0_2px_8px_rgba(99,102,241,0.25)] disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-[0_4px_14px_rgba(99,102,241,0.35)] hover:-translate-y-[1px] active:translate-y-0 transition-all"
+                  style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}
+                >
+                  {formulaSaving ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                      Guardando...
+                    </>
+                  ) : formulaModal.mode === "edit" ? (
+                    "Guardar cambios"
+                  ) : (
+                    "Crear costo"
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
