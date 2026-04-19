@@ -914,11 +914,54 @@ export default function CostosPage() {
   }
 
   if (loading && !data) {
+    // Fase 4d — Skeleton shimmer que refleja la estructura final
+    // (hero + KPIs + 3 category cards). Evita el flash de "nada" durante
+    // la carga inicial y mantiene la sensacion de velocidad.
+    const shimmer =
+      "relative overflow-hidden bg-gray-100 before:absolute before:inset-0 before:-translate-x-full before:bg-[linear-gradient(90deg,transparent_0,rgba(255,255,255,0.6)_50%,transparent_100%)] before:animate-[shimmer_1.5s_infinite]";
     return (
-      <div className="light-canvas min-h-screen flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-          <p className="text-gray-500 text-sm">Cargando costos...</p>
+      <div className="light-canvas min-h-screen">
+        {/* Hero skeleton */}
+        <div className="relative overflow-hidden rounded-3xl mb-6 bg-gradient-to-b from-white to-gray-50 p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-2">
+              <div className={`${shimmer} h-7 w-56 rounded-lg`} />
+              <div className={`${shimmer} h-4 w-80 rounded-md`} />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={`${shimmer} h-9 w-52 rounded-xl`} />
+              <div className={`${shimmer} h-9 w-32 rounded-xl`} />
+              <div className={`${shimmer} h-9 w-40 rounded-xl`} />
+            </div>
+          </div>
+        </div>
+        {/* KPI strip skeleton */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100/80 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <div className={`${shimmer} h-3 w-20 rounded-md mb-3`} />
+              <div className={`${shimmer} h-7 w-28 rounded-lg`} />
+              <div className={`${shimmer} h-3 w-16 rounded-md mt-2`} />
+            </div>
+          ))}
+        </div>
+        {/* Category cards skeleton */}
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="bg-white rounded-2xl p-5 border border-gray-100/80 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`${shimmer} w-9 h-9 rounded-xl`} />
+                <div>
+                  <div className={`${shimmer} h-4 w-40 rounded-md mb-1.5`} />
+                  <div className={`${shimmer} h-3 w-56 rounded-md`} />
+                </div>
+              </div>
+              <div className={`${shimmer} h-5 w-20 rounded-md`} />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -2158,10 +2201,29 @@ export default function CostosPage() {
                     </div>
                   )}
 
-                  {/* Empty state */}
+                  {/* Fase 4d — Empty state premium con SVG ilustrativo */}
                   {items.length === 0 && addingTo !== cat.key && (
-                    <div className="px-5 py-6 text-center text-gray-400 text-sm">
-                      No hay costos cargados en {cat.label.toLowerCase()} para {costMonth}
+                    <div className="px-5 py-10 flex flex-col items-center text-center">
+                      <div
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
+                        style={{
+                          background: `linear-gradient(135deg, ${accent.bar}18 0%, ${accent.bar}08 100%)`,
+                        }}
+                      >
+                        <Icon className={`w-5 h-5 ${accent.icon}`} strokeWidth={1.8} />
+                      </div>
+                      <p className="text-sm font-medium text-gray-700">
+                        Sin costos en {cat.label.toLowerCase()}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1 max-w-xs">
+                        Agrega tu primer costo o copia del mes anterior para arrancar.
+                      </p>
+                      <button
+                        onClick={() => setAddingTo(cat.key)}
+                        className="mt-3 text-xs font-medium text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Agregar primer costo
+                      </button>
                     </div>
                   )}
 
@@ -2594,10 +2656,18 @@ export default function CostosPage() {
         </div>
       )}
 
-      {/* Toast */}
+      {/* Fase 4d — Toast premium: bottom-right, slide-in, multi-layer shadow */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg z-50">
-          {toast}
+        <div
+          className="fixed bottom-6 right-6 z-50 max-w-sm animate-fade-in-up"
+          style={{ animationDuration: "260ms" }}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-2.5 bg-gray-900 text-white pl-3 pr-4 py-2.5 rounded-xl text-sm font-medium shadow-[0_12px_40px_rgba(15,23,42,0.18),0_4px_12px_rgba(15,23,42,0.12)]">
+            <div className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse-live shrink-0" />
+            <span className="flex-1">{toast}</span>
+          </div>
         </div>
       )}
     </div>
