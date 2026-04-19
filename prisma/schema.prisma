@@ -80,6 +80,8 @@ model Organization {
   cashBalanceOverrides     CashBalanceOverride[]
   // Finanzas Escenarios (Fase 5)
   financialScenarios       FinancialScenario[]
+  // Finanzas Fiscal (Fase 6) — overrides per-org del calendario AFIP
+  fiscalObligationOverrides FiscalObligationOverride[]
 
   @@map("organizations")
 }
@@ -1727,4 +1729,42 @@ model FinancialScenario {
   @@index([organizationId], map: "financial_scenarios_org_idx")
   @@index([organizationId, kind], map: "financial_scenarios_org_kind_idx")
   @@map("financial_scenarios")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Finanzas Fase 6 — Fiscal enhanced
+// ═══════════════════════════════════════════════════════════════════
+// Overrides per-org del calendario fiscal. Los defaults (Monotributo,
+// IVA mensual RI, IIBB provincial, Ganancias anual, percepciones ML)
+// viven en `src/lib/finanzas/fiscal-calendar.ts` como constantes TS
+// derivadas del `fiscalProfile` del org. Esta tabla guarda:
+//   (a) obligaciones custom que el usuario agrega (ej: "pago contador").
+//   (b) ediciones sobre defaults (ej: Monotributo cat I en vez de H).
+//   (c) defaults ocultados (ej: cliente sin IIBB en su provincia).
+// ═══════════════════════════════════════════════════════════════════
+model FiscalObligationOverride {
+  id             String    @id @default(cuid())
+  organizationId String
+  kind           String    @default("CUSTOM")         // "CUSTOM" | "OVERRIDE_DEFAULT"
+  defaultKey     String?                              // ej "MONOTRIBUTO", "IVA_RI_MENSUAL"
+  name           String                               // display name
+  category       String    @default("CUSTOM")         // "MONOTRIBUTO"|"IVA"|"IIBB"|"GANANCIAS"|"CUSTOM"
+  dueDay         Int       @default(1)                // 1..31, 99 = ultimo dia
+  frequency      String    @default("MONTHLY")        // "MONTHLY"|"BIMONTHLY"|"QUARTERLY"|"SEMIANNUAL"|"YEARLY"
+  yearlyMonth    Int?                                 // 1..12 si frequency = YEARLY
+  amount         Decimal?  @db.Decimal(20, 2)
+  amountSource   String    @default("MANUAL")         // "MANUAL"|"AUTO_MONOTRIBUTO"|"AUTO_PROFILE"
+  isActive       Boolean   @default(true)
+  hideDefault    Boolean   @default(false)
+  note           String?
+  startMonth     String?                              // YYYY-MM
+  endMonth       String?                              // YYYY-MM
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId], map: "fiscal_obligation_overrides_org_idx")
+  @@index([organizationId, isActive], map: "fiscal_obligation_overrides_org_active_idx")
+  @@map("fiscal_obligation_overrides")
 }
