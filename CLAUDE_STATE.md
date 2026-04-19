@@ -3,7 +3,105 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-19 (Sesion 46 — Finanzas P&L Fase 5 Escenarios completa: 6 sub-fases iterativas con migracion + engine + UI premium + drivers drawer + forecast chart + comparativo + PDF)
+## Ultima actualizacion: 2026-04-19 (Sesion 47 — Finanzas P&L Fase 6 Fiscal + Bridge completa: 7 sub-fases iterativas cerrando el roadmap original — calendario AFIP derivado del fiscalProfile + alertas Monotributo con rule engine + bridge CAC/LTV/Payback en Estado + alertas predictivas cross-module + PDF export calendario)
+
+> Este bloque consolida los **7 commits** a `main` del 2026-04-19 (cuarta ronda del dia) que construyen la **Fase 6 completa del rediseño de Finanzas P&L** (`/finanzas/fiscal` — ultima pestaña placeholder del modulo + bridge Bondly/Campañas profundo + alertas predictivas). 7 sub-fases iterativas (6a→6g) pusheadas directo a `main` con `tsc --noEmit` clean en cada push. Cierra el roadmap de `PROPUESTA_PNL_REORG.md` §Fase 5 (Fiscal enhanced + Bridge Bondly/Campañas) — TODAS las 5 pestañas del modulo Finanzas viven sin placeholders. Una tabla nueva en DB (`fiscal_obligation_overrides`), tres libs puras TS (`fiscal-calendar.ts`, `fiscal-monotributo.ts`, `predictive-alerts.ts`), 5 endpoints API nuevos, 3 componentes UI (`BridgeStrip`, `PredictiveAlertsCard`, `MonotributoAlertCard` inline), y una ruta `/print/fiscal` para export PDF.
+
+### Sesion 47 — 2026-04-19 — Finanzas P&L Fase 6 Fiscal + Bridge completa (7 sub-fases iterativas)
+
+**Objetivo**: cerrar el roadmap original de `PROPUESTA_PNL_REORG.md` (§Fase 5 Fiscal + Bridge) convirtiendo `/finanzas/fiscal` de placeholder (139 lineas "Proximamente · Fase 5") a pestaña completa con calendario AFIP automatico derivado del `fiscalProfile`, tablero de retenciones MercadoLibre, alertas Monotributo con proyeccion de facturacion y sugerencia de regimen, bridge CAC/LTV/Payback entre P&L y modulo Bondly (CRM de clientes), alertas predictivas MoM con rule engine cross-module, y export PDF del calendario. Zero placeholders despues de esta fase — todas las pestañas del modulo Finanzas estan productivas.
+
+Fase 6 segun roadmap `PROPUESTA_PNL_REORG.md` §Fase 5 (renumerada internamente como 6 porque Sesion 46 uso "Fase 5" para Escenarios).
+
+#### Commits a `main`
+
+| Commit | Sub-fase | Que |
+|---|---|---|
+| `06b40a1` | **6a** — Migracion DB | Endpoint admin `/api/admin/migrate-fiscal-fase6` que crea `fiscal_obligation_overrides` con SQL puro idempotente (`CREATE TABLE IF NOT EXISTS` + indices por org e isActive + unique parcial por `(org, defaultKey) WHERE defaultKey IS NOT NULL` + FK a organizations con ON DELETE CASCADE). Ejecutado en prod con respuesta `{ ok: true, tableCreated: true, existingCount: 0 }`. Orden respetado: endpoint → push → execute → schema.prisma. 9 defaultKeys soportados: MONOTRIBUTO, IVA_RI_MENSUAL, IIBB_PRIMARY, IIBB_CONVENIO, GANANCIAS_ANUAL, GANANCIAS_MENSUAL_RI, PERCEPCION_MELI_IIBB, PERCEPCION_MELI_IVA, RETENCION_MELI_GANANCIAS. |
+| `9a2464b` | **6b** — Lib + API calendario + overrides CRUD | `src/lib/finanzas/fiscal-calendar.ts` (~330 lineas puro TS): tablas `MONOTRIBUTO_AMOUNTS`/`MONOTRIBUTO_LIMITS`/`IIBB_RATES`/`PROVINCE_NAMES`, helper `ivaDueDayByCuit()` (dia 18-22 segun terminacion), `buildDefaultObligations(profile)` que deriva BaseObligation[] del fiscalProfile (Monotributo: cuota mensual + recat cuatrimestral ene/may/sep; RI: IVA mensual + IIBB primario + IIBB convenio multilateral + Ganancias anticipos bimestrales + DDJJ anual junio; percepciones ML si `sellsOnMarketplace`). `expandObligations()` expande a fechas concretas con clamp de dia (99 = ultimo) y manejo de saltos de año. `applyOverrides()` merge defaults + overrides: OVERRIDE_DEFAULT edita/oculta, CUSTOM agrega. APIs: `GET /api/finance/fiscal/calendar?from=YYYY-MM-DD&monthsAhead=N` (default 12m, max 24), `GET/POST/PUT/DELETE /api/finance/fiscal/overrides` CRUD scope-safe con validacion estricta kind/category/frequency/amountSource/dueDay/yearlyMonth. P2002 (unique defaultKey) → 409. Modelo `FiscalObligationOverride` declarado en `schema.prisma` **despues** de la ejecucion de 6a. |
+| `360cf95` | **6c** — UI /finanzas/fiscal completa | Rewrite total de `src/app/(app)/finanzas/fiscal/page.tsx` (antes placeholder con `FiscalSketch` sketch cards). Hero premium con aurora radial emerald+amber + prism delimiter bottom (emerald→indigo→violet) + badge regimen ("Monotributo cat H" / "Responsable Inscripto") + provincia + boton Refrescar + boton Resincronizar constancia (link a `/costos`). KPI strip 4 cards: Proximo vencimiento con urgency color escalonado (rojo vencido / amber <=3d / yellow <=7d / neutral) / Vencimientos 30d / Obligaciones estimadas 12m / Retenciones ML 12m. `CalendarCard` con 12 secciones mensuales expandibles (ChevronRight rota 90°), cada obligacion con chip colored per categoria (MT/IVA/IIBB/Gan/ML), `formatDueLabel()` ("Vence hoy / mañana / En N dias / En N semanas"), amount cuando conocido o "Monto a calcular" italic. `RetentionsCard` con bar chart 12 meses SVG puro (rose gradient) + tooltip nativo + total 12m + lifetime + info box recovery. `CategoryBreakdown` 6 cards coloreadas (una per categoria). Empty state `MissingProfile` con CTA a `/costos`. Skeleton shimmer loading. Endpoint nuevo `GET /api/finance/fiscal/retentions?months=N` agrega `MlCommission.taxWithholdings` por mes con TO_CHAR DATE_TRUNC, rellena meses sin data con 0, devuelve monthly[] + total12m + totalLifetime. Tri-moneda via `useCurrencyView`. |
+| `3d7fe04` | **6d** — Alertas Monotributo + sugerencia regimen | `src/lib/finanzas/fiscal-monotributo.ts` (~230 lineas puro TS): rule engine deterministico con 5 reglas evaluadas en orden sobre `utilizationPct = projectedRevenue12m / currentLimit * 100`: (1) >= 100 en cat. K → UPGRADE_TO_RI (critical), (2) >= 100 en otra → RECATEGORIZE_UP (critical), (3) >= 85 en cat. K → CONSIDER_RI (warning), (4) >= 85 en otra → RECATEGORIZE_UP (warning), (5) < 40 con cat != A → RECATEGORIZE_DOWN (info ahorro). Helpers: `findSuggestedCategory()`, `catCompare()`, `fmtK()`. Output `MonotributoAnalysis` con `currentLimit`, `currentMonthlyAmount`, `suggestedCategory`, `utilizationPct`, `monthsToExceed`, `suggestion`, `alerts`, `headline`. Endpoint `GET /api/finance/fiscal/monotributo-alert`: lee fiscalProfile, query orders 12m, proyeccion conservadora `max(actualLast12m, avg(last3) * 12)`, caso RI verifica downgrade posible a Monotributo K, caso Monotributo llama `analyzeMonotributo()`. Componente `MonotributoAlertCard` inline en `fiscal/page.tsx` (despues del Hero): aurora radial de severity, icon lucide (AlertTriangle / Sparkles), pill label ("Accion requerida" / "Atencion" / "Estado"), headline + body, progress bar de utilization con gradient tricolor (verde/amber/rojo), grid 3 KPIs (Ultimos 12m / Proyectado / Tope categoria), sugerencia CTA. Sin LLM — patron `narrative.ts` Fase 1d reusado. |
+| `82e50d0` | **6e** — Bridge CAC/LTV/Payback en Estado + Bondly | `src/components/finanzas/BridgeStrip.tsx` (~230 lineas): strip horizontal compacto con 4 MiniKPIs (CAC / LTV / LTV:CAC ratio / Payback months), prism delimiter top con gradient del healthColor overall (peor de ratio y payback), skeleton 5-slot shimmer. Lee `/api/metrics/ltv` (mismo endpoint que `MarketingFinanceCard` de Pulso). Shape correcta: `summary.{avgLtv,globalCac,globalLtvCac}` + `byChannel[]`. Calcula `blendedRatio = LTV/CAC` y `blendedPayback = 12*CAC/LTV` inline. Health color por MiniKPI: Ratio >=3 verde/>=1.5 amber/<1.5 rojo; Payback <=6m verde/<=12m amber/>12m rojo. Links: "Detalle en Pulso" (neutral) y "Clientes en Bondly" (violet destacado). Silent fail si error. `print:hidden` wrapper. Montado en `/finanzas/estado` antes del viewMode condicional con `dateFrom`/`dateTo` del rango activo. Agregado tambien pill "Ver clientes en Bondly →" en header de `MarketingFinanceCard` de Pulso. Zero cambios de API — consumo 100% de `/api/metrics/ltv` ya vivo desde Fase 1b. |
+| `b94b41c` | **6f** — Alertas predictivas cross-module | `src/lib/finanzas/predictive-alerts.ts` (~180 lineas puro TS): rule engine con 7 reglas MoM + cross-module evaluadas todas (no excluyentes): `shipping_spike` (shipping MoM > +30% → warning/high), `cogs_spike` (cogs% delta > +5pp → warning/high), `retentions_spike` (retenciones MoM > +30% → info), `cac_gt_ltv` (blended CAC > LTV → critical), `payback_long` (blended payback > 6m → warning/high), `margin_yoy_drop` (margen YoY cae > 8pp → warning/high), `fiscal_imminent` (vencimiento <= 3 dias → warning/high). Helpers `pctChange()`, `fmtPct()`, `fmtPp()`. Output `FinancialAlert[]` sorted by priority. Endpoint `GET /api/finance/alerts/predictive`: agrega en paralelo `aggregateShippingAndCogs()` current + prev month (queries directas orders + order_items con JOIN), `aggregateRetentions()` current + prev month (ml_commissions), inline CAC/LTV 30d desde `customers.firstOrderAt` + `ad_metrics_daily`, fiscal proximo vencimiento via `fiscal-calendar.ts` helpers. Componente `PredictiveAlertsCard` (~180 lineas) independiente de `FinancialAlertsCard` (Fase 1d). Estados: loading skeleton 2 rows / empty hero "Tendencias sanas" verde con Sparkles / alerts con header counter + priority pill + lista con icon per type (Truck/TrendingDown/Calendar/Users/AlertTriangle) + pill priority + title + body. Integrada en `/finanzas/pulso` debajo de `FinancialAlertsCard`. |
+| `91f504f` | **6g** — PDF export calendario + consolidacion final | `src/app/print/fiscal/page.tsx` (~280 lineas): ruta printable fuera de `(app)` — no hereda sidebar. Client component que fetchea `/api/finance/fiscal/calendar?monthsAhead=12` y auto-dispara `window.print()` a los 650ms. Portada con regimen + provincia + fecha generacion + horizonte + total estimado 12m. Una section per mes con tabla (Fecha / Obligacion / Categoria chip colored / Monto formatted ARS / Nota) con `page-break-inside: avoid` + `break-inside: avoid`. Footer con URL + fuente de datos. `@page A4 + margin: 12mm + print-color-adjust: exact`. Botones Imprimir/Cerrar fixed con `.no-print`. Solo ARS nominales (snapshot). Sin jspdf, puppeteer, html2canvas — navegador genera PDF nativo. Boton "Exportar PDF" en Hero de `/finanzas/fiscal` (icon lucide Download, styled neutral white, target="_blank" + rel="noopener noreferrer"). Mismo patron que `/print/escenarios/[id]` (Fase 5f). |
+
+**Arquitectura Fase 6**:
+
+- **Tabla nueva `fiscal_obligation_overrides`** (per-org overrides del calendario fiscal). Los defaults viven en `fiscal-calendar.ts` como constantes TS derivadas del `fiscalProfile`. La tabla solo guarda diffs: CUSTOM (agregados), OVERRIDE_DEFAULT (ediciones de defaults), hideDefault (ocultar defaults que no aplican).
+- **Libs puras TS sin DB ni React**: `fiscal-calendar.ts` (calendario + expansion + merge overrides), `fiscal-monotributo.ts` (rule engine Monotributo), `predictive-alerts.ts` (rule engine cross-module MoM). Todas testeable unit-level cuando haya bandwidth.
+- **Endpoints agregados**: `/api/admin/migrate-fiscal-fase6` (migration), `/api/finance/fiscal/calendar` (GET expanded obligations), `/api/finance/fiscal/overrides` (CRUD), `/api/finance/fiscal/retentions` (GET bar chart), `/api/finance/fiscal/monotributo-alert` (GET analysis), `/api/finance/alerts/predictive` (GET cross-module alerts).
+- **Orden de migraciones respetado (regla #13)**: `CREATE TABLE IF NOT EXISTS` via endpoint admin ANTES de tocar `schema.prisma`. Tomy ejecuto en prod con respuesta `{ ok: true, existingCount: 0 }` antes de 6b. Esto previene `column does not exist` en deploy de Vercel.
+- **Bridge storytelling**: tres links nuevos hacia `/bondly/clientes` (desde `MarketingFinanceCard` de Pulso + desde `BridgeStrip` de Estado + opcional desde drill-down futuro). Refuerza que Bondly es el CRM donde vive la data de clientes, y el P&L la consume para CAC/LTV/Payback.
+- **Rule engine deterministicas sin LLM**: sigue el patron `narrative.ts` Fase 1d. Severity por priority (HIGH/MEDIUM/LOW) + id deterministico para idempotencia. Alertas predictivas (tendencia) son complementarias a las de narrative (estado actual) — ambas se muestran en Pulso en cards separadas.
+- **Tri-moneda**: `BridgeStrip`, `MonotributoAlertCard`, `CalendarCard`, `RetentionsCard` consumen `useCurrencyView` para formatear montos. La ruta `/print/fiscal` usa ARS nominales hardcoded porque el PDF es snapshot (no reactivo al toggle global).
+- **PDF via navegador**: sin jspdf, puppeteer, html2canvas. `window.print()` + `@page A4 + margin: 12mm`. Zero nuevas dependencias en toda la Fase 6.
+
+**Estructura de archivos nuevos de Fase 6**:
+
+```
+src/lib/finanzas/fiscal-calendar.ts              (~330 lineas, puro TS)
+src/lib/finanzas/fiscal-monotributo.ts           (~230 lineas, puro TS)
+src/lib/finanzas/predictive-alerts.ts            (~180 lineas, puro TS)
+src/app/api/admin/migrate-fiscal-fase6/route.ts
+src/app/api/finance/fiscal/calendar/route.ts
+src/app/api/finance/fiscal/overrides/route.ts    (GET/POST/PUT/DELETE)
+src/app/api/finance/fiscal/retentions/route.ts
+src/app/api/finance/fiscal/monotributo-alert/route.ts
+src/app/api/finance/alerts/predictive/route.ts
+src/components/finanzas/BridgeStrip.tsx          (~230 lineas)
+src/components/finanzas/PredictiveAlertsCard.tsx (~180 lineas)
+src/app/print/fiscal/page.tsx                    (~280 lineas printable)
+src/app/(app)/finanzas/fiscal/page.tsx           (rewrite ~1000 lineas)
+prisma/schema.prisma                             (modelo FiscalObligationOverride)
+```
+
+**Archivos modificados de Fase 6** (no nuevos):
+- `src/app/(app)/finanzas/pulso/page.tsx` — import + render `<PredictiveAlertsCard />` debajo de `FinancialAlertsCard`.
+- `src/app/(app)/finanzas/estado/page.tsx` — import + render `<BridgeStrip dateFrom dateTo />` antes del viewMode condicional (con wrapper `print:hidden`).
+- `src/components/finanzas/MarketingFinanceCard.tsx` — pill "Ver clientes en Bondly →" en header.
+
+**Endpoints admin ejecutados en produccion (Sesion 47)**:
+- `POST /api/admin/migrate-fiscal-fase6` → `{ ok: true, message: "Tabla fiscal_obligation_overrides lista (idempotente). Los defaults viven en codigo TS — esta tabla solo guarda overrides per-org.", existingCount: 0, defaultKeys: [...] }`.
+
+**Estado final en produccion al cierre de Sesion 47**:
+- `/finanzas/fiscal` deja de ser placeholder y pasa a ser la pestaña fiscal mas completa del mercado argentino (calendario automatico + retenciones + Monotributo + PDF).
+- **Todas las 5 pestañas del modulo Finanzas viven sin placeholders**: Pulso, Estado, Costos, Escenarios, Fiscal.
+- `PredictiveAlertsCard` en Pulso muestra 0-N alertas predictivas MoM + cross-module.
+- `BridgeStrip` en Estado conecta el P&L con CAC/LTV/Payback (leido de `/api/metrics/ltv` ya existente).
+- PDF export del calendario fiscal disponible desde cualquier pantalla de `/finanzas/fiscal`.
+
+**Decisiones arquitectonicas tomadas en Sesion 47**:
+
+- **Separacion defaults TS / overrides DB**: en vez de seedear la tabla con defaults por cada org (que obligaria a mantenerlos sincronizados), los defaults derivan en runtime del `fiscalProfile` del org. La tabla solo guarda diffs. Ventaja: cuando AFIP actualiza montos (Monotributo cada 6 meses aprox), se actualiza una constante TS + un push y todos los orgs ven el cambio sin backfill masivo.
+- **Rule engines sin LLM**: `fiscal-monotributo.ts` y `predictive-alerts.ts` son 100% deterministicos. Siguen el patron `narrative.ts` de Fase 1d (anti-alucinacion + idempotencia + testeable). Los LLMs se reservan para el contexto del Aurum bubble, no para generar alertas financieras.
+- **CAC/LTV blended via inline query vs reusar endpoint**: `/api/finance/alerts/predictive` calcula CAC/LTV inline con `customers.firstOrderAt + ad_metrics_daily` en vez de llamar al endpoint `/api/metrics/ltv` internamente. Evita fetch interno + menor latencia. Trade-off: duplica logica; aceptable porque son queries simples (COUNT + SUM).
+- **MlCommission.taxWithholdings lumped**: el modelo no separa IVA / IIBB / Ganancias. Futuro: parsear el tipo desde MELI y separarlos. Para Fase 6 se muestra el total y se informa "recuperable como credito fiscal" generico.
+- **Bondly como destino cross-module**: 3 links nuevos apuntan a `/bondly/clientes`. Refuerza la separacion de dominios: P&L lee data, Bondly es el CRM maestro.
+- **No seedeamos FiscalObligationOverride**: la tabla queda vacia por default. Los defaults viven en codigo. Evita complejidad inicial y migraciones futuras cuando los defaults cambian.
+
+**Checklist de cierre Fase 6**:
+- ✅ `npx tsc --noEmit` clean en cada sub-fase (6a/6b/6c/6d/6e/6f/6g).
+- ✅ 7 commits separados en `main` para revert granular.
+- ✅ Migracion ejecutada en prod con respuesta confirmada antes de pushear el `schema.prisma`.
+- ✅ Zero nuevas dependencias (sin jspdf, puppeteer, html2canvas, recharts, Anthropic SDK).
+- ✅ Tri-moneda (`useCurrencyView`) consumida en todos los componentes interactivos (excepto PDF printable que es snapshot ARS).
+- ✅ Todos los numeros con `tabular-nums` para alineacion perfecta.
+- ✅ Rule engines 100% deterministicos (sin LLM), sin puntos de alucinacion.
+- ✅ Scope-safe en endpoints CRUD (`organizationId` siempre en el where).
+- ✅ Orden de migracion respetado (CLAUDE.md regla #13 / error #S36).
+
+**Proximos pasos sugeridos (post-Fase 6)**:
+- **Tests unitarios de los rule engines**: `predictive-alerts.ts`, `fiscal-monotributo.ts`, `fiscal-calendar.ts` son puros — perfecto para tests (cobertura de reglas, edge cases dueDay=99, saltos de año, convenio multilateral sin province base, etc.).
+- **Seasonality calibrada**: fit de la curva `LATAM_TOYS` en `scenario-engine.ts` contra los 18 meses historicos reales de VTEX/MELI de NitroSales (MAPE test).
+- **Separacion retenciones MELI por tipo**: parsear de los webhooks MELI el detalle IVA/IIBB/Ganancias dentro de `taxWithholdings` para mostrar graficos granulares.
+- **Fase 6 Bridge profundo Bondly drill-down**: desde `BridgeStrip` agregar drill-down a cohort LTV 30/60/90d y link a `/bondly/ltv`. Hoy solo linkea a `/bondly/clientes`.
+- **Update de `MONOTRIBUTO_AMOUNTS` via endpoint admin**: crear `/api/admin/update-monotributo-amounts` para refrescar montos cuando AFIP recategoriza (hoy editar el TS requiere push).
+- **Extraer `MonotributoAlertCard`** a `src/components/finanzas/` (hoy vive inline en `fiscal/page.tsx`). Si aparecen otras alert cards con el mismo layout, abstraer como `AlertCard` generico.
+- **Persistir overrides custom default via onboarding**: flujo guiado para que el usuario nuevo agregue "pago contador dia X" desde un wizard al completar fiscal profile.
+
+---
+
+## Ultima actualizacion previa: 2026-04-19 (Sesion 46 — Finanzas P&L Fase 5 Escenarios completa: 6 sub-fases iterativas con migracion + engine + UI premium + drivers drawer + forecast chart + comparativo + PDF)
 
 > Este bloque consolida los **6 commits** a `main` del 2026-04-19 (tercera ronda del dia) que construyen `/finanzas/escenarios` de cero: desde la migracion SQL de la tabla `financial_scenarios` hasta la UI premium con 3 cards de presets + forecast chart 12m con banda min-max + drawer de sliders para 10 drivers + comparativo tri-panel + export PDF printable + confirmacion "hacerlo realidad". 6 sub-fases iterativas (5a→5f) pusheadas directo a `main` con `tsc --noEmit` limpio en cada push. Una tabla nueva en DB, un engine puro TS (`scenario-engine.ts`) con seasonality LATAM y causal pattern, tres componentes nuevos (`ScenarioForecastChart`, `ScenarioDriversDrawer`, `ScenarioCompareView`), una ruta `/print/escenarios/[id]` fuera de `(app)` para PDF export via `window.print()`.
 
