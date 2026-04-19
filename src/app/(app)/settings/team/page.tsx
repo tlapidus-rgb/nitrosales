@@ -40,12 +40,21 @@ const ROLE_META: Record<Role, { label: string; color: string; icon: any }> = {
   MEMBER: { label: "Editor", color: "#64748b", icon: User },
 };
 
+interface CustomRoleLite {
+  id: string;
+  name: string;
+  color: string | null;
+  icon: string | null;
+}
+
 interface Member {
   id: string;
   email: string;
   name: string | null;
   role: Role;
   createdAt: string;
+  customRoleId: string | null;
+  customRole: CustomRoleLite | null;
 }
 
 interface Invitation {
@@ -62,6 +71,7 @@ interface Invitation {
 export default function TeamPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [customRoles, setCustomRoles] = useState<CustomRoleLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(null);
@@ -75,6 +85,7 @@ export default function TeamPage() {
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       setMembers(json.members ?? []);
       setInvitations(json.invitations ?? []);
+      setCustomRoles(json.customRoles ?? []);
     } catch (e: any) {
       showToast(e.message || "Error cargando team", "err");
     } finally {
@@ -91,21 +102,35 @@ export default function TeamPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const handleRoleChange = async (userId: string, newRole: Role) => {
+  const handleRoleChange = async (userId: string, value: string) => {
+    // value es "base:OWNER" | "base:ADMIN" | "base:MEMBER" | "custom:<id>"
+    let body: any;
+    if (value.startsWith("base:")) {
+      const role = value.slice(5) as Role;
+      body = { role, customRoleId: null };
+    } else if (value.startsWith("custom:")) {
+      const customRoleId = value.slice(7);
+      body = { customRoleId };
+    } else {
+      return;
+    }
     try {
       const res = await fetch(`/api/settings/team/members/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      showToast(`Rol actualizado a ${ROLE_META[newRole].label}`);
+      showToast("Rol actualizado");
       await load();
     } catch (e: any) {
       showToast(e.message, "err");
     }
   };
+
+  const memberCurrentValue = (m: Member): string =>
+    m.customRoleId ? `custom:${m.customRoleId}` : `base:${m.role}`;
 
   const handleRemoveMember = async (m: Member) => {
     if (!confirm(`¿Remover a ${m.email} de la organización?`)) return;
@@ -226,14 +251,38 @@ export default function TeamPage() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
+                {m.customRole && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    style={{
+                      background: `${m.customRole.color ?? "#64748b"}15`,
+                      color: m.customRole.color ?? "#64748b",
+                      border: `1px solid ${m.customRole.color ?? "#64748b"}30`,
+                    }}
+                    title={`Rol custom: ${m.customRole.name}`}
+                  >
+                    {m.customRole.name}
+                  </span>
+                )}
                 <select
-                  value={m.role}
-                  onChange={(e) => handleRoleChange(m.id, e.target.value as Role)}
+                  value={memberCurrentValue(m)}
+                  onChange={(e) => handleRoleChange(m.id, e.target.value)}
                   className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
                 >
-                  <option value="OWNER">Owner</option>
-                  <option value="ADMIN">Admin</option>
-                  <option value="MEMBER">Editor</option>
+                  <optgroup label="Roles del sistema">
+                    <option value="base:OWNER">Owner</option>
+                    <option value="base:ADMIN">Admin</option>
+                    <option value="base:MEMBER">Editor</option>
+                  </optgroup>
+                  {customRoles.length > 0 && (
+                    <optgroup label="Roles custom de tu organización">
+                      {customRoles.map((cr) => (
+                        <option key={cr.id} value={`custom:${cr.id}`}>
+                          {cr.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 <button
                   type="button"
