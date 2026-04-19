@@ -83,10 +83,10 @@ const TABS: TabDef[] = [
   {
     href: "/settings/seguridad",
     label: "Seguridad",
-    description: "2FA, sesiones, logs",
+    description: "Password y logs de acceso",
     icon: ShieldCheck,
     accent: "#ef4444",
-    kind: "placeholder",
+    kind: "productive",
   },
   {
     href: "/settings/api-keys",
@@ -94,7 +94,7 @@ const TABS: TabDef[] = [
     description: "Tokens para integraciones",
     icon: KeyRound,
     accent: "#64748b",
-    kind: "placeholder",
+    kind: "productive",
   },
 ];
 

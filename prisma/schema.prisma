@@ -84,6 +84,8 @@ model Organization {
   fiscalObligationOverrides FiscalObligationOverride[]
   // Settings Fase 7 — invitaciones pendientes por email
   teamInvitations          TeamInvitation[]
+  // Settings Fase 7 QA — API Keys para integracion externa
+  apiKeys                  ApiKey[]
 
   @@map("organizations")
 }
@@ -107,6 +109,8 @@ model User {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   botChats       BotChat[]
+  loginEvents    LoginEvent[]
+  createdApiKeys ApiKey[]
 
   @@map("users")
 }
@@ -1800,4 +1804,50 @@ model TeamInvitation {
   @@index([organizationId, status], map: "team_invitations_org_status_idx")
   @@index([email], map: "team_invitations_email_idx")
   @@map("team_invitations")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Settings Fase 7 QA — Seguridad: historial de logins
+// ═══════════════════════════════════════════════════════════════════
+model LoginEvent {
+  id            String    @id @default(cuid())
+  userId        String?
+  email         String?
+  success       Boolean   @default(true)
+  ip            String?
+  userAgent     String?
+  location      String?
+  failureReason String?
+  createdAt     DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)], map: "login_events_user_created_idx")
+  @@index([email], map: "login_events_email_idx")
+  @@map("login_events")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Settings Fase 7 QA — API Keys para integracion externa
+// ═══════════════════════════════════════════════════════════════════
+model ApiKey {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String                                // display name ("Zapier", "n8n worker")
+  prefix         String                                // ns_live_abc123 (visible siempre)
+  hashedToken    String    @unique                     // bcrypt del token completo
+  scopes         Json      @default("[]")              // ["read:orders","read:finanzas",...]
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  createdById    String?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId], map: "api_keys_org_idx")
+  @@index([prefix], map: "api_keys_prefix_idx")
+  @@map("api_keys")
 }
