@@ -3,7 +3,91 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-19 (Sesion 45 — Finanzas P&L Fase 4 Costos UI premium: 5 sub-fases de polish visual world-class segun UI_VISION_NITROSALES.md)
+## Ultima actualizacion: 2026-04-19 (Sesion 46 — Finanzas P&L Fase 5 Escenarios completa: 6 sub-fases iterativas con migracion + engine + UI premium + drivers drawer + forecast chart + comparativo + PDF)
+
+> Este bloque consolida los **6 commits** a `main` del 2026-04-19 (tercera ronda del dia) que construyen `/finanzas/escenarios` de cero: desde la migracion SQL de la tabla `financial_scenarios` hasta la UI premium con 3 cards de presets + forecast chart 12m con banda min-max + drawer de sliders para 10 drivers + comparativo tri-panel + export PDF printable + confirmacion "hacerlo realidad". 6 sub-fases iterativas (5a→5f) pusheadas directo a `main` con `tsc --noEmit` limpio en cada push. Una tabla nueva en DB, un engine puro TS (`scenario-engine.ts`) con seasonality LATAM y causal pattern, tres componentes nuevos (`ScenarioForecastChart`, `ScenarioDriversDrawer`, `ScenarioCompareView`), una ruta `/print/escenarios/[id]` fuera de `(app)` para PDF export via `window.print()`.
+
+### Sesion 46 — 2026-04-19 — Finanzas P&L Fase 5 Escenarios completa (6 sub-fases iterativas)
+
+**Objetivo**: implementar el modulo what-if de escenarios financieros segun `PROPUESTA_PNL_REORG.md §Fase 5 Escenarios`. Tres escenarios predefinidos (Conservador/Base/Optimista) con 12 meses de forecast, estacionalidad LATAM (Hot Sale mayo, Dia del Niño agosto, Black Friday noviembre, Navidad diciembre), drivers con rangos min/max (Causal pattern) que generan una banda min-max visualizable, KPIs derivados (Revenue 12M, Margen neto, Runway, Net profit), y capacidad de clonar/editar drivers en vivo con preview sin persistir.
+
+#### Commits a `main`
+
+| Commit | Sub-fase | Que |
+|---|---|---|
+| `bc59bb8` (sesion previa) | **5a** — Migracion financial_scenarios | Endpoint admin `/api/admin/migrate-scenarios-fase5` con SQL puro idempotente (`CREATE TABLE IF NOT EXISTS financial_scenarios` + indices por organizationId e isActive + unique per org+name). Ejecutado en prod con respuesta `{ ok: true, tableCreated: true, existingCount: 0 }`. Orden respetado: endpoint → push → execute → schema.prisma + code. |
+| `08828f3` | **5b** — Engine + CRUD + compute | `src/lib/finanzas/scenario-engine.ts` (~550 lineas) puro TS sin DB/React: `DRIVER_META` con 10 drivers (traffic, conversionRate, aov, adSpend, roas, cogsPct, opexBase, headcount, inflation, fxMonthly), `validateScenarioDrivers`, `computeForecast` con seasonality multiplier LATAM_TOYS `[0.82, 0.88, 0.92, 0.98, 1.12 (Hot Sale), 0.95, 0.92, 1.35 (Dia del Niño), 1.08, 1.05, 1.40 (Black Friday), 1.55 (Navidad)]`, inflacion mensual compuesta, bandas min-max cuando hay ranges, calculo de runway y lastPositiveMonth. `buildDefaultScenariosPayloads()` genera los 3 presets. APIs: `GET/POST /api/finance/scenarios` (list con lazy-seed + create CUSTOM) y `GET/PUT/DELETE/POST /api/finance/scenarios/[id]` (con `?action=clone|activate|compute`). El `compute` con `drivers` override actua en dry-run (no persiste cache). Guarda el resultado en `lastComputedJson` para render instantaneo en GET. |
+| `92000d7` | **5c** — UI 3 cards premium + fetch real | Rewrite de `/src/app/(app)/finanzas/escenarios/page.tsx` (antes placeholder con sketch cards). `ScenarioCard` con aurora radial por kind (CONSERVATIVE rojo `#ef4444`, BASE cyan `#0ea5e9`, OPTIMIST verde `#10b981`, CUSTOM violet `#8b5cf6`), badge Activo con drop-shadow glow, KPI grid 2x2 (Revenue 12M / Margen neto / Runway / ROAS), mini range bar primer→ultimo mes con gradient del color del kind, acciones Activar/Clonar/Borrar. `SkeletonGrid` con shimmer. Toast bottom-right con gradient por kind. Todo numero pasa por `fm(v, date)` via `useCurrencyView` (tri-moneda). |
+| `a269f9c` | **5d** — Sliders drivers con Causal pattern | `src/components/finanzas/ScenarioDriversDrawer.tsx` (~600 lineas). Drawer slide-in desde derecha `max-w-xl`. `DRIVER_GROUPS` en 3 bloques (Comercial: traffic/CR/AOV/adSpend/ROAS · Costos: cogsPct/opexBase/headcount · Macro: inflation/fxMonthly). Cada `DriverRow`: label + hint + slider horizontal + input exacto con unidades + botones de spread rapido ±10/±20/±30% (solo para rangeable) + seccion expandible min/max custom. Preview header con 4 KPIs (Revenue 12M / Margen / Runway / Net 12M) que se recalculan en vivo contra `/api/finance/scenarios/[id]?action=compute` con drivers override, debounce 280ms, AbortController cancela requests pendientes. Progress bar en header del drawer mientras recompute. Save (PUT) con dirty-check + Escape cierra + body scroll lock. |
+| `5554881` | **5e** — Forecast chart 12m + waterfall | `src/components/finanzas/ScenarioForecastChart.tsx` (~470 lineas, SVG puro sin recharts). Line chart 12 meses con `areaGrad`/`lineGrad` gradients, banda min-max cuando hay Causal ranges, glow ambar detras de meses pico (Hot Sale/Dia del Niño/Black Friday/Navidad), Y ticks auto-escalados con `shortMoney()` K/M/B, hover tooltip SVG (220x90) con Revenue+Margen+Cash fin de mes, click-to-pin abre `Waterfall` subcomponent inline con 5 bars (Revenue+, -COGS, -AdSpend, -Opex, =Net) color-coded. Montado entre presets y customs con `chartScenario` useMemo (prioridad: active > BASE > primero). |
+| `2537a3f` | **5f** — Comparar + PDF + Hacerlo realidad | Tres features en un commit. (1) `src/components/finanzas/ScenarioCompareView.tsx` (~550 lineas): modal full-screen tri-panel con selector rotatorio 1-3 escenarios, por panel un `MiniSparkline` SVG + KPI grid 2x2 + fila de 3 costos (COGS/AdSpend/Opex) con deltas vs pivot en % (invertidos para costos donde "menos es mejor") + resumen drivers (CR/AOV/ROAS/COGS/Trafico/Inflacion). Pill "Pivot" sobre el Base. Escape cierra + body scroll lock. (2) `/src/app/print/escenarios/[id]/page.tsx` fuera de `(app)` (sin sidebar): client component que fetchea `/api/finance/scenarios/[id]` y auto-dispara `window.print()` a los 650ms. Portada con aurora per kind, KPI grid 4 col, tabla drivers con unidades, `StaticForecastChart` SVG (sin interactividad), `StaticWaterfall` SVG, tabla mensual completa con filas highlighted en meses pico + totales, footer con metadata. `@page A4` + `page-break-before` + `break-inside: avoid` para tablas. Botones "Imprimir" y "Cerrar" solo en pantalla (`.no-print`). (3) `RealityConfirmModal` inline en page.tsx: el antiguo CTA "Activar" renombrado a **"Hacerlo realidad"** con icono estrella, abre modal con preview (Revenue 12M / Margen / Runway / Horizonte) antes de confirmar. Enter confirma, Escape cancela. |
+
+**Arquitectura Fase 5**:
+
+- **Tabla nueva `financial_scenarios`** en DB (una por organizationId + unique constraint por nombre). Columnas: `drivers Json`, `horizonMonths Int default 12`, `isActive Bool`, `kind` (BASE/OPTIMIST/CONSERVATIVE/CUSTOM), `lastComputedJson Json?` para cache del forecast. Declarada en `schema.prisma` DESPUES de pushear el endpoint admin (orden obligatorio respetado).
+- **Engine puro TS** (`scenario-engine.ts`) sin importar DB ni React: se puede llamar desde cualquier API route o desde el cliente (drawer) via fetch a `?action=compute`. Deterministic: mismo input, mismo output — ideal para cachear en `lastComputedJson` y re-renderizar instantaneo en GET.
+- **Causal pattern para drivers**: cada driver es `{ value, min?, max? }`. Cuando el escenario tiene ranges, el engine computa 3 trayectorias (center, min, max) y devuelve `revenue/revenueMin/revenueMax` por mes. El chart usa eso para la banda visual.
+- **Compute dry-run**: `POST /api/finance/scenarios/[id]?action=compute` con body `{ drivers }` no persiste. Permite al drawer mostrar preview sin "contaminar" el escenario hasta que Tomy presione Save.
+- **Cache invalidation**: cada PUT que toca drivers setea `lastComputedAt = null` y recomputa inmediato antes de responder. Cada GET que no encuentra cache recompute y persiste.
+- **Seasonality LATAM_TOYS** estatica en el engine: array de 12 multipliers `[ene, feb, ..., dic]` con picos en mayo (Hot Sale), agosto (Dia del Niño), noviembre (Black Friday), diciembre (Navidad). Se multiplica contra el revenue mensual base (`traffic * CR * AOV / 12`) antes de aplicar inflacion compuesta.
+- **Ruta print fuera de `(app)`**: `/src/app/print/escenarios/[id]` no hereda el layout con sidebar, asi el PDF no lleva chrome de la app. Es client component para poder auto-disparar `window.print()` post-fetch.
+- **PDF via navegador**: sin jspdf, puppeteer, html2canvas. El navegador genera el PDF nativo con `@page A4 + margin: 12mm`. Zero nuevas dependencias.
+- **Tri-moneda en todo**: `ScenarioCard`, `ScenarioCompareView`, `ScenarioDriversDrawer` y `ScenarioForecastChart` reciben `fm: (v, date?) => string` como prop. La ruta print usa `fmtARS` hardcoded en pesos nominales porque el PDF es snapshot (no reactivo al toggle global).
+
+**Estructura de archivos nuevos de Fase 5**:
+
+```
+src/lib/finanzas/scenario-engine.ts              (~550 lineas, puro TS)
+src/app/api/admin/migrate-scenarios-fase5/route.ts
+src/app/api/finance/scenarios/route.ts           (GET list + POST create)
+src/app/api/finance/scenarios/[id]/route.ts      (GET/PUT/DELETE + POST ?action=)
+src/components/finanzas/ScenarioForecastChart.tsx  (~470 lineas SVG)
+src/components/finanzas/ScenarioDriversDrawer.tsx  (~600 lineas)
+src/components/finanzas/ScenarioCompareView.tsx    (~550 lineas)
+src/app/print/escenarios/[id]/page.tsx           (~500 lineas printable)
+src/app/(app)/finanzas/escenarios/page.tsx       (rewrite de placeholder)
+prisma/schema.prisma                             (modelo FinancialScenario)
+```
+
+**Endpoints admin ejecutados en producción (Sesion 46)**:
+- `POST /api/admin/migrate-scenarios-fase5` → `{ ok: true, tableCreated: true, existingCount: 0 }`.
+
+**Estado final en produccion al cierre de Sesion 46**:
+- `/finanzas/escenarios` deja de ser placeholder y pasa a ser el centro what-if del negocio.
+- Los 3 escenarios del sistema (Conservador/Base/Optimista) se crean lazy en la primera visita de Tomy via `/api/finance/scenarios GET` (si `count === 0` llama a `buildDefaultScenariosPayloads()` y persiste los 3).
+- El modal de `/print/escenarios/[id]` permite exportar cualquier escenario a PDF con un click (abre en nueva tab + auto-print).
+- `CurrencyToggle` del layout `/finanzas` sigue funcionando sobre todos los numeros del modulo (heredado de Sesion 41 Fase 0).
+
+**Decisiones arquitectonicas tomadas en Sesion 46**:
+
+- **Sin recharts ni libs PDF**: se mantiene la convencion NitroSales de SVG puro. Diff: un archivo de chart nuevo (~470 lineas) + un printable (~500 lineas) que comparten helpers (`shortMoney`, `shortMonth`, `monthIdx`). No se instalo ninguna dependencia nueva.
+- **Dry-run compute endpoint**: evita scratchpad scenarios temporales en DB cuando el usuario solo esta explorando drivers. Reduce write-pressure y mantiene el log de `updatedAt` limpio para auditoria.
+- **Orden de migracion respetado**: la tabla se creo via endpoint admin con `IF NOT EXISTS` ANTES de tocar `schema.prisma`. Esto es critico porque Vercel no migra la DB en build — si hubiera sido al reves, el build hubiera pasado pero el GET habria roto en runtime.
+- **Seasonality estatica vs dinamica**: la curva `LATAM_TOYS` esta hardcoded en el engine. En una version futura se puede leer de la tabla `ManualCost` o de historico real (MELI + VTEX order count por mes), pero para Fase 5 el foco fue tener la UX completa, no calibrar la curva con fit.
+- **"Hacerlo realidad"** (semantica): `activate` ya existia como action del endpoint, pero el label "Activar" no comunicaba el impacto (que el resto del P&L y del Pulso usan esos drivers). Renombrarlo + agregarle un modal de preview cambia el CTA de burocratico a significativo.
+
+**Checklist de cierre Fase 5**:
+- ✅ `npx tsc --noEmit` clean en cada sub-fase (5a/5b/5c/5d/5e/5f).
+- ✅ 6 commits separados en `main` para revert granular.
+- ✅ Migracion ejecutada en prod con respuesta confirmada antes de pushear el `schema.prisma`.
+- ✅ Zero nuevas dependencias (sin jspdf, puppeteer, html2canvas, recharts).
+- ✅ Tri-moneda (`useCurrencyView`) consumida en todos los componentes interactivos.
+- ✅ Todos los numeros con `tabular-nums`.
+- ✅ Drawers/modales cerrables con Escape + click en backdrop + boton explicito.
+- ✅ `body.style.overflow = 'hidden'` en drawer/modals mientras abiertos, cleanup on unmount.
+- ✅ `next build` local NO ejecutado al 100% (timeout por OOM en la VM de trabajo despues de 8+ min). Se valido con `tsc --noEmit` en cada push; Vercel build se deja como ultima red de seguridad.
+
+**Proximos pasos sugeridos (fuera de Fase 5)**:
+- **Fase 6 Bridge / Insights**: cerrar el ciclo del P&L con un modulo que compare `forecast del escenario activo` vs `actual del mes` y destaque los drivers que mas desviaron. Reaprovecha `FinancialScenario.lastComputedJson` + datos reales de `/api/metrics/orders`.
+- **Seasonality calibrada**: fit de la curva LATAM_TOYS contra los 18 meses historicos reales de VTEX/MELI de NitroSales. Metria simple: mean absolute percentage error (MAPE) entre forecast y real.
+- **Persistir overrides por mes**: hoy si Tomy edita un driver, afecta a los 12 meses por igual (excepto la curva de seasonality). Proximo paso: overrides puntuales por mes (ej: "en mayo subo AOV a 200K solo porque lanzamos 3 productos premium").
+- **Tests del engine**: `scenario-engine.ts` es puro — perfecto para tests. Casos: forecast determinista, banda min-max con rangos simetricos, runway critico cuando `burnRate > cashTodayAuto`, seasonality peaks en los meses correctos.
+- **Compartir escenarios**: endpoint `/api/finance/scenarios/[id]/share` que genere un read-only link con UUID. Util para mostrar a socios/contadores sin dar acceso al admin.
+- **Extraer `RealityConfirmModal`**: hoy vive inline en `page.tsx` (~180 lineas). Si aparecen otros modales de confirmacion en `/finanzas/*`, abstraer como `ConfirmModal` generico.
+
+---
+
+## Ultima actualizacion previa: 2026-04-19 (Sesion 45 — Finanzas P&L Fase 4 Costos UI premium: 5 sub-fases de polish visual world-class segun UI_VISION_NITROSALES.md)
 
 > Este bloque consolida los **5 commits** a `main` del 2026-04-19 (segunda ronda del dia) que llevan `/finanzas/costos` del nivel "funcional Fase 3" al nivel **visual premium world-class** definido en `UI_VISION_NITROSALES.md` (Linear / Stripe / Vercel / Notion). 5 sub-fases iterativas (4a→4e) pusheadas directo a `main` con validacion `tsc --noEmit` clean despues de cada una. Sin migracion de DB, sin cambios de API, sin deps nuevas — solo rewiring de UI sobre el codigo de Fase 3. Diff neto: **+662 / -170 lineas** en un solo archivo (`src/app/(app)/finanzas/costos/page.tsx`).
 
