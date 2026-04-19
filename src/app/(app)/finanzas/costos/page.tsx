@@ -1,8 +1,14 @@
 // @ts-nocheck
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { formatARS } from "@/lib/utils/format";
+import {
+  buildDriverFormulaPayload,
+  evaluateDriverFormula,
+  type Driver,
+  type DriverFormula,
+} from "@/lib/finanzas/driver-formula";
 
 /* ── Category config ──────────────────────────── */
 const CATEGORIES = [
@@ -32,7 +38,7 @@ const CATEGORIES = [
     description: "VTEX, ERP, email marketing, SaaS",
     icon: "🔧",
     hasSubcategory: false,
-    rateTypes: ["FIXED_MONTHLY", "PERCENTAGE"],
+    rateTypes: ["FIXED_MONTHLY", "PERCENTAGE", "DRIVER_BASED"],
   },
   {
     key: "FISCAL",
@@ -40,7 +46,7 @@ const CATEGORIES = [
     description: "IIBB, percepciones, contador, monotributo",
     icon: "📋",
     hasSubcategory: false,
-    rateTypes: ["FIXED_MONTHLY", "PERCENTAGE"],
+    rateTypes: ["FIXED_MONTHLY", "PERCENTAGE", "DRIVER_BASED"],
   },
   {
     key: "INFRAESTRUCTURA",
@@ -48,7 +54,7 @@ const CATEGORIES = [
     description: "Alquiler, servicios, seguros",
     icon: "🏢",
     hasSubcategory: false,
-    rateTypes: ["FIXED_MONTHLY"],
+    rateTypes: ["FIXED_MONTHLY", "DRIVER_BASED"],
   },
   {
     key: "MARKETING",
@@ -56,7 +62,7 @@ const CATEGORIES = [
     description: "Fotografia, produccion, eventos",
     icon: "📸",
     hasSubcategory: false,
-    rateTypes: ["FIXED_MONTHLY"],
+    rateTypes: ["FIXED_MONTHLY", "DRIVER_BASED"],
   },
   {
     key: "MERMA",
@@ -64,7 +70,7 @@ const CATEGORIES = [
     description: "Roturas, devoluciones no recuperables",
     icon: "📉",
     hasSubcategory: false,
-    rateTypes: ["FIXED_MONTHLY", "PERCENTAGE"],
+    rateTypes: ["FIXED_MONTHLY", "PERCENTAGE", "DRIVER_BASED"],
   },
   {
     key: "OTROS",
@@ -72,7 +78,7 @@ const CATEGORIES = [
     description: "Gastos varios",
     icon: "📦",
     hasSubcategory: false,
-    rateTypes: ["FIXED_MONTHLY"],
+    rateTypes: ["FIXED_MONTHLY", "DRIVER_BASED"],
   },
 ];
 
@@ -165,6 +171,157 @@ export default function CostosPage() {
     paymentFeesConfig: {},
   });
   const [platformConfigLoading, setPlatformConfigLoading] = useState(false);
+
+  // Fase 3f — Driver formula modal state
+  // `formulaModal` vale null cuando el modal esta cerrado. Cuando esta
+  // abierto, puede ser:
+  //   { mode: "edit", itemId, categoryKey, drivers, formula }
+  //   { mode: "create", categoryKey, formSnapshot, drivers, formula }
+  // formSnapshot guarda los campos del add-form (name, subcategory, etc)
+  // para poder hacer el POST completo al guardar la formula.
+  const [formulaModal, setFormulaModal] = useState<any>(null);
+  const [formulaSaving, setFormulaSaving] = useState(false);
+
+  // Preview en vivo de la formula (se recalcula cuando cambian drivers/formula)
+  const formulaPreview = useMemo(() => {
+    if (!formulaModal) return null;
+    const { drivers, formula } = formulaModal;
+    if (!formula || !formula.trim()) {
+      return { ok: false, error: "Escribi una formula para ver el resultado" };
+    }
+    return evaluateDriverFormula(formula, drivers);
+  }, [formulaModal]);
+
+  function openFormulaEditor(item: any, categoryKey: string) {
+    const existing: DriverFormula | null = item.driverFormula || null;
+    setFormulaModal({
+      mode: "edit",
+      itemId: item.id,
+      categoryKey,
+      drivers: existing?.drivers ? [...existing.drivers] : [
+        { key: "driver_1", label: "Variable 1", value: 1, unit: "" },
+      ],
+      formula: existing?.formula || "",
+    });
+  }
+
+  function openFormulaCreator(categoryKey: string) {
+    // Snapshot del form actual (lo va a usar al guardar para hacer POST)
+    setFormulaModal({
+      mode: "create",
+      categoryKey,
+      formSnapshot: { ...form },
+      drivers: [{ key: "driver_1", label: "Variable 1", value: 1, unit: "" }],
+      formula: "",
+    });
+  }
+
+  function closeFormulaEditor() {
+    setFormulaModal(null);
+    setFormulaSaving(false);
+  }
+
+  function updateFormulaDriver(idx: number, patch: Partial<Driver>) {
+    setFormulaModal((prev: any) => {
+      if (!prev) return prev;
+      const drivers = prev.drivers.map((d: Driver, i: number) =>
+        i === idx ? { ...d, ...patch } : d
+      );
+      return { ...prev, drivers };
+    });
+  }
+
+  function addFormulaDriver() {
+    setFormulaModal((prev: any) => {
+      if (!prev) return prev;
+      const nextKey = `driver_${prev.drivers.length + 1}`;
+      return {
+        ...prev,
+        drivers: [
+          ...prev.drivers,
+          { key: nextKey, label: `Variable ${prev.drivers.length + 1}`, value: 0, unit: "" },
+        ],
+      };
+    });
+  }
+
+  function removeFormulaDriver(idx: number) {
+    setFormulaModal((prev: any) => {
+      if (!prev) return prev;
+      if (prev.drivers.length <= 1) return prev; // Al menos 1 driver
+      const drivers = prev.drivers.filter((_: Driver, i: number) => i !== idx);
+      return { ...prev, drivers };
+    });
+  }
+
+  async function saveFormulaEditor() {
+    if (!formulaModal) return;
+    const { drivers, formula } = formulaModal;
+    const built = buildDriverFormulaPayload(drivers, formula);
+    if (!built.ok || !built.payload || built.amount === undefined) {
+      showToast(built.error || "Formula invalida");
+      return;
+    }
+    setFormulaSaving(true);
+    try {
+      if (formulaModal.mode === "edit") {
+        // PUT al item existente con nueva formula + amount recalculado
+        const res = await fetch("/api/finance/manual-costs", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: formulaModal.itemId,
+            driverFormula: built.payload,
+            amount: built.amount,
+            rateType: "DRIVER_BASED",
+          }),
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          showToast(json.error || "Error al guardar formula");
+          setFormulaSaving(false);
+          return;
+        }
+        showToast("Formula actualizada");
+      } else {
+        // POST nuevo item con los datos del formSnapshot + la formula
+        const snap = formulaModal.formSnapshot;
+        const legacyType = snap.behavior === "FIXED" ? "FIXED" : "VARIABLE";
+        const res = await fetch("/api/finance/manual-costs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            category: formulaModal.categoryKey,
+            subcategory: snap.subcategory || null,
+            name: (snap.name || "").trim() || "Costo con formula",
+            serviceCode: snap.serviceCode || null,
+            amount: built.amount,
+            rateType: "DRIVER_BASED",
+            rateBase: null,
+            socialCharges: snap.socialCharges ? parseFloat(snap.socialCharges) : null,
+            type: legacyType,
+            behavior: snap.behavior,
+            autoInflationAdjust: snap.autoInflationAdjust,
+            driverFormula: built.payload,
+            month: costMonth,
+          }),
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          showToast(json.error || "Error al crear costo con formula");
+          setFormulaSaving(false);
+          return;
+        }
+        showToast("Costo con formula creado");
+        resetForm();
+      }
+      fetchCosts(costMonth);
+      closeFormulaEditor();
+    } catch {
+      showToast("Error de red");
+      setFormulaSaving(false);
+    }
+  }
 
   // Fase 3d — Bulk edit selection state
   // Guardamos Set<string> con IDs seleccionados. Limpiamos al cambiar de mes.
@@ -1655,13 +1812,25 @@ export default function CostosPage() {
                                 </td>
                               )}
                               <td className="px-4 py-2.5 text-right">
-                                <button
-                                  onClick={() => deleteCost(item.id)}
-                                  className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                                  title="Eliminar"
-                                >
-                                  ✕
-                                </button>
+                                <div className="flex items-center justify-end gap-2">
+                                  {/* Fase 3f — boton de edicion de formula (solo si DRIVER_BASED) */}
+                                  {item.rateType === "DRIVER_BASED" && (
+                                    <button
+                                      onClick={() => openFormulaEditor(item, cat.key)}
+                                      className="text-xs px-2 py-0.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                      title="Editar drivers y formula"
+                                    >
+                                      ƒx
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => deleteCost(item.id)}
+                                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                    title="Eliminar"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1783,27 +1952,42 @@ export default function CostosPage() {
                             />
                           </div>
                         )}
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">
-                            {form.rateType === "PERCENTAGE" ? "%" : form.rateType === "PER_SHIPMENT" ? "$/envio" : "$/mes"}
-                          </label>
-                          <input
-                            type="number"
-                            placeholder="0"
-                            value={form.amount}
-                            onChange={e => setForm({ ...form, amount: e.target.value })}
-                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-28 text-right font-mono focus:border-blue-400 focus:outline-none"
-                          />
-                        </div>
+                        {/* Fase 3f — cuando rateType es DRIVER_BASED, el monto
+                            se calcula con la formula (no se ingresa aca). */}
+                        {form.rateType !== "DRIVER_BASED" && (
+                          <div>
+                            <label className="text-xs text-gray-500 block mb-1">
+                              {form.rateType === "PERCENTAGE" ? "%" : form.rateType === "PER_SHIPMENT" ? "$/envio" : "$/mes"}
+                            </label>
+                            <input
+                              type="number"
+                              placeholder="0"
+                              value={form.amount}
+                              onChange={e => setForm({ ...form, amount: e.target.value })}
+                              className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-28 text-right font-mono focus:border-blue-400 focus:outline-none"
+                            />
+                          </div>
+                        )}
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => addCost(cat.key)}
-                            disabled={!form.name.trim() || !form.amount}
-                            className="text-sm px-4 py-2 rounded-lg font-medium text-white disabled:opacity-50 transition-opacity"
-                            style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
-                          >
-                            Guardar
-                          </button>
+                          {form.rateType === "DRIVER_BASED" ? (
+                            <button
+                              onClick={() => openFormulaCreator(cat.key)}
+                              disabled={!form.name.trim()}
+                              className="text-sm px-4 py-2 rounded-lg font-medium text-white disabled:opacity-50 transition-opacity"
+                              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+                            >
+                              Siguiente: configurar formula
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => addCost(cat.key)}
+                              disabled={!form.name.trim() || !form.amount}
+                              className="text-sm px-4 py-2 rounded-lg font-medium text-white disabled:opacity-50 transition-opacity"
+                              style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
+                            >
+                              Guardar
+                            </button>
+                          )}
                           <button
                             onClick={resetForm}
                             className="text-sm text-gray-400 hover:text-gray-600 px-2 py-2"
@@ -1923,6 +2107,171 @@ export default function CostosPage() {
           >
             {bulkRunning ? "Aplicando..." : "Aplicar"}
           </button>
+        </div>
+      )}
+
+      {/* Fase 3f — Modal de editor de formula driver-based */}
+      {formulaModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={(e) => {
+            // click en el backdrop cierra el modal
+            if (e.target === e.currentTarget) closeFormulaEditor();
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-[720px] max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div
+              className="px-6 py-4 border-b border-gray-100 flex items-center justify-between"
+              style={{ background: "linear-gradient(135deg, #6366f110, #8b5cf610)" }}
+            >
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {formulaModal.mode === "edit" ? "Editar formula" : "Nueva formula"}
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Defini variables (drivers) y una expresion matematica para calcular el monto
+                </p>
+              </div>
+              <button
+                onClick={closeFormulaEditor}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                title="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              {/* Drivers */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Drivers (variables)
+                  </label>
+                  <button
+                    onClick={addFormulaDriver}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    + Agregar driver
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {formulaModal.drivers.map((d: Driver, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="clave (ej: headcount)"
+                        value={d.key}
+                        onChange={(e) =>
+                          updateFormulaDriver(idx, {
+                            key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"),
+                          })
+                        }
+                        className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 w-36 font-mono focus:border-indigo-400 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="etiqueta (ej: Headcount)"
+                        value={d.label || ""}
+                        onChange={(e) => updateFormulaDriver(idx, { label: e.target.value })}
+                        className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-400 focus:outline-none"
+                      />
+                      <input
+                        type="number"
+                        placeholder="valor"
+                        value={d.value}
+                        onChange={(e) =>
+                          updateFormulaDriver(idx, {
+                            value: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 w-28 text-right font-mono focus:border-indigo-400 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="unidad"
+                        value={d.unit || ""}
+                        onChange={(e) => updateFormulaDriver(idx, { unit: e.target.value })}
+                        className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 w-24 focus:border-indigo-400 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => removeFormulaDriver(idx)}
+                        disabled={formulaModal.drivers.length <= 1}
+                        className="text-gray-300 hover:text-red-500 disabled:opacity-20 disabled:cursor-not-allowed transition-colors px-1"
+                        title="Eliminar driver"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Formula textarea */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">
+                  Formula
+                </label>
+                <textarea
+                  placeholder="Ej: headcount * salario * 1.30"
+                  value={formulaModal.formula}
+                  onChange={(e) =>
+                    setFormulaModal((prev: any) => ({ ...prev, formula: e.target.value }))
+                  }
+                  rows={3}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 font-mono focus:border-indigo-400 focus:outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Operadores: + - * / ( ) · Funciones: min, max, abs, round, ceil, floor, sqrt, pow
+                </p>
+              </div>
+
+              {/* Preview */}
+              <div
+                className={`rounded-xl p-4 border ${
+                  formulaPreview?.ok
+                    ? "bg-emerald-50 border-emerald-200"
+                    : "bg-rose-50 border-rose-200"
+                }`}
+              >
+                <div className="text-xs font-medium text-gray-600 mb-1">Preview</div>
+                {formulaPreview?.ok ? (
+                  <div className="text-2xl font-semibold text-emerald-700 font-mono">
+                    {formatARS(Number(formulaPreview.value))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-rose-700">
+                    {formulaPreview?.error || "Completa drivers y formula"}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-end gap-2">
+              <button
+                onClick={closeFormulaEditor}
+                disabled={formulaSaving}
+                className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveFormulaEditor}
+                disabled={!formulaPreview?.ok || formulaSaving}
+                className="text-sm px-4 py-2 rounded-lg font-medium text-white disabled:opacity-40 transition-opacity"
+                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+              >
+                {formulaSaving
+                  ? "Guardando..."
+                  : formulaModal.mode === "edit"
+                  ? "Guardar cambios"
+                  : "Crear costo"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
