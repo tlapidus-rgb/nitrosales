@@ -262,6 +262,7 @@ export default function CostosPage() {
     socialCharges: "",
     type: "FIXED",
     behavior: "FIXED", // Fase 3 — default visible para el chip
+    autoInflationAdjust: false, // Fase 3e — IPC auto al copiar al proximo mes
   });
 
   function showToast(msg) {
@@ -337,7 +338,7 @@ export default function CostosPage() {
     setForm({
       subcategory: "", name: "", serviceCode: "", amount: "",
       rateType: "FIXED_MONTHLY", rateBase: "", socialCharges: "", type: "FIXED",
-      behavior: "FIXED",
+      behavior: "FIXED", autoInflationAdjust: false,
     });
     setAddingTo(null);
   }
@@ -364,6 +365,7 @@ export default function CostosPage() {
         socialCharges: form.socialCharges ? parseFloat(form.socialCharges) : null,
         type: legacyType,
         behavior: form.behavior,
+        autoInflationAdjust: form.autoInflationAdjust,
         month: costMonth,
       }),
     });
@@ -387,6 +389,9 @@ export default function CostosPage() {
     fetchCosts(costMonth);
   }
 
+  // Fase 3e — toggle para ajustar por IPC al copiar del mes anterior
+  const [adjustByInflation, setAdjustByInflation] = useState(true);
+
   async function copyPreviousMonth() {
     const [y, m] = costMonth.split("-").map(Number);
     const prevDate = new Date(y, m - 2, 1);
@@ -394,12 +399,24 @@ export default function CostosPage() {
     const res = await fetch("/api/finance/manual-costs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ copyFrom: prevMonth, targetMonth: costMonth }),
+      body: JSON.stringify({
+        copyFrom: prevMonth,
+        targetMonth: costMonth,
+        adjustByInflation, // 3e — aplica factor IPC solo a items con autoInflationAdjust=true
+      }),
     });
     const json = await res.json();
     if (json.copied) {
       fetchCosts(costMonth);
-      showToast(`${json.copied} costos copiados de ${prevMonth}`);
+      // Si se aplico IPC, mostrar detalle del factor
+      let msg = `${json.copied} costos copiados de ${prevMonth}`;
+      if (json.ipcAdjusted && json.ipcAdjusted > 0 && json.ipcFactor) {
+        const pct = ((json.ipcFactor - 1) * 100).toFixed(1);
+        msg += ` · ${json.ipcAdjusted} ajustados +${pct}% por IPC`;
+      } else if (json.ipcMessage) {
+        msg += ` · ${json.ipcMessage}`;
+      }
+      showToast(msg);
     } else {
       showToast(json.error || "No se pudieron copiar costos");
     }
@@ -661,6 +678,19 @@ export default function CostosPage() {
             onChange={e => setCostMonth(e.target.value)}
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none"
           />
+          {/* Fase 3e — toggle de ajuste IPC aplicado al copy-from-prev */}
+          <label
+            className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer"
+            title="Si esta activo, los items marcados como 'ajusta por inflacion' se copian con IPC aplicado"
+          >
+            <input
+              type="checkbox"
+              checked={adjustByInflation}
+              onChange={(e) => setAdjustByInflation(e.target.checked)}
+              className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+            />
+            Ajustar por IPC
+          </label>
           <button
             onClick={copyPreviousMonth}
             className="text-sm px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors"
@@ -1580,6 +1610,15 @@ export default function CostosPage() {
                                       </span>
                                     );
                                   })()}
+                                  {/* Fase 3e — badge IPC auto si esta activo */}
+                                  {item.autoInflationAdjust && (
+                                    <span
+                                      className="text-xs px-2 py-0.5 rounded-full border bg-rose-50 text-rose-700 border-rose-200"
+                                      title="Al copiar este mes al proximo, se ajustara por IPC automaticamente"
+                                    >
+                                      IPC auto
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               {cat.hasSocialCharges && (
@@ -1703,6 +1742,19 @@ export default function CostosPage() {
                             <option value="VARIABLE">{BEHAVIOR_LABELS.VARIABLE}</option>
                             <option value="SEMI_FIXED">{BEHAVIOR_LABELS.SEMI_FIXED}</option>
                           </select>
+                        </div>
+                        {/* Fase 3e — marca el costo como auto-ajustable por IPC */}
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">IPC auto</label>
+                          <label className="flex items-center h-[38px] gap-1.5 text-sm text-gray-600 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.autoInflationAdjust}
+                              onChange={(e) => setForm({ ...form, autoInflationAdjust: e.target.checked })}
+                              className="rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                            />
+                            <span className="text-xs">Ajusta por IPC</span>
+                          </label>
                         </div>
                         {form.rateType === "PERCENTAGE" && (
                           <div>

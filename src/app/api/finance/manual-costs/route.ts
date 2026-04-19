@@ -207,33 +207,88 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // ── Fase 3e — Ajuste por IPC opcional ────────────────
+      // Si `adjustByInflation: true` viene en el body, solo afecta a los
+      // items que tienen autoInflationAdjust=true. Factor:
+      //   factor = ipcAcumulado(targetMonth) / ipcAcumulado(sourceMonth)
+      // Si faltan datos de IPC o el factor es <= 0, hacemos copy plano y
+      // devolvemos ipcAdjusted: 0 con una nota.
+      let ipcFactor = 1;
+      let ipcApplied = false;
+      let ipcMessage: string | null = null;
+      if (body.adjustByInflation) {
+        try {
+          const sourceDate = new Date(`${body.copyFrom}-01T00:00:00Z`);
+          const targetDate = new Date(`${body.targetMonth}-01T00:00:00Z`);
+          const [src, tgt] = await Promise.all([
+            prisma.inflationIndexMonthly.findFirst({
+              where: { month: sourceDate },
+            }),
+            prisma.inflationIndexMonthly.findFirst({
+              where: { month: targetDate },
+            }),
+          ]);
+          const srcAcc = src?.ipcAcumulado ? Number(src.ipcAcumulado) : null;
+          const tgtAcc = tgt?.ipcAcumulado ? Number(tgt.ipcAcumulado) : null;
+          if (srcAcc && tgtAcc && srcAcc > 0 && tgtAcc >= srcAcc) {
+            ipcFactor = tgtAcc / srcAcc;
+            ipcApplied = true;
+          } else {
+            ipcMessage = "Sin datos de IPC suficientes — copy sin ajuste";
+          }
+        } catch (e) {
+          ipcMessage = "Error consultando IPC — copy sin ajuste";
+        }
+      }
+
+      let ipcAdjustedCount = 0;
+
       const created = await prisma.$transaction(
-        sourceCosts.map((c) =>
-          prisma.manualCost.create({
+        sourceCosts.map((c) => {
+          const shouldAdjust = ipcApplied && c.autoInflationAdjust;
+          const newAmount = shouldAdjust
+            ? Number((Number(c.amount) * ipcFactor).toFixed(2))
+            : c.amount;
+          if (shouldAdjust) ipcAdjustedCount += 1;
+          // Nota pedagogica: agregamos al notes existente la marca de ajuste
+          // IPC para auditoria posterior.
+          const adjustedNote = shouldAdjust
+            ? `[IPC ${Math.round((ipcFactor - 1) * 100 * 10) / 10}% aplicado — ${body.copyFrom} → ${body.targetMonth}]`
+            : "";
+          const mergedNotes = shouldAdjust
+            ? [c.notes, adjustedNote].filter(Boolean).join(" ")
+            : c.notes;
+          return prisma.manualCost.create({
             data: {
               organizationId: orgId,
               category: c.category,
               subcategory: c.subcategory,
               name: c.name,
               serviceCode: c.serviceCode,
-              amount: c.amount,
+              amount: newAmount,
               rateType: c.rateType,
               rateBase: c.rateBase,
               socialCharges: c.socialCharges,
               type: c.type,
               month: body.targetMonth,
-              notes: c.notes,
-              // Fase 3 — preservar taxonomía al copiar; el ajuste IPC real se hace en 3e.
+              notes: mergedNotes,
+              // Fase 3 — preservar taxonomía al copiar
               fiscalType: c.fiscalType,
               behavior: c.behavior,
               driverFormula: c.driverFormula ?? undefined,
               autoInflationAdjust: c.autoInflationAdjust,
             },
-          })
-        )
+          });
+        })
       );
 
-      return NextResponse.json({ copied: created.length, month: body.targetMonth });
+      return NextResponse.json({
+        copied: created.length,
+        month: body.targetMonth,
+        ipcAdjusted: ipcAdjustedCount,
+        ipcFactor: ipcApplied ? Number(ipcFactor.toFixed(4)) : null,
+        ipcMessage,
+      });
     }
 
     // Create single cost
