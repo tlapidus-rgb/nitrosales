@@ -82,6 +82,8 @@ model Organization {
   financialScenarios       FinancialScenario[]
   // Finanzas Fiscal (Fase 6) — overrides per-org del calendario AFIP
   fiscalObligationOverrides FiscalObligationOverride[]
+  // Settings Fase 7 — invitaciones pendientes por email
+  teamInvitations          TeamInvitation[]
 
   @@map("organizations")
 }
@@ -1767,4 +1769,35 @@ model FiscalObligationOverride {
   @@index([organizationId], map: "fiscal_obligation_overrides_org_idx")
   @@index([organizationId, isActive], map: "fiscal_obligation_overrides_org_active_idx")
   @@map("fiscal_obligation_overrides")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Settings Fase 7 — Team invitations
+// ═══════════════════════════════════════════════════════════════════
+// Invitaciones pendientes por email. Los miembros activos viven en
+// `users` con `organizationId` + `role`. Esta tabla guarda SOLO las
+// pendientes (token + expiresAt) antes de que el invitado complete
+// el flujo de set-password y se convierta en User.
+// ═══════════════════════════════════════════════════════════════════
+model TeamInvitation {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String
+  token          String    @unique
+  role           String    @default("MEMBER")         // "OWNER"|"ADMIN"|"MEMBER"
+  status         String    @default("PENDING")        // "PENDING"|"ACCEPTED"|"EXPIRED"|"REVOKED"
+  invitedById    String?
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  acceptedUserId String?
+  note           String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId], map: "team_invitations_org_idx")
+  @@index([organizationId, status], map: "team_invitations_org_status_idx")
+  @@index([email], map: "team_invitations_email_idx")
+  @@map("team_invitations")
 }
