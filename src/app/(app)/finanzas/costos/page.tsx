@@ -166,6 +166,90 @@ export default function CostosPage() {
   });
   const [platformConfigLoading, setPlatformConfigLoading] = useState(false);
 
+  // Fase 3d — Bulk edit selection state
+  // Guardamos Set<string> con IDs seleccionados. Limpiamos al cambiar de mes.
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkOp, setBulkOp] = useState("");     // "pct" | "behavior" | "fiscal"
+  const [bulkValue, setBulkValue] = useState("");
+  const [bulkRunning, setBulkRunning] = useState(false);
+
+  function toggleSelection(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllInCategory(categoryItems) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const ids = categoryItems.map((i) => i.id);
+      const allSelected = ids.every((id) => next.has(id));
+      if (allSelected) {
+        ids.forEach((id) => next.delete(id));
+      } else {
+        ids.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setBulkOp("");
+    setBulkValue("");
+  }
+
+  async function runBulkOperation() {
+    if (selectedIds.size === 0 || !bulkOp) return;
+    const ids = Array.from(selectedIds);
+    // Traducimos el op UI al shape que espera el endpoint
+    let operation;
+    if (bulkOp === "pct") {
+      const pct = parseFloat(bulkValue);
+      if (!Number.isFinite(pct)) {
+        showToast("Ingresa un porcentaje valido");
+        return;
+      }
+      operation = { type: "percentage_increase", value: pct };
+    } else if (bulkOp === "behavior") {
+      if (!bulkValue) {
+        showToast("Elegi un comportamiento");
+        return;
+      }
+      operation = { type: "set_behavior", value: bulkValue };
+    } else if (bulkOp === "fiscal") {
+      if (!bulkValue) {
+        showToast("Elegi una clasificacion fiscal");
+        return;
+      }
+      operation = { type: "set_fiscal_type", value: bulkValue };
+    } else {
+      return;
+    }
+    setBulkRunning(true);
+    try {
+      const res = await fetch("/api/finance/manual-costs/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, operation }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showToast(`${json.updated} costos actualizados`);
+        clearSelection();
+        fetchCosts(costMonth);
+      } else {
+        showToast(json.error || "Error al aplicar bulk");
+      }
+    } catch {
+      showToast("Error de red");
+    }
+    setBulkRunning(false);
+  }
+
   // Add form state
   const [addingTo, setAddingTo] = useState(null);
   const [form, setForm] = useState({
@@ -240,7 +324,14 @@ export default function CostosPage() {
     setPlatformConfigLoading(false);
   };
 
-  useEffect(() => { fetchCosts(costMonth); fetchAutoCosts(costMonth); fetchPlatformConfig(); }, [costMonth]);
+  useEffect(() => {
+    fetchCosts(costMonth);
+    fetchAutoCosts(costMonth);
+    fetchPlatformConfig();
+    // Al cambiar de mes, limpiamos seleccion activa — los IDs previos
+    // no pertenecen al nuevo mes y podrian confundir al user.
+    setSelectedIds(new Set());
+  }, [costMonth]);
 
   function resetForm() {
     setForm({
@@ -1400,6 +1491,16 @@ export default function CostosPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-gray-50 border-b border-gray-100">
+                            {/* Fase 3d — checkbox "seleccionar todos" */}
+                            <th className="px-3 py-2 w-8">
+                              <input
+                                type="checkbox"
+                                className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                checked={items.length > 0 && items.every((i) => selectedIds.has(i.id))}
+                                onChange={() => selectAllInCategory(items)}
+                                title="Seleccionar todos de esta categoria"
+                              />
+                            </th>
                             {cat.hasSubcategory && (
                               <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">{cat.subcategoryLabel}</th>
                             )}
@@ -1422,7 +1523,21 @@ export default function CostosPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                           {items.map(item => (
-                            <tr key={item.id} className="group hover:bg-gray-50/50">
+                            <tr
+                              key={item.id}
+                              className={`group hover:bg-gray-50/50 ${
+                                selectedIds.has(item.id) ? "bg-teal-50/40" : ""
+                              }`}
+                            >
+                              {/* Fase 3d — checkbox por fila */}
+                              <td className="px-3 py-2.5">
+                                <input
+                                  type="checkbox"
+                                  className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                  checked={selectedIds.has(item.id)}
+                                  onChange={() => toggleSelection(item.id)}
+                                />
+                              </td>
                               {cat.hasSubcategory && (
                                 <td className="px-4 py-2.5 text-gray-600">{item.subcategory || "—"}</td>
                               )}
@@ -1679,6 +1794,85 @@ export default function CostosPage() {
           );
         })}
       </div>
+
+      {/* Fase 3d — Bulk action bar (sticky flotante) */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-white border border-gray-200 shadow-xl rounded-2xl px-5 py-3 z-40 flex items-center gap-3 flex-wrap max-w-[95vw]">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
+              {selectedIds.size} seleccionado{selectedIds.size === 1 ? "" : "s"}
+            </span>
+            <button
+              onClick={clearSelection}
+              className="text-xs text-gray-400 hover:text-gray-600"
+              title="Limpiar seleccion"
+            >
+              Limpiar
+            </button>
+          </div>
+          <div className="h-5 w-px bg-gray-200" />
+          {/* Operacion */}
+          <select
+            value={bulkOp}
+            onChange={(e) => {
+              setBulkOp(e.target.value);
+              setBulkValue("");
+            }}
+            className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:border-teal-400 focus:outline-none"
+          >
+            <option value="">Elegir accion...</option>
+            <option value="pct">Aumentar %</option>
+            <option value="behavior">Cambiar comportamiento</option>
+            <option value="fiscal">Cambiar tipo fiscal</option>
+          </select>
+          {/* Valor dinamico segun op */}
+          {bulkOp === "pct" && (
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                step="0.5"
+                placeholder="Ej: 30"
+                value={bulkValue}
+                onChange={(e) => setBulkValue(e.target.value)}
+                className="w-20 text-sm border border-gray-200 rounded-lg px-2 py-1.5 text-right font-mono focus:border-teal-400 focus:outline-none"
+              />
+              <span className="text-xs text-gray-400">%</span>
+            </div>
+          )}
+          {bulkOp === "behavior" && (
+            <select
+              value={bulkValue}
+              onChange={(e) => setBulkValue(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:border-teal-400 focus:outline-none"
+            >
+              <option value="">Elegir...</option>
+              <option value="FIXED">Fijo</option>
+              <option value="VARIABLE">Variable</option>
+              <option value="SEMI_FIXED">Semi-fijo</option>
+            </select>
+          )}
+          {bulkOp === "fiscal" && (
+            <select
+              value={bulkValue}
+              onChange={(e) => setBulkValue(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:border-teal-400 focus:outline-none"
+            >
+              <option value="">Elegir...</option>
+              <option value="DEDUCTIBLE_WITH_IVA">Deducible con IVA</option>
+              <option value="DEDUCTIBLE_NO_IVA">Deducible sin IVA</option>
+              <option value="NON_DEDUCTIBLE">No deducible</option>
+            </select>
+          )}
+          <button
+            onClick={runBulkOperation}
+            disabled={!bulkOp || !bulkValue || bulkRunning}
+            className="text-sm px-4 py-1.5 rounded-lg font-medium text-white disabled:opacity-50 transition-opacity"
+            style={{ background: "linear-gradient(135deg, #FF5E1A, #FF8A50)" }}
+          >
+            {bulkRunning ? "Aplicando..." : "Aplicar"}
+          </button>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
