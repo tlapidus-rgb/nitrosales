@@ -4,7 +4,7 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-17 — Sesiones 23-40**
+> **Última actualización: 2026-04-19 — Sesión 48 (6 errores nuevos sobre RBAC, enforcement 3 niveles, email sandbox, loading defaults).**
 
 ---
 
@@ -560,6 +560,136 @@ La documentación no es opcional. Es parte del trabajo.
 **Señal de alarma**: si un cliente no-técnico (ej: Tomy) ve el output del modelo y dice "eso es imposible", es porque faltan rails. El modelo puede tener razón matemáticamente y estar mal expuesto.
 
 **Antipatrón**: "el modelo dice X, entonces mostramos X". Correcto: "el modelo dice X, los rails dicen min(X, cap, sanity_check), eso es lo que mostramos".
+
+---
+
+## Error #S48-RBAC-MAPPING-INCOMPLETO — Sistema de permisos con rutas "no mapeadas = visibles"
+
+**Cuándo pasó**: Sesión 48, commit `60b1112`. Diseñé `hrefToSection(href)` mapeando solo las secciones "principales" (finanzas, bondly, aura, campaigns, etc.). Las secciones sin mapeo (`/rentabilidad`, `/dashboard`, `/seo`, `/nitropixel`, `/chat`, `/sinapsis`, `/boveda`, `/pixel`, `/memory`) las dejé como `return null` con comentario "no mapeadas, siempre visibles". Tomy prueba con user custom "Contador de prueba" (permiso solo Fiscal) y ve Rentabilidad, SEO, NitroPixel, Centro de Control en el sidebar — secciones que NO debería ver. Fix en `e76ac77`.
+
+### Causa raíz
+- Asumí que "no mapeado = público" era default seguro. En RBAC es lo opuesto: **principle of least privilege** → todo bloqueado salvo lo explícitamente permitido.
+- No hice inventario exhaustivo de rutas antes de diseñar.
+- El comentario "no mapeadas, siempre visibles" es bomba de tiempo: cada feature nueva sin agregar al mapping crea agujero de seguridad.
+
+### Regla
+**Al diseñar RBAC, listar el 100% de las rutas navegables desde el principio.** No existe "público dentro de la app autenticada" — toda ruta detrás del login tiene que estar bajo alguna sección.
+
+**Checklist al crear/actualizar `hrefToSection()`**:
+1. `grep -n 'href: "/' layout.tsx` para listar TODOS los items del sidebar.
+2. Cada `href` debe corresponder a una `Section` del enum.
+3. Idealmente usar `satisfies Record<Href, Section>` de TS para garantizar completitud.
+4. Los defaults por rol (`DEFAULT_PERMISSIONS`) cubren la nueva sección con nivel razonable.
+
+**Señal de alarma**: si un user custom con permisos estrictos ve cosas que no debería — primer chequeo es `hrefToSection()`.
+
+---
+
+## Error #S48-ENFORCEMENT-SOLO-UI — Implementar enforcement a nivel UI sin proteger pages ni APIs
+
+**Cuándo pasó**: Sesión 48, commit `60b1112`. Implementé `NavItemGate` que oculta items del sidebar. El user no ve el tab "Rentabilidad". **PERO** si pega `nitrosales.vercel.app/rentabilidad` en el navegador, ve toda la data igual. Las APIs `/api/metrics/*`, `/api/finance/*` tampoco validaban. Enforcement cosmético. Fix en `e76ac77` con `PathnameGuard` + quedaron APIs como deuda.
+
+### Causa raíz
+- Mezclar "UI-level hide" con "enforcement real". Son cosas distintas.
+- Asumir "si no ve el botón, no puede llegar" = falso. Usuarios pegan URLs, usan extensiones, hacen bookmark.
+
+### Regla
+**Enforcement de permisos debe aplicarse en 3 niveles independientes**:
+
+1. **UI-level (sidebar)**: `NavItemGate` + `NavGroupGate`. Previene ruido visual.
+2. **Page-level (client)**: `PathnameGuard` o `useRequirePermission` redirigen a `/unauthorized`.
+3. **API-level (server)**: `requirePermission(section, level)` devuelve 403 incluso si atacante modifica el JS.
+
+Los 3 niveles son redundantes por diseño (defense-in-depth). Solo UI-level = 0 seguridad real.
+
+**Antipatrón**: "por ahora solo escondo el tab, después agrego los guards". Los 3 niveles se agregan juntos o ninguno.
+
+---
+
+## Error #S48-NAVITEM-PADRE-HREF-ESTATICO — Ocultar grupo cuando el href del padre no es accesible pero los hijos sí
+
+**Cuándo pasó**: Sesión 48. En el sidebar, item padre "Finanzas" tiene `href: "/finanzas/pulso"`. `NavItemGate` verificaba `pulso` y si no tenía acceso, ocultaba el grupo entero. El Contador tenía acceso solo a **Fiscal** (hijo de Finanzas). Resultado: no veía "Finanzas" aunque tenía un hijo accesible.
+
+### Causa raíz
+- Tratar items padres como items simples. El padre de un grupo es agrupador cuya visibilidad depende de los hijos, no del href default.
+- El `href` del padre es shortcut de navegación, no requisito de permiso.
+
+### Regla
+**En sidebars jerárquicos, items padres deben chequear así**:
+
+1. Si padre tiene section Y es accesible → mostrar.
+2. Si padre tiene children → mostrar si al menos **un child** es accesible.
+3. Al clickear padre, navegar al primer child accesible (no al href default).
+
+Implementación: `NavItemGate` acepta `childHrefs?: string[]`. Ver commit `e76ac77`.
+
+**Corolario**: headers de categoría (ej "MARKETING DIGITAL") también deben ocultarse si ningún item del grupo es visible. Usar `NavGroupGate`.
+
+---
+
+## Error #S48-LOADING-DEFAULT-TRUE — Durante loading retornar `true` en canAccess causa flash de items
+
+**Cuándo pasó**: Sesión 48. Tomy reportó "cuando entro, aparecen todas las secciones por 1-2s y después desaparecen las que no tengo permiso". Causa: `canAccess(section, level)` durante `loading=true` devolvía `true` por default. Eso causaba flash de items que después se ocultaban. Fix en commit `4ef1a52`.
+
+### Causa raíz
+- Asumir que "mostrar de más" durante loading es mejor que "mostrar de menos". Depende del caso.
+- Flash de contracción ("tenías esto, ya no") es psicológicamente peor que flash de expansión.
+
+### Regla
+**Durante loading de permisos, default = NO renderizar.** El sidebar arranca vacío y aparece con items filtrados cuando carga.
+
+Implementación: `NavItemGate` retorna `null` si `loading === true`.
+
+**Regla general**: para permisos/auth/roles, default durante estado incierto = "deny"/"hide". Para data/metrics/UI content, default = "skeleton"/"placeholder".
+
+---
+
+## Error #S48-PAGINA-ERROR-CON-CTA-REBOTADOR — CTAs en página de error que linkean a rutas protegidas
+
+**Cuándo pasó**: Sesión 48. Página `/unauthorized` tenía "Volver al inicio" → `/` (que redirige a `/dashboard`) y "Ver mi rol actual" → `/settings/team` (solo admin). Si user tenía permiso solo para Fiscal, ambos botones lo rebotaban a `/unauthorized`. **Loop infinito**. Fix en commit `9fa2b83`.
+
+### Causa raíz
+- Al diseñar páginas de error, asumí que los CTAs eran "siempre accesibles" porque son navegación básica. Falso — `/dashboard` y `/settings/team` requieren permisos.
+- No testé con user de bajos permisos.
+
+### Regla
+**Páginas de error (`/unauthorized`, `/404`, `/500`) deben tener CTAs que NO asuman permisos.** Opciones válidas:
+
+1. **Calcular primera ruta accesible dinámicamente**: fetch `/api/me/permissions` + iterar `HOME_PRIORITY` hasta encontrar una con level !== "none".
+2. **Solo CTAs universales**: "Cerrar sesión" (siempre accesible), "Contactar admin" (mailto).
+3. **NO linkear a rutas protegidas** (settings/team, dashboard, admin panels).
+
+**Antipatrón**: página de error que rebota al user al mismo error por CTAs que requieren el permiso que no tiene.
+
+---
+
+## Error #S48-EMAIL-PROVIDER-SANDBOX-SILENCIOSO — Asumir que los emails se envían cuando el proveedor está en sandbox mode
+
+**Cuándo pasó**: Sesión 48. Implementé envío de invitaciones con Resend (reusando `sendEmail()` que usaba Aura). Aura había estado usándolo "hace meses". Probé: el email a mi propio email llegaba, pero a `tomylapidus1999@gmail.com` daba `Resend 403: You can only send testing emails to your own email address`. Aura había estado en el mismo limbo — todos sus emails iban a Tomy, nunca a creadores reales, sin que nadie lo notara hasta ahora.
+
+### Causa raíz
+- Resend/Postmark/SendGrid tienen **sandbox mode** inicial donde solo permiten mandar al email del dueño de la cuenta hasta verificar un dominio propio. No se anuncia explícitamente — silenciosamente falla con emails externos.
+- `RESEND_FROM` default apuntaba a dominio no verificado (`nitrosales.com`).
+- Nunca se había testeado con email externo real.
+
+### Regla
+**Al integrar proveedor de email transaccional, antes de asumir que funciona, verificar 3 cosas**:
+
+1. **Dominio FROM verificado**: entrar al panel del proveedor, confirmar status "Verified". Configurar DKIM + SPF + MX + DMARC en el DNS provider.
+2. **Probar envío a email externo** (NO al dueño de la cuenta). Si hay sandbox mode, falla con error 403 explícito.
+3. **Loggear resultado del envío**: `console.log/warn` con status + errorMessage, devolver `emailSent: bool` en la response.
+
+**Código defensivo mínimo**:
+
+```ts
+const hasApiKey = Boolean(process.env.RESEND_API_KEY);
+if (!hasApiKey) return { ok: false, error: "API key not configured" };
+const result = await provider.send(...);
+if (!result.ok) console.warn("Email failed:", result.error);
+return { ok: result.ok, error: result.error };
+```
+
+**Antipatrón**: "el email salió sin error en la respuesta = se envió". Falso con proveedores en sandbox. Verificar status del dominio Y probar con email externo real.
 
 ---
 

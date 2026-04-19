@@ -3,7 +3,123 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-19 (Sesion 47 — Finanzas P&L Fase 6 Fiscal + Bridge completa: 7 sub-fases iterativas cerrando el roadmap original — calendario AFIP derivado del fiscalProfile + alertas Monotributo con rule engine + bridge CAC/LTV/Payback en Estado + alertas predictivas cross-module + PDF export calendario)
+## Ultima actualizacion: 2026-04-19 (Sesion 48 — Fase 7 Configuracion productiva completa + QA enforcement end-to-end: 23 commits a main cerrando el modulo Settings al 95%)
+
+> Este bloque consolida los **23 commits** a `main` del 2026-04-19 (quinta ronda del dia) que construyen la **Fase 7 completa del modulo Configuracion** (`/settings/*`) y cierran los 3 gaps criticos post-QA (enforcement + email + login tracking). El modulo Settings queda productivo al 95% con 3 sub-pestañas productivas base (Organizacion, Team con permisos granulares + custom roles per-org editables, Integraciones con status humanizado), 2 productivas post-QA (Seguridad cambio password + historial logins, API Keys CRUD con token one-shot), 1 placeholder visible intencional (Billing hasta cobro formal). Sistema RBAC con matriz 21 secciones × 3 roles base + custom roles. Enforcement end-to-end en 3 niveles: sidebar (hide tabs), page-level (redirect /unauthorized), API-level (requirePermission en /settings/*). Email automatico invitaciones via Resend + dominio `nitrosales.ai` verificado. Login tracking automatico en NextAuth. Regla de autonomia acordada con Tomy registrada en `MEMORY.md` persistente.
+
+### Sesion 48 — 2026-04-19 — Fase 7 Configuracion productiva + QA enforcement (23 commits)
+
+**Objetivo**: cerrar el modulo Settings y dejarlo production-ready para onboardear Arredo y TV Compras. Implementar 6 sub-pestañas con sistema completo de roles base + custom roles per-org + permisos granulares matriz 21×3×4 + enforcement de seguridad en 3 niveles + email automatico de invitaciones.
+
+Fase 7 segun roadmap acordado en Sesion 47. Incluye ronda intensiva de QA con Tomy testeando en prod mientras Claude fixea bugs en vivo.
+
+#### Commits a `main` (23 total)
+
+**Migraciones DB (4 ejecutadas en prod antes del schema.prisma)**:
+- `d61d6de` 7a — `team_invitations` (token + expiresAt + status PENDING/ACCEPTED/EXPIRED/REVOKED + unique parcial por PENDING)
+- `514d877` 7 QA — `login_events` (historial + IP + userAgent + failureReason) + `api_keys` (prefix visible + hashedToken bcrypt + scopes JSONB + soft delete)
+- `c231269` Custom Roles — `custom_roles` per-org (permissions JSONB) + columna `users.customRoleId`
+- `05845d3` Fix — `team_invitations.customRoleId` nullable para asignar custom role al invitar
+
+**Fase 7 base productiva (5)**:
+- `b9c1a24` 7b — Layout con 6 sub-routes + sidebar premium + 3 placeholders visibles + componente reusable `PlaceholderPage`
+- `43bd596` 7c — Organizacion: form name + slug + logo upload (dataURL 150KB max) + color picker + industry + timezone + dominio custom
+- `9285689` 7d — Team: lista miembros + select rol + modal invitar + invitaciones pendientes con link copiable + 5 endpoints CRUD con "no sin OWNER"
+- `266f6c8` 7e — Integraciones: status premium con iconos animados + mensajes de error humanizados castellano (401/403/429/network/refresh token) + freshness double-metric + CTAs condicionales
+- `ba23ceb` 7 QA — Seguridad (cambio password bcrypt + historial con shortUA) + API Keys (CRUD + modal one-shot con Copy->Check + scopes whitelist 8)
+
+**Custom Roles (4)**:
+- `c8624db` — Schema `CustomRole` + relaciones User.customRole + TeamInvitation.customRole + lib `resolveUserPermissions()` + `sanitizeRoleSlug()` + `normalizeCustomPermissions()` + API CRUD + PATCH members extendido
+- `b4e5f89` — UI `/settings/team/permisos` con tabs Sistema\|Custom + editor con metadata + sticky save bar + CreateRoleModal con "Permisos iniciales" selector
+- `c604d11` — Select de rol en team con optgroups "Sistema"+"Custom de tu organizacion" + badge colored cuando miembro tiene custom role
+- `d82c4b9` — InviteModal con 2 bloques + state selection="base:X"\|"custom:<id>" + accept endpoint copia customRoleId al user + badge en invitacion pendiente
+
+**QA bugs fixes y enforcement (8)**:
+- `350809f` — Fix contraste 9 inputs sin `text-slate-900` (texto invisible blanco sobre blanco)
+- `33000c8` — (1) Bug integraciones DESCONECTADO aunque conectado: enum DB es ACTIVE no CONNECTED. Fix `mapDbStatus()` + fallback freshness <14d + agrega MELI/GSC. (2) `/accept-invite` no existia: nueva ruta publica + POST crea User transaccion. (3) Token no en lista invitaciones. (4) Permisos granulares: lib `permissions.ts` matriz role×section×level + UI editor + endpoint GET/PUT con invariante OWNER=admin
+- `60b1112` — Gap #1 enforcement: `requirePermission()` server + `usePermissions()` hook + `PermissionGate` + `NavItemGate` + `/unauthorized` + provider en layout + enforcement en 7 endpoints /settings/*
+- `ff0ddbf` — Gap #3 login tracking: `logLoginEvent()` en authorize callback con 3 cases + IP desde x-forwarded-for + silent fail
+- `0a9fb9c` — Gap #2 email automatico: reusa `sendEmail()` de Aura (Resend) + template HTML aurora violet+cyan + sanitizacion + response `{emailSent, emailError}`
+- `c96bd31` — Fix UI post-invitacion: banner emerald si OK / amber si fail con errorMessage. Server chequea `RESEND_API_KEY` explicitamente + console.log/warn
+- `e76ac77` — Fix enforcement completo: (1) agrega 9 secciones faltantes al mapping (rentabilidad, dashboard, seo, nitropixel, pixel, aurum, sinapsis, boveda, memory). (2) `NavItemGate` con `childHrefs` para que padre Finanzas se muestre si Fiscal accesible. (3) `PathnameGuard` client-side en layout bloquea URLs directas
+- `9fa2b83` — Fix loop `/unauthorized`: fetch /api/me/permissions + calcula firstAccessible via HOME_PRIORITY + muestra rol directo sin CTAs rebotadores + boton signOut
+- `4ef1a52` — Fix UX sidebar: (1) elimina flash inicial (NavItemGate retorna null en loading). (2) `NavGroupGate` oculta headers de grupos sin items visibles
+
+**Documentacion (2)**:
+- `fd001c9` — CLAUDE_STATE Sesion 47 Finanzas Fase 6
+- `36c33ff` — BACKLOG BP-007 sub-permisos por tipo de dato (MEDIA)
+
+**Arquitectura Fase 7 + QA**:
+
+- **4 tablas nuevas**: team_invitations, login_events, api_keys, custom_roles. Todas con indices + FKs + soft delete donde aplica.
+- **Sistema RBAC completo**: 21 secciones mapeadas (finanzas, ventas, marketing, operaciones, config). `DEFAULT_PERMISSIONS` con 3 reglas: OWNER admin invariante, ADMIN todo admin excepto billing/apikeys read, MEMBER read general + write costos/escenarios/fiscal + none settings_team/integrations/billing/security/api_keys.
+- **Custom roles per-org**: overrides la matriz del base role salvo para OWNER. Degrade gracefully al aceptar invitacion (si el rol fue desactivado, user queda con base role). Transaccion en soft delete desasigna users.
+- **Enforcement 3 niveles**:
+  1. UI sidebar: `NavItemGate` + `NavGroupGate` ocultan tabs/headers sin permiso. `childHrefs` permite que agrupadores se muestren si algun child es accesible.
+  2. Page client: `PathnameGuard` en layout + `useRequirePermission` hook redirigen a `/unauthorized`.
+  3. API server: `requirePermission(section, level)` en /api/settings/* con 401/403 pre-armados.
+- **Email via Resend** reusa `sendEmail()` que usa Aura. Dominio `nitrosales.ai` verificado con 4 registros DNS en Hostinger (DKIM + MX + SPF + DMARC). Env `RESEND_FROM = "NitroSales <no-reply@nitrosales.ai>"`. Silent fail no bloquea creacion.
+- **Login tracking** automatico en authorize callback de NextAuth v4 con 3 cases (success / email no registrado / password incorrecto). Extrae IP desde `x-forwarded-for` con fallback `x-real-ip`.
+
+**Estructura de archivos nuevos Sesion 48**:
+
+```
+src/app/api/admin/migrate-{team-invitations,security-apikeys,custom-roles,invitation-custom-role}-fase7/route.ts  (4 migraciones)
+src/app/api/settings/{organization,team,team/invitations,team/invitations/accept,team/members/[userId],permissions,custom-roles,custom-roles/[id],api-keys,api-keys/[id],security/password,security/login-history}/route.ts  (12 endpoints)
+src/app/api/me/permissions/route.ts
+src/lib/permissions.ts                               (~370 lineas con custom roles helpers)
+src/lib/permission-guard.ts                          (~250 lineas server)
+src/hooks/usePermissions.tsx                         (~300 lineas con NavItemGate + NavGroupGate + PathnameGuard + useRequirePermission)
+src/components/settings/PlaceholderPage.tsx          (~120 lineas reusable)
+src/app/(app)/settings/                              (layout + 6 sub-pages productivas + 3 placeholders)
+src/app/(app)/settings/team/permisos/page.tsx        (~1000 lineas con tabs Sistema/Custom)
+src/app/accept-invite/page.tsx                       (~200 lineas flujo aceptacion)
+src/app/unauthorized/page.tsx                        (~150 lineas con firstAccessible smart)
+prisma/schema.prisma                                 (4 modelos nuevos + relaciones)
+```
+
+**Endpoints admin ejecutados en prod (Sesion 48)**: 4 migraciones con respuesta confirmada antes de pushear schema.prisma correspondiente.
+
+**Env vars configuradas en Vercel (Sesion 48)**:
+- `RESEND_API_KEY` ya existia compartida con Aura
+- `RESEND_FROM = NitroSales <no-reply@nitrosales.ai>` agregada con dominio verificado
+
+**DNS configurados en Hostinger (Sesion 48)**: 4 registros en `nitrosales.ai` — TXT resend._domainkey (DKIM), MX send (bounces), TXT send (SPF amazonses.com), TXT _dmarc (DMARC). Dominio verificado en Resend en ~15 min.
+
+**Decisiones arquitectonicas Sesion 48**:
+
+- **Sub-permisos por tipo de dato diferido**: Tomy planteo "analista ve productos sin margenes". Opcion acordada es dividir secciones en _basico + _financiero (ej `products_basico`, `products_financiero`). Implementacion cuando cliente real lo pida. Registrado como BP-007 Prioridad MEDIA.
+- **Enforcement client-side default**: `PathnameGuard` es client-side. Para proteccion server-side completa hay que agregar `requirePermission()` a endpoints de /api/metrics/*, /api/finance/*, /api/bondly/*, etc. Queda deuda tecnica aceptable hasta que algun cliente pida auditoria formal.
+- **Autonomia explicita**: Tomy pidio que Claude avance sin preguntar cosas tecnicas triviales. Regla registrada en `MEMORY.md` persistente. Claude avanza en features acordadas / bugs / decisiones tecnicas puras / migraciones diseñadas / commits. Solo pregunta en decisiones de producto / UX con 2+ opciones / operaciones irreversibles / cambios que afectan clientes.
+- **Reuso Resend en vez de Postmark/SendGrid**: Aura ya usaba `/lib/email/send.ts` con Resend. Agregar dominio verificado `nitrosales.ai` arregla tambien el bug previo de Aura (solo mandaba emails al dueño de Resend por sandbox mode).
+- **Orden de migracion respetado**: 4 migraciones DB pusheadas como endpoint admin primero → Tomy ejecuto curl → schema.prisma + codigo despues. Regla #13 CLAUDE.md seguida estrictamente.
+
+**Checklist de cierre Sesion 48**:
+- ✅ `tsc --noEmit` clean en cada commit (23 push limpios).
+- ✅ 4 migraciones DB ejecutadas en prod con respuestas confirmadas.
+- ✅ Zero nuevas dependencias (sin nuevo email lib, sin 2FA lib, sin Postmark).
+- ✅ Dominio Resend verificado (DKIM + SPF + MX + DMARC en Hostinger).
+- ✅ `RESEND_FROM` actualizada en Vercel env vars.
+- ✅ Flujo end-to-end probado con Tomy: crear rol custom → invitar → email llega → accept → user queda con custom role → sidebar filtra correctamente.
+- ✅ MEMORY.md creado con regla de autonomia para futuras sesiones.
+- ✅ BACKLOG_PENDIENTES.md actualizado con BP-007.
+
+**Proximos pasos acordados**:
+- **Fase 8 Alertas** (hub central funcional): consolidar alertas Finanzas + Fiscal + Predictivas + Marketing en `/alertas`. Rewrite UI legacy con emojis a light theme + lucide + filtros + badge sidebar.
+- **Fase 9 MercadoLibre** (upgrade estetico): UI premium nivel UI_VISION en /mercadolibre + sub-pages (preguntas, publicaciones, reputacion).
+- **Fase 10 Competencia** (upgrade estetico): similar ML.
+- **Fase 11-15 Onboarding Arredo + TV Compras**: multi-tenant audit + wizard + importers masivos + go-live supervisado.
+
+**Deuda tecnica aceptada al cierre Sesion 48**:
+- BP-007 sub-permisos (cuando aparezca en cliente real)
+- Gap #4 middleware de API Keys (cuando cliente pida integrar Zapier/n8n)
+- Enforcement server-side en endpoints de /api/metrics, /api/finance, /api/bondly (cuando auditoria formal)
+- 2FA en Seguridad (placeholder interno, sin lib TOTP aun)
+- `MONOTRIBUTO_AMOUNTS` update via endpoint admin (push manual cuando AFIP recategoriza)
+
+---
+
+## Ultima actualizacion previa: 2026-04-19 (Sesion 47 — Finanzas P&L Fase 6 Fiscal + Bridge completa: 7 sub-fases iterativas cerrando el roadmap original — calendario AFIP derivado del fiscalProfile + alertas Monotributo con rule engine + bridge CAC/LTV/Payback en Estado + alertas predictivas cross-module + PDF export calendario)
 
 > Este bloque consolida los **7 commits** a `main` del 2026-04-19 (cuarta ronda del dia) que construyen la **Fase 6 completa del rediseño de Finanzas P&L** (`/finanzas/fiscal` — ultima pestaña placeholder del modulo + bridge Bondly/Campañas profundo + alertas predictivas). 7 sub-fases iterativas (6a→6g) pusheadas directo a `main` con `tsc --noEmit` clean en cada push. Cierra el roadmap de `PROPUESTA_PNL_REORG.md` §Fase 5 (Fiscal enhanced + Bridge Bondly/Campañas) — TODAS las 5 pestañas del modulo Finanzas viven sin placeholders. Una tabla nueva en DB (`fiscal_obligation_overrides`), tres libs puras TS (`fiscal-calendar.ts`, `fiscal-monotributo.ts`, `predictive-alerts.ts`), 5 endpoints API nuevos, 3 componentes UI (`BridgeStrip`, `PredictiveAlertsCard`, `MonotributoAlertCard` inline), y una ruta `/print/fiscal` para export PDF.
 
