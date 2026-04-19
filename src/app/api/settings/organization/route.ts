@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/permission-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,8 @@ function isValidHexColor(s: string): boolean {
 
 export async function GET() {
   try {
+    const check = await requirePermission("settings_org", "read");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const org = await prisma.organization.findUnique({
       where: { id: orgId },
@@ -88,6 +91,8 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
+    const check = await requirePermission("settings_org", "write");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const body = await req.json();
 

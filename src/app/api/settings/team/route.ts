@@ -8,11 +8,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/permission-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const check = await requirePermission("settings_team", "read");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
 
     const [members, invitations, customRoles] = await Promise.all([

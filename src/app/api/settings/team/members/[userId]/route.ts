@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/permission-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ export async function PATCH(
   { params }: { params: { userId: string } }
 ) {
   try {
+    const check = await requirePermission("settings_team", "admin");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const { userId } = params;
     const body = await req.json();
@@ -129,6 +132,8 @@ export async function DELETE(
   { params }: { params: { userId: string } }
 ) {
   try {
+    const check = await requirePermission("settings_team", "admin");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const { userId } = params;
 

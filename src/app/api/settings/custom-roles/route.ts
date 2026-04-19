@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/permission-guard";
 import { getServerSession } from "next-auth";
 import {
   sanitizeRoleSlug,
@@ -23,6 +24,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const check = await requirePermission("settings_team", "read");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const roles = await prisma.customRole.findMany({
       where: { organizationId: orgId, isActive: true },
@@ -53,6 +56,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const check = await requirePermission("settings_team", "admin");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const session = await getServerSession();
     const email = session?.user?.email;

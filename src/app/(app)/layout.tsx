@@ -7,6 +7,7 @@ import { useState, useMemo } from "react";
 import { AurumProvider } from "@/components/aurum/AurumContext";
 import FloatingAurum from "@/components/aurum/FloatingAurum";
 import { AurumOrb } from "@/components/aurum/AurumOrb";
+import { PermissionsProvider, NavItemGate } from "@/hooks/usePermissions";
 
 type NavItem = {
   href: string;
@@ -274,6 +275,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <PermissionsProvider>
     <AurumProvider>
     <div className="h-screen bg-nitro-bg flex overflow-hidden">
       <FloatingAurum />
@@ -582,7 +584,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       ]
                     : [];
                   return (
-                    <div key={item.href} className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""} ${isPixel ? "pixel-card-wrapper" : ""} ${isAura ? "aura-holo-card" : ""} ${isBondly ? "bondly-card-wrapper" : ""}`}>
+                    <NavItemGate key={item.href} href={item.href}>
+                    <div className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""} ${isPixel ? "pixel-card-wrapper" : ""} ${isAura ? "aura-holo-card" : ""} ${isBondly ? "bondly-card-wrapper" : ""}`}>
                       <Link
                         href={item.href}
                         onClick={() => setSidebarOpen(false)}
@@ -1176,12 +1179,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         </div>
                       )}
                     </div>
+                    </NavItemGate>
                   );
                 }
 
                 // ═══ Regular nav items ═══
                 return (
-                  <div key={item.href}>
+                  <NavItemGate key={item.href} href={item.href}>
+                  <div>
                     <Link
                       href={item.href}
                       onClick={() => setSidebarOpen(false)}
@@ -1274,6 +1279,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       </div>
                     )}
                   </div>
+                  </NavItemGate>
                 );
               })}
             </div>
@@ -1365,5 +1371,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
     </div>
     </AurumProvider>
+    </PermissionsProvider>
   );
 }

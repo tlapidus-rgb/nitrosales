@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/permission-guard";
 import { randomBytes } from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ function isValidEmail(e: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
+    const check = await requirePermission("settings_team", "admin");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const body = await req.json();
 
@@ -120,6 +123,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const check = await requirePermission("settings_team", "admin");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const url = new URL(req.url);
     const id = url.searchParams.get("id");

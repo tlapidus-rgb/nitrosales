@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/permission-guard";
 import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
@@ -36,6 +37,8 @@ function generateToken(): { full: string; prefix: string } {
 
 export async function GET() {
   try {
+    const check = await requirePermission("settings_api_keys", "read");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const keys = await prisma.apiKey.findMany({
       where: { organizationId: orgId, revokedAt: null },
@@ -63,6 +66,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const check = await requirePermission("settings_api_keys", "admin");
+    if (!check.allowed) return check.response!;
     const orgId = await getOrganizationId();
     const session = await getServerSession();
     const email = session?.user?.email;
