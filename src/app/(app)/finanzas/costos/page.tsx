@@ -9,6 +9,42 @@ import {
   type Driver,
   type DriverFormula,
 } from "@/lib/finanzas/driver-formula";
+import {
+  Truck,
+  Users,
+  Wrench,
+  FileText,
+  Building2,
+  Camera,
+  TrendingDown,
+  Package,
+  ChevronDown,
+  Sparkles,
+} from "lucide-react";
+
+// Fase 4b — Mapa de icons lucide por categoria (reemplaza emojis)
+const CATEGORY_ICONS: Record<string, any> = {
+  LOGISTICA: Truck,
+  EQUIPO: Users,
+  PLATAFORMAS: Wrench,
+  FISCAL: FileText,
+  INFRAESTRUCTURA: Building2,
+  MARKETING: Camera,
+  MERMA: TrendingDown,
+  OTROS: Package,
+};
+
+// Colores de acento por categoria — prism delimiter + icon tint
+const CATEGORY_ACCENTS: Record<string, { icon: string; bg: string; bar: string }> = {
+  LOGISTICA:       { icon: "text-teal-600",   bg: "bg-teal-50",   bar: "#14b8a6" },
+  EQUIPO:          { icon: "text-indigo-600", bg: "bg-indigo-50", bar: "#6366f1" },
+  PLATAFORMAS:     { icon: "text-violet-600", bg: "bg-violet-50", bar: "#a855f7" },
+  FISCAL:          { icon: "text-blue-600",   bg: "bg-blue-50",   bar: "#3b82f6" },
+  INFRAESTRUCTURA: { icon: "text-slate-600",  bg: "bg-slate-50",  bar: "#64748b" },
+  MARKETING:       { icon: "text-pink-600",   bg: "bg-pink-50",   bar: "#ec4899" },
+  MERMA:           { icon: "text-amber-600",  bg: "bg-amber-50",  bar: "#f59e0b" },
+  OTROS:           { icon: "text-gray-600",   bg: "bg-gray-50",   bar: "#6b7280" },
+};
 
 /* ── Category config ──────────────────────────── */
 const CATEGORIES = [
@@ -1161,56 +1197,96 @@ export default function CostosPage() {
         );
       })()}
 
-      {/* Category sections */}
+      {/* Fase 4b — Category sections premium (lucide icons + multi-layer shadow + stagger) */}
       <div className="space-y-3">
-        {CATEGORIES.map(cat => {
+        {CATEGORIES.map((cat, idx) => {
           const catData = data?.categories?.find(c => c.category === cat.key);
           const items = catData?.items || [];
           const total = catData?.total || 0;
           const isExpanded = expandedCat === cat.key;
           const grouped = cat.hasSubcategory ? groupBySubcategory(items) : null;
+          const Icon = CATEGORY_ICONS[cat.key] || Package;
+          const accent = CATEGORY_ACCENTS[cat.key] || CATEGORY_ACCENTS.OTROS;
+
+          // Pre-resumen cuando esta collapsed: "N items · $X · Y% del total"
+          const grandTotal = Number(data?.grandTotal) || 0;
+          let autoTotalForCat = 0;
+          if (autoCosts && cat.key === "PLATAFORMAS") {
+            autoTotalForCat = (autoCosts.platform?.items || []).reduce((s, i) => s + i.amount, 0);
+          } else if (autoCosts && cat.key === "MERMA") {
+            autoTotalForCat = (autoCosts.merma?.items || []).reduce((s, i) => s + i.amount, 0);
+          }
+          const displayTotal = total + autoTotalForCat;
+          const catPctOfTotal = grandTotal > 0 ? Math.round((displayTotal / grandTotal) * 100) : 0;
 
           return (
-            <div key={cat.key} className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div
+              key={cat.key}
+              className="group relative overflow-hidden bg-white rounded-2xl border border-gray-100/80 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_1px_1px_rgba(15,23,42,0.02)] hover:shadow-[0_4px_16px_rgba(15,23,42,0.06),0_2px_4px_rgba(15,23,42,0.04)] transition-all animate-fade-in-up"
+              style={{ animationDelay: `${idx * 45}ms`, animationDuration: "450ms" }}
+            >
+              {/* Prism delimiter arriba con color de categoria */}
+              <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-[2px] pointer-events-none opacity-70 group-hover:opacity-100 transition-opacity"
+                style={{
+                  background: `linear-gradient(90deg, transparent 0%, ${accent.bar} 30%, ${accent.bar} 70%, transparent 100%)`,
+                }}
+              />
               {/* Category header */}
               <button
                 onClick={() => setExpandedCat(isExpanded ? null : cat.key)}
-                className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50/60 transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{cat.icon}</span>
-                  <div className="text-left">
-                    <span className="text-sm font-semibold text-gray-800">{cat.label}</span>
-                    <p className="text-xs text-gray-400">{cat.description}</p>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-9 h-9 rounded-xl ${accent.bg} flex items-center justify-center shrink-0`}>
+                    <Icon className={`w-4.5 h-4.5 ${accent.icon}`} strokeWidth={2} />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <span className="text-sm font-semibold text-gray-900 tracking-tight">{cat.label}</span>
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">{cat.description}</p>
                   </div>
                   {items.length > 0 && (
-                    <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{items.length}</span>
+                    <span className="text-[11px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full tabular-nums shrink-0">
+                      {items.length}
+                    </span>
                   )}
                   {cat.key === "PLATAFORMAS" && (
-                    <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200" title="Comisiones, envios y retenciones de MercadoLibre se calculan automaticamente desde las ordenes sincronizadas">
+                    <span
+                      className="hidden md:inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0"
+                      title="Comisiones, envios y retenciones de MercadoLibre se calculan automaticamente desde las ordenes sincronizadas"
+                    >
+                      <Sparkles className="w-3 h-3" />
                       Auto: Comisiones ML
                     </span>
                   )}
                   {cat.key === "MERMA" && (
-                    <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200" title="Ordenes canceladas y devueltas se detectan automaticamente desde las ordenes sincronizadas">
-                      Auto: Cancelaciones y devoluciones
+                    <span
+                      className="hidden md:inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0"
+                      title="Ordenes canceladas y devueltas se detectan automaticamente desde las ordenes sincronizadas"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Auto: Devoluciones
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
-                  {(() => {
-                    let autoTotal = 0;
-                    if (autoCosts && cat.key === "PLATAFORMAS") {
-                      autoTotal = (autoCosts.platform?.items || []).reduce((s, i) => s + i.amount, 0);
-                    } else if (autoCosts && cat.key === "MERMA") {
-                      autoTotal = (autoCosts.merma?.items || []).reduce((s, i) => s + i.amount, 0);
-                    }
-                    const displayTotal = total + autoTotal;
-                    return displayTotal > 0 ? (
-                      <span className="text-sm font-bold font-mono text-gray-700">{formatARS(displayTotal)}</span>
-                    ) : null;
-                  })()}
-                  <span className="text-xs text-gray-400">{isExpanded ? "▲" : "▼"}</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  {displayTotal > 0 && (
+                    <div className="flex flex-col items-end">
+                      <span className="text-sm font-semibold text-gray-900 tabular-nums tracking-tight">
+                        {formatARS(displayTotal)}
+                      </span>
+                      {!isExpanded && grandTotal > 0 && (
+                        <span className="text-[10px] text-gray-400 tabular-nums">
+                          {catPctOfTotal}% del total
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <ChevronDown
+                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                    strokeWidth={2.2}
+                  />
                 </div>
               </button>
 
