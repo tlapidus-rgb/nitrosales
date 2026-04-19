@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
 
     const email = body?.email ? normalizeEmail(body.email) : "";
     const role = body?.role ?? "MEMBER";
+    const customRoleId = body?.customRoleId ?? null;
     const note = typeof body?.note === "string" ? body.note.slice(0, 280) : null;
 
     if (!email || !isValidEmail(email)) {
@@ -51,6 +52,30 @@ export async function POST(req: NextRequest) {
         { error: "Rol inválido (OWNER/ADMIN/MEMBER)" },
         { status: 400 }
       );
+    }
+
+    // Si viene customRoleId, validar que exista en la org y este activo
+    if (customRoleId) {
+      if (typeof customRoleId !== "string") {
+        return NextResponse.json(
+          { error: "customRoleId debe ser string" },
+          { status: 400 }
+        );
+      }
+      const cr = await prisma.customRole.findFirst({
+        where: {
+          id: customRoleId,
+          organizationId: orgId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (!cr) {
+        return NextResponse.json(
+          { error: "Rol custom no encontrado o inactivo" },
+          { status: 404 }
+        );
+      }
     }
 
     // Verificar que el email no sea ya miembro
@@ -77,6 +102,7 @@ export async function POST(req: NextRequest) {
         email,
         token,
         role,
+        customRoleId,
         status: "PENDING",
         expiresAt,
         note,

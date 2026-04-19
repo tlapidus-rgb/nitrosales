@@ -142,7 +142,23 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear user + marcar invitacion ACCEPTED en transaccion
+    // Crear user + marcar invitacion ACCEPTED en transaccion.
+    // Si la invitacion tenia customRoleId, se lo asignamos al user nuevo
+    // (salvo que el custom role haya sido desactivado entre la invitacion
+    // y la aceptacion — en ese caso queda solo con base role).
+    let customRoleIdToAssign: string | null = null;
+    if (inv.customRoleId) {
+      const stillActive = await prisma.customRole.findFirst({
+        where: {
+          id: inv.customRoleId,
+          organizationId: inv.organizationId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (stillActive) customRoleIdToAssign = inv.customRoleId;
+    }
+
     const user = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
@@ -151,8 +167,9 @@ export async function POST(req: NextRequest) {
           hashedPassword,
           role: inv.role as any,
           organizationId: inv.organizationId,
+          customRoleId: customRoleIdToAssign,
         },
-        select: { id: true, email: true, name: true, role: true },
+        select: { id: true, email: true, name: true, role: true, customRoleId: true },
       });
       await tx.teamInvitation.update({
         where: { id: inv.id },

@@ -1795,6 +1795,7 @@ model TeamInvitation {
   email          String
   token          String    @unique
   role           String    @default("MEMBER")         // "OWNER"|"ADMIN"|"MEMBER"
+  customRoleId   String?                              // opcional: override via custom role
   status         String    @default("PENDING")        // "PENDING"|"ACCEPTED"|"EXPIRED"|"REVOKED"
   invitedById    String?
   expiresAt      DateTime
@@ -1805,10 +1806,12 @@ model TeamInvitation {
   updatedAt      DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customRole   CustomRole?  @relation("InvitationCustomRole", fields: [customRoleId], references: [id], onDelete: SetNull)
 
   @@index([organizationId], map: "team_invitations_org_idx")
   @@index([organizationId, status], map: "team_invitations_org_status_idx")
   @@index([email], map: "team_invitations_email_idx")
+  @@index([customRoleId], map: "team_invitations_customRoleId_idx")
   @@map("team_invitations")
 }
 
@@ -1883,6 +1886,7 @@ model CustomRole {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy    User?        @relation("CreatedCustomRoles", fields: [createdById], references: [id], onDelete: SetNull)
   users        User[]       @relation("UserCustomRole")
+  invitations  TeamInvitation[] @relation("InvitationCustomRole")
 
   @@unique([organizationId, slug], map: "custom_roles_org_slug_unique")
   @@index([organizationId], map: "custom_roles_org_idx")

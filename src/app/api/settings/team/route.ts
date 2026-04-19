@@ -48,6 +48,10 @@ export async function GET() {
           createdAt: true,
           note: true,
           token: true,
+          customRoleId: true,
+          customRole: {
+            select: { id: true, name: true, color: true, icon: true },
+          },
         },
         orderBy: { createdAt: "desc" },
       }),

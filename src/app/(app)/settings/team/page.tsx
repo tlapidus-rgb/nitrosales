@@ -66,6 +66,8 @@ interface Invitation {
   createdAt: string;
   note: string | null;
   token: string;
+  customRoleId: string | null;
+  customRole: CustomRoleLite | null;
 }
 
 export default function TeamPage() {
@@ -318,11 +320,28 @@ export default function TeamPage() {
                     <Mail className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate text-[13px] font-semibold text-slate-900">
-                      {inv.email}
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[13px] font-semibold text-slate-900">
+                        {inv.email}
+                      </span>
+                      {inv.customRole && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                          style={{
+                            background: `${inv.customRole.color ?? "#64748b"}15`,
+                            color: inv.customRole.color ?? "#64748b",
+                            border: `1px solid ${inv.customRole.color ?? "#64748b"}30`,
+                          }}
+                        >
+                          {inv.customRole.name}
+                        </span>
+                      )}
                     </div>
                     <div className="truncate text-[11px] text-slate-500">
-                      {ROLE_META[inv.role].label} · Expira{" "}
+                      {inv.customRole
+                        ? `Custom · ${ROLE_META[inv.role].label} base`
+                        : ROLE_META[inv.role].label}{" "}
+                      · Expira{" "}
                       {new Date(inv.expiresAt).toLocaleDateString("es-AR", {
                         day: "numeric",
                         month: "short",
@@ -365,6 +384,7 @@ export default function TeamPage() {
       {/* Invite modal */}
       {inviteOpen && (
         <InviteModal
+          customRoles={customRoles}
           onClose={() => setInviteOpen(false)}
           onCreated={(url) => {
             setLastAcceptUrl(url);
@@ -459,12 +479,15 @@ export default function TeamPage() {
 function InviteModal({
   onClose,
   onCreated,
+  customRoles,
 }: {
   onClose: () => void;
   onCreated: (acceptUrl: string) => void;
+  customRoles: CustomRoleLite[];
 }) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Role>("MEMBER");
+  // selection puede ser "base:OWNER" | "base:ADMIN" | "base:MEMBER" | "custom:<id>"
+  const [selection, setSelection] = useState<string>("base:MEMBER");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -485,10 +508,27 @@ function InviteModal({
     setError(null);
     setSubmitting(true);
     try {
+      // Derivar role + customRoleId del selection
+      let role: Role = "MEMBER";
+      let customRoleId: string | null = null;
+      if (selection.startsWith("base:")) {
+        role = selection.slice(5) as Role;
+      } else if (selection.startsWith("custom:")) {
+        customRoleId = selection.slice(7);
+        // Cuando se asigna custom role, el base role queda en MEMBER
+        // (los permisos efectivos los da el custom role)
+        role = "MEMBER";
+      }
+
       const res = await fetch("/api/settings/team/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role, note: note || null }),
+        body: JSON.stringify({
+          email,
+          role,
+          customRoleId,
+          note: note || null,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
@@ -562,15 +602,21 @@ function InviteModal({
               <label className="block text-[12px] font-semibold text-slate-700">
                 Rol
               </label>
-              <div className="mt-1.5 grid grid-cols-3 gap-2">
+
+              {/* Base roles */}
+              <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Roles del sistema
+              </div>
+              <div className="mt-1 grid grid-cols-3 gap-2">
                 {(["MEMBER", "ADMIN", "OWNER"] as Role[]).map((r) => {
                   const Icon = ROLE_META[r].icon;
-                  const active = role === r;
+                  const value = `base:${r}`;
+                  const active = selection === value;
                   return (
                     <button
                       key={r}
                       type="button"
-                      onClick={() => setRole(r)}
+                      onClick={() => setSelection(value)}
                       className="relative flex flex-col items-center gap-1 rounded-lg border px-3 py-2.5 transition"
                       style={{
                         borderColor: active
@@ -597,8 +643,53 @@ function InviteModal({
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-[10px] text-slate-500">
-                Owner: todo · Admin: casi todo · Editor: ve y edita datos
+
+              {/* Custom roles */}
+              {customRoles.length > 0 && (
+                <>
+                  <div className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Roles custom de tu organización
+                  </div>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    {customRoles.map((cr) => {
+                      const value = `custom:${cr.id}`;
+                      const active = selection === value;
+                      const color = cr.color ?? "#64748b";
+                      return (
+                        <button
+                          key={cr.id}
+                          type="button"
+                          onClick={() => setSelection(value)}
+                          className="relative flex items-center gap-2 rounded-lg border px-3 py-2.5 transition"
+                          style={{
+                            borderColor: active
+                              ? color
+                              : "rgba(226,232,240,1)",
+                            background: active ? `${color}0f` : "white",
+                          }}
+                        >
+                          <div
+                            className="h-3 w-3 rounded-full"
+                            style={{ background: color }}
+                          />
+                          <span
+                            className="truncate text-[11px] font-semibold"
+                            style={{
+                              color: active ? color : "#334155",
+                            }}
+                          >
+                            {cr.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <p className="mt-2 text-[10px] text-slate-500">
+                Owner: todo · Admin: casi todo · Editor: ve y edita datos.
+                Los roles custom overridean los permisos base.
               </p>
             </div>
             <div>
