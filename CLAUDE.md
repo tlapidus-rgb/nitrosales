@@ -6,9 +6,9 @@
 > sesión nueva, **tratá estas reglas como inmutables** salvo que Tomy
 > explícitamente las cambie en el chat.
 
-> **Última actualización: 2026-04-14 — URL de producción corregida a
-> `nitrosales.vercel.app`. Modelo simplificado: todo directo en `main`.
-> Sin staging. Sin branches extra.**
+> **Última actualización: 2026-04-19 — Agregada REGLA #6: separación de
+> dominios con Claude VM. La carpeta `CLAUDE_VM/` es read-only para
+> Claude de Producto. Ver `CLAUDE_VM/PARA_CLAUDE_PRODUCTO.md`.**
 
 ---
 
@@ -140,6 +140,32 @@ vez", **PARAR y preguntarle a Tomy en el chat primero**.
 
 ---
 
+## REGLA #6 — Separación de dominios: `CLAUDE_VM/` es territorio ajeno
+
+La carpeta `CLAUDE_VM/` es dominio exclusivo del Claude de Ventas &
+Marketing. Es read-only para mí (Claude de Producto). No edito, no
+creo, no borro archivos dentro de ella. Si detecto inconsistencias
+entre `CLAUDE_VM/` y el producto, aviso a Tomy en el chat — no las
+arreglo yo. Referencia completa: `CLAUDE_VM/PARA_CLAUDE_PRODUCTO.md`.
+
+**Qué puedo hacer dentro de `CLAUDE_VM/`:**
+- ✅ Leer archivos para contexto (ej: tono de voz, posicionamiento,
+  PKB comercial).
+- ✅ Referenciar su contenido en mi trabajo.
+- ✅ Detectar inconsistencias y avisarle a Tomy en el chat.
+
+**Qué NO puedo hacer dentro de `CLAUDE_VM/`:**
+- ❌ Editar, crear, renombrar o borrar archivos.
+- ❌ Commitear cambios dentro de esa carpeta por iniciativa propia.
+- ❌ "Arreglar" cosas que me parezcan mal — eso lo hace el Claude VM.
+
+**Handoff entre dominios:** si detecto que una feature necesita
+comunicación comercial (ej: terminé X, hay que anunciarla), anoto en
+`BACKLOG_PENDIENTES.md` con prefijo `PR-YYYYMMDD-NN` y le aviso a
+Tomy. No toco `CLAUDE_VM/`.
+
+---
+
 ## Módulo Aura — Creator Economy (Sesión 31+)
 
 Aura es el módulo de creator economy de NitroSales. Vive bajo `/aura/*`.
@@ -239,4 +265,4 @@ verificar PRIMERO las tareas programadas de Claude Desktop
 
 ---
 
-_Última actualización: 2026-04-12 — Modelo main-only + sync on-demand + browser guard._
+_Última actualización: 2026-04-19 — REGLA #6 agregada (dominio exclusivo CLAUDE_VM/)._
