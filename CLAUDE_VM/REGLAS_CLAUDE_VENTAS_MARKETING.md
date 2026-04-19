@@ -198,19 +198,60 @@ Cuando Claude VM produce material comercial:
 
 ---
 
-## REGLA #9 — Cierre de sesión
+## REGLA #9 — Cierre de sesión + push automático-asistido
 
-Al cerrar una sesión VM, Claude VM:
+### Trigger de cierre
 
-1. Agrega entrada en `HISTORIAL_SESIONES_VENTAS_MARKETING.md` con:
+Cualquiera de estos pedidos de Tomy dispara el flujo de cierre de sesión:
+
+- "Documentá todo"
+- "Registrá esta sesión"
+- "Cerrá la sesión"
+- "Dejá todo listo para la próxima"
+- "Hacé el push"
+- "Sincronizá con GitHub"
+
+### Flujo de cierre (en este orden)
+
+1. **Actualizar `HISTORIAL_SESIONES_VENTAS_MARKETING.md`** con entrada de esta sesión:
    - Número de sesión VM.
    - Fecha.
    - Qué se hizo (lista concreta de outputs).
    - SHA sincronizado al inicio.
    - Archivos modificados del lado VM.
    - Pendientes para la próxima sesión.
-2. Si modificó archivos del PKB, los deja consistentes entre sí.
-3. No hace `git commit` ni `git push` automáticamente: le dice a Tomy qué archivos se modificaron y Tomy decide si los commitea. (Claude VM no deploya nada y no afecta producción, pero los archivos del PKB viven en el mismo repo, así que el flow de commit es el mismo que usa Producto.)
+2. **Dejar el PKB consistente** si se tocaron archivos de `CONOCIMIENTO_PRODUCTO/`.
+3. **Bloque de push al final del mensaje a Tomy** — formato obligatorio:
+
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   📤 PUSH A GITHUB PENDIENTE
+   Corré esto en Terminal:
+
+       push-vm
+
+   (o si todavía no configuraste el alias:
+    bash CLAUDE_VM/scripts/push-vm.sh desde la carpeta nitrosales)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ```
+
+   Ese bloque va SIEMPRE al final del mensaje de cierre, visualmente separado. Nunca se omite, nunca se abrevia.
+
+### Por qué Claude VM no pushea solo
+
+El sandbox de Cowork donde corre Claude VM **no tiene acceso de red a github.com** (restricción del ambiente). El push tiene que salir desde la terminal de la Mac de Tomy, que es donde están sus credenciales (token en Keychain). Claude VM no puede saltarse eso; lo que sí puede es dejar todo listo para que Tomy corra un solo comando.
+
+### Alias `push-vm` (setup de una sola vez)
+
+Tomy configuró el alias el 2026-04-19 corriendo:
+```
+echo 'alias push-vm="cd /Users/ttt/Documents/GitHub/nitrosales && bash CLAUDE_VM/scripts/push-vm.sh"' >> ~/.zshrc && source ~/.zshrc
+```
+
+A partir de ahí, desde cualquier carpeta del Mac, el comando para pushear es simplemente:
+```
+push-vm
+```
 
 ---
 

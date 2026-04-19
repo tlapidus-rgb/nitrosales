@@ -190,3 +190,32 @@ A pedido de Tomy, para evitar confusión entre Claude VM y Claude de Producto cu
 **Pendiente para Tomy en su otra compu (Claude Producto)**: pedirle al Claude Producto que agregue en `CLAUDE.md` del repo la regla: *"No tocar la carpeta `CLAUDE_VM/` — es dominio exclusivo del Claude VM."* Una carpeta, una regla, quedó blindado.
 
 ---
+
+### Push a GitHub + nueva regla de cierre de sesión
+
+**2026-04-19 — Cierre real de sesión 2 VM.**
+
+**Push exitoso**: Tomy corrió `bash CLAUDE_VM/scripts/push-vm.sh` desde su Mac y todo `CLAUDE_VM/` quedó subido a GitHub (commit `7a64d71`, 63 archivos, 11.189 líneas). Autenticación resuelta con Personal Access Token (Mac guardó el token en Keychain, no lo va a volver a pedir).
+
+**Alias `push-vm` registrado** (Tomy lo iba a correr al cerrar la sesión):
+```
+echo 'alias push-vm="cd /Users/ttt/Documents/GitHub/nitrosales && bash CLAUDE_VM/scripts/push-vm.sh"' >> ~/.zshrc && source ~/.zshrc
+```
+Desde ahí en adelante, el comando para pushear es solo `push-vm` (un solo word, desde cualquier carpeta).
+
+**Nueva regla agregada a `REGLAS_CLAUDE_VENTAS_MARKETING.md` — REGLA #9 actualizada**:
+
+Cuando Tomy diga *"documentá todo"*, *"registrá la sesión"*, *"cerrá sesión"*, *"hacé el push"* o cualquier variante, Claude VM:
+1. Actualiza `HISTORIAL_SESIONES_VENTAS_MARKETING.md` con la entrada de cierre.
+2. Deja el PKB consistente.
+3. **Termina el mensaje con un bloque visualmente separado recordando a Tomy correr `push-vm`** (porque Claude VM no puede pushear desde el sandbox por restricción de red — github.com está bloqueado en el ambiente Cowork).
+
+Por qué esta regla: Tomy no quiere depender de acordarse de pushear cada vez. La solución de mínima fricción es: alias corto + reminder explícito de Claude VM al final de cada sesión. Ni full-auto silencioso (riesgoso) ni manual sin recordatorio (se olvida).
+
+**Estado al cerrar la sesión:**
+- 36 skills activas localmente en `~/.claude/skills/user/` de la Mac de Tomy.
+- Todo el contenido VM en GitHub (`tlapidus-rgb/nitrosales`, branch `main`, commit `7a64d71`).
+- Alias `push-vm` por configurar (Tomy lo va a correr ahora al cerrar este chat).
+- Próxima sesión VM: arrancar con ritual de REGLA #2.
+
+---
