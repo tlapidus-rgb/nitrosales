@@ -7,7 +7,7 @@ import { useState, useMemo } from "react";
 import { AurumProvider } from "@/components/aurum/AurumContext";
 import FloatingAurum from "@/components/aurum/FloatingAurum";
 import { AurumOrb } from "@/components/aurum/AurumOrb";
-import { PermissionsProvider, NavItemGate } from "@/hooks/usePermissions";
+import { PermissionsProvider, NavItemGate, PathnameGuard } from "@/hooks/usePermissions";
 
 type NavItem = {
   href: string;
@@ -584,7 +584,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       ]
                     : [];
                   return (
-                    <NavItemGate key={item.href} href={item.href}>
+                    <NavItemGate
+                      key={item.href}
+                      href={item.href}
+                      childHrefs={item.children?.map((c) => c.href)}
+                    >
                     <div className={`mb-1.5 ${isAurum ? "aurum-card-wrapper" : ""} ${isPixel ? "pixel-card-wrapper" : ""} ${isAura ? "aura-holo-card" : ""} ${isBondly ? "bondly-card-wrapper" : ""}`}>
                       <Link
                         href={item.href}
@@ -1185,7 +1189,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                 // ═══ Regular nav items ═══
                 return (
-                  <NavItemGate key={item.href} href={item.href}>
+                  <NavItemGate
+                    key={item.href}
+                    href={item.href}
+                    childHrefs={item.children?.map((c) => c.href)}
+                  >
                   <div>
                     <Link
                       href={item.href}
@@ -1364,7 +1372,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
               }
             >
-              {children}
+              <PathnameGuard pathname={pathname}>
+                {children}
+              </PathnameGuard>
             </main>
           );
         })()}

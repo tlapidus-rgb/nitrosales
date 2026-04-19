@@ -23,14 +23,23 @@ export type Section =
   | "costos"
   | "escenarios"
   | "fiscal"
+  | "rentabilidad"
   | "mercadolibre"
   | "competencia"
   | "alertas"
   | "bondly"
   | "aura"
   | "campaigns"
+  | "seo"
   | "products"
   | "orders"
+  | "nitropixel"
+  | "aurum"
+  | "dashboard"
+  | "sinapsis"
+  | "boveda"
+  | "pixel"
+  | "memory"
   | "settings_org"
   | "settings_team"
   | "settings_integrations"
@@ -51,20 +60,29 @@ export const SECTIONS: SectionMeta[] = [
   { key: "costos", label: "Costos", category: "finanzas" },
   { key: "escenarios", label: "Escenarios", category: "finanzas" },
   { key: "fiscal", label: "Fiscal", category: "finanzas" },
+  { key: "rentabilidad", label: "Rentabilidad", category: "finanzas" },
 
   // Ventas
   { key: "orders", label: "Órdenes", category: "ventas" },
   { key: "products", label: "Productos", category: "ventas" },
   { key: "mercadolibre", label: "MercadoLibre", category: "ventas" },
+  { key: "pixel", label: "NitroPixel Analytics", category: "ventas" },
+  { key: "nitropixel", label: "NitroPixel (Asset)", category: "ventas" },
 
   // Marketing
   { key: "campaigns", label: "Campañas", category: "marketing" },
   { key: "bondly", label: "Bondly (CRM)", category: "marketing" },
   { key: "aura", label: "Aura (Creators)", category: "marketing" },
   { key: "competencia", label: "Competencia", category: "marketing" },
+  { key: "seo", label: "SEO", category: "marketing" },
 
   // Operaciones
   { key: "alertas", label: "Alertas", category: "operaciones" },
+  { key: "dashboard", label: "Centro de Control", category: "operaciones" },
+  { key: "aurum", label: "Aurum (AI Chat)", category: "operaciones" },
+  { key: "sinapsis", label: "Sinapsis", category: "operaciones" },
+  { key: "boveda", label: "Bóveda", category: "operaciones" },
+  { key: "memory", label: "Memory", category: "operaciones" },
 
   // Config
   { key: "settings_org", label: "Organización", category: "config" },

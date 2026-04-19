@@ -140,6 +140,7 @@ export function hrefToSection(href: string): Section | null {
   if (href.startsWith("/finanzas/costos")) return "costos";
   if (href.startsWith("/finanzas/escenarios")) return "escenarios";
   if (href.startsWith("/finanzas/fiscal")) return "fiscal";
+  if (href.startsWith("/rentabilidad")) return "rentabilidad";
   if (href.startsWith("/orders")) return "orders";
   if (href.startsWith("/products")) return "products";
   if (href.startsWith("/mercadolibre")) return "mercadolibre";
@@ -148,31 +149,116 @@ export function hrefToSection(href: string): Section | null {
   if (href.startsWith("/aura")) return "aura";
   if (href.startsWith("/competitors")) return "competencia";
   if (href.startsWith("/alertas")) return "alertas";
+  if (href.startsWith("/seo")) return "seo";
+  if (href.startsWith("/nitropixel")) return "nitropixel";
+  if (href.startsWith("/pixel")) return "pixel";
+  if (href.startsWith("/dashboard")) return "dashboard";
+  if (href.startsWith("/chat")) return "aurum";
+  if (href.startsWith("/sinapsis")) return "sinapsis";
+  if (href.startsWith("/boveda")) return "boveda";
+  if (href.startsWith("/memory")) return "memory";
   if (href === "/settings" || href.startsWith("/settings/organizacion")) return "settings_org";
   if (href.startsWith("/settings/team")) return "settings_team";
   if (href.startsWith("/settings/integraciones")) return "settings_integrations";
   if (href.startsWith("/settings/billing")) return "settings_billing";
   if (href.startsWith("/settings/seguridad")) return "settings_security";
   if (href.startsWith("/settings/api-keys")) return "settings_api_keys";
-  // /nitropixel, /chat, /dashboard, /sinapsis, /boveda, /pixel, /seo,
-  // /rentabilidad, /memory -> no mapeadas, siempre visibles.
+  // /login, /accept-invite, /unauthorized, etc. -> publicas
   return null;
 }
 
 /**
+ * Hook de guard para paginas: si el user logueado no tiene permiso,
+ * redirige a /unauthorized.
+ */
+export function useRequirePermission(
+  section: Section,
+  level: AccessLevel = "read"
+): { loading: boolean; allowed: boolean } {
+  const { canAccess, loading, authenticated } = usePermissions();
+  const [allowed, setAllowed] = React.useState(true);
+
+  React.useEffect(() => {
+    if (loading) return;
+    if (!authenticated) return;
+    const ok = canAccess(section, level);
+    setAllowed(ok);
+    if (!ok && typeof window !== "undefined") {
+      window.location.href = "/unauthorized";
+    }
+  }, [loading, authenticated, section, level, canAccess]);
+
+  return { loading, allowed };
+}
+
+/**
+ * Guard automatico por ruta: derivado del pathname via hrefToSection.
+ * Montarlo una sola vez en el layout de (app) para que proteja
+ * TODAS las paginas automaticamente sin tocar cada una.
+ */
+export function PathnameGuard({
+  pathname,
+  children,
+}: {
+  pathname: string;
+  children: React.ReactNode;
+}) {
+  const { canAccess, loading, authenticated } = usePermissions();
+
+  React.useEffect(() => {
+    if (loading || !authenticated) return;
+    const section = hrefToSection(pathname);
+    if (section === null) return; // pagina publica dentro de (app)
+    const ok = canAccess(section, "read");
+    if (!ok && typeof window !== "undefined") {
+      window.location.href = "/unauthorized";
+    }
+  }, [pathname, loading, authenticated, canAccess]);
+
+  return <>{children}</>;
+}
+
+/**
  * Wrapper para NavItems de sidebar: si tiene section mapeada y no
- * hay permiso `read`, no renderiza. Si section es null (item publico
- * o no mapeado todavia), renderiza siempre.
+ * hay permiso `read`, no renderiza. Si section es null (item publico),
+ * renderiza siempre.
+ *
+ * Si se pasan `childHrefs`, el item se muestra si alguno de los
+ * children es accesible (aunque el padre no lo sea). Esto sirve
+ * para agrupadores como "Finanzas" cuyo href default apunta a
+ * /finanzas/pulso pero el user quizas solo tiene acceso a /fiscal.
  */
 export function NavItemGate({
   href,
+  childHrefs,
   children,
 }: {
   href: string;
+  childHrefs?: string[];
   children: React.ReactNode;
 }) {
   const { canAccess } = usePermissions();
-  const section = hrefToSection(href);
-  if (section === null) return <>{children}</>;
-  return canAccess(section, "read") ? <>{children}</> : null;
+  const parentSection = hrefToSection(href);
+
+  // 1. Parent tiene section y el user lo puede ver -> mostrar
+  if (parentSection !== null && canAccess(parentSection, "read")) {
+    return <>{children}</>;
+  }
+
+  // 2. Parent sin section (publico) -> mostrar
+  if (parentSection === null && (!childHrefs || childHrefs.length === 0)) {
+    return <>{children}</>;
+  }
+
+  // 3. Tiene children -> mostrar si alguno es accesible
+  if (childHrefs && childHrefs.length > 0) {
+    const anyChildVisible = childHrefs.some((c) => {
+      const sec = hrefToSection(c);
+      if (sec === null) return true; // child publico
+      return canAccess(sec, "read");
+    });
+    if (anyChildVisible) return <>{children}</>;
+  }
+
+  return null;
 }
