@@ -3,7 +3,53 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-18 (Sesion 43 — Finanzas P&L Fase 2 Estado completa: Waterfall hero premium + Drill-down lateral + Toggle $/% + Variables vs Fijos + Export PDF/Excel)
+## Ultima actualizacion: 2026-04-19 (Sesion 44 — Finanzas P&L Fase 3 Costos pro completa: schema + chips Fijo/Variable + bulk edit + copy-from-prev con IPC + editor de formula DRIVER_BASED)
+
+> Este bloque consolida los **6 commits** a `main` del 2026-04-19 que construyen la **Fase 3 completa del rediseño de Finanzas P&L** (`/finanzas/costos` — Costos pro). 6 sub-fases iterativas (3a→3f) pusheadas directo a main con validación `tsc --noEmit` clean. Incluye migración de schema (4 campos nuevos en `ManualCost`), chips visibles FIJO/VARIABLE/SEMI-FIJO con ratio en header, edición masiva por categoría (aumento %, comportamiento, clasificación fiscal), copia del mes anterior con ajuste por IPC opcional, y editor de fórmulas DRIVER_BASED con drivers editables y preview en vivo.
+
+### Sesion 44 — 2026-04-19 — Finanzas P&L Fase 3 Costos pro completa (6 sub-fases iterativas)
+
+**Objetivo**: convertir `/finanzas/costos` de una grilla simple de ítems en una herramienta profesional que permita a Tomy clasificar cada costo por comportamiento (Fijo/Variable/Semi-fijo) y tipo fiscal, ver en header qué porcentaje del total es fijo vs variable, editar masivamente varios costos con un bulk bar flotante, copiar el mes anterior aplicando ajuste por IPC automático solo a costos marcados, y definir costos con fórmulas tipo `DRIVER_BASED` (variables nombradas + expresión matemática).
+
+Fase 3 según roadmap `PROPUESTA_PNL_REORG.md` §5.3 y §Fase 3.
+
+#### Commits a `main`
+
+| Commit | Sub-fase | Qué |
+|---|---|---|
+| `49cf26f` | **3a** — Migración DB | Endpoint admin `/api/admin/migrate-manualcost-fase3` que agrega 4 columnas a `manual_costs` (`fiscalType`, `behavior`, `driverFormula` JSONB, `autoInflationAdjust` bool) + índice parcial sobre `driverFormula`. Idempotente (`ADD COLUMN IF NOT EXISTS`). Ejecutado en prod. |
+| `c6671fd` | **3b** — Schema + API | Schema Prisma actualizado con los 4 campos (tipos strict unions). API `/api/finance/manual-costs` GET devuelve `summary: { fixed, variable, semiFixed }`. POST/PUT validan los nuevos campos + `validateDriverFormula()` helper para el DSL JSON. `rateType` agrega `DRIVER_BASED` al enum. |
+| `6b2d732` | **3c** — UI ratio + chips | Constantes `BEHAVIOR_LABELS`, `BEHAVIOR_STYLES` + `effectiveBehavior()` con fallback a `type` legacy. Barra apilada tricolor (teal/amber/violet) en header con verdict (≥70% fijo = warning). Chips visibles en cada fila del P&L. Selector de comportamiento en el add-form (default: LOGISTICA/MERMA = VARIABLE, resto = FIXED). |
+| `079c4ae` | **3d** — Bulk edit | Endpoint `/api/finance/manual-costs/bulk-update` con 5 operaciones (`percentage_increase`, `set_amount`, `set_behavior`, `set_fiscal_type`, `set_auto_inflation`), scope `{ organizationId, id: { in: ids } }`, max 500 IDs por call, `$transaction` para el pct increase. UI: checkbox por fila + header "seleccionar todos por categoría" + bulk action bar flotante sticky con 3 ops expuestas (pct / behavior / fiscal). Limpia selección al cambiar de mes. |
+| `5f5a160` | **3e** — Copy-from-prev con IPC | Extensión del POST `copyFrom` para aceptar `adjustByInflation: boolean`. Consulta `InflationIndexMonthly` source y target, calcula `factor = ipcAcumulado(target)/ipcAcumulado(source)`, aplica factor solo a items con `autoInflationAdjust=true`, agrega nota auditable `[IPC {pct}% aplicado — {from} → {to}]`. Response enriquecida con `ipcAdjusted`, `ipcFactor`, `ipcMessage`. UI: toggle "Ajustar por IPC" en header (default on), toast muestra factor; badge "IPC auto" (rose) en items con autoInflationAdjust=true; checkbox en add-form. |
+| `204004a` | **3f** — Editor DRIVER_BASED | Nuevo lib `src/lib/finanzas/driver-formula.ts` con `validateFormulaSyntax` (regex whitelist + identifier allowlist), `evaluateDriverFormula` (`new Function()` con Math helpers aliased), `buildDriverFormulaPayload` (dto listo para PUT/POST). UI: `DRIVER_BASED` habilitado como rateType en PLATAFORMAS/FISCAL/INFRAESTRUCTURA/MARKETING/MERMA/OTROS. En add-form cuando `rateType=DRIVER_BASED` se oculta input de monto y Guardar pasa a "Siguiente: configurar fórmula" que abre el modal. Botón "ƒx" en rows con rateType=DRIVER_BASED abre el editor. Modal con drivers editables (key/label/value/unit) + textarea para fórmula + preview en vivo del monto calculado + save via PUT (edit) o POST (create). |
+
+**Arquitectura Fase 3**:
+- **Migración DB aparte del código**: endpoint admin primero, ejecución en prod, después schema + código (regla de oro para evitar `column does not exist` en deploy de Vercel).
+- **Lib pura nueva**: `src/lib/finanzas/driver-formula.ts` (167 líneas, pure functions, testeable). Evaluación segura con `new Function()` + whitelist regex + identifier check (rechaza `constructor`, `eval`, `require`, etc.).
+- **Backward compat**: `effectiveBehavior(item)` con fallback `behavior → type legacy (FIXED/VARIABLE) → FIXED`. SEMI_FIXED mapea a VARIABLE legacy en POST body.
+- **Scope seguro en bulk**: endpoint siempre filtra por `{ organizationId, id: { in: ids } }` — imposible afectar otra org.
+- **IPC aplicado por-item, no masivo**: solo ítems con `autoInflationAdjust=true` reciben factor. Items sin el flag se copian con monto intacto.
+- **Sin deps nuevas**. Todo con el stack existente (Prisma, Next.js, Tailwind).
+
+**Checklist de cierre Fase 3**:
+- ✅ `npx tsc --noEmit` clean después de cada sub-fase.
+- ✅ 6 commits separados en `main` para revert granular.
+- ✅ Migración idempotente con `ADD COLUMN IF NOT EXISTS` + índice parcial.
+- ✅ Validación del DSL de driverFormula tanto en lib client como en API (`validateDriverFormula` server-side).
+- ✅ Evaluador de fórmulas con defense-in-depth (regex + identifier whitelist + `new Function` sin acceso a globals fuera de Math aliases).
+- ✅ UI responsive: modal con `max-w-[95vw]`, bulk bar con `flex-wrap`.
+- ✅ ESC/backdrop cierran modal, click en backdrop ignora clicks internos (`e.target === e.currentTarget`).
+- ✅ No se rompió el flujo legacy: items sin `behavior` siguen funcionando (fallback a `type`).
+
+**Próximos pasos sugeridos (fuera de Fase 3)**:
+- Fase 4 Escenarios (what-if): combinar Fase 3 (comportamiento + fórmulas) con sliders de revenue/volumen y ver cómo escalan los costos automáticamente.
+- Consolidar taxonomía de `CostBehavior` entre client (`/finanzas/estado` usa mapping hardcodeado por categoría) y server (`ManualCost.behavior`). Idealmente `/finanzas/estado` leería `behavior` real en vez del mapping.
+- Tests unitarios de `driver-formula.ts` (casos: fórmula válida, división por cero, identificador prohibido, formula muy larga, drivers con key inválida).
+
+---
+
+## Ultima actualizacion previa: 2026-04-18 (Sesion 43 — Finanzas P&L Fase 2 Estado completa: Waterfall hero premium + Drill-down lateral + Toggle $/% + Variables vs Fijos + Export PDF/Excel)
 
 > Este bloque consolida los **5 commits** a `main` del 2026-04-18 (segunda ronda) que construyen la **Fase 2 completa del rediseño de Finanzas P&L** (`/finanzas/estado` vista narrativa detallada): 5 sub-fases iterativas (2a→2e) pusheadas directo a main con validación `tsc --noEmit` clean. Incluye Waterfall SVG custom premium con stagger animations + tooltip con mini-barra comparativa, drill-down lateral deslizable al clickear cualquier barra, toggle $ vs % en el waterfall, taxonomía Variables/Fijos/Semi-fijos con badges por línea + strip de composición, y sistema completo de export PDF (vía `window.print()` + CSS dedicado) y Excel (vía `exceljs` dynamic import con 3 hojas: P&L, Composición, Costos manuales).
 
