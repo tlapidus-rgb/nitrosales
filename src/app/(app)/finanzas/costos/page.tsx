@@ -80,6 +80,7 @@ const RATE_TYPE_LABELS = {
   FIXED_MONTHLY: "Fijo mensual",
   PER_SHIPMENT: "Por envio",
   PERCENTAGE: "Porcentaje",
+  DRIVER_BASED: "Formula",
 };
 
 const RATE_BASE_OPTIONS = [
@@ -88,6 +89,32 @@ const RATE_BASE_OPTIONS = [
   { value: "VTEX_REVENUE", label: "Facturacion VTEX" },
   { value: "COGS", label: "Costo de mercaderia (COGS)" },
 ];
+
+/* ── Fase 3 — taxonomia de comportamiento ────── */
+// Etiquetas y clases de estilo por behavior. Si un item no tiene
+// `behavior` cargado (null), caemos al campo `type` legacy: FIXED / VARIABLE.
+// SEMI_FIXED es un valor nuevo que solo aparece cuando lo cargamos explicito.
+const BEHAVIOR_LABELS = {
+  FIXED: "Fijo",
+  VARIABLE: "Variable",
+  SEMI_FIXED: "Semi-fijo",
+};
+
+const BEHAVIOR_STYLES = {
+  FIXED: "bg-teal-50 text-teal-700 border-teal-200",
+  VARIABLE: "bg-amber-50 text-amber-700 border-amber-200",
+  SEMI_FIXED: "bg-violet-50 text-violet-700 border-violet-200",
+};
+
+// Determina el behavior efectivo de un item. Orden de fallback:
+//   1. behavior (nuevo — tiene precedencia).
+//   2. type legacy (FIXED / VARIABLE).
+//   3. FIXED por default.
+function effectiveBehavior(item) {
+  if (item?.behavior) return item.behavior;
+  if (item?.type === "VARIABLE") return "VARIABLE";
+  return "FIXED";
+}
 
 /* ── Main Component ──────────────────────────── */
 export default function CostosPage() {
@@ -150,6 +177,7 @@ export default function CostosPage() {
     rateBase: "",
     socialCharges: "",
     type: "FIXED",
+    behavior: "FIXED", // Fase 3 — default visible para el chip
   });
 
   function showToast(msg) {
@@ -218,12 +246,19 @@ export default function CostosPage() {
     setForm({
       subcategory: "", name: "", serviceCode: "", amount: "",
       rateType: "FIXED_MONTHLY", rateBase: "", socialCharges: "", type: "FIXED",
+      behavior: "FIXED",
     });
     setAddingTo(null);
   }
 
   async function addCost(categoryKey) {
     if (!form.name.trim() || !form.amount) return;
+    // Fase 3 — behavior: mandamos siempre el que elige el user.
+    // type (legacy) lo derivamos del behavior para que la clasificacion
+    // FIXED/VARIABLE siga funcionando en reportes viejos:
+    //   SEMI_FIXED -> VARIABLE (tratamos el costo mixto como variable
+    //                           para el P&L legacy que solo entiende 2 buckets)
+    const legacyType = form.behavior === "FIXED" ? "FIXED" : "VARIABLE";
     await fetch("/api/finance/manual-costs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -236,7 +271,8 @@ export default function CostosPage() {
         rateType: form.rateType,
         rateBase: form.rateType === "PERCENTAGE" ? form.rateBase : null,
         socialCharges: form.socialCharges ? parseFloat(form.socialCharges) : null,
-        type: form.type,
+        type: legacyType,
+        behavior: form.behavior,
         month: costMonth,
       }),
     });
@@ -582,6 +618,91 @@ export default function CostosPage() {
           ))}
         </div>
       )}
+
+      {/* Fase 3c — Ratio Fijo vs Variable vs Semi-fijo */}
+      {data && data.summary && data.grandTotal > 0 && (() => {
+        const { fixed = 0, variable = 0, semiFixed = 0 } = data.summary;
+        const tot = fixed + variable + semiFixed;
+        if (tot === 0) return null;
+        const fixedPct = Math.round((fixed / tot) * 100);
+        const variablePct = Math.round((variable / tot) * 100);
+        const semiPct = Math.max(0, 100 - fixedPct - variablePct);
+        // Racional del verdicto:
+        //   fixedPct >= 70  -> demasiado fijo (poca flexibilidad, palanca baja)
+        //   fixedPct <= 40  -> estructura flexible (buena palanca operativa)
+        //   mid             -> mix saludable
+        let verdict = "Mix saludable";
+        let verdictColor = "text-gray-500";
+        if (fixedPct >= 70) {
+          verdict = "Demasiado fijo — poca flexibilidad ante bajas de venta";
+          verdictColor = "text-amber-600";
+        } else if (fixedPct <= 40) {
+          verdict = "Estructura flexible — buena palanca operativa";
+          verdictColor = "text-teal-600";
+        }
+        return (
+          <div className="bg-white rounded-xl p-4 shadow-sm mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <span className="text-xs font-medium text-gray-500 uppercase">Composicion Fijo vs Variable</span>
+                <p className="text-xs text-gray-400 mt-0.5">Taxonomia — como se comportan tus costos cuando suben o bajan las ventas</p>
+              </div>
+              <span className={`text-xs font-medium ${verdictColor}`}>{verdict}</span>
+            </div>
+            {/* Barra de composicion */}
+            <div className="w-full h-3 rounded-full overflow-hidden flex bg-gray-100">
+              {fixedPct > 0 && (
+                <div
+                  className="bg-teal-500"
+                  style={{ width: `${fixedPct}%` }}
+                  title={`Fijos: ${formatARS(fixed)} (${fixedPct}%)`}
+                />
+              )}
+              {semiPct > 0 && (
+                <div
+                  className="bg-violet-400"
+                  style={{ width: `${semiPct}%` }}
+                  title={`Semi-fijos: ${formatARS(semiFixed)} (${semiPct}%)`}
+                />
+              )}
+              {variablePct > 0 && (
+                <div
+                  className="bg-amber-500"
+                  style={{ width: `${variablePct}%` }}
+                  title={`Variables: ${formatARS(variable)} (${variablePct}%)`}
+                />
+              )}
+            </div>
+            {/* Leyenda detallada */}
+            <div className="grid grid-cols-3 gap-3 mt-3">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-teal-500" />
+                  <span className="text-xs font-medium text-gray-600">Fijos</span>
+                  <span className="text-xs text-gray-400">{fixedPct}%</span>
+                </div>
+                <p className="text-sm font-mono font-semibold text-gray-800 mt-0.5">{formatARS(fixed)}</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-violet-400" />
+                  <span className="text-xs font-medium text-gray-600">Semi-fijos</span>
+                  <span className="text-xs text-gray-400">{semiPct}%</span>
+                </div>
+                <p className="text-sm font-mono font-semibold text-gray-800 mt-0.5">{formatARS(semiFixed)}</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="text-xs font-medium text-gray-600">Variables</span>
+                  <span className="text-xs text-gray-400">{variablePct}%</span>
+                </div>
+                <p className="text-sm font-mono font-semibold text-gray-800 mt-0.5">{formatARS(variable)}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Category sections */}
       <div className="space-y-3">
@@ -1314,20 +1435,37 @@ export default function CostosPage() {
                               )}
                               <td className="px-4 py-2.5 text-gray-800 font-medium">{item.name}</td>
                               <td className="px-4 py-2.5">
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                  item.rateType === "PER_SHIPMENT"
-                                    ? "bg-blue-50 text-blue-600"
-                                    : item.rateType === "PERCENTAGE"
-                                    ? "bg-purple-50 text-purple-600"
-                                    : "bg-gray-100 text-gray-600"
-                                }`}>
-                                  {RATE_TYPE_LABELS[item.rateType] || item.rateType}
-                                  {item.rateType === "PERCENTAGE" && item.rateBase && (
-                                    <span className="ml-1 text-gray-400">
-                                      ({RATE_BASE_OPTIONS.find(o => o.value === item.rateBase)?.label || item.rateBase})
-                                    </span>
-                                  )}
-                                </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                    item.rateType === "PER_SHIPMENT"
+                                      ? "bg-blue-50 text-blue-600"
+                                      : item.rateType === "PERCENTAGE"
+                                      ? "bg-purple-50 text-purple-600"
+                                      : item.rateType === "DRIVER_BASED"
+                                      ? "bg-indigo-50 text-indigo-600"
+                                      : "bg-gray-100 text-gray-600"
+                                  }`}>
+                                    {RATE_TYPE_LABELS[item.rateType] || item.rateType}
+                                    {item.rateType === "PERCENTAGE" && item.rateBase && (
+                                      <span className="ml-1 text-gray-400">
+                                        ({RATE_BASE_OPTIONS.find(o => o.value === item.rateBase)?.label || item.rateBase})
+                                      </span>
+                                    )}
+                                  </span>
+                                  {/* Fase 3 — chip de behavior (Fijo/Variable/Semi-fijo).
+                                      Si no tiene behavior cargado, cae al mapeo desde `type` legacy. */}
+                                  {(() => {
+                                    const b = effectiveBehavior(item);
+                                    return (
+                                      <span
+                                        className={`text-xs px-2 py-0.5 rounded-full border ${BEHAVIOR_STYLES[b]}`}
+                                        title={item.behavior ? "Comportamiento configurado" : "Inferido desde tipo legacy"}
+                                      >
+                                        {BEHAVIOR_LABELS[b]}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
                               </td>
                               {cat.hasSocialCharges && (
                                 <td className="px-4 py-2.5 text-right">
@@ -1436,6 +1574,21 @@ export default function CostosPage() {
                             ))}
                           </select>
                         </div>
+                        {/* Fase 3 — behavior selector: clasifica el costo como
+                            Fijo (no varia con ventas), Variable (escala con
+                            ventas) o Semi-fijo (fijo hasta cierto volumen). */}
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Comportamiento</label>
+                          <select
+                            value={form.behavior}
+                            onChange={e => setForm({ ...form, behavior: e.target.value })}
+                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:border-blue-400 focus:outline-none"
+                          >
+                            <option value="FIXED">{BEHAVIOR_LABELS.FIXED}</option>
+                            <option value="VARIABLE">{BEHAVIOR_LABELS.VARIABLE}</option>
+                            <option value="SEMI_FIXED">{BEHAVIOR_LABELS.SEMI_FIXED}</option>
+                          </select>
+                        </div>
                         {form.rateType === "PERCENTAGE" && (
                           <div>
                             <label className="text-xs text-gray-500 block mb-1">Base</label>
@@ -1498,6 +1651,11 @@ export default function CostosPage() {
                       <button
                         onClick={() => {
                           setAddingTo(cat.key);
+                          // Default de behavior segun categoria: LOGISTICA y MERMA
+                          // tienden a ser VARIABLE (escalan con ventas), el resto FIXED.
+                          const defaultBehavior = (cat.key === "LOGISTICA" || cat.key === "MERMA")
+                            ? "VARIABLE"
+                            : "FIXED";
                           setForm({
                             ...form,
                             rateType: cat.rateTypes[0] || "FIXED_MONTHLY",
@@ -1506,6 +1664,7 @@ export default function CostosPage() {
                             serviceCode: "",
                             amount: "",
                             socialCharges: "",
+                            behavior: defaultBehavior,
                           });
                         }}
                         className="text-sm text-blue-500 hover:text-blue-700 font-medium"
