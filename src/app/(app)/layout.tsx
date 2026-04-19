@@ -8,6 +8,7 @@ import { AurumProvider } from "@/components/aurum/AurumContext";
 import FloatingAurum from "@/components/aurum/FloatingAurum";
 import { AurumOrb } from "@/components/aurum/AurumOrb";
 import { PermissionsProvider, NavItemGate, NavGroupGate, PathnameGuard } from "@/hooks/usePermissions";
+import AlertsBadge from "@/components/alerts/AlertsBadge";
 
 type NavItem = {
   href: string;
@@ -1231,6 +1232,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                       </svg>}
                       {item.label}
+                      {item.href === "/alertas" && <AlertsBadge />}
                       {hasChildren && (
                         <svg
                           className="w-3.5 h-3.5 ml-auto text-nitro-muted transition-transform duration-400 ease-nitro"
