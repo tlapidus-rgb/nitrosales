@@ -10,6 +10,7 @@ import { formatCompact, formatDateShort } from "@/lib/utils/format";
 import { DateRangeFilter } from "@/components/dashboard";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
 import WaterfallHero from "@/components/finanzas/WaterfallHero";
+import BridgeStrip from "@/components/finanzas/BridgeStrip";
 import WaterfallDrillPanel, { DrillData, DrillRow } from "@/components/finanzas/WaterfallDrillPanel";
 import ExportMenu from "@/components/finanzas/ExportMenu";
 import { exportPnLToExcel, ExportRow, ExportManualCost } from "@/lib/finanzas/export";
@@ -1309,6 +1310,11 @@ export default function FinanzasPage() {
         <p className="text-[11px] text-slate-500">
           <strong>Periodo:</strong> {dateFrom} → {dateTo}
         </p>
+      </div>
+
+      {/* Bridge Strip (Fase 6e) — CAC / LTV / Payback leido de /api/metrics/ltv */}
+      <div className="mb-4 print:hidden">
+        <BridgeStrip dateFrom={dateFrom} dateTo={dateTo} />
       </div>
 
       {/* Conditional View */}

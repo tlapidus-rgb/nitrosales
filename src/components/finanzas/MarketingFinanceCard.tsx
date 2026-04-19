@@ -128,6 +128,13 @@ export default function MarketingFinanceCard({
               Solo tienda VTEX. MELI no expone customer para rastrear LTV.
               Payback asume lifespan de 12 meses.
             </p>
+            <a
+              href="/bondly/clientes"
+              className="mt-2 inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+              style={{ transition: `all 160ms ${ES}` }}
+            >
+              Ver clientes en Bondly →
+            </a>
           </div>
 
           {/* Blended summary */}
