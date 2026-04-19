@@ -14,6 +14,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Users,
   UserPlus,
@@ -26,6 +27,7 @@ import {
   ShieldCheck,
   User,
   Clock,
+  KeyRound,
 } from "lucide-react";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -54,6 +56,7 @@ interface Invitation {
   expiresAt: string;
   createdAt: string;
   note: string | null;
+  token: string;
 }
 
 export default function TeamPage() {
@@ -170,15 +173,25 @@ export default function TeamPage() {
                 } pendiente${pendingInvs.length === 1 ? "" : "s"}`}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setInviteOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700"
-            style={{ transition: `all 160ms ${ES}` }}
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            Invitar miembro
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/settings/team/permisos"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              style={{ transition: `all 160ms ${ES}` }}
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              Configurar permisos
+            </Link>
+            <button
+              type="button"
+              onClick={() => setInviteOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700"
+              style={{ transition: `all 160ms ${ES}` }}
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Invitar miembro
+            </button>
+          </div>
         </div>
       </div>
 
@@ -268,14 +281,32 @@ export default function TeamPage() {
                     </div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleRevokeInvite(inv)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:border-rose-200 hover:text-rose-600"
-                >
-                  <X className="h-3 w-3" />
-                  Revocar
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const url = `${window.location.origin}/accept-invite?token=${inv.token}`;
+                        await navigator.clipboard.writeText(url);
+                        showToast("Link copiado");
+                      } catch {
+                        showToast("No se pudo copiar", "err");
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    <Copy className="h-3 w-3" />
+                    Copiar link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRevokeInvite(inv)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:border-rose-200 hover:text-rose-600"
+                  >
+                    <X className="h-3 w-3" />
+                    Revocar
+                  </button>
+                </div>
               </div>
             ))}
           </div>

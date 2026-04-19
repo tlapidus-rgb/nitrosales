@@ -40,6 +40,7 @@ export async function GET() {
           expiresAt: true,
           createdAt: true,
           note: true,
+          token: true,
         },
         orderBy: { createdAt: "desc" },
       }),
