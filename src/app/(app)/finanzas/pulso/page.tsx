@@ -26,6 +26,7 @@ import MarketingFinanceCard from "@/components/finanzas/MarketingFinanceCard";
 import Revenue12mSparkline from "@/components/finanzas/Revenue12mSparkline";
 import NarrativeHero from "@/components/finanzas/NarrativeHero";
 import FinancialAlertsCard from "@/components/finanzas/FinancialAlertsCard";
+import PredictiveAlertsCard from "@/components/finanzas/PredictiveAlertsCard";
 import { CurrencyToggle } from "@/components/finanzas/CurrencyToggle";
 import { useAurumPageContext } from "@/components/aurum/AurumContext";
 import type { PulsoPageData } from "@/types/finanzas";
@@ -207,6 +208,9 @@ export default function PulsoPage() {
 
       {/* ═══════ Alertas financieras (Fase 1d) ═══════ */}
       <FinancialAlertsCard alerts={data?.alerts ?? null} loading={loading} />
+
+      {/* ═══════ Alertas predictivas MoM + cross-module (Fase 6f) ═══════ */}
+      <PredictiveAlertsCard />
 
       {/* ═══════ Modal de override del cash balance (Fase 1e) ═══════ */}
       <CashBalanceOverride
