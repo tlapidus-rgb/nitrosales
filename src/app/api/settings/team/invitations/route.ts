@@ -136,16 +136,33 @@ export async function POST(req: NextRequest) {
     }
 
     // Mandar email (silent fail — no bloquea la creacion de invitacion)
-    const emailResult = await sendEmail({
-      to: email,
-      subject: `Te invitaron a ${orgName} en NitroSales`,
-      html: buildInvitationEmail({
-        orgName,
-        roleLabel,
-        acceptUrl,
-        note: note ?? null,
-      }),
-    });
+    const hasResendKey = Boolean(process.env.RESEND_API_KEY);
+    const emailResult = hasResendKey
+      ? await sendEmail({
+          to: email,
+          subject: `Te invitaron a ${orgName} en NitroSales`,
+          html: buildInvitationEmail({
+            orgName,
+            roleLabel,
+            acceptUrl,
+            note: note ?? null,
+          }),
+        })
+      : {
+          ok: false,
+          error: "RESEND_API_KEY no está configurado en Vercel",
+        };
+
+    // Log explicito para debug
+    if (emailResult.ok) {
+      console.log(
+        `[team/invitations] Email enviado a ${email} via Resend (id: ${(emailResult as any).id ?? "—"})`
+      );
+    } else {
+      console.warn(
+        `[team/invitations] Email NO enviado a ${email}: ${emailResult.error}`
+      );
+    }
 
     return NextResponse.json({
       ok: true,
@@ -158,9 +175,10 @@ export async function POST(req: NextRequest) {
       },
       acceptUrl,
       emailSent: emailResult.ok,
+      emailError: emailResult.ok ? null : emailResult.error,
       message: emailResult.ok
         ? `Invitación enviada por email a ${email}.`
-        : `Invitación creada. No se pudo enviar el email (${emailResult.error ?? "proveedor no configurado"}). Copiá el link manualmente.`,
+        : `Invitación creada. No se pudo enviar el email: ${emailResult.error ?? "proveedor no configurado"}. Copiá el link manualmente.`,
     });
   } catch (error: any) {
     console.error("[team/invitations POST] error:", error);

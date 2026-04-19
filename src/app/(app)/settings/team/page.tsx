@@ -77,7 +77,12 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(null);
-  const [lastAcceptUrl, setLastAcceptUrl] = useState<string | null>(null);
+  const [lastInvite, setLastInvite] = useState<{
+    url: string;
+    emailSent: boolean;
+    recipientEmail: string;
+    errorMessage?: string;
+  } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -386,44 +391,79 @@ export default function TeamPage() {
         <InviteModal
           customRoles={customRoles}
           onClose={() => setInviteOpen(false)}
-          onCreated={(url) => {
-            setLastAcceptUrl(url);
+          onCreated={(result) => {
+            setLastInvite(result);
             setInviteOpen(false);
             load();
-            showToast("Invitación creada");
+            if (result.emailSent) {
+              showToast(`Invitación enviada a ${result.recipientEmail}`);
+            } else {
+              showToast("Invitación creada (ver link abajo)", "err");
+            }
           }}
         />
       )}
 
-      {/* Link compartible post-invite */}
-      {lastAcceptUrl && (
+      {/* Feedback post-invite: verde si email OK, amber si hay que enviar manual */}
+      {lastInvite && lastInvite.emailSent && (
         <div
-          className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4"
+          className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 flex items-center justify-between gap-3"
           role="status"
         >
           <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-violet-600" />
-            <h3 className="text-sm font-semibold tracking-tight text-violet-900">
-              Envío manual por ahora
+            <Check className="h-4 w-4 text-emerald-600" />
+            <div>
+              <h3 className="text-sm font-semibold tracking-tight text-emerald-900">
+                Invitación enviada por email
+              </h3>
+              <p className="text-[11px] text-emerald-700">
+                Le llegó a <strong>{lastInvite.recipientEmail}</strong>. El link expira en 7 días.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLastInvite(null)}
+            className="rounded-lg p-1 text-emerald-500 hover:bg-emerald-100"
+            aria-label="Cerrar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {lastInvite && !lastInvite.emailSent && (
+        <div
+          className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4"
+          role="status"
+        >
+          <div className="flex items-center gap-2">
+            <Mail className="h-4 w-4 text-amber-600" />
+            <h3 className="text-sm font-semibold tracking-tight text-amber-900">
+              No se pudo enviar el email — copiá el link manualmente
             </h3>
           </div>
-          <p className="mt-1 text-[12px] text-violet-700">
-            Copiá este link y mandalo al invitado (el envío automático por email
-            llega en una próxima iteración).
+          {lastInvite.errorMessage && (
+            <p className="mt-1 text-[11px] text-amber-700 font-mono">
+              {lastInvite.errorMessage}
+            </p>
+          )}
+          <p className="mt-1 text-[12px] text-amber-700">
+            Mandale este link al invitado por WhatsApp o email manual:
           </p>
           <div className="mt-3 flex items-center gap-2">
-            <code className="flex-1 truncate rounded-lg border border-violet-200 bg-white px-3 py-2 font-mono text-[11px] text-violet-900">
-              {lastAcceptUrl}
+            <code className="flex-1 truncate rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-[11px] text-amber-900">
+              {lastInvite.url}
             </code>
             <button
               type="button"
               onClick={async () => {
                 try {
-                  await navigator.clipboard.writeText(lastAcceptUrl);
+                  await navigator.clipboard.writeText(lastInvite.url);
                   showToast("Link copiado");
                 } catch {}
               }}
-              className="inline-flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-2 text-[11px] font-semibold text-white shadow-sm hover:bg-violet-700"
+              className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-2 text-[11px] font-semibold text-white shadow-sm hover:bg-amber-700"
             >
               <Copy className="h-3 w-3" />
               Copiar
@@ -482,7 +522,12 @@ function InviteModal({
   customRoles,
 }: {
   onClose: () => void;
-  onCreated: (acceptUrl: string) => void;
+  onCreated: (result: {
+    url: string;
+    emailSent: boolean;
+    recipientEmail: string;
+    errorMessage?: string;
+  }) => void;
   customRoles: CustomRoleLite[];
 }) {
   const [email, setEmail] = useState("");
@@ -532,7 +577,12 @@ function InviteModal({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      onCreated(json.acceptUrl);
+      onCreated({
+        url: json.acceptUrl,
+        emailSent: Boolean(json.emailSent),
+        recipientEmail: email,
+        errorMessage: json.emailSent ? undefined : (json.emailError ?? json.message ?? undefined),
+      });
     } catch (e: any) {
       setError(e.message ?? "Error creando invitación");
     } finally {
