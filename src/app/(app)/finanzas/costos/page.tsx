@@ -19,8 +19,28 @@ import {
   TrendingDown,
   Package,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
+  Copy,
 } from "lucide-react";
+
+// Fase 4c — Helpers para el custom month selector
+function formatMonthLabel(monthStr: string): string {
+  if (!monthStr) return "";
+  const [y, m] = monthStr.split("-").map(Number);
+  const d = new Date(y, (m || 1) - 1, 1);
+  // "abril de 2026"
+  return d
+    .toLocaleDateString("es-AR", { month: "long", year: "numeric" })
+    .replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function addMonthsToStr(monthStr: string, delta: number): string {
+  const [y, m] = monthStr.split("-").map(Number);
+  const d = new Date(y, (m || 1) - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 // Fase 4b — Mapa de icons lucide por categoria (reemplaza emojis)
 const CATEGORY_ICONS: Record<string, any> = {
@@ -936,29 +956,73 @@ export default function CostosPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="month"
-              value={costMonth}
-              onChange={e => setCostMonth(e.target.value)}
-              className="text-sm bg-white/80 backdrop-blur border border-gray-200 rounded-xl px-3 py-2 text-gray-700 font-medium tabular-nums shadow-[0_1px_2px_rgba(15,23,42,0.04),0_1px_1px_rgba(15,23,42,0.02)] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)] focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100 transition-all"
-            />
-            {/* Fase 3e — toggle de ajuste IPC aplicado al copy-from-prev */}
-            <label
-              className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer bg-white/80 backdrop-blur border border-gray-200 rounded-xl px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)] transition-all"
-              title="Si esta activo, los items marcados como 'ajusta por inflacion' se copian con IPC aplicado"
+            {/* Fase 4c — Custom month selector (chevron prev · label · chevron next · hidden native) */}
+            <div className="flex items-center bg-white/80 backdrop-blur border border-gray-200 rounded-xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_1px_1px_rgba(15,23,42,0.02)] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)] transition-all overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setCostMonth(addMonthsToStr(costMonth, -1))}
+                className="px-2 py-2 text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors"
+                aria-label="Mes anterior"
+                title="Mes anterior"
+              >
+                <ChevronLeft className="w-4 h-4" strokeWidth={2.2} />
+              </button>
+              {/* Label clickable que dispara el native picker */}
+              <label className="relative text-sm font-medium tabular-nums text-gray-700 px-3 py-2 cursor-pointer select-none min-w-[148px] text-center hover:text-gray-900 transition-colors">
+                {formatMonthLabel(costMonth)}
+                <input
+                  type="month"
+                  value={costMonth}
+                  onChange={(e) => setCostMonth(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  aria-label="Seleccionar mes"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setCostMonth(addMonthsToStr(costMonth, 1))}
+                disabled={costMonth >= nowMonth}
+                className="px-2 py-2 text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Mes siguiente"
+                title={costMonth >= nowMonth ? "Ya estas en el mes actual" : "Mes siguiente"}
+              >
+                <ChevronRight className="w-4 h-4" strokeWidth={2.2} />
+              </button>
+            </div>
+
+            {/* Fase 4c — Pill toggle para "Ajustar por IPC" (reemplaza checkbox nativo) */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={adjustByInflation}
+              onClick={() => setAdjustByInflation((v) => !v)}
+              title="Si esta activo, los items con auto-ajuste IPC se copian con factor de inflacion aplicado"
+              className={`group inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-xl border backdrop-blur transition-all ${
+                adjustByInflation
+                  ? "bg-teal-50/80 border-teal-200 text-teal-700 shadow-[0_1px_2px_rgba(20,184,166,0.12),0_1px_1px_rgba(20,184,166,0.08)]"
+                  : "bg-white/80 border-gray-200 text-gray-500 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:text-gray-700"
+              }`}
             >
-              <input
-                type="checkbox"
-                checked={adjustByInflation}
-                onChange={(e) => setAdjustByInflation(e.target.checked)}
-                className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-              />
+              <span
+                className={`relative inline-flex w-8 h-4 rounded-full transition-colors ${
+                  adjustByInflation ? "bg-teal-500" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                    adjustByInflation ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </span>
               Ajustar por IPC
-            </label>
+            </button>
+
+            {/* Fase 4c — Copiar mes anterior con icono lucide */}
             <button
               onClick={copyPreviousMonth}
-              className="text-sm font-medium px-4 py-2 bg-white/80 backdrop-blur border border-gray-200 rounded-xl text-gray-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-[0_4px_12px_rgba(15,23,42,0.08),0_2px_4px_rgba(15,23,42,0.04)] hover:-translate-y-[1px] active:translate-y-0 transition-all"
+              className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 bg-white/80 backdrop-blur border border-gray-200 rounded-xl text-gray-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-[0_4px_12px_rgba(15,23,42,0.08),0_2px_4px_rgba(15,23,42,0.04)] hover:-translate-y-[1px] active:translate-y-0 transition-all"
             >
+              <Copy className="w-3.5 h-3.5" strokeWidth={2.2} />
               Copiar mes anterior
             </button>
           </div>
