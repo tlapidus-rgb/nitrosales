@@ -1,15 +1,14 @@
 // ══════════════════════════════════════════════════════════════
-// ML Cron Sync — Robust safety net for MercadoLibre data
+// ML Cron Sync — Robust safety net for MercadoLibre data (MULTI-TENANT)
 // ══════════════════════════════════════════════════════════════
-// Runs every 4 hours (Vercel Cron). Does THREE things:
-//   1. SYNCS RECENT ORDERS directly from ML /orders/search API
-//      → This is the REAL safety net. If the webhook missed orders,
-//        this step creates them. Covers last 48 hours.
+// Runs every 4 hours (Vercel Cron). Para CADA org con ML activo:
+//   1. SYNCS RECENT ORDERS directly from ML /orders/search API (48h)
 //   2. Enriches order items (products + order_items rows)
 //   3. Snapshots seller reputation metrics
 //
-// NOTE: /missed_feeds was removed — it returns 401 for non-app-owners.
-// Instead we do a direct order search which is 100% reliable.
+// Multi-tenant: itera todas las Connection con platform=MERCADOLIBRE,
+// status=ACTIVE. Secuencial (no paralelo). Cuando haya >5 orgs con ML,
+// paralelizar con Promise.all pero con batching (~3 a la vez).
 //
 // SAFETY: READ-ONLY from ML API. Only writes to our DB.
 // ══════════════════════════════════════════════════════════════
@@ -35,44 +34,20 @@ function mapMLOrderStatus(mlStatus: string): "PENDING" | "APPROVED" | "SHIPPED" 
   }
 }
 
-export async function GET(req: NextRequest) {
-  // Optional: Verify cron secret
-  const authHeader = req.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const startTime = Date.now();
+/**
+ * Sincroniza UNA org con ML conectado. Captura errores internamente
+ * para no bloquear el procesamiento de las otras orgs.
+ */
+async function syncOneOrg(
+  orgId: string,
+  connId: string
+): Promise<{ ok: boolean; log: string[]; error?: string }> {
   const log: string[] = [];
-
   try {
-    // Multi-tenant safe: iterar TODAS las orgs con ML activo.
-    // TODO (post Arredo): paralelizar si hay >5 orgs con ML.
-    const mlConnections = await prisma.connection.findMany({
-      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
-      select: { id: true, organizationId: true },
-    });
-
-    if (mlConnections.length === 0) {
-      return NextResponse.json({ error: "No active ML connections" }, { status: 404 });
-    }
-
-    if (mlConnections.length > 1) {
-      log.push(`[multi-tenant] Procesando ${mlConnections.length} orgs con ML activo`);
-    }
-
-    // Por ahora procesamos la primera (compatible con setup actual de 1 tenant).
-    // Cuando entre Arredo, cambiar a loop paralelo.
-    const primaryConn = mlConnections[0];
-    const orgId = primaryConn.organizationId;
-
     const { token, mlUserId } = await getSellerToken(orgId);
-    log.push(`Token OK for org ${orgId} user ${mlUserId}`);
+    log.push(`Token OK for user ${mlUserId}`);
 
     // ── 1. Sync recent orders from ML API (last 48h) ─────────
-    // This is the PRIMARY safety net — catches any orders the
-    // webhook missed (e.g. due to token expiry, deploy issues, etc.)
     try {
       const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       const mlOrders = await fetchSellerOrders(token, mlUserId, {
@@ -89,7 +64,6 @@ export async function GET(req: NextRequest) {
         const mlItems = order.order_items || [];
         const itemCount = mlItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
 
-        // Extract promotions
         const orderPromos: string[] = Array.isArray(order.promotions)
           ? order.promotions.map((p: any) => (p?.name || p?.type || "").toString().trim()).filter(Boolean)
           : [];
@@ -99,7 +73,6 @@ export async function GET(req: NextRequest) {
         const allPromos = Array.from(new Set([...orderPromos, ...itemPromos]));
         const promotionNames = allPromos.length ? allPromos.join(", ") : null;
 
-        // Check if order exists
         const existing = await prisma.order.findUnique({
           where: {
             organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
@@ -108,7 +81,6 @@ export async function GET(req: NextRequest) {
         });
 
         if (existing) {
-          // Only update if status changed
           if (existing.status !== status) {
             await prisma.order.update({
               where: { id: existing.id },
@@ -117,7 +89,6 @@ export async function GET(req: NextRequest) {
             ordersUpdated++;
           }
         } else {
-          // Create new order (webhook missed it)
           await prisma.order.create({
             data: {
               organizationId: orgId,
@@ -201,7 +172,6 @@ export async function GET(req: NextRequest) {
         return d >= dateStart && d <= dateEnd;
       });
 
-      // Collect items from ML orders
       const allItems: Array<{
         orderId: string; mlItemId: string; title: string;
         sku: string; unitPrice: number; quantity: number; thumbnail: string | null;
@@ -233,7 +203,6 @@ export async function GET(req: NextRequest) {
           const dbMap = new Map<string, string>();
           for (const o of dbOrders) dbMap.set(o.externalId, o.id);
 
-          // Collect unique products
           const productSet = new Map<string, typeof allItems[0]>();
           for (const item of allItems) {
             if (!dbMap.has(item.orderId)) continue;
@@ -241,7 +210,6 @@ export async function GET(req: NextRequest) {
             if (!productSet.has(extId)) productSet.set(extId, item);
           }
 
-          // Bulk upsert products
           const productExtIds = [...productSet.keys()];
           const PROD_BATCH = 200;
           for (let b = 0; b < productExtIds.length; b += PROD_BATCH) {
@@ -261,7 +229,6 @@ export async function GET(req: NextRequest) {
             `);
           }
 
-          // Get product IDs
           const prodPH = productExtIds.map((_, i) => `$${i + 2}`).join(",");
           const products: { id: string; externalId: string }[] = productExtIds.length > 0
             ? await prisma.$queryRawUnsafe(
@@ -272,7 +239,6 @@ export async function GET(req: NextRequest) {
           const prodMap = new Map<string, string>();
           for (const p of products) prodMap.set(p.externalId, p.id);
 
-          // Bulk insert order items
           const itemValues: string[] = [];
           for (const item of allItems) {
             const dbOrderId = dbMap.get(item.orderId);
@@ -306,14 +272,71 @@ export async function GET(req: NextRequest) {
       log.push(`Item enrichment error: ${err.message}`);
     }
 
-    // ── Update connection ─────────────────────────────────────
+    // ── Update connection lastSyncAt ─────────────────────────
     await prisma.connection.update({
-      where: { id: primaryConn.id },
+      where: { id: connId },
       data: { lastSyncAt: new Date() },
     });
 
+    return { ok: true, log };
+  } catch (err: any) {
+    console.error(`[ML Cron] Fatal for org ${orgId}:`, err);
+    return { ok: false, log, error: err.message };
+  }
+}
+
+export async function GET(req: NextRequest) {
+  // Optional: Verify cron secret
+  const authHeader = req.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const startTime = Date.now();
+
+  try {
+    // Multi-tenant: iterar TODAS las orgs con ML activo
+    const mlConnections = await prisma.connection.findMany({
+      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
+      select: { id: true, organizationId: true },
+    });
+
+    if (mlConnections.length === 0) {
+      return NextResponse.json({ error: "No active ML connections" }, { status: 404 });
+    }
+
+    // Procesar secuencialmente por org (cron tiene 5 min total).
+    // TODO post-multi-tenant real (>5 orgs): paralelizar con Promise.all batched.
+    const orgResults: Array<{
+      orgId: string;
+      ok: boolean;
+      log: string[];
+      error?: string;
+      elapsedMs: number;
+    }> = [];
+
+    let overallOk = true;
+    for (const conn of mlConnections) {
+      const orgStart = Date.now();
+      const result = await syncOneOrg(conn.organizationId, conn.id);
+      orgResults.push({
+        orgId: conn.organizationId,
+        ok: result.ok,
+        log: result.log,
+        error: result.error,
+        elapsedMs: Date.now() - orgStart,
+      });
+      if (!result.ok) overallOk = false;
+    }
+
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    return NextResponse.json({ ok: true, elapsed: `${elapsed}s`, log });
+    return NextResponse.json({
+      ok: overallOk,
+      elapsed: `${elapsed}s`,
+      orgsProcessed: orgResults.length,
+      results: orgResults,
+    });
   } catch (err: any) {
     console.error("[ML Cron] Fatal:", err);
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
