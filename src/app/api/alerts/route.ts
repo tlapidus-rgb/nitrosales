@@ -8,10 +8,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { buildUnifiedAlerts } from "@/lib/alerts/alert-hub";
+import { getSessionUserId } from "@/lib/alerts/get-user-id";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +25,7 @@ function getBaseUrl(req: NextRequest): string {
 export async function GET(req: NextRequest) {
   try {
     const orgId = await getOrganizationId();
-    const session = await getServerSession(authOptions);
-    const userId = (session?.user as any)?.id ?? null;
+    const userId = await getSessionUserId();
 
     const url = new URL(req.url);
     const source = url.searchParams.get("source");

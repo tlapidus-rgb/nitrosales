@@ -8,17 +8,13 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { randomUUID } from "crypto";
+import { getSessionUserId } from "@/lib/alerts/get-user-id";
 
 export const dynamic = "force-dynamic";
 
-async function getUserId(): Promise<string | null> {
-  const session = await getServerSession(authOptions);
-  return (session?.user as any)?.id ?? null;
-}
+const getUserId = getSessionUserId;
 
 // GET: diagnostico — cuantas filas tiene el user en user_alert_reads
 export async function GET() {
