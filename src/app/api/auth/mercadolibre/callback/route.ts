@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { tryGetOrganizationId } from "@/lib/auth-guard";
 
 const ML_APP_ID = process.env.ML_APP_ID || "5750438437863167";
 const ML_SECRET = process.env.ML_SECRET_KEY || "4WBCq5f9ejpT4U62KGjG0q08koi0bPxt";
@@ -75,9 +76,19 @@ export async function GET(req: NextRequest) {
 
     console.log(`[ML OAuth] Got tokens for ML user ${user_id}, expires in ${expires_in}s, refresh_token: ${refresh_token ? 'YES' : 'NO'}`);
 
-    // Find existing ML connection (we created one earlier with client_credentials)
+    // Multi-tenant safe: resolver la org del user logueado que inició el flow
+    // (las cookies de session viajan al callback porque es same-origin).
+    const orgId = await tryGetOrganizationId();
+    if (!orgId) {
+      console.error("[ML OAuth] No session en el callback — user sin sesión activa");
+      return NextResponse.redirect(
+        new URL(`/competitors?ml_error=no_session`, req.url)
+      );
+    }
+
+    // Buscar connection ML de ESTA org específicamente (no findFirst global).
     const existing = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any },
+      where: { platform: "MERCADOLIBRE" as any, organizationId: orgId },
     });
 
     const credentials = {
@@ -100,18 +111,37 @@ export async function GET(req: NextRequest) {
         },
       });
     } else {
-      // Create new connection (shouldn't happen normally)
-      const org = await prisma.organization.findFirst();
-      if (org) {
-        await prisma.connection.create({
-          data: {
-            organizationId: org.id,
-            platform: "MERCADOLIBRE" as any,
-            status: "ACTIVE",
-            credentials: credentials as any,
-          },
-        });
+      // Create new connection para la org del user actual (NO findFirst global)
+      await prisma.connection.create({
+        data: {
+          organizationId: orgId,
+          platform: "MERCADOLIBRE" as any,
+          status: "ACTIVE",
+          credentials: credentials as any,
+        },
+      });
+    }
+
+    // Safety check: si otro seller ML ya está conectado en OTRA org con el mismo
+    // mlUserId, algo está mal (mismo seller no debería estar en 2 orgs).
+    try {
+      const conflict = await prisma.connection.findMany({
+        where: {
+          platform: "MERCADOLIBRE" as any,
+          organizationId: { not: orgId },
+        },
+        select: { id: true, organizationId: true, credentials: true },
+      });
+      for (const c of conflict) {
+        const creds = c.credentials as any;
+        if (creds?.mlUserId === user_id) {
+          console.warn(
+            `[ML OAuth] ⚠ MISMO mlUserId=${user_id} ya conectado en org=${c.organizationId}. Esto es inusual — revisar.`
+          );
+        }
       }
+    } catch (e) {
+      // Silent fail — el check es informativo
     }
 
     // Redirect to competitors page with success (and clean up PKCE cookie)
