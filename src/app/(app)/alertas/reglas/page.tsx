@@ -41,6 +41,9 @@ import {
   Shield,
   Users,
   Zap,
+  Pencil,
+  Save,
+  Info,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -113,6 +116,7 @@ export default function AlertasReglasPage() {
   const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState<{ rule: Rule; data: any | null; loading: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Rule | null>(null);
+  const [editing, setEditing] = useState<Rule | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -175,6 +179,29 @@ export default function AlertasReglasPage() {
       setTimeout(() => setError(null), 6000);
       // recargar para devolver estado correcto
       load();
+    }
+  };
+
+  // Save edits (PATCH desde el drawer)
+  const saveEditedRule = async (
+    ruleId: string,
+    updates: Partial<Pick<Rule, "name" | "params" | "schedule" | "channels" | "cooldownMinutes" | "severity">>
+  ): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/alerts/rules", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ruleId, ...updates }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        return { ok: false, error: `HTTP ${res.status} ${txt.slice(0, 160)}` };
+      }
+      // Reload para reflejar los cambios + nextFireAt re-computado
+      await load();
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message ?? e) };
     }
   };
 
@@ -358,6 +385,7 @@ export default function AlertasReglasPage() {
                 onToggle={toggleEnabled}
                 onDelete={(r) => setConfirmDelete(r)}
                 onPreview={openPreview}
+                onEdit={(r) => setEditing(r)}
               />
             ))}
           </div>
@@ -413,6 +441,20 @@ export default function AlertasReglasPage() {
           onCancel={() => setConfirmDelete(null)}
         />
       )}
+
+      {/* Drawer de edición */}
+      {editing && (
+        <EditDrawer
+          rule={editing}
+          primitive={catalog.find((p) => p.key === editing.primitiveKey)}
+          onSave={async (updates) => {
+            const r = await saveEditedRule(editing.id, updates);
+            if (r.ok) setEditing(null);
+            return r;
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }
@@ -459,6 +501,7 @@ function ModuleGroup({
   onToggle,
   onDelete,
   onPreview,
+  onEdit,
 }: {
   module: string;
   rules: Rule[];
@@ -466,6 +509,7 @@ function ModuleGroup({
   onToggle: (r: Rule) => void;
   onDelete: (r: Rule) => void;
   onPreview: (r: Rule) => void;
+  onEdit: (r: Rule) => void;
 }) {
   const meta = moduleMeta(module);
   const Icon = meta.Icon;
@@ -516,6 +560,7 @@ function ModuleGroup({
               onToggle={() => onToggle(rule)}
               onDelete={() => onDelete(rule)}
               onPreview={() => onPreview(rule)}
+              onEdit={() => onEdit(rule)}
             />
           );
         })}
@@ -531,6 +576,7 @@ function RuleCard({
   onToggle,
   onDelete,
   onPreview,
+  onEdit,
 }: {
   rule: Rule;
   primitive?: CatalogPrimitive;
@@ -538,6 +584,7 @@ function RuleCard({
   onToggle: () => void;
   onDelete: () => void;
   onPreview: () => void;
+  onEdit: () => void;
 }) {
   const isSchedule = rule.type === "schedule";
   const description = primitive?.description ?? "Sin descripción";
@@ -612,6 +659,7 @@ function RuleCard({
             onClick={onToggle}
             tooltip={rule.enabled ? "Click para desactivar" : "Click para activar"}
           />
+          <ActionButton Icon={Pencil} label="Editar" tone="#0ea5e9" onClick={onEdit} tooltip="Modificar parámetros, horario, severidad" />
           <ActionButton Icon={Play} label="Probar ahora" tone="#6366f1" onClick={onPreview} tooltip="Ver cómo se vería la alerta" />
           <ActionButton Icon={Trash2} label="Borrar" tone="#ef4444" onClick={onDelete} tooltip="Eliminar la regla" />
         </div>
@@ -970,6 +1018,559 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
         }
       `}</style>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Edit Drawer
+// ═══════════════════════════════════════════════════════════════════
+
+function EditDrawer({
+  rule,
+  primitive,
+  onSave,
+  onClose,
+}: {
+  rule: Rule;
+  primitive?: CatalogPrimitive;
+  onSave: (updates: Partial<Rule>) => Promise<{ ok: boolean; error?: string }>;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(rule.name);
+  const [params, setParams] = useState<Record<string, any>>(rule.params ?? {});
+  const [schedule, setSchedule] = useState<any>(rule.schedule ?? { frequency: "daily", time: "09:00" });
+  const [channels, setChannels] = useState<string[]>(rule.channels ?? ["in_app"]);
+  const [severity, setSeverity] = useState(rule.severity);
+  const [cooldown, setCooldown] = useState(rule.cooldownMinutes);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isSchedule = rule.type === "schedule";
+  const paramsSchema = primitive?.paramsSchema ?? {};
+  const hasParams = Object.keys(paramsSchema).length > 0;
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    const r = await onSave({
+      name,
+      params,
+      schedule: isSchedule ? schedule : undefined,
+      channels,
+      severity,
+      cooldownMinutes: cooldown,
+    } as any);
+    setSaving(false);
+    if (!r.ok) setError(r.error ?? "Error desconocido");
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.4)",
+        backdropFilter: "blur(4px)",
+        zIndex: 110,
+        display: "flex",
+        justifyContent: "flex-end",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 540,
+          background: "white",
+          height: "100%",
+          overflowY: "auto",
+          boxShadow: "-12px 0 40px rgba(15, 23, 42, 0.18)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Header sticky */}
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            background: "white",
+            borderBottom: "1px solid rgba(15,23,42,0.06)",
+            padding: "20px 24px",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+            zIndex: 5,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+              Editar regla
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+              {primitive?.label ?? rule.primitiveKey}
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+              {primitive?.description ?? "Sin descripción"}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              background: "transparent",
+              border: "none",
+              color: "#94a3b8",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "20px 24px", flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Nombre */}
+          <Field label="Nombre" hint="Cómo aparece en tu inventario">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={inputStyle}
+            />
+          </Field>
+
+          {/* Parámetros del paramsSchema */}
+          {hasParams && (
+            <Section title="Parámetros" Icon={Activity}>
+              {Object.entries(paramsSchema).map(([key, def]: [string, any]) => (
+                <ParamField
+                  key={key}
+                  paramKey={key}
+                  def={def}
+                  value={params[key] ?? def.default}
+                  onChange={(v) => setParams((prev) => ({ ...prev, [key]: v }))}
+                />
+              ))}
+            </Section>
+          )}
+
+          {/* Schedule (si type=schedule) */}
+          {isSchedule && (
+            <Section title="¿Cuándo se ejecuta?" Icon={Calendar}>
+              <Field label="Frecuencia">
+                <select
+                  value={schedule?.frequency ?? "daily"}
+                  onChange={(e) => setSchedule({ ...schedule, frequency: e.target.value })}
+                  style={inputStyle}
+                >
+                  <option value="daily">Cada día</option>
+                  <option value="weekly">Cada semana</option>
+                  <option value="monthly">Cada mes</option>
+                </select>
+              </Field>
+
+              {schedule?.frequency === "weekly" && (
+                <Field label="Día de la semana">
+                  <select
+                    value={schedule?.dayOfWeek ?? 1}
+                    onChange={(e) => setSchedule({ ...schedule, dayOfWeek: Number(e.target.value) })}
+                    style={inputStyle}
+                  >
+                    <option value={0}>Domingo</option>
+                    <option value={1}>Lunes</option>
+                    <option value={2}>Martes</option>
+                    <option value={3}>Miércoles</option>
+                    <option value={4}>Jueves</option>
+                    <option value={5}>Viernes</option>
+                    <option value={6}>Sábado</option>
+                  </select>
+                </Field>
+              )}
+
+              {schedule?.frequency === "monthly" && (
+                <Field label="Día del mes" hint="1 al 31">
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={schedule?.dayOfMonth ?? 1}
+                    onChange={(e) => setSchedule({ ...schedule, dayOfMonth: Number(e.target.value) })}
+                    style={inputStyle}
+                  />
+                </Field>
+              )}
+
+              <Field label="Hora" hint="Formato 24hs (HH:MM)">
+                <input
+                  type="time"
+                  value={schedule?.time ?? "09:00"}
+                  onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
+                  style={inputStyle}
+                />
+              </Field>
+            </Section>
+          )}
+
+          {/* Canales */}
+          <Section title="Canal de notificación" Icon={Bell}>
+            <ChannelToggle
+              label="In-app"
+              sub="En tu inbox de alertas"
+              Icon={Bell}
+              checked={channels.includes("in_app")}
+              onChange={(checked) =>
+                setChannels((prev) => (checked ? Array.from(new Set([...prev, "in_app"])) : prev.filter((c) => c !== "in_app")))
+              }
+            />
+            <ChannelToggle
+              label="Email"
+              sub="Próximamente — se activa en la próxima fase"
+              Icon={Mail}
+              checked={channels.includes("email")}
+              disabled
+              onChange={() => {}}
+            />
+          </Section>
+
+          {/* Severidad */}
+          <Section title="Prioridad" Icon={AlertTriangle}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <SeverityChip label="Crítica" value="critical" current={severity} onClick={() => setSeverity("critical" as any)} tone="#ef4444" />
+              <SeverityChip label="Atención" value="warning" current={severity} onClick={() => setSeverity("warning" as any)} tone="#f59e0b" />
+              <SeverityChip label="Info" value="info" current={severity} onClick={() => setSeverity("info" as any)} tone="#0ea5e9" />
+            </div>
+          </Section>
+
+          {/* Cooldown */}
+          {!isSchedule && (
+            <Field label="Tiempo mínimo entre avisos" hint="Para evitar spam si el evento se repite">
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="number"
+                  min={0}
+                  value={cooldown}
+                  onChange={(e) => setCooldown(Number(e.target.value))}
+                  style={{ ...inputStyle, maxWidth: 120 }}
+                />
+                <span style={{ fontSize: 13, color: "#64748b" }}>minutos</span>
+              </div>
+            </Field>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div
+              style={{
+                padding: "10px 14px",
+                background: "rgba(239, 68, 68, 0.06)",
+                border: "1px solid rgba(239, 68, 68, 0.25)",
+                borderRadius: 8,
+                fontSize: 12,
+                color: "#991b1b",
+              }}
+            >
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer sticky */}
+        <div
+          style={{
+            position: "sticky",
+            bottom: 0,
+            background: "white",
+            borderTop: "1px solid rgba(15,23,42,0.06)",
+            padding: "14px 24px",
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+          }}
+        >
+          <button
+            onClick={onClose}
+            disabled={saving}
+            style={{
+              padding: "9px 16px",
+              background: "transparent",
+              color: "#64748b",
+              border: "1px solid rgba(15,23,42,0.1)",
+              borderRadius: 8,
+              cursor: saving ? "not-allowed" : "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: "9px 16px",
+              background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              cursor: saving ? "not-allowed" : "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            {saving ? <Loader2 size={13} className="spin" /> : <Save size={13} />}
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </div>
+        <style jsx>{`
+          .spin {
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}
+
+// ── Subcomponentes del drawer ──
+
+const inputStyle: any = {
+  width: "100%",
+  padding: "9px 12px",
+  background: "white",
+  border: "1px solid rgba(15,23,42,0.12)",
+  borderRadius: 8,
+  fontSize: 13,
+  color: "#0f172a",
+  outline: "none",
+  fontFamily: "inherit",
+  fontVariantNumeric: "tabular-nums",
+};
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: any }) {
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "#0f172a", marginBottom: 4 }}>
+        {label}
+      </div>
+      {hint && (
+        <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+          <Info size={11} /> {hint}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function Section({ title, Icon, children }: { title: string; Icon: any; children: any }) {
+  return (
+    <div
+      style={{
+        background: "#fafafa",
+        borderRadius: 10,
+        padding: 14,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6 }}>
+        <Icon size={12} />
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ParamField({
+  paramKey,
+  def,
+  value,
+  onChange,
+}: {
+  paramKey: string;
+  def: any;
+  value: any;
+  onChange: (v: any) => void;
+}) {
+  const label = def.label ?? paramKey;
+  const hint = [
+    def.required ? "obligatorio" : null,
+    def.min !== undefined && def.max !== undefined ? `entre ${def.min} y ${def.max}` : null,
+    def.description ?? null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (def.type === "number") {
+    return (
+      <Field label={label} hint={hint || undefined}>
+        <input
+          type="number"
+          min={def.min}
+          max={def.max}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+          style={inputStyle}
+        />
+      </Field>
+    );
+  }
+  if (def.type === "boolean") {
+    return (
+      <Field label={label} hint={hint || undefined}>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+          <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+          <span style={{ fontSize: 13, color: "#475569" }}>{value ? "Activado" : "Desactivado"}</span>
+        </label>
+      </Field>
+    );
+  }
+  if (def.type === "string" && def.options?.length) {
+    return (
+      <Field label={label} hint={hint || undefined}>
+        <select value={value ?? ""} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
+          {def.options.map((o: any) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+    );
+  }
+  if (def.type === "string") {
+    return (
+      <Field label={label} hint={hint || undefined}>
+        <input type="text" value={value ?? ""} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
+      </Field>
+    );
+  }
+  // Fallback: array u otros tipos no soportados aún en UI
+  return (
+    <Field label={label} hint={hint || `Tipo "${def.type}" se edita por chat de Aurum por ahora`}>
+      <div style={{ ...inputStyle, color: "#94a3b8", background: "#f1f5f9" }}>
+        {JSON.stringify(value) || "—"}
+      </div>
+    </Field>
+  );
+}
+
+function ChannelToggle({
+  label,
+  sub,
+  Icon,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  sub: string;
+  Icon: any;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: 10,
+        background: checked ? "rgba(99, 102, 241, 0.05)" : "white",
+        border: `1px solid ${checked ? "rgba(99,102,241,0.3)" : "rgba(15,23,42,0.08)"}`,
+        borderRadius: 8,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 7,
+          background: checked ? "#6366f1" : "#cbd5e1",
+          color: "white",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon size={13} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{label}</div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>{sub}</div>
+      </div>
+    </label>
+  );
+}
+
+function SeverityChip({
+  label,
+  value,
+  current,
+  onClick,
+  tone,
+}: {
+  label: string;
+  value: string;
+  current: string;
+  onClick: () => void;
+  tone: string;
+}) {
+  const active = value === current;
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1,
+        padding: "8px 10px",
+        background: active ? `${tone}15` : "white",
+        color: active ? tone : "#64748b",
+        border: `1px solid ${active ? `${tone}40` : "rgba(15,23,42,0.1)"}`,
+        borderRadius: 8,
+        cursor: "pointer",
+        fontSize: 12,
+        fontWeight: 600,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+      }}
+    >
+      <span style={{ width: 8, height: 8, borderRadius: 999, background: tone, opacity: active ? 1 : 0.4 }} />
+      {label}
+    </button>
   );
 }
 
