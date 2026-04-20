@@ -3,7 +3,78 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-19 (Sesion 49 — Fase 8 Alertas completa + Fase 8e rediseño jerarquizado + persistencia de lecturas/favoritas por user: 7 commits a main que dejan el hub de alertas production-ready con layout inbox-style 3-col, favoritas persistidas en DB, read state sincronizado con badge externo, y product modules Bondly/Aura/Nitropixel con tag "Proximamente")
+## Ultima actualizacion: 2026-04-19 (Sesion 50 — Catalogo exhaustivo 602 primitivas + Fase 8g-1 Rules Engine productivo: 3 commits que dejan el motor de alertas personalizables listo, con 48 primitivas Tier 1 evaluando contra DB real + engine con cooldown + API CRUD /api/alerts/rules)
+
+### Sesion 50 — 2026-04-19 — Catalogo + Rules Engine Fase 8g-1 (3 commits)
+
+**Objetivo**: diseñar e implementar el sistema de alertas personalizables. User pidió expresamente hacer analisis EXHAUSTIVO antes de codear ("siento que estamos haciendo las primitivas sin mucha profundidad"). Decision: sesion dedicada al catalogo completo + implementacion del MVP.
+
+**Insights arquitectonicos clave del user** (modelaron el diseño):
+
+1. **"Alertas pueden crearse desde Aurum"**: en vez de form rigido, user escribe libre en el chat y Aurum traduce a primitiva. Decidimos opcion hibrida — primitivas parametricas pre-armadas + Aurum mapea desde NL. Si no calza ninguna → backlog (`alert_rule_requests`).
+
+2. **"No todo es trigger, tambien hay reports programados"**: ej "cada dia a las 9am mandame el presupuesto Meta+Google". Diseño final tiene 2 tipos: **Condition** (if X then alert) y **Schedule** (recurring digest con datos del momento).
+
+#### Commits a `main` (3 total)
+
+**Commit 1 (`0906b1b`): PRIMITIVES_CATALOG.md exhaustivo**
+- Documento de 1336 lineas en root del repo
+- **602 primitivas / 29 secciones** cubriendo todo NitroSales
+- Cada seccion: Dimensiones medibles + Condicionales + Reportes + Anomalias + Cross-section + Ejemplos Aurum
+- Seccion 0 Arquitectura: 3 tipos de reglas, 17 operadores universales, 11 ventanas temporales, 5 comparativos, frecuencias schedule, cooldown, canales, schema DB, naming
+- Tiers: T1 MVP (60), T2 (150), T3 (~390 on-demand)
+- 6 decisiones arquitectonicas pendientes documentadas
+
+**Commit 2 (`59e7879` parte): Migracion admin**
+- `/api/admin/migrate-alert-rules` crea `alert_rules` + `alert_rule_requests` con FK cascade
+- Ejecutada en prod por user: ✅ ok:true
+
+**Commit 3 (`59e7879` cont.): Rules Engine + 48 primitivas + API CRUD**
+- 3013 lineas / 12 archivos
+- **types.ts**: `PrimitiveDefinition` interface + `applyOperator()` con 14 operadores
+- **Registry index.ts**: map central key → primitive + helpers listPrimitives/getPrimitive
+- **48 primitivas Tier 1** con evaluate() real contra DB:
+  - `finanzas.ts` (8), `fiscal.ts` (4), `orders.ts` (8), `ml.ts` (6), `ads.ts` (7), `ops.ts` (15: products + aura + competencia + sistema + security)
+- **Engine** (`engine.ts`): loadUserRules, evaluateRule con cooldown, evaluateAllUserRules paralelo, computeNextFireAt para schedules
+- **Integracion hub**: dynamic import fail-safe en `alert-hub.ts`, mezcla customRules con 5 sources nativos
+- **API CRUD** (`/api/alerts/rules`): GET list + ?includeCatalog=1, POST create, PATCH flexible update, DELETE con scope check
+
+Verificado end-to-end: `GET /api/alerts/rules?includeCatalog=1` devuelve 48 primitivas con metadata completa. Motor listo para recibir reglas reales.
+
+#### Aprendizajes clave Sesion 50
+
+1. **Catalogo antes de codear**: cuando el area de diseño es grande (29 secciones), dedicar sesion completa al catalogo exhaustivo PRIMERO, committed al repo, es rentable. Evita rehacer primitivas 10 veces.
+2. **Primitivas = registry pattern**: cada primitiva es `{ key, metadata, evaluate }` en un map central. Fase 8g-2 (Aurum) va a leer `naturalExamples`. Fase 8g-3 (UI) va a leer `paramsSchema`.
+3. **Dynamic import fail-safe**: `await import("./engine")` dentro de try/catch en hub evita que error en engine rompa el hub completo. Pattern para features que dependen de migraciones que pueden no estar corridas.
+4. **2 tipos de primitivas**: Condition + Schedule. Sin esto el 40% de pedidos naturales no mapean.
+5. **Tier system progresivo**: T1 MVP → medir uso → expandir. No implementar todo de una.
+
+#### Estado actual modulo Alertas post-Sesion 50
+
+- Hub con 5 sources nativos + 4 product modules + **48 primitivas user-defined** via rules engine
+- Rediseño visual inbox 3-col (S49)
+- Favoritas + read state en DB (S49)
+- **Motor de reglas vivo y conectado al hub** (S50)
+- API CRUD gestion de reglas (S50)
+- Catalogo documentado como fuente de verdad (S50)
+- Placeholder `/alertas/reglas` pendiente de UI (Fase 8g-3)
+
+#### Pendientes Fase 8g
+
+- **8g-2 Aurum integration**: tool `create_alert_rule` en chat, mapping NL → primitiva, fallback a backlog
+- **8g-3 UI + Email + Quick buttons**: rewrite `/alertas/reglas`, canal email via Resend, botones "Avisarme cuando..." en 4 paginas top
+- **8g-4 Cron scheduler**: `/api/cron/alerts-scheduler` cada 15min para reglas schedule, Vercel cron
+- **8g-5 Tier 2 expansion**: post-feedback Arredo + TV Compras
+
+#### Migraciones ejecutadas Sesion 50 (1)
+
+| Endpoint | Tabla | Estado |
+|---|---|---|
+| `/api/admin/migrate-alert-rules` | alert_rules + alert_rule_requests | ✅ ok:true |
+
+---
+
+## Ultima actualizacion previa: 2026-04-19 (Sesion 49 — Fase 8 Alertas completa + Fase 8e rediseño jerarquizado + persistencia de lecturas/favoritas por user: 7 commits a main que dejan el hub de alertas production-ready con layout inbox-style 3-col, favoritas persistidas en DB, read state sincronizado con badge externo, y product modules Bondly/Aura/Nitropixel con tag "Proximamente")
 
 > Este bloque consolida los **7 commits** a `main` del 2026-04-19 (sexta ronda del dia) que construyen la **Fase 8 completa del modulo Alertas** (`/alertas`) y cierran el rediseño jerarquizado Fase 8e con favoritas + read state en DB. Sistema de alertas queda production-ready con: 1) hub central `alert-hub.ts` consolidando 5 fuentes activas (system_sync, mercadolibre, fiscal_calendar, fiscal_monotributo, finanzas_predictive) mas 4 product sources (aurum activo, bondly/aura/nitropixel coming-soon), 2) layout inbox 3-columnas tipo Linear con sidebar jerarquizado (Todas/Favoritas > Secciones > Productos) + segmented control severidad + agrupacion temporal Hoy/Semana/Mas viejas, 3) favoritas persistidas por user en tabla `user_alert_favorites` (siempre primeras en la lista con optimistic UI), 4) read state persistido en tabla `user_alert_reads` con boton "Marcar como leida/no leida" + dot atenuado 25% al leer + AlertsBadge del sidebar externo polling cada 30s y escuchando focus/storage events para reflejar el unread count real, 5) counts del sidebar interno basados en alertas pendientes (no total), 6) placeholder `/alertas/reglas` mostrando que vendra la rules engine en Fase 8h. Bug root cause identificado y fixed: `session.user.id` venia null para tokens JWT viejos, fix usando `session.user.email` con lookup en DB (mismo patron que permission-guard).
 
