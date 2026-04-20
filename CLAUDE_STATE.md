@@ -3,7 +3,100 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-19 (Sesion 48 — Fase 7 Configuracion productiva completa + QA enforcement end-to-end: 23 commits a main cerrando el modulo Settings al 95%)
+## Ultima actualizacion: 2026-04-19 (Sesion 49 — Fase 8 Alertas completa + Fase 8e rediseño jerarquizado + persistencia de lecturas/favoritas por user: 7 commits a main que dejan el hub de alertas production-ready con layout inbox-style 3-col, favoritas persistidas en DB, read state sincronizado con badge externo, y product modules Bondly/Aura/Nitropixel con tag "Proximamente")
+
+> Este bloque consolida los **7 commits** a `main` del 2026-04-19 (sexta ronda del dia) que construyen la **Fase 8 completa del modulo Alertas** (`/alertas`) y cierran el rediseño jerarquizado Fase 8e con favoritas + read state en DB. Sistema de alertas queda production-ready con: 1) hub central `alert-hub.ts` consolidando 5 fuentes activas (system_sync, mercadolibre, fiscal_calendar, fiscal_monotributo, finanzas_predictive) mas 4 product sources (aurum activo, bondly/aura/nitropixel coming-soon), 2) layout inbox 3-columnas tipo Linear con sidebar jerarquizado (Todas/Favoritas > Secciones > Productos) + segmented control severidad + agrupacion temporal Hoy/Semana/Mas viejas, 3) favoritas persistidas por user en tabla `user_alert_favorites` (siempre primeras en la lista con optimistic UI), 4) read state persistido en tabla `user_alert_reads` con boton "Marcar como leida/no leida" + dot atenuado 25% al leer + AlertsBadge del sidebar externo polling cada 30s y escuchando focus/storage events para reflejar el unread count real, 5) counts del sidebar interno basados en alertas pendientes (no total), 6) placeholder `/alertas/reglas` mostrando que vendra la rules engine en Fase 8h. Bug root cause identificado y fixed: `session.user.id` venia null para tokens JWT viejos, fix usando `session.user.email` con lookup en DB (mismo patron que permission-guard).
+
+### Sesion 49 — 2026-04-19 — Fase 8 Alertas hub + rediseño jerarquizado + persistencia read/favoritas (7 commits)
+
+**Objetivo**: implementar el hub central de alertas de NitroSales consolidando todas las fuentes en un unico inbox, con sistema de favoritas persistido por user, read state sincronizado con badge externo, y arquitectura jerarquica clara para onboardear clientes Arredo y TV Compras sin fricciones visuales.
+
+Fase 8 segun roadmap acordado en Sesion 47 post-Fase 7. Incluye iteracion UX con Tomy (3 rondas de feedback: bug botón invertido, counts equivocados, root cause de persistencia).
+
+#### Commits a `main` (7 total)
+
+**Fase 8 base (1)**:
+- `0f1236b` Fase 8a-8d — Hub central + API + UI + Badge en un solo push
+  - `src/lib/alerts/alert-hub.ts` (nuevo, ~280 lineas): consolidador con 5 sources activos + normalizacion a `UnifiedAlert` + sort HIGH>MEDIUM>LOW + countsBySource/Severity.
+  - `src/app/api/alerts/route.ts` (nuevo): GET con filtros source/severity/category/limit + forwards cookie a /api/finance/alerts/predictive.
+  - `src/app/(app)/alertas/page.tsx` (rewrite ~460 lineas): light theme + aurora + KPI strip + filter pills + AlertCard con prism top + EmptyState.
+  - `src/components/alerts/AlertsBadge.tsx` (nuevo): poll 60s + count critical+warning + red/amber + null si 0. Montado inline en sidebar al lado de `/alertas`.
+
+**Fase 8e rediseño jerarquizado (2)**:
+- `aa2bd01` 8e migracion — Admin endpoint `/api/admin/migrate-alert-favorites` crea tabla `user_alert_favorites` (userId FK + alertId + unique parcial + cascade).
+- `cdb9600` 8e rediseño — Layout 3-columnas tipo inbox Linear.
+  - Sidebar jerarquizado: bloque "Vistas" (Todas/Favoritas) > separador > "Secciones" (Finanzas/Fiscal/Sistema/ML/Ventas/Marketing/Operaciones) > separador > "Productos" (Aurum activo + Bondly/Aura/Nitropixel con tag "Pronto" grisado disabled).
+  - Lista central con segmented control severidad (Todas/Crítica/Atención/Info) + toggle "Solo no leídas" + agrupacion temporal Hoy/Semana/Mas viejas (sticky headers).
+  - Detalle a la derecha con Star toggle + sev badge + meta + body + metadata grid + action buttons + callout "crear regla" empujando al placeholder `/alertas/reglas`.
+  - Product modules Bondly/Aura/Nitropixel: aparecen en sidebar con tag "Pronto" + disabled + count 0. Visualmente comunican "esto va a crecer" sin prometer fecha.
+  - `alert-hub.ts`: agrega sources aurum/bondly/aura/nitropixel + iconKey + comingSoon flag + userId param + getUserFavorites + countsByCategory + favoriteCount.
+  - `/api/alerts/favorite` (POST/DELETE): toggle con optimistic + rollback.
+  - Layout `(app)/layout.tsx`: agrega `isAlertas` conditional para `flex-1 p-0 overflow-hidden bg-[#fafafa]` full-bleed sin padding.
+  - Placeholder `/alertas/reglas`: muestra como funcionaran las reglas (ejemplo cards "Si X, Avisarme por Y") + canales disponibles (In-app + Email activos, WhatsApp + Push coming soon) + estado "En construccion".
+  - Mockups HTML guardados en `/mockups/` para referencia: v1-inbox-linear, v1-inbox-v2, v2-gmail-style, v3-hybrid.
+
+**Fase 8e fix iteracion 1 (1)**:
+- `7c69933` 8e fix — Read state en DB + badge reactivo + boton marcar no leida.
+  - Bug reportado: al abrir una alerta, el badge del sidebar externo seguia mostrando el mismo count. Causa: read state vivia en localStorage y AlertsBadge no lo sabia.
+  - Migracion: nueva tabla `user_alert_reads` via `/api/admin/migrate-alert-reads` (mismo patron que favorites).
+  - `alert-hub.ts`: `getUserReads()` + `read:boolean` en UnifiedAlert + `unreadCount` + `unreadCountBySeverity`.
+  - `/api/alerts/route.ts`: expone unreadCount + unreadCountBySeverity.
+  - `/api/alerts/read` (POST single + bulk / DELETE): marca/desmarca leida.
+  - `AlertsBadge.tsx`: cuenta solo `unreadCountBySeverity.critical + .warning` + poll cada 30s (antes 60) + listeners `focus` y `storage` (clave `nitro_alerts_refresh`) para reaccionar al toque.
+  - `/alertas/page.tsx`: elimina localStorage, usa `a.read` server-side, boton "Marcar como leida/no leida" en cada row (icon CircleDot/Circle) + boton visible en detalle al lado del severity badge.
+
+**Fase 8e fix iteracion 2 (1)**:
+- `a95ab31` 8e fix v2 — UX de leidas: labels, atenuacion, counts unread.
+  - Bug reportado: (1) boton "No leida/Leida" confundia (mostraba accion en lugar de estado), (2) dot de severidad no se atenuaba al leer, (3) counts del sidebar interno mostraban total en lugar de pendientes.
+  - AlertDetail: boton ahora muestra ESTADO actual (no accion): `read=true` → "Leida" verde con CheckCircle2, `read=false` → "No leida" azul con CircleDot. Tooltip aclara la accion.
+  - AlertRow: sev-dot con `opacity: 0.25` cuando leida + sin glow critico.
+  - moduleCount y moduleHasCritical: filtran por NO LEIDAS (lo pendiente) en vez de totales.
+  - Segmented severity counts: tambien unread-only.
+
+**Fase 8e debug + root cause fix (2)**:
+- `2070f38` 8e debug — Surface errores al guardar + endpoint diagnostico.
+  - User reporta que lecturas no persisten al refrescar y badge externo no baja.
+  - Client: check `res.ok` en `setAlertRead` + banner rojo transitorio con HTTP status exacto + rollback del optimistic.
+  - Server: GET `/api/alerts/read` ahora devuelve diagnostico JSON (userId + totalReads count + 5 recientes).
+  - User visita URL diagnostico y devuelve `{"error":"No autenticado","userId":null}`. Root cause identificado.
+- `eaa298b` 8e root cause fix — userId desde email (no session.user.id).
+  - Root cause: `getServerSession().user.id` era null para tokens JWT creados antes de que se agregara `token.id = user.id` en el callback de NextAuth. El user de Tomy tenia un JWT viejo, por eso: (a) GET `/api/alerts/read` devolvia "No autenticado"; (b) POST fallaba 401 silencioso; (c) `getUserReads()` en alert-hub recibia `userId=null` → Set vacio → todas las alertas venian como `read:false`.
+  - Fix: nuevo helper `src/lib/alerts/get-user-id.ts` con `getSessionUserId()` que primero chequea `session.user.id` y si no existe busca el user por email con `prisma.user.findUnique`. Mismo patron que `permission-guard.ts` (que funciona correctamente).
+  - Aplicado en 3 lugares: `/api/alerts` GET, `/api/alerts/read` (GET+POST+DELETE), `/api/alerts/favorite` (POST+DELETE).
+
+#### Aprendizajes clave Sesion 49
+
+1. **JWT stale tokens**: cuando se agrega un campo al token JWT (ej: `token.id`), los usuarios con sesiones activas mantienen su token viejo sin ese campo hasta hacer logout+login. Nunca confiar en `session.user.id` si ese campo se introdujo despues de la emision del token. Usar `session.user.email` + lookup en DB como fallback.
+2. **Mockups HTML antes de codear**: con 4 mockups HTML standalone (v1 inbox-linear, v1 v2 jerarquizado, v2 gmail, v3 hybrid) el user pudo comparar visualmente y decidir rumbo antes de tocar code. Saved mockups en `/mockups/` committed a repo.
+3. **Optimistic UI + error visible**: hacer optimistic local es critico para responsive feeling, pero sin `res.ok` check + banner de error el user no entiende por que al refrescar vuelve todo atras. Banner rojo transitorio (auto-dismiss 8s) fue la herramienta que surfaced el bug.
+4. **Diagnostico GET endpoints**: cuando un sistema multi-capa falla (client → API → DB), un endpoint GET de diagnostico que devuelve el estado actual en DB (count + muestra) permite al user no-tecnico ver exactamente donde se rompe sin abrir devtools.
+5. **Labels action vs state**: el patron clasico Gmail "click para marcar como X" confunde a users no tecnicos que interpretan el label como estado actual. Mejor: mostrar el ESTADO (Leida/No leida) con color claro + tooltip con la accion.
+6. **Severity dot atenuacion**: feedback visual importante para que una alerta leida se "sienta" leida. Solo bold→regular + color gris no es suficiente — el dot de color lateral tambien debe atenuarse.
+
+#### Estado actual modulo Alertas post-Sesion 49
+
+- Hub central: 5 sources productivos (system_sync, mercadolibre, fiscal_calendar, fiscal_monotributo, finanzas_predictive) + 1 en placeholder (aurum async) + 3 coming-soon (bondly, aura, nitropixel).
+- Rediseño jerarquizado completo con product modules visibles.
+- Read state + Favoritas persistidas por user en DB con optimistic UI y banner rojo de error.
+- AlertsBadge del sidebar externo refleja unread count real, refresca 30s + focus + storage events.
+- Placeholder `/alertas/reglas` para la rules engine de Fase 8h.
+
+#### Pendientes Fase 8 (no hechos en Sesion 49)
+
+- **Fase 8f Aurum async**: chat pregunta automaticamente "¿te aviso cuando termine?" + boton manual en cada mensaje. Requiere tocar codigo de Aurum chat (no se arranco para limitar scope).
+- **Fase 8g Quick rule button por modulo**: boton "Avisarme cuando..." en cada pagina de NitroSales que pre-llena contexto al crear regla.
+- **Fase 8h Rules engine completa**: DSL o form builder con triggers + conditions + channels (in-app, email via Resend, WhatsApp con coming-soon, push con coming-soon) + anti-spam cooldown + dedup.
+
+#### Migraciones ejecutadas (2 via curl en prod)
+
+| Endpoint | Tabla | Estado |
+|---|---|---|
+| `/api/admin/migrate-alert-favorites` | `user_alert_favorites` (id PK + userId FK cascade + alertId + unique) | ✅ ok:true |
+| `/api/admin/migrate-alert-reads` | `user_alert_reads` (id PK + userId FK cascade + alertId + readAt + unique) | ✅ ok:true |
+
+---
+
+## Ultima actualizacion previa: 2026-04-19 (Sesion 48 — Fase 7 Configuracion productiva completa + QA enforcement end-to-end: 23 commits a main cerrando el modulo Settings al 95%)
 
 > Este bloque consolida los **23 commits** a `main` del 2026-04-19 (quinta ronda del dia) que construyen la **Fase 7 completa del modulo Configuracion** (`/settings/*`) y cierran los 3 gaps criticos post-QA (enforcement + email + login tracking). El modulo Settings queda productivo al 95% con 3 sub-pestañas productivas base (Organizacion, Team con permisos granulares + custom roles per-org editables, Integraciones con status humanizado), 2 productivas post-QA (Seguridad cambio password + historial logins, API Keys CRUD con token one-shot), 1 placeholder visible intencional (Billing hasta cobro formal). Sistema RBAC con matriz 21 secciones × 3 roles base + custom roles. Enforcement end-to-end en 3 niveles: sidebar (hide tabs), page-level (redirect /unauthorized), API-level (requirePermission en /settings/*). Email automatico invitaciones via Resend + dominio `nitrosales.ai` verificado. Login tracking automatico en NextAuth. Regla de autonomia acordada con Tomy registrada en `MEMORY.md` persistente.
 

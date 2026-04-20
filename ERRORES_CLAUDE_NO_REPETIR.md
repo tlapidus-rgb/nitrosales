@@ -4,7 +4,96 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-19 — Sesión 48 (6 errores nuevos sobre RBAC, enforcement 3 niveles, email sandbox, loading defaults).**
+> **Última actualización: 2026-04-19 — Sesión 49 (2 errores nuevos sobre JWT stale tokens y error handling silencioso en client-side writes).**
+
+---
+
+## Error #S49-JWT-STALE-TOKEN — Confiar en session.user.id sin fallback por email
+
+**Cuándo pasó**: Sesión 49, Fase 8e Alertas. Creé `/api/alerts/read` POST/DELETE + `/api/alerts/favorite` POST/DELETE usando `(session?.user as any)?.id ?? null` para obtener el userId. El user marcaba alertas como leídas pero al refrescar volvían como no leídas + el badge externo no bajaba. Diagnostico: visitando GET `/api/alerts/read` devolvia `{"error":"No autenticado","userId":null}`. Causa: el JWT de Tomy fue emitido antes de que se agregara `token.id = user.id` en el callback de NextAuth en sesiones anteriores. Los tokens JWT viejos no se actualizan hasta logout+login explicito, asi que `session.user.id` venia undefined para ese user aun estando logueado.
+
+### Causa raíz
+- Cuando se agrega un campo nuevo al token JWT callback, los usuarios con sesiones activas mantienen sus tokens viejos sin ese campo hasta logout.
+- Confie en `session.user.id` como si fuera siempre truthy, sin considerar el escenario JWT stale.
+- El fallo era silencioso: el POST devolvia 401 pero el client ignoraba `res.ok`, haciendo optimistic UI local que parecia funcionar pero nada persistia en DB.
+- `getUserReads()` en alert-hub recibia `userId=null` y devolvia Set vacio, asi que el GET `/api/alerts` tampoco marcaba ninguna alerta como leida → estado inconsistente multi-capa.
+
+### Regla
+**Nunca confiar en `session.user.id` directo. Usar siempre el patron "email-first con lookup en DB" que usa `permission-guard.ts` (ya probado productivo)**:
+
+```ts
+export async function getSessionUserId(): Promise<string | null> {
+  const session = await getServerSession(authOptions);
+  // 1. Preferir session.user.id si existe (mas rapido)
+  const idFromSession = (session?.user as any)?.id;
+  if (idFromSession) return idFromSession;
+  // 2. Fallback por email (SIEMPRE expuesto por NextAuth)
+  const email = session?.user?.email;
+  if (!email) return null;
+  const user = await prisma.user.findUnique({
+    where: { email }, select: { id: true },
+  });
+  return user?.id ?? null;
+}
+```
+
+Este helper vive en `src/lib/alerts/get-user-id.ts` y debe usarse en cualquier endpoint nuevo que resuelva userId desde sesion.
+
+**Antipatrón**:
+```ts
+// ❌ MAL — falla para tokens viejos
+async function getUserId() {
+  const session = await getServerSession(authOptions);
+  return (session?.user as any)?.id ?? null;
+}
+```
+
+**Señal de alarma**: si un feature "funciona en la sesion pero no persiste al refrescar" o "funciona en test nuevo pero no en user viejo", chequear primero si el endpoint depende de `session.user.id`. Probablemente JWT stale.
+
+---
+
+## Error #S49-SILENT-FETCH-FAIL — Client-side fetch sin check de res.ok silencia bugs criticos
+
+**Cuándo pasó**: Sesión 49. En `setAlertRead` del page.tsx use `try { await fetch(...) } catch { rollback }`. El try/catch solo captura errores de red (fetch rejected). Si el servidor devolvia 401 o 500, `fetch` resolvia OK y el codigo continuaba como si el write hubiera exitoso. Resultado: optimistic UI local funcionaba pero nada persistia en DB, y el user no tenia forma de saberlo (solo al refrescar veia que volvia todo atras). Tomy reporto el problema 2 veces antes de que identificaramos el root cause.
+
+### Causa raíz
+- `fetch` solo rechaza en errores de red/CORS. Status codes 4xx/5xx NO hacen reject.
+- El try/catch daba sensacion de estar manejando errores cuando en realidad solo capturaba una fraccion.
+- Sin surfacing visible al user (console.error a secas no le sirve a un user no-tecnico) los 401/500 pasaban desapercibidos.
+
+### Regla
+**En cualquier fetch client-side con efectos de DB persistentes (POST/PUT/DELETE), chequear SIEMPRE `res.ok` y mostrar banner/toast visible al user cuando falla**:
+
+```ts
+// ✅ BIEN
+const res = await fetch("/api/x", { method: "POST", ... });
+if (!res.ok) {
+  const errText = await res.text().catch(() => "");
+  console.error(`[feature] fallo (${res.status})`, errText);
+  setWarning(`No se pudo guardar (HTTP ${res.status}). ${errText.slice(0, 200)}`);
+  // rollback del optimistic UI
+  return;
+}
+// ok: pingBadgeRefresh o lo que corresponda
+```
+
+**Antipatrón**:
+```ts
+// ❌ MAL — el servidor puede devolver 401/500 y el catch no se entera
+try {
+  await fetch("/api/x", { method: "POST" });
+  // continua como si exitoso
+} catch {
+  // rollback solo si red fallo
+}
+```
+
+**Regla adicional — banner transitorio**: cuando falla un write, mostrar un banner rojo con el HTTP status exacto + primeros 200 chars del body del error. Auto-dismiss 8s. Esto:
+- Surfacea inmediatamente el bug al user no-tecnico (no hace falta devtools).
+- Permite diagnosticar HTTP status: 401 = autenticacion, 403 = permisos, 500 = server error.
+- Si el user reporta "tal cosa no persiste", pedirle que nos mande el banner.
+
+**GET de diagnostico**: para features multi-capa (client → API → DB), crear un endpoint GET de diagnostico que devuelve el estado actual en DB del user logueado (ej: `GET /api/alerts/read` devuelve `{userId, totalReads, recentReads}`). El user puede visitarlo desde el browser y mandarme el JSON, sin necesidad de saber devtools.
 
 ---
 
