@@ -587,22 +587,108 @@ function DetailDrawer({
                 <Row label="Slug" value={detail.proposedSlug} copyable onCopy={copy} field="slug" copied={copiedField === "slug"} />
                 <Row label="URL tienda" value={detail.storeUrl} href={detail.storeUrl} />
                 {detail.industry && <Row label="Industria" value={detail.industry} />}
-                {detail.cuit && <Row label="CUIT" value={detail.cuit} />}
+                {detail.cuit && <Row label="CUIT" value={detail.cuit} copyable onCopy={copy} field="cuit" copied={copiedField === "cuit"} />}
+                <Row label="Zona horaria" value={detail.timezone || "—"} />
+                <Row label="Moneda" value={detail.currency || "ARS"} />
+                {detail.fiscalCondition && <Row label="Condición fiscal" value={detail.fiscalCondition} />}
               </Section>
 
               <Section title="Contacto" icon={<Mail size={14} />}>
                 <Row label="Nombre" value={detail.contactName} />
                 <Row label="Email" value={detail.contactEmail} copyable onCopy={copy} field="email" copied={copiedField === "email"} />
-                {detail.contactPhone && <Row label="Teléfono" value={detail.contactPhone} />}
-                {detail.contactWhatsapp && <Row label="WhatsApp" value={detail.contactWhatsapp} />}
+                {detail.contactPhone && <Row label="Teléfono" value={detail.contactPhone} copyable onCopy={copy} field="phone" copied={copiedField === "phone"} />}
+                {detail.contactWhatsapp && <Row label="WhatsApp" value={detail.contactWhatsapp} copyable onCopy={copy} field="wa" copied={copiedField === "wa"} />}
               </Section>
 
-              <Section title="Plataformas" icon={<Zap size={14} />}>
-                <PlatformDetailRow label="VTEX" enabled={detail.hasVtexCredentials} extra={detail.vtexAccountName} />
-                <PlatformDetailRow label="MercadoLibre" enabled={!!detail.mlUsername} extra={detail.mlUsername} />
-                <PlatformDetailRow label="Meta Ads" enabled={detail.hasMetaCredentials} extra={detail.metaAdAccountId} />
-                <PlatformDetailRow label="Google Ads" enabled={!!detail.googleAdsCustomerId} extra={detail.googleAdsCustomerId} />
-              </Section>
+              {/* VTEX */}
+              <PlatformSection
+                name="VTEX"
+                color="#FF0080"
+                configured={detail.hasVtexCredentials}
+              >
+                {detail.vtexAccountName && (
+                  <Row label="Account Name" value={detail.vtexAccountName} copyable onCopy={copy} field="vtexAcc" copied={copiedField === "vtexAcc"} />
+                )}
+                {detail.vtexAppKey && (
+                  <SecretRow label="App Key" value={detail.vtexAppKey} field="vtexKey" onCopy={copy} copiedField={copiedField} />
+                )}
+                {detail.vtexAppToken && (
+                  <SecretRow label="App Token" value={detail.vtexAppToken} field="vtexTok" onCopy={copy} copiedField={copiedField} />
+                )}
+                {!detail.hasVtexCredentials && !detail.vtexAccountName && (
+                  <EmptyRow label="VTEX no configurado en la solicitud" />
+                )}
+              </PlatformSection>
+
+              {/* MercadoLibre */}
+              <PlatformSection
+                name="MercadoLibre"
+                color="#FFE600"
+                configured={!!detail.mlUsername}
+              >
+                {detail.mlUsername ? (
+                  <Row label="Usuario" value={detail.mlUsername} copyable onCopy={copy} field="mlUser" copied={copiedField === "mlUser"} />
+                ) : (
+                  <EmptyRow label="ML no configurado en la solicitud" />
+                )}
+                {detail.mlUsername && (
+                  <div style={{ padding: "8px 0", fontSize: 11, color: "#64748B", fontStyle: "italic" }}>
+                    OAuth se realiza al activar (ML te va a pedir login).
+                  </div>
+                )}
+              </PlatformSection>
+
+              {/* Meta Ads */}
+              <PlatformSection
+                name="Meta Ads (Facebook/Instagram)"
+                color="#1877F2"
+                configured={detail.hasMetaCredentials}
+              >
+                {detail.metaAdAccountId && (
+                  <Row label="Ad Account ID" value={detail.metaAdAccountId} copyable onCopy={copy} field="metaAdAcc" copied={copiedField === "metaAdAcc"} />
+                )}
+                {detail.metaAccessToken && (
+                  <SecretRow label="Access Token" value={detail.metaAccessToken} field="metaTok" onCopy={copy} copiedField={copiedField} />
+                )}
+                {!detail.hasMetaCredentials && !detail.metaAdAccountId && (
+                  <EmptyRow label="Meta Ads no configurado en la solicitud" />
+                )}
+              </PlatformSection>
+
+              {/* Meta Pixel */}
+              <PlatformSection
+                name="Meta Pixel (CAPI)"
+                color="#1877F2"
+                configured={detail.hasMetaPixelCredentials}
+              >
+                {detail.metaPixelId && (
+                  <Row label="Pixel ID" value={detail.metaPixelId} copyable onCopy={copy} field="pxId" copied={copiedField === "pxId"} />
+                )}
+                {detail.metaPixelToken && (
+                  <SecretRow label="Access Token" value={detail.metaPixelToken} field="pxTok" onCopy={copy} copiedField={copiedField} />
+                )}
+                {!detail.hasMetaPixelCredentials && !detail.metaPixelId && (
+                  <EmptyRow label="Meta Pixel no configurado en la solicitud" />
+                )}
+              </PlatformSection>
+
+              {/* Google Ads */}
+              <PlatformSection
+                name="Google Ads"
+                color="#4285F4"
+                configured={!!detail.googleAdsCustomerId}
+              >
+                {detail.googleAdsCustomerId ? (
+                  <Row label="Customer ID" value={detail.googleAdsCustomerId} copyable onCopy={copy} field="gAdsId" copied={copiedField === "gAdsId"} />
+                ) : (
+                  <EmptyRow label="Google Ads no configurado en la solicitud" />
+                )}
+                {detail.googleAdsCustomerId && (
+                  <div style={{ padding: "8px 0", fontSize: 11, color: "#64748B", fontStyle: "italic" }}>
+                    OAuth se realiza al activar (Google te va a pedir login).
+                  </div>
+                )}
+              </PlatformSection>
 
               {detail.adminNotes && (
                 <Section title="Admin notes" icon={<AlertCircle size={14} />}>
@@ -776,20 +862,182 @@ function Row({
   );
 }
 
-function PlatformDetailRow({ label, enabled, extra }: { label: string; enabled: boolean; extra?: string }) {
+// ─── Platform section (una por plataforma, con header de color) ──
+function PlatformSection({
+  name,
+  color,
+  configured,
+  children,
+}: {
+  name: string;
+  color: string;
+  configured: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #E2E8F0" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {enabled ? (
-          <CheckCircle2 size={16} color={ACCENT_GREEN} />
+    <div style={{ marginBottom: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 10,
+          padding: "10px 14px",
+          background: configured ? `${color}0d` : "#F8FAFC",
+          border: `1px solid ${configured ? `${color}33` : "#E2E8F0"}`,
+          borderRadius: 10,
+        }}
+      >
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: configured ? color : "#CBD5E1",
+            boxShadow: configured ? `0 0 8px ${color}80` : "none",
+          }}
+        />
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", flex: 1 }}>{name}</div>
+        {configured ? (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "2px 8px",
+              background: `${ACCENT_GREEN}20`,
+              color: ACCENT_GREEN,
+              borderRadius: 99,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            ✓ Configurado
+          </span>
         ) : (
-          <div style={{ width: 16, height: 16, border: "2px solid #CBD5E1", borderRadius: "50%" }} />
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              padding: "2px 8px",
+              background: "#F1F5F9",
+              color: "#94A3B8",
+              borderRadius: 99,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            No configurado
+          </span>
         )}
-        <span style={{ fontSize: 13, fontWeight: 500, color: enabled ? "#0F172A" : "#94A3B8" }}>{label}</span>
       </div>
-      {extra && enabled && (
-        <span style={{ fontSize: 11, color: "#64748B", fontFamily: "'SF Mono', Menlo, monospace" }}>{extra}</span>
+      <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "4px 14px" }}>{children}</div>
+    </div>
+  );
+}
+
+// ─── Secret row (token con mostrar/ocultar) ──
+function SecretRow({
+  label,
+  value,
+  field,
+  onCopy,
+  copiedField,
+}: {
+  label: string;
+  value: string;
+  field: string;
+  onCopy: (f: string, v: string) => void;
+  copiedField: string | null;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const masked = value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : "••••••••";
+  const isCopied = copiedField === field;
+  return (
+    <div style={{ padding: "10px 0", borderBottom: "1px solid #E2E8F0" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: revealed ? 6 : 0 }}>
+        <div style={{ fontSize: 12, color: "#64748B", fontWeight: 500 }}>{label}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {!revealed && (
+            <code
+              style={{
+                fontSize: 12,
+                color: "#475569",
+                fontFamily: "'SF Mono', Menlo, Consolas, monospace",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {masked}
+            </code>
+          )}
+          <button
+            onClick={() => setRevealed((r) => !r)}
+            style={{
+              fontSize: 11,
+              padding: "3px 8px",
+              background: "transparent",
+              border: "1px solid #CBD5E1",
+              borderRadius: 6,
+              color: "#475569",
+              cursor: "pointer",
+              fontWeight: 500,
+            }}
+          >
+            {revealed ? "Ocultar" : "Ver"}
+          </button>
+          <button
+            onClick={() => onCopy(field, value)}
+            style={{
+              fontSize: 11,
+              padding: "3px 8px",
+              background: isCopied ? `${ACCENT_GREEN}15` : "transparent",
+              border: `1px solid ${isCopied ? ACCENT_GREEN : "#CBD5E1"}`,
+              borderRadius: 6,
+              color: isCopied ? ACCENT_GREEN : "#475569",
+              cursor: "pointer",
+              fontWeight: 500,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            {isCopied ? <><Check size={11} /> Copiado</> : <><Copy size={11} /> Copiar</>}
+          </button>
+        </div>
+      </div>
+      {revealed && (
+        <div
+          style={{
+            marginTop: 4,
+            padding: "8px 10px",
+            background: "#fff",
+            border: "1px solid #E2E8F0",
+            borderRadius: 6,
+            fontFamily: "'SF Mono', Menlo, Consolas, monospace",
+            fontSize: 11,
+            color: "#0F172A",
+            wordBreak: "break-all",
+            lineHeight: 1.5,
+          }}
+        >
+          {value}
+        </div>
       )}
+    </div>
+  );
+}
+
+function EmptyRow({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        padding: "12px 0",
+        fontSize: 12,
+        color: "#94A3B8",
+        fontStyle: "italic",
+        textAlign: "center",
+      }}
+    >
+      {label}
     </div>
   );
 }

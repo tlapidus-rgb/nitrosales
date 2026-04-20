@@ -9,8 +9,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
+import { decryptCredentials } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
+
+// Helper: desencripta un blob encriptado y devuelve el primer valor
+function decryptField(encryptedJson: string | null | undefined): string | null {
+  if (!encryptedJson) return null;
+  try {
+    const decrypted = decryptCredentials(encryptedJson);
+    const firstVal = decrypted ? Object.values(decrypted)[0] : null;
+    return typeof firstVal === "string" ? firstVal : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(
   _req: NextRequest,
@@ -35,7 +48,13 @@ export async function GET(
 
     const r = rows[0];
 
-    // Sanitizar: NO devolver raw encrypted blobs (solo indicar si existen)
+    // Desencripta credentials para que Tomy (admin) las vea. Solo isInternalUser
+    // tiene acceso a este endpoint, así que es seguro exponer los valores reales.
+    const vtexAppKey = decryptField(r.vtexAppKeyEncrypted);
+    const vtexAppToken = decryptField(r.vtexAppTokenEncrypted);
+    const metaAccessToken = decryptField(r.metaAccessTokenEncrypted);
+    const metaPixelToken = decryptField(r.metaPixelTokenEncrypted);
+
     return NextResponse.json({
       ok: true,
       request: {
@@ -47,16 +66,31 @@ export async function GET(
         cuit: r.cuit,
         industry: r.industry,
         storeUrl: r.storeUrl,
+        timezone: r.timezone,
+        currency: r.currency,
+        fiscalCondition: r.fiscalCondition,
         contactName: r.contactName,
         contactEmail: r.contactEmail,
         contactPhone: r.contactPhone,
         contactWhatsapp: r.contactWhatsapp,
+        // VTEX
         vtexAccountName: r.vtexAccountName,
+        vtexAppKey,
+        vtexAppToken,
         hasVtexCredentials: !!r.vtexAppKeyEncrypted && !!r.vtexAppTokenEncrypted,
+        // MercadoLibre
         mlUsername: r.mlUsername,
+        // Meta Ads
         metaAdAccountId: r.metaAdAccountId,
+        metaAccessToken,
         hasMetaCredentials: !!r.metaAccessTokenEncrypted,
+        // Meta Pixel
+        metaPixelId: r.metaPixelId,
+        metaPixelToken,
+        hasMetaPixelCredentials: !!r.metaPixelTokenEncrypted,
+        // Google Ads
         googleAdsCustomerId: r.googleAdsCustomerId,
+        // Admin
         adminNotes: r.adminNotes,
         progressStage: r.progressStage,
         createdOrgId: r.createdOrgId,
