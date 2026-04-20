@@ -4,7 +4,137 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-19 — Sesión 49 (2 errores nuevos sobre JWT stale tokens y error handling silencioso en client-side writes).**
+> **Última actualización: 2026-04-20 — Sesión 51 (3 errores nuevos: schedule disparando cada apertura por no chequear nextFireAt, max_tokens chico que trunca reply tras tool exitosa sin fallback informativo, descartar feature como "redundante" sin evaluar costos operativos reales).**
+
+---
+
+## Error #S51-SCHEDULE-EVERY-OPEN — Schedules disparaban cada apertura de /alertas
+
+**Cuándo pasó**: Sesión 51, mientras leía `engine.ts` para implementar el cron `/api/cron/alerts-scheduler`. Descubrí que la función `evaluateRule` para reglas type=schedule llamaba `primitive.evaluate()` y actualizaba `lastFiredAt` cada vez que se ejecutaba — sin chequear si `nextFireAt` ya había llegado. Resultado: **cada vez que el user abría `/alertas`, todas las schedules disparaban de nuevo**, generando "alertas múltiples" silenciosamente. El bug existía desde la implementación original del rules engine en S50 (commit `59e7879`) y nunca se detectó por QA visual porque el síntoma era "alerta aparece" (correcto en superficie, multiplicado en realidad).
+
+### Causa raíz
+- La logica original chequeaba cooldown solo para `type='condition'`, pero para `type='schedule'` ejecutaba sin guardas.
+- Solo se actualizaba `lastFiredAt`, nunca se actualizaba `nextFireAt` después de disparar — entonces el campo quedaba "huérfano" y el motor no tenía forma de saber cuándo volver a disparar.
+- QA visual no detectaba el bug porque la UI agrupaba o deduplicaba alertas similares al renderizar.
+- El bug solo se hacía visible si: (a) abrías `/alertas` 10 veces seguidas y mirabas DB; o (b) tenías email activo y te llegaban N emails por apertura.
+
+### Regla
+**Para cualquier feature que tenga "ejecutar en horarios programados" (schedules, cron jobs, scheduled emails, etc.), el motor DEBE chequear:**
+1. **dueNow**: ¿`nextFireAt` ya llegó o nunca disparó?
+2. **recentlyFired**: ¿está dentro de la ventana de visibilidad (ej: 24h) para mostrar el último resultado sin re-ejecutar?
+3. **silencio**: si no es ni A ni B, NO ejecutar.
+
+Y al disparar, **actualizar TANTO `lastFiredAt` COMO `nextFireAt = compute(schedule)`** — nunca uno sin el otro.
+
+```ts
+// ✅ BIEN
+if (rule.type === "schedule") {
+  const dueNow = !nextFireAt || nextFireAt <= now;
+  const recentlyFired = lastFiredAt && now - lastFiredAt < 24 * 3600 * 1000;
+  if (dueNow) { /* fire + update both timestamps */ }
+  else if (recentlyFired) { /* show without re-firing */ }
+  else return null; // silencio
+}
+```
+
+**Antipatrón**:
+```ts
+// ❌ MAL — dispara cada vez sin chequear nextFireAt
+const result = await primitive.evaluate(...);
+await prisma.$executeRaw`UPDATE alert_rules SET lastFiredAt = NOW() WHERE id = ${rule.id}`;
+// nextFireAt nunca se actualiza
+```
+
+**Conexión con #S24-L2-METASYNC**: cuando tocás un sistema existente para agregar features nuevas, REVISAR la lógica existente. El QA visual no detecta bugs sutiles de comportamiento — solo bugs visibles. Si vas a tocar el motor para agregar el cron, primero verificá que el motor actual hace lo que DEBE hacer.
+
+**Detección preventiva**: cuando agregues un campo "schedule" o "nextFireAt" al schema, agregar un test mental: "si llamo evaluateRule 2 veces seguidas, ¿lastFiredAt cambia solo la primera vez?".
+
+---
+
+## Error #S51-MAX-TOKENS-TRUNCATION — Tool exitosa pero reply truncado sin fallback informativo
+
+**Cuándo pasó**: Sesión 51. Tomy probó crear una regla desde el FloatingAurum (bubble lateral, modelo Haiku con `max_tokens=600`). La tool `create_alert_rule` ejecutó correctamente y guardó la regla en DB, pero Haiku se quedó sin tokens al generar el mensaje de cierre. El loop salió sin `finalReply` y el código mostraba el fallback genérico "No pude generar una respuesta. Probá de nuevo." — engañando al user a creer que la regla NO se había creado, cuando en realidad SÍ. Tomy intentó de nuevo y el dedupe saltó: "ya tenés una regla así". Solo ahí supo que la primera había funcionado.
+
+### Causa raíz
+- `max_tokens=600` en `/api/aurum/section-insight` era suficiente para insight inicial / pregunta puntual, pero NO para tool-use loop con tool inputs largos + texto de cierre.
+- El loop salía con `finalReply = ""` y caía al fallback `"No pude generar una respuesta"` que no diferenciaba entre "el modelo no genero nada" y "el modelo ejecuto una tool con éxito pero no pudo generar el mensaje de cierre".
+- El usuario creía que el sistema fallaba cuando en realidad la operación se había completado exitosamente.
+
+### Regla
+**Para cualquier tool-use loop con riesgo de truncation por max_tokens, implementar dos defensas combinadas:**
+
+1. **Subir max_tokens** a un margen suficiente (1500+ para Haiku con tools complejas, 4000+ para Sonnet).
+2. **Tracking de "última tool exitosa"** durante el loop — si el modelo se queda sin tokens al final, generar el reply manualmente basado en qué tool ejecutó:
+
+```ts
+let lastSuccessfulTool: { name: string; resultText: string } | null = null;
+
+for (let round = 0; round < MAX_ROUNDS; round++) {
+  // ... ejecutar tools ...
+  for (const tool of toolUseBlocks) {
+    const result = await executeTool(tool.name, tool.input, ctx);
+    if (result.startsWith("OK ")) {
+      lastSuccessfulTool = { name: tool.name, resultText: result };
+    }
+  }
+}
+
+// Fallback inteligente:
+if (!finalReply && lastSuccessfulTool) {
+  if (lastSuccessfulTool.name === "create_xxx") {
+    finalReply = "✓ Listo, X creada con éxito.";
+  }
+  // ... otros casos por tool
+}
+```
+
+**Antipatrón**:
+```ts
+// ❌ MAL — fallback genérico que engaña al user
+if (!finalReply) finalReply = "No pude generar una respuesta. Probá de nuevo.";
+```
+
+**Señal de alarma**: si el user reporta que "intenté X 2 veces y la segunda dijo que ya existía", probablemente la primera ejecución exitosa quedó "tapada" por un fallback genérico.
+
+**Conexión con #S49-SILENT-FETCH-FAIL**: ambos errores son la misma familia — el sistema hace algo correctamente pero la capa de presentación no comunica el resultado real al user. Lesson general: **el feedback al user debe reflejar el estado real del sistema, no el estado de "completé bien la generación de texto"**.
+
+---
+
+## Error #S51-DESCARTAR-COMO-REDUNDANTE — Descartar feature sin evaluar costos operativos reales
+
+**Cuándo pasó**: Sesión 51. Yo había marcado la **Fase 8g-3c (Wizard de creación de reglas desde formulario)** como "redundante con Aurum chat — bajo valor" en mi planificación. Razonamiento: "si Aurum chat ya hace lo mismo y mejor, ¿para qué duplicar?". Tomy lo pidió expresamente más tarde con dos razones que yo no había considerado:
+1. **Costo operativo de tokens**: cada creación via Aurum gasta ~3K tokens (descubrimiento + propuesta + creación). Wizard form gasta 0 tokens.
+2. **Preferencia UX**: muchos users prefieren forms guiados sobre chat, especialmente para configuración previsible.
+
+### Causa raíz
+Yo evalué solo 1 dimensión: **costo de implementación duplicado** ("ya tenemos esto en Aurum, no hace falta hacerlo dos veces"). Ignoré:
+- **Costo operativo**: cada feature delegada solo a Aurum tiene un costo recurrente en tokens que escala con uso.
+- **Preferencia UX por segmento**: no todos los users prefieren chat. Hay perfiles operativos no técnicos que prefieren forms.
+- **Costo de mantenimiento futuro**: el wizard reusa subcomponentes del EditDrawer (Field/Section/ParamField/etc) — implementarlo realmente costó pocas líneas extra.
+
+### Regla
+**Cuando descarte una feature como "redundante", evaluar 4 dimensiones antes de marcarla como bajo valor:**
+
+1. **Costo de implementación**: ¿cuántas líneas, cuánto reuso?
+2. **Costo operativo recurrente**: ¿la otra forma tiene costo por uso (tokens, llamadas API, etc.)?
+3. **Preferencia UX por segmento**: ¿hay users que prefieren la otra modalidad?
+4. **Costo de mantenimiento**: ¿la duplicación realmente lo es, o son features complementarias que comparten core?
+
+Si dudás en alguna, **preguntar al user antes de descartar**. La pregunta más útil es: "veo que esto es similar a X que ya tenemos. ¿Te parece valioso tener ambos o lo dejamos solo X?".
+
+**Antipatrón**:
+```
+"8g-3c Wizard crear desde UI: redundante con Aurum chat. BAJO valor."
+```
+
+**Patrón correcto**:
+```
+"8g-3c Wizard crear desde UI: complementa a Aurum chat con form previsible
++ ahorra ~3K tokens por creación. Trade-off: preguntarle a Tomy si valora
+estos beneficios sobre el costo de implementación (~1-2 hs)."
+```
+
+**Señal de alarma**: si Tomy te pide algo que ya habías marcado como "redundante / bajo valor", reflexioná sobre qué dimensión te perdiste. Casi siempre es una de las 4 de arriba.
 
 ---
 

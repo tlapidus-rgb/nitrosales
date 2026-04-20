@@ -3,13 +3,17 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-20 (Sesion 51 CIERRE FINAL — Fases 8g-2 + 8g-3a + 8g-3b + 8g-3d + 8g-4 COMPLETAS con 14 commits y testing en vivo. **Sistema de alertas productivo end-to-end**: Aurum crea reglas con calibracion conversacional, UI completa para gestion (inventario por modulo + edit drawer + toggle + delete + preview modal), cron 15min dispara schedules automaticamente, email Resend integrado.)
+## Ultima actualizacion: 2026-04-20 (Sesion 51 CIERRE DEFINITIVO — **17 commits** cubriendo Fases 8g-2 + 8g-3a/b/c/d + 8g-4 + premium polish + testing iterativo. **Sistema de alertas COMPLETO**: Aurum crea reglas con calibracion + UI productiva premium con inventario/edit/wizard/toggle/delete/preview + cron 15min + email Resend. Look estetico nivel Linear/Vercel/Stripe.)
 
-### Sesion 51 CIERRE FINAL — 2026-04-20 — Modulo Alertas productivo end-to-end (14 commits)
+### Sesion 51 CIERRE DEFINITIVO — 2026-04-20 — Modulo Alertas COMPLETO + premium polish (17 commits)
 
-**Resumen ejecutivo**: arrancamos con Fase 8g-2 Aurum integration y terminamos con el modulo Alertas productivo end-to-end. 14 commits + testing iterativo + 7 fixes/mejoras descubiertos en QA. Tomy puede crear reglas via Aurum chat con calibracion, gestionarlas en `/alertas/reglas` con CRUD visual completo, y los schedules disparan automaticamente via cron sin que entre a la app.
+**Resumen ejecutivo**: arrancamos con Fase 8g-2 Aurum integration y cerramos el modulo Alertas 100% productivo + polish visual premium. 17 commits + testing iterativo + 9 fixes/mejoras descubiertos en QA. Tomy puede crear reglas de 2 formas (Aurum chat con calibracion conversacional O wizard form 4 pasos), gestionarlas en `/alertas/reglas` con CRUD visual completo y look premium, y los schedules disparan automaticamente via cron sin que entre a la app.
 
-#### Commits a `main` (14 total)
+**Decisiones de scope que cambiaron mid-session**:
+- 8g-3c Wizard de creacion: estaba marcado como "redundante con Aurum" → Tomy lo pidio expresamente porque "muchos van a usar form, ahorra tokens de Aurum (~3K por creacion)". Razon valida que yo no habia evaluado correctamente. Implementado.
+- Premium polish: Tomy pidio rediseño estetico tras testing visual. Implementado.
+
+#### Commits a `main` (17 total)
 
 **Fase 8g-2 Aurum integration (8 commits)**:
 - `fe4b3aa` Aurum integration base: 3 tools + handlers + create-rule-core + system prompt + refactor POST
@@ -21,12 +25,26 @@
 - `cee9ba9` 🌟 mejora UX CRITICA: paso 0 de calibracion en ALERT_TOOLS_PROMPT
 - `3da2317` docs cierre Fase 8g-2
 
-**Fase 8g-3 UI productiva (2 commits)**:
+**Fase 8g-3 UI productiva (3 commits)**:
 - `18ce68e` 8g-3a: UI `/alertas/reglas` — inventario agrupado por modulo + toggle + delete + preview modal + empty state
 - `7420a2f` 8g-3b: edicion via drawer lateral con form auto-generado desde paramsSchema
+- `3bea0a9` 8g-3c: **wizard de creacion paso a paso desde formulario** (4 pasos: modulo → primitiva → configurar → confirmar) con search inline + dedupe handling con boton "crear igual igual" + reuso 100% de subcomponents (Field/Section/ParamField/etc) del EditDrawer
 
 **Fase 8g-4 Cron + 8g-3d Email (1 commit)**:
 - `eeaf76a` cron `/api/cron/alerts-scheduler` cada 15min + email Resend integrado en evaluateRule. **Bug fix critico**: schedules disparaban cada vez que se abria /alertas (no chequeaban nextFireAt) — ahora chequea + actualiza tanto lastFiredAt como nextFireAt + ventana 24h de visibilidad.
+
+**Premium polish (1 commit)**:
+- `797627a` 🌟 rediseño completo de `/alertas/reglas` con look premium nivel Linear/Vercel/Stripe:
+  - Hero header en card blanca con shadow suave + icono gradient con shadow del tone + boton CTA con hover lift
+  - KPI strip 3 cards grid full-width con numeros 32px tabular + accent gradient superior + icono lateral con bg suave
+  - ModuleGroup header: icono 38px gradient con shadow + titulo 17px + subtitulo "X reglas activas" + divider con fadeout horizontal
+  - RuleCard PREMIUM: accent bar lateral 4px del color de severidad (atenuado si pausada) + Toggle switch tipo iOS (verde gradient, animacion knob) + DetailChips coloreadas con bg-soft del tone (calendar=azul, channel=violet, last fire=verde, next=amber) + IconButtons compactos en row con divider dashed + hover state con shadow mas pronunciada y border mas oscura
+  - Aurora 3 capas (rose + indigo + amber) en el background
+  - Spacing premium: gap entre groups 36px, maxWidth 1140, padding bottom 64px
+
+**Docs (2 commits totales hoy + este final)**:
+- `8ed7be9` docs: Sesion 51 CIERRE FINAL (cubria hasta eeaf76a)
+- ESTE commit: docs definitivo cubriendo wizard + premium polish + errores nuevos
 
 **Docs final**: este commit (CLAUDE_STATE final + MEMORY)
 
@@ -62,6 +80,8 @@ El matching NL → primitiva lo hace el mismo Aurum (Sonnet/Opus que ya corre el
 | Borrar con modal de confirmacion | ✅ |
 | Probar ahora con preview en modal | ✅ |
 | Editar via drawer con form auto-generado | ✅ |
+| Wizard de creacion 4 pasos desde formulario | ✅ |
+| Look premium estilo Linear/Vercel | ✅ |
 | Cron + email + bug fix schedules | ⏳ pendiente validacion mañana 9am |
 
 #### Aprendizajes clave Sesion 51 (8 patterns CRITICOS)
@@ -82,6 +102,10 @@ El matching NL → primitiva lo hace el mismo Aurum (Sonnet/Opus que ya corre el
 
 8. **🌟 PATRON CRITICO — Form-builder generico desde schema**: el drawer de edicion lee directo del `paramsSchema` y renderiza number/string/boolean/select. Cuando agreguemos primitivas Tier 2/3 nuevas, el drawer ya las edita sin tocar UI. Pattern aplicable a cualquier feature con schema-driven configuration.
 
+9. **🌟 PATRON CRITICO — No descartar features como "redundantes" sin evaluar costos reales**: yo habia marcado el wizard de creacion como "redundante con Aurum chat" pero Tomy lo pidio expresamente porque ahorra ~3K tokens por creacion + es mas predecible para users que prefieren forms. Lesson: **siempre evaluar 3 dimensiones antes de descartar (costo operativo, preferencia UX, costo de implementacion)** y si hay duda preguntar al user. Yo descarte solo viendo "implementacion duplicada" sin pensar en operativo ni UX.
+
+10. **PATRON — Polish iterativo cuando user pide "mas premium"**: Tomy pidio rediseño estetico despues de tener la funcionalidad completa. La mejora de premium look (commit `797627a`) fue 100% visual sin tocar logica. Componentes reusados: Field/Section/ParamField del drawer. Componentes nuevos: KpiCardPremium, ToggleSwitch (iOS-style), DetailChip (con bg-tone-soft), IconButton. Para futuras paginas que requieran polish: aplicar el mismo set de patterns (accent bar lateral, hover state con shadow lift, chips coloreadas, toggle switches).
+
 9. **Bug detector via testing iterativo**: el bug "schedules disparan cada vez que se abre /alertas" estuvo presente desde S50 sin detectar. Solo se descubrio leyendo el engine para implementar el cron. Lesson: cuando se agrega una feature que toca un sistema, REVISAR la logica existente — el QA visual no detecta bugs de schedule porque el sintoma es "alerta aparece" (correcto en superficie, multiplicado en realidad).
 
 #### Estado actual modulo Alertas post-Sesion 51 (PRODUCTIVO END-TO-END)
@@ -99,7 +123,7 @@ El matching NL → primitiva lo hace el mismo Aurum (Sonnet/Opus que ya corre el
 
 #### Pendientes Fase 8g (residuales — bajo valor)
 
-- **8g-3c Wizard crear desde UI**: redundante con Aurum chat. BAJO valor.
+- ~~**8g-3c Wizard crear desde UI**~~: ✅ COMPLETADO en commit `3bea0a9`
 - **8g-3e Quick rule buttons en paginas top**: nice-to-have, BAJO valor.
 - **8g-5 Tier 2 expansion**: cuando lleguen pedidos reales de Arredo + TV Compras
 
