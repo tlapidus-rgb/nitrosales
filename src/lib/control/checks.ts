@@ -52,12 +52,21 @@ const STUCK_ONBOARDING_HOURS = 72;
 const INACTIVE_CLIENT_DAYS = 14;
 
 // ─── Check 1: conexiones caídas/lentas ───
+// Un `lastSyncError` es "viejo" si despues del intento fallido hubo al menos
+// un sync exitoso (lastSuccessfulSyncAt >= lastSyncAt). En ese caso lo ignoramos
+// porque es basura residual de errores pasados que nunca se limpio el campo.
+function isStaleError(lastSyncAt: Date | null, lastSuccessfulSyncAt: Date | null): boolean {
+  if (!lastSuccessfulSyncAt || !lastSyncAt) return false;
+  return new Date(lastSuccessfulSyncAt).getTime() >= new Date(lastSyncAt).getTime();
+}
+
 export async function checkConnectionIssues(): Promise<ConnectionIssue[]> {
   const connections = await prisma.connection.findMany({
     select: {
       platform: true,
       status: true,
       lastSyncAt: true,
+      lastSuccessfulSyncAt: true,
       lastSyncError: true,
       organizationId: true,
       organization: { select: { name: true } },
@@ -68,9 +77,14 @@ export async function checkConnectionIssues(): Promise<ConnectionIssue[]> {
 
   for (const c of connections) {
     const threshold = SYNC_THRESHOLDS_MIN[c.platform] || 60 * 24;
-    const minsSinceSync = c.lastSyncAt
-      ? Math.floor((Date.now() - new Date(c.lastSyncAt).getTime()) / 60000)
+    // Usamos lastSuccessfulSyncAt para staleness: mide cuando fue el ULTIMO OK,
+    // no cuando fue el ultimo intento (que puede ser un retry fallido).
+    const effectiveSyncAt = c.lastSuccessfulSyncAt || c.lastSyncAt;
+    const minsSinceSync = effectiveSyncAt
+      ? Math.floor((Date.now() - new Date(effectiveSyncAt).getTime()) / 60000)
       : null;
+
+    const hasFreshError = !!c.lastSyncError && !isStaleError(c.lastSyncAt, c.lastSuccessfulSyncAt);
 
     // ERROR status = crítico
     if (c.status === "ERROR") {
@@ -89,9 +103,9 @@ export async function checkConnectionIssues(): Promise<ConnectionIssue[]> {
     // PENDING = ignorar (aún no se configuró el OAuth)
     if (c.status === "PENDING") continue;
 
-    // On-demand: solo alertar si hay lastSyncError explicito
+    // On-demand: solo alertar si hay lastSyncError FRESCO (no viejo)
     if (ON_DEMAND_PLATFORMS.has(c.platform)) {
-      if (c.lastSyncError) {
+      if (hasFreshError) {
         issues.push({
           orgId: c.organizationId,
           orgName: c.organization.name,
@@ -105,43 +119,42 @@ export async function checkConnectionIssues(): Promise<ConnectionIssue[]> {
       continue; // no chequear staleness
     }
 
-    // Sync antiguo
+    // Sync antiguo (usando ultimo sync exitoso como referencia)
     if (minsSinceSync !== null && minsSinceSync > threshold * 2) {
       issues.push({
         orgId: c.organizationId,
         orgName: c.organization.name,
         platform: c.platform,
         level: "error",
-        reason: `Sin sync hace ${formatMins(minsSinceSync)} (umbral ${formatMins(threshold * 2)})`,
+        reason: `Sin sync exitoso hace ${formatMins(minsSinceSync)} (umbral ${formatMins(threshold * 2)})`,
         minsSinceSync,
         lastError: c.lastSyncError,
       });
+      continue;
     } else if (minsSinceSync !== null && minsSinceSync > threshold) {
       issues.push({
         orgId: c.organizationId,
         orgName: c.organization.name,
         platform: c.platform,
         level: "warn",
-        reason: `Sync lento (hace ${formatMins(minsSinceSync)})`,
+        reason: `Sync lento (ultimo OK hace ${formatMins(minsSinceSync)})`,
         minsSinceSync,
         lastError: c.lastSyncError,
       });
+      continue;
     }
 
-    // Si el último sync falló pero intentó reciente
-    if (c.lastSyncError && minsSinceSync !== null && minsSinceSync < threshold) {
-      // ya tiene issue si estaba viejo; si está reciente pero con error, es warn
-      if (!issues.find((i) => i.orgId === c.organizationId && i.platform === c.platform)) {
-        issues.push({
-          orgId: c.organizationId,
-          orgName: c.organization.name,
-          platform: c.platform,
-          level: "warn",
-          reason: "Último sync con error",
-          minsSinceSync,
-          lastError: c.lastSyncError,
-        });
-      }
+    // Sync reciente pero fresh error (raro: hubo retry fallido despues del OK)
+    if (hasFreshError) {
+      issues.push({
+        orgId: c.organizationId,
+        orgName: c.organization.name,
+        platform: c.platform,
+        level: "warn",
+        reason: "Último intento con error (despues del ultimo OK)",
+        minsSinceSync,
+        lastError: c.lastSyncError,
+      });
     }
   }
 

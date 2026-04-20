@@ -32,16 +32,36 @@ function minsAgo(d: Date | null | undefined): number | null {
   return Math.floor((Date.now() - new Date(d).getTime()) / 60000);
 }
 
-function classifyConnection(platform: string, status: string, lastSyncAt: Date | null, lastSyncError: string | null): "ok" | "warn" | "error" | "pending" {
+// ¿El lastSyncError es "real" (último intento fallido) o "viejo" (ya pasó un
+// sync exitoso después)? Regla: si lastSuccessfulSyncAt >= lastSyncAt → el
+// ultimo intento fue OK → ignoramos lastSyncError como basura vieja.
+function isErrorStale(lastSyncAt: Date | null, lastSuccessfulSyncAt: Date | null): boolean {
+  if (!lastSuccessfulSyncAt) return false;
+  if (!lastSyncAt) return false;
+  return new Date(lastSuccessfulSyncAt).getTime() >= new Date(lastSyncAt).getTime();
+}
+
+function classifyConnection(
+  platform: string,
+  status: string,
+  lastSyncAt: Date | null,
+  lastSuccessfulSyncAt: Date | null,
+  lastSyncError: string | null
+): "ok" | "warn" | "error" | "pending" {
   if (status === "PENDING") return "pending";
   if (status === "ERROR") return "error";
-  if (lastSyncError) return "warn";
 
-  // Plataformas on-demand: OK si no hay error explicito (no importa la fecha)
+  // lastSyncError solo cuenta si es del ultimo intento (no es basura vieja)
+  const hasFreshError = lastSyncError && !isErrorStale(lastSyncAt, lastSuccessfulSyncAt);
+  if (hasFreshError) return "warn";
+
+  // Plataformas on-demand: OK si no hay error fresco (no importa la fecha)
   if (ON_DEMAND.has(platform)) return "ok";
 
-  const mins = minsAgo(lastSyncAt);
-  if (mins === null) return "warn"; // nunca syncó
+  // Para staleness usamos lastSuccessfulSyncAt si existe, sino lastSyncAt
+  const effectiveDate = lastSuccessfulSyncAt || lastSyncAt;
+  const mins = minsAgo(effectiveDate);
+  if (mins === null) return "warn"; // nunca syncó con éxito
   const threshold = THRESHOLDS_MIN[platform] || 60 * 24;
   if (mins > threshold * 2) return "error";   // >2x umbral = crítico
   if (mins > threshold) return "warn";
@@ -117,7 +137,7 @@ export async function GET() {
           lastSyncAt: c.lastSyncAt ? c.lastSyncAt.toISOString() : null,
           lastSuccessfulSyncAt: c.lastSuccessfulSyncAt ? c.lastSuccessfulSyncAt.toISOString() : null,
           lastSyncError: c.lastSyncError,
-          health: classifyConnection(c.platform, c.status, c.lastSyncAt, c.lastSyncError),
+          health: classifyConnection(c.platform, c.status, c.lastSyncAt, c.lastSuccessfulSyncAt, c.lastSyncError),
           minsSinceSync: minsAgo(c.lastSyncAt),
         }));
 
