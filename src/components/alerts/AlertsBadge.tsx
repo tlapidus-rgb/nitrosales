@@ -22,18 +22,30 @@ export default function AlertsBadge() {
         const res = await fetch("/api/alerts?limit=1", { cache: "no-store" });
         if (!res.ok) return;
         const json = await res.json();
-        const critical = json.countsBySeverity?.critical ?? 0;
-        const warning = json.countsBySeverity?.warning ?? 0;
+        // Fase 8e fix: contar solo NO LEIDAS (critical + warning sin leer)
+        const critical = json.unreadCountBySeverity?.critical ?? 0;
+        const warning = json.unreadCountBySeverity?.warning ?? 0;
         if (active) setCount(critical + warning);
       } catch {
         /* silent */
       }
     };
     load();
-    const interval = setInterval(load, 60_000); // 1 min poll
+    const interval = setInterval(load, 30_000); // 30s poll (mas responsive)
+
+    // Cuando la pestana vuelve a foco o el storage cambia, recargar rapido.
+    const onFocus = () => load();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "nitro_alerts_refresh") load();
+    };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onStorage);
+
     return () => {
       active = false;
       clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 

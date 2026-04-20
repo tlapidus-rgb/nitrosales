@@ -66,6 +66,7 @@ export interface UnifiedAlert {
   createdAt: string;
   expiresAt?: string | null;
   favorited?: boolean;       // Fase 8e: marcada como favorita por el user
+  read?: boolean;            // Fase 8e fix: marcada como leida por el user
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -384,6 +385,22 @@ async function getUserFavorites(userId: string | null): Promise<Set<string>> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Lecturas del user (Fase 8e fix)
+// ─────────────────────────────────────────────────────────────
+async function getUserReads(userId: string | null): Promise<Set<string>> {
+  if (!userId) return new Set();
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ alertId: string }>>(
+      `SELECT "alertId" FROM "user_alert_reads" WHERE "userId" = $1`,
+      userId
+    );
+    return new Set(rows.map((r) => r.alertId));
+  } catch {
+    return new Set();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Build unificado
 // ─────────────────────────────────────────────────────────────
 export async function buildUnifiedAlerts(params: {
@@ -397,6 +414,8 @@ export async function buildUnifiedAlerts(params: {
   countsBySeverity: Record<AlertSeverity, number>;
   countsByCategory: Record<string, number>;
   favoriteCount: number;
+  unreadCount: number;
+  unreadCountBySeverity: Record<AlertSeverity, number>;
 }> {
   const { orgId, userId, baseUrl, cookie } = params;
 
@@ -408,6 +427,7 @@ export async function buildUnifiedAlerts(params: {
     predictive,
     aurumAsync,
     favorites,
+    reads,
   ] = await Promise.all([
     getSystemSyncAlerts(orgId),
     getMercadoLibreAlerts(orgId),
@@ -416,6 +436,7 @@ export async function buildUnifiedAlerts(params: {
     baseUrl ? getPredictiveFinanceAlerts(baseUrl, cookie ?? "") : Promise.resolve([]),
     getAurumAsyncAlerts(orgId, userId ?? null),
     getUserFavorites(userId ?? null),
+    getUserReads(userId ?? null),
   ]);
 
   const all = [
@@ -428,6 +449,7 @@ export async function buildUnifiedAlerts(params: {
   ].map((a) => ({
     ...a,
     favorited: favorites.has(a.id),
+    read: reads.has(a.id),
   }));
 
   // Sort: favoritas primero, luego HIGH > MEDIUM > LOW, luego por fecha desc
@@ -457,8 +479,22 @@ export async function buildUnifiedAlerts(params: {
     {} as Record<string, number>
   );
   const favoriteCount = all.filter((a) => a.favorited).length;
+  const unread = all.filter((a) => !a.read);
+  const unreadCount = unread.length;
+  const unreadCountBySeverity = unread.reduce(
+    (acc, a) => ({ ...acc, [a.severity]: (acc[a.severity] ?? 0) + 1 }),
+    { critical: 0, warning: 0, info: 0 } as Record<AlertSeverity, number>
+  );
 
-  return { alerts: all, countsBySource, countsBySeverity, countsByCategory, favoriteCount };
+  return {
+    alerts: all,
+    countsBySource,
+    countsBySeverity,
+    countsByCategory,
+    favoriteCount,
+    unreadCount,
+    unreadCountBySeverity,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────

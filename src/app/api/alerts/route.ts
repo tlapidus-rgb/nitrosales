@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
       countsBySeverity,
       countsByCategory,
       favoriteCount,
+      unreadCount,
+      unreadCountBySeverity,
     } = await buildUnifiedAlerts({
       orgId,
       userId,
@@ -67,6 +69,8 @@ export async function GET(req: NextRequest) {
       countsBySeverity,
       countsByCategory,
       favoriteCount,
+      unreadCount,
+      unreadCountBySeverity,
     });
   } catch (error: any) {
     console.error("[/api/alerts GET] error:", error);

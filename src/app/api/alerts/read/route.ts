@@ -1,0 +1,95 @@
+// @ts-nocheck
+// ═══════════════════════════════════════════════════════════════════
+// /api/alerts/read — Fase 8e fix
+// ═══════════════════════════════════════════════════════════════════
+// POST   { alertId }       -> marca una alerta como leida por el user
+// POST   { alertIds: [] }  -> marca varias (bulk)
+// DELETE ?alertId=X        -> vuelve a marcar como no leida
+// ═══════════════════════════════════════════════════════════════════
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/db/client";
+import { randomUUID } from "crypto";
+
+export const dynamic = "force-dynamic";
+
+async function getUserId(): Promise<string | null> {
+  const session = await getServerSession(authOptions);
+  return (session?.user as any)?.id ?? null;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const userId = await getUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const ids: string[] = Array.isArray(body?.alertIds)
+      ? body.alertIds
+      : body?.alertId
+      ? [body.alertId]
+      : [];
+
+    const clean = ids.map((s) => String(s).trim()).filter(Boolean);
+    if (clean.length === 0) {
+      return NextResponse.json(
+        { error: "alertId o alertIds requerido" },
+        { status: 400 }
+      );
+    }
+
+    // Bulk insert con ON CONFLICT DO NOTHING
+    for (const alertId of clean) {
+      const id = randomUUID();
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "user_alert_reads" ("id", "userId", "alertId", "readAt")
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT ("userId", "alertId") DO NOTHING`,
+        id,
+        userId,
+        alertId
+      );
+    }
+
+    return NextResponse.json({ ok: true, count: clean.length });
+  } catch (error: any) {
+    console.error("[/api/alerts/read POST] error:", error);
+    return NextResponse.json(
+      { error: String(error?.message ?? error) },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const userId = await getUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const url = new URL(req.url);
+    const alertId = url.searchParams.get("alertId")?.trim();
+    if (!alertId) {
+      return NextResponse.json({ error: "alertId requerido" }, { status: 400 });
+    }
+
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM "user_alert_reads" WHERE "userId" = $1 AND "alertId" = $2`,
+      userId,
+      alertId
+    );
+
+    return NextResponse.json({ ok: true, read: false });
+  } catch (error: any) {
+    console.error("[/api/alerts/read DELETE] error:", error);
+    return NextResponse.json(
+      { error: String(error?.message ?? error) },
+      { status: 500 }
+    );
+  }
+}

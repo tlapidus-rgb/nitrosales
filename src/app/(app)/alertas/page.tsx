@@ -42,6 +42,9 @@ import {
   CheckCircle2,
   ArrowRight,
   Lightbulb,
+  Circle,
+  CircleDot,
+  MailOpen,
 } from "lucide-react";
 
 type AlertSource =
@@ -161,21 +164,12 @@ function groupByTimeframe(alerts: UnifiedAlert[]): Array<{
   return out;
 }
 
-const READ_KEY = "nitro_alerts_read_ids_v1";
-function loadReadIds(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = localStorage.getItem(READ_KEY);
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw));
-  } catch {
-    return new Set();
-  }
-}
-function saveReadIds(ids: Set<string>) {
+// Fase 8e fix: el read state ya no vive en localStorage sino en DB.
+// Solo disparamos un "storage ping" para que AlertsBadge (mismo tab) recargue.
+function pingBadgeRefresh() {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(READ_KEY, JSON.stringify(Array.from(ids)));
+    localStorage.setItem("nitro_alerts_refresh", String(Date.now()));
   } catch {}
 }
 
@@ -191,16 +185,16 @@ export default function AlertasPage() {
     bySeverity: Record<string, number>;
     byCategory: Record<string, number>;
     favorites: number;
-  }>({ bySource: {}, bySeverity: {}, byCategory: {}, favorites: 0 });
+    unread: number;
+  }>({ bySource: {}, bySeverity: {}, byCategory: {}, favorites: 0, unread: 0 });
 
   // Filtros
   const [moduleKey, setModuleKey] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<"all" | AlertSeverity>("all");
   const [onlyUnread, setOnlyUnread] = useState(false);
 
-  // Selection / read
+  // Selection
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
   // Carga
   const load = async () => {
@@ -216,8 +210,8 @@ export default function AlertasPage() {
         bySeverity: json.countsBySeverity ?? {},
         byCategory: json.countsByCategory ?? {},
         favorites: json.favoriteCount ?? 0,
+        unread: json.unreadCount ?? 0,
       });
-      // Autoselect primero si ninguno está seleccionado
       if (!selectedId && json.alerts?.length > 0) {
         setSelectedId(json.alerts[0].id);
       }
@@ -229,7 +223,6 @@ export default function AlertasPage() {
   };
 
   useEffect(() => {
-    setReadIds(loadReadIds());
     load();
     // eslint-disable-next-line
   }, []);
@@ -264,22 +257,65 @@ export default function AlertasPage() {
     }
   };
 
-  // Marcar todas leídas
-  const markAllRead = () => {
-    const next = new Set(readIds);
-    for (const a of alerts) next.add(a.id);
-    setReadIds(next);
-    saveReadIds(next);
+  // Marcar una alerta como leida (o no leida) — persistido en DB
+  const setAlertRead = async (alertId: string, read: boolean) => {
+    const target = alerts.find((a) => a.id === alertId);
+    if (!target) return;
+    if (target.read === read) return;
+    // Optimistic
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === alertId ? { ...a, read } : a))
+    );
+    setCounts((c) => ({ ...c, unread: Math.max(0, c.unread + (read ? -1 : 1)) }));
+    try {
+      if (read) {
+        await fetch(`/api/alerts/read`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ alertId }),
+        });
+      } else {
+        await fetch(
+          `/api/alerts/read?alertId=${encodeURIComponent(alertId)}`,
+          { method: "DELETE" }
+        );
+      }
+      pingBadgeRefresh();
+    } catch {
+      // rollback
+      setAlerts((prev) =>
+        prev.map((a) => (a.id === alertId ? { ...a, read: !read } : a))
+      );
+      setCounts((c) => ({ ...c, unread: c.unread + (read ? 1 : -1) }));
+    }
+  };
+
+  // Marcar todas leídas (bulk)
+  const markAllRead = async () => {
+    const unreadIds = alerts.filter((a) => !a.read).map((a) => a.id);
+    if (unreadIds.length === 0) return;
+    // Optimistic
+    setAlerts((prev) => prev.map((a) => ({ ...a, read: true })));
+    setCounts((c) => ({ ...c, unread: 0 }));
+    try {
+      await fetch(`/api/alerts/read`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alertIds: unreadIds }),
+      });
+      pingBadgeRefresh();
+    } catch {
+      // reload on error
+      load();
+    }
   };
 
   // Click en row -> seleccionar + marcar leída
   const selectAlert = (id: string) => {
     setSelectedId(id);
-    if (!readIds.has(id)) {
-      const next = new Set(readIds);
-      next.add(id);
-      setReadIds(next);
-      saveReadIds(next);
+    const target = alerts.find((a) => a.id === id);
+    if (target && !target.read) {
+      setAlertRead(id, true);
     }
   };
 
@@ -300,10 +336,10 @@ export default function AlertasPage() {
       arr = arr.filter((a) => a.severity === severityFilter);
     }
     if (onlyUnread) {
-      arr = arr.filter((a) => !readIds.has(a.id));
+      arr = arr.filter((a) => !a.read);
     }
     return arr;
-  }, [alerts, moduleKey, severityFilter, onlyUnread, readIds]);
+  }, [alerts, moduleKey, severityFilter, onlyUnread]);
 
   // Alerta seleccionada
   const selected = useMemo(
@@ -311,11 +347,8 @@ export default function AlertasPage() {
     [filteredAlerts, selectedId]
   );
 
-  // Unread count global
-  const unreadCount = useMemo(
-    () => alerts.filter((a) => !readIds.has(a.id)).length,
-    [alerts, readIds]
-  );
+  // Unread count global (server-sourced)
+  const unreadCount = counts.unread;
 
   // Count por módulo
   const moduleCount = (m: typeof MODULES[0]): number => {
@@ -731,9 +764,10 @@ export default function AlertasPage() {
                       key={a.id}
                       alert={a}
                       selected={selected?.id === a.id}
-                      isRead={readIds.has(a.id)}
+                      isRead={!!a.read}
                       onClick={() => selectAlert(a.id)}
                       onToggleFavorite={() => toggleFavorite(a)}
+                      onToggleRead={() => setAlertRead(a.id, !a.read)}
                     />
                   ))}
                 </div>
@@ -745,7 +779,11 @@ export default function AlertasPage() {
         {/* ─── COLUMNA DETALLE ─── */}
         <div style={{ flex: 1, overflowY: "auto", padding: "32px 40px" }}>
           {selected ? (
-            <AlertDetail alert={selected} onToggleFavorite={() => toggleFavorite(selected)} />
+            <AlertDetail
+              alert={selected}
+              onToggleFavorite={() => toggleFavorite(selected)}
+              onToggleRead={() => setAlertRead(selected.id, !selected.read)}
+            />
           ) : (
             <EmptyDetail />
           )}
@@ -872,12 +910,14 @@ function AlertRow({
   isRead,
   onClick,
   onToggleFavorite,
+  onToggleRead,
 }: {
   alert: UnifiedAlert;
   selected: boolean;
   isRead: boolean;
   onClick: () => void;
   onToggleFavorite: () => void;
+  onToggleRead: () => void;
 }) {
   const sev = SEV_META[alert.severity];
   return (
@@ -974,27 +1014,50 @@ function AlertRow({
           <span style={{ marginLeft: "auto" }}>{timeAgo(alert.createdAt)}</span>
         </div>
       </div>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFavorite();
-        }}
-        title={alert.favorited ? "Quitar favorita" : "Marcar favorita"}
-        style={{
-          border: "none",
-          background: "transparent",
-          cursor: "pointer",
-          color: alert.favorited ? "#f59e0b" : "#cbd5e1",
-          padding: 4,
-          borderRadius: 4,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <Star size={16} fill={alert.favorited ? "#f59e0b" : "none"} />
-      </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
+          title={alert.favorited ? "Quitar favorita" : "Marcar favorita"}
+          style={{
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            color: alert.favorited ? "#f59e0b" : "#cbd5e1",
+            padding: 4,
+            borderRadius: 4,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <Star size={16} fill={alert.favorited ? "#f59e0b" : "none"} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleRead();
+          }}
+          title={isRead ? "Marcar como no leída" : "Marcar como leída"}
+          style={{
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            color: isRead ? "#cbd5e1" : "#2563eb",
+            padding: 4,
+            borderRadius: 4,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {isRead ? <Circle size={14} /> : <CircleDot size={14} />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1002,9 +1065,11 @@ function AlertRow({
 function AlertDetail({
   alert,
   onToggleFavorite,
+  onToggleRead,
 }: {
   alert: UnifiedAlert;
   onToggleFavorite: () => void;
+  onToggleRead: () => void;
 }) {
   const sev = SEV_META[alert.severity];
   const SevIcon = sev.Icon;
@@ -1048,25 +1113,48 @@ function AlertDetail({
             {alert.title}
           </h1>
         </div>
-        <span
-          style={{
-            padding: "4px 10px",
-            borderRadius: 6,
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            background: sev.bg,
-            color: sev.color,
-            flexShrink: 0,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 5,
-          }}
-        >
-          <SevIcon size={12} />
-          {sev.label}
-        </span>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+          <button
+            onClick={onToggleRead}
+            title={alert.read ? "Marcar como no leída" : "Marcar como leída"}
+            style={{
+              padding: "4px 10px",
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              background: alert.read ? "white" : "#eff6ff",
+              color: alert.read ? "#64748b" : "#1d4ed8",
+              border: `1px solid ${alert.read ? "rgba(15, 23, 42, 0.12)" : "#bfdbfe"}`,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            {alert.read ? <Circle size={12} /> : <CircleDot size={12} />}
+            {alert.read ? "No leída" : "Leída"}
+          </button>
+          <span
+            style={{
+              padding: "4px 10px",
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              background: sev.bg,
+              color: sev.color,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <SevIcon size={12} />
+            {sev.label}
+          </span>
+        </div>
       </div>
 
       <div
