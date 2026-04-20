@@ -15,7 +15,7 @@
 |---|---|
 | **Último SHA sincronizado desde Producto** | `6441ec25d8c1ba2632fc5836d723ae74e299b2d9` |
 | **Última sesión de Producto leída en el sync** | Sesión 42 (2026-04-18) — P&L Pulso Fase 1 completa |
-| **Última sesión VM ejecutada** | Sesión 2 VM (2026-04-19) — Skills VM (36 construidas) |
+| **Última sesión VM ejecutada** | Sesión 3 VM (2026-04-19/20) — Landing public build: consistencia Tier 3, brand direction cinematográfica, criteria $500K, handoff a Claude Code |
 
 ---
 
@@ -217,5 +217,106 @@ Por qué esta regla: Tomy no quiere depender de acordarse de pushear cada vez. L
 - Todo el contenido VM en GitHub (`tlapidus-rgb/nitrosales`, branch `main`, commit `7a64d71`).
 - Alias `push-vm` por configurar (Tomy lo va a correr ahora al cerrar este chat).
 - Próxima sesión VM: arrancar con ritual de REGLA #2.
+
+---
+
+## Sesión 3 VM — 2026-04-19/20 — Landing pública: Tier 3 completo + brand direction + criteria $500K
+
+### Objetivo
+
+Avanzar la landing pública de NitroSales desde "posicionamiento y matriz" a "dirección visual lockeada + vara de calidad definida + plan de build listo". Pivot de fase de copy a fase de diseño/implementación.
+
+### Lo que se hizo
+
+**Pase de consistencia cross-landings (Sprints 1-3).** Los 9 landings Tier 3 tenían inconsistencias de posicionamiento (varias versiones de la tagline flotando, referencias a precios concretos en algunos, hooks no alineados). Se hizo:
+- Sprint 1: fixes duros (alinear H1, CTAs, eyebrows a posicionamiento v5).
+- Sprint 2: barrido cross-landings (patrones distintivos por landing, eliminación de fragments redundantes).
+- Sprint 3: escritura de `LANDING_PRECIOS.md` respetando la regla "no USD/ARS concretos en landings Tier 3" (Camino A — transparencia cualitativa).
+
+**Brand direction — 4 iteraciones hasta lock.** Tomy venía con tensión entre ser "serio tipo Notion/Superhuman" vs "visual tipo Stripe/Ramp con product shots". Se generaron:
+- V1 — 4 personalidades completas (A Stripe/Ramp, B Vercel/Linear, C Notion/Superhuman, D Arc/Raycast).
+- V2 — variantes dentro de A y C para análisis más fino (A2 Ramp, A3 Linear Light, C2 Superhuman, C3 Editorial).
+- C2+ — fusión warm premium (producto visible + italic serif Instrument Serif). **Rechazado por Tomy** — el italic se sentía "raro" y el nivel premium no llegaba.
+- **CINEMATIC** — pivot completo: dark protagonista (no warm light), zero serif (zero italic), cero screenshots de producto en hero (metáfora abstracta: sistemas orbitando un núcleo), mucha animación, auroras, grid respirando, connection lines animadas, glass morphism con detalle. **Lockeada como dirección.**
+
+**Criteria de calidad subido a tier $500K.** Tomy explícitamente levantó la vara de "$30K landing" a "$500K landing". Se escribió `BRAND_CRITERIA_PREMIUM.md` con 17 secciones:
+- Benchmarks obligatorios (Apple Vision Pro, Anthropic, Linear, Stripe Sessions, Rabbit, Humane, Arc, Framer, Runway, AirPods Max).
+- 7 leyes de motion con curvas específicas y timings.
+- 6 familias display candidatas a licenciar ($500-2000).
+- Paleta con variables CSS exactas.
+- Reglas de 3D (Three.js + R3F + shaders custom, presupuesto 4ms/frame).
+- Reglas de cursor custom + magnetic hover.
+- Loading sequence coreografiada.
+- 15 anti-patterns explícitos.
+- Stack oficial (Next.js + Framer Motion + GSAP + Lenis + R3F).
+- Checklist de 17 puntos pre-entrega.
+
+**Handoff a Claude Code.** Tomy pidió documentar todo y pasar la implementación a Claude Code (mejor tooling). Se escribió `LANDING_BUILD_HANDOFF.md` con:
+- Arco macro del proyecto (Fase 1-8).
+- Qué está lockeado vs qué queda open.
+- 10 decisiones canónicas no reabribles.
+- Biblia de referencia ordenada.
+- Decisión de arquitectura de repo (recomendación: repo separado `nitrosales-landing`).
+- Stack técnico detallado con estructura de carpetas sugerida.
+- 8 pasos de ejecución en orden.
+- Rules of engagement para Claude Code.
+
+### Archivos creados/modificados
+
+**Creados:**
+- `CLAUDE_VM/MENSAJES/CONSISTENCIA_TIER3_v1.md` — reporte del pase.
+- `CLAUDE_VM/MENSAJES/SPRINT1_CONSISTENCIA_CHANGELOG.md`
+- `CLAUDE_VM/MENSAJES/SPRINT2_CONSISTENCIA_CHANGELOG.md`
+- `CLAUDE_VM/MENSAJES/SPRINT3_CONSISTENCIA_CHANGELOG.md`
+- `CLAUDE_VM/MENSAJES/LANDING_PRECIOS.md` — Tier 3 precios.
+- `CLAUDE_VM/MENSAJES/BRAND_DIRECTIONS_PREVIEW.html` — V1 4 personalidades (HISTORIA).
+- `CLAUDE_VM/MENSAJES/BRAND_DIRECTIONS_PREVIEW_V2.html` — V2 variantes A y C (HISTORIA).
+- `CLAUDE_VM/MENSAJES/BRAND_DIRECTION_C2_PLUS.html` — intento warm premium (HISTORIA, rechazado).
+- `CLAUDE_VM/MENSAJES/BRAND_DIRECTION_CINEMATIC.html` — **dirección lockeada.**
+- `CLAUDE_VM/MENSAJES/BRAND_CRITERIA_PREMIUM.md` — la vara $500K.
+- `CLAUDE_VM/MENSAJES/LANDING_BUILD_HANDOFF.md` — handoff completo para la próxima sesión.
+
+**Modificados:**
+- `CLAUDE_VM/MENSAJES/LANDING_*.md` varios (touches del pase de consistencia).
+- Este archivo (`HISTORIAL_SESIONES_VENTAS_MARKETING.md`) — entrada Sesión 3.
+
+### Decisiones canónicas tomadas en esta sesión (NO reabrir sin razón fuerte)
+
+1. **Personalidad visual:** cinematográfica dark. No warm light. No editorial serif. No SaaS genérico.
+2. **Serifs en landing pública:** prohibidos salvo caso excepcional justificado.
+3. **Metáfora hero:** orbital / sistemas conectándose. NO screenshots de producto.
+4. **Modo color:** dark protagonista (`--bg: #06070b`, nunca `#000` plano).
+5. **Vara de calidad:** tier $500K landing. Medido contra BRAND_CRITERIA_PREMIUM.md.
+6. **Precios en Tier 3:** sin USD/ARS concretos (Camino A Sprint 3).
+7. **Stack técnico:** Next.js 14 App Router + Framer Motion + GSAP + Lenis + R3F + Three.js + tipografía display licenciada.
+8. **Arquitectura de repo recomendada:** repo separado `nitrosales-landing` (Opción A del handoff). **Pendiente confirmación final de Tomy.**
+
+### Pendientes al cierre de sesión
+
+1. Pulir `BRAND_DIRECTION_CINEMATIC.html` con reglas del criteria doc (split type, cursor custom, loading sequence, reveals).
+2. Decidir tagline final entre 7 candidatos sobre 3 ángulos.
+3. Licenciar familia display (6 candidatas).
+4. Tomy confirma decisión de arquitectura de repo.
+5. Scaffolding Next.js en Claude Code.
+6. Build sección por sección siguiendo sección 6 del handoff.
+
+### Próxima sesión — transición de canal
+
+Esta es la última sesión que se hace desde **Cowork**. La próxima sesión se arranca desde **Claude Code** apuntando al repo nitrosales (o `nitrosales-landing` si se aprueba Opción A). Ritual de arranque obligatorio:
+
+1. `cd` al repo.
+2. `git fetch && git checkout main && git pull`.
+3. Leer `CLAUDE_VM/MENSAJES/LANDING_BUILD_HANDOFF.md` (biblia de la siguiente fase).
+4. Leer `CLAUDE_VM/MENSAJES/BRAND_CRITERIA_PREMIUM.md` (la vara).
+5. Abrir `CLAUDE_VM/MENSAJES/BRAND_DIRECTION_CINEMATIC.html` en browser para calibrar ojo.
+6. Leer los 9 docs de `CLAUDE_VM/CONOCIMIENTO_PRODUCTO/`.
+7. Preguntar a Tomy por el próximo paso concreto según sección 6 del handoff.
+
+### Estado al cerrar la sesión
+
+- `main` tiene todos los docs de esta sesión pendientes de `push-vm`.
+- BRAND_DIRECTION_CINEMATIC.html es el mockup de referencia (`BRAND_DIRECTION_C2_PLUS.html` queda como historia).
+- Criteria doc + handoff listos para que Claude Code tenga contexto completo.
+- Tomy va a correr `push-vm` al cerrar este chat para que quede en GitHub antes de abrir Claude Code.
 
 ---

@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NitroSales — Cinematic AI Commerce</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500&display=swap"
+    rel="stylesheet"
+  />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --ink: #f5f5f4;
+      --ink-2: rgba(245, 245, 244, 0.72);
+      --ink-3: rgba(245, 245, 244, 0.48);
+      --ink-4: rgba(245, 245, 244, 0.32);
+      --ink-5: rgba(245, 245, 244, 0.12);
+      --bg: #06070b;
+      --bg-2: #0a0c14;
+      --accent-cyan: #22d3ee;
+      --accent-orange: #fb923c;
+      --accent-violet: #a78bfa;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    * { box-sizing: border-box; transition-timing-function: var(--ease); }
+    html { background: var(--bg); }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+    .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+    /* ====== AMBIENT BACKGROUND LAYERS ====== */
+    .ambient-root {
+      position: fixed; inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .dot-grid {
+      position: absolute; inset: 0;
+      background-image: radial-gradient(rgba(245, 245, 244, 0.055) 1px, transparent 1px);
+      background-size: 28px 28px;
+      background-position: 0 0;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, rgba(0,0,0,1) 30%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, rgba(0,0,0,1) 30%, transparent 100%);
+      animation: gridShift 60s linear infinite;
+    }
+    @keyframes gridShift {
+      from { background-position: 0 0; }
+      to { background-position: 28px 28px; }
+    }
+    .aurora {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.55;
+      animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+      animation-iteration-count: infinite;
+    }
+    .aurora-1 {
+      width: 680px; height: 680px;
+      background: radial-gradient(circle, rgba(34, 211, 238, 0.32), transparent 65%);
+      top: -10%; left: -8%;
+      animation: drift-1 24s infinite alternate;
+    }
+    .aurora-2 {
+      width: 580px; height: 580px;
+      background: radial-gradient(circle, rgba(251, 146, 60, 0.24), transparent 65%);
+      top: 18%; right: -10%;
+      animation: drift-2 28s infinite alternate;
+    }
+    .aurora-3 {
+      width: 520px; height: 520px;
+      background: radial-gradient(circle, rgba(167, 139, 250, 0.18), transparent 65%);
+      bottom: -20%; left: 20%;
+      animation: drift-3 32s infinite alternate;
+    }
+    @keyframes drift-1 { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(80px, 60px) scale(1.08); } }
+    @keyframes drift-2 { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(-60px, 80px) scale(1.05); } }
+    @keyframes drift-3 { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(40px, -60px) scale(1.1); } }
+
+    /* ====== TYPOGRAPHY ====== */
+    .display {
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.045em;
+      line-height: 0.92;
+      font-feature-settings: 'ss01', 'cv11';
+    }
+    .display-xl { font-size: clamp(64px, 10vw, 132px); }
+    .display-lg { font-size: clamp(48px, 7vw, 92px); }
+    .display-md { font-size: clamp(36px, 5vw, 64px); }
+    .h1-gradient {
+      background: linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.7) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      font-weight: 400;
+      text-transform: uppercase;
+      letter-spacing: 0.28em;
+      color: var(--ink-3);
+    }
+    .body-lg { font-size: 18px; line-height: 1.55; font-weight: 300; color: var(--ink-2); }
+    .body-md { font-size: 15px; line-height: 1.6; font-weight: 300; color: var(--ink-2); }
+    .body-sm { font-size: 13.5px; line-height: 1.55; font-weight: 300; color: var(--ink-3); }
+
+    /* ====== BUTTONS ====== */
+    .btn-primary {
+      position: relative;
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 26px;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      background: var(--ink);
+      color: #06070b;
+      border-radius: 9999px;
+      transition: transform 220ms var(--ease), box-shadow 220ms var(--ease);
+      box-shadow:
+        0 0 0 1px rgba(245, 245, 244, 0.08),
+        0 1px 0 rgba(245, 245, 244, 0.2) inset,
+        0 10px 30px -10px rgba(34, 211, 238, 0.3);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(245,245,244,0.12), 0 1px 0 rgba(245,245,244,0.28) inset, 0 16px 40px -8px rgba(34, 211, 238, 0.45); }
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 22px;
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--ink-2);
+      border-radius: 9999px;
+      background: rgba(245, 245, 244, 0.04);
+      border: 1px solid rgba(245, 245, 244, 0.08);
+      transition: all 220ms var(--ease);
+    }
+    .btn-ghost:hover { background: rgba(245, 245, 244, 0.08); color: var(--ink); border-color: rgba(245, 245, 244, 0.16); }
+
+    /* ====== HAIRLINES ====== */
+    .hairline { height: 1px; background: linear-gradient(90deg, transparent, rgba(245,245,244,0.12), transparent); }
+    .hairline-v { width: 1px; background: linear-gradient(180deg, transparent, rgba(245,245,244,0.12), transparent); }
+
+    /* ====== CARDS ====== */
+    .glass {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%);
+      border: 1px solid rgba(245, 245, 244, 0.08);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 20px;
+    }
+
+    /* ====== PULSE DOT ====== */
+    .pulse {
+      position: relative;
+      width: 7px; height: 7px; border-radius: 9999px;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 12px rgba(34, 211, 238, 0.8);
+    }
+    .pulse::after {
+      content: ""; position: absolute; inset: -4px;
+      border-radius: 9999px;
+      background: var(--accent-cyan);
+      opacity: 0.4;
+      animation: pulse-ring 2.4s var(--ease) infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { transform: scale(1); opacity: 0.4; }
+      50% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* ====== CENTRAL ORB (hero abstract visual) ====== */
+    .orb-system {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+    .orb-core {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, rgba(34, 211, 238, 0.6) 0%, rgba(34, 211, 238, 0.12) 40%, transparent 70%);
+      box-shadow:
+        0 0 60px rgba(34, 211, 238, 0.4),
+        0 0 120px rgba(34, 211, 238, 0.2),
+        inset 0 0 30px rgba(255, 255, 255, 0.08);
+      z-index: 3;
+    }
+    .orb-core::before {
+      content: "";
+      position: absolute; inset: 30px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%, #ffffff 0%, rgba(255,255,255,0.3) 40%, transparent 100%);
+      animation: core-pulse 4s ease-in-out infinite;
+    }
+    @keyframes core-pulse {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.12); opacity: 1; }
+    }
+    .orb-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      border-radius: 50%;
+      border: 1px solid rgba(245, 245, 244, 0.12);
+      transform: translate(-50%, -50%);
+    }
+    .orb-ring-1 { width: 58%; height: 58%; animation: spin-slow 28s linear infinite; border-top-color: rgba(34, 211, 238, 0.4); border-right-color: rgba(245,245,244,0.06); }
+    .orb-ring-2 { width: 76%; height: 76%; animation: spin-slow-reverse 42s linear infinite; border-top-color: rgba(251, 146, 60, 0.3); border-left-color: rgba(245,245,244,0.04); }
+    .orb-ring-3 { width: 96%; height: 96%; animation: spin-slow 68s linear infinite; border-right-color: rgba(167, 139, 250, 0.28); }
+    @keyframes spin-slow { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+    @keyframes spin-slow-reverse { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(-360deg); } }
+
+    .satellite {
+      position: absolute;
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+      border: 1px solid rgba(245, 245, 244, 0.12);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      color: var(--ink-2);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 24px -8px rgba(0,0,0,0.4), 0 0 0 1px rgba(245,245,244,0.04) inset;
+      z-index: 2;
+      transition: all 300ms var(--ease);
+    }
+    .satellite:hover { transform: scale(1.08); border-color: rgba(34, 211, 238, 0.4); box-shadow: 0 12px 32px -8px rgba(34, 211, 238, 0.3); }
+
+    /* Connection lines (SVG) pulsing */
+    .connections { position: absolute; inset: 0; z-index: 1; }
+    .conn-line {
+      stroke: url(#connGradient);
+      stroke-width: 1;
+      fill: none;
+      stroke-dasharray: 200;
+      stroke-dashoffset: 0;
+      animation: dash-flow 4s linear infinite;
+      opacity: 0.6;
+    }
+    @keyframes dash-flow {
+      0% { stroke-dashoffset: 200; }
+      100% { stroke-dashoffset: 0; }
+    }
+
+    /* ====== LAYER VISUAL (Observa/Entiende/Recuerda/Decide) ====== */
+    .layer-card {
+      position: relative;
+      padding: 40px 32px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+      border: 1px solid rgba(245, 245, 244, 0.08);
+      overflow: hidden;
+      transition: transform 400ms var(--ease), border-color 400ms var(--ease);
+    }
+    .layer-card:hover { transform: translateY(-4px); border-color: rgba(245, 245, 244, 0.16); }
+    .layer-viz {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 28px;
+      background: radial-gradient(ellipse 100% 80% at 50% 100%, rgba(245,245,244,0.04) 0%, transparent 70%);
+      border: 1px solid rgba(245, 245, 244, 0.06);
+    }
+
+    /* Viz: Observa (pixel propio — sensor grid) */
+    .viz-observe {
+      background: radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.1) 0%, transparent 70%);
+    }
+    .viz-observe-grid {
+      position: absolute; inset: 0;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      grid-template-rows: repeat(5, 1fr);
+      gap: 1px;
+      padding: 24px;
+    }
+    .viz-observe-grid span {
+      border-radius: 2px;
+      background: rgba(34, 211, 238, 0.08);
+      animation: cell-pulse 3s ease-in-out infinite;
+    }
+    .viz-observe-grid span:nth-child(3n) { animation-delay: 0.3s; background: rgba(34, 211, 238, 0.16); }
+    .viz-observe-grid span:nth-child(5n) { animation-delay: 0.6s; background: rgba(34, 211, 238, 0.24); box-shadow: 0 0 8px rgba(34,211,238,0.4); }
+    .viz-observe-grid span:nth-child(7n) { animation-delay: 0.9s; }
+    @keyframes cell-pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    /* Viz: Entiende (neural network nodes) */
+    .viz-understand-node {
+      animation: node-breathe 3s ease-in-out infinite;
+    }
+    @keyframes node-breathe { 0%,100% { r: 3; opacity: 0.8; } 50% { r: 4.5; opacity: 1; } }
+
+    /* Viz: Recuerda (memory timeline spiral) */
+    .viz-memory {
+      background: radial-gradient(circle at 50% 50%, rgba(167, 139, 250, 0.1) 0%, transparent 70%);
+    }
+
+    /* Viz: Decide (prism refracting data) */
+    .viz-decide {
+      background: radial-gradient(circle at 50% 50%, rgba(5, 150, 105, 0.1) 0%, transparent 70%);
+    }
+
+    /* ====== REVEAL ANIMATION ====== */
+    @media (prefers-reduced-motion: no-preference) {
+      .reveal { opacity: 0; transform: translateY(12px); animation: reveal 900ms var(--ease) forwards; }
+      .reveal-1 { animation-delay: 0.05s; }
+      .reveal-2 { animation-delay: 0.15s; }
+      .reveal-3 { animation-delay: 0.28s; }
+      .reveal-4 { animation-delay: 0.42s; }
+      .reveal-5 { animation-delay: 0.6s; }
+    }
+    @keyframes reveal { to { opacity: 1; transform: translateY(0); } }
+
+    /* ====== PLATFORM LOGO CHIPS ====== */
+    .plogo {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+      color: rgba(245,245,244,0.42);
+      transition: color 220ms var(--ease);
+    }
+    .plogo:hover { color: rgba(245,245,244,0.72); }
+
+    /* ====== SCROLL CUE ====== */
+    .scroll-cue {
+      position: absolute;
+      bottom: 40px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .scroll-cue-line {
+      width: 1px; height: 40px;
+      background: linear-gradient(180deg, rgba(245,245,244,0.06), rgba(245,245,244,0.3), rgba(245,245,244,0.06));
+      position: relative; overflow: hidden;
+    }
+    .scroll-cue-line::after {
+      content: ""; position: absolute; left: 0; top: 0; width: 100%; height: 30%;
+      background: linear-gradient(180deg, transparent, var(--accent-cyan));
+      animation: scroll-run 2.2s ease-in-out infinite;
+    }
+    @keyframes scroll-run { 0% { top: -30%; } 100% { top: 100%; } }
+
+  </style>
+</head>
+<body>
+
+  <!-- ========= AMBIENT BACKGROUND ========= -->
+  <div class="ambient-root">
+    <div class="dot-grid"></div>
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
+    <div class="aurora aurora-3"></div>
+  </div>
+
+  <div class="relative z-10">
+
+    <!-- ========= NAV ========= -->
+    <nav class="max-w-[1320px] mx-auto px-8 py-7 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- Logo: abstract node with orbital -->
+        <div class="relative w-9 h-9 flex items-center justify-center">
+          <div class="absolute inset-0 rounded-full border" style="border-color: rgba(245,245,244,0.14);"></div>
+          <div class="absolute inset-[6px] rounded-full" style="background: radial-gradient(circle at 35% 30%, rgba(34,211,238,0.8) 0%, rgba(34,211,238,0.15) 50%, transparent 80%); box-shadow: 0 0 16px rgba(34,211,238,0.4);"></div>
+          <div class="absolute inset-[12px] rounded-full bg-white"></div>
+        </div>
+        <span class="text-[15px] font-semibold tracking-[-0.01em]">NitroSales</span>
+      </div>
+      <div class="hidden md:flex items-center gap-8 text-[13px] text-[var(--ink-3)]">
+        <a href="#" class="hover:text-white transition">Plataforma</a>
+        <a href="#" class="hover:text-white transition">Productos</a>
+        <a href="#" class="hover:text-white transition">Precios</a>
+        <a href="#" class="hover:text-white transition">Agencias</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="#" class="text-[13px] text-[var(--ink-3)] hover:text-white px-2 py-2">Ingresar</a>
+        <a href="#" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">Pedir demo</a>
+      </div>
+    </nav>
+
+    <!-- ========= HERO ========= -->
+    <section class="relative max-w-[1320px] mx-auto px-8 pt-16 pb-24 min-h-[88vh] flex items-center">
+      <div class="grid lg:grid-cols-[1.1fr_0.9fr] gap-20 items-center w-full">
+
+        <!-- Text column -->
+        <div>
+          <div class="reveal reveal-1 inline-flex items-center gap-3 pr-4 pl-2.5 py-1.5 rounded-full mb-10" style="background: rgba(245,245,244,0.04); border: 1px solid rgba(245,245,244,0.08);">
+            <span class="pulse"></span>
+            <span class="font-mono text-[10.5px] uppercase tracking-[0.24em] text-[var(--ink-2)]">AI Commerce Platform · LATAM</span>
+          </div>
+
+          <h1 class="reveal reveal-2 display display-xl mb-9">
+            <span class="h1-gradient">AI Commerce.</span><br/>
+            <span style="color: #ffffff;">Tu primer</span><br/>
+            <span class="h1-gradient">activo digital.</span>
+          </h1>
+
+          <p class="reveal reveal-3 body-lg max-w-[480px] mb-10">
+            Un pixel propio en tu dominio. Una IA que conoce tu negocio. Un P&amp;L tri-currency en vivo. Todo conectado en una sola infraestructura — la que hoy no existe.
+          </p>
+
+          <div class="reveal reveal-4 flex flex-wrap gap-3 mb-16">
+            <a href="#" class="btn-primary">
+              Pedir demo
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3l5 5-5 5"/></svg>
+            </a>
+            <a href="#" class="btn-ghost">
+              Ver cómo funciona
+            </a>
+          </div>
+
+          <!-- Compatible with strip -->
+          <div class="reveal reveal-5">
+            <p class="eyebrow mb-5">Infraestructura conectada con</p>
+            <div class="flex flex-wrap items-center gap-x-7 gap-y-4">
+              <span class="plogo">Meta</span>
+              <span class="hairline-v h-4"></span>
+              <span class="plogo">Google</span>
+              <span class="hairline-v h-4"></span>
+              <span class="plogo">Mercado Libre</span>
+              <span class="hairline-v h-4"></span>
+              <span class="plogo">VTEX</span>
+              <span class="hairline-v h-4"></span>
+              <span class="plogo">Tiendanube</span>
+              <span class="hairline-v h-4"></span>
+              <span class="plogo">Shopify</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Orbital visual -->
+        <div class="reveal reveal-3 relative">
+          <div class="orb-system">
+            <!-- Connections SVG -->
+            <svg class="connections" viewBox="0 0 560 560" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <linearGradient id="connGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"/>
+                  <stop offset="50%" stop-color="#22d3ee" stop-opacity="0.5"/>
+                  <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="connGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#fb923c" stop-opacity="0"/>
+                  <stop offset="50%" stop-color="#fb923c" stop-opacity="0.45"/>
+                  <stop offset="100%" stop-color="#fb923c" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- Center to satellites -->
+              <line class="conn-line" x1="280" y1="280" x2="80" y2="140" style="stroke: url(#connGradient);"/>
+              <line class="conn-line" x1="280" y1="280" x2="480" y2="140" style="stroke: url(#connGradient2); animation-delay: 0.5s;"/>
+              <line class="conn-line" x1="280" y1="280" x2="490" y2="300" style="stroke: url(#connGradient); animation-delay: 1s;"/>
+              <line class="conn-line" x1="280" y1="280" x2="430" y2="480" style="stroke: url(#connGradient2); animation-delay: 1.5s;"/>
+              <line class="conn-line" x1="280" y1="280" x2="130" y2="480" style="stroke: url(#connGradient); animation-delay: 2s;"/>
+              <line class="conn-line" x1="280" y1="280" x2="50" y2="320" style="stroke: url(#connGradient2); animation-delay: 2.5s;"/>
+            </svg>
+
+            <!-- Rings -->
+            <div class="orb-ring orb-ring-3"></div>
+            <div class="orb-ring orb-ring-2"></div>
+            <div class="orb-ring orb-ring-1"></div>
+
+            <!-- Core -->
+            <div class="orb-core"></div>
+
+            <!-- Satellites (platforms) -->
+            <div class="satellite" style="top: 14%; left: 8%;">Meta</div>
+            <div class="satellite" style="top: 14%; right: 8%;">GOOG</div>
+            <div class="satellite" style="top: 50%; right: 0%; transform: translateY(-50%);">MELI</div>
+            <div class="satellite" style="bottom: 10%; right: 18%;">VTEX</div>
+            <div class="satellite" style="bottom: 10%; left: 18%;">SHOP</div>
+            <div class="satellite" style="top: 50%; left: 0%; transform: translateY(-50%);">GA4</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========= HAIRLINE DIVIDER ========= -->
+    <div class="max-w-[1320px] mx-auto px-8">
+      <div class="hairline"></div>
+    </div>
+
+    <!-- ========= SECTION: Fragmentation → Resolution ========= -->
+    <section class="max-w-[1320px] mx-auto px-8 py-36">
+      <div class="grid lg:grid-cols-2 gap-20 items-center">
+        <div>
+          <p class="eyebrow mb-6">El problema que resolvemos</p>
+          <h2 class="display display-lg mb-8">
+            <span class="h1-gradient">Hoy cada plataforma</span><br/>
+            <span style="color: rgba(245,245,244,0.55);">te cuenta</span><br/>
+            <span class="h1-gradient">su propia historia.</span>
+          </h2>
+          <p class="body-lg mb-6">
+            Meta reporta conversiones como Meta. Google reporta como Google. VTEX te muestra ventas. Cada una optimiza para sí misma. Nadie cruza la data.
+          </p>
+          <p class="body-md" style="color: var(--ink-3);">
+            Y vos terminás con cinco dashboards abiertos, tres planillas, un asesor externo y la sensación de que los números no cierran entre sí — porque no cierran.
+          </p>
+        </div>
+
+        <!-- Fragmentation visual -->
+        <div class="relative aspect-square max-w-[500px] mx-auto w-full">
+          <!-- Disconnected floating platforms -->
+          <div class="absolute top-[8%] left-[10%] w-24 h-24 rounded-2xl glass flex items-center justify-center" style="transform: rotate(-6deg);">
+            <span class="plogo" style="color: var(--ink-2);">Meta</span>
+          </div>
+          <div class="absolute top-[10%] right-[8%] w-24 h-24 rounded-2xl glass flex items-center justify-center" style="transform: rotate(4deg);">
+            <span class="plogo" style="color: var(--ink-2);">Google</span>
+          </div>
+          <div class="absolute top-[44%] left-[4%] w-20 h-20 rounded-2xl glass flex items-center justify-center" style="transform: rotate(8deg);">
+            <span class="plogo" style="color: var(--ink-2);">MELI</span>
+          </div>
+          <div class="absolute top-[42%] right-[2%] w-20 h-20 rounded-2xl glass flex items-center justify-center" style="transform: rotate(-3deg);">
+            <span class="plogo" style="color: var(--ink-2);">VTEX</span>
+          </div>
+          <div class="absolute bottom-[14%] left-[20%] w-24 h-24 rounded-2xl glass flex items-center justify-center" style="transform: rotate(-5deg);">
+            <span class="plogo" style="color: var(--ink-2);">GA4</span>
+          </div>
+          <div class="absolute bottom-[10%] right-[24%] w-20 h-20 rounded-2xl glass flex items-center justify-center" style="transform: rotate(7deg);">
+            <span class="plogo" style="color: var(--ink-2);">TN</span>
+          </div>
+
+          <!-- Broken dotted lines between them -->
+          <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <line x1="22" y1="22" x2="82" y2="22" stroke="rgba(245,245,244,0.14)" stroke-width="0.3" stroke-dasharray="2 3"/>
+            <line x1="14" y1="54" x2="90" y2="52" stroke="rgba(245,245,244,0.12)" stroke-width="0.3" stroke-dasharray="2 3"/>
+            <line x1="30" y1="82" x2="70" y2="84" stroke="rgba(245,245,244,0.12)" stroke-width="0.3" stroke-dasharray="2 3"/>
+            <line x1="22" y1="22" x2="24" y2="82" stroke="rgba(245,245,244,0.08)" stroke-width="0.3" stroke-dasharray="2 3"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========= RESOLUTION ========= -->
+    <section class="max-w-[1320px] mx-auto px-8 py-36">
+      <div class="text-center max-w-3xl mx-auto mb-20">
+        <p class="eyebrow mb-6">Lo que NitroSales hace</p>
+        <h2 class="display display-lg mb-8">
+          <span class="h1-gradient">Cruza lo que nadie cruza.</span><br/>
+          <span style="color: rgba(245,245,244,0.55);">Y lo convierte</span> <span class="h1-gradient">en decisiones.</span>
+        </h2>
+        <p class="body-lg max-w-2xl mx-auto">
+          Un pixel propio en tu dominio. Una IA con memoria que conoce tu negocio. Un P&amp;L tri-currency en vivo. Una capa de inteligencia que te faltaba.
+        </p>
+      </div>
+
+      <!-- 4 LAYER CARDS -->
+      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+
+        <!-- Observa -->
+        <div class="layer-card">
+          <div class="layer-viz viz-observe">
+            <div class="viz-observe-grid">
+              <!-- 35 cells (7x5) -->
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <p class="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--ink-4)] mb-3">01 · Observa</p>
+          <h3 class="text-[22px] font-semibold tracking-[-0.025em] mb-3">NitroPixel</h3>
+          <p class="body-sm">Un sensor que vive en tu dominio, no en el de Meta. Ve cada touchpoint — incluso los que las plataformas no quieren mostrarte.</p>
+        </div>
+
+        <!-- Entiende -->
+        <div class="layer-card">
+          <div class="layer-viz" style="background: radial-gradient(circle at 50% 50%, rgba(167, 139, 250, 0.1) 0%, transparent 70%);">
+            <svg viewBox="0 0 240 150" class="absolute inset-0 w-full h-full">
+              <!-- Neural network nodes -->
+              <g stroke="rgba(167, 139, 250, 0.18)" stroke-width="0.7">
+                <line x1="40" y1="40" x2="120" y2="60"/><line x1="40" y1="40" x2="120" y2="100"/>
+                <line x1="40" y1="80" x2="120" y2="60"/><line x1="40" y1="80" x2="120" y2="100"/>
+                <line x1="40" y1="120" x2="120" y2="60"/><line x1="40" y1="120" x2="120" y2="100"/>
+                <line x1="120" y1="60" x2="200" y2="75"/><line x1="120" y1="100" x2="200" y2="75"/>
+              </g>
+              <g fill="#a78bfa">
+                <circle class="viz-understand-node" cx="40" cy="40" r="3"/>
+                <circle class="viz-understand-node" cx="40" cy="80" r="3" style="animation-delay: 0.2s;"/>
+                <circle class="viz-understand-node" cx="40" cy="120" r="3" style="animation-delay: 0.4s;"/>
+                <circle class="viz-understand-node" cx="120" cy="60" r="3.5" style="animation-delay: 0.6s;"/>
+                <circle class="viz-understand-node" cx="120" cy="100" r="3.5" style="animation-delay: 0.8s;"/>
+                <circle class="viz-understand-node" cx="200" cy="75" r="4" style="animation-delay: 1s;"/>
+              </g>
+            </svg>
+          </div>
+          <p class="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--ink-4)] mb-3">02 · Entiende</p>
+          <h3 class="text-[22px] font-semibold tracking-[-0.025em] mb-3">Aurum</h3>
+          <p class="body-sm">IA con memoria. Conoce tu catálogo, tus campañas, tus clientes. No responde genérico — decide con tu contexto.</p>
+        </div>
+
+        <!-- Recuerda -->
+        <div class="layer-card">
+          <div class="layer-viz viz-memory">
+            <svg viewBox="0 0 240 150" class="absolute inset-0 w-full h-full">
+              <!-- Memory spiral -->
+              <defs>
+                <linearGradient id="memgrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.1"/>
+                  <stop offset="100%" stop-color="#f472b6" stop-opacity="0.8"/>
+                </linearGradient>
+              </defs>
+              <path d="M 20 75 Q 40 60, 60 65 T 100 70 T 140 62 T 180 70 T 220 55" stroke="url(#memgrad)" stroke-width="1.5" fill="none"/>
+              <g fill="#f472b6">
+                <circle cx="220" cy="55" r="4"/>
+                <circle cx="220" cy="55" r="8" fill="#f472b6" opacity="0.25"/>
+              </g>
+              <g fill="rgba(167, 139, 250, 0.6)">
+                <circle cx="60" cy="65" r="2"/>
+                <circle cx="100" cy="70" r="2"/>
+                <circle cx="140" cy="62" r="2"/>
+                <circle cx="180" cy="70" r="2"/>
+              </g>
+              <g font-family="JetBrains Mono" font-size="7" fill="rgba(245,245,244,0.4)">
+                <text x="52" y="88">t-90d</text>
+                <text x="95" y="88">t-60d</text>
+                <text x="134" y="88">t-30d</text>
+                <text x="175" y="88">t-7d</text>
+                <text x="214" y="88">ahora</text>
+              </g>
+            </svg>
+          </div>
+          <p class="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--ink-4)] mb-3">03 · Recuerda</p>
+          <h3 class="text-[22px] font-semibold tracking-[-0.025em] mb-3">Bondly · Aura</h3>
+          <p class="body-sm">Clientes VIP y creators con historia. La plataforma recuerda quién compró qué, quién recomendó, quién volvió.</p>
+        </div>
+
+        <!-- Decide -->
+        <div class="layer-card">
+          <div class="layer-viz viz-decide">
+            <svg viewBox="0 0 240 150" class="absolute inset-0 w-full h-full">
+              <defs>
+                <linearGradient id="prism1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#22d3ee" stop-opacity="0.4"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/></linearGradient>
+                <linearGradient id="prism2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#059669" stop-opacity="0.5"/><stop offset="100%" stop-color="#059669" stop-opacity="0"/></linearGradient>
+                <linearGradient id="prism3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fb923c" stop-opacity="0.4"/><stop offset="100%" stop-color="#fb923c" stop-opacity="0"/></linearGradient>
+              </defs>
+              <!-- Prism base (triangle) -->
+              <polygon points="120,30 90,85 150,85" fill="rgba(245,245,244,0.06)" stroke="rgba(245,245,244,0.2)" stroke-width="0.8"/>
+              <!-- Light entering -->
+              <line x1="40" y1="55" x2="110" y2="58" stroke="rgba(245,245,244,0.3)" stroke-width="1"/>
+              <!-- Light refracting into 3 beams -->
+              <line x1="130" y1="60" x2="220" y2="35" stroke="url(#prism1)" stroke-width="2"/>
+              <line x1="135" y1="70" x2="222" y2="70" stroke="url(#prism2)" stroke-width="2.5"/>
+              <line x1="130" y1="80" x2="220" y2="110" stroke="url(#prism3)" stroke-width="2"/>
+              <!-- Labels -->
+              <g font-family="JetBrains Mono" font-size="6.5" fill="rgba(245,245,244,0.5)" text-anchor="end">
+                <text x="222" y="32">ARS</text>
+                <text x="222" y="67">USD</text>
+                <text x="222" y="107">BRL</text>
+              </g>
+            </svg>
+          </div>
+          <p class="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--ink-4)] mb-3">04 · Decide</p>
+          <h3 class="text-[22px] font-semibold tracking-[-0.025em] mb-3">P&amp;L tri-currency</h3>
+          <p class="body-sm">Margen neto real en vivo, separado por moneda, por canal, por SKU. La verdad contable, no lo que cada plataforma jura que ganaste.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========= BIG STATEMENT ========= -->
+    <section class="max-w-[1320px] mx-auto px-8 py-40 text-center relative">
+      <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(34,211,238,0.08) 0%, transparent 70%);"></div>
+      <div class="relative">
+        <p class="eyebrow mb-8">El norte</p>
+        <h2 class="display display-lg max-w-5xl mx-auto mb-12">
+          <span style="color: rgba(245,245,244,0.45);">Un ecommerce no tiene</span><br/>
+          <span class="h1-gradient">que ser una suma de</span><br/>
+          <span style="color: rgba(245,245,244,0.45);">herramientas alquiladas.</span>
+        </h2>
+        <p class="body-lg max-w-xl mx-auto" style="color: var(--ink-2);">
+          Puede ser un activo que te pertenece, que aprende de vos, y que trabaja incluso cuando no estás mirando.
+        </p>
+      </div>
+    </section>
+
+    <!-- ========= FINAL CTA ========= -->
+    <section class="max-w-[1320px] mx-auto px-8 py-36">
+      <div class="glass p-16 md:p-20 relative overflow-hidden">
+        <!-- Ambient glow inside -->
+        <div class="absolute inset-0 pointer-events-none">
+          <div class="aurora" style="width: 400px; height: 400px; top: -30%; right: -10%; background: radial-gradient(circle, rgba(34, 211, 238, 0.25), transparent 65%); filter: blur(80px);"></div>
+          <div class="aurora" style="width: 360px; height: 360px; bottom: -30%; left: -10%; background: radial-gradient(circle, rgba(251, 146, 60, 0.18), transparent 65%); filter: blur(80px);"></div>
+        </div>
+        <div class="relative flex flex-col md:flex-row items-start md:items-end justify-between gap-10">
+          <div class="max-w-xl">
+            <p class="eyebrow mb-6">Siguiente paso</p>
+            <h2 class="display display-md mb-6">
+              <span class="h1-gradient">15 minutos.</span><br/>
+              <span style="color: rgba(245,245,244,0.55);">Y ves si te sirve.</span>
+            </h2>
+            <p class="body-md max-w-md">
+              Demo sobre tu stack real. Si no te cierra, no te cierra. Sin seguimiento agresivo, sin fricción.
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <a href="#" class="btn-primary">Pedir demo
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3l5 5-5 5"/></svg>
+            </a>
+            <a href="#" class="btn-ghost">Ver precios</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========= FOOTER ========= -->
+    <footer class="max-w-[1320px] mx-auto px-8 pb-14 pt-8 border-t" style="border-color: rgba(245,245,244,0.08);">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="relative w-7 h-7 flex items-center justify-center">
+            <div class="absolute inset-0 rounded-full border" style="border-color: rgba(245,245,244,0.14);"></div>
+            <div class="absolute inset-[4px] rounded-full" style="background: radial-gradient(circle at 35% 30%, rgba(34,211,238,0.8) 0%, rgba(34,211,238,0.15) 50%, transparent 80%);"></div>
+            <div class="absolute inset-[10px] rounded-full bg-white"></div>
+          </div>
+          <span class="text-[13px] font-semibold tracking-[-0.01em]">NitroSales</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--ink-4)]">AI Commerce · LATAM</span>
+        </div>
+        <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--ink-4)]">
+          BRAND_DIRECTION_CINEMATIC · 2026-04-20
+        </p>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    // Magnetic hover on primary CTAs (subtle)
+    document.querySelectorAll('.btn-primary').forEach(btn => {
+      btn.addEventListener('mousemove', (e) => {
+        const rect = btn.getBoundingClientRect();
+        const x = e.clientX - rect.left - rect.width / 2;
+        const y = e.clientY - rect.top - rect.height / 2;
+        btn.style.transform = `translate(${x * 0.12}px, ${y * 0.18}px)`;
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.transform = '';
+      });
+    });
+  </script>
+</body>
+</html>

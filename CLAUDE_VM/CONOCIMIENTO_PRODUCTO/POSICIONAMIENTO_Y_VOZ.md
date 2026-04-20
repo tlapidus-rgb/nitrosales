@@ -2,7 +2,7 @@
 
 > Este archivo es la fuente de verdad del cómo NitroSales habla al mundo. Todo lo que Claude VM escribe (landing, emails, decks, posts, scripts) tiene que pasar por el filtro de este documento.
 >
-> **Última actualización**: 2026-04-18 — Sesión 1 VM.
+> **Última actualización**: 2026-04-19 — Sesión 2 VM (Fase 1A: Positioning refinado con framework April Dunford + enemy clarification + ICP explícito + arquitectura multi-landing + ROI framework).
 
 ---
 
@@ -19,9 +19,162 @@ Este es el pitch de una línea. Cada parte tiene peso:
 
 El orden importa. Empezamos con la visión grande ("activo digital"), seguimos con los tres beneficios concretos.
 
+### Categoría — AI Commerce Platform
+
+NitroSales juega una categoría que está **creando**, no capturando: **AI Commerce Platform para retailers LATAM multicanal**.
+
+- **AI Commerce** → la próxima generación después de "ecommerce analytics" y "commerce OS". No es BI, no es CRM, no es dashboard: es la infraestructura que **observa, entiende, recuerda y decide** con IA nativa.
+- **Platform, no point-solution** → cubre percepción (pixel), cognición (IA), memoria (clientes y creators) y verdad financiera (P&L tri-currency). Un retailer serio no compra 6 herramientas: compra una plataforma.
+- **LATAM multicanal** → frontera real. USA tiene Triple Whale / Northbeam pero viven en Shopify-USD. LATAM vive en VTEX + MercadoLibre + ARS devaluación + inflación. Nadie lo integró bien.
+
+Cuando alguien pregunte "¿qué tipo de producto son?", la respuesta corta es: **"Somos una AI Commerce Platform. No es BI, no es CRM, no es otra herramienta — es el primer activo digital de un retailer serio."**
+
 ---
 
-## 2. Arquetipo — sistema nervioso / cerebro vivo
+## 2. Enemigo — contra qué competimos
+
+Regla Dunford: no existe "demanda sin alternativas". El cliente ya tiene algo cuando le llegamos. Nuestro trabajo es mapear **las 3 capas del enemigo** para saber a qué le estamos ganando en cada conversación.
+
+### Capa 1 — El status quo fragmentado (enemigo primario)
+
+El retailer **ya tiene un sistema** — solo que ese sistema es una mezcla de parches que asume como normal:
+
+- 10+ tabs abiertas todo el día (Meta Ads, Google Ads, MELI backoffice, VTEX admin, GA4, GSC, Shopify si aplica, Excel de stock, Excel de P&L, WhatsApp con el CFO).
+- Microsistemas dispersos: planilla de inventario, planilla de ROAS blended, planilla de CAC payback, planilla de LTV, planilla de conciliación financiera.
+- Una sensación permanente de "estoy manejando a ciegas" que el dueño acepta como parte del oficio.
+
+**El pitch contra este enemigo**: "Todo eso que hoy hacés con 10 tabs y 5 planillas — lo hace NitroSales, en vivo, en un solo lugar, y con IA que entiende tu negocio."
+
+### Capa 2 — Costos de data actuales: empleados, agencias y licencias (headcount + servicios replaceables)
+
+Este enemigo es el **costo estructural** que el retailer hoy absorbe para tener la data mínima. Tiene 3 sub-capas:
+
+**2a. Empleados internos (headcount fijo)**
+- Analistas de data (1-3 FTE): arman reportes custom, mantienen planillas, consolidan Meta + Google + VTEX + MELI a mano. Costo mensual típico en AR: USD 1.5-3k por cabeza.
+- Head of data / CFO analítico: seniority alto dedicado a tareas que deberían ser automáticas. USD 3-6k/mes.
+- Becarios / asistentes de reporting: apagar incendios en Excel, bajar CSVs manuales.
+
+**2b. Agencias de data analytics y consultoras externas (costos variables recurrentes)**
+- Agencias de analytics / BI que facturan USD 1-3k/mes por reportes mensuales.
+- Consultoras de atribución que arman modelos MMM custom (USD 5-15k por proyecto + retainer).
+- Freelance de data armando dashboards en Looker Studio o Power BI.
+
+**2c. Licencias y hosting de herramientas genéricas de BI**
+- Tableau, Power BI, Looker (hoy Looker Studio gratis, pero empresariales cobran).
+- Segment / Rudderstack para eventos.
+- Hosting de planillas compartidas, seguridad, access control manual.
+
+**El pitch contra este enemigo**: "Los analistas que tenés armando reportes + las agencias externas que pagás por dashboards mensuales + las licencias de BI que nadie usa al 100%: todo eso lo hace NitroSales. El equipo humano no lo reemplazamos — lo liberamos del 70% del trabajo mecánico para que piense, no para que consolide CSVs."
+
+### Capa 3 — Competidores funcionales (USA premium)
+
+### Capa 2 — Competidores funcionales (USA premium)
+
+Triple Whale, Polar Analytics, Northbeam, Klaviyo Data, Kno Commerce, Lifesight. Productos premium USA con foco Shopify-DTC-USD.
+
+**Debilidades para LATAM**:
+- No integran MercadoLibre (que en Argentina puede ser 40-80% del GMV de un retailer).
+- No manejan tri-currency (USD oficial/MEP/CCL/blue + ARS nominal + ARS ajustado inflación).
+- Pricing USA (USD 300-2500/mes) imposible de justificar para SMB argentino.
+- Soporte en inglés, asistencia en zona horaria USA.
+- Stack Shopify-first; VTEX es ciudadano de segunda.
+
+**El pitch contra este enemigo**: "Triple Whale está buenísimo si operás 100% en Shopify y en dólares. Nosotros vivimos donde vivís vos: VTEX + MELI + ARS que se mueve todos los días."
+
+### Capa 4 — Los informes nativos de las plataformas de ads (enemigo silencioso)
+
+**Este es el enemigo más invisible y el más importante**: aunque el retailer ejecute campañas con Meta y Google, los **informes nativos** de esas plataformas compiten contra los nuestros. Y mienten a favor de quien los emite.
+
+- **Meta Business Manager** → reporta conversiones con atribución last-touch 7-1 days + view-through; infla su contribución sistemáticamente.
+- **Google Ads dashboards** → reporta conversiones con atribución data-driven propia; infla su contribución sistemáticamente.
+
+El dueño mira los 2 reportes, suma los números, y la suma da **más de lo que facturó en canales de ads**. Porque cada plataforma se está atribuyendo la misma venta. Ese gap — la diferencia entre lo que Meta + Google dicen que vendiste y lo que realmente vendiste — es donde NitroPixel gana.
+
+> **Nota sobre MercadoLibre**: MELI NO es enemigo en esta capa. MELI es un **canal de venta directa** (no un canal de ads contra el que competimos en atribución). El backoffice de MELI es complementario: nuestra ventaja no es reemplazarlo, sino **unificar** la data de MELI con la de VTEX en una sola vista SKU-first y cruzarla con el P&L. Contra MELI competimos al nivel de **consolidación multicanal**, no de atribución de ads.
+
+**El pitch contra este enemigo**: "Meta mide para Meta. Google mide para Google. NitroPixel mide para vos. La diferencia entre lo que cada plataforma se atribuye y lo que realmente vendiste es plata que estás pagando de más en ads y ni lo sabías."
+
+### Cómo usar estas 4 capas en una conversación comercial
+
+1. **Arrancamos por la Capa 1** (status quo) — con eso conectamos emocionalmente: todos los fundadores viven ese dolor de 10 tabs y 5 planillas.
+2. **Cuando hablan de headcount o gastos fijos** — ahí entra la Capa 2: "el equipo de data que tenés hoy + las agencias que contratás para reportes = reemplazable por la plataforma, pero con la ventaja de que los humanos quedan para pensar".
+3. **Cuando preguntan "y vs Triple Whale"** — ahí entra la Capa 3: diferencial geográfico + stack + pricing realista.
+4. **Cuando muestran el reporte de Meta/Google** — ahí entra la Capa 4: la trampa silenciosa que explica por qué los reportes nativos de ads no alcanzan.
+
+---
+
+### Quiénes NO son enemigos — son complementarios
+
+NitroSales NO compite con todo lo que rodea al retailer. Hay actores que son **aliados naturales** y merecen mensaje diferenciado:
+
+| Actor | Relación | Narrativa |
+|---|---|---|
+| **Agencias de performance** (ejecutan campañas Meta/Google) | Complementario / aliado | Ellos ejecutan, nosotros medimos la verdad. La agencia queda mejor parada cuando usa NitroSales porque puede defender su ROAS real con data neutral. Partner natural. |
+| **Agencias creativas** | Complementario | Su output (creativos, copies) vive en las campañas que NitroSales atribuye. No pisamos su trabajo. |
+| **Agencias de branding / growth estratégico** | Complementario | Pueden usar NitroSales como herramienta de trabajo para sus clientes. |
+| **Plataformas ecommerce (VTEX, Tiendanube, Shopify, WooCommerce)** | Infraestructura — aliados | Son canal donde vivimos. Cuanto mejor la plataforma, mejor nos conectamos. |
+| **MercadoLibre** | Canal de venta, NO enemigo | MELI es infraestructura de venta. NitroSales unifica MELI + VTEX en una sola vista. No competimos contra su backoffice — lo complementamos. |
+| **Payment providers (Mercado Pago, MODO, dLocal)** | Data source / aliado | Integran con nosotros para cerrar el circuito de conversión. |
+
+**El mensaje para agencias de performance específicamente** (son canal de referidos potencial): "Si vos ejecutás bien la campaña, NitroSales te da la data que tu cliente necesita para renovarte el contrato. Un Truth Score bien explicado vale más que cualquier pitch. Vos quedás bien, nosotros damos la verdad."
+
+---
+
+## 3. ICP — a quién le vendemos
+
+### El nicho: ecommerce LATAM (vertical, no tamaño)
+
+NitroSales se especializa en **un solo vertical: comercio electrónico**. Eso es lo que nos hace expertos y defensibles. Dentro de ese vertical, **no discriminamos por tamaño ni facturación** — desde el que recién arranca su tienda hasta el retailer con USD 10M/mes de GMV, todos viven el mismo dolor de fondo: plataformas fragmentadas, datos duplicados, IA inexistente, P&L que llega tarde.
+
+**El pricing se autoajusta por volumen de data procesada** (ver `PRECIOS.md`), entonces un cliente chico paga poco y uno grande paga proporcionalmente más. No necesitamos excluir por facturación: el modelo de cobro se encarga.
+
+### Criterio único de elegibilidad
+
+> **Si vendés productos/servicios online en LATAM, sos prospect de NitroSales.**
+
+Eso incluye:
+- Retailers multicanal (VTEX + MELI, Tiendanube + MELI, Shopify + MELI, etc.).
+- Marcas D2C monomarca (Shopify, Tiendanube, WooCommerce, VTEX).
+- Sellers MercadoLibre puros (incluso sin tienda propia).
+- Ecommerce de servicios (turismo, educación online, suscripciones).
+
+### Dónde tenemos más fit (sweet spot operativo)
+
+Aunque el producto sirve para todos, hay prospects donde **cerramos más rápido y el valor se nota antes**. Esto no es un filtro — es una guía de dónde concentrar outbound y mensaje:
+
+| Dimensión | Sweet spot |
+|---|---|
+| **Canales** | Al menos 2 conectados (ej: VTEX + MELI) — la consolidación multicanal es nuestro diferencial más fuerte |
+| **Ad spend mensual** | >= USD 5k/mes en Meta + Google — ahí el dolor de atribución duele de verdad |
+| **Equipo armado** | 2+ personas full-time en ecommerce/marketing — alguien usa la plataforma todo el día |
+| **Stack actual** | Ya tiene alguna planilla/dashboard hecho a mano — validación de que les importa la data |
+| **Decisión** | Dueño / heredero / CEO / gerente ecommerce con autonomía de compra |
+
+### Señales de baja fit (no son "no vendemos" — son "vamos con los ojos abiertos")
+
+- **Monomarca brand new sin GMV todavía** → el valor tarda en mostrarse. Mejor esperar a que tengan 3 meses de tracking para vender bien.
+- **Corporativo con IT propio y equipo BI interno** → ciclo largo (9-18 meses), encaje cultural complicado. Se puede vender pero requiere estrategia enterprise.
+- **Dueño que no se involucra en software** → falta campeón interno. Cerrar depende 100% de alguien más abajo en la cadena.
+
+### Perfil de buyer (por tipo de cliente)
+
+| Tipo de empresa | Buyer primario | Buyer secundario |
+|---|---|---|
+| Retailer multicanal consolidado | Dueño / heredero / CEO | Gerente ecommerce, CFO |
+| Marca D2C en crecimiento | Founder / CEO | Head of growth, CMO |
+| Seller MELI puro | Dueño del seller account | Analista de marketplace |
+| Ecommerce de servicios | Founder / CMO | Head of product, CFO |
+
+### Por qué foco en ecommerce (defensa del nicho vertical)
+
+1. **Expertise concentrada** — cada feature, cada integración, cada modelo de datos está pensado para ecommerce. Si mañana nos expandimos a retail físico puro o B2B industrial, diluimos el producto.
+2. **Pricing por data se autoregula** — no necesitamos excluir por tamaño porque un cliente chico paga proporcionalmente chico.
+3. **TAM grande y creciente** — LATAM ecommerce sigue creciendo 15-25%/año. El vertical tiene techo alto.
+4. **Network effect del dominio** — cada cliente nuevo genera data que mejora benchmarks, pLTV baselines, rec-systems. Todos son del mismo vertical, la data se acumula en la misma dirección.
+
+---
+
+## 4. Arquetipo — sistema nervioso / cerebro vivo
 
 NitroSales no es un dashboard, es el **sistema nervioso del negocio**. Observa, entiende, recuerda, actúa.
 
@@ -35,7 +188,7 @@ Cuando Claude VM escribe sobre NitroSales, puede apoyarse en estas metáforas bi
 
 ---
 
-## 3. Los 4 pilares
+## 5. Los 4 pilares
 
 Todo feature de NitroSales se puede mapear a uno de estos 4 pilares. Úsalos para ordenar cualquier pitch o material largo.
 
@@ -53,13 +206,13 @@ Saber si el negocio está vivo o agonizando, en tiempo real. Cash Runway hero co
 
 ---
 
-## 4. Manifiesto (cuando Tomy necesita un párrafo largo de apertura)
+## 6. Manifiesto (cuando Tomy necesita un párrafo largo de apertura)
 
 > Construimos NitroSales porque vender online en Latinoamérica sigue siendo una mezcla de screenshots de Meta, planillas de Excel y fe. Los dashboards que existen copian el modelo americano: útiles si tu negocio vive en dólares, en Shopify, con una sola moneda y sin MercadoLibre. Pero acá vivís entre VTEX, MELI, ARS que se devalúa, CAC que sube todos los meses y una inflación que vuelve mentira cualquier reporte anual. NitroSales es el primer activo digital pensado desde acá: observa con su propio pixel, entiende con IA que aprende de tu negocio, recuerda a tus clientes y creadores, y te dice la verdad de tu P&L en tres monedas a la vez. No es otra herramienta. Es tu sistema nervioso.
 
 ---
 
-## 5. Tono de voz
+## 7. Tono de voz
 
 ### Atributos del tono
 
@@ -123,7 +276,7 @@ Saber si el negocio está vivo o agonizando, en tiempo real. Cash Runway hero co
 
 ---
 
-## 6. Pilares de mensaje por audiencia
+## 8. Pilares de mensaje por audiencia
 
 ### Para fundadores de ecommerce argentinos (ICP core)
 
@@ -166,7 +319,7 @@ Mismo pitch pero con énfasis en:
 
 ---
 
-## 7. Dos cortes del producto (para pitch flexible)
+## 9. Dos cortes del producto (para pitch flexible)
 
 ### Corte A — Los 4 activos (marca-first)
 Cuando el prospect reacciona a nombres propios y moat:
@@ -191,7 +344,169 @@ Los dos cortes son complementarios. Tomy (o Claude VM) elige según la conversac
 
 ---
 
-## 8. Reglas de copy específicas
+## 10. Arquitectura multi-landing
+
+NitroSales NO tiene una sola landing. Tiene un **modelo matriz + sub-landings organizadas en 3 tiers** según el grado en que cada una es "activo regenerativo" vs "producto" vs "vista funcional". Esta jerarquía refuerza el positioning v5 ("tu primer activo digital"): cuanto más arriba en el tier, más exponencial es el valor que genera el uso.
+
+### La jerarquía de 3 tiers
+
+**Tier 1 — Infraestructura / activos digitales regenerativos**
+Los dos componentes base de la plataforma. Son **infraestructura**: todo lo demás vive arriba de ellos. Crecen exponencialmente con el uso — cuanto más tiempo pasa y más data se captura / más interacciones se procesan, más valioso es cada uno.
+- **NitroPixel** (sistema sensorial): captura todo el comportamiento, cada movimiento, cada intención, cada conversión. Cuanta más data se acumula, más precisa la atribución, más rica la inteligencia.
+- **Aurum** (cerebro cognitivo): IA con memoria que aprende del negocio. Cada interacción, cada análisis, cada recomendación alimenta el contexto y mejora el siguiente paso.
+
+**Tier 2 — Productos verticales**
+Módulos con identidad de marca propia que corren **arriba de la infraestructura del Tier 1** y entregan outcomes específicos. Crecen con uso pero no son infra — usan la infra para cumplir una misión acotada (retención, creators).
+- **Bondly** (retención + LTV predictivo + CRM + churn risk).
+- **Aura** (creator economy + 7 tipos de deal + Always On).
+
+**Tier 3 — Funcionalidades / paneles**
+Vistas y secciones donde el usuario interactúa con la plataforma en el día a día. No tienen identidad de marca propia — son "cómo se usa el producto".
+- Control de Gestión, Marketing Digital, Rentabilidad, Productos, Finanzas, Integraciones, Alertas, Marketplaces.
+
+### Jerarquía completa
+
+```
+nitrosales.ai (landing matriz)
+│
+├── TIER 1 — Infraestructura / activos regenerativos
+│   ├── /nitropixel     (sistema sensorial — pixel first-party + atribución real + behavior)
+│   └── /aurum          (cerebro cognitivo — IA con memoria + 12 tools + 3 modos)
+│
+├── TIER 2 — Productos verticales
+│   ├── /bondly         (LTV predictivo + CRM + churn risk)
+│   └── /aura           (creator economy + deals + Always On)
+│
+├── TIER 3 — Funcionalidades / paneles
+│   ├── /rentabilidad          (P&L por SKU + márgenes + cross-sell + re-pricing)
+│   ├── /productos             (catálogo unificado multicanal + inventario + rotación)
+│   ├── /finanzas              (P&L tri-currency + Cash Runway + CAC payback + LTV:CAC)
+│   ├── /control-gestion       (panel personalizable — tu tabla de control con la data que vos quieras)
+│   ├── /marketing-digital     (campañas + atribución cross-canal + journeys)
+│   ├── /integraciones         (hub de integraciones — todas las plataformas)
+│   ├── /alertas               (Aurum detecta anomalías + notifica proactivamente)
+│   └── /marketplaces          (MELI deep dive — publicaciones, órdenes, reputación, conciliación)
+│
+├── TIER 4 — Por audiencia/vertical (futuro)
+│   ├── /para/retailers   (retailers multicanal)
+│   ├── /para/d2c         (marcas D2C)
+│   ├── /para/sellers-ml  (sellers MercadoLibre puros)
+│   └── /para/creators    (para las audiencias del lado Aura)
+│
+└── /recursos             (blog, guías, comparativas)
+```
+
+### Cuándo usar cada nivel
+
+**Matriz (nitrosales.ai)** — la tesis general. Se usa en:
+- Cold outbound genérico (LinkedIn, email a frío).
+- Menciones en prensa / podcasts.
+- Cuando el prospect no tiene un dolor específico aún.
+
+**Tier 1 — Infraestructura (ej: /nitropixel, /aurum)** — el activo digital regenerativo como marca. Son las dos landings más importantes después de la matriz. Se usan en:
+- Campañas segmentadas por keyword competitivo ("triple whale alternative", "atribución real", "IA para ecommerce").
+- Posts de LinkedIn que hablan del activo por nombre propio.
+- Demos que quieren profundizar en el diferencial duro: qué data capturamos (NitroPixel) y qué hace la IA con memoria (Aurum).
+- Cold outbound a prospects que ya entienden que necesitan atribución real o IA vertical.
+
+**Tier 2 — Productos (ej: /bondly, /aura)** — el producto vertical con identidad propia. Se usa en:
+- Campañas por dolor específico de retención (CMO/CRM lead → /bondly).
+- Campañas por dolor específico de creators/influencers (marketing lead → /aura).
+- Cuando el prospect ya tiene resuelta la atribución base y busca scale en un vertical.
+
+**Tier 3 — Funcionalidades/paneles (ej: /rentabilidad, /finanzas, /control-gestion)** — el dolor operativo como solución. Se usa en:
+- Campañas por dolor operativo ("cómo saber qué SKU me deja margen", "p&l ecommerce en vivo", "panel armado por mí").
+- Cold outbound hiper-segmentado por rol (CFO → /rentabilidad + /finanzas; CMO → /marketing-digital + /nitropixel; COO → /control-gestion + /productos).
+- Artículos de blog que anclan al lector a una sección concreta.
+
+**Notas especiales sobre landings del Tier 3**:
+
+- **/control-gestion** es una de las más diferenciadoras dentro del Tier 3, aunque NO es el diferencial duro del producto entero (ese rol lo juegan NitroPixel y Aurum). El ángulo: NitroSales está conectado a TODO el ecosistema de un ecommerce (costos, marketing, ventas, inventario, finanzas, pixel, creators), entonces el cliente **arma su propio panel** con la data que quiera, de donde quiera. Hero sugerido: *"Tu tabla de control, armada por vos. Con la data que necesitás, de donde la necesites."* Demo: drag-and-drop de widgets mezclando data de Meta + VTEX + MELI + P&L en la misma pantalla.
+
+- **/integraciones** es la landing que muestra la **amplitud** — diferencial duro contra Triple Whale (Shopify-only) y contra cualquier herramienta punto. Hero sugerido: *"Conectamos donde vivís. VTEX, MELI, Shopify, Tiendanube, Meta, Google, GA4, GSC, pagos. Todo tu ecommerce, un solo lugar."* (v1.2 reemplazó "un cockpit" por voz LATAM.)
+
+- **/alertas** muestra la dimensión **proactiva** del producto — Aurum no solo responde, también detecta anomalías (caída de ROAS, stock crítico, tendencia de churn, CAC disparado) y las notifica. Hero sugerido: *"Tu data no espera a que la mires. Te avisa."*
+
+**Tier 4 — Por audiencia (futuro)** — el espejo vertical. Se usa cuando:
+- Entramos fuerte a un tipo de cliente (ej: si venden muchos sellers ML, hacer /para/sellers-ml).
+- Cold outbound a una comunidad entera.
+
+### Reglas de consistencia entre landings
+
+- **Mismo sistema visual** (paleta, tipografía, componentes) — la marca tiene que ser reconocible aunque el mensaje cambie.
+- **Mismo CTA primario** en todas (Pedí demo / Calendly) + CTA secundario (WhatsApp).
+- **Mismo footer** con módulos cross-linked.
+- **Misma estructura narrativa**: hero → dolor específico → cómo lo resolvemos → prueba → CTA → FAQ.
+- **Cada sub-landing linkea a la matriz** en el header para el prospect que quiere ver el cuadro completo.
+- **Cross-link entre ejes**: cada landing de funcionalidad linkea a los activos que la potencian (ej: /rentabilidad linkea a /aurum + /bondly), y cada landing de activo linkea a las funcionalidades donde se usa.
+
+### Prioridad de construcción
+
+**Principio ordenador**: priorizamos las landings siguiendo la **jerarquía de tiers**. Primero los activos digitales regenerativos (Tier 1) que son el diferencial duro y el positioning "tu primer activo digital". Después los productos verticales (Tier 2). Al final, las funcionalidades/paneles (Tier 3) que son la superficie donde el valor se expresa. No construimos el panel antes que la data que lo nutre.
+
+**Fase 1 — Infraestructura (primeros 30 días)**
+1. **Matriz (nitrosales.ai)** — primero, antes que todo. Positioning v5, los 4 pilares, 3 CTAs. ✅ copy v3 cerrado.
+2. **/nitropixel** — el sistema sensorial. El diferencial duro: qué ve del visitante que ningún otro pixel ni analytics ve (comportamiento completo, atribución real first-party, producto por anuncio, Truth Score). ✅ copy v2 cerrado.
+3. **/aurum** — el cerebro cognitivo. IA con memoria vertical, 12 tools, 3 modos (Flash/Core/Deep). El otro activo regenerativo. 🔜 próximo.
+
+**Fase 2 — Productos verticales (días 30-60)**
+4. **/bondly** — retención + LTV predictivo (BG/NBD + Gamma-Gamma, Fader & Hardie Wharton) + CRM + churn risk. Se activa cuando tengamos 1-2 casos con LTV predictivo corriendo.
+5. **/aura** — creator economy, 7 tipos de deal, Always On. Se activa cuando tengamos 1-2 marcas con creators activos.
+
+**Fase 3 — Funcionalidades / paneles (días 60-120)**
+6. **/rentabilidad** — P&L por SKU, márgenes, cross-sell, re-pricing. La capa comercial visible de la data.
+7. **/productos** — catálogo unificado multicanal, inventario, rotación.
+8. **/finanzas** — P&L tri-currency en vivo, Cash Runway, CAC payback, LTV:CAC.
+9. **/control-gestion** — el panel armado por el cliente. Landing de cómo se vive el día a día (NO es el diferencial duro; es la superficie donde el diferencial se expresa).
+10. **/marketing-digital** — cómo atribuimos y activamos campañas a partir de la data de NitroPixel + Aurum.
+11. **/integraciones** — amplitud de conexiones, diferencial vs herramientas de stack limitado.
+12. **/alertas** — cuando Aurum tenga implementado el sistema de detección proactiva.
+13. **/marketplaces** — MELI deep dive (publicaciones, órdenes, reputación, conciliación).
+
+> **Correcciones registradas (sesión 2026-04-19)**:
+> 1. Originalmente /control-gestion estaba en #2 de Fase 1. Tomy señaló que eso era un error de jerarquía — el panel es la pantalla donde vive la data, pero el valor de NitroSales vive en QUÉ data podemos mostrar (pixel, productos, funcionalidades), no en CÓMO se organiza. Se movió a Tier 3 (fase 3).
+> 2. Originalmente /productos estaba como #3 de Fase 1 y /aurum como #4 de Fase 2. Tomy propuso la jerarquía de 3 tiers: los activos regenerativos (NitroPixel + Aurum) son infraestructura y van primero; los productos (Bondly + Aura) después; las funcionalidades al final. Se reordenó con /aurum en Fase 1 y /productos en Fase 3.
+
+**Fase 4 — Verticales (cuando el pipeline lo justifique)**
+14. **/para/retailers, /para/d2c, /para/sellers-ml** — se activan cuando hay volumen suficiente en esa audiencia.
+
+---
+
+## 11. Cuantificación del ROI (framework — valores por completar con data beta)
+
+Cuando un prospect pregunte "¿cuánto me ahorra / me hace ganar?", la respuesta se construye con este framework. Valores exactos **se calibran con la data de los 3 trials en curso**, no se inventan.
+
+### Fuente de ingresos generados (lift)
+
+| Módulo | Mecanismo de lift | Ballpark esperado |
+|---|---|---|
+| NitroPixel | Reasignación de presupuesto a canales con ROAS real | [por medir — esperado 10-25% de ahorro en ads mal gastados] |
+| Aurum | Recomendaciones de producto / cross-sell / re-pricing | [por medir — esperado +2-8% GMV] |
+| Bondly | Campañas retarget a high-LTV predichos | [por medir — esperado +3-10% LTV cohort] |
+| Aura | Nuevo canal de ventas vía creators | [por medir — esperado 5-15% GMV incremental si se ejecuta bien] |
+
+### Fuente de ahorros (saving)
+
+| Concepto | Cómo se ahorra | Ballpark esperado |
+|---|---|---|
+| Analistas de data | Menos horas armando reportes custom | [por medir — 1 FTE analista ≈ USD 1.5-3k/mes equivalente] |
+| Planillas propietarias | Microsistemas Excel que dejan de mantenerse | [por medir — tiempo equivalente USD 500-1500/mes] |
+| Consultoras de reporting | Reportes externos reemplazados | [por medir — USD 1-3k/mes típico] |
+| Errores de atribución | Plata mal gastada en ads ineficientes | [por medir — derivado del lift de NitroPixel] |
+
+### Cómo se comunica hasta tener data real
+
+Mientras no haya números medidos en los 3 trials:
+
+> "NitroSales te genera revenue por 4 caminos (atribución real, IA que recomienda, LTV predictivo, creators) y te baja costos por 4 caminos (menos analistas, menos planillas, menos consultoras, menos plata mal gastada en ads). Con los primeros 3 clientes en trial estamos midiendo el impacto real. Si querés, arrancamos vos como 4to y en 60 días tenés tu ROI medido con tu data."
+
+### Cuando haya data real
+
+Este bloque se actualiza con los números concretos. Nunca antes. Regla de honestidad: ver `CASOS_DE_EXITO.md`.
+
+---
+
+## 12. Reglas de copy específicas
 
 ### Credibilidad y honestidad
 
@@ -228,7 +543,7 @@ Una landing de NitroSales (cuando se escriba) debe tener, en orden:
 
 ---
 
-## 9. Anti-patrones de mensaje
+## 13. Anti-patrones de mensaje
 
 Claude VM detecta y evita estos patrones en todo material comercial:
 
@@ -243,7 +558,7 @@ Claude VM detecta y evita estos patrones en todo material comercial:
 
 ---
 
-## 10. Voz interna vs voz externa
+## 14. Voz interna vs voz externa
 
 ### Voz interna (entre Tomy y Claude VM)
 Cálida, rápida, cero ceremonia. Se pueden usar modismos rioplatenses. Objetivo: eficiencia y claridad.
@@ -253,10 +568,52 @@ Cuidada, precisa, sin modismos excesivos. Voseo sí, lunfardo no. Objetivo: prof
 
 ---
 
-## 11. Actualización de este documento
+## 15. Actualización de este documento
 
 Este archivo evoluciona con el feedback de Tomy y con decisiones de posicionamiento que vayan surgiendo. Cuando Claude VM (en coordinación con Tomy) refina el positioning, el manifiesto, o el tono, **se actualiza acá** con la fecha al final del archivo.
 
 ---
 
-_Última revisión: 2026-04-18 — Creación inicial con positioning v5 (cerrado en sesión 41 de Producto), arquetipo sistema nervioso, 4 pilares, y tono cerrado de conversaciones previas con Tomy._
+## 16. Cierre de Fase 1A — sesión 2026-04-19 (v3)
+
+**Objetivo de la sesión**: refinar el positioning con framework April Dunford + incorporar correcciones estratégicas de Tomy en 3 rondas (ICP amplio, pricing por data 2D, enemy expandido, landings en 2 ejes con Eje 2 completo, canal de agencias de performance).
+
+**Decisiones cerradas**:
+
+1. **Categoría**: NitroSales juega "AI Commerce Platform" — platform play, no point-solution. Enunciable al prospect en una frase.
+
+2. **Enemigo en 4 capas + complementarios**:
+   - Capa 1: status quo fragmentado (10 tabs + planillas).
+   - Capa 2: costos actuales de data (empleados + agencias data analytics + licencias BI).
+   - Capa 3: competidores funcionales SaaS (Triple Whale, Polar, Northbeam).
+   - Capa 4: informes nativos de Meta y Google (NO MELI).
+   - Complementarios: agencias de performance (canal de referidos — ver `CANAL_AGENCIAS_PERFORMANCE.md`), agencias creativas, plataformas ecommerce, MELI como canal, payment providers.
+
+3. **ICP amplio con sweet spot**: el nicho es **ecommerce LATAM como vertical** (NO segmentación por facturación). Cualquier negocio que venda online es prospect. El pricing 2D se autoajusta, entonces no necesitamos filtrar por tamaño. Se documentó "sweet spot operativo" (multicanal, equipo armado, ad spend >= USD 5k/mes) como guía de concentración, no filtro duro.
+
+4. **Pricing — Modelo D 2D elegido**: precio se forma por 2 dimensiones combinadas: **SCOPE** (qué módulos contrata — 3 packs predefinidos o à la carte) × **SCALE** (volumen de data procesada: órdenes, SKUs, integraciones, eventos pixel, uso IA). Se descartaron Modelos A (tier SaaS), B (% GMV) y C (híbrido). Rationale clave: cobrar por facturación manda mensaje incorrecto ("te cobro más porque ganás más"); cobrar por data + scope manda mensaje honesto ("pagás por lo que usás y por lo que procesamos"). Ver `PRECIOS.md`.
+
+5. **Arquitectura multi-landing en 2 ejes completos** (+ Eje 3 futuro):
+   - Eje 1 (por producto/activo): /nitropixel, /aurum, /bondly, /aura.
+   - Eje 2 (por sección/funcionalidad): /control-gestion (destacada como el PANEL PERSONALIZABLE, diferencial duro), /marketing-digital, /rentabilidad, /productos, /marketplaces, /finanzas, /integraciones (hub de conexiones), /alertas (Aurum proactivo).
+   - Eje 3 (futuro): /para/retailers, /para/d2c, /para/sellers-ml.
+
+6. **Canal de agencias de performance** (plan aprobado): documentado en `CANAL_AGENCIAS_PERFORMANCE.md`. 3 modelos de partnership (Activo, Reseller, Referral), mensaje canónico, timeline de activación, objeciones típicas, métricas de éxito. Se activa después de que landing + Modelo D estén operativos. No se listan agencias concretas ahora (es trabajo de ejecución comercial futura).
+
+7. **ROI dual**: NitroSales genera revenue Y reduce costos. Framework definido, valores se calibran con data beta.
+
+**Lo que NO se cerró (para fases siguientes)**:
+- Coeficientes numéricos del pricing Modelo D 2D → dependen de los 3 trials + medición de compute real.
+- Composición exacta de los 3 packs (Activación / Crecimiento / Completo) → requiere decisión de qué módulos incluir en cada uno sin superposiciones ambiguas.
+- Valores reales del ROI calculator → dependen de los 3 trials en curso.
+- % de comisión para partners agencias → se cierra cuando Modelo D esté calibrado.
+- Identidad de marca (BRAND_VISION.md) → Fase 2B, después del messaging.
+
+**Próximo paso (Fase 1B — Messaging)**:
+- Extraer de este archivo los mensajes canon por audiencia / canal (hero copy matriz, hero copy por módulo, hero copy por funcionalidad, cold email subject lines, LinkedIn post templates, demo opener).
+- Para cada landing del Eje 2, escribir hero + bullets + CTA alineados al positioning v5.
+- Validar mensajes con 2-3 conversaciones reales antes de imprimirlos en la landing.
+
+---
+
+_Última revisión: 2026-04-19 — Sesión 2 VM (v3 con 3 rondas de correcciones estratégicas de Tomy). ICP pivot a vertical ecommerce (sin filtro por facturación). Pricing Modelo D 2D (scope × scale). Enemy en 4 capas + complementarios. Landings en 2 ejes con Eje 2 completo (8 landings funcionales incluyendo /integraciones y /alertas). Canal agencias de performance documentado en archivo separado. Base v5 del positioning se mantiene intacta._

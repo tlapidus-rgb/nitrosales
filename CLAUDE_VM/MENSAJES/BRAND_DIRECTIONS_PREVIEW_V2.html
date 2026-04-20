@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NitroSales — Variantes de A y C</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&display=swap"
+    rel="stylesheet"
+  />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --ease-premium: cubic-bezier(0.16, 1, 0.3, 1); }
+    html, body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    .font-mono-custom { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .font-serif-display { font-family: 'Instrument Serif', Georgia, serif; }
+    .font-fraunces { font-family: 'Fraunces', Georgia, serif; }
+    button, a { transition: all 240ms var(--ease-premium); }
+
+    /* ===== A2 — Ramp (light + color character, orange accent, data-forward) ===== */
+    .style-ramp {
+      background: linear-gradient(180deg, #fffcf7 0%, #fff9ef 100%);
+    }
+    .style-ramp .shadow-premium {
+      box-shadow:
+        0 1px 0 rgba(120, 70, 20, 0.06),
+        0 10px 30px -14px rgba(120, 70, 20, 0.14),
+        0 24px 48px -30px rgba(120, 70, 20, 0.14);
+    }
+    .style-ramp .data-card {
+      background: #ffffff;
+      border: 1px solid rgba(120, 70, 20, 0.08);
+      box-shadow:
+        0 1px 0 rgba(120, 70, 20, 0.04),
+        0 4px 12px -6px rgba(120, 70, 20, 0.10);
+    }
+    .sparkline path { stroke-dasharray: 120; stroke-dashoffset: 0; }
+
+    /* ===== A3 — Linear Light (minimal, precision, monochrome) ===== */
+    .style-linear {
+      background: #fafafa;
+    }
+    .style-linear .grid-bg {
+      background-image:
+        linear-gradient(to right, rgba(15,23,42,0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(15,23,42,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    /* ===== C2 — Superhuman (precision warm, bold sans, less serif) ===== */
+    .style-superhuman {
+      background: linear-gradient(180deg, #ffffff 0%, #fafaf7 100%);
+    }
+    .style-superhuman .shadow-precise {
+      box-shadow:
+        0 0 0 1px rgba(15,23,42,0.04),
+        0 12px 36px -18px rgba(15,23,42,0.16);
+    }
+
+    /* ===== C3 — Editorial (big serif, cream bg, literary) ===== */
+    .style-editorial {
+      background: linear-gradient(180deg, #faf6ef 0%, #f5ede0 100%);
+    }
+
+    /* Shared decorative */
+    .hairline {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(15,23,42,0.12), transparent);
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900">
+  <!-- Header -->
+  <header class="max-w-6xl mx-auto px-6 py-12">
+    <p class="font-mono-custom text-[10px] uppercase tracking-[0.3em] text-slate-500 mb-3">Brand Directions · Variantes A y C</p>
+    <h1 class="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 mb-3">4 variantes nuevas dentro de A y C</h1>
+    <p class="text-base text-slate-600 max-w-2xl leading-relaxed mb-4">
+      Estás entre la A (operador serio) y la C (partner cercano premium). Cada una tiene rango interno —
+      estas 4 variantes te muestran el espectro. Compará contra las A1 y C1 del preview anterior.
+    </p>
+    <p class="text-sm text-slate-500">Copy usado: el hero real de la matriz (eyebrow "AI Commerce Platform" + H1 "Tu primer activo digital").</p>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 pb-24 space-y-10">
+
+    <!-- ========== A2 — RAMP (color character, data-forward) ========== -->
+    <section class="rounded-3xl overflow-hidden bg-white ring-1 ring-slate-200/60 shadow-[0_20px_60px_-20px_rgba(15,23,42,0.18)]">
+      <div class="px-6 py-3 flex items-center justify-between border-b border-slate-200/60 bg-white">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-orange-500 text-white text-[11px] font-bold">A2</span>
+          <p class="font-semibold text-sm text-slate-900">A2 — Ramp style</p>
+          <span class="text-xs text-slate-500">· serio pero con carácter visual, data-forward</span>
+        </div>
+        <span class="hidden md:inline text-[11px] text-slate-400 font-mono-custom">light warm · orange accent · cards flotantes</span>
+      </div>
+
+      <div class="style-ramp px-8 md:px-14 py-16">
+        <div class="grid md:grid-cols-[1.3fr_1fr] gap-12 items-center">
+          <!-- Copy column -->
+          <div>
+            <p class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-[11px] font-semibold uppercase tracking-[0.12em] mb-6">
+              <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+              AI Commerce Platform para retailers LATAM
+            </p>
+            <h2 class="text-[46px] md:text-[58px] leading-[1.02] font-bold tracking-tight text-slate-900 mb-5">
+              Tu primer <span class="text-orange-600">activo digital</span>.
+            </h2>
+            <p class="text-lg text-slate-600 leading-relaxed mb-8">
+              Vendé más. Gastá mejor. Decidí con la verdad — datos reales sobre datos reales, sin hojas sueltas.
+            </p>
+            <div class="flex flex-wrap gap-3">
+              <button class="px-5 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 shadow-premium">
+                Pedir demo
+              </button>
+              <button class="px-5 py-3 rounded-xl bg-white border border-orange-200 text-orange-700 text-sm font-semibold hover:bg-orange-50">
+                Cómo funciona →
+              </button>
+            </div>
+          </div>
+
+          <!-- Floating data cards -->
+          <div class="relative h-[280px]">
+            <div class="data-card absolute top-0 right-4 w-[220px] rounded-2xl p-4">
+              <p class="font-mono-custom text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">Revenue · Hoy</p>
+              <p class="text-2xl font-bold tabular-nums tracking-tight text-slate-900">$ 2.847.320</p>
+              <p class="text-xs text-orange-600 mt-1 font-semibold">↑ +12.3% vs ayer</p>
+              <svg class="sparkline mt-3" viewBox="0 0 200 40" width="100%" height="40">
+                <path d="M0,30 Q25,28 40,25 T80,18 T120,20 T160,10 T200,14" stroke="#f97316" stroke-width="2" fill="none"/>
+                <path d="M0,30 Q25,28 40,25 T80,18 T120,20 T160,10 T200,14 L200,40 L0,40 Z" fill="url(#g1)" opacity="0.2"/>
+                <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f97316"/><stop offset="100%" stop-color="#f97316" stop-opacity="0"/></linearGradient></defs>
+              </svg>
+            </div>
+            <div class="data-card absolute top-[140px] left-0 w-[200px] rounded-2xl p-4">
+              <p class="font-mono-custom text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-1">Atribución pixel</p>
+              <div class="flex items-baseline gap-2">
+                <p class="text-2xl font-bold tabular-nums tracking-tight text-slate-900">94%</p>
+                <p class="text-[11px] text-slate-500">coverage</p>
+              </div>
+              <div class="mt-3 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full w-[94%] rounded-full" style="background: linear-gradient(90deg, #f97316, #ec4899);"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hairline mt-12"></div>
+        <div class="flex flex-wrap items-center gap-x-8 gap-y-3 mt-6 text-slate-500">
+          <span class="text-xs">Compatible con Meta · Google · ML</span>
+          <span class="text-slate-300">·</span>
+          <span class="text-xs">Basado en investigación de Wharton</span>
+          <span class="text-slate-300">·</span>
+          <span class="text-xs">Sin setup · Mensual cancelable</span>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 border-t border-slate-200/60 px-6 py-5">
+        <p class="text-sm text-slate-700 leading-relaxed">
+          <strong class="text-slate-900">Qué suma vs A1:</strong>
+          aparecen cards de datos flotantes (demuestran producto, no solo lo cuentan) y un accent color (naranja) que da carácter visual sin perder la seriedad. Ramp y Brex usan esta paleta — sigue siendo corporate premium pero con personalidad más cálida que Stripe puro.
+          <br/>
+          <strong class="text-slate-900">Elegir esta si:</strong>
+          querés dashboard-premium con toque de color, y te gusta que el hero tenga un mini "vistazo al producto" visual, no solo copy.
+        </p>
+      </div>
+    </section>
+
+    <!-- ========== A3 — LINEAR LIGHT (minimal precision) ========== -->
+    <section class="rounded-3xl overflow-hidden bg-white ring-1 ring-slate-200/60 shadow-[0_20px_60px_-20px_rgba(15,23,42,0.18)]">
+      <div class="px-6 py-3 flex items-center justify-between border-b border-slate-200/60 bg-white">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-900 text-white text-[11px] font-bold">A3</span>
+          <p class="font-semibold text-sm text-slate-900">A3 — Linear Light</p>
+          <span class="text-xs text-slate-500">· minimalista, precisión, typography-forward</span>
+        </div>
+        <span class="hidden md:inline text-[11px] text-slate-400 font-mono-custom">light mono · grid sutil · tracking perfecto</span>
+      </div>
+
+      <div class="style-linear relative px-8 md:px-16 py-20">
+        <div class="grid-bg absolute inset-0 opacity-60"></div>
+        <div class="relative max-w-4xl">
+          <p class="font-mono-custom text-[11px] uppercase tracking-[0.3em] text-slate-500 mb-6 inline-flex items-center gap-3">
+            <span class="w-8 h-px bg-slate-400"></span>
+            AI Commerce Platform · LATAM
+          </p>
+          <h2 class="text-[52px] md:text-[68px] leading-[0.98] font-bold tracking-[-0.03em] text-slate-900 mb-6">
+            Tu primer<br/>activo digital.
+          </h2>
+          <p class="text-lg text-slate-600 leading-relaxed max-w-xl mb-10">
+            Vendé más. Gastá mejor. Decidí con la verdad.
+          </p>
+          <div class="flex flex-wrap gap-3 items-center">
+            <button class="px-5 py-3 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 inline-flex items-center gap-2">
+              Pedir demo
+              <span class="font-mono-custom text-xs opacity-70">↗</span>
+            </button>
+            <button class="text-sm font-medium text-slate-700 hover:text-slate-900 inline-flex items-center gap-1.5 px-3 py-3">
+              Cómo funciona
+              <span class="opacity-50">→</span>
+            </button>
+          </div>
+
+          <div class="hairline mt-16"></div>
+          <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <p class="font-mono-custom text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-1">Pixel propio</p>
+              <p class="text-sm font-medium text-slate-800">Tu dominio, tu data.</p>
+            </div>
+            <div>
+              <p class="font-mono-custom text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-1">IA con memoria</p>
+              <p class="text-sm font-medium text-slate-800">Conoce tu negocio.</p>
+            </div>
+            <div>
+              <p class="font-mono-custom text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-1">P&L en vivo</p>
+              <p class="text-sm font-medium text-slate-800">Tri-currency real.</p>
+            </div>
+            <div>
+              <p class="font-mono-custom text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-1">Un solo lugar</p>
+              <p class="text-sm font-medium text-slate-800">Sin hojas sueltas.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 border-t border-slate-200/60 px-6 py-5">
+        <p class="text-sm text-slate-700 leading-relaxed">
+          <strong class="text-slate-900">Qué suma vs A1:</strong>
+          menos componentes visuales, más peso tipográfico. El H1 es enorme, el eyebrow es discreto con mono. Sin accents de color más allá del contrast. La promesa se comunica con jerarquía tipográfica, no con decoración. Es la versión más minimalista/confident del grupo A.
+          <br/>
+          <strong class="text-slate-900">Elegir esta si:</strong>
+          querés que el copy haga el trabajo, sin "ruido visual", y confiás en que la tipografía bien ejecutada vende por sí sola. Linear, Vercel Docs y Arc (en modo light) van por acá.
+        </p>
+      </div>
+    </section>
+
+    <!-- ========== C2 — SUPERHUMAN (precision warm, bold sans) ========== -->
+    <section class="rounded-3xl overflow-hidden bg-white ring-1 ring-slate-200/60 shadow-[0_20px_60px_-20px_rgba(15,23,42,0.18)]">
+      <div class="px-6 py-3 flex items-center justify-between border-b border-slate-200/60 bg-white">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-stone-800 text-white text-[11px] font-bold">C2</span>
+          <p class="font-semibold text-sm text-slate-900">C2 — Superhuman</p>
+          <span class="text-xs text-slate-500">· precisión cálida, bold sans, menos serif</span>
+        </div>
+        <span class="hidden md:inline text-[11px] text-slate-400 font-mono-custom">light warm · sans bold · hairline</span>
+      </div>
+
+      <div class="style-superhuman px-8 md:px-16 py-20">
+        <div class="max-w-4xl">
+          <p class="text-[11px] uppercase tracking-[0.22em] text-stone-500 mb-6 font-medium inline-flex items-center gap-3">
+            <span class="inline-block w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-rose-400 shadow-precise"></span>
+            NitroSales · AI Commerce Platform
+          </p>
+          <h2 class="text-[52px] md:text-[64px] leading-[1.02] font-extrabold tracking-[-0.025em] text-stone-900 mb-6">
+            Tu primer activo digital.
+          </h2>
+          <p class="text-xl text-stone-600 leading-[1.45] max-w-2xl mb-10 font-normal">
+            Vendé más. Gastá mejor. Decidí con la verdad.<br/>
+            <span class="text-stone-500">Una IA que conoce tu negocio, un pixel que es tuyo, un P&L que no miente.</span>
+          </p>
+          <div class="flex flex-wrap gap-3 items-center">
+            <button class="px-6 py-3.5 rounded-lg bg-stone-900 text-white text-sm font-semibold hover:bg-stone-800 inline-flex items-center gap-2 shadow-precise">
+              Pedir demo
+            </button>
+            <button class="px-6 py-3.5 rounded-lg bg-white border border-stone-200 text-stone-800 text-sm font-semibold hover:bg-stone-50">
+              Cómo funciona
+            </button>
+          </div>
+
+          <div class="hairline mt-14"></div>
+          <div class="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3 text-stone-500">
+            <span class="text-[13px] font-medium">Sin setup fee</span>
+            <span class="text-stone-300">·</span>
+            <span class="text-[13px] font-medium">Mensual cancelable</span>
+            <span class="text-stone-300">·</span>
+            <span class="text-[13px] font-medium">Money-back 30 días</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 border-t border-slate-200/60 px-6 py-5">
+        <p class="text-sm text-slate-700 leading-relaxed">
+          <strong class="text-slate-900">Qué suma vs C1:</strong>
+          menos literario, más preciso. El serif desaparece, la tipografía es bold sans con tracking ajustado. Se siente "cuidado sin ser precioso". Un pequeño acento de color (esfera gradient) sin romper la paleta warm. Superhuman y Linear light-mode van por acá.
+          <br/>
+          <strong class="text-slate-900">Elegir esta si:</strong>
+          te gustaba C1 pero sentías que el serif era "demasiado editorial" y querés algo más directo sin perder el warm premium.
+        </p>
+      </div>
+    </section>
+
+    <!-- ========== C3 — EDITORIAL (literary, big serif, cream) ========== -->
+    <section class="rounded-3xl overflow-hidden bg-white ring-1 ring-slate-200/60 shadow-[0_20px_60px_-20px_rgba(15,23,42,0.18)]">
+      <div class="px-6 py-3 flex items-center justify-between border-b border-slate-200/60 bg-white">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-700 text-white text-[11px] font-bold">C3</span>
+          <p class="font-semibold text-sm text-slate-900">C3 — Editorial / Magazine</p>
+          <span class="text-xs text-slate-500">· literario, serif grande, cream bg</span>
+        </div>
+        <span class="hidden md:inline text-[11px] text-slate-400 font-mono-custom">cream warm · serif protagonista · magazine feel</span>
+      </div>
+
+      <div class="style-editorial px-8 md:px-16 py-24">
+        <div class="max-w-4xl">
+          <p class="text-[11px] uppercase tracking-[0.25em] text-amber-800/70 mb-8 font-medium inline-flex items-center gap-2">
+            <span>— AI Commerce Platform · LATAM —</span>
+          </p>
+          <h2 class="font-fraunces text-[62px] md:text-[84px] leading-[0.95] font-[400] tracking-[-0.02em] text-stone-900 mb-8">
+            Tu primer<br/>
+            <em class="font-[500] font-fraunces">activo digital.</em>
+          </h2>
+          <div class="max-w-2xl mb-12">
+            <p class="text-xl text-stone-700 leading-[1.5] font-[300]">
+              Una plataforma que observa, entiende, recuerda y decide — en un solo lugar.
+              Tu pixel, tu data, tu margen neto real. El primer activo que no se alquila.
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-4 items-center">
+            <button class="px-7 py-4 rounded-full bg-stone-900 text-amber-50 text-sm font-semibold hover:bg-stone-800 tracking-wide">
+              Pedir demo
+            </button>
+            <button class="text-sm font-medium text-stone-700 hover:text-stone-900 inline-flex items-center gap-2 underline underline-offset-[6px] decoration-amber-700/40 decoration-1 px-2">
+              Leer la historia
+            </button>
+          </div>
+
+          <div class="mt-20 pt-8 border-t border-stone-300/40 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <p class="font-fraunces text-xs uppercase tracking-[0.2em] text-amber-800/70 mb-2">Capítulo 01</p>
+              <p class="text-[15px] text-stone-700 leading-relaxed">Un pixel propio en tu dominio que mide lo que ningún otro muestra.</p>
+            </div>
+            <div>
+              <p class="font-fraunces text-xs uppercase tracking-[0.2em] text-amber-800/70 mb-2">Capítulo 02</p>
+              <p class="text-[15px] text-stone-700 leading-relaxed">Una IA que recuerda conversaciones, clientes y decisiones.</p>
+            </div>
+            <div>
+              <p class="font-fraunces text-xs uppercase tracking-[0.2em] text-amber-800/70 mb-2">Capítulo 03</p>
+              <p class="text-[15px] text-stone-700 leading-relaxed">Un P&L tri-currency que cruza todo tu ecommerce en vivo.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 border-t border-slate-200/60 px-6 py-5">
+        <p class="text-sm text-slate-700 leading-relaxed">
+          <strong class="text-slate-900">Qué suma vs C1:</strong>
+          lleva al extremo el warm premium. El serif (Fraunces) es protagonista del H1, el cream bg es más saturado, los bloques se organizan como capítulos de revista. Se siente "leer una publicación", no "leer un SaaS". Stripe Press, Every, y publicaciones editoriales AI-first van por acá.
+          <br/>
+          <strong class="text-slate-900">Elegir esta si:</strong>
+          querés diferenciarte fuerte del SaaS genérico, tu audiencia valora el gesto editorial, y estás dispuesto a asumir más carácter visual a cambio de más memorabilidad.
+        </p>
+      </div>
+    </section>
+
+    <!-- CÓMO ELEGIR -->
+    <section class="rounded-3xl bg-slate-900 text-white px-8 md:px-12 py-10">
+      <p class="font-mono-custom text-[10px] uppercase tracking-[0.3em] text-cyan-300 mb-4">Cómo elegir entre las 6 opciones</p>
+      <h3 class="text-2xl font-semibold tracking-tight mb-6">Mapa rápido (A1 + C1 ya los viste en el preview 1)</h3>
+      <div class="grid md:grid-cols-2 gap-4 text-sm">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <p class="font-mono-custom text-[10px] uppercase tracking-[0.2em] text-cyan-300 mb-2">Grupo A — Operador serio</p>
+          <ul class="space-y-1.5 text-white/80">
+            <li><strong class="text-white">A1:</strong> Stripe clásico. Cyan accent, sin cards flotantes. Más institucional.</li>
+            <li><strong class="text-white">A2:</strong> Ramp. Orange accent + cards de datos. Más carácter visual.</li>
+            <li><strong class="text-white">A3:</strong> Linear Light. Monocromo + typography-forward. Más confident.</li>
+          </ul>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <p class="font-mono-custom text-[10px] uppercase tracking-[0.2em] text-amber-300 mb-2">Grupo C — Partner cercano premium</p>
+          <ul class="space-y-1.5 text-white/80">
+            <li><strong class="text-white">C1:</strong> Notion/Superhuman clásico. Serif accent en H1, warm balanced.</li>
+            <li><strong class="text-white">C2:</strong> Superhuman. Bold sans, menos serif, más preciso.</li>
+            <li><strong class="text-white">C3:</strong> Editorial. Fraunces protagonista, cream bg, magazine feel.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="text-sm text-white/60 mt-6 leading-relaxed">
+        También podés combinar — ej: "me gusta la tipografía de A3 con los accent cards de A2" o "quiero C2 con el orange de A2 como acento". Todo eso lo documentamos en BRAND_VISION.md como "dirección final".
+      </p>
+    </section>
+
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-6 pb-16">
+    <p class="text-xs text-slate-400 font-mono-custom">BRAND_DIRECTIONS_PREVIEW_V2 · 2026-04-20 · Sesión Fase 2B · variantes A y C</p>
+  </footer>
+</body>
+</html>

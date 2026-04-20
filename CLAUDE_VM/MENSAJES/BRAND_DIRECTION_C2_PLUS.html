@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NitroSales — Dirección C2+ (warm premium + producto visible)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap"
+    rel="stylesheet"
+  />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+      --warm-bg: #faf8f5;
+      --warm-card: #ffffff;
+      --warm-border: rgba(28, 25, 23, 0.06);
+      --warm-hairline: rgba(28, 25, 23, 0.08);
+      --ink: #1c1917;
+      --ink-2: #44403c;
+      --ink-3: #78716c;
+      --ink-4: #a8a29e;
+      --accent: #ea580c;          /* warm orange, subtle */
+      --accent-soft: #fed7aa;
+      --data-cyan: #0891b2;
+      --data-violet: #7c3aed;
+      --data-emerald: #059669;
+    }
+    * { transition-timing-function: var(--ease-premium); }
+    html, body {
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      color: var(--ink);
+      background: var(--warm-bg);
+    }
+    .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; }
+    .font-serif-ital { font-family: 'Instrument Serif', Georgia, serif; font-style: italic; }
+
+    /* ===== Body background with subtle aurora ===== */
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 40% 30% at 85% 15%, rgba(234, 88, 12, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 35% 25% at 15% 85%, rgba(202, 138, 4, 0.06) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .content { position: relative; z-index: 1; }
+
+    /* ===== Typography scales ===== */
+    .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.24em;
+      color: var(--ink-3);
+    }
+    .h1-display {
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.032em;
+      line-height: 0.98;
+      color: var(--ink);
+    }
+
+    /* ===== Shadows (warm undertone, multi-layer) ===== */
+    .shadow-warm-sm {
+      box-shadow:
+        0 1px 0 rgba(28, 25, 23, 0.04),
+        0 2px 6px -2px rgba(28, 25, 23, 0.06);
+    }
+    .shadow-warm-md {
+      box-shadow:
+        0 1px 0 rgba(28, 25, 23, 0.04),
+        0 8px 20px -8px rgba(28, 25, 23, 0.10),
+        0 16px 40px -24px rgba(28, 25, 23, 0.12);
+    }
+    .shadow-warm-lg {
+      box-shadow:
+        0 1px 0 rgba(28, 25, 23, 0.04),
+        0 12px 32px -14px rgba(28, 25, 23, 0.14),
+        0 32px 64px -32px rgba(28, 25, 23, 0.16);
+    }
+
+    /* ===== Cards ===== */
+    .card {
+      background: var(--warm-card);
+      border: 1px solid var(--warm-border);
+      border-radius: 16px;
+    }
+    .card-2xl { border-radius: 20px; }
+
+    /* ===== Hairline ===== */
+    .hairline {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--warm-hairline), transparent);
+    }
+    .hairline-v {
+      width: 1px;
+      background: linear-gradient(180deg, transparent, var(--warm-hairline), transparent);
+    }
+
+    /* ===== Presence dot with pulse ===== */
+    .pulse-dot {
+      position: relative;
+      width: 8px; height: 8px; border-radius: 9999px;
+      background: var(--data-emerald);
+    }
+    .pulse-dot::after {
+      content: ""; position: absolute; inset: -3px;
+      border-radius: 9999px;
+      background: var(--data-emerald);
+      opacity: 0.3;
+      animation: pulse-soft 2.4s var(--ease-premium) infinite;
+    }
+    @keyframes pulse-soft {
+      0%, 100% { transform: scale(1); opacity: 0.3; }
+      50% { transform: scale(1.8); opacity: 0; }
+    }
+
+    /* ===== Subtle card hover lift ===== */
+    .card-hover { transition: transform 280ms var(--ease-premium), box-shadow 280ms var(--ease-premium); }
+    .card-hover:hover { transform: translateY(-2px); }
+
+    /* ===== Button styles ===== */
+    .btn-primary {
+      background: var(--ink);
+      color: #fafaf7;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: -0.005em;
+      padding: 14px 22px;
+      border-radius: 12px;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: all 200ms var(--ease-premium);
+      box-shadow:
+        0 1px 0 rgba(28, 25, 23, 0.08),
+        0 4px 12px -4px rgba(28, 25, 23, 0.24);
+    }
+    .btn-primary:hover { background: #292524; transform: translateY(-1px); box-shadow: 0 1px 0 rgba(28, 25, 23, 0.08), 0 8px 20px -6px rgba(28, 25, 23, 0.32); }
+
+    .btn-secondary {
+      background: var(--warm-card);
+      color: var(--ink-2);
+      border: 1px solid var(--warm-border);
+      font-weight: 500;
+      font-size: 14px;
+      padding: 14px 22px;
+      border-radius: 12px;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: all 200ms var(--ease-premium);
+    }
+    .btn-secondary:hover { background: #fbfaf7; border-color: rgba(28, 25, 23, 0.12); }
+
+    /* ===== Sparkline gradient ===== */
+    .sparkline-path { stroke: var(--accent); stroke-width: 2; fill: none; }
+
+    /* ===== Floating card positions (hero) ===== */
+    .float-card {
+      position: absolute;
+      transition: transform 400ms var(--ease-premium), box-shadow 400ms var(--ease-premium);
+    }
+    .float-card:hover { transform: translateY(-3px) rotate(0deg) !important; }
+
+    /* ===== Badge ===== */
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    /* ===== Grid pattern for feature cards ===== */
+    .grid-pattern {
+      background-image:
+        linear-gradient(to right, rgba(28, 25, 23, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(28, 25, 23, 0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+
+    /* ===== Truth bar ===== */
+    .truth-bar {
+      height: 4px;
+      border-radius: 9999px;
+      background: rgba(28, 25, 23, 0.06);
+      overflow: hidden;
+      position: relative;
+    }
+    .truth-bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, #f97316, #ea580c);
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+
+    <!-- ============== TOP NAV ============== -->
+    <nav class="max-w-[1280px] mx-auto px-8 py-6 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- Logo placeholder — abstract mark -->
+        <div class="relative w-8 h-8 rounded-xl overflow-hidden" style="background: linear-gradient(135deg, #1c1917 0%, #292524 100%);">
+          <div class="absolute inset-[6px] rounded-[5px]" style="background: linear-gradient(135deg, #ea580c, #f97316);"></div>
+          <div class="absolute inset-[9px] rounded-[3px]" style="background: #1c1917;"></div>
+        </div>
+        <span class="text-[15px] font-semibold tracking-tight text-stone-900">NitroSales</span>
+        <span class="text-[10px] font-mono uppercase tracking-[0.2em] text-stone-400 mt-0.5 px-2 py-0.5 rounded-full border border-stone-200">beta</span>
+      </div>
+      <div class="hidden md:flex items-center gap-7 text-[13.5px] text-stone-600">
+        <a href="#" class="hover:text-stone-900">Plataforma</a>
+        <a href="#" class="hover:text-stone-900">Productos</a>
+        <a href="#" class="hover:text-stone-900">Precios</a>
+        <a href="#" class="hover:text-stone-900">Agencias</a>
+        <a href="#" class="hover:text-stone-900">Clientes</a>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="#" class="text-[13.5px] text-stone-600 hover:text-stone-900 px-3 py-2">Ingresar</a>
+        <a href="#" class="btn-primary" style="padding: 10px 18px; font-size: 13.5px;">Pedir demo</a>
+      </div>
+    </nav>
+
+    <!-- ============== HERO ============== -->
+    <section class="max-w-[1280px] mx-auto px-8 pt-12 pb-28">
+      <div class="grid lg:grid-cols-[1.05fr_1fr] gap-16 lg:gap-20 items-center">
+
+        <!-- COPY COLUMN -->
+        <div>
+          <!-- Eyebrow -->
+          <div class="flex items-center gap-3 mb-7">
+            <span class="inline-flex items-center gap-2 pr-3 pl-2 py-1.5 rounded-full bg-white border border-stone-200 shadow-warm-sm">
+              <span class="pulse-dot"></span>
+              <span class="font-mono text-[10.5px] uppercase tracking-[0.22em] text-stone-600">AI Commerce Platform · LATAM</span>
+            </span>
+          </div>
+
+          <!-- H1 -->
+          <h1 class="h1-display text-[58px] md:text-[74px] mb-7">
+            AI Commerce.<br/>
+            <span class="font-serif-ital font-[400] text-stone-800" style="letter-spacing: -0.01em;">Tu primer activo digital.</span>
+          </h1>
+
+          <!-- Subhead -->
+          <p class="text-[19px] text-stone-600 leading-[1.55] max-w-[520px] mb-10 font-[400]">
+            Un pixel propio en tu dominio, una IA con memoria y un P&amp;L tri-currency en vivo. Vendé más. Gastá mejor. Decidí con la verdad — sobre datos reales, no sobre lo que cada plataforma te cuenta sobre sí misma.
+          </p>
+
+          <!-- CTAs -->
+          <div class="flex flex-wrap gap-3 mb-12">
+            <a href="#" class="btn-primary">
+              Pedir demo
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3l5 5-5 5"/></svg>
+            </a>
+            <a href="#" class="btn-secondary">
+              Cómo funciona
+            </a>
+          </div>
+
+          <!-- Trust strip -->
+          <div class="pt-8 border-t" style="border-color: var(--warm-hairline);">
+            <p class="font-mono text-[10px] uppercase tracking-[0.28em] text-stone-400 mb-5">Compatible con · basado en</p>
+            <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
+              <span class="text-[14px] font-semibold tracking-tight text-stone-500">Meta</span>
+              <span class="hairline-v h-4"></span>
+              <span class="text-[14px] font-semibold tracking-tight text-stone-500">Google</span>
+              <span class="hairline-v h-4"></span>
+              <span class="text-[14px] font-semibold tracking-tight text-stone-500">Mercado Libre</span>
+              <span class="hairline-v h-4"></span>
+              <span class="text-[14px] font-semibold tracking-tight text-stone-500">VTEX</span>
+              <span class="hairline-v h-4"></span>
+              <span class="text-[14px] font-semibold tracking-tight text-stone-500">Tiendanube</span>
+              <span class="hairline-v h-4"></span>
+              <span class="text-[12px] font-normal italic text-stone-400">Investigación de Wharton</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- VISUAL COLUMN — floating product cards -->
+        <div class="relative h-[560px] hidden lg:block">
+
+          <!-- Ambient glow -->
+          <div class="absolute inset-0 pointer-events-none">
+            <div style="position:absolute; top:8%; left:10%; width:70%; height:70%; background: radial-gradient(circle, rgba(234,88,12,0.10) 0%, transparent 60%); filter: blur(40px);"></div>
+            <div style="position:absolute; bottom:5%; right:5%; width:55%; height:55%; background: radial-gradient(circle, rgba(8,145,178,0.08) 0%, transparent 60%); filter: blur(50px);"></div>
+          </div>
+
+          <!-- ====== CARD 1 — Revenue (anchor, top) ====== -->
+          <div class="float-card card card-2xl shadow-warm-lg p-6" style="top: 8%; left: 2%; width: 340px; transform: rotate(-1.5deg);">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <span class="pulse-dot"></span>
+                <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500">Revenue · hoy</span>
+              </div>
+              <div class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 border border-stone-200">
+                <button class="text-[10px] font-semibold text-stone-900 px-1.5">ARS</button>
+                <button class="text-[10px] font-medium text-stone-400 px-1.5">USD</button>
+                <button class="text-[10px] font-medium text-stone-400 px-1.5">BRL</button>
+              </div>
+            </div>
+            <p class="text-[38px] font-bold tabular-nums tracking-[-0.035em] text-stone-900 leading-none mb-2">
+              $ 2.847.320
+            </p>
+            <div class="flex items-center gap-2 mb-5">
+              <span class="badge" style="background: #dcfce7; color: #15803d;">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 2 L8 6 L6.5 6 L6.5 8 L3.5 8 L3.5 6 L2 6 Z"/></svg>
+                +12.3%
+              </span>
+              <span class="text-[12px] text-stone-500">vs. ayer (ajuste por día de semana)</span>
+            </div>
+            <!-- Sparkline -->
+            <div class="relative">
+              <svg viewBox="0 0 320 70" width="100%" height="70" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#ea580c" stop-opacity="0.22"/>
+                    <stop offset="100%" stop-color="#ea580c" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,48 C20,46 35,40 55,38 S90,32 115,28 S155,26 180,20 S220,18 245,14 S285,12 320,6"
+                      stroke="#ea580c" stroke-width="2" fill="none" stroke-linecap="round"/>
+                <path d="M0,48 C20,46 35,40 55,38 S90,32 115,28 S155,26 180,20 S220,18 245,14 S285,12 320,6 L320,70 L0,70 Z"
+                      fill="url(#sparkfill)"/>
+                <!-- dot on last point -->
+                <circle cx="320" cy="6" r="3" fill="#ea580c"/>
+                <circle cx="320" cy="6" r="7" fill="#ea580c" opacity="0.2"/>
+              </svg>
+              <div class="flex justify-between mt-2 font-mono text-[9px] text-stone-400 tracking-wider">
+                <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>ahora</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ====== CARD 2 — Pixel Coverage (badge-style, top-right) ====== -->
+          <div class="float-card card shadow-warm-md p-5" style="top: 3%; right: 2%; width: 210px; transform: rotate(2deg);">
+            <div class="flex items-center gap-2 mb-3">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#ea580c" stroke-width="2">
+                <circle cx="8" cy="8" r="6"/>
+                <circle cx="8" cy="8" r="2" fill="#ea580c"/>
+              </svg>
+              <span class="font-mono text-[10px] uppercase tracking-[0.2em] text-stone-500">Pixel propio</span>
+            </div>
+            <div class="flex items-baseline gap-2 mb-2">
+              <p class="text-[32px] font-bold tabular-nums tracking-tight text-stone-900 leading-none">94</p>
+              <p class="text-[18px] font-medium text-stone-500">%</p>
+            </div>
+            <p class="text-[11.5px] text-stone-500 mb-3">coverage en tu dominio</p>
+            <div class="truth-bar"><span style="width: 94%;"></span></div>
+            <div class="flex items-center justify-between mt-3 pt-3 border-t" style="border-color: var(--warm-hairline);">
+              <span class="font-mono text-[9.5px] uppercase tracking-wider text-stone-400">nitrosales.com</span>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="#059669"><circle cx="5" cy="5" r="2.5"/></svg>
+            </div>
+          </div>
+
+          <!-- ====== CARD 3 — Channel Truth Table (mid-right) ====== -->
+          <div class="float-card card shadow-warm-md p-5" style="top: 40%; right: 6%; width: 260px; transform: rotate(-0.5deg);">
+            <div class="flex items-center justify-between mb-4">
+              <span class="font-mono text-[10px] uppercase tracking-[0.2em] text-stone-500">Channel Truth · 7d</span>
+              <span class="badge" style="background: #fef3c7; color: #b45309;">pixel vs meta</span>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded bg-blue-500/90"></div>
+                    <span class="text-[12.5px] font-medium text-stone-800">Meta Ads</span>
+                  </div>
+                  <span class="font-mono text-[10.5px] text-stone-600">72% truth</span>
+                </div>
+                <div class="flex gap-1 items-center font-mono text-[10.5px] tabular-nums">
+                  <span class="text-stone-900">$42K</span>
+                  <span class="text-stone-400">pixel</span>
+                  <span class="mx-1 text-stone-300">vs</span>
+                  <span class="text-stone-500">$58K</span>
+                  <span class="text-stone-400">plataforma</span>
+                </div>
+              </div>
+              <div class="hairline"></div>
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded bg-yellow-400"></div>
+                    <span class="text-[12.5px] font-medium text-stone-800">Google Ads</span>
+                  </div>
+                  <span class="font-mono text-[10.5px] text-stone-600">89% truth</span>
+                </div>
+                <div class="flex gap-1 items-center font-mono text-[10.5px] tabular-nums">
+                  <span class="text-stone-900">$31K</span>
+                  <span class="text-stone-400">pixel</span>
+                  <span class="mx-1 text-stone-300">vs</span>
+                  <span class="text-stone-500">$35K</span>
+                  <span class="text-stone-400">plataforma</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ====== CARD 4 — Aurum AI insight (chip-style, bottom-left) ====== -->
+          <div class="float-card card shadow-warm-lg p-4" style="bottom: 4%; left: 0%; width: 320px; transform: rotate(1deg); border-color: rgba(124, 58, 237, 0.18); background: linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);">
+            <div class="flex items-start gap-3">
+              <!-- Aurum avatar -->
+              <div class="w-8 h-8 rounded-full shrink-0 relative" style="background: conic-gradient(from 180deg at 50% 50%, #ff0080 0deg, #a855f7 120deg, #00d4ff 240deg, #ff0080 360deg);">
+                <div class="absolute inset-[3px] rounded-full bg-white flex items-center justify-center">
+                  <span class="font-serif-ital text-[13px] text-stone-900 leading-none" style="letter-spacing: -0.02em;">Au</span>
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 mb-1">
+                  <span class="text-[12px] font-semibold text-stone-900">Aurum</span>
+                  <span class="text-[10px] text-stone-400">· hace 4 min</span>
+                </div>
+                <p class="text-[12.5px] text-stone-700 leading-[1.45]">
+                  Detecté una anomalía: <span class="font-mono text-[11px] bg-violet-50 text-violet-700 px-1 rounded">camp-meta-remarketing-03</span> gastó $12.400 sin venta atribuida en las últimas 72h. ¿La pauso?
+                </p>
+                <div class="flex gap-2 mt-3">
+                  <button class="text-[11px] font-semibold text-violet-700 bg-violet-50 px-2.5 py-1 rounded-md hover:bg-violet-100">Pausar</button>
+                  <button class="text-[11px] font-medium text-stone-500 hover:text-stone-800 px-2.5 py-1">Ver detalle</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ====== Presence indicator (subtle, absolute) ====== -->
+          <div class="absolute top-[36%] left-[48%] flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-white border border-stone-200 shadow-warm-sm" style="transform: rotate(-2deg);">
+            <div class="flex -space-x-1.5">
+              <div class="w-5 h-5 rounded-full border-2 border-white" style="background: linear-gradient(135deg, #ea580c, #f97316);"></div>
+              <div class="w-5 h-5 rounded-full border-2 border-white" style="background: linear-gradient(135deg, #0891b2, #06b6d4);"></div>
+            </div>
+            <span class="text-[10px] font-medium text-stone-600">Tomy · Lucía</span>
+            <span class="font-mono text-[9px] text-stone-400">viendo ahora</span>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== SECTION DIVIDER ============== -->
+    <div class="max-w-[1280px] mx-auto px-8">
+      <div class="hairline"></div>
+    </div>
+
+    <!-- ============== QUÉ INCLUYE (3 feature cards con producto visible) ============== -->
+    <section class="max-w-[1280px] mx-auto px-8 py-28">
+      <div class="max-w-2xl mb-16">
+        <p class="eyebrow mb-4">Lo que es NitroSales</p>
+        <h2 class="h1-display text-[40px] md:text-[52px] mb-5">
+          Una plataforma.<br/>
+          <span class="font-serif-ital font-[400] text-stone-800">Cuatro capas.</span>
+        </h2>
+        <p class="text-[17px] text-stone-600 leading-[1.55]">
+          Observa. Entiende. Recuerda. Decide. Cada capa es un producto real — juntas forman el activo digital que te faltaba.
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6">
+
+        <!-- Feature 1: NitroPixel (observa) -->
+        <div class="card card-2xl shadow-warm-md p-8 card-hover relative overflow-hidden">
+          <div class="absolute top-0 left-0 right-0 h-1" style="background: linear-gradient(90deg, #ea580c, #f97316);"></div>
+          <div class="flex items-center gap-2 mb-6">
+            <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-400">01 · Observa</span>
+          </div>
+          <h3 class="text-[22px] font-bold tracking-[-0.02em] text-stone-900 mb-3">NitroPixel</h3>
+          <p class="text-[14px] text-stone-600 leading-[1.55] mb-6">
+            Pixel propio en tu dominio. Ve lo que Meta, Google y Analytics no te muestran — porque cada plataforma reporta para sí misma.
+          </p>
+          <!-- Mini product UI -->
+          <div class="rounded-xl border p-4" style="background: #fafaf7; border-color: var(--warm-hairline);">
+            <div class="flex items-center justify-between mb-3">
+              <span class="font-mono text-[9px] uppercase tracking-[0.2em] text-stone-400">journey map</span>
+              <span class="font-mono text-[10px] text-stone-600 tabular-nums">14,328 paths</span>
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-12 text-[10px] font-mono text-stone-500">Meta →</span>
+                <div class="flex-1 h-1.5 rounded-full bg-stone-200 overflow-hidden">
+                  <div class="h-full rounded-full" style="width: 84%; background: linear-gradient(90deg, #3b82f6, #2563eb);"></div>
+                </div>
+                <span class="text-[10px] font-mono tabular-nums text-stone-700">84%</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-12 text-[10px] font-mono text-stone-500">Google</span>
+                <div class="flex-1 h-1.5 rounded-full bg-stone-200 overflow-hidden">
+                  <div class="h-full rounded-full" style="width: 62%; background: linear-gradient(90deg, #eab308, #ca8a04);"></div>
+                </div>
+                <span class="text-[10px] font-mono tabular-nums text-stone-700">62%</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-12 text-[10px] font-mono text-stone-500">Orgánico</span>
+                <div class="flex-1 h-1.5 rounded-full bg-stone-200 overflow-hidden">
+                  <div class="h-full rounded-full" style="width: 38%; background: linear-gradient(90deg, #10b981, #059669);"></div>
+                </div>
+                <span class="text-[10px] font-mono tabular-nums text-stone-700">38%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feature 2: Aurum (entiende) -->
+        <div class="card card-2xl shadow-warm-md p-8 card-hover relative overflow-hidden">
+          <div class="absolute top-0 left-0 right-0 h-1" style="background: linear-gradient(90deg, #7c3aed, #a855f7);"></div>
+          <div class="flex items-center gap-2 mb-6">
+            <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-400">02 · Entiende</span>
+          </div>
+          <h3 class="text-[22px] font-bold tracking-[-0.02em] text-stone-900 mb-3">Aurum</h3>
+          <p class="text-[14px] text-stone-600 leading-[1.55] mb-6">
+            Una IA con memoria que conoce tu catálogo, tus campañas y tu P&amp;L. No responde genérico — responde con tus datos.
+          </p>
+          <!-- Mini chat -->
+          <div class="rounded-xl border p-4" style="background: #fbfaff; border-color: rgba(124, 58, 237, 0.12);">
+            <div class="flex items-start gap-2 mb-3">
+              <div class="w-6 h-6 rounded-full shrink-0" style="background: #e7e5e4;"></div>
+              <div class="rounded-lg bg-white border border-stone-200 px-3 py-2 text-[11.5px] text-stone-700 flex-1">
+                ¿Qué SKUs me conviene priorizar en Meta Ads este mes?
+              </div>
+            </div>
+            <div class="flex items-start gap-2">
+              <div class="w-6 h-6 rounded-full shrink-0" style="background: conic-gradient(from 180deg at 50% 50%, #ff0080, #a855f7, #00d4ff, #ff0080);">
+                <div class="w-full h-full flex items-center justify-center">
+                  <div class="w-[18px] h-[18px] rounded-full bg-white flex items-center justify-center">
+                    <span class="font-serif-ital text-[9px] text-stone-900" style="letter-spacing: -0.02em;">Au</span>
+                  </div>
+                </div>
+              </div>
+              <div class="rounded-lg px-3 py-2 text-[11.5px] text-stone-700 flex-1" style="background: linear-gradient(135deg, #f3f0ff, #ede9fe); border: 1px solid rgba(124, 58, 237, 0.15);">
+                Los 3 con mayor ROAS real (pixel, no plataforma) y stock &gt; 30d: <span class="font-mono text-[10.5px] bg-white px-1 rounded">SKU-4421</span>, <span class="font-mono text-[10.5px] bg-white px-1 rounded">SKU-8822</span>, <span class="font-mono text-[10.5px] bg-white px-1 rounded">SKU-1139</span>.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feature 3: P&L (decide) -->
+        <div class="card card-2xl shadow-warm-md p-8 card-hover relative overflow-hidden">
+          <div class="absolute top-0 left-0 right-0 h-1" style="background: linear-gradient(90deg, #059669, #0891b2);"></div>
+          <div class="flex items-center gap-2 mb-6">
+            <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-400">03 · Decide</span>
+          </div>
+          <h3 class="text-[22px] font-bold tracking-[-0.02em] text-stone-900 mb-3">P&amp;L tri-currency</h3>
+          <p class="text-[14px] text-stone-600 leading-[1.55] mb-6">
+            Margen neto en vivo, por producto, por canal, por moneda. Cruza campañas, inventario y ventas — sin planillas.
+          </p>
+          <!-- Mini P&L -->
+          <div class="rounded-xl border p-4" style="background: #f0fdfa; border-color: rgba(8, 145, 178, 0.12);">
+            <div class="flex items-center justify-between mb-3">
+              <span class="font-mono text-[9px] uppercase tracking-[0.2em] text-stone-500">margen neto · abril</span>
+              <span class="font-mono text-[9px] text-emerald-700 tabular-nums">+18.4%</span>
+            </div>
+            <div class="space-y-2 text-[11px] font-mono tabular-nums">
+              <div class="flex justify-between"><span class="text-stone-500">Revenue</span><span class="text-stone-900">$ 48.2M</span></div>
+              <div class="flex justify-between"><span class="text-stone-500">COGS</span><span class="text-stone-900">−$ 19.3M</span></div>
+              <div class="flex justify-between"><span class="text-stone-500">Ads spend</span><span class="text-stone-900">−$ 7.8M</span></div>
+              <div class="flex justify-between"><span class="text-stone-500">Fees MELI/VTEX</span><span class="text-stone-900">−$ 2.1M</span></div>
+              <div class="hairline my-1.5"></div>
+              <div class="flex justify-between font-semibold"><span class="text-stone-900">Margen neto</span><span class="text-emerald-700">$ 19.0M</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============== BIG QUOTE / NORTE ============== -->
+    <section class="max-w-[1280px] mx-auto px-8 pb-32">
+      <div class="relative card card-2xl shadow-warm-lg px-10 md:px-20 py-20 overflow-hidden grid-pattern">
+        <!-- Ambient -->
+        <div class="absolute inset-0 pointer-events-none">
+          <div style="position:absolute; top:-10%; right:-5%; width:40%; height:60%; background: radial-gradient(circle, rgba(234,88,12,0.08) 0%, transparent 65%); filter: blur(40px);"></div>
+        </div>
+        <div class="relative max-w-3xl">
+          <p class="eyebrow mb-6">El norte</p>
+          <p class="text-[34px] md:text-[44px] leading-[1.12] font-[500] tracking-[-0.025em] text-stone-900 mb-8" style="font-feature-settings: 'ss01';">
+            Un ecommerce no tiene que ser una suma de herramientas alquiladas. <span class="font-serif-ital font-[400]">Puede ser un activo que te pertenece,</span> que aprende de vos, y que trabaja incluso cuando no estás mirando.
+          </p>
+          <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-full" style="background: linear-gradient(135deg, #ea580c, #f97316);"></div>
+            <div>
+              <p class="text-[13px] font-semibold text-stone-900">Tomy Lapidus</p>
+              <p class="text-[12px] text-stone-500">Fundador · NitroSales</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== FOOTER CTA ============== -->
+    <section class="max-w-[1280px] mx-auto px-8 pb-28">
+      <div class="flex flex-col md:flex-row items-start md:items-end justify-between gap-8">
+        <div>
+          <p class="eyebrow mb-4">Siguiente paso</p>
+          <h2 class="h1-display text-[38px] md:text-[48px] mb-4">
+            15 minutos.<br/>
+            <span class="font-serif-ital font-[400] text-stone-800">Y ves si te sirve.</span>
+          </h2>
+          <p class="text-[15px] text-stone-600 leading-relaxed max-w-md">
+            Demo en vivo sobre tu stack real. Si no te cierra, no te cierra — sin fricción, sin seguimiento agresivo.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <a href="#" class="btn-primary">Pedir demo</a>
+          <a href="#" class="btn-secondary">Ver precios</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== FOOTER META ============== -->
+    <footer class="max-w-[1280px] mx-auto px-8 pb-10 pt-8 border-t" style="border-color: var(--warm-hairline);">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="relative w-6 h-6 rounded-lg overflow-hidden" style="background: linear-gradient(135deg, #1c1917 0%, #292524 100%);">
+            <div class="absolute inset-[4px] rounded-[3px]" style="background: linear-gradient(135deg, #ea580c, #f97316);"></div>
+            <div class="absolute inset-[6px] rounded-[2px]" style="background: #1c1917;"></div>
+          </div>
+          <span class="text-[13px] font-semibold tracking-tight text-stone-900">NitroSales</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.2em] text-stone-400">AI Commerce Platform · LATAM</span>
+        </div>
+        <p class="text-[11px] text-stone-400 font-mono tracking-wide">
+          BRAND_DIRECTION_C2_PLUS · preview · 2026-04-20
+        </p>
+      </div>
+    </footer>
+
+  </div>
+</body>
+</html>
