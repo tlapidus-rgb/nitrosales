@@ -18,10 +18,16 @@ export async function GET(req: NextRequest) {
 
   const diagnostics: Record<string, any> = {};
 
+  // Multi-tenant safe: ?org= explícito o primera conn activa (compat)
+  const orgParam = searchParams.get("org");
   try {
-    const connection = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" },
-    });
+    const connection = orgParam
+      ? await prisma.connection.findFirst({
+          where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE", organizationId: orgParam },
+        })
+      : await prisma.connection.findFirst({
+          where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" },
+        });
 
     if (!connection) {
       return NextResponse.json({ ok: false, error: "No ML connection" });

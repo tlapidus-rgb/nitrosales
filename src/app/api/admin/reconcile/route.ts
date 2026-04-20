@@ -34,8 +34,12 @@ export async function POST(request: Request) {
   const dryRun = searchParams.get('dry') === 'true';
 
   try {
-    const org = await prisma.organization.findFirst();
-    if (!org) return NextResponse.json({ error: 'No org found' }, { status: 404 });
+    // Multi-tenant safe: ?org= explícito o fallback a primera org (compat)
+    const orgParam = searchParams.get('org');
+    const org = orgParam
+      ? await prisma.organization.findUnique({ where: { id: orgParam } })
+      : await prisma.organization.findFirst();
+    if (!org) return NextResponse.json({ error: 'No org found. Pass ?org=<orgId>' }, { status: 404 });
 
     const dateFrom = new Date();
     dateFrom.setDate(dateFrom.getDate() - daysBack);

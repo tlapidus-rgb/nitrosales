@@ -89,11 +89,17 @@ export async function GET(req: NextRequest) {
   const offset = parseInt(req.nextUrl.searchParams.get("offset") || "0");
 
   try {
-    // Get VTEX connection
-    const connection = await prisma.connection.findFirst({
-      where: { platform: "VTEX", status: "ACTIVE" },
-      include: { organization: true },
-    });
+    // Multi-tenant safe: ?org= explícito o fallback a conn activa única
+    const orgParam = req.nextUrl.searchParams.get("org");
+    const connection = orgParam
+      ? await prisma.connection.findFirst({
+          where: { platform: "VTEX", status: "ACTIVE", organizationId: orgParam },
+          include: { organization: true },
+        })
+      : await prisma.connection.findFirst({
+          where: { platform: "VTEX", status: "ACTIVE" },
+          include: { organization: true },
+        });
 
     if (!connection) {
       return NextResponse.json({ error: "No active VTEX connection" }, { status: 404 });

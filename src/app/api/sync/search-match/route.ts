@@ -177,7 +177,7 @@ export async function GET(req: NextRequest) {
     if (platform === "mercadolibre") {
       try {
         const connection = await prisma.connection.findFirst({
-          where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" },
+          where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE", organizationId: orgId },
         });
         if (connection) {
           const creds = connection.credentials as unknown as MLCredentials;

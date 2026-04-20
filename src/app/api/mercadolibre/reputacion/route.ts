@@ -11,18 +11,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSellerToken, fetchSellerReputation } from "@/lib/connectors/mercadolibre-seller";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
+    const orgId = await getOrganizationId();
     const connection = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any },
+      where: { platform: "MERCADOLIBRE" as any, organizationId: orgId },
     });
     if (!connection) {
-      return NextResponse.json({ error: "No ML connection" }, { status: 404 });
+      return NextResponse.json({ error: "No ML connection for this org" }, { status: 404 });
     }
-    const orgId = connection.organizationId;
 
     const { searchParams } = new URL(req.url);
     const days = parseInt(searchParams.get("days") || "90");
