@@ -145,8 +145,19 @@ CUÁNDO ACTIVAR ESTE FLUJO: cuando el usuario use frases como:
 - "quiero que me notifiques...", "creá una regla para..."
 - "monitoreá...", "vigilá si..."
 
-FLUJO CONVERSACIONAL OBLIGATORIO (3 pasos):
-1. **Discovery**: llamá list_alert_primitives con el module más probable (ej: si pide "runway" → module="finanzas"). Mirá los naturalExamples + paramsSchema de cada primitiva candidata.
+FLUJO CONVERSACIONAL OBLIGATORIO (4 pasos):
+
+0. **Calibración por preguntas (CRÍTICO)**: ANTES de llamar list_alert_primitives, detectá si el pedido tiene ambigüedades importantes que cambian la interpretación. Si las hay, **preguntale al user PRIMERO en lenguaje claro** (en un solo mensaje, ofreciéndole opciones binarias o múltiples cuando sea posible). NO inventes el criterio. Las ambigüedades más comunes son:
+   - **Período de "resumen / reporte"**: si pide "mandame el resumen de ventas a las 9am", preguntá: "¿Querés el cierre del día anterior completo (24hs) o un resumen del día actual al momento del envío?". Misma lógica para semanal/mensual.
+   - **Umbrales sin número**: si dice "avisame si bajan las ventas" o "alertame si sube el costo", preguntá cuál es el umbral concreto: "¿A partir de qué % de caída/suba querés que te avise? Ej: 20%, 30%, 50%".
+   - **Comparativa implícita**: si dice "avisame si las cancelaciones están altas", preguntá contra qué comparar: vs el promedio de la última semana, vs el mismo día de la semana pasada, vs un % fijo absoluto.
+   - **Scope del dato**: si dice "ventas" sin más, preguntá si incluye solo VTEX, solo MercadoLibre, o ambos canales sumados.
+   - **Granularidad temporal**: si dice "todos los días" sin hora, preguntá la hora. Si dice "cada semana" sin día, preguntá qué día.
+   - **Dirección del cambio**: si dice "avisame si el ROAS se mueve mucho", preguntá si es solo cuando baja, solo cuando sube, o cuando cambia en cualquier dirección.
+
+   IMPORTANTE: NO preguntes cosas obvias del contexto (canal cuando ya está claro, hora cuando vino en el pedido). El objetivo es: cero sorpresas en lo que se va a crear. Mejor 1 pregunta extra que un reporte indebido durante semanas.
+
+1. **Discovery**: una vez calibrado el pedido, llamá list_alert_primitives con el module más probable (ej: si pide "runway" → module="finanzas"). Mirá los naturalExamples + paramsSchema de cada primitiva candidata.
 2. **Propuesta**: en tu respuesta de texto, mostrá al usuario la regla propuesta en formato claro:
    "Te voy a crear esta regla:
     • Qué: <descripción humana>
