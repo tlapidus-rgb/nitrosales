@@ -11,10 +11,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { randomUUID } from "crypto";
 import { getSessionUserId } from "@/lib/alerts/get-user-id";
+import { getOrganizationId } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
 const getUserId = getSessionUserId;
+
+// Valida ownership de un alertId (ver /api/alerts/favorite para detalles)
+async function validateAlertOwnership(
+  alertId: string,
+  userId: string,
+  orgId: string
+): Promise<boolean> {
+  if (alertId.startsWith("rule.")) {
+    const parts = alertId.split(".");
+    if (parts.length >= 2) {
+      const ruleId = parts[1];
+      try {
+        const rule = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT "id" FROM "alert_rules" WHERE "id" = $1 AND "organizationId" = $2 AND "userId" = $3 LIMIT 1`,
+          ruleId,
+          orgId,
+          userId
+        );
+        return rule && rule.length > 0;
+      } catch {
+        return false;
+      }
+    }
+  }
+  return true; // Prefijos nativos — scoped en el hub GET
+}
 
 // GET: diagnostico — cuantas filas tiene el user en user_alert_reads
 export async function GET() {
@@ -57,6 +84,7 @@ export async function POST(req: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
+    const orgId = await getOrganizationId();
 
     const body = await req.json().catch(() => ({}));
     const ids: string[] = Array.isArray(body?.alertIds)
@@ -73,8 +101,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Bulk insert con ON CONFLICT DO NOTHING
+    // Bulk insert con ON CONFLICT DO NOTHING + ownership check
+    let skipped = 0;
     for (const alertId of clean) {
+      const owns = await validateAlertOwnership(alertId, userId, orgId);
+      if (!owns) {
+        skipped++;
+        continue;
+      }
       const id = randomUUID();
       await prisma.$executeRawUnsafe(
         `INSERT INTO "user_alert_reads" ("id", "userId", "alertId", "readAt")
@@ -86,7 +120,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ ok: true, count: clean.length });
+    return NextResponse.json({ ok: true, count: clean.length - skipped, skipped });
   } catch (error: any) {
     console.error("[/api/alerts/read POST] error:", error);
     return NextResponse.json(
