@@ -5,6 +5,9 @@ import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { INTELLIGENCE_TOOLS } from "@/lib/intelligence/tools";
 import { executeToolCall } from "@/lib/intelligence/handlers";
+import { ALERT_TOOLS, ALERT_TOOLS_PROMPT, isAlertToolName } from "@/lib/alerts/aurum-tools";
+import { executeAlertTool } from "@/lib/alerts/aurum-handlers";
+import { getSessionUserId } from "@/lib/alerts/get-user-id";
 
 export const dynamic = "force-dynamic";
 
@@ -280,7 +283,10 @@ export async function POST(req: Request) {
 
     const org = await getOrganization();
     orgIdForLog = org.id;
-    userIdForLog = (session.user as any)?.id || null;
+    // userId resuelto vía email-fallback (mismo patrón que alerts) para no
+    // depender de session.user.id que puede venir null en JWT viejos.
+    const resolvedUserId = await getSessionUserId().catch(() => null);
+    userIdForLog = resolvedUserId;
 
     // Build dynamic system prompt based on org settings
     const orgSettings = (org as any).settings || {};
@@ -294,8 +300,12 @@ export async function POST(req: Request) {
       console.error("[Aurum] Error loading memories:", e.message);
     }
 
-    // Full system prompt: dynamic base + memory context + mode suffix
-    const fullSystemPrompt = dynamicPrompt + memoryContext + cfg.promptSuffix;
+    // Full system prompt: dynamic base + memory context + alert tools + mode suffix
+    const fullSystemPrompt =
+      dynamicPrompt + memoryContext + ALERT_TOOLS_PROMPT + cfg.promptSuffix;
+
+    // Tools: análisis de datos + alert creation tools (Fase 8g-2)
+    const allTools = [...INTELLIGENCE_TOOLS, ...ALERT_TOOLS];
 
     // Build conversation messages from history
     const messages: Anthropic.MessageParam[] = [];
@@ -316,7 +326,7 @@ export async function POST(req: Request) {
         model: cfg.model,
         max_tokens: cfg.maxTokens,
         system: fullSystemPrompt,
-        tools: INTELLIGENCE_TOOLS,
+        tools: allTools,
         messages: currentMessages,
       });
 
@@ -339,14 +349,23 @@ export async function POST(req: Request) {
       // Track tool names for telemetry
       for (const tb of toolUseBlocks) toolsUsedSet.add(tb.name);
 
-      // Execute all in parallel
+      // Execute all in parallel — dispatch a alert tools o intelligence tools según nombre
       const toolResults = await Promise.all(
         toolUseBlocks.map(async (toolBlock) => {
-          const result = await executeToolCall(
-            toolBlock.name,
-            toolBlock.input,
-            org.id
-          );
+          let result: string;
+          if (isAlertToolName(toolBlock.name)) {
+            result = await executeAlertTool(
+              toolBlock.name as any,
+              toolBlock.input,
+              { orgId: org.id, userId: resolvedUserId }
+            );
+          } else {
+            result = await executeToolCall(
+              toolBlock.name,
+              toolBlock.input,
+              org.id
+            );
+          }
           return {
             type: "tool_result" as const,
             tool_use_id: toolBlock.id,

@@ -11,11 +11,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { randomUUID } from "crypto";
 import { getSessionUserId } from "@/lib/alerts/get-user-id";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { getPrimitive, listPrimitives } from "@/lib/alerts/primitives";
-import { computeNextFireAt } from "@/lib/alerts/engine";
+import { listPrimitives } from "@/lib/alerts/primitives";
+import { createAlertRuleCore } from "@/lib/alerts/create-rule-core";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +69,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: crea una nueva rule
+// POST: crea una nueva rule (delegado al core reusable, también consumido por Aurum)
 export async function POST(req: NextRequest) {
   try {
     const userId = await getSessionUserId();
@@ -80,53 +79,31 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const primitiveKey = String(body.primitiveKey ?? "").trim();
-    if (!primitiveKey) {
-      return NextResponse.json({ error: "primitiveKey requerido" }, { status: 400 });
+
+    const result = await createAlertRuleCore(orgId, userId, {
+      primitiveKey: body.primitiveKey,
+      name: body.name,
+      params: body.params ?? {},
+      operator: body.operator,
+      schedule: body.schedule,
+      channels: body.channels,
+      cooldownMinutes: body.cooldownMinutes,
+      severity: body.severity,
+      allowDuplicate: body.allowDuplicate === true,
+    });
+
+    if (!result.ok) {
+      // Si es duplicado, devolvemos 409 con la fila existente
+      if (result.duplicate) {
+        return NextResponse.json(
+          { error: result.error, duplicate: result.duplicate },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
-    const primitive = getPrimitive(primitiveKey);
-    if (!primitive) {
-      return NextResponse.json(
-        { error: `Primitiva desconocida: ${primitiveKey}` },
-        { status: 400 }
-      );
-    }
-
-    const id = randomUUID();
-    const name = String(body.name ?? primitive.label);
-    const type = primitive.type;
-    const params = body.params ?? {};
-    const operator = body.operator ?? null;
-    const schedule = body.schedule ?? null;
-    const channels = Array.isArray(body.channels) ? body.channels : primitive.defaultChannels;
-    const cooldown = Number(body.cooldownMinutes ?? primitive.defaultCooldownMinutes);
-    const severity = String(body.severity ?? primitive.defaultSeverity);
-    const nextFireAt = type === "schedule" ? computeNextFireAt(schedule) : null;
-
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "alert_rules"
-        ("id", "organizationId", "userId", "name", "type", "primitiveKey",
-         "params", "operator", "schedule", "channels", "cooldownMinutes",
-         "severity", "enabled", "nextFireAt", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb,
-               $10, $11, $12, TRUE, $13, NOW(), NOW())`,
-      id,
-      orgId,
-      userId,
-      name,
-      type,
-      primitiveKey,
-      JSON.stringify(params),
-      operator ? JSON.stringify(operator) : null,
-      schedule ? JSON.stringify(schedule) : null,
-      channels,
-      cooldown,
-      severity,
-      nextFireAt
-    );
-
-    return NextResponse.json({ ok: true, id });
+    return NextResponse.json({ ok: true, id: result.id });
   } catch (error: any) {
     console.error("[/api/alerts/rules POST] error:", error);
     return NextResponse.json(
