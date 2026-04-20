@@ -114,6 +114,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "contactEmail inválido" }, { status: 400 });
     }
 
+    // Step 1 extras: operación (timezone, moneda, fiscal)
+    const VALID_TZ = [
+      "America/Argentina/Buenos_Aires",
+      "America/Argentina/Cordoba",
+      "America/Santiago",
+      "America/Montevideo",
+      "America/Sao_Paulo",
+      "America/Mexico_City",
+      "America/Lima",
+      "America/Bogota",
+    ];
+    const timezoneRaw = body.timezone ? String(body.timezone).trim() : "";
+    const timezone = VALID_TZ.includes(timezoneRaw)
+      ? timezoneRaw
+      : "America/Argentina/Buenos_Aires";
+
+    const VALID_CURRENCY = ["ARS", "USD"];
+    const currencyRaw = body.currency ? String(body.currency).trim().toUpperCase() : "";
+    const currency = VALID_CURRENCY.includes(currencyRaw) ? currencyRaw : "ARS";
+
+    const VALID_FISCAL = ["MONOTRIBUTO", "RESPONSABLE_INSCRIPTO", "EXENTO", "OTRO"];
+    const fiscalRaw = body.fiscalCondition ? String(body.fiscalCondition).trim() : "";
+    const fiscalCondition = VALID_FISCAL.includes(fiscalRaw) ? fiscalRaw : null;
+
     // Step 3: Platforms — opcionales, encriptar si vienen
     const vtexAccountName = body.vtexAccountName ? String(body.vtexAccountName).trim().slice(0, 60) : null;
     const vtexAppKeyRaw = body.vtexAppKey ? String(body.vtexAppKey).trim() : null;
@@ -132,6 +156,13 @@ export async function POST(req: NextRequest) {
       ? encryptCredentials({ token: metaAccessTokenRaw })
       : null;
 
+    // Meta Pixel (CAPI) — distinto de Meta Ads Business (un cliente puede tener uno sin el otro)
+    const metaPixelId = body.metaPixelId ? String(body.metaPixelId).trim().slice(0, 40) : null;
+    const metaPixelTokenRaw = body.metaPixelToken ? String(body.metaPixelToken).trim() : null;
+    const metaPixelTokenEncrypted = metaPixelTokenRaw
+      ? encryptCredentials({ token: metaPixelTokenRaw })
+      : null;
+
     const googleAdsCustomerId = body.googleAdsCustomerId
       ? String(body.googleAdsCustomerId).trim().slice(0, 40)
       : null;
@@ -145,20 +176,24 @@ export async function POST(req: NextRequest) {
       `INSERT INTO "onboarding_requests" (
         "id", "status", "token",
         "companyName", "proposedSlug", "cuit", "industry", "storeUrl",
+        "timezone", "currency", "fiscalCondition",
         "contactName", "contactEmail", "contactPhone", "contactWhatsapp",
         "vtexAccountName", "vtexAppKeyEncrypted", "vtexAppTokenEncrypted",
         "mlUsername",
         "metaAdAccountId", "metaAccessTokenEncrypted",
+        "metaPixelId", "metaPixelTokenEncrypted",
         "googleAdsCustomerId",
         "progressStage", "createdAt", "updatedAt"
       ) VALUES (
         $1, 'PENDING', $2,
         $3, $4, $5, $6, $7,
-        $8, $9, $10, $11,
-        $12, $13, $14,
-        $15,
-        $16, $17,
+        $8, $9, $10,
+        $11, $12, $13, $14,
+        $15, $16, $17,
         $18,
+        $19, $20,
+        $21, $22,
+        $23,
         'received', NOW(), NOW()
       )`,
       id,
@@ -168,6 +203,9 @@ export async function POST(req: NextRequest) {
       cuit,
       industry,
       storeUrl,
+      timezone,
+      currency,
+      fiscalCondition,
       contactName,
       contactEmail,
       contactPhone,
@@ -178,6 +216,8 @@ export async function POST(req: NextRequest) {
       mlUsername,
       metaAdAccountId,
       metaAccessTokenEncrypted,
+      metaPixelId,
+      metaPixelTokenEncrypted,
       googleAdsCustomerId
     );
 

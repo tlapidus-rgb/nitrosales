@@ -21,6 +21,8 @@ import {
   Clock,
   Sparkles,
   Info,
+  HelpCircle,
+  ChevronDown,
 } from "lucide-react";
 
 // ─── Brand & Theme ──────────────────────────────────────────
@@ -62,6 +64,9 @@ interface FormData {
   storeUrl: string;
   industry: string;
   cuit: string;
+  timezone: string;
+  currency: string;
+  fiscalCondition: string;
   // Step 2
   contactName: string;
   contactEmail: string;
@@ -74,6 +79,8 @@ interface FormData {
   mlUsername: string;
   metaAdAccountId: string;
   metaAccessToken: string;
+  metaPixelId: string;
+  metaPixelToken: string;
   googleAdsCustomerId: string;
 }
 
@@ -83,6 +90,9 @@ const initialData: FormData = {
   storeUrl: "",
   industry: "",
   cuit: "",
+  timezone: "America/Argentina/Buenos_Aires",
+  currency: "ARS",
+  fiscalCondition: "",
   contactName: "",
   contactEmail: "",
   contactPhone: "",
@@ -93,6 +103,8 @@ const initialData: FormData = {
   mlUsername: "",
   metaAdAccountId: "",
   metaAccessToken: "",
+  metaPixelId: "",
+  metaPixelToken: "",
   googleAdsCustomerId: "",
 };
 
@@ -222,6 +234,9 @@ export default function OnboardingPage() {
           cuit: data.cuit.trim() || undefined,
           industry: data.industry || undefined,
           storeUrl: data.storeUrl.trim().replace(/\/+$/, ""),
+          timezone: data.timezone,
+          currency: data.currency,
+          fiscalCondition: data.fiscalCondition || undefined,
           contactName: data.contactName.trim(),
           contactEmail: data.contactEmail.trim().toLowerCase(),
           contactPhone: data.contactPhone.trim() || undefined,
@@ -232,6 +247,8 @@ export default function OnboardingPage() {
           mlUsername: data.mlUsername.trim() || undefined,
           metaAdAccountId: data.metaAdAccountId.trim() || undefined,
           metaAccessToken: data.metaAccessToken.trim() || undefined,
+          metaPixelId: data.metaPixelId.trim() || undefined,
+          metaPixelToken: data.metaPixelToken.trim() || undefined,
           googleAdsCustomerId: data.googleAdsCustomerId.trim() || undefined,
         }),
       });
@@ -599,14 +616,17 @@ function Field({
   hint,
   required,
   error,
+  tutorial,
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
   error?: string;
+  tutorial?: { title: string; steps: string[]; docUrl?: string };
   children: React.ReactNode;
 }) {
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   return (
     <div style={{ marginBottom: 20 }}>
       <label
@@ -627,6 +647,74 @@ function Field({
       {children}
       {error && (
         <div style={{ marginTop: 6, fontSize: 12, color: "#FCA5A5" }}>{error}</div>
+      )}
+      {tutorial && (
+        <div style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => setTutorialOpen((o) => !o)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 10px",
+              background: tutorialOpen ? "rgba(255,94,26,0.08)" : "transparent",
+              border: `1px solid ${tutorialOpen ? "rgba(255,94,26,0.3)" : BORDER}`,
+              borderRadius: 8,
+              color: tutorialOpen ? BRAND_ORANGE : TEXT_SECONDARY,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: `all 160ms ${EASE}`,
+            }}
+          >
+            <HelpCircle size={12} />
+            {tutorial.title}
+            <ChevronDown
+              size={12}
+              style={{
+                transform: tutorialOpen ? "rotate(180deg)" : "rotate(0)",
+                transition: `transform 200ms ${EASE}`,
+              }}
+            />
+          </button>
+          {tutorialOpen && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 16,
+                background: CARD_BG,
+                border: `1px solid ${BORDER}`,
+                borderLeft: `3px solid ${BRAND_ORANGE}`,
+                borderRadius: 8,
+                animation: `slideIn 200ms ${EASE}`,
+              }}
+            >
+              <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: TEXT_SECONDARY, lineHeight: 1.7 }}>
+                {tutorial.steps.map((s, i) => (
+                  <li key={i} style={{ marginBottom: 6 }}>{s}</li>
+                ))}
+              </ol>
+              {tutorial.docUrl && (
+                <a
+                  href={tutorial.docUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-block",
+                    marginTop: 10,
+                    fontSize: 12,
+                    color: BRAND_ORANGE,
+                    textDecoration: "none",
+                    fontWeight: 500,
+                  }}
+                >
+                  📄 Ver documentación oficial →
+                </a>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -717,6 +805,24 @@ function Select({
 }
 
 // ─── Step 1 — Empresa ───────────────────────────────────────
+const TIMEZONES = [
+  { value: "America/Argentina/Buenos_Aires", label: "Argentina (Buenos Aires)" },
+  { value: "America/Argentina/Cordoba", label: "Argentina (Córdoba)" },
+  { value: "America/Santiago", label: "Chile (Santiago)" },
+  { value: "America/Montevideo", label: "Uruguay (Montevideo)" },
+  { value: "America/Sao_Paulo", label: "Brasil (São Paulo)" },
+  { value: "America/Mexico_City", label: "México (CDMX)" },
+  { value: "America/Lima", label: "Perú (Lima)" },
+  { value: "America/Bogota", label: "Colombia (Bogotá)" },
+];
+
+const FISCAL_OPTIONS = [
+  { value: "MONOTRIBUTO", label: "Monotributista" },
+  { value: "RESPONSABLE_INSCRIPTO", label: "Responsable Inscripto" },
+  { value: "EXENTO", label: "Exento" },
+  { value: "OTRO", label: "Otro / No sé" },
+];
+
 function Step1({ data, update, errors, setSlugTouched }: any) {
   return (
     <div>
@@ -779,7 +885,18 @@ function Step1({ data, update, errors, setSlugTouched }: any) {
           />
         </Field>
 
-        <Field label="CUIT" hint="Opcional. Para facturación.">
+        <Field
+          label="CUIT"
+          hint="Opcional. Para facturación."
+          tutorial={{
+            title: "¿Cómo encuentro mi CUIT?",
+            steps: [
+              "Es el número de identificación tributaria de tu empresa.",
+              "11 dígitos, sin guiones ni espacios.",
+              "Si no lo tenés a mano, lo podés consultar en AFIP con tu clave fiscal.",
+            ],
+          }}
+        >
           <TextInput
             value={data.cuit}
             onChange={(v) => update({ cuit: v.replace(/[^0-9]/g, "") })}
@@ -788,6 +905,103 @@ function Step1({ data, update, errors, setSlugTouched }: any) {
           />
         </Field>
       </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <Field
+          label="Zona horaria"
+          hint="Usamos esto para reportes, alertas y crones."
+        >
+          <select
+            value={data.timezone}
+            onChange={(e) => update({ timezone: e.target.value })}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              background: CARD_BG,
+              border: `1px solid ${BORDER}`,
+              borderRadius: 10,
+              color: TEXT_PRIMARY,
+              fontSize: 14,
+              fontFamily: "inherit",
+              outline: "none",
+              cursor: "pointer",
+              boxSizing: "border-box",
+            }}
+          >
+            {TIMEZONES.map((tz) => (
+              <option key={tz.value} value={tz.value}>
+                {tz.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field
+          label="Moneda principal"
+          hint="En qué moneda operás tu negocio."
+        >
+          <select
+            value={data.currency}
+            onChange={(e) => update({ currency: e.target.value })}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              background: CARD_BG,
+              border: `1px solid ${BORDER}`,
+              borderRadius: 10,
+              color: TEXT_PRIMARY,
+              fontSize: 14,
+              fontFamily: "inherit",
+              outline: "none",
+              cursor: "pointer",
+              boxSizing: "border-box",
+            }}
+          >
+            <option value="ARS">ARS (Peso Argentino)</option>
+            <option value="USD">USD (Dólar)</option>
+          </select>
+        </Field>
+      </div>
+
+      <Field
+        label="Condición fiscal"
+        hint="Opcional. Lo usamos en el módulo de Finanzas para calcular IVA correctamente."
+        tutorial={{
+          title: "¿Qué pongo si no sé?",
+          steps: [
+            "Monotributista: si facturás como monotributo.",
+            "Responsable Inscripto: si facturás IVA 21%.",
+            "Exento: si tu actividad está exenta de IVA.",
+            'Si no estás seguro, elegí "Otro / No sé" y lo configuramos después.',
+          ],
+        }}
+      >
+        <select
+          value={data.fiscalCondition}
+          onChange={(e) => update({ fiscalCondition: e.target.value })}
+          style={{
+            width: "100%",
+            maxWidth: 400,
+            padding: "12px 14px",
+            background: CARD_BG,
+            border: `1px solid ${BORDER}`,
+            borderRadius: 10,
+            color: TEXT_PRIMARY,
+            fontSize: 14,
+            fontFamily: "inherit",
+            outline: "none",
+            cursor: "pointer",
+            boxSizing: "border-box",
+          }}
+        >
+          <option value="">Seleccionar…</option>
+          {FISCAL_OPTIONS.map((f) => (
+            <option key={f.value} value={f.value}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+      </Field>
     </div>
   );
 }
@@ -880,7 +1094,18 @@ function Step3({ data, update, errors }: any) {
         color="#FF0080"
         description="Sincroniza pedidos, productos y stock en tiempo real via webhooks."
       >
-        <Field label="VTEX Account Name" error={errors.vtexAccountName}>
+        <Field
+          label="VTEX Account Name"
+          error={errors.vtexAccountName}
+          tutorial={{
+            title: "¿Cuál es mi Account Name?",
+            steps: [
+              "Es el subdomain de tu admin VTEX.",
+              'Ejemplo: si tu admin es "arredo.myvtex.com", tu account name es "arredo".',
+              'Si es "miempresa.vtexcommercestable.com.br", es "miempresa".',
+            ],
+          }}
+        >
           <TextInput
             value={data.vtexAccountName}
             onChange={(v) => update({ vtexAccountName: v })}
@@ -888,7 +1113,21 @@ function Step3({ data, update, errors }: any) {
             maxLength={60}
           />
         </Field>
-        <Field label="App Key" hint="Generá uno en VTEX Admin → Cuenta → Gestión de Usuarios → App Keys.">
+        <Field
+          label="App Key"
+          tutorial={{
+            title: "¿Cómo genero App Key + Token?",
+            steps: [
+              "Ingresá a tu VTEX Admin.",
+              "Ir a: Cuenta → Gestión de usuarios → App Keys.",
+              'Click en "Crear key" (nombre sugerido: "NitroSales").',
+              "Asignar estos roles mínimos: Order Viewer, Catalog Read, Product Viewer.",
+              "Copiar el App Key y el App Token que se generan.",
+              "Pegarlos en los campos de abajo.",
+            ],
+            docUrl: "https://developers.vtex.com/docs/guides/api-authentication-using-application-keys",
+          }}
+        >
           <TextInput
             value={data.vtexAppKey}
             onChange={(v) => update({ vtexAppKey: v })}
@@ -912,7 +1151,19 @@ function Step3({ data, update, errors }: any) {
         color="#FFE600"
         description="Conectamos tu cuenta de vendedor MELI via OAuth seguro al activar."
       >
-        <Field label="Nombre de usuario ML" hint="Te contactaremos para que autorices el OAuth (login de MELI).">
+        <Field
+          label="Nombre de usuario ML"
+          hint="Te contactaremos para que autorices el OAuth (login de MELI)."
+          tutorial={{
+            title: "¿Dónde veo mi usuario ML?",
+            steps: [
+              "Entrá a mercadolibre.com.ar logueado con tu cuenta vendedor.",
+              "Arriba a la derecha, hacé click en tu nombre.",
+              'Tu usuario aparece en el menú (empieza con una "@" o es alfanumérico).',
+              "Pegalo acá sin la @.",
+            ],
+          }}
+        >
           <TextInput
             value={data.mlUsername}
             onChange={(v) => update({ mlUsername: v })}
@@ -924,11 +1175,24 @@ function Step3({ data, update, errors }: any) {
 
       {/* Meta Ads */}
       <PlatformCard
-        name="Meta Ads"
+        name="Meta Ads (Facebook e Instagram)"
         color="#1877F2"
         description="Opcional. Sincroniza campañas y métricas de Facebook e Instagram Ads."
       >
-        <Field label="Ad Account ID" error={errors.metaAdAccountId}>
+        <Field
+          label="Ad Account ID"
+          error={errors.metaAdAccountId}
+          tutorial={{
+            title: "¿Cómo encuentro mi Ad Account ID?",
+            steps: [
+              "Entrá a business.facebook.com logueado.",
+              "Arriba a la izquierda: Configuración del negocio.",
+              "Cuentas → Cuentas publicitarias.",
+              'Copiá el ID de la cuenta que querés conectar (empieza con "act_").',
+            ],
+            docUrl: "https://www.facebook.com/business/help/1492627900875762",
+          }}
+        >
           <TextInput
             value={data.metaAdAccountId}
             onChange={(v) => update({ metaAdAccountId: v })}
@@ -936,11 +1200,73 @@ function Step3({ data, update, errors }: any) {
             mono
           />
         </Field>
-        <Field label="Access Token">
+        <Field
+          label="Access Token (System User)"
+          tutorial={{
+            title: "¿Cómo genero el Access Token?",
+            steps: [
+              "En Business Manager: Configuración del negocio → Usuarios del sistema.",
+              'Click en "Agregar" → crear usuario con rol "Admin".',
+              "Asignar tu Ad Account al nuevo usuario.",
+              'Click en "Generar token" → seleccionar permisos: ads_management, ads_read, business_management.',
+              "Copiar el token (solo se muestra una vez).",
+              "Importante: usar System User, NO un token personal (los personales expiran).",
+            ],
+            docUrl: "https://developers.facebook.com/docs/marketing-api/system-users",
+          }}
+        >
           <TextInput
             value={data.metaAccessToken}
             onChange={(v) => update({ metaAccessToken: v })}
             placeholder="Token de System User"
+            mono
+          />
+        </Field>
+      </PlatformCard>
+
+      {/* Meta Pixel — separado de Meta Ads, para CAPI */}
+      <PlatformCard
+        name="Meta Pixel (Conversiones API)"
+        color="#1877F2"
+        description="Opcional. Enviamos eventos de compra server-side a Meta para mejor match quality. Separado de Meta Ads Business."
+      >
+        <Field
+          label="Pixel ID"
+          tutorial={{
+            title: "¿Qué es el Pixel ID y cómo lo encuentro?",
+            steps: [
+              "Es distinto del Ad Account ID — es un identificador del pixel de conversiones.",
+              "Entrá a Events Manager: business.facebook.com/events_manager.",
+              'Seleccioná tu pixel en la lista (o creá uno nuevo con "+ Conectar fuente de datos").',
+              'En "Configuración", copiá el "ID del pixel" (15-16 dígitos).',
+            ],
+            docUrl: "https://www.facebook.com/business/help/952192354843755",
+          }}
+        >
+          <TextInput
+            value={data.metaPixelId}
+            onChange={(v) => update({ metaPixelId: v.replace(/[^0-9]/g, "") })}
+            placeholder="1234567890123456"
+            mono
+            maxLength={20}
+          />
+        </Field>
+        <Field
+          label="Access Token para CAPI"
+          hint="Puede ser el mismo del System User de arriba, o uno específico con permiso ads_management."
+          tutorial={{
+            title: "¿Puedo usar el mismo token que Meta Ads?",
+            steps: [
+              "Sí. Si el System User tiene permiso ads_management, sirve para ambos.",
+              'Si no, generá uno nuevo en Events Manager → tu pixel → Configuración → "Configurar" CAPI → Generar token.',
+              "Pegá el token que obtengas en este campo.",
+            ],
+          }}
+        >
+          <TextInput
+            value={data.metaPixelToken}
+            onChange={(v) => update({ metaPixelToken: v })}
+            placeholder="Token de acceso"
             mono
           />
         </Field>
@@ -952,7 +1278,19 @@ function Step3({ data, update, errors }: any) {
         color="#4285F4"
         description="Opcional. Conectamos via OAuth al activar la cuenta."
       >
-        <Field label="Customer ID" hint="El ID de 10 dígitos (sin guiones).">
+        <Field
+          label="Customer ID"
+          tutorial={{
+            title: "¿Cómo encuentro mi Customer ID?",
+            steps: [
+              "Entrá a ads.google.com logueado con tu cuenta.",
+              "Arriba a la derecha, al costado del menú de cuentas, ves un número con formato 123-456-7890.",
+              "Ese es tu Customer ID.",
+              "Pegalo acá SIN los guiones (solo los 10 dígitos).",
+            ],
+            docUrl: "https://support.google.com/google-ads/answer/1704344",
+          }}
+        >
           <TextInput
             value={data.googleAdsCustomerId}
             onChange={(v) => update({ googleAdsCustomerId: v.replace(/[^0-9]/g, "") })}
@@ -1011,6 +1349,7 @@ function Step4({ data }: { data: FormData }) {
   if (data.vtexAccountName && data.vtexAppKey && data.vtexAppToken) platforms.push("VTEX");
   if (data.mlUsername) platforms.push("MercadoLibre");
   if (data.metaAdAccountId && data.metaAccessToken) platforms.push("Meta Ads");
+  if (data.metaPixelId && data.metaPixelToken) platforms.push("Meta Pixel (CAPI)");
   if (data.googleAdsCustomerId) platforms.push("Google Ads");
 
   return (
@@ -1026,6 +1365,17 @@ function Step4({ data }: { data: FormData }) {
         <SummaryRow label="Tienda" value={data.storeUrl} />
         {data.industry && <SummaryRow label="Industria" value={data.industry} />}
         {data.cuit && <SummaryRow label="CUIT" value={data.cuit} />}
+        <SummaryRow
+          label="Zona horaria"
+          value={TIMEZONES.find((tz) => tz.value === data.timezone)?.label || data.timezone}
+        />
+        <SummaryRow label="Moneda" value={data.currency} />
+        {data.fiscalCondition && (
+          <SummaryRow
+            label="Condición fiscal"
+            value={FISCAL_OPTIONS.find((f) => f.value === data.fiscalCondition)?.label || data.fiscalCondition}
+          />
+        )}
       </SummarySection>
 
       <SummarySection title="Contacto">

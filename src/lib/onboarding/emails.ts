@@ -148,9 +148,11 @@ export function onboardingActivationEmail(opts: {
   companyName: string;
   loginEmail: string;
   temporaryPassword: string;
+  orgId: string;
 }) {
-  const { contactName, companyName, loginEmail, temporaryPassword } = opts;
+  const { contactName, companyName, loginEmail, temporaryPassword, orgId } = opts;
   const loginUrl = `${appUrl()}/login`;
+  const pixelSnippet = `<script src="${appUrl()}/api/pixel/script?org=${orgId}" async></script>`;
   const subject = `Tu cuenta de NitroSales está lista — ${companyName}`;
   const preheader = `${companyName} ya está activo en NitroSales. Entrá con tus credenciales temporales.`;
 
@@ -203,6 +205,63 @@ export function onboardingActivationEmail(opts: {
     <p style="margin:28px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;opacity:0.8;">
       La sincronización inicial puede tardar hasta 30 minutos mientras se procesan tus primeras órdenes. Una vez completada, recibirás tu primer reporte de salud de negocio automáticamente.
     </p>
+
+    <!-- ── NitroPixel: último paso para completar la activación ── -->
+    <div style="margin-top:40px;padding:26px;background:${BRAND_BG};border:1px solid ${BORDER};border-radius:16px;">
+      <div style="font-size:11px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;">
+        ⚡ ÚLTIMO PASO — NITROPIXEL
+      </div>
+      <h2 style="margin:0 0 10px;font-size:18px;font-weight:700;color:${TEXT_PRIMARY};line-height:1.3;letter-spacing:-0.01em;">
+        Instalá el NitroPixel en tu tienda
+      </h2>
+      <p style="margin:0 0 20px;color:${TEXT_SECONDARY};font-size:14px;line-height:1.7;">
+        El NitroPixel es <strong style="color:${TEXT_PRIMARY};">nuestro tracking propio</strong> — atribuye cada venta a la campaña correcta sin depender de Meta ni Google. Pegá este snippet en tu tienda para empezar a capturar data de tus visitantes.
+      </p>
+
+      <div style="font-size:11px;color:${TEXT_SECONDARY};margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">
+        Tu snippet personalizado
+      </div>
+      <div style="background:${CARD_BG};border:1px solid ${BORDER};border-radius:10px;padding:14px 16px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12px;color:${TEXT_PRIMARY};word-break:break-all;line-height:1.6;margin-bottom:22px;">
+        ${pixelSnippet.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+      </div>
+
+      <div style="font-size:11px;color:${TEXT_SECONDARY};margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">
+        Dónde pegarlo (según tu tienda)
+      </div>
+      <div style="background:rgba(255,94,26,0.05);border:1px solid rgba(255,94,26,0.2);border-radius:10px;padding:16px 18px;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:600;color:${TEXT_PRIMARY};margin-bottom:6px;">📦 Tienda VTEX</div>
+        <ol style="margin:0;padding-left:20px;font-size:13px;color:${TEXT_SECONDARY};line-height:1.7;">
+          <li>VTEX Admin → Storefront → CMS → Templates</li>
+          <li>Abrí tu template principal (ej: "default")</li>
+          <li>Pegalo antes del <code style="background:${CARD_BG};padding:1px 6px;border-radius:4px;color:${TEXT_PRIMARY};">&lt;/head&gt;</code></li>
+          <li>Guardá y publicá</li>
+        </ol>
+      </div>
+      <div style="background:rgba(255,94,26,0.05);border:1px solid rgba(255,94,26,0.2);border-radius:10px;padding:16px 18px;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:600;color:${TEXT_PRIMARY};margin-bottom:6px;">📦 Google Tag Manager</div>
+        <ol style="margin:0;padding-left:20px;font-size:13px;color:${TEXT_SECONDARY};line-height:1.7;">
+          <li>Entrá a tu container de GTM</li>
+          <li>Crear tag nuevo → Tipo: Custom HTML</li>
+          <li>Pegá el snippet completo en el HTML</li>
+          <li>Trigger: All Pages</li>
+          <li>Guardá y publicá el container</li>
+        </ol>
+      </div>
+      <div style="background:rgba(255,94,26,0.05);border:1px solid rgba(255,94,26,0.2);border-radius:10px;padding:16px 18px;margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:600;color:${TEXT_PRIMARY};margin-bottom:6px;">📦 Tienda custom / otros CMS</div>
+        <p style="margin:0;font-size:13px;color:${TEXT_SECONDARY};line-height:1.7;">
+          Pegá el snippet antes del cierre de <code style="background:${CARD_BG};padding:1px 6px;border-radius:4px;color:${TEXT_PRIMARY};">&lt;/head&gt;</code> en tu layout principal. Si tu plataforma tiene un panel de "Scripts personalizados" o "Head code", pegalo ahí.
+        </p>
+      </div>
+
+      <p style="margin:0;font-size:12px;color:${TEXT_SECONDARY};line-height:1.6;">
+        Una vez instalado, vas a ver los primeros eventos en tu panel en <strong style="color:${TEXT_PRIMARY};">Configuración → NitroPixel</strong> en menos de 5 minutos.
+      </p>
+
+      <p style="margin:14px 0 0;font-size:12px;color:${TEXT_SECONDARY};line-height:1.6;opacity:0.85;">
+        <strong style="color:${TEXT_PRIMARY};">¿Necesitás ayuda para instalarlo?</strong> Respondé este email y nuestro equipo te ayuda a configurarlo.
+      </p>
+    </div>
   `;
 
   return { subject, html: baseLayout(subject, preheader, content) };

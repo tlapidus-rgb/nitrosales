@@ -9,6 +9,7 @@ import FloatingAurum from "@/components/aurum/FloatingAurum";
 import { AurumOrb } from "@/components/aurum/AurumOrb";
 import { PermissionsProvider, NavItemGate, NavGroupGate, PathnameGuard } from "@/hooks/usePermissions";
 import AlertsBadge from "@/components/alerts/AlertsBadge";
+import { PixelInstallBanner } from "@/components/PixelInstallBanner";
 
 type NavItem = {
   href: string;
@@ -1387,6 +1388,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
               }
             >
+              <PixelInstallBanner />
               <PathnameGuard pathname={pathname}>
                 {children}
               </PathnameGuard>

@@ -119,19 +119,22 @@ export async function POST(
     const vtexAppKey = decryptField(request.vtexAppKeyEncrypted);
     const vtexAppToken = decryptField(request.vtexAppTokenEncrypted);
     const metaAccessToken = decryptField(request.metaAccessTokenEncrypted);
+    const metaPixelToken = decryptField(request.metaPixelTokenEncrypted);
 
     // ── Transaction ──
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Crear Organization
+      // 1. Crear Organization (con timezone, currency, fiscal de la solicitud)
       const org = await tx.organization.create({
         data: {
           name: request.companyName,
           slug: request.proposedSlug,
           settings: {
             storeUrl: request.storeUrl,
+            currency: request.currency || "ARS",
+            fiscalCondition: request.fiscalCondition || null,
             whiteLabel: {
               industry: request.industry ?? null,
-              timezone: "America/Argentina/Buenos_Aires",
+              timezone: request.timezone || "America/Argentina/Buenos_Aires",
             },
           },
         },
@@ -198,6 +201,22 @@ export async function POST(
         connectionsCreated.push("Meta Ads");
       }
 
+      // Meta Pixel (CAPI) — connection separada tipo META_PIXEL
+      if (request.metaPixelId && metaPixelToken) {
+        await tx.connection.create({
+          data: {
+            organizationId: org.id,
+            platform: "META_PIXEL" as any,
+            status: "ACTIVE",
+            credentials: {
+              pixelId: request.metaPixelId,
+              accessToken: metaPixelToken,
+            },
+          },
+        });
+        connectionsCreated.push("Meta Pixel (CAPI)");
+      }
+
       if (request.googleAdsCustomerId) {
         // Google Ads requiere OAuth para refreshToken — placeholder PENDING
         await tx.connection.create({
@@ -230,12 +249,13 @@ export async function POST(
       return { org, user, connectionsCreated };
     });
 
-    // Fuera de la transaction: mandar email (fire-and-forget)
+    // Fuera de la transaction: mandar email (fire-and-forget) con snippet NitroPixel
     const { subject, html } = onboardingActivationEmail({
       contactName: request.contactName,
       companyName: request.companyName,
       loginEmail: request.contactEmail,
       temporaryPassword: tempPassword,
+      orgId: result.org.id,
     });
     sendEmail({ to: request.contactEmail, subject, html }).catch((err) => {
       console.error("[activate] email send failed:", err?.message);
