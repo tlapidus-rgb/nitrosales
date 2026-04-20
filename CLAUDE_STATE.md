@@ -3,9 +3,106 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-20 (Sesion 51 — Fase 8g-2 Aurum integration: 1 commit que conecta el chat de Aurum al rules engine. 3 tools nuevas (list_alert_primitives + create_alert_rule + request_alert_primitive) + system prompt extension con flujo conversacional discovery → propuesta → confirmacion → creacion. Refactor del POST endpoint para reusar core. Sin migraciones DB.)
+## Ultima actualizacion: 2026-04-20 (Sesion 51 CIERRE — Fase 8g-2 Aurum integration COMPLETA con 7 commits + testing en vivo + 5 fixes/mejoras descubiertos. Sistema validado end-to-end. Aprendizaje critico: Aurum debe pedir CALIBRACION al user antes de inventar criterios cuando el pedido es ambiguo.)
 
-### Sesion 51 — 2026-04-20 — Fase 8g-2 Aurum integration (1 commit `fe4b3aa`)
+### Sesion 51 CIERRE — 2026-04-20 — Fase 8g-2 COMPLETA (7 commits + testing iterativo)
+
+**Resumen ejecutivo**: implementacion + 5 fixes/mejoras descubiertos en testing real. El aprendizaje mas importante: **Aurum debe pedir calibracion al user antes de inventar criterios cuando el pedido es ambiguo**. Si interpreta solo, el user recibe algo distinto a lo esperado durante semanas sin darse cuenta.
+
+#### Commits a `main` (7 total)
+
+| # | Commit | Que |
+|---|---|---|
+| 1 | `fe4b3aa` | Aurum integration base: 3 tools + handlers + create-rule-core + system prompt + refactor /api/alerts/rules POST |
+| 2 | `dcde87d` | docs sesion 51 (iteracion 1) |
+| 3 | `c93f2bc` | fix: ALERT_TOOLS tambien en FloatingAurum (`/api/aurum/section-insight`). El bubble lateral usa otro endpoint distinto a /api/chat — habia que sumarlo ahi tambien con loop tool-use |
+| 4 | `bf4b4e5` | fix: max_tokens=1500 (vs 600) + MAX_ROUNDS=5 + fallback inteligente. El loop se cortaba sin generar reply final aunque la tool se hubiera ejecutado con exito en DB |
+| 5 | `de52dd4` | nuevo endpoint `/api/alerts/rules/preview?id=X` para forzar evaluacion de regla sin esperar al cron — util para validar que el reporte sale como uno espera |
+| 6 | `323f6ac` | fix semantico: primitiva `orders.report.daily_digest` ahora muestra cierre del DIA ANTERIOR completo (24hs) en vez del dia actual al momento del envio |
+| 7 | `cee9ba9` | mejora UX: paso 0 de calibracion en ALERT_TOOLS_PROMPT — Aurum ahora detecta ambiguedades importantes y pregunta ANTES de proponer la regla |
+
+#### Decisiones de producto acordadas con Tomy al arranque
+
+- Confirmacion: solo texto (no card interactiva con botones embebidos)
+- Scope: solo CREAR (no edit/delete desde chat — eso vive en /alertas/reglas Fase 8g-3)
+- Canal default: solo `in_app`. Email se activa en Fase 8g-3
+- Duplicados: detectar y avisar — NO crear automaticamente. User puede pedir allowDuplicate=true si confirma explicitamente
+
+#### Decision arquitectonica clave
+
+El matching NL → primitiva lo hace el mismo Aurum (Sonnet/Opus que ya corre el chat) leyendo `naturalExamples` del catalogo via tool `list_alert_primitives`. **Sin sub-mapper LLM separado** — duplicaba costo y latencia. Token overhead: ~0 cuando no hay intent de alerta, ~2-3K extra solo en turns con alerta.
+
+#### Testing end-to-end validado con Tomy en prod
+
+| Capacidad | Estado | Detalle |
+|---|---|---|
+| Aurum entiende "todos los días 9am mandame el resumen de ventas" | ✅ | Matchea con `orders.report.daily_digest` correcto |
+| Crea regla en DB con schedule + canal correctos | ✅ | type=schedule, freq=daily, time=09:00, channels=[in_app] |
+| Detecta duplicados y avisa con fecha | ✅ | "Ya tenes una regla equivalente desde el 20/4..." con opcion de cancelar/forzar/modificar |
+| Funciona desde bubble lateral FloatingAurum | ✅ | post-fix #3 |
+| Surface confirmacion correcta tras "Si" del user | ✅ | post-fix #4 — fallback inteligente |
+| Preview con datos reales sin esperar al cron | ✅ | endpoint `/api/alerts/rules/preview?id=X` |
+| Reporte muestra dia anterior cerrado (no dia actual a medias) | ✅ | post-fix #6 |
+| **Aurum pregunta calibracion ante ambiguedad** | ✅ | post-fix #7 — probado con "avisame si las ventas bajan" → Aurum pidio umbral, comparativa, scope canal, frecuencia |
+
+#### Aprendizajes clave Sesion 51 (7 patterns)
+
+1. **Tool-as-Tool en agentes existentes**: cuando ya hay un agente con tool-use loop funcionando, agregar features nuevas (crear reglas, segmentos, campañas desde chat) es 100% extender el array de tools + handler dispatch + system prompt extension. Sin tocar el loop. Sin streaming. Sin nueva UI.
+
+2. **Confirmacion = texto, no card**: en chats conversacionales con LLMs avanzados, la "card interactiva con botones Confirmar/Cancelar" es overkill. El LLM mantiene el contexto entre turns gracias al history y el user confirma con "si" natural.
+
+3. **DRY via core function**: extraer la logica de creacion del POST handler a `createAlertRuleCore` permite que tanto el endpoint HTTP como el tool de Aurum usen la misma validacion + dedupe + INSERT.
+
+4. **Multi-endpoint feature parity**: si una feature (ej: tools de alertas) tiene que funcionar desde varios entrypoints del chat, montarla en cada endpoint con el mismo dispatch. Detectado en testing — el bubble FloatingAurum es endpoint distinto y silenciosamente quedaba sin la feature.
+
+5. **🌟 PATRON CRITICO — "Calibracion antes de inventar"**: cuando el agente tiene poder de generar entidades persistentes (reglas que se ejecutan por meses), DEBE preguntar al user los criterios ambiguos ANTES de crear. Si interpreta solo, el user recibe algo distinto durante semanas sin darse cuenta. Solucion: prompt instruyendo al modelo a detectar 6 tipos de ambiguedad (periodo, umbral, comparativa, scope, granularidad temporal, direccion) y pedir aclaracion con opciones binarias o multiples antes de proponer. **Aplica tambien a futuras features tipo "Aurum crea segmento", "Aurum crea campaña", "Aurum modifica producto"**.
+
+6. **Fallback inteligente en tool-use loops con max_tokens chico**: si el modelo se queda sin tokens para generar el mensaje de cierre tras ejecutar una tool exitosa, NO mostrar "no pude generar respuesta" — trackear `lastSuccessfulAlertTool` durante el loop y generar el reply manualmente cuando aplique. Patron reusable para cualquier loop con riesgo de truncation.
+
+7. **Endpoint preview/diagnostico para schedules**: cuando hay primitivas type=schedule que ejecutan en horarios futuros, un endpoint GET que evalua AHORA ignorando cooldown y nextFireAt es vital para que el user vea como se va a ver el reporte sin esperar al cron. Patron generalizable a cualquier feature con execucion deferida.
+
+#### Estado actual modulo Alertas post-Sesion 51
+
+- Hub central: 5 sources nativos + 4 product modules + 48 primitivas user-defined
+- **Aurum puede crear reglas desde NL con calibracion conversacional** (S51)
+- Funciona en `/chat` completo Y en FloatingAurum bubble (S51)
+- Rediseño visual inbox 3-col + favoritas + read state persistido (S49)
+- API CRUD `/api/alerts/rules` productiva con dedupe (S50+S51)
+- Endpoint preview para forzar evaluacion sin cron (S51)
+- Catalogo PRIMITIVES_CATALOG.md committed (S50)
+- Placeholder `/alertas/reglas` pendiente de UI productiva (Fase 8g-3)
+
+#### Pendientes Fase 8g
+
+- **8g-3 UI + Email + Quick buttons**: rewrite `/alertas/reglas` con CRUD visual, canal email via Resend, botones "Avisarme cuando..." en 4 paginas top
+- **8g-4 Cron scheduler**: `/api/cron/alerts-scheduler` cada 15min para reglas type=schedule, Vercel cron config
+- **8g-5 Tier 2 expansion**: post-feedback Arredo + TV Compras
+
+#### Migraciones ejecutadas Sesion 51
+
+Ninguna — todas las tablas necesarias (alert_rules, alert_rule_requests) ya estaban en prod desde S50.
+
+#### Datos de testing capturados
+
+```json
+{
+  "id": "4b155c7a-7942-4237-91cc-92b318df5ba9",
+  "name": "Resumen diario de ventas",
+  "primitiveKey": "orders.report.daily_digest",
+  "type": "schedule",
+  "schedule": {"time": "09:00", "frequency": "daily"},
+  "channels": ["in_app"],
+  "enabled": true
+}
+```
+
+Preview real (cierre dia anterior post-fix): `69 orders · $ 2.580.949 · AOV $ 37.405`. Disparo confirmado para mañana 9am UTC.
+
+---
+
+## Ultima actualizacion previa: 2026-04-20 (Sesion 51 iteracion 1 — commit `fe4b3aa`)
+
+### Sesion 51 — 2026-04-20 — Fase 8g-2 Aurum integration commit base
 
 **Objetivo**: que el user pueda escribir en el chat de Aurum cosas como "avisame si el runway baja de 3 meses" o "todos los lunes 9am mandame el resumen de ventas" y que automaticamente se cree la regla de alerta correspondiente.
 
