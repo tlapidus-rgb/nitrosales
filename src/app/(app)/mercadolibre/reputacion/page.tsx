@@ -1,16 +1,26 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect } from "react";
+/**
+ * /mercadolibre/reputacion — Premium upgrade (Fase 9)
+ * ─────────────────────────────────────────────────────────────
+ * Read-only sobre data importada desde MELI (NUNCA toca producción).
+ * Premium look + termómetro animado + distancia a próximo nivel +
+ * performance bars con threshold marker + gráfico histórico premium.
+ */
+
+import React, { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  Award, Star, TrendingUp, AlertTriangle, Clock, ShieldCheck,
-  ThumbsUp, ThumbsDown, Minus,
+  Award, TrendingUp, AlertTriangle, Clock, ShieldCheck,
+  ThumbsUp, ThumbsDown, Minus, ArrowLeft, Loader2, Activity, Target,
 } from "lucide-react";
-import { KpiCard } from "@/components/dashboard";
+
+const ML_GRADIENT = "linear-gradient(135deg, #fbbf24, #f97316)";
+const ML_PRIMARY = "#f59e0b";
 
 interface ReputacionData {
   current: {
@@ -27,6 +37,14 @@ interface ReputacionData {
   }>;
 }
 
+const LEVELS = [
+  { level: "1_red", color: "#ef4444", label: "Malo" },
+  { level: "2_orange", color: "#f97316", label: "Regular" },
+  { level: "3_yellow", color: "#f59e0b", label: "Bueno" },
+  { level: "4_light_green", color: "#34d399", label: "Muy bueno" },
+  { level: "5_green", color: "#10b981", label: "Excelente" },
+];
+
 export default function ReputacionPage() {
   const [data, setData] = useState<ReputacionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,190 +59,431 @@ export default function ReputacionPage() {
       .finally(() => setLoading(false));
   }, [days]);
 
-  if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mx-auto mb-3" />
-          <p className="text-gray-500">Cargando reputacion...</p>
-        </div>
-      </div>
-    );
-  }
+  const nextLevelInfo = useMemo(() => {
+    if (!data?.current) return null;
+    const idx = LEVELS.findIndex((l) => l.level === data.current.level);
+    if (idx === -1 || idx === LEVELS.length - 1) return null;
+    const next = LEVELS[idx + 1];
+    return { next, currentIdx: idx };
+  }, [data]);
 
-  if (!data || !data.current) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <Award size={32} className="text-gray-300 mx-auto mb-2" />
-          <p className="text-gray-500">Sin datos de reputacion. Sincroniza desde el Dashboard ML.</p>
-        </div>
+  if (loading && !data) return <PageShell><LoadingState text="Cargando reputación…" /></PageShell>;
+  if (!data || !data.current) return (
+    <PageShell>
+      <Breadcrumb />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 80, color: "#94a3b8" }}>
+        <Award size={36} style={{ marginBottom: 12, color: "#cbd5e1" }} />
+        <div style={{ fontSize: 14 }}>Sin datos de reputación. Sincronizá MELI desde el dashboard.</div>
       </div>
-    );
-  }
+    </PageShell>
+  );
 
   const { current } = data;
-  const completionRate = current.totalSales > 0
-    ? ((current.completedSales / current.totalSales) * 100).toFixed(1)
-    : "0";
+  const completionRate = current.totalSales > 0 ? ((current.completedSales / current.totalSales) * 100).toFixed(1) : "0";
 
   return (
-    <div className="space-y-6">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reputacion MercadoLibre</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Metricas del seller ELMUNDODELJUG</p>
-      </div>
+    <PageShell>
+      <Breadcrumb />
 
-      {/* LEVEL BANNER */}
-      <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-        <div className="flex flex-wrap items-center gap-8">
-          {/* Level indicator */}
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ backgroundColor: `${current.levelColor}15` }}>
-              <Award size={32} style={{ color: current.levelColor }} />
+      <HeroHeader title="Reputación" subtitle="Métricas oficiales del seller ELMUNDODELJUG según MercadoLibre" Icon={Award} />
+
+      {/* LEVEL BANNER PREMIUM */}
+      <div
+        style={{
+          background: "white", borderRadius: 16, border: "1px solid rgba(15,23,42,.05)",
+          padding: 24, marginBottom: 16, position: "relative", overflow: "hidden",
+          boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+        }}
+      >
+        {/* Accent bar lateral grande */}
+        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 5, background: current.levelColor }} />
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 28, alignItems: "center", paddingLeft: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div
+              style={{
+                width: 64, height: 64, borderRadius: 16,
+                background: `${current.levelColor}12`,
+                color: current.levelColor,
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Award size={32} />
             </div>
             <div>
-              <p className="text-2xl font-bold" style={{ color: current.levelColor }}>{current.levelLabel}</p>
-              <p className="text-sm text-gray-500">
-                {current.powerSeller && <span className="text-yellow-600 font-semibold">MercadoLider · </span>}
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+                Nivel actual
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: current.levelColor, letterSpacing: "-0.02em", lineHeight: 1 }}>
+                {current.levelLabel}
+              </div>
+              <div style={{ fontSize: 12, color: "#64748b", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
+                {current.powerSeller && (
+                  <span style={{ marginRight: 8, padding: "2px 8px", background: ML_GRADIENT, color: "white", fontSize: 10, fontWeight: 700, borderRadius: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    ⚡ MercadoLíder
+                  </span>
+                )}
                 {current.totalSales.toLocaleString("es-AR")} ventas totales
-              </p>
+              </div>
             </div>
           </div>
 
-          {/* Ratings breakdown */}
-          <div className="flex gap-8 ml-auto">
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-1">
-                <ThumbsUp size={14} className="text-emerald-500" />
-                <span className="text-2xl font-bold text-emerald-600">{current.positiveRatings.toLocaleString("es-AR")}</span>
-              </div>
-              <p className="text-xs text-gray-500">Positivas ({current.positiveRate}%)</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-1">
-                <Minus size={14} className="text-gray-400" />
-                <span className="text-2xl font-bold text-gray-400">{current.neutralRatings.toLocaleString("es-AR")}</span>
-              </div>
-              <p className="text-xs text-gray-500">Neutras</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-1">
-                <ThumbsDown size={14} className="text-red-500" />
-                <span className="text-2xl font-bold text-red-500">{current.negativeRatings.toLocaleString("es-AR")}</span>
-              </div>
-              <p className="text-xs text-gray-500">Negativas</p>
-            </div>
+          <div style={{ display: "flex", gap: 24, marginLeft: "auto", flexWrap: "wrap", alignItems: "center" }}>
+            <RatingBlock Icon={ThumbsUp} value={current.positiveRatings} label={`Positivas · ${current.positiveRate}%`} tone="#10b981" />
+            <RatingBlock Icon={Minus} value={current.neutralRatings} label="Neutras" tone="#94a3b8" />
+            <RatingBlock Icon={ThumbsDown} value={current.negativeRatings} label="Negativas" tone="#ef4444" />
           </div>
         </div>
       </div>
 
-      {/* METRIC CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiCard icon={<ShieldCheck size={16} className="text-emerald-600" />} iconBg="bg-emerald-50"
-          label="Ventas completadas" value={current.completedSales.toLocaleString("es-AR")}
-          subtitle={`${completionRate}% completion`} />
-        <KpiCard icon={<TrendingUp size={16} className="text-blue-600" />} iconBg="bg-blue-50"
-          label="Ventas totales" value={current.totalSales.toLocaleString("es-AR")} />
-        <KpiCard icon={<AlertTriangle size={16} className="text-yellow-600" />} iconBg="bg-yellow-50"
-          label="Canceladas" value={current.cancelledSales.toLocaleString("es-AR")} />
-        <KpiCard icon={<AlertTriangle size={16} className="text-red-600" />} iconBg="bg-red-50"
-          label="Tasa reclamos" value={current.claimsRate != null ? `${(current.claimsRate * 100).toFixed(2)}%` : "--"} />
-        <KpiCard icon={<Clock size={16} className="text-orange-600" />} iconBg="bg-orange-50"
-          label="Envios tardios" value={current.delayedRate != null ? `${(current.delayedRate * 100).toFixed(2)}%` : "--"} />
-        <KpiCard icon={<AlertTriangle size={16} className="text-purple-600" />} iconBg="bg-purple-50"
-          label="Tasa cancelacion" value={current.cancellationRate != null ? `${(current.cancellationRate * 100).toFixed(2)}%` : "--"} />
+      {/* DISTANCIA A PRÓXIMO NIVEL — banner motivacional */}
+      {nextLevelInfo && (
+        <div
+          style={{
+            background: `linear-gradient(135deg, ${nextLevelInfo.next.color}08, ${nextLevelInfo.next.color}03)`,
+            border: `1px solid ${nextLevelInfo.next.color}25`,
+            borderRadius: 12, padding: "14px 18px", marginBottom: 24,
+            display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+          }}
+        >
+          <div
+            style={{
+              width: 38, height: 38, borderRadius: 10,
+              background: nextLevelInfo.next.color, color: "white",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Target size={18} />
+          </div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: nextLevelInfo.next.color, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>
+              Próximo nivel
+            </div>
+            <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
+              Para subir a <b style={{ color: nextLevelInfo.next.color }}>{nextLevelInfo.next.label}</b> tenés que mantener tasa de reclamos baja, envíos a tiempo y completar más ventas. Mantené el ritmo y revisá las métricas debajo para identificar qué mejorar primero.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MÉTRICAS PRINCIPALES */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
+        <KpiPremium label="Ventas completadas" value={current.completedSales.toLocaleString("es-AR")} sub={`${completionRate}% completion`} tone="#10b981" Icon={ShieldCheck} />
+        <KpiPremium label="Ventas totales" value={current.totalSales.toLocaleString("es-AR")} sub="histórico del seller" tone="#3b82f6" Icon={TrendingUp} />
+        <KpiPremium label="Canceladas" value={current.cancelledSales.toLocaleString("es-AR")} sub="del histórico" tone="#f59e0b" Icon={AlertTriangle} />
+        <KpiPremium label="Tasa reclamos" value={current.claimsRate != null ? `${(current.claimsRate * 100).toFixed(2)}%` : "—"} sub={current.claimsRate < 0.02 ? "saludable" : "atender"} tone={current.claimsRate < 0.02 ? "#10b981" : "#ef4444"} Icon={AlertTriangle} />
+        <KpiPremium label="Envíos tardíos" value={current.delayedRate != null ? `${(current.delayedRate * 100).toFixed(2)}%` : "—"} sub={current.delayedRate < 0.06 ? "saludable" : "atender"} tone={current.delayedRate < 0.06 ? "#10b981" : "#f59e0b"} Icon={Clock} />
+        <KpiPremium label="Cancelaciones" value={current.cancellationRate != null ? `${(current.cancellationRate * 100).toFixed(2)}%` : "—"} sub={current.cancellationRate < 0.02 ? "saludable" : "atender"} tone={current.cancellationRate < 0.02 ? "#10b981" : "#ef4444"} Icon={AlertTriangle} />
       </div>
 
-      {/* ML THERMOMETER — visual scale */}
-      <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-800 mb-4">Termometro de reputacion</h2>
-        <div className="flex items-center gap-1 h-8 rounded-full overflow-hidden">
-          {[
-            { level: "1_red", color: "#ef4444", label: "Malo" },
-            { level: "2_orange", color: "#f97316", label: "Regular" },
-            { level: "3_yellow", color: "#f59e0b", label: "Bueno" },
-            { level: "4_light_green", color: "#34d399", label: "Muy bueno" },
-            { level: "5_green", color: "#10b981", label: "Excelente" },
-          ].map((seg) => (
-            <div key={seg.level} className="flex-1 h-full relative flex items-center justify-center"
-              style={{ backgroundColor: current.level === seg.level ? seg.color : `${seg.color}30` }}>
-              <span className={`text-[10px] font-medium ${current.level === seg.level ? "text-white" : "text-gray-500"}`}>
-                {seg.label}
-              </span>
-              {current.level === seg.level && (
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-gray-800" />
-              )}
-            </div>
-          ))}
+      {/* TERMÓMETRO PREMIUM */}
+      <div
+        style={{
+          background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
+          padding: 22, marginBottom: 16,
+          boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 7, background: `${ML_PRIMARY}12`, color: ML_PRIMARY, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <Activity size={14} />
+          </div>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+            Termómetro de reputación MercadoLibre
+          </h2>
+        </div>
+
+        <div style={{ display: "flex", gap: 4, height: 40, borderRadius: 12, overflow: "hidden", position: "relative" }}>
+          {LEVELS.map((seg) => {
+            const isCurrent = current.level === seg.level;
+            return (
+              <div
+                key={seg.level}
+                style={{
+                  flex: 1, position: "relative",
+                  background: isCurrent ? seg.color : `${seg.color}25`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+                  boxShadow: isCurrent ? `0 4px 14px ${seg.color}40` : "none",
+                }}
+              >
+                <span style={{ fontSize: 11, fontWeight: 700, color: isCurrent ? "white" : "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {seg.label}
+                </span>
+                {isCurrent && (
+                  <div style={{ position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "7px solid transparent", borderRight: "7px solid transparent", borderTop: "8px solid #0f172a" }} />
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* PERFORMANCE METRICS — bars */}
-      <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-800 mb-4">Metricas de performance (umbrales ML)</h2>
-        <div className="space-y-4">
+      {/* PERFORMANCE BARS premium con threshold */}
+      <div
+        style={{
+          background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
+          padding: 22, marginBottom: 16,
+          boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(99,102,241,.12)", color: "#6366f1", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <Target size={14} />
+          </div>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+            Performance vs umbrales recomendados de MELI
+          </h2>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {[
             { label: "Reclamos", value: current.claimsRate ? current.claimsRate * 100 : 0, threshold: 2, unit: "%" },
-            { label: "Envios tardios", value: current.delayedRate ? current.delayedRate * 100 : 0, threshold: 15, unit: "%" },
+            { label: "Envíos tardíos", value: current.delayedRate ? current.delayedRate * 100 : 0, threshold: 15, unit: "%" },
             { label: "Cancelaciones", value: current.cancellationRate ? current.cancellationRate * 100 : 0, threshold: 5, unit: "%" },
           ].map((m) => {
             const isGood = m.value < m.threshold;
+            const tone = isGood ? "#10b981" : "#ef4444";
             const pct = Math.min((m.value / (m.threshold * 2)) * 100, 100);
             return (
               <div key={m.label}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-gray-600">{m.label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold ${isGood ? "text-emerald-600" : "text-red-500"}`}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{m.label}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: tone, fontVariantNumeric: "tabular-nums" }}>
                       {m.value.toFixed(2)}{m.unit}
                     </span>
-                    <span className="text-[10px] text-gray-400">umbral: {m.threshold}{m.unit}</span>
+                    <span style={{ fontSize: 10, color: "#94a3b8", fontVariantNumeric: "tabular-nums" }}>
+                      umbral {m.threshold}{m.unit}
+                    </span>
                   </div>
                 </div>
-                <div className="relative w-full bg-gray-100 rounded-full h-3">
-                  <div className="h-3 rounded-full transition-all"
-                    style={{ width: `${pct}%`, backgroundColor: isGood ? "#10b981" : "#ef4444" }} />
-                  {/* Threshold marker */}
-                  <div className="absolute top-0 h-3 w-0.5 bg-gray-400"
-                    style={{ left: `${(m.threshold / (m.threshold * 2)) * 100}%` }} />
+                <div style={{ position: "relative", width: "100%", background: "#f1f5f9", borderRadius: 999, height: 8, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: "100%", borderRadius: 999, width: `${pct}%`,
+                      background: tone,
+                      transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)",
+                      boxShadow: `0 0 8px ${tone}40`,
+                    }}
+                  />
+                </div>
+                {/* Threshold marker outside the bar */}
+                <div style={{ position: "relative", height: 6 }}>
+                  <div
+                    style={{
+                      position: "absolute", top: -2,
+                      left: `${(m.threshold / (m.threshold * 2)) * 100}%`,
+                      transform: "translateX(-50%)",
+                      width: 0, height: 0,
+                      borderLeft: "4px solid transparent",
+                      borderRight: "4px solid transparent",
+                      borderTop: "4px solid #94a3b8",
+                    }}
+                  />
                 </div>
               </div>
             );
           })}
         </div>
-        <p className="text-[10px] text-gray-400 mt-3">Los umbrales son los maximos recomendados por MercadoLibre para mantener buena reputacion</p>
+        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 10, lineHeight: 1.5 }}>
+          ▼ Marca el umbral máximo recomendado por MercadoLibre. Mantenete por debajo para no afectar tu nivel.
+        </div>
       </div>
 
-      {/* NOTE ABOUT HISTORY */}
-      {data.history.length <= 1 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
-          <p className="text-xs text-yellow-700">
-            Los graficos historicos se construiran a medida que se sincronicen datos diariamente.
-            Por ahora se muestra el snapshot de hoy.
-          </p>
-        </div>
-      )}
-
-      {/* HISTORY CHARTS (only if >1 data points) */}
-      {data.history.length > 1 && (
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Evolucion de metricas</h2>
-          <ResponsiveContainer width="100%" height={250}>
+      {/* HISTORY CHART o NOTE */}
+      {data.history.length > 1 ? (
+        <div
+          style={{
+            background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
+            padding: 22, marginBottom: 16,
+            boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(99,102,241,.12)", color: "#6366f1", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <TrendingUp size={14} />
+            </div>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+              Evolución histórica de ventas
+            </h2>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={data.history}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="date"
+              <defs>
+                <linearGradient id="histGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis
+                dataKey="date"
                 tickFormatter={(d) => { try { return new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "short" }); } catch { return d; } }}
-                tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false}
+              />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={50} />
-              <Tooltip contentStyle={{ borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.8rem" }} />
-              <Area type="monotone" dataKey="totalSales" stroke="#6366f1" strokeWidth={2} fill="#6366f115" name="Ventas acumuladas" />
+              <Tooltip contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px", boxShadow: "0 4px 14px rgba(15,23,42,.08)" }} />
+              <Area type="monotone" dataKey="totalSales" stroke="#6366f1" strokeWidth={2.5} fill="url(#histGrad)" name="Ventas acumuladas" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
+      ) : (
+        <div
+          style={{
+            background: "rgba(245,158,11,.06)",
+            border: "1px solid rgba(245,158,11,.25)",
+            borderRadius: 12, padding: "14px 18px", marginBottom: 16,
+            display: "flex", alignItems: "center", gap: 12,
+          }}
+        >
+          <div
+            style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: ML_PRIMARY, color: "white",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Activity size={15} />
+          </div>
+          <div style={{ fontSize: 12, color: "#92400e", lineHeight: 1.5 }}>
+            <b>Histórico en construcción.</b> Los gráficos de evolución se van a poblar a medida que MELI sincronice datos diariamente. Por ahora mostramos el snapshot actual.
+          </div>
+        </div>
       )}
+
+      <SharedStyles />
+    </PageShell>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// Subcomponents
+// ════════════════════════════════════════════════════════════════
+
+function RatingBlock({ Icon, value, label, tone }: { Icon: any; value: number; label: string; tone: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <Icon size={15} style={{ color: tone }} />
+        <span style={{ fontSize: 22, fontWeight: 700, color: tone, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+          {value.toLocaleString("es-AR")}
+        </span>
+      </div>
+      <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
     </div>
+  );
+}
+
+function KpiPremium({ label, value, sub, tone, Icon }: { label: string; value: string; sub?: string; tone: string; Icon: any }) {
+  return (
+    <div
+      style={{
+        padding: "20px 22px",
+        background: "white",
+        borderRadius: 14,
+        border: "1px solid rgba(15,23,42,.05)",
+        boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${tone}, ${tone}40)` }} />
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{label}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
+            {value}
+          </div>
+          {sub && <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>{sub}</div>}
+        </div>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: `${tone}12`, color: tone, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon size={15} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeroHeader({ title, subtitle, Icon }: { title: string; subtitle: string; Icon: any }) {
+  return (
+    <div
+      style={{
+        background: "white", borderRadius: 18, border: "1px solid rgba(15,23,42,.05)",
+        padding: "26px 30px", marginBottom: 24,
+        boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 8px 24px rgba(15,23,42,.04)",
+        display: "flex", alignItems: "center", gap: 18,
+      }}
+    >
+      <div
+        style={{
+          width: 56, height: 56, borderRadius: 14,
+          background: ML_GRADIENT, color: "white",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+          boxShadow: "0 6px 20px rgba(245,158,11,.35)",
+        }}
+      >
+        <Icon size={26} />
+      </div>
+      <div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0f172a", margin: 0, marginBottom: 4 }}>{title}</h1>
+        <div style={{ fontSize: 13, color: "#64748b", maxWidth: 560, lineHeight: 1.5 }}>{subtitle}</div>
+      </div>
+    </div>
+  );
+}
+
+function Breadcrumb() {
+  return (
+    <Link
+      href="/mercadolibre"
+      style={{ fontSize: 12, color: "#94a3b8", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 18, transition: "color 0.15s" }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = "#475569")}
+      onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+    >
+      <ArrowLeft size={13} /> MercadoLibre
+    </Link>
+  );
+}
+
+function LoadingState({ text }: { text: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 60, justifyContent: "center", color: "#94a3b8" }}>
+      <Loader2 size={18} className="spin" style={{ color: ML_PRIMARY }} />
+      <span style={{ fontSize: 14 }}>{text}</span>
+      <style jsx>{`
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}
+
+function PageShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ position: "relative", minHeight: "100%", padding: "32px 40px 64px", background: "#fafafa" }}>
+      <div
+        style={{
+          position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
+          background:
+            "radial-gradient(900px 500px at 85% -10%, rgba(245,158,11,.08), transparent 60%)," +
+            "radial-gradient(700px 400px at 5% 30%, rgba(251,191,36,.05), transparent 60%)," +
+            "radial-gradient(600px 400px at 50% 110%, rgba(249,115,22,.04), transparent 60%)",
+        }}
+      />
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1240, margin: "0 auto" }}>{children}</div>
+    </div>
+  );
+}
+
+function SharedStyles() {
+  return (
+    <style jsx global>{`
+      .spin { animation: spin 1s linear infinite; }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    `}</style>
   );
 }
