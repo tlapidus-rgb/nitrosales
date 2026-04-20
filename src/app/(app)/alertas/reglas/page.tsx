@@ -44,6 +44,12 @@ import {
   Pencil,
   Save,
   Info,
+  Plus,
+  ArrowRight,
+  Check,
+  Clock,
+  Bolt,
+  Search,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -117,6 +123,7 @@ export default function AlertasReglasPage() {
   const [previewOpen, setPreviewOpen] = useState<{ rule: Rule; data: any | null; loading: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Rule | null>(null);
   const [editing, setEditing] = useState<Rule | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -179,6 +186,31 @@ export default function AlertasReglasPage() {
       setTimeout(() => setError(null), 6000);
       // recargar para devolver estado correcto
       load();
+    }
+  };
+
+  // Create rule (POST desde el wizard)
+  const createNewRule = async (
+    payload: any
+  ): Promise<{ ok: boolean; error?: string; duplicate?: any }> => {
+    try {
+      const res = await fetch("/api/alerts/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: json?.error ?? `HTTP ${res.status}`,
+          duplicate: json?.duplicate,
+        };
+      }
+      await load();
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message ?? e) };
     }
   };
 
@@ -318,14 +350,38 @@ export default function AlertasReglasPage() {
             </div>
           </div>
 
-          {/* KPI strip */}
-          {!loading && rules.length > 0 && (
-            <div style={{ display: "flex", gap: 10 }}>
-              <KpiCard label="Activas" value={String(totalActive)} sub={`de ${rules.length}`} tone="#10b981" />
-              <KpiCard label="Reportes" value={String(totalScheduled)} sub="programados" tone="#0ea5e9" />
-              <KpiCard label="Alertas" value={String(totalConditional)} sub="condicionales" tone="#f43f5e" />
-            </div>
-          )}
+          {/* KPI strip + Nueva regla */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {!loading && rules.length > 0 && (
+              <>
+                <KpiCard label="Activas" value={String(totalActive)} sub={`de ${rules.length}`} tone="#10b981" />
+                <KpiCard label="Reportes" value={String(totalScheduled)} sub="programados" tone="#0ea5e9" />
+                <KpiCard label="Alertas" value={String(totalConditional)} sub="condicionales" tone="#f43f5e" />
+              </>
+            )}
+            {!loading && (
+              <button
+                onClick={() => setCreating(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 16px",
+                  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  boxShadow: "0 2px 12px rgba(99, 102, 241, 0.25)",
+                }}
+              >
+                <Plus size={14} /> Nueva regla
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Error banner */}
@@ -371,7 +427,7 @@ export default function AlertasReglasPage() {
         )}
 
         {/* Empty state */}
-        {!loading && rules.length === 0 && !error && <EmptyState />}
+        {!loading && rules.length === 0 && !error && <EmptyState onCreateClick={() => setCreating(true)} />}
 
         {/* Grupos por módulo */}
         {!loading && rules.length > 0 && (
@@ -422,9 +478,9 @@ export default function AlertasReglasPage() {
             </div>
             <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
               <b style={{ color: "#0f172a" }}>¿Querés crear otra regla?</b>{" "}
-              Pedíselo a Aurum en el chat con lenguaje natural — ej:{" "}
+              Usá <b style={{ color: "#6366f1" }}>"+ Nueva regla"</b> arriba para el wizard guiado paso a paso,
+              o pedísela a Aurum en el chat con lenguaje natural — ej:{" "}
               <i style={{ color: "#475569" }}>"avisame si las cancelaciones de ML pasan el 5%"</i>.
-              Te va a calibrar los detalles y crear la regla por vos.
             </div>
           </div>
         )}
@@ -453,6 +509,20 @@ export default function AlertasReglasPage() {
             return r;
           }}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {/* Wizard de creación */}
+      {creating && (
+        <CreateWizard
+          catalog={catalog}
+          existingRules={rules}
+          onCreate={async (payload) => {
+            const r = await createNewRule(payload);
+            if (r.ok) setCreating(false);
+            return r;
+          }}
+          onClose={() => setCreating(false)}
         />
       )}
     </div>
@@ -743,7 +813,7 @@ function ActionButton({
   );
 }
 
-function EmptyState() {
+function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
     <div
       style={{
@@ -785,23 +855,45 @@ function EmptyState() {
         <ExampleChip text='"todos los lunes mandame el ranking de productos top"' />
       </div>
 
-      <Link
-        href="/chat"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "10px 18px",
-          background: "linear-gradient(135deg, #a855f7, #f43f5e)",
-          color: "white",
-          textDecoration: "none",
-          borderRadius: 10,
-          fontSize: 13,
-          fontWeight: 600,
-        }}
-      >
-        <Sparkles size={14} /> Abrir chat de Aurum
-      </Link>
+      <div style={{ display: "inline-flex", gap: 10 }}>
+        <button
+          onClick={onCreateClick}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 18px",
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            color: "white",
+            border: "none",
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 12px rgba(99, 102, 241, 0.25)",
+          }}
+        >
+          <Plus size={14} /> Crear regla con wizard
+        </button>
+        <Link
+          href="/chat"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 18px",
+            background: "white",
+            color: "#a855f7",
+            textDecoration: "none",
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            border: "1px solid rgba(168, 85, 247, 0.25)",
+          }}
+        >
+          <Sparkles size={14} /> Pedísela a Aurum
+        </Link>
+      </div>
     </div>
   );
 }
@@ -1352,7 +1444,715 @@ function EditDrawer({
   );
 }
 
-// ── Subcomponentes del drawer ──
+// ═══════════════════════════════════════════════════════════════════
+// Create Wizard — Fase 8g-3c
+// ═══════════════════════════════════════════════════════════════════
+
+function CreateWizard({
+  catalog,
+  existingRules,
+  onCreate,
+  onClose,
+}: {
+  catalog: CatalogPrimitive[];
+  existingRules: Rule[];
+  onCreate: (payload: any) => Promise<{ ok: boolean; error?: string; duplicate?: any }>;
+  onClose: () => void;
+}) {
+  // Wizard state
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [moduleSel, setModuleSel] = useState<string | null>(null);
+  const [primitive, setPrimitive] = useState<CatalogPrimitive | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Configuración de la regla
+  const [name, setName] = useState("");
+  const [params, setParams] = useState<Record<string, any>>({});
+  const [schedule, setSchedule] = useState<any>({ frequency: "daily", time: "09:00" });
+  const [channels, setChannels] = useState<string[]>(["in_app"]);
+  const [severity, setSeverity] = useState<string>("info");
+  const [cooldown, setCooldown] = useState<number>(60);
+  const [allowDuplicate, setAllowDuplicate] = useState(false);
+
+  // Estado de submit
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+
+  // Cuando se elige una primitiva, hidratar defaults
+  const selectPrimitive = (p: CatalogPrimitive) => {
+    setPrimitive(p);
+    setName(p.label);
+    // params con defaults
+    const defaults: Record<string, any> = {};
+    for (const [key, def] of Object.entries(p.paramsSchema || {})) {
+      if ((def as any).default !== undefined) defaults[key] = (def as any).default;
+    }
+    setParams(defaults);
+    setChannels(p.defaultChannels?.length ? [...p.defaultChannels.filter((c) => c === "in_app")] : ["in_app"]);
+    setSeverity(p.defaultSeverity);
+    setCooldown(p.defaultCooldownMinutes ?? 60);
+    setStep(3);
+  };
+
+  // Lista de módulos con count de primitivas
+  const modulesWithCounts = (() => {
+    const counts: Record<string, number> = {};
+    for (const p of catalog) {
+      counts[p.module] = (counts[p.module] ?? 0) + 1;
+    }
+    const order = ["finanzas", "fiscal", "orders", "ml", "ads", "products", "aura", "competencia", "sistema", "security"];
+    const result: Array<{ module: string; count: number }> = [];
+    for (const m of order) if (counts[m]) result.push({ module: m, count: counts[m] });
+    for (const [m, c] of Object.entries(counts)) if (!order.includes(m)) result.push({ module: m, count: c });
+    return result;
+  })();
+
+  // Primitivas del módulo elegido (filtradas por search)
+  const filteredPrimitives = (() => {
+    if (!moduleSel) return [];
+    let list = catalog.filter((p) => p.module === moduleSel);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (p) =>
+          p.label.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.naturalExamples?.some((e) => e.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  })();
+
+  const handleSubmit = async (force = false) => {
+    if (!primitive) return;
+    setSaving(true);
+    setError(null);
+    setDuplicateInfo(null);
+
+    const payload: any = {
+      primitiveKey: primitive.key,
+      name,
+      params,
+      channels,
+      severity,
+      cooldownMinutes: cooldown,
+      allowDuplicate: force,
+    };
+    if (primitive.type === "schedule") payload.schedule = schedule;
+
+    const r = await onCreate(payload);
+    setSaving(false);
+
+    if (!r.ok) {
+      if (r.duplicate) {
+        setDuplicateInfo(r.duplicate);
+      } else {
+        setError(r.error ?? "Error desconocido");
+      }
+    }
+  };
+
+  const isSchedule = primitive?.type === "schedule";
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.4)",
+        backdropFilter: "blur(4px)",
+        zIndex: 110,
+        display: "flex",
+        justifyContent: "flex-end",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 620,
+          background: "white",
+          height: "100%",
+          overflowY: "auto",
+          boxShadow: "-12px 0 40px rgba(15, 23, 42, 0.18)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Header sticky */}
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            background: "white",
+            borderBottom: "1px solid rgba(15,23,42,0.06)",
+            padding: "20px 24px",
+            zIndex: 5,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                Nueva regla · paso {step} de 4
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                {step === 1 && "¿Qué querés monitorear?"}
+                {step === 2 && `Elegí qué tipo de alerta`}
+                {step === 3 && "Configurá los detalles"}
+                {step === 4 && "Confirmá y creá"}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 7,
+                background: "transparent",
+                border: "none",
+                color: "#94a3b8",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Stepper */}
+          <div style={{ display: "flex", gap: 4 }}>
+            {[1, 2, 3, 4].map((n) => (
+              <div
+                key={n}
+                style={{
+                  flex: 1,
+                  height: 3,
+                  borderRadius: 999,
+                  background: n <= step ? "linear-gradient(90deg, #6366f1, #8b5cf6)" : "rgba(15,23,42,0.08)",
+                  transition: "background 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "20px 24px", flex: 1 }}>
+          {/* PASO 1: Elegir módulo */}
+          {step === 1 && (
+            <>
+              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 18, lineHeight: 1.5 }}>
+                Elegí el área de NitroSales que querés monitorear. Cada área tiene varias alertas pre-armadas listas para usar.
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {modulesWithCounts.map(({ module, count }) => {
+                  const meta = moduleMeta(module);
+                  const Icon = meta.Icon;
+                  return (
+                    <button
+                      key={module}
+                      onClick={() => {
+                        setModuleSel(module);
+                        setStep(2);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: 14,
+                        background: "white",
+                        border: "1px solid rgba(15,23,42,0.08)",
+                        borderRadius: 12,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        transition: "all 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = `${meta.tone}40`;
+                        e.currentTarget.style.transform = "translateY(-1px)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(15,23,42,0.08)";
+                        e.currentTarget.style.transform = "translateY(0)";
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 9,
+                          background: meta.gradient,
+                          color: "white",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Icon size={16} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
+                          {meta.label}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                          {count} alertas disponibles
+                        </div>
+                      </div>
+                      <ArrowRight size={14} style={{ color: "#cbd5e1" }} />
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* PASO 2: Elegir primitiva */}
+          {step === 2 && moduleSel && (
+            <>
+              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14, lineHeight: 1.5 }}>
+                Elegí qué tipo de alerta querés crear dentro de <b style={{ color: "#0f172a" }}>{moduleMeta(moduleSel).label}</b>.
+              </div>
+
+              {/* Search */}
+              <div style={{ position: "relative", marginBottom: 14 }}>
+                <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar (ej: runway, cancelaciones, stock...)"
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px 9px 36px",
+                    background: "#fafafa",
+                    border: "1px solid rgba(15,23,42,0.08)",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    color: "#0f172a",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              {filteredPrimitives.length === 0 && (
+                <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                  No hay primitivas que matcheen "{searchQuery}". Probá con otra palabra.
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {filteredPrimitives.map((p) => {
+                  const TypeIcon = p.type === "schedule" ? Clock : p.type === "anomaly" ? Bolt : AlertTriangle;
+                  const typeLabel = p.type === "schedule" ? "Reporte" : p.type === "anomaly" ? "Anomalía" : "Condición";
+                  const typeColor = p.type === "schedule" ? "#0ea5e9" : p.type === "anomaly" ? "#f59e0b" : "#f43f5e";
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => selectPrimitive(p)}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 12,
+                        padding: 14,
+                        background: "white",
+                        border: "1px solid rgba(15,23,42,0.08)",
+                        borderRadius: 10,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        transition: "all 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.4)";
+                        e.currentTarget.style.background = "rgba(99, 102, 241, 0.02)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(15,23,42,0.08)";
+                        e.currentTarget.style.background = "white";
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 7,
+                          background: `${typeColor}15`,
+                          color: typeColor,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <TypeIcon size={13} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
+                            {p.label}
+                          </div>
+                          <Badge label={typeLabel} tone={typeColor} />
+                        </div>
+                        <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+                          {p.description}
+                        </div>
+                        {p.naturalExamples?.[0] && (
+                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6, fontStyle: "italic" }}>
+                            ej: "{p.naturalExamples[0]}"
+                          </div>
+                        )}
+                      </div>
+                      <ArrowRight size={14} style={{ color: "#cbd5e1", flexShrink: 0, marginTop: 6 }} />
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* PASO 3: Configurar */}
+          {step === 3 && primitive && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              {/* Resumen primitiva elegida */}
+              <div
+                style={{
+                  padding: 12,
+                  background: "rgba(99, 102, 241, 0.05)",
+                  border: "1px solid rgba(99, 102, 241, 0.2)",
+                  borderRadius: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  fontSize: 12,
+                  color: "#475569",
+                }}
+              >
+                <Check size={14} style={{ color: "#6366f1", flexShrink: 0 }} />
+                <div>
+                  <b style={{ color: "#0f172a" }}>{primitive.label}</b> — {primitive.description}
+                </div>
+              </div>
+
+              <Field label="Nombre" hint="Cómo aparece en tu inventario">
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={inputStyle}
+                />
+              </Field>
+
+              {Object.keys(primitive.paramsSchema || {}).length > 0 && (
+                <Section title="Parámetros" Icon={Activity}>
+                  {Object.entries(primitive.paramsSchema).map(([key, def]: [string, any]) => (
+                    <ParamField
+                      key={key}
+                      paramKey={key}
+                      def={def}
+                      value={params[key] ?? def.default}
+                      onChange={(v) => setParams((prev) => ({ ...prev, [key]: v }))}
+                    />
+                  ))}
+                </Section>
+              )}
+
+              {isSchedule && (
+                <Section title="¿Cuándo se ejecuta?" Icon={Calendar}>
+                  <Field label="Frecuencia">
+                    <select
+                      value={schedule?.frequency ?? "daily"}
+                      onChange={(e) => setSchedule({ ...schedule, frequency: e.target.value })}
+                      style={inputStyle}
+                    >
+                      <option value="daily">Cada día</option>
+                      <option value="weekly">Cada semana</option>
+                      <option value="monthly">Cada mes</option>
+                    </select>
+                  </Field>
+                  {schedule?.frequency === "weekly" && (
+                    <Field label="Día de la semana">
+                      <select
+                        value={schedule?.dayOfWeek ?? 1}
+                        onChange={(e) => setSchedule({ ...schedule, dayOfWeek: Number(e.target.value) })}
+                        style={inputStyle}
+                      >
+                        <option value={0}>Domingo</option>
+                        <option value={1}>Lunes</option>
+                        <option value={2}>Martes</option>
+                        <option value={3}>Miércoles</option>
+                        <option value={4}>Jueves</option>
+                        <option value={5}>Viernes</option>
+                        <option value={6}>Sábado</option>
+                      </select>
+                    </Field>
+                  )}
+                  {schedule?.frequency === "monthly" && (
+                    <Field label="Día del mes" hint="1 al 31">
+                      <input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={schedule?.dayOfMonth ?? 1}
+                        onChange={(e) => setSchedule({ ...schedule, dayOfMonth: Number(e.target.value) })}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  )}
+                  <Field label="Hora" hint="Formato 24hs (HH:MM)">
+                    <input
+                      type="time"
+                      value={schedule?.time ?? "09:00"}
+                      onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </Field>
+                </Section>
+              )}
+
+              <Section title="Canal de notificación" Icon={Bell}>
+                <ChannelToggle
+                  label="In-app"
+                  sub="En tu inbox de alertas"
+                  Icon={Bell}
+                  checked={channels.includes("in_app")}
+                  onChange={(checked) =>
+                    setChannels((prev) => (checked ? Array.from(new Set([...prev, "in_app"])) : prev.filter((c) => c !== "in_app")))
+                  }
+                />
+                <ChannelToggle
+                  label="Email"
+                  sub="Te llega a tu inbox de email"
+                  Icon={Mail}
+                  checked={channels.includes("email")}
+                  onChange={(checked) =>
+                    setChannels((prev) => (checked ? Array.from(new Set([...prev, "email"])) : prev.filter((c) => c !== "email")))
+                  }
+                />
+              </Section>
+
+              <Section title="Prioridad" Icon={AlertTriangle}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <SeverityChip label="Crítica" value="critical" current={severity} onClick={() => setSeverity("critical")} tone="#ef4444" />
+                  <SeverityChip label="Atención" value="warning" current={severity} onClick={() => setSeverity("warning")} tone="#f59e0b" />
+                  <SeverityChip label="Info" value="info" current={severity} onClick={() => setSeverity("info")} tone="#0ea5e9" />
+                </div>
+              </Section>
+
+              {!isSchedule && (
+                <Field label="Tiempo mínimo entre avisos" hint="Para evitar spam si el evento se repite">
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      value={cooldown}
+                      onChange={(e) => setCooldown(Number(e.target.value))}
+                      style={{ ...inputStyle, maxWidth: 120 }}
+                    />
+                    <span style={{ fontSize: 13, color: "#64748b" }}>minutos</span>
+                  </div>
+                </Field>
+              )}
+            </div>
+          )}
+
+          {/* PASO 4: Resumen + crear */}
+          {step === 4 && primitive && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
+                Revisá y confirmá. Una vez creada, podés editarla o pausarla cuando quieras.
+              </div>
+
+              <div
+                style={{
+                  padding: 18,
+                  background: "linear-gradient(135deg, rgba(99,102,241,0.05), rgba(139,92,246,0.05))",
+                  border: "1px solid rgba(99,102,241,0.2)",
+                  borderRadius: 12,
+                }}
+              >
+                <SummaryRow label="Nombre" value={name} />
+                <SummaryRow label="Qué monitorea" value={primitive.label} />
+                <SummaryRow label="Tipo" value={primitive.type === "schedule" ? "Reporte programado" : "Alerta condicional"} />
+                {Object.keys(params).length > 0 && (
+                  <SummaryRow label="Parámetros" value={Object.entries(params).map(([k, v]) => `${k}=${v}`).join(", ")} />
+                )}
+                {isSchedule && <SummaryRow label="Cuándo" value={describeSchedule(schedule)} />}
+                <SummaryRow label="Canales" value={channels.join(", ")} />
+                <SummaryRow label="Prioridad" value={severity === "critical" ? "Crítica" : severity === "warning" ? "Atención" : "Info"} />
+                {!isSchedule && <SummaryRow label="Cooldown" value={`${cooldown} minutos`} />}
+              </div>
+
+              {duplicateInfo && (
+                <div
+                  style={{
+                    padding: "12px 14px",
+                    background: "rgba(245, 158, 11, 0.06)",
+                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    color: "#92400e",
+                  }}
+                >
+                  <b>Ya tenés una regla equivalente.</b> Creada el {new Date(duplicateInfo.createdAt).toLocaleDateString("es-AR")}, {duplicateInfo.enabled ? "activa" : "desactivada"}.
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      onClick={() => handleSubmit(true)}
+                      disabled={saving}
+                      style={{
+                        padding: "6px 12px",
+                        background: "#92400e",
+                        color: "white",
+                        border: "none",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Crear igual igual
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    background: "rgba(239, 68, 68, 0.06)",
+                    border: "1px solid rgba(239, 68, 68, 0.25)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: "#991b1b",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer sticky con navegación */}
+        <div
+          style={{
+            position: "sticky",
+            bottom: 0,
+            background: "white",
+            borderTop: "1px solid rgba(15,23,42,0.06)",
+            padding: "14px 24px",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <button
+            onClick={() => {
+              if (step === 1) onClose();
+              else if (step === 2) {
+                setStep(1);
+                setModuleSel(null);
+              } else if (step === 3) {
+                setStep(2);
+                setPrimitive(null);
+              } else if (step === 4) setStep(3);
+            }}
+            disabled={saving}
+            style={{
+              padding: "9px 16px",
+              background: "transparent",
+              color: "#64748b",
+              border: "1px solid rgba(15,23,42,0.1)",
+              borderRadius: 8,
+              cursor: saving ? "not-allowed" : "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            {step === 1 ? "Cancelar" : "Volver"}
+          </button>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            {step === 3 && (
+              <button
+                onClick={() => setStep(4)}
+                disabled={!name.trim()}
+                style={{
+                  padding: "9px 16px",
+                  background: name.trim() ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#e2e8f0",
+                  color: name.trim() ? "white" : "#94a3b8",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: name.trim() ? "pointer" : "not-allowed",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                Revisar <ArrowRight size={13} />
+              </button>
+            )}
+            {step === 4 && !duplicateInfo && (
+              <button
+                onClick={() => handleSubmit(false)}
+                disabled={saving}
+                style={{
+                  padding: "9px 18px",
+                  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: saving ? "not-allowed" : "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  opacity: saving ? 0.6 : 1,
+                  boxShadow: "0 2px 12px rgba(99, 102, 241, 0.25)",
+                }}
+              >
+                {saving ? <Loader2 size={13} className="spin" /> : <Check size={13} />}
+                {saving ? "Creando…" : "Crear regla"}
+              </button>
+            )}
+          </div>
+        </div>
+        <style jsx>{`
+          .spin {
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", fontSize: 12 }}>
+      <span style={{ color: "#94a3b8", fontWeight: 600 }}>{label}</span>
+      <span style={{ color: "#0f172a", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</span>
+    </div>
+  );
+}
+
+// ── Subcomponentes del drawer (también usados por el wizard) ──
 
 const inputStyle: any = {
   width: "100%",
