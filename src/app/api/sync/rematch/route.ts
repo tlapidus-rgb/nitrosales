@@ -15,7 +15,6 @@ export const revalidate = 0;
 export const maxDuration = 60;
 
 const CRON_KEY = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
-const FALLBACK_ORG_ID = process.env.FALLBACK_ORG_ID || "cmmmga1uq0000sb43w0krvvys";
 
 export async function GET(req: NextRequest) {
   const start = Date.now();
@@ -26,7 +25,22 @@ export async function GET(req: NextRequest) {
   }
 
   const isDryRun = searchParams.get("dry") === "true";
-  const orgId = FALLBACK_ORG_ID;
+
+  // Multi-tenant safe: orgId via ?org= explícito o fallback a primera org
+  const orgParam = searchParams.get("org");
+  let orgId: string;
+  if (orgParam) {
+    orgId = orgParam;
+  } else {
+    const conn = await prisma.connection.findFirst({
+      where: { status: "ACTIVE" as any },
+      select: { organizationId: true },
+    });
+    if (!conn) {
+      return NextResponse.json({ error: "No active connection. Pass ?org=<orgId>" }, { status: 400 });
+    }
+    orgId = conn.organizationId;
+  }
 
   try {
     // Find unmatched CompetitorPrice entries that have a competitor EAN

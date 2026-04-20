@@ -326,6 +326,19 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get("key");
   const action = searchParams.get("action");
+  // Multi-tenant safe: orgId via ?org= explícito (admin endpoint).
+  // Fallback: primera org con productos (compat MdJ).
+  let ORG_ID = searchParams.get("org") || "";
+  if (!ORG_ID) {
+    const firstOrg = await prisma.product.findFirst({
+      select: { organizationId: true },
+      orderBy: { createdAt: "asc" },
+    });
+    ORG_ID = firstOrg?.organizationId || "";
+    if (!ORG_ID) {
+      return NextResponse.json({ error: "No org found. Pass ?org=<orgId>" }, { status: 400 });
+    }
+  }
 
   if (key !== BACKFILL_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -337,25 +350,25 @@ export async function GET(request: NextRequest) {
   // --- ACTION: stats ---
   if (action === "stats") {
     const total = await prisma.product.count({
-      where: { organizationId: "cmmmga1uq0000sb43w0krvvys" },
+      where: { organizationId: ORG_ID },
     });
     const withBrand = await prisma.product.count({
       where: {
-        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        organizationId: ORG_ID,
         brand: { not: null },
         NOT: [{ brand: "" }, { brand: "Sin marca" }],
       },
     });
     const withCategory = await prisma.product.count({
       where: {
-        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        organizationId: ORG_ID,
         category: { not: null },
         NOT: [{ category: "" }, { category: "Sin categor\u00eda" }],
       },
     });
     const withCategoryPath = await prisma.product.count({
       where: {
-        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        organizationId: ORG_ID,
         categoryPath: { not: null },
         NOT: [{ categoryPath: "" }],
       },
@@ -381,7 +394,7 @@ export async function GET(request: NextRequest) {
   // Diagnostico de los productos sin categoria/brand/categoryPath.
   // Devuelve: cuantos estan activos, con stock, y con ventas en los ultimos 90 dias.
   if (action === "uncategorized-breakdown") {
-    const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
+    // ORG_ID resuelto al inicio del handler
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
     // Universo: sin categoryPath (incluye los sin category + los con category rara)
@@ -493,7 +506,7 @@ export async function GET(request: NextRequest) {
   // Diagnostica si los productos ML sin categoryPath tienen un SKU coincidente
   // en un producto VTEX (el canonico) para entender por que no heredan categoria.
   if (action === "sku-orphan-check") {
-    const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
+    // ORG_ID resuelto al inicio del handler
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
     // 1. Buscar los top huerfanos por ventas recientes
@@ -650,7 +663,7 @@ export async function GET(request: NextRequest) {
   // Copia categoryPath/category/brand desde productos "buenos" (con path) hacia
   // los huerfanos con el mismo SKU. Un solo UPDATE atomico.
   if (action === "heal-orphans-by-sku") {
-    const ORG_ID = "cmmmga1uq0000sb43w0krvvys";
+    // ORG_ID resuelto al inicio del handler
     const dryRun = searchParams.get("dryRun") === "true";
 
     // Antes: contar cuantos huerfanos hay con gemelo "curable"
@@ -739,7 +752,7 @@ export async function GET(request: NextRequest) {
 
     const products = await prisma.product.findMany({
       where: {
-        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        organizationId: ORG_ID,
         OR: [{ brand: null }, { brand: "" }, { brand: "Sin marca" }],
       },
       select: { id: true, externalId: true, name: true },
@@ -823,7 +836,7 @@ export async function GET(request: NextRequest) {
     // Find products that have a brand but category is null, empty, numeric, or "Sin categoria"
     const products = await prisma.product.findMany({
       where: {
-        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        organizationId: ORG_ID,
         brand: { not: null },
         NOT: [{ brand: "" }, { brand: "Sin marca" }],
         OR: [
@@ -842,7 +855,7 @@ export async function GET(request: NextRequest) {
       // Also check for numeric-only categories
       const numericCats = await prisma.$queryRaw<Array<{ id: string; externalId: string; category: string }>>`
         SELECT id, "externalId", category FROM "Product"
-        WHERE "organizationId" = 'cmmmga1uq0000sb43w0krvvys'
+        WHERE "organizationId" = ${ORG_ID}
         AND brand IS NOT NULL AND brand != '' AND brand != 'Sin marca'
         AND category IS NOT NULL AND category != ''
         AND category ~ '^[0-9/]+$'
@@ -981,7 +994,7 @@ export async function GET(request: NextRequest) {
 
     const products = await prisma.product.findMany({
       where: {
-        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        organizationId: ORG_ID,
         OR: [{ categoryPath: null }, { categoryPath: "" }],
       },
       select: { id: true, externalId: true, name: true, category: true },
@@ -1117,7 +1130,7 @@ export async function GET(request: NextRequest) {
     // Paso 4: levantar productos que necesitan categoryPath
     const products = await prisma.product.findMany({
       where: {
-        organizationId: "cmmmga1uq0000sb43w0krvvys",
+        organizationId: ORG_ID,
         OR: [{ categoryPath: null }, { categoryPath: "" }],
         category: { not: null },
       },
@@ -1212,7 +1225,7 @@ export async function GET(request: NextRequest) {
     >`
       SELECT name, COUNT(*) as count
       FROM "Product"
-      WHERE "organizationId" = 'cmmmga1uq0000sb43w0krvvys'
+      WHERE "organizationId" = ${ORG_ID}
       GROUP BY name
       HAVING COUNT(*) > 1
       ORDER BY count DESC
@@ -1235,7 +1248,7 @@ export async function GET(request: NextRequest) {
   if (action === "resolve-ids") {
     try {
       const limitIds = parseInt(searchParams.get("limit") || "15");
-      const ORG = "cmmmga1uq0000sb43w0krvvys";
+      const ORG = ORG_ID;
 
       const numericCategories = await prisma.$queryRaw<Array<{ category: string; cnt: bigint }>>`
         SELECT category, COUNT(*) as cnt

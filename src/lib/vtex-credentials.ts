@@ -75,12 +75,17 @@ export async function getVtexCredentials(
     }
   }
 
-  // 2. Fallback to environment variables
+  // 2. Fallback to environment variables (multi-tenant WARNING: este path es
+  // solo para dev local. En prod cada org DEBE tener su Connection en DB.)
   const appKey = process.env.VTEX_APP_KEY;
   const appToken = process.env.VTEX_APP_TOKEN;
-  const accountName = process.env.VTEX_ACCOUNT_NAME || "mundojuguete";
+  const accountName = process.env.VTEX_ACCOUNT_NAME;
 
-  if (appKey && appToken) {
+  if (appKey && appToken && accountName) {
+    console.warn(
+      `[vtex-credentials] Usando VTEX env vars fallback (org ${organizationId || "unknown"}). ` +
+        "En producción multi-tenant cada org debe tener su Connection DB."
+    );
     return { accountName, appKey, appToken };
   }
 

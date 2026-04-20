@@ -19,7 +19,6 @@ import { getOrganizationId } from "@/lib/auth-guard";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const VTEX_ACCOUNT = "mundojuguete";
 const SAFETY_TIMEOUT_MS = 50000; // 50s (10s margin)
 const CONCURRENT = 10; // Parallel requests
 const DELAY_BETWEEN_BATCHES_MS = 100;
@@ -31,9 +30,9 @@ interface PriceResult {
   newPrice: number;
 }
 
-async function fetchVtexPrice(productId: string): Promise<number> {
+async function fetchVtexPrice(productId: string, vtexAccount: string): Promise<number> {
   try {
-    const url = `https://${VTEX_ACCOUNT}.vtexcommercestable.com.br/api/catalog_system/pub/products/search?fq=productId:${productId}`;
+    const url = `https://${vtexAccount}.vtexcommercestable.com.br/api/catalog_system/pub/products/search?fq=productId:${productId}`;
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(8000),
@@ -69,6 +68,20 @@ export async function GET(req: NextRequest) {
     }
 
     const ORG_ID = await getOrganizationId();
+
+    // Resolver vtexAccount de la connection de la org (multi-tenant safe)
+    const vtexConn = await prisma.connection.findFirst({
+      where: { platform: "VTEX" as any, organizationId: ORG_ID, status: "ACTIVE" as any },
+      select: { credentials: true },
+    });
+    const vtexAccount = (vtexConn?.credentials as any)?.accountName;
+    if (!vtexAccount) {
+      return NextResponse.json(
+        { error: "No VTEX connection / accountName para esta org" },
+        { status: 404 }
+      );
+    }
+
     const limit = Math.min(parseInt(req.nextUrl.searchParams.get("limit") || "200", 10), 500);
     const isDry = req.nextUrl.searchParams.get("dry") === "true";
     const offset = parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
@@ -119,7 +132,7 @@ export async function GET(req: NextRequest) {
       const batch = zeroPriceProducts.slice(i, i + CONCURRENT);
       const results = await Promise.allSettled(
         batch.map(async (prod) => {
-          const newPrice = await fetchVtexPrice(prod.externalId);
+          const newPrice = await fetchVtexPrice(prod.externalId, vtexAccount);
           return { prod, newPrice };
         })
       );

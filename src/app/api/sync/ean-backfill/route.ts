@@ -17,7 +17,6 @@ export const maxDuration = 60;
 
 const CRON_KEY = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
 const SAFETY_TIMEOUT_MS = 45000;
-const FALLBACK_ORG_ID = process.env.FALLBACK_ORG_ID || "cmmmga1uq0000sb43w0krvvys";
 
 function isValidEan(val: string): boolean {
   return /^\d{12,14}$/.test(val);
@@ -33,12 +32,30 @@ export async function GET(req: NextRequest) {
 
   const offset = parseInt(searchParams.get("offset") || "0", 10);
   const isDryRun = searchParams.get("dry") === "true";
-  const orgId = FALLBACK_ORG_ID;
+
+  // Multi-tenant safe: resolver org de la VTEX conn activa o via ?org=
+  const orgParam = searchParams.get("org");
+  let orgId: string;
+  if (orgParam) {
+    orgId = orgParam;
+  } else {
+    const conn = await prisma.connection.findFirst({
+      where: { platform: "VTEX" as any, status: "ACTIVE" as any },
+      select: { organizationId: true },
+    });
+    if (!conn) {
+      return NextResponse.json({ error: "No active VTEX connection. Pass ?org=<orgId>" }, { status: 400 });
+    }
+    orgId = conn.organizationId;
+  }
 
   try {
     // Get VTEX account name from connection
     const creds = await getVtexCredentials(orgId);
-    const accountName = creds?.accountName || "mundojuguete";
+    const accountName = creds?.accountName;
+    if (!accountName) {
+      return NextResponse.json({ error: "No VTEX accountName para esta org" }, { status: 404 });
+    }
 
     const eanMap = new Map<string, string>(); // itemId → ean
     let fetched = 0;
