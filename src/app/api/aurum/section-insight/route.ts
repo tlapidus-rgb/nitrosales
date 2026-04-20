@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import Anthropic from "@anthropic-ai/sdk";
 import { getOrganization } from "@/lib/auth-guard";
+import { ALERT_TOOLS, ALERT_TOOLS_PROMPT, isAlertToolName } from "@/lib/alerts/aurum-tools";
+import { executeAlertTool } from "@/lib/alerts/aurum-handlers";
+import { getSessionUserId } from "@/lib/alerts/get-user-id";
 
 export const dynamic = "force-dynamic";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const MAX_TOOL_ROUNDS = 3;
 
 /**
  * POST /api/aurum/section-insight
@@ -35,7 +39,7 @@ const SYSTEM_PROMPT_BASE = `Sos Aurum, el asistente estratégico de NitroSales, 
 3. RESPUESTAS CORTAS. Nunca más de 6 oraciones totales. Sin relleno.
 4. No uses los 4 bloques del Aurum chat completo (Diagnóstico/Insights/etc). Esto es micro-análisis.
 5. No des links ni recomendaciones de tools externas salvo que el usuario pregunte específicamente.
-6. Hablale como coach puntual sobre ESA tab. Si pregunta algo que está fuera del alcance de esa tab, decile amablemente "para eso mejor preguntame en el chat de Aurum completo".
+6. Hablale como coach puntual sobre ESA tab. Si pregunta algo que está fuera del alcance de esa tab, decile amablemente "para eso mejor preguntame en el chat de Aurum completo". EXCEPCIÓN: si te pide CREAR una alerta/regla de monitoreo (cualquier "avisame si...", "alertame cuando...", "todos los lunes mandame..."), tenés tools especiales para eso (ver sección CREACIÓN DE ALERTAS más abajo) — NO lo derives al chat completo, manejalo vos directo desde acá.
 7. Cuando des números, mostralos limpios (ej: "23 clicks", "2.4% CTR", "pos. 7.3").
 8. Nunca digas "como puedo ayudarte" ni frases genéricas.
 
@@ -78,7 +82,7 @@ ${modeInstructions}
 === DATA DE ESTA TAB ===
 <context_data>
 ${dataStr}
-</context_data>`;
+</context_data>${ALERT_TOOLS_PROMPT}`;
 }
 
 export async function POST(req: Request) {
@@ -88,7 +92,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    await getOrganization(); // assert ownership
+    const org = await getOrganization();
+    const resolvedUserId = await getSessionUserId().catch(() => null);
 
     const body = await req.json();
     const {
@@ -129,21 +134,78 @@ export async function POST(req: Request) {
           : question!.trim(),
     });
 
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 600,
-      system: systemPrompt,
-      messages,
-    });
+    // Tool-use loop (max 3 rondas) — solo se ativa si Aurum llama a las
+    // ALERT_TOOLS (creación de reglas). En la mayoría de los casos
+    // (insight inicial / pregunta puntual sobre la tab) sale en la 1° ronda
+    // sin usar tools.
+    let currentMessages = [...messages];
+    let finalReply = "";
+    let tokensIn = 0;
+    let tokensOut = 0;
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    const reply = textBlock && textBlock.type === "text" ? textBlock.text : "No pude generar una respuesta.";
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const response = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 600,
+        system: systemPrompt,
+        tools: ALERT_TOOLS,
+        messages: currentMessages,
+      });
+
+      tokensIn += response.usage?.input_tokens || 0;
+      tokensOut += response.usage?.output_tokens || 0;
+
+      const toolUseBlocks = response.content.filter(
+        (b): b is Anthropic.ContentBlock & { type: "tool_use" } => b.type === "tool_use"
+      );
+
+      if (toolUseBlocks.length === 0) {
+        const textBlock = response.content.find((b) => b.type === "text");
+        finalReply = textBlock && textBlock.type === "text" ? textBlock.text : "No pude generar una respuesta.";
+        break;
+      }
+
+      const toolResults = await Promise.all(
+        toolUseBlocks.map(async (toolBlock) => {
+          let result: string;
+          if (isAlertToolName(toolBlock.name)) {
+            result = await executeAlertTool(
+              toolBlock.name as any,
+              toolBlock.input,
+              { orgId: org.id, userId: resolvedUserId }
+            );
+          } else {
+            result = `ERROR: tool "${toolBlock.name}" no disponible en Aurum contextual. Acá solo podés usar las tools de creación de alertas.`;
+          }
+          return {
+            type: "tool_result" as const,
+            tool_use_id: toolBlock.id,
+            content: result,
+          };
+        })
+      );
+
+      currentMessages.push({ role: "assistant", content: response.content });
+      currentMessages.push({ role: "user", content: toolResults });
+
+      if (response.stop_reason === "end_turn") {
+        const textBlock = response.content.find((b) => b.type === "text");
+        if (textBlock && textBlock.type === "text" && textBlock.text.trim()) {
+          finalReply = textBlock.text;
+          break;
+        }
+      }
+    }
+
+    if (!finalReply) {
+      finalReply = "No pude generar una respuesta. Probá de nuevo.";
+    }
 
     return NextResponse.json({
-      reply,
+      reply: finalReply,
       mode,
-      tokensIn: response.usage?.input_tokens || 0,
-      tokensOut: response.usage?.output_tokens || 0,
+      tokensIn,
+      tokensOut,
     });
   } catch (e: any) {
     console.error("[aurum/section-insight]", e?.message || e);
