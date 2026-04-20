@@ -263,21 +263,30 @@ export const reportDailyDigest: PrimitiveDefinition = {
   type: "schedule",
   module: "orders",
   label: "Digest diario de ventas",
-  description: "Todos los días a la hora que elijas: orders + revenue + AOV del día.",
+  description: "Todos los días a la hora que elijas: cierre del día anterior con orders + revenue + AOV (24hs completas del día previo).",
   defaultSeverity: "info",
   defaultChannels: ["in_app", "email"],
   defaultCooldownMinutes: 0,
   paramsSchema: {},
-  naturalExamples: ["cada día a las 8pm mandame el resumen de ventas"],
+  naturalExamples: [
+    "cada día a las 9am mandame el resumen de ventas de ayer",
+    "todos los días el cierre del día anterior",
+    "cada mañana mandame cómo cerró el día",
+  ],
   async evaluate(ctx: EvaluationContext): Promise<EvaluationResult> {
-    const today = new Date(new Date().setHours(0, 0, 0, 0));
-    const { count, total, aov } = await getOrdersCount(ctx.orgId, today);
+    // Cierre del DÍA ANTERIOR completo (24hs):
+    // - Si la regla dispara a las 9am del 21/4, muestra todo el 20/4 (00:00 a 23:59)
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+    const { count, total, aov } = await getOrdersCount(ctx.orgId, yesterdayStart, todayStart);
     return {
       triggered: true,
       severity: "info",
-      title: `Ventas de hoy · ${new Date().toLocaleDateString("es-AR")}`,
+      title: `Cierre de ayer · ${yesterdayStart.toLocaleDateString("es-AR")}`,
       body: `${count} orders · $ ${Math.round(total).toLocaleString("es-AR")} · AOV $ ${Math.round(aov).toLocaleString("es-AR")}`,
-      metadata: { count, total, aov },
+      metadata: { count, total, aov, periodStart: yesterdayStart, periodEnd: todayStart },
       cta: "Ver pedidos",
       ctaHref: "/orders",
     };
