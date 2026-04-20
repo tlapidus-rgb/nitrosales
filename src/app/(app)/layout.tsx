@@ -1368,6 +1368,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const isJourneys = pathname.startsWith("/pixel/journeys");
           const isPixelAttribution = pathname === "/pixel";
           const isAura = pathname.startsWith("/aura");
+          const isAlertas = pathname.startsWith("/alertas");
           return (
             <main
               className={
@@ -1381,6 +1382,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   ? "flex-1 p-0 overflow-y-auto bg-[#05060a]"
                   : isAura
                   ? "flex-1 p-0 overflow-y-auto bg-[#05070d]"
+                  : isAlertas
+                  ? "flex-1 p-0 overflow-hidden bg-[#fafafa]"
                   : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
               }
             >

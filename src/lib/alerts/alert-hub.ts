@@ -1,20 +1,25 @@
 // ═══════════════════════════════════════════════════════════════════
-// alert-hub.ts — Fase 8a
+// alert-hub.ts — Fase 8a (actualizado 8e)
 // ═══════════════════════════════════════════════════════════════════
 // Consolidador central de alertas de NitroSales. Recolecta de todas
 // las fuentes activas y normaliza al formato UnifiedAlert.
 //
-// Fuentes actuales (Sesion 48):
+// Fuentes activas (Sesion 48):
 //   - Finanzas / narrative.ts (runway, margin, revenue YoY, ad_heavy, burn)
 //   - Finanzas / predictive-alerts.ts (shipping spike, COGS spike, CAC>LTV,
 //                                       payback long, fiscal imminent)
 //   - Fiscal / fiscal-monotributo.ts (cerca del tope cat, excede tope)
 //   - Sistema / connections (sync error, token expirado)
 //   - MercadoLibre (preguntas > 24h, claims activos, reputation bajo)
+//   - Aurum async (query largas con aviso al terminar) — desde Fase 8f
 //
-// Cada alerta tiene un `source` identificable para filtros en UI.
-// La funcion `buildUnifiedAlerts(orgId)` es async y hace las queries
-// necesarias a DB + llama a los rule engines existentes.
+// Fuentes "proximamente" (se muestran en sidebar pero no emiten aun):
+//   - Bondly (loyalty/referrals)
+//   - Aura (creator economy)
+//   - Nitropixel (analytics)
+//
+// Favoritas (Fase 8e): cada user puede marcar alertas como favoritas,
+// y siempre aparecen primero en la lista.
 // ═══════════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
@@ -29,6 +34,10 @@ export type AlertSource =
   | "mercadolibre"
   | "system_sync"
   | "inventory"
+  | "aurum"
+  | "bondly"
+  | "aura"
+  | "nitropixel"
   | "custom";
 
 export type AlertCategory =
@@ -37,7 +46,8 @@ export type AlertCategory =
   | "marketing"
   | "operaciones"
   | "ventas"
-  | "sistema";
+  | "sistema"
+  | "asistente";
 
 export type AlertSeverity = "critical" | "warning" | "info";
 export type AlertPriority = "HIGH" | "MEDIUM" | "LOW";
@@ -50,10 +60,12 @@ export interface UnifiedAlert {
   priority: AlertPriority;
   title: string;
   body: string;
-  cta?: string | null;       // accion recomendada
+  cta?: string | null;
+  ctaHref?: string | null;   // Fase 8e: link directo del CTA
   metadata?: Record<string, any>;
-  createdAt: string;         // ISO
+  createdAt: string;
   expiresAt?: string | null;
+  favorited?: boolean;       // Fase 8e: marcada como favorita por el user
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -112,6 +124,7 @@ async function getSystemSyncAlerts(orgId: string): Promise<UnifiedAlert[]> {
     body:
       c.lastSyncError ?? "Último intento de sincronización falló. Revisar configuración.",
     cta: "Ir a Integraciones",
+    ctaHref: "/settings/integraciones",
     metadata: {
       platform: c.platform,
       lastSyncAt: c.lastSyncAt,
@@ -128,7 +141,6 @@ async function getMercadoLibreAlerts(orgId: string): Promise<UnifiedAlert[]> {
   const now = new Date().toISOString();
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  // Preguntas sin responder > 24h
   try {
     const unansweredCount = await prisma.$queryRawUnsafe<
       Array<{ count: bigint }>
@@ -153,12 +165,13 @@ async function getMercadoLibreAlerts(orgId: string): Promise<UnifiedAlert[]> {
         title: `${n} pregunta${n !== 1 ? "s" : ""} sin responder hace más de 24h`,
         body: `Afectan tu reputación en MercadoLibre. Respondé lo antes posible.`,
         cta: "Ver preguntas",
+        ctaHref: "/mercadolibre/preguntas",
         metadata: { count: n },
         createdAt: now,
       });
     }
   } catch {
-    // Tabla puede no existir en algunas orgs — silent fail
+    // silent fail
   }
 
   return out;
@@ -234,6 +247,7 @@ async function getFiscalCalendarAlerts(orgId: string): Promise<UnifiedAlert[]> {
               : `${o.name} vence en ${days} días`,
           body: o.note ?? "Preparar pago y documentación.",
           cta: "Ver calendario fiscal",
+          ctaHref: "/finanzas/fiscal",
           metadata: { category: o.category, dueDate: o.dueDate, amount: o.amount },
           createdAt: now,
         });
@@ -247,7 +261,7 @@ async function getFiscalCalendarAlerts(orgId: string): Promise<UnifiedAlert[]> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Fuente: fiscal_monotributo (delegado al endpoint existente)
+// Fuente: fiscal_monotributo
 // ─────────────────────────────────────────────────────────────
 async function getFiscalMonotributoAlerts(
   orgId: string
@@ -265,7 +279,6 @@ async function getFiscalMonotributoAlerts(
     const profile = (settings.fiscalProfile as any) || null;
     if (!profile || profile.taxRegime !== "MONOTRIBUTO") return [];
 
-    // Revenue 12m
     const from = new Date();
     from.setUTCMonth(from.getUTCMonth() - 11);
     from.setUTCDate(1);
@@ -306,6 +319,7 @@ async function getFiscalMonotributoAlerts(
       title: a.title,
       body: a.body,
       cta: a.cta ?? null,
+      ctaHref: "/finanzas/fiscal",
       createdAt: now,
     }));
   } catch (err) {
@@ -315,7 +329,7 @@ async function getFiscalMonotributoAlerts(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Fuente: finanzas_predictive (delegado al endpoint existente)
+// Fuente: finanzas_predictive
 // ─────────────────────────────────────────────────────────────
 async function getPredictiveFinanceAlerts(
   baseUrl: string,
@@ -329,11 +343,43 @@ async function getPredictiveFinanceAlerts(
     if (!res.ok) return [];
     const json = await res.json();
     const alerts = (json.alerts ?? []) as FinancialAlert[];
-    return alerts.map((a) =>
-      normalizeFromFinancialAlert(a, "finanzas_predictive", "finanzas")
-    );
+    return alerts.map((a) => {
+      const base = normalizeFromFinancialAlert(
+        a,
+        "finanzas_predictive",
+        "finanzas"
+      );
+      return { ...base, ctaHref: "/finanzas/pulso" };
+    });
   } catch {
     return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Fuente: aurum (async task completions) — Fase 8f (stub por ahora)
+// ─────────────────────────────────────────────────────────────
+async function getAurumAsyncAlerts(
+  _orgId: string,
+  _userId: string | null
+): Promise<UnifiedAlert[]> {
+  // Implementacion real en Fase 8f. Por ahora devuelve vacio.
+  return [];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Favoritas del user (Fase 8e)
+// ─────────────────────────────────────────────────────────────
+async function getUserFavorites(userId: string | null): Promise<Set<string>> {
+  if (!userId) return new Set();
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ alertId: string }>>(
+      `SELECT "alertId" FROM "user_alert_favorites" WHERE "userId" = $1`,
+      userId
+    );
+    return new Set(rows.map((r) => r.alertId));
+  } catch {
+    return new Set();
   }
 }
 
@@ -342,14 +388,17 @@ async function getPredictiveFinanceAlerts(
 // ─────────────────────────────────────────────────────────────
 export async function buildUnifiedAlerts(params: {
   orgId: string;
+  userId?: string | null;
   baseUrl?: string;
   cookie?: string;
 }): Promise<{
   alerts: UnifiedAlert[];
   countsBySource: Record<AlertSource, number>;
   countsBySeverity: Record<AlertSeverity, number>;
+  countsByCategory: Record<string, number>;
+  favoriteCount: number;
 }> {
-  const { orgId, baseUrl, cookie } = params;
+  const { orgId, userId, baseUrl, cookie } = params;
 
   const [
     systemSync,
@@ -357,12 +406,16 @@ export async function buildUnifiedAlerts(params: {
     fiscalCalendar,
     fiscalMono,
     predictive,
+    aurumAsync,
+    favorites,
   ] = await Promise.all([
     getSystemSyncAlerts(orgId),
     getMercadoLibreAlerts(orgId),
     getFiscalCalendarAlerts(orgId),
     getFiscalMonotributoAlerts(orgId),
     baseUrl ? getPredictiveFinanceAlerts(baseUrl, cookie ?? "") : Promise.resolve([]),
+    getAurumAsyncAlerts(orgId, userId ?? null),
+    getUserFavorites(userId ?? null),
   ]);
 
   const all = [
@@ -371,21 +424,26 @@ export async function buildUnifiedAlerts(params: {
     ...fiscalCalendar,
     ...fiscalMono,
     ...predictive,
-  ];
+    ...aurumAsync,
+  ].map((a) => ({
+    ...a,
+    favorited: favorites.has(a.id),
+  }));
 
-  // Sort: HIGH > MEDIUM > LOW, dentro del mismo nivel mas nuevos primero
+  // Sort: favoritas primero, luego HIGH > MEDIUM > LOW, luego por fecha desc
   const priorityOrder: Record<AlertPriority, number> = {
     HIGH: 0,
     MEDIUM: 1,
     LOW: 2,
   };
   all.sort((a, b) => {
+    if (a.favorited && !b.favorited) return -1;
+    if (!a.favorited && b.favorited) return 1;
     const diff = priorityOrder[a.priority] - priorityOrder[b.priority];
     if (diff !== 0) return diff;
     return b.createdAt.localeCompare(a.createdAt);
   });
 
-  // Counts
   const countsBySource = all.reduce(
     (acc, a) => ({ ...acc, [a.source]: (acc[a.source] ?? 0) + 1 }),
     {} as Record<AlertSource, number>
@@ -394,60 +452,107 @@ export async function buildUnifiedAlerts(params: {
     (acc, a) => ({ ...acc, [a.severity]: (acc[a.severity] ?? 0) + 1 }),
     {} as Record<AlertSeverity, number>
   );
+  const countsByCategory = all.reduce(
+    (acc, a) => ({ ...acc, [a.category]: (acc[a.category] ?? 0) + 1 }),
+    {} as Record<string, number>
+  );
+  const favoriteCount = all.filter((a) => a.favorited).length;
 
-  return { alerts: all, countsBySource, countsBySeverity };
+  return { alerts: all, countsBySource, countsBySeverity, countsByCategory, favoriteCount };
 }
 
 // ─────────────────────────────────────────────────────────────
-// Metadata para UI
+// Metadata para UI (Fase 8e: agrega iconKey + comingSoon)
 // ─────────────────────────────────────────────────────────────
 export const SOURCE_META: Record<
   AlertSource,
-  { label: string; color: string; categoryLabel: string }
+  {
+    label: string;
+    color: string;
+    categoryLabel: string;
+    iconKey: string;       // lucide icon name
+    comingSoon?: boolean;
+  }
 > = {
   finanzas_narrative: {
     label: "Narrativa financiera",
     color: "#f59e0b",
     categoryLabel: "Finanzas",
+    iconKey: "DollarSign",
   },
   finanzas_predictive: {
     label: "Alertas predictivas",
     color: "#0ea5e9",
     categoryLabel: "Finanzas",
+    iconKey: "TrendingUp",
   },
   fiscal_monotributo: {
     label: "Monotributo",
     color: "#10b981",
     categoryLabel: "Fiscal",
+    iconKey: "Receipt",
   },
   fiscal_calendar: {
     label: "Vencimientos fiscales",
     color: "#8b5cf6",
     categoryLabel: "Fiscal",
+    iconKey: "CalendarClock",
   },
   marketing_cac_ltv: {
     label: "CAC / LTV",
     color: "#ec4899",
     categoryLabel: "Marketing",
+    iconKey: "Target",
   },
   mercadolibre: {
     label: "MercadoLibre",
     color: "#fed100",
     categoryLabel: "Ventas",
+    iconKey: "ShoppingBag",
   },
   system_sync: {
     label: "Sincronización",
     color: "#64748b",
     categoryLabel: "Sistema",
+    iconKey: "RefreshCw",
   },
   inventory: {
     label: "Inventario",
     color: "#f97316",
     categoryLabel: "Operaciones",
+    iconKey: "Package",
+  },
+  aurum: {
+    label: "Aurum",
+    color: "#0ea5e9",
+    categoryLabel: "Asistente",
+    iconKey: "Sparkles",
+  },
+  bondly: {
+    label: "Bondly",
+    color: "#a855f7",
+    categoryLabel: "Ventas",
+    iconKey: "Heart",
+    comingSoon: true,
+  },
+  aura: {
+    label: "Aura",
+    color: "#f43f5e",
+    categoryLabel: "Marketing",
+    iconKey: "Wand2",
+    comingSoon: true,
+  },
+  nitropixel: {
+    label: "Nitropixel",
+    color: "#6366f1",
+    categoryLabel: "Marketing",
+    iconKey: "Zap",
+    comingSoon: true,
   },
   custom: {
     label: "Custom",
     color: "#6366f1",
     categoryLabel: "Otros",
+    iconKey: "Bell",
   },
 };

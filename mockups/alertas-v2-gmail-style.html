@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Alertas — Opción 2: Gmail Style</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    background: #f6f8fc;
+    color: #202124;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  .shell { display: flex; height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px; padding: 20px 12px; background: #f6f8fc;
+    border-right: 1px solid #e8eaed;
+    overflow-y: auto;
+  }
+  .compose {
+    display: flex; align-items: center; gap: 10px; padding: 12px 16px; margin-bottom: 20px;
+    background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    cursor: pointer; font-size: 14px; font-weight: 500; color: #0f172a;
+    border: 1px solid #e8eaed;
+  }
+  .compose:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+  .compose .plus {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: linear-gradient(135deg, #f43f5e, #f59e0b);
+    color: white; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+  }
+
+  .nav-section {
+    margin-bottom: 16px;
+  }
+  .nav-title {
+    padding: 6px 16px; font-size: 11px; font-weight: 600; color: #5f6368;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 12px; padding: 7px 16px;
+    border-radius: 0 16px 16px 0; font-size: 13px; color: #202124;
+    cursor: pointer; margin-right: 8px; transition: background .1s;
+  }
+  .nav-item:hover { background: #eaeced; }
+  .nav-item.active { background: #fce8ef; color: #b91c1c; font-weight: 600; }
+  .nav-item .nav-count { margin-left: auto; font-size: 11px; color: #5f6368; }
+  .nav-item.active .nav-count { color: #b91c1c; }
+  .nav-dot {
+    width: 10px; height: 10px; border-radius: 2px;
+  }
+  .nav-dot.finanzas { background: #3b82f6; }
+  .nav-dot.fiscal { background: #8b5cf6; }
+  .nav-dot.sistema { background: #64748b; }
+  .nav-dot.ml { background: #fbbf24; }
+  .nav-dot.marketing { background: #ec4899; }
+  .nav-dot.ventas { background: #10b981; }
+  .nav-ico { width: 18px; font-size: 16px; color: #5f6368; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; background: white; border-radius: 16px 0 0 0; overflow: hidden; margin: 8px 0 0 0; }
+
+  /* Toolbar */
+  .toolbar {
+    padding: 8px 16px; border-bottom: 1px solid #e8eaed;
+    display: flex; align-items: center; gap: 4px;
+    background: white;
+  }
+  .tb-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent;
+    cursor: pointer; color: #5f6368; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 15px;
+  }
+  .tb-btn:hover { background: #f1f3f4; }
+  .tb-sep { width: 1px; height: 20px; background: #e8eaed; margin: 0 8px; }
+  .tb-count {
+    margin-left: auto; font-size: 12px; color: #5f6368;
+  }
+
+  /* Search */
+  .search {
+    margin: 8px 16px 12px; padding: 10px 14px; background: #eaf1fb; border-radius: 8px;
+    display: flex; align-items: center; gap: 10px; font-size: 13px; color: #5f6368;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex; border-bottom: 1px solid #e8eaed; padding: 0 8px;
+  }
+  .tab {
+    padding: 12px 24px; font-size: 13px; font-weight: 500; color: #5f6368;
+    cursor: pointer; border-bottom: 3px solid transparent; display: inline-flex; align-items: center; gap: 10px;
+  }
+  .tab.active { color: #b91c1c; border-bottom-color: #f43f5e; font-weight: 600; }
+  .tab-badge {
+    background: #dc2626; color: white; font-size: 10px; font-weight: 700;
+    padding: 2px 6px; border-radius: 10px;
+  }
+
+  /* List */
+  .list { flex: 1; overflow-y: auto; }
+  .email {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    border-bottom: 1px solid #f1f3f4; cursor: pointer; transition: all .1s;
+    position: relative;
+  }
+  .email:hover { box-shadow: inset 1px 0 0 #dadce0, inset -1px 0 0 #dadce0, 0 1px 2px rgba(0,0,0,0.1); z-index: 1; background: white; }
+  .email.unread { background: white; }
+  .email.read { background: #f6f8fc; }
+  .email.unread .em-sender, .email.unread .em-subject { font-weight: 700; color: #202124; }
+  .email.read .em-sender, .email.read .em-subject { font-weight: 400; color: #5f6368; }
+  .checkbox {
+    width: 16px; height: 16px; border: 2px solid #9aa0a6; border-radius: 2px; flex-shrink: 0;
+  }
+  .star { width: 18px; flex-shrink: 0; color: #9aa0a6; font-size: 16px; cursor: pointer; }
+  .star.filled { color: #fbbf24; }
+  .em-sender {
+    width: 130px; font-size: 13px; flex-shrink: 0; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sev-dot-sm {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  .sev-dot-sm.c { background: #dc2626; }
+  .sev-dot-sm.w { background: #f59e0b; }
+  .sev-dot-sm.i { background: #3b82f6; }
+  .em-content { flex: 1; font-size: 13px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .em-subject { color: #202124; }
+  .em-preview { color: #5f6368; font-weight: 400; }
+  .em-label {
+    display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px;
+    font-weight: 500; margin-right: 6px;
+  }
+  .em-label.fin { background: #e0efff; color: #1d4ed8; }
+  .em-label.fis { background: #ede9fe; color: #6d28d9; }
+  .em-label.sis { background: #f1f5f9; color: #475569; }
+  .em-label.ml { background: #fef3c7; color: #a16207; }
+  .em-time { font-size: 11px; color: #5f6368; flex-shrink: 0; width: 70px; text-align: right; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="sidebar">
+    <div class="compose">
+      <span class="plus">+</span>
+      <span>Nueva regla</span>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-item active">
+        <span class="nav-ico">📥</span>
+        <span>Bandeja de entrada</span>
+        <span class="nav-count">12</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-ico">⭐</span>
+        <span>Destacadas</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-ico">⏰</span>
+        <span>Pospuestas</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-ico">📁</span>
+        <span>Archivadas</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-title">Categorías</div>
+      <div class="nav-item">
+        <span class="nav-dot finanzas"></span>
+        <span>Finanzas</span>
+        <span class="nav-count">4</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-dot fiscal"></span>
+        <span>Fiscal</span>
+        <span class="nav-count">3</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-dot sistema"></span>
+        <span>Sistema</span>
+        <span class="nav-count">1</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-dot ml"></span>
+        <span>MercadoLibre</span>
+        <span class="nav-count">2</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-dot marketing"></span>
+        <span>Marketing</span>
+        <span class="nav-count">1</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-dot ventas"></span>
+        <span>Ventas</span>
+        <span class="nav-count">1</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-title">Mis reglas</div>
+      <div class="nav-item">
+        <span class="nav-ico">⚙</span>
+        <span>Gestionar reglas</span>
+        <span class="nav-count">3</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="toolbar">
+      <button class="tb-btn" title="Seleccionar todo">☐</button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" title="Archivar">📁</button>
+      <button class="tb-btn" title="Silenciar">🔕</button>
+      <button class="tb-btn" title="Marcar leída">✓</button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" title="Refrescar">↻</button>
+      <span class="tb-count">1-12 de 12</span>
+    </div>
+
+    <div class="search">
+      <span>🔍</span>
+      <span>Buscar en alertas...</span>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active">
+        📥 Principal
+        <span class="tab-badge">3</span>
+      </div>
+      <div class="tab">🔴 Críticas</div>
+      <div class="tab">🟡 Atención</div>
+      <div class="tab">🔵 Info</div>
+    </div>
+
+    <div class="list">
+
+      <div class="email unread">
+        <div class="checkbox"></div>
+        <span class="star">☆</span>
+        <span class="em-sender">
+          <span class="sev-dot-sm c"></span>
+          Finanzas
+        </span>
+        <div class="em-content">
+          <span class="em-label fin">Finanzas</span>
+          <span class="em-subject">Runway crítico</span>
+          <span class="em-preview"> — Quedan 2.1 meses de efectivo al burn rate actual. Revisar costos variables del mes.</span>
+        </div>
+        <span class="em-time">12 min</span>
+      </div>
+
+      <div class="email unread">
+        <div class="checkbox"></div>
+        <span class="star">☆</span>
+        <span class="em-sender">
+          <span class="sev-dot-sm c"></span>
+          Sistema
+        </span>
+        <div class="em-content">
+          <span class="em-label sis">Sistema</span>
+          <span class="em-subject">Sync VTEX caído</span>
+          <span class="em-preview"> — La sincronización con VTEX falló hace 4 horas. Revisar conectividad y tokens.</span>
+        </div>
+        <span class="em-time">4 h</span>
+      </div>
+
+      <div class="email unread">
+        <div class="checkbox"></div>
+        <span class="star filled">★</span>
+        <span class="em-sender">
+          <span class="sev-dot-sm c"></span>
+          Fiscal
+        </span>
+        <div class="em-content">
+          <span class="em-label fis">Fiscal</span>
+          <span class="em-subject">Vencimiento AFIP mañana</span>
+          <span class="em-preview"> — IVA marzo vence 20/04. Monto estimado: $ 234.500. Preparar pago.</span>
+        </div>
+        <span class="em-time">6 h</span>
+      </div>
+
+      <div class="email unread">
+        <div class="checkbox"></div>
+        <span class="star">☆</span>
+        <span class="em-sender">
+          <span class="sev-dot-sm w"></span>
+          MercadoLibre
+        </span>
+        <div class="em-content">
+          <span class="em-label ml">ML</span>
+          <span class="em-subject">Stock crítico en 14 SKUs</span>
+          <span class="em-preview"> — 14 productos con menos de 5 unidades en depósito. Riesgo de quiebre.</span>
+        </div>
+        <span class="em-time">1 día</span>
+      </div>
+
+      <div class="email unread">
+        <div class="checkbox"></div>
+        <span class="star">☆</span>
+        <span class="em-sender">
+          <span class="sev-dot-sm w"></span>
+          Fiscal
+        </span>
+        <div class="em-content">
+          <span class="em-label fis">Fiscal</span>
+          <span class="em-subject">Monotributo 78% del tope anual</span>
+          <span class="em-preview"> — Acercándote al límite. Revisar si conviene recategorizar o pasar a Responsable Inscripto.</span>
+        </div>
+        <span class="em-time">1 día</span>
+      </div>
+
+      <div class="email read">
+        <div class="checkbox"></div>
+        <span class="star">☆</span>
+        <span class="em-sender">
+          <span class="sev-dot-sm w"></span>
+          Finanzas
+        </span>
+        <div class="em-content">
+          <span class="em-label fin">Finanzas</span>
+          <span class="em-subject">Burn rate subió 28%</span>
+          <span class="em-preview"> — Comparado con el mes anterior. Principal driver: costos de marketing (+$ 180K).</span>
+        </div>
+        <span class="em-time">2 días</span>
+      </div>
+
+      <div class="email read">
+        <div class="checkbox"></div>
+        <span class="star">☆</span>
+        <span class="em-sender">
+          <span class="sev-dot-sm w"></span>
+          MercadoLibre
+        </span>
+        <div class="em-content">
+          <span class="em-label ml">ML</span>
+          <span class="em-subject">23 preguntas sin responder</span>
+          <span class="em-preview"> — Tiempo promedio de respuesta subió a 14 hs. Afecta reputación.</span>
+        </div>
+        <span class="em-time">2 días</span>
+      </div>
+
+      <div class="email read">
+        <div class="checkbox"></div>
+        <span class="star">☆</span>
+        <span class="em-sender">
+          <span class="sev-dot-sm i"></span>
+          Finanzas
+        </span>
+        <div class="em-content">
+          <span class="em-label fin">Finanzas</span>
+          <span class="em-subject">CAC/LTV mejoró 3.2x → 4.1x</span>
+          <span class="em-preview"> — Unit economics mejorando. Principalmente por aumento del AOV (+12%).</span>
+        </div>
+        <span class="em-time">3 días</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

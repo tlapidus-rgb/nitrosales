@@ -1,18 +1,15 @@
 // @ts-nocheck
 // ═══════════════════════════════════════════════════════════════════
-// /api/alerts — Fase 8b
+// /api/alerts — Fase 8b (actualizado 8e)
 // ═══════════════════════════════════════════════════════════════════
-// GET: alertas unificadas de todas las fuentes con filtros opcionales.
-//
-// Query params:
-//   ?source=finanzas_predictive | fiscal_monotributo | ...
-//   ?severity=critical | warning | info
-//   ?category=finanzas | fiscal | marketing | sistema | ventas | operaciones
-//   ?limit=50 (default)
+// GET: alertas unificadas de todas las fuentes con filtros opcionales +
+// favoritas del user logueado.
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { getOrganizationId } from "@/lib/auth-guard";
 import { buildUnifiedAlerts } from "@/lib/alerts/alert-hub";
 
@@ -29,6 +26,9 @@ function getBaseUrl(req: NextRequest): string {
 export async function GET(req: NextRequest) {
   try {
     const orgId = await getOrganizationId();
+    const session = await getServerSession(authOptions);
+    const userId = (session?.user as any)?.id ?? null;
+
     const url = new URL(req.url);
     const source = url.searchParams.get("source");
     const severity = url.searchParams.get("severity");
@@ -38,14 +38,19 @@ export async function GET(req: NextRequest) {
       Math.max(1, parseInt(url.searchParams.get("limit") ?? "50", 10) || 50)
     );
 
-    // Forward la cookie del user para que fetch a endpoints internos
-    // como /api/finance/alerts/predictive tambien tengan sesion.
     const hdrs = await headers();
     const cookie = hdrs.get("cookie") ?? "";
     const baseUrl = getBaseUrl(req);
 
-    const { alerts, countsBySource, countsBySeverity } = await buildUnifiedAlerts({
+    const {
+      alerts,
+      countsBySource,
+      countsBySeverity,
+      countsByCategory,
+      favoriteCount,
+    } = await buildUnifiedAlerts({
       orgId,
+      userId,
       baseUrl,
       cookie,
     });
@@ -60,6 +65,8 @@ export async function GET(req: NextRequest) {
       total: filtered.length,
       countsBySource,
       countsBySeverity,
+      countsByCategory,
+      favoriteCount,
     });
   } catch (error: any) {
     console.error("[/api/alerts GET] error:", error);

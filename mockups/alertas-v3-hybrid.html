@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Alertas — Opción 3: Híbrido cards + inbox</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    background: #fafafa;
+    color: #0f172a;
+    min-height: 100vh;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(900px 500px at 75% -10%, rgba(244, 63, 94, 0.08), transparent 60%),
+      radial-gradient(800px 500px at 15% 110%, rgba(245, 158, 11, 0.06), transparent 60%);
+    z-index: 0;
+  }
+  .container { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 32px; }
+
+  /* Hero */
+  .hero { margin-bottom: 28px; }
+  .hero-title {
+    font-size: 36px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px;
+    background: linear-gradient(90deg, #f43f5e, #f59e0b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero-sub { font-size: 15px; color: #64748b; }
+
+  /* KPI strip */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .kpi {
+    background: white; border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 14px; padding: 18px 20px; position: relative; overflow: hidden;
+  }
+  .kpi::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .kpi.crit::before { background: linear-gradient(90deg, #dc2626, #f43f5e); }
+  .kpi.warn::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .kpi.info::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+  .kpi.rules::before { background: linear-gradient(90deg, #8b5cf6, #a855f7); }
+  .kpi-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .kpi-value { font-size: 32px; font-weight: 700; color: #0f172a; line-height: 1; }
+  .kpi-sub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+
+  /* Tabs */
+  .tabs-bar {
+    display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  }
+  .tab {
+    padding: 12px 20px; font-size: 14px; font-weight: 500; color: #64748b;
+    cursor: pointer; border-bottom: 2px solid transparent; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .tab.active { color: #0f172a; border-bottom-color: #f43f5e; font-weight: 600; }
+  .tab-count {
+    padding: 2px 7px; font-size: 11px; font-weight: 600; border-radius: 10px;
+    background: #f1f5f9; color: #64748b;
+  }
+  .tab.active .tab-count { background: #fef2f2; color: #dc2626; }
+
+  /* Filters */
+  .filters-row {
+    display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .filter-group { display: flex; gap: 6px; }
+  .chip {
+    padding: 7px 14px; font-size: 12px; font-weight: 500; border-radius: 10px;
+    border: 1px solid rgba(15, 23, 42, 0.08); color: #475569; background: white;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip.active { background: #0f172a; color: white; border-color: #0f172a; }
+  .chip .ct { font-size: 11px; opacity: 0.7; }
+  .search-box {
+    margin-left: auto; padding: 8px 14px; background: white; border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 10px; font-size: 13px; color: #94a3b8; min-width: 260px;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+
+  /* Alert cards */
+  .list { display: flex; flex-direction: column; gap: 10px; }
+  .alert {
+    background: white; border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 14px; padding: 18px 20px 18px 20px;
+    display: flex; gap: 16px; align-items: flex-start;
+    position: relative; overflow: hidden; cursor: pointer; transition: all .15s;
+  }
+  .alert:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06); }
+  .alert::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .alert.critical::before { background: linear-gradient(90deg, #dc2626, #f43f5e, #f59e0b); }
+  .alert.warning::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .alert.info::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+  .alert.unread { border-left: 3px solid #dc2626; padding-left: 17px; }
+
+  .alert-icon {
+    width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .alert.critical .alert-icon { background: #fef2f2; color: #dc2626; }
+  .alert.warning .alert-icon { background: #fef3c7; color: #d97706; }
+  .alert.info .alert-icon { background: #eff6ff; color: #2563eb; }
+
+  .alert-body { flex: 1; min-width: 0; }
+  .alert-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .alert-title { font-size: 15px; font-weight: 600; color: #0f172a; letter-spacing: -0.01em; }
+  .alert-tags { display: flex; gap: 6px; }
+  .tag {
+    padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .tag.sev-critical { background: #fef2f2; color: #b91c1c; }
+  .tag.sev-warning { background: #fef3c7; color: #a16207; }
+  .tag.sev-info { background: #eff6ff; color: #1d4ed8; }
+  .tag.src { background: #f1f5f9; color: #475569; }
+  .alert-desc { font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 12px; }
+  .alert-foot {
+    display: flex; align-items: center; gap: 14px; font-size: 12px; color: #94a3b8;
+  }
+  .alert-cta {
+    margin-left: auto; padding: 7px 14px; background: #0f172a; color: white;
+    border-radius: 8px; font-size: 12px; font-weight: 500; text-decoration: none;
+  }
+  .alert-actions { display: flex; gap: 4px; }
+  .ab {
+    width: 26px; height: 26px; border-radius: 6px; border: none; background: transparent;
+    cursor: pointer; color: #94a3b8; font-size: 13px;
+  }
+  .ab:hover { background: #f1f5f9; color: #0f172a; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="hero">
+    <div class="hero-title">Alertas</div>
+    <div class="hero-sub">Centro unificado · 12 alertas sin resolver · 3 reglas activas</div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi crit">
+      <div class="kpi-label">Críticas</div>
+      <div class="kpi-value">3</div>
+      <div class="kpi-sub">Requieren acción inmediata</div>
+    </div>
+    <div class="kpi warn">
+      <div class="kpi-label">Atención</div>
+      <div class="kpi-value">6</div>
+      <div class="kpi-sub">Revisar esta semana</div>
+    </div>
+    <div class="kpi info">
+      <div class="kpi-label">Info</div>
+      <div class="kpi-value">3</div>
+      <div class="kpi-sub">Tendencias positivas</div>
+    </div>
+    <div class="kpi rules">
+      <div class="kpi-label">Mis reglas</div>
+      <div class="kpi-value">3</div>
+      <div class="kpi-sub">Gestionar reglas →</div>
+    </div>
+  </div>
+
+  <div class="tabs-bar">
+    <div class="tab active">
+      Inbox
+      <span class="tab-count">12</span>
+    </div>
+    <div class="tab">
+      Reglas
+      <span class="tab-count">3</span>
+    </div>
+    <div class="tab">Archivadas</div>
+    <div class="tab">Historial</div>
+  </div>
+
+  <div class="filters-row">
+    <div class="filter-group">
+      <span class="chip active">Todas <span class="ct">12</span></span>
+      <span class="chip">No leídas <span class="ct">8</span></span>
+    </div>
+    <div class="filter-group">
+      <span class="chip">🔴 Crítica</span>
+      <span class="chip">🟡 Atención</span>
+      <span class="chip">🔵 Info</span>
+    </div>
+    <div class="filter-group">
+      <span class="chip">Finanzas</span>
+      <span class="chip">Fiscal</span>
+      <span class="chip">Sistema</span>
+      <span class="chip">ML</span>
+    </div>
+    <div class="search-box">🔍 Buscar alertas...</div>
+  </div>
+
+  <div class="list">
+
+    <div class="alert critical unread">
+      <div class="alert-icon">💰</div>
+      <div class="alert-body">
+        <div class="alert-head">
+          <div class="alert-title">Runway crítico: quedan 2.1 meses de efectivo</div>
+          <div class="alert-tags">
+            <span class="tag sev-critical">Crítica</span>
+            <span class="tag src">Finanzas</span>
+          </div>
+        </div>
+        <div class="alert-desc">
+          Con el burn rate actual ($ 1.2M/mes) y el saldo disponible ($ 2.5M),
+          tu empresa tiene pista de vuelo para ~2.1 meses.
+        </div>
+        <div class="alert-foot">
+          <span>hace 12 min</span>
+          <div class="alert-actions">
+            <button class="ab" title="Archivar">📁</button>
+            <button class="ab" title="Silenciar">🔕</button>
+            <button class="ab" title="Crear regla">⚡</button>
+          </div>
+          <a href="#" class="alert-cta">Abrir Escenarios →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert critical unread">
+      <div class="alert-icon">⚠️</div>
+      <div class="alert-body">
+        <div class="alert-head">
+          <div class="alert-title">Sync VTEX caído desde hace 4 horas</div>
+          <div class="alert-tags">
+            <span class="tag sev-critical">Crítica</span>
+            <span class="tag src">Sistema</span>
+          </div>
+        </div>
+        <div class="alert-desc">
+          La sincronización con VTEX falló. Las órdenes nuevas no se están importando.
+        </div>
+        <div class="alert-foot">
+          <span>hace 4 h</span>
+          <div class="alert-actions">
+            <button class="ab" title="Archivar">📁</button>
+            <button class="ab" title="Silenciar">🔕</button>
+            <button class="ab" title="Crear regla">⚡</button>
+          </div>
+          <a href="#" class="alert-cta">Reintentar sync →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert critical unread">
+      <div class="alert-icon">📋</div>
+      <div class="alert-body">
+        <div class="alert-head">
+          <div class="alert-title">Vencimiento AFIP mañana: IVA marzo</div>
+          <div class="alert-tags">
+            <span class="tag sev-critical">Crítica</span>
+            <span class="tag src">Fiscal</span>
+          </div>
+        </div>
+        <div class="alert-desc">
+          Monto estimado: $ 234.500. Preparar pago antes del 20/04.
+        </div>
+        <div class="alert-foot">
+          <span>hace 6 h</span>
+          <div class="alert-actions">
+            <button class="ab" title="Archivar">📁</button>
+            <button class="ab" title="Silenciar">🔕</button>
+            <button class="ab" title="Crear regla">⚡</button>
+          </div>
+          <a href="#" class="alert-cta">Ver calendario →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert warning unread">
+      <div class="alert-icon">📦</div>
+      <div class="alert-body">
+        <div class="alert-head">
+          <div class="alert-title">Stock crítico en 14 SKUs de MercadoLibre</div>
+          <div class="alert-tags">
+            <span class="tag sev-warning">Atención</span>
+            <span class="tag src">MercadoLibre</span>
+          </div>
+        </div>
+        <div class="alert-desc">
+          14 productos con menos de 5 unidades en depósito. Riesgo de quiebre de stock.
+        </div>
+        <div class="alert-foot">
+          <span>hace 1 día</span>
+          <div class="alert-actions">
+            <button class="ab" title="Archivar">📁</button>
+            <button class="ab" title="Silenciar">🔕</button>
+            <button class="ab" title="Crear regla">⚡</button>
+          </div>
+          <a href="#" class="alert-cta">Ver productos →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert warning unread">
+      <div class="alert-icon">💼</div>
+      <div class="alert-body">
+        <div class="alert-head">
+          <div class="alert-title">Monotributo: 78% del límite anual de facturación</div>
+          <div class="alert-tags">
+            <span class="tag sev-warning">Atención</span>
+            <span class="tag src">Fiscal</span>
+          </div>
+        </div>
+        <div class="alert-desc">
+          Acercándote al tope de la categoría D. Considerar recategorizar o pasar a Responsable Inscripto.
+        </div>
+        <div class="alert-foot">
+          <span>hace 1 día</span>
+          <div class="alert-actions">
+            <button class="ab" title="Archivar">📁</button>
+            <button class="ab" title="Silenciar">🔕</button>
+            <button class="ab" title="Crear regla">⚡</button>
+          </div>
+          <a href="#" class="alert-cta">Ver fiscal →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert info">
+      <div class="alert-icon">📈</div>
+      <div class="alert-body">
+        <div class="alert-head">
+          <div class="alert-title">CAC/LTV mejoró: 3.2x → 4.1x este mes</div>
+          <div class="alert-tags">
+            <span class="tag sev-info">Info</span>
+            <span class="tag src">Finanzas</span>
+          </div>
+        </div>
+        <div class="alert-desc">
+          Unit economics mejorando. Principalmente por aumento del AOV (+12%).
+        </div>
+        <div class="alert-foot">
+          <span>hace 3 días</span>
+          <div class="alert-actions">
+            <button class="ab" title="Archivar">📁</button>
+            <button class="ab" title="Crear regla">⚡</button>
+          </div>
+          <a href="#" class="alert-cta">Ver Estado →</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
