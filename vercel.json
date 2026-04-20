@@ -52,6 +52,10 @@
     {
       "path": "/api/cron/inflation-index?key=nitrosales-secret-key-2024-production",
       "schedule": "0 13 16 * *"
+    },
+    {
+      "path": "/api/cron/alerts-scheduler?key=nitrosales-secret-key-2024-production",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
