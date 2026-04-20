@@ -9,26 +9,22 @@
 //   - Endpoints sin session (webhooks, crons): deben resolver la org por
 //     OTRO mecanismo explícito (accountName, ?key=, mlUserId, etc).
 //
-// Estado Sesión 52 Fase 12 (auditoría multi-tenant):
-// El fallback a DEFAULT_ORG_ID se mantiene TEMPORALMENTE mientras migramos
-// endpoints uno por uno para que tomen orgId explícito. Una vez migrados
-// TODOS los callers que dependen del fallback, este código final (auth-guard
-// Fase A6) elimina el fallback.
+// Estado Sesión 52 Fase A6 (auditoría multi-tenant):
+// FALLBACK CONDICIONAL: si no hay session y hay UNA SOLA org en el
+// sistema, usa esa (compat single-tenant). Si hay 2+ orgs sin session,
+// THROW con error explícito — no leakea silenciosamente data cruzada.
 //
-// IMPORTANTE: el fallback solo se activa si no hay session. Cualquier uso
-// del fallback loguea un warning para trackear los callers pendientes.
+// Comportamiento:
+// - Hoy (1 org Mundo del Juguete): funciona igual que antes.
+// - Cuando entre Arredo (2 orgs): endpoints sin session que NO pasen
+//   orgId explícito van a fallar con 500 visible → identifican callers
+//   pendientes de migración sin riesgo de data leak.
 // ══════════════════════════════════════════════════════════════
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { NextRequest } from "next/server";
-
-// Fallback org ID — TEMPORAL hasta completar migración multi-tenant.
-// Cuando TODOS los callers tomen orgId explícito, eliminar este const
-// y hacer que las funciones throw si no hay session.
-const FALLBACK_ORG_ID =
-  process.env.DEFAULT_ORG_ID || "cmmmga1uq0000sb43w0krvvys";
 
 export interface OrgInfo {
   id: string;
@@ -43,20 +39,28 @@ export class NoOrganizationError extends Error {
   }
 }
 
+export class AmbiguousOrgError extends Error {
+  constructor(orgCount: number) {
+    super(
+      `Hay ${orgCount} orgs activas y este endpoint no recibió orgId explícito. ` +
+        "Multi-tenant safety: migrar el caller a pasar orgId (session, ?org=, o mlUserId del payload)."
+    );
+    this.name = "AmbiguousOrgError";
+  }
+}
+
 /**
  * Get the organization for the current request.
  *
  * Priority:
  * 1. Session JWT (authenticated user routes)
- * 2. Fallback to DEFAULT_ORG_ID (temporal durante migración multi-tenant)
- *
- * ⚠ El fallback loguea un warning cada vez que se usa, para poder rastrear
- * qué endpoint todavía no tomó orgId explícito.
+ * 2. Single-org fallback: si hay 1 sola org en DB, la usa (compat MdJ).
+ * 3. Si hay 2+ orgs → throw AmbiguousOrgError (multi-tenant safety).
  */
 export async function getOrganization(
   _req?: NextRequest
 ): Promise<OrgInfo> {
-  // 1. Try session-based auth
+  // 1. Session-based auth
   try {
     const session = await getServerSession(authOptions);
     if (session?.user) {
@@ -73,28 +77,32 @@ export async function getOrganization(
     // Session lookup failed (e.g., webhook route with no cookies)
   }
 
-  // 2. Fallback (temporal)
-  console.warn(
-    "[auth-guard] Usando FALLBACK_ORG_ID. Caller pendiente de migración multi-tenant."
-  );
-  const org = await prisma.organization.findUnique({
-    where: { id: FALLBACK_ORG_ID },
+  // 2. Single-org fallback (compat durante transición multi-tenant)
+  const allOrgs = await prisma.organization.findMany({
     select: { id: true, name: true, slug: true },
+    take: 2, // Solo necesitamos saber si hay 1 o más
   });
 
-  if (!org) {
+  if (allOrgs.length === 0) {
     throw new NoOrganizationError(
-      `Default organization not found (${FALLBACK_ORG_ID}). ` +
-        "Set DEFAULT_ORG_ID env var or ensure the org exists in DB."
+      "No hay ninguna organización en la DB. Setup inicial requerido."
     );
   }
 
-  return org;
+  if (allOrgs.length === 1) {
+    console.warn(
+      "[auth-guard] Single-org fallback activado (1 sola org). " +
+        "Caller pendiente de migración multi-tenant."
+    );
+    return allOrgs[0];
+  }
+
+  // 3. 2+ orgs sin session → THROW (no data leak)
+  throw new AmbiguousOrgError(allOrgs.length);
 }
 
 /**
  * Devuelve solo el orgId (más liviano, sin DB call si session lo tiene).
- * Usa fallback si no hay session (temporal — ver comment arriba).
  */
 export async function getOrganizationId(): Promise<string> {
   try {
@@ -107,15 +115,30 @@ export async function getOrganizationId(): Promise<string> {
     // Fall through
   }
 
-  console.warn(
-    "[auth-guard] getOrganizationId usando FALLBACK_ORG_ID. Caller pendiente de migración."
-  );
-  return FALLBACK_ORG_ID;
+  // Single-org fallback
+  const allOrgs = await prisma.organization.findMany({
+    select: { id: true },
+    take: 2,
+  });
+
+  if (allOrgs.length === 0) {
+    throw new NoOrganizationError("No hay organizaciones en DB");
+  }
+
+  if (allOrgs.length === 1) {
+    console.warn(
+      "[auth-guard] getOrganizationId single-org fallback. " +
+        "Caller pendiente de migración multi-tenant."
+    );
+    return allOrgs[0].id;
+  }
+
+  throw new AmbiguousOrgError(allOrgs.length);
 }
 
 /**
- * Variant estricto: throw si no hay session. Usalo en endpoints que
- * ya migraste y NUNCA deberían caer al fallback.
+ * Variant estricto: throw si no hay session. Sin fallback.
+ * Usalo en endpoints que ya migraste y NUNCA deberían caer al fallback.
  */
 export async function getOrganizationIdStrict(): Promise<string> {
   const session = await getServerSession(authOptions);
