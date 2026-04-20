@@ -13,15 +13,19 @@ import { isInternalUser } from "@/lib/feature-flags";
 export const dynamic = "force-dynamic";
 
 // Umbrales (minutos) por plataforma — si lastSyncAt es más viejo que
-// esto, la conexión se considera "degradada".
+// esto, la conexión se considera "degradada". SOLO se aplica a plataformas
+// con sync automático (cron). Las on-demand no alertan por staleness — solo
+// alertan si el último intento de sync falló (lastSyncError).
 const THRESHOLDS_MIN: Record<string, number> = {
   VTEX: 60 * 24,          // 1 día (webhooks en real-time + cron diario 3am)
   MERCADOLIBRE: 60 * 24,  // 1 día (idem)
-  META_ADS: 60 * 24,      // 1 día (on-demand)
-  GOOGLE_ADS: 60 * 24,    // 1 día (on-demand)
   GA4: 60 * 36,           // 36hs (cron diario 3am)
   GSC: 60 * 36,           // 36hs (cron diario 9am)
+  // META_ADS / GOOGLE_ADS no tienen umbral — son on-demand
 };
+
+// Plataformas on-demand (no alertar por stale sync — solo por errores explicitos)
+const ON_DEMAND = new Set(["META_ADS", "GOOGLE_ADS"]);
 
 function minsAgo(d: Date | null | undefined): number | null {
   if (!d) return null;
@@ -32,6 +36,10 @@ function classifyConnection(platform: string, status: string, lastSyncAt: Date |
   if (status === "PENDING") return "pending";
   if (status === "ERROR") return "error";
   if (lastSyncError) return "warn";
+
+  // Plataformas on-demand: OK si no hay error explicito (no importa la fecha)
+  if (ON_DEMAND.has(platform)) return "ok";
+
   const mins = minsAgo(lastSyncAt);
   if (mins === null) return "warn"; // nunca syncó
   const threshold = THRESHOLDS_MIN[platform] || 60 * 24;
@@ -73,7 +81,7 @@ export async function GET() {
       orgs.map(async (org) => {
         // Login más reciente
         const lastLoginRow = await prisma.$queryRawUnsafe<Array<any>>(
-          `SELECT MAX("createdAt") as "lastLogin"
+          `SELECT MAX(le."createdAt") as "lastLogin"
            FROM "login_events" le
            JOIN "users" u ON u.id = le."userId"
            WHERE u."organizationId" = $1 AND le."success" = true`,

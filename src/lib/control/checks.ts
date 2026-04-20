@@ -35,14 +35,18 @@ export interface InactiveClient {
 }
 
 // Umbrales (minutos) por plataforma para considerar "desincronizado".
+// SOLO aplicable a plataformas con sync automatico. Las on-demand (META_ADS,
+// GOOGLE_ADS) se syncean solo cuando el user abre la pagina — no alertamos
+// por staleness, solo por errores explicitos (lastSyncError).
 const SYNC_THRESHOLDS_MIN: Record<string, number> = {
   VTEX: 60 * 24,
   MERCADOLIBRE: 60 * 24,
-  META_ADS: 60 * 24,
-  GOOGLE_ADS: 60 * 24,
   GA4: 60 * 36,
   GSC: 60 * 36,
+  // META_ADS / GOOGLE_ADS intencionalmente ausentes — on-demand
 };
+
+const ON_DEMAND_PLATFORMS = new Set(["META_ADS", "GOOGLE_ADS"]);
 
 const STUCK_ONBOARDING_HOURS = 72;
 const INACTIVE_CLIENT_DAYS = 14;
@@ -84,6 +88,22 @@ export async function checkConnectionIssues(): Promise<ConnectionIssue[]> {
 
     // PENDING = ignorar (aún no se configuró el OAuth)
     if (c.status === "PENDING") continue;
+
+    // On-demand: solo alertar si hay lastSyncError explicito
+    if (ON_DEMAND_PLATFORMS.has(c.platform)) {
+      if (c.lastSyncError) {
+        issues.push({
+          orgId: c.organizationId,
+          orgName: c.organization.name,
+          platform: c.platform,
+          level: "warn",
+          reason: "Último sync manual falló",
+          minsSinceSync,
+          lastError: c.lastSyncError,
+        });
+      }
+      continue; // no chequear staleness
+    }
 
     // Sync antiguo
     if (minsSinceSync !== null && minsSinceSync > threshold * 2) {
