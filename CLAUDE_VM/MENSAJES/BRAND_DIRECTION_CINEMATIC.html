@@ -24,6 +24,7 @@
       --accent-orange: #fb923c;
       --accent-violet: #a78bfa;
       --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-drama: cubic-bezier(0.65, 0, 0.35, 1);
     }
     * { box-sizing: border-box; transition-timing-function: var(--ease); }
     html { background: var(--bg); }
@@ -36,6 +37,72 @@
       overflow-x: hidden;
     }
     .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+    /* ====== CUSTOM CURSOR (desktop only) ====== */
+    @media (pointer: fine) {
+      html, body { cursor: none; }
+      a, button, .satellite, [role="button"] { cursor: none; }
+      .cursor-dot, .cursor-ring {
+        position: fixed; top: 0; left: 0;
+        pointer-events: none;
+        z-index: 9999;
+        border-radius: 50%;
+        will-change: transform;
+      }
+      .cursor-dot {
+        width: 6px; height: 6px;
+        background: #f5f5f4;
+        margin: -3px 0 0 -3px;
+        transition: transform 30ms linear, width 200ms var(--ease), height 200ms var(--ease), margin 200ms var(--ease), background 200ms var(--ease);
+      }
+      .cursor-ring {
+        width: 28px; height: 28px;
+        border: 1px solid rgba(245, 245, 244, 0.32);
+        margin: -14px 0 0 -14px;
+        transition: width 240ms var(--ease), height 240ms var(--ease), margin 240ms var(--ease), border-color 240ms var(--ease), opacity 240ms var(--ease);
+      }
+      body.cursor-active .cursor-ring {
+        width: 48px; height: 48px;
+        margin: -24px 0 0 -24px;
+        border-color: rgba(34, 211, 238, 0.7);
+      }
+      body.cursor-active .cursor-dot {
+        width: 4px; height: 4px;
+        margin: -2px 0 0 -2px;
+        background: rgba(34, 211, 238, 1);
+      }
+      body.cursor-hidden .cursor-dot,
+      body.cursor-hidden .cursor-ring { opacity: 0; }
+    }
+    @media (pointer: coarse) {
+      .cursor-dot, .cursor-ring { display: none; }
+    }
+
+    /* ====== LOADING SEQUENCE ====== */
+    body.pre-load .ambient-root { opacity: 0; }
+    body.pre-load .site-nav { opacity: 0; transform: translateY(-8px); }
+    body.pre-load .hero-h1 .line-content { transform: translateY(110%); }
+    body.pre-load .hero-reveal { opacity: 0; transform: translateY(14px); }
+    body.pre-load .hero-orb-wrap { opacity: 0; transform: scale(0.94); }
+    body.pre-load .hero-scroll-cue { opacity: 0; }
+
+    .ambient-root { transition: opacity 1200ms var(--ease); }
+    .site-nav { transition: opacity 600ms var(--ease), transform 600ms var(--ease); transition-delay: 0.05s; }
+    .hero-h1 .line-mask { display: block; overflow: hidden; padding-bottom: 0.02em; }
+    .hero-h1 .line-content {
+      display: block;
+      transition: transform 1000ms var(--ease-drama);
+    }
+    body:not(.pre-load) .hero-h1 .line-mask:nth-child(1) .line-content { transition-delay: 0.32s; }
+    body:not(.pre-load) .hero-h1 .line-mask:nth-child(2) .line-content { transition-delay: 0.44s; }
+    body:not(.pre-load) .hero-h1 .line-mask:nth-child(3) .line-content { transition-delay: 0.56s; }
+    .hero-reveal { transition: opacity 900ms var(--ease), transform 900ms var(--ease); }
+    body:not(.pre-load) .hero-reveal-1 { transition-delay: 0.18s; }
+    body:not(.pre-load) .hero-reveal-2 { transition-delay: 0.78s; }
+    body:not(.pre-load) .hero-reveal-3 { transition-delay: 0.9s; }
+    body:not(.pre-load) .hero-reveal-4 { transition-delay: 1.02s; }
+    .hero-orb-wrap { transition: opacity 1200ms var(--ease), transform 1400ms var(--ease); transition-delay: 0.48s; }
+    .hero-scroll-cue { transition: opacity 700ms var(--ease); transition-delay: 1.25s; }
 
     /* ====== AMBIENT BACKGROUND LAYERS ====== */
     .ambient-root {
@@ -127,13 +194,13 @@
       background: var(--ink);
       color: #06070b;
       border-radius: 9999px;
-      transition: transform 220ms var(--ease), box-shadow 220ms var(--ease);
+      transition: transform 320ms var(--ease), box-shadow 320ms var(--ease);
       box-shadow:
         0 0 0 1px rgba(245, 245, 244, 0.08),
         0 1px 0 rgba(245, 245, 244, 0.2) inset,
         0 10px 30px -10px rgba(34, 211, 238, 0.3);
     }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(245,245,244,0.12), 0 1px 0 rgba(245,245,244,0.28) inset, 0 16px 40px -8px rgba(34, 211, 238, 0.45); }
+    .btn-primary:hover { box-shadow: 0 0 0 1px rgba(245,245,244,0.12), 0 1px 0 rgba(245,245,244,0.28) inset, 0 16px 40px -8px rgba(34, 211, 238, 0.45); }
     .btn-ghost {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 14px 22px;
@@ -143,9 +210,9 @@
       border-radius: 9999px;
       background: rgba(245, 245, 244, 0.04);
       border: 1px solid rgba(245, 245, 244, 0.08);
-      transition: all 220ms var(--ease);
+      transition: all 240ms var(--ease);
     }
-    .btn-ghost:hover { background: rgba(245, 245, 244, 0.08); color: var(--ink); border-color: rgba(245, 245, 244, 0.16); }
+    .btn-ghost:hover { background: rgba(245, 245, 244, 0.08); color: var(--ink); border-color: rgba(245, 245, 244, 0.18); }
 
     /* ====== HAIRLINES ====== */
     .hairline { height: 1px; background: linear-gradient(90deg, transparent, rgba(245,245,244,0.12), transparent); }
@@ -180,6 +247,11 @@
     }
 
     /* ====== CENTRAL ORB (hero abstract visual) ====== */
+    .hero-orb-wrap {
+      position: relative;
+      will-change: transform;
+      transition: transform 600ms var(--ease);
+    }
     .orb-system {
       position: relative;
       width: 100%;
@@ -239,9 +311,14 @@
       backdrop-filter: blur(8px);
       box-shadow: 0 8px 24px -8px rgba(0,0,0,0.4), 0 0 0 1px rgba(245,245,244,0.04) inset;
       z-index: 2;
-      transition: all 300ms var(--ease);
+      transition: transform 400ms var(--ease), border-color 400ms var(--ease), box-shadow 400ms var(--ease), color 400ms var(--ease);
     }
-    .satellite:hover { transform: scale(1.08); border-color: rgba(34, 211, 238, 0.4); box-shadow: 0 12px 32px -8px rgba(34, 211, 238, 0.3); }
+    .satellite:hover {
+      transform: scale(1.1) translateY(-2px);
+      border-color: rgba(34, 211, 238, 0.5);
+      color: var(--ink);
+      box-shadow: 0 18px 36px -8px rgba(34, 211, 238, 0.35), 0 0 0 1px rgba(34, 211, 238, 0.2) inset;
+    }
 
     /* Connection lines (SVG) pulsing */
     .connections { position: absolute; inset: 0; z-index: 1; }
@@ -259,6 +336,33 @@
       100% { stroke-dashoffset: 0; }
     }
 
+    /* ====== SCROLL CUE ====== */
+    .hero-scroll-cue {
+      position: absolute;
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      pointer-events: none;
+    }
+    .hero-scroll-cue-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.32em;
+      color: var(--ink-4);
+    }
+    .hero-scroll-cue-line {
+      width: 1px; height: 42px;
+      background: linear-gradient(180deg, rgba(245,245,244,0.04), rgba(245,245,244,0.28), rgba(245,245,244,0.04));
+      position: relative; overflow: hidden;
+    }
+    .hero-scroll-cue-line::after {
+      content: ""; position: absolute; left: 0; top: -40%; width: 100%; height: 40%;
+      background: linear-gradient(180deg, transparent, var(--accent-cyan));
+      animation: scroll-run 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    }
+    @keyframes scroll-run { 0% { top: -40%; } 100% { top: 100%; } }
+
     /* ====== LAYER VISUAL (Observa/Entiende/Recuerda/Decide) ====== */
     .layer-card {
       position: relative;
@@ -267,9 +371,22 @@
       background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
       border: 1px solid rgba(245, 245, 244, 0.08);
       overflow: hidden;
-      transition: transform 400ms var(--ease), border-color 400ms var(--ease);
+      transition: transform 500ms var(--ease), border-color 500ms var(--ease), box-shadow 500ms var(--ease);
     }
-    .layer-card:hover { transform: translateY(-4px); border-color: rgba(245, 245, 244, 0.16); }
+    .layer-card::before {
+      content: "";
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(34, 211, 238, 0.08), transparent 70%);
+      opacity: 0;
+      transition: opacity 500ms var(--ease);
+      pointer-events: none;
+    }
+    .layer-card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(245, 245, 244, 0.18);
+      box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(34, 211, 238, 0.08) inset;
+    }
+    .layer-card:hover::before { opacity: 1; }
     .layer-viz {
       position: relative;
       width: 100%;
@@ -322,16 +439,26 @@
       background: radial-gradient(circle at 50% 50%, rgba(5, 150, 105, 0.1) 0%, transparent 70%);
     }
 
-    /* ====== REVEAL ANIMATION ====== */
-    @media (prefers-reduced-motion: no-preference) {
-      .reveal { opacity: 0; transform: translateY(12px); animation: reveal 900ms var(--ease) forwards; }
-      .reveal-1 { animation-delay: 0.05s; }
-      .reveal-2 { animation-delay: 0.15s; }
-      .reveal-3 { animation-delay: 0.28s; }
-      .reveal-4 { animation-delay: 0.42s; }
-      .reveal-5 { animation-delay: 0.6s; }
+    /* ====== SCROLL REVEAL (IntersectionObserver) ====== */
+    .scroll-reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 1000ms var(--ease), transform 1000ms var(--ease);
     }
-    @keyframes reveal { to { opacity: 1; transform: translateY(0); } }
+    .scroll-reveal.in-view {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .scroll-reveal-stagger > * {
+      opacity: 0;
+      transform: translateY(22px);
+      transition: opacity 800ms var(--ease), transform 800ms var(--ease);
+      transition-delay: calc(var(--i, 0) * 100ms);
+    }
+    .scroll-reveal-stagger.in-view > * {
+      opacity: 1;
+      transform: translateY(0);
+    }
 
     /* ====== PLATFORM LOGO CHIPS ====== */
     .plogo {
@@ -340,31 +467,29 @@
       font-size: 14px;
       letter-spacing: -0.01em;
       color: rgba(245,245,244,0.42);
-      transition: color 220ms var(--ease);
+      transition: color 240ms var(--ease);
     }
-    .plogo:hover { color: rgba(245,245,244,0.72); }
+    .plogo:hover { color: rgba(245,245,244,0.82); }
 
-    /* ====== SCROLL CUE ====== */
-    .scroll-cue {
-      position: absolute;
-      bottom: 40px; left: 50%; transform: translateX(-50%);
-      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    /* ====== REDUCED MOTION ====== */
+    @media (prefers-reduced-motion: reduce) {
+      body.pre-load .ambient-root,
+      body.pre-load .site-nav,
+      body.pre-load .hero-reveal,
+      body.pre-load .hero-orb-wrap,
+      body.pre-load .hero-scroll-cue { opacity: 1; transform: none; }
+      body.pre-load .hero-h1 .line-content { transform: translateY(0); }
+      .scroll-reveal, .scroll-reveal-stagger > * { opacity: 1; transform: none; }
+      .aurora, .dot-grid, .orb-ring, .orb-core::before, .pulse::after,
+      .hero-scroll-cue-line::after, .conn-line, .viz-observe-grid span,
+      .viz-understand-node { animation: none !important; }
     }
-    .scroll-cue-line {
-      width: 1px; height: 40px;
-      background: linear-gradient(180deg, rgba(245,245,244,0.06), rgba(245,245,244,0.3), rgba(245,245,244,0.06));
-      position: relative; overflow: hidden;
-    }
-    .scroll-cue-line::after {
-      content: ""; position: absolute; left: 0; top: 0; width: 100%; height: 30%;
-      background: linear-gradient(180deg, transparent, var(--accent-cyan));
-      animation: scroll-run 2.2s ease-in-out infinite;
-    }
-    @keyframes scroll-run { 0% { top: -30%; } 100% { top: 100%; } }
 
   </style>
 </head>
-<body>
+<body class="pre-load">
+
+  <!-- Custom cursor (JS appends) -->
 
   <!-- ========= AMBIENT BACKGROUND ========= -->
   <div class="ambient-root">
@@ -377,7 +502,7 @@
   <div class="relative z-10">
 
     <!-- ========= NAV ========= -->
-    <nav class="max-w-[1320px] mx-auto px-8 py-7 flex items-center justify-between">
+    <nav class="site-nav max-w-[1320px] mx-auto px-8 py-7 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <!-- Logo: abstract node with orbital -->
         <div class="relative w-9 h-9 flex items-center justify-center">
@@ -400,27 +525,27 @@
     </nav>
 
     <!-- ========= HERO ========= -->
-    <section class="relative max-w-[1320px] mx-auto px-8 pt-16 pb-24 min-h-[88vh] flex items-center">
+    <section class="relative max-w-[1320px] mx-auto px-8 pt-16 pb-32 min-h-[92vh] flex items-center">
       <div class="grid lg:grid-cols-[1.1fr_0.9fr] gap-20 items-center w-full">
 
         <!-- Text column -->
         <div>
-          <div class="reveal reveal-1 inline-flex items-center gap-3 pr-4 pl-2.5 py-1.5 rounded-full mb-10" style="background: rgba(245,245,244,0.04); border: 1px solid rgba(245,245,244,0.08);">
+          <div class="hero-reveal hero-reveal-1 inline-flex items-center gap-3 pr-4 pl-2.5 py-1.5 rounded-full mb-10" style="background: rgba(245,245,244,0.04); border: 1px solid rgba(245,245,244,0.08);">
             <span class="pulse"></span>
             <span class="font-mono text-[10.5px] uppercase tracking-[0.24em] text-[var(--ink-2)]">AI Commerce Platform · LATAM</span>
           </div>
 
-          <h1 class="reveal reveal-2 display display-xl mb-9">
-            <span class="h1-gradient">AI Commerce.</span><br/>
-            <span style="color: #ffffff;">Tu primer</span><br/>
-            <span class="h1-gradient">activo digital.</span>
+          <h1 class="hero-h1 display display-xl mb-9">
+            <span class="line-mask"><span class="line-content h1-gradient">AI Commerce.</span></span>
+            <span class="line-mask"><span class="line-content" style="color: #ffffff;">Tu primer</span></span>
+            <span class="line-mask"><span class="line-content h1-gradient">activo digital.</span></span>
           </h1>
 
-          <p class="reveal reveal-3 body-lg max-w-[480px] mb-10">
+          <p class="hero-reveal hero-reveal-2 body-lg max-w-[480px] mb-10">
             Un pixel propio en tu dominio. Una IA que conoce tu negocio. Un P&amp;L tri-currency en vivo. Todo conectado en una sola infraestructura — la que hoy no existe.
           </p>
 
-          <div class="reveal reveal-4 flex flex-wrap gap-3 mb-16">
+          <div class="hero-reveal hero-reveal-3 flex flex-wrap gap-3 mb-16">
             <a href="#" class="btn-primary">
               Pedir demo
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3l5 5-5 5"/></svg>
@@ -431,7 +556,7 @@
           </div>
 
           <!-- Compatible with strip -->
-          <div class="reveal reveal-5">
+          <div class="hero-reveal hero-reveal-4">
             <p class="eyebrow mb-5">Infraestructura conectada con</p>
             <div class="flex flex-wrap items-center gap-x-7 gap-y-4">
               <span class="plogo">Meta</span>
@@ -449,8 +574,8 @@
           </div>
         </div>
 
-        <!-- Orbital visual -->
-        <div class="reveal reveal-3 relative">
+        <!-- Orbital visual (wrap for parallax) -->
+        <div class="hero-orb-wrap" data-orb-parallax>
           <div class="orb-system">
             <!-- Connections SVG -->
             <svg class="connections" viewBox="0 0 560 560" preserveAspectRatio="xMidYMid meet">
@@ -493,6 +618,12 @@
           </div>
         </div>
       </div>
+
+      <!-- Scroll cue -->
+      <div class="hero-scroll-cue">
+        <span class="hero-scroll-cue-label">Scroll</span>
+        <div class="hero-scroll-cue-line"></div>
+      </div>
     </section>
 
     <!-- ========= HAIRLINE DIVIDER ========= -->
@@ -503,7 +634,7 @@
     <!-- ========= SECTION: Fragmentation → Resolution ========= -->
     <section class="max-w-[1320px] mx-auto px-8 py-36">
       <div class="grid lg:grid-cols-2 gap-20 items-center">
-        <div>
+        <div class="scroll-reveal">
           <p class="eyebrow mb-6">El problema que resolvemos</p>
           <h2 class="display display-lg mb-8">
             <span class="h1-gradient">Hoy cada plataforma</span><br/>
@@ -519,7 +650,7 @@
         </div>
 
         <!-- Fragmentation visual -->
-        <div class="relative aspect-square max-w-[500px] mx-auto w-full">
+        <div class="scroll-reveal relative aspect-square max-w-[500px] mx-auto w-full">
           <!-- Disconnected floating platforms -->
           <div class="absolute top-[8%] left-[10%] w-24 h-24 rounded-2xl glass flex items-center justify-center" style="transform: rotate(-6deg);">
             <span class="plogo" style="color: var(--ink-2);">Meta</span>
@@ -553,7 +684,7 @@
 
     <!-- ========= RESOLUTION ========= -->
     <section class="max-w-[1320px] mx-auto px-8 py-36">
-      <div class="text-center max-w-3xl mx-auto mb-20">
+      <div class="scroll-reveal text-center max-w-3xl mx-auto mb-20">
         <p class="eyebrow mb-6">Lo que NitroSales hace</p>
         <h2 class="display display-lg mb-8">
           <span class="h1-gradient">Cruza lo que nadie cruza.</span><br/>
@@ -565,10 +696,10 @@
       </div>
 
       <!-- 4 LAYER CARDS -->
-      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div class="scroll-reveal-stagger grid md:grid-cols-2 lg:grid-cols-4 gap-5">
 
         <!-- Observa -->
-        <div class="layer-card">
+        <div class="layer-card" style="--i: 0">
           <div class="layer-viz viz-observe">
             <div class="viz-observe-grid">
               <!-- 35 cells (7x5) -->
@@ -585,7 +716,7 @@
         </div>
 
         <!-- Entiende -->
-        <div class="layer-card">
+        <div class="layer-card" style="--i: 1">
           <div class="layer-viz" style="background: radial-gradient(circle at 50% 50%, rgba(167, 139, 250, 0.1) 0%, transparent 70%);">
             <svg viewBox="0 0 240 150" class="absolute inset-0 w-full h-full">
               <!-- Neural network nodes -->
@@ -611,7 +742,7 @@
         </div>
 
         <!-- Recuerda -->
-        <div class="layer-card">
+        <div class="layer-card" style="--i: 2">
           <div class="layer-viz viz-memory">
             <svg viewBox="0 0 240 150" class="absolute inset-0 w-full h-full">
               <!-- Memory spiral -->
@@ -647,7 +778,7 @@
         </div>
 
         <!-- Decide -->
-        <div class="layer-card">
+        <div class="layer-card" style="--i: 3">
           <div class="layer-viz viz-decide">
             <svg viewBox="0 0 240 150" class="absolute inset-0 w-full h-full">
               <defs>
@@ -682,7 +813,7 @@
     <!-- ========= BIG STATEMENT ========= -->
     <section class="max-w-[1320px] mx-auto px-8 py-40 text-center relative">
       <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(34,211,238,0.08) 0%, transparent 70%);"></div>
-      <div class="relative">
+      <div class="scroll-reveal relative">
         <p class="eyebrow mb-8">El norte</p>
         <h2 class="display display-lg max-w-5xl mx-auto mb-12">
           <span style="color: rgba(245,245,244,0.45);">Un ecommerce no tiene</span><br/>
@@ -697,7 +828,7 @@
 
     <!-- ========= FINAL CTA ========= -->
     <section class="max-w-[1320px] mx-auto px-8 py-36">
-      <div class="glass p-16 md:p-20 relative overflow-hidden">
+      <div class="scroll-reveal glass p-16 md:p-20 relative overflow-hidden">
         <!-- Ambient glow inside -->
         <div class="absolute inset-0 pointer-events-none">
           <div class="aurora" style="width: 400px; height: 400px; top: -30%; right: -10%; background: radial-gradient(circle, rgba(34, 211, 238, 0.25), transparent 65%); filter: blur(80px);"></div>
@@ -745,18 +876,115 @@
   </div>
 
   <script>
-    // Magnetic hover on primary CTAs (subtle)
-    document.querySelectorAll('.btn-primary').forEach(btn => {
-      btn.addEventListener('mousemove', (e) => {
-        const rect = btn.getBoundingClientRect();
-        const x = e.clientX - rect.left - rect.width / 2;
-        const y = e.clientY - rect.top - rect.height / 2;
-        btn.style.transform = `translate(${x * 0.12}px, ${y * 0.18}px)`;
+    (function () {
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // ===== LOADING SEQUENCE =====
+      // Remove pre-load class after a brief paint tick so transitions fire in coreography.
+      window.addEventListener('load', () => {
+        requestAnimationFrame(() => {
+          setTimeout(() => document.body.classList.remove('pre-load'), 80);
+        });
       });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.transform = '';
+
+      // ===== CUSTOM CURSOR (desktop / fine pointer only) =====
+      const finePointer = window.matchMedia('(pointer: fine)').matches;
+      if (finePointer && !prefersReduced) {
+        const dot = document.createElement('div');
+        dot.className = 'cursor-dot';
+        const ring = document.createElement('div');
+        ring.className = 'cursor-ring';
+        document.body.append(dot, ring);
+
+        let mx = window.innerWidth / 2, my = window.innerHeight / 2;
+        let rx = mx, ry = my;
+        let isInside = false;
+
+        document.addEventListener('mousemove', (e) => {
+          mx = e.clientX; my = e.clientY;
+          if (!isInside) { rx = mx; ry = my; isInside = true; }
+        });
+        document.addEventListener('mouseleave', () => {
+          document.body.classList.add('cursor-hidden');
+        });
+        document.addEventListener('mouseenter', () => {
+          document.body.classList.remove('cursor-hidden');
+        });
+
+        function tick() {
+          dot.style.transform = `translate(${mx}px, ${my}px)`;
+          rx += (mx - rx) * 0.16;
+          ry += (my - ry) * 0.16;
+          ring.style.transform = `translate(${rx}px, ${ry}px)`;
+          requestAnimationFrame(tick);
+        }
+        tick();
+
+        // Scale on interactive hover
+        const hoverables = 'a, button, .btn-primary, .btn-ghost, .satellite, .layer-card, [role="button"]';
+        document.querySelectorAll(hoverables).forEach((el) => {
+          el.addEventListener('mouseenter', () => document.body.classList.add('cursor-active'));
+          el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-active'));
+        });
+      }
+
+      // ===== SCROLL REVEAL (IntersectionObserver) =====
+      if (!prefersReduced && 'IntersectionObserver' in window) {
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('in-view');
+              io.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+
+        document.querySelectorAll('.scroll-reveal, .scroll-reveal-stagger').forEach((el) => io.observe(el));
+      } else {
+        document.querySelectorAll('.scroll-reveal, .scroll-reveal-stagger').forEach((el) => el.classList.add('in-view'));
+      }
+
+      // ===== ORB MICRO-PARALLAX ON MOUSE =====
+      if (finePointer && !prefersReduced) {
+        const orbWrap = document.querySelector('[data-orb-parallax]');
+        if (orbWrap) {
+          let tx = 0, ty = 0, cx = 0, cy = 0;
+          document.addEventListener('mousemove', (e) => {
+            const rect = orbWrap.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const dx = (e.clientX - centerX) / window.innerWidth;
+            const dy = (e.clientY - centerY) / window.innerHeight;
+            tx = dx * 16; // max ~8px each side
+            ty = dy * 14;
+          });
+          function orbTick() {
+            cx += (tx - cx) * 0.08;
+            cy += (ty - cy) * 0.08;
+            orbWrap.style.transform = `translate(${cx}px, ${cy}px)`;
+            requestAnimationFrame(orbTick);
+          }
+          orbTick();
+        }
+      }
+
+      // ===== MAGNETIC HOVER ON PRIMARY CTAs =====
+      document.querySelectorAll('.btn-primary').forEach((btn) => {
+        let raf = null;
+        btn.addEventListener('mousemove', (e) => {
+          const rect = btn.getBoundingClientRect();
+          const x = e.clientX - rect.left - rect.width / 2;
+          const y = e.clientY - rect.top - rect.height / 2;
+          if (raf) cancelAnimationFrame(raf);
+          raf = requestAnimationFrame(() => {
+            btn.style.transform = `translate(${x * 0.14}px, ${y * 0.2}px)`;
+          });
+        });
+        btn.addEventListener('mouseleave', () => {
+          btn.style.transform = '';
+        });
       });
-    });
+    })();
   </script>
 </body>
 </html>
