@@ -260,7 +260,20 @@ export async function fetchSellerOrders(
 /**
  * Fetch seller reputation and metrics.
  * READ-ONLY: Only calls GET /users/{id}.
+ *
+ * Devuelve además los thresholds (umbrales de exclusión) por métrica que
+ * MELI expone via metrics.X.exclusion. Son los valores máximos que el
+ * seller puede tener antes de bajar de nivel. Vienen "fresh" de MELI en
+ * cada llamada, así no dependemos de hardcodear.
  */
+export interface MlMetricThreshold {
+  rate: number;             // valor actual del seller
+  period?: string;          // ej "60 days"
+  thresholdPercentage?: number | null;  // umbral max en % (decimal: 0.02 = 2%)
+  thresholdFixed?: number | null;       // umbral max en cantidad absoluta
+  value?: number;           // cantidad absoluta actual
+}
+
 export async function fetchSellerReputation(
   token: string,
   mlUserId: number
@@ -269,13 +282,26 @@ export async function fetchSellerReputation(
   powerSeller: boolean;
   transactions: { total: number; completed: number; canceled: number };
   ratings: { positive: number; negative: number; neutral: number };
-  metrics: { claims: { rate: number }; delayed: { rate: number }; cancellations: { rate: number } };
+  metrics: {
+    claims: MlMetricThreshold;
+    delayed: MlMetricThreshold;
+    cancellations: MlMetricThreshold;
+  };
 }> {
   const user = await mlGet(`/users/${mlUserId}`, token);
   const rep = user.seller_reputation || {};
   const transactions = rep.transactions || {};
   const ratings = transactions.ratings || {};
   const metrics = rep.metrics || {};
+
+  // Helper para extraer threshold de cada métrica (claims, delayed, cancellations)
+  const buildMetric = (m: any): MlMetricThreshold => ({
+    rate: m?.rate || 0,
+    period: m?.period,
+    value: m?.value,
+    thresholdPercentage: m?.exclusion?.percentage ?? null,
+    thresholdFixed: m?.exclusion?.fixed ?? null,
+  });
 
   return {
     level: rep.level_id || "unknown",
@@ -291,9 +317,9 @@ export async function fetchSellerReputation(
       neutral: ratings.neutral || 0,
     },
     metrics: {
-      claims: { rate: metrics.claims?.rate || 0 },
-      delayed: { rate: metrics.delayed_handling_time?.rate || 0 },
-      cancellations: { rate: metrics.cancellations?.rate || 0 },
+      claims: buildMetric(metrics.claims),
+      delayed: buildMetric(metrics.delayed_handling_time),
+      cancellations: buildMetric(metrics.cancellations),
     },
   };
 }

@@ -29,6 +29,12 @@ interface ReputacionData {
     claimsRate: number; delayedRate: number; cancellationRate: number;
     positiveRatings: number; negativeRatings: number; neutralRatings: number;
     totalRatings: number; positiveRate: string; date: string;
+    thresholds: {
+      claims: { percentage: number | null; fixed: number | null } | null;
+      delayed: { percentage: number | null; fixed: number | null } | null;
+      cancellations: { percentage: number | null; fixed: number | null } | null;
+    } | null;
+    thresholdsError: string | null;
   } | null;
   history: Array<{
     date: string; level: string; totalSales: number;
@@ -221,7 +227,7 @@ export default function ReputacionPage() {
         </div>
       </div>
 
-      {/* PERFORMANCE BARS premium con threshold */}
+      {/* PERFORMANCE BARS premium con thresholds REALES desde MELI live */}
       <div
         style={{
           background: "white", borderRadius: 14, border: "1px solid rgba(15,23,42,.05)",
@@ -229,66 +235,103 @@ export default function ReputacionPage() {
           boxShadow: "0 1px 3px rgba(15,23,42,.02), 0 4px 14px rgba(15,23,42,.03)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(99,102,241,.12)", color: "#6366f1", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <Target size={14} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(99,102,241,.12)", color: "#6366f1", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <Target size={14} />
+            </div>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
+              Performance vs umbrales actuales de MELI
+            </h2>
           </div>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em", margin: 0 }}>
-            Performance vs umbrales recomendados de MELI
-          </h2>
+          {current.thresholds && !current.thresholdsError && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", background: "rgba(16,185,129,.08)", borderRadius: 999, fontSize: 10, fontWeight: 700, color: "#059669", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <span style={{ width: 5, height: 5, borderRadius: 999, background: "#10b981" }} />
+              Live · MELI
+            </span>
+          )}
+          {current.thresholdsError && (
+            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>
+              Umbrales no disponibles ahora
+            </span>
+          )}
         </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {[
-            { label: "Reclamos", value: current.claimsRate ? current.claimsRate * 100 : 0, threshold: 2, unit: "%" },
-            { label: "Envíos tardíos", value: current.delayedRate ? current.delayedRate * 100 : 0, threshold: 15, unit: "%" },
-            { label: "Cancelaciones", value: current.cancellationRate ? current.cancellationRate * 100 : 0, threshold: 5, unit: "%" },
-          ].map((m) => {
-            const isGood = m.value < m.threshold;
-            const tone = isGood ? "#10b981" : "#ef4444";
-            const pct = Math.min((m.value / (m.threshold * 2)) * 100, 100);
-            return (
-              <div key={m.label}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{m.label}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: tone, fontVariantNumeric: "tabular-nums" }}>
-                      {m.value.toFixed(2)}{m.unit}
-                    </span>
-                    <span style={{ fontSize: 10, color: "#94a3b8", fontVariantNumeric: "tabular-nums" }}>
-                      umbral {m.threshold}{m.unit}
-                    </span>
+          {(() => {
+            const t = current.thresholds;
+            const items = [
+              {
+                label: "Reclamos",
+                value: current.claimsRate ? current.claimsRate * 100 : 0,
+                thresholdPct: t?.claims?.percentage != null ? t.claims.percentage * 100 : null,
+              },
+              {
+                label: "Envíos tardíos",
+                value: current.delayedRate ? current.delayedRate * 100 : 0,
+                thresholdPct: t?.delayed?.percentage != null ? t.delayed.percentage * 100 : null,
+              },
+              {
+                label: "Cancelaciones",
+                value: current.cancellationRate ? current.cancellationRate * 100 : 0,
+                thresholdPct: t?.cancellations?.percentage != null ? t.cancellations.percentage * 100 : null,
+              },
+            ];
+            return items.map((m) => {
+              const hasThreshold = m.thresholdPct != null;
+              const isGood = hasThreshold ? m.value < (m.thresholdPct as number) : true;
+              const tone = !hasThreshold ? "#94a3b8" : isGood ? "#10b981" : "#ef4444";
+              // El bar va de 0 a 2x threshold (o, si no hay threshold, de 0 a max(value, 1))
+              const range = hasThreshold ? (m.thresholdPct as number) * 2 : Math.max(m.value, 1);
+              const pct = Math.min((m.value / range) * 100, 100);
+              const thresholdPos = hasThreshold ? ((m.thresholdPct as number) / range) * 100 : null;
+              return (
+                <div key={m.label}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{m.label}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: tone, fontVariantNumeric: "tabular-nums" }}>
+                        {m.value.toFixed(2)}%
+                      </span>
+                      <span style={{ fontSize: 10, color: "#94a3b8", fontVariantNumeric: "tabular-nums" }}>
+                        {hasThreshold ? `umbral ${(m.thresholdPct as number).toFixed(2)}%` : "umbral —"}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ position: "relative", width: "100%", background: "#f1f5f9", borderRadius: 999, height: 8, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%", borderRadius: 999, width: `${pct}%`,
+                        background: tone,
+                        transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)",
+                        boxShadow: `0 0 8px ${tone}40`,
+                      }}
+                    />
+                  </div>
+                  <div style={{ position: "relative", height: 6 }}>
+                    {thresholdPos != null && (
+                      <div
+                        style={{
+                          position: "absolute", top: -2,
+                          left: `${thresholdPos}%`,
+                          transform: "translateX(-50%)",
+                          width: 0, height: 0,
+                          borderLeft: "4px solid transparent",
+                          borderRight: "4px solid transparent",
+                          borderTop: "4px solid #94a3b8",
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
-                <div style={{ position: "relative", width: "100%", background: "#f1f5f9", borderRadius: 999, height: 8, overflow: "hidden" }}>
-                  <div
-                    style={{
-                      height: "100%", borderRadius: 999, width: `${pct}%`,
-                      background: tone,
-                      transition: "width 0.5s cubic-bezier(0.16,1,0.3,1)",
-                      boxShadow: `0 0 8px ${tone}40`,
-                    }}
-                  />
-                </div>
-                {/* Threshold marker outside the bar */}
-                <div style={{ position: "relative", height: 6 }}>
-                  <div
-                    style={{
-                      position: "absolute", top: -2,
-                      left: `${(m.threshold / (m.threshold * 2)) * 100}%`,
-                      transform: "translateX(-50%)",
-                      width: 0, height: 0,
-                      borderLeft: "4px solid transparent",
-                      borderRight: "4px solid transparent",
-                      borderTop: "4px solid #94a3b8",
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+              );
+            });
+          })()}
         </div>
         <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 10, lineHeight: 1.5 }}>
-          ▼ Marca el umbral máximo recomendado por MercadoLibre. Mantenete por debajo para no afectar tu nivel.
+          {current.thresholdsError
+            ? `⚠ Los umbrales reales no se pudieron traer ahora (${current.thresholdsError}). Solo se muestran los valores actuales del seller.`
+            : "▼ Umbrales oficiales de MELI traídos en vivo en cada carga. Si tu valor supera el umbral te bajan de nivel."}
         </div>
       </div>
 
