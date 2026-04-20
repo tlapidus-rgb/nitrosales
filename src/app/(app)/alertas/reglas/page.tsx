@@ -279,11 +279,11 @@ export default function AlertasReglasPage() {
       style={{
         position: "relative",
         minHeight: "100%",
-        padding: "32px 40px",
+        padding: "32px 40px 64px",
         background: "#fafafa",
       }}
     >
-      {/* Aurora */}
+      {/* Aurora premium con 3 capas */}
       <div
         style={{
           position: "absolute",
@@ -291,98 +291,125 @@ export default function AlertasReglasPage() {
           pointerEvents: "none",
           zIndex: 0,
           background:
-            "radial-gradient(800px 400px at 80% -10%, rgba(244, 63, 94, 0.05), transparent 60%)," +
-            "radial-gradient(700px 400px at 10% 110%, rgba(245, 158, 11, 0.04), transparent 60%)",
+            "radial-gradient(900px 500px at 85% -10%, rgba(244, 63, 94, 0.07), transparent 60%)," +
+            "radial-gradient(700px 400px at 5% 30%, rgba(99, 102, 241, 0.05), transparent 60%)," +
+            "radial-gradient(600px 400px at 50% 110%, rgba(245, 158, 11, 0.04), transparent 60%)",
         }}
       />
 
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1100, margin: "0 auto" }}>
-        {/* Header */}
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1140, margin: "0 auto" }}>
+        {/* Breadcrumb sutil */}
         <Link
           href="/alertas"
           style={{
-            fontSize: 13,
-            color: "#64748b",
+            fontSize: 12,
+            color: "#94a3b8",
             textDecoration: "none",
             display: "inline-flex",
             alignItems: "center",
             gap: 5,
-            marginBottom: 20,
+            marginBottom: 18,
+            transition: "color 0.15s",
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#475569")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
         >
-          <ArrowLeft size={14} /> Volver a Alertas
+          <ArrowLeft size={13} /> Alertas
         </Link>
 
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 28, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+        {/* Hero header card */}
+        <div
+          style={{
+            background: "white",
+            borderRadius: 18,
+            border: "1px solid rgba(15, 23, 42, 0.05)",
+            padding: "28px 32px",
+            marginBottom: 16,
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.02), 0 8px 24px rgba(15, 23, 42, 0.04)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 24,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 18, flex: 1, minWidth: 280 }}>
             <div
               style={{
-                width: 48,
-                height: 48,
-                borderRadius: 12,
+                width: 56,
+                height: 56,
+                borderRadius: 14,
                 background: "linear-gradient(135deg, #f43f5e, #f59e0b)",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 color: "white",
                 flexShrink: 0,
+                boxShadow: "0 6px 20px rgba(244, 63, 94, 0.25)",
               }}
             >
-              <Settings2 size={22} />
+              <Settings2 size={26} />
             </div>
             <div>
               <h1
                 style={{
-                  fontSize: 28,
+                  fontSize: 24,
                   fontWeight: 700,
                   letterSpacing: "-0.02em",
                   color: "#0f172a",
                   margin: 0,
-                  marginBottom: 6,
+                  marginBottom: 4,
                 }}
               >
                 Reglas personalizadas
               </h1>
-              <div style={{ fontSize: 14, color: "#64748b", maxWidth: 560 }}>
-                Tu inventario de reglas activas. Acá ves todo lo que NitroSales está monitoreando para vos.{" "}
-                <b style={{ color: "#0f172a" }}>Crear nuevas:</b> pedíselo a Aurum en el chat.
+              <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5, maxWidth: 480 }}>
+                Tu inventario de monitoreos automáticos. Crealos con el wizard o pedíselos a Aurum en el chat.
               </div>
             </div>
           </div>
 
-          {/* KPI strip + Nueva regla */}
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            {!loading && rules.length > 0 && (
-              <>
-                <KpiCard label="Activas" value={String(totalActive)} sub={`de ${rules.length}`} tone="#10b981" />
-                <KpiCard label="Reportes" value={String(totalScheduled)} sub="programados" tone="#0ea5e9" />
-                <KpiCard label="Alertas" value={String(totalConditional)} sub="condicionales" tone="#f43f5e" />
-              </>
-            )}
-            {!loading && (
-              <button
-                onClick={() => setCreating(true)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "10px 16px",
-                  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 10,
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                  boxShadow: "0 2px 12px rgba(99, 102, 241, 0.25)",
-                }}
-              >
-                <Plus size={14} /> Nueva regla
-              </button>
-            )}
-          </div>
+          {!loading && (
+            <button
+              onClick={() => setCreating(true)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "11px 18px",
+                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                color: "white",
+                border: "none",
+                borderRadius: 11,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+                boxShadow: "0 4px 16px rgba(99, 102, 241, 0.35)",
+                transition: "transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 6px 22px rgba(99, 102, 241, 0.45)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(99, 102, 241, 0.35)";
+              }}
+            >
+              <Plus size={15} /> Nueva regla
+            </button>
+          )}
         </div>
+
+        {/* KPI strip premium (3 cards grandes) */}
+        {!loading && rules.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 32 }}>
+            <KpiCardPremium label="Activas" value={totalActive} sub={`de ${rules.length} reglas`} tone="#10b981" Icon={Power} />
+            <KpiCardPremium label="Reportes programados" value={totalScheduled} sub={totalScheduled === 1 ? "regla schedule" : "reglas schedule"} tone="#0ea5e9" Icon={Clock} />
+            <KpiCardPremium label="Alertas condicionales" value={totalConditional} sub={totalConditional === 1 ? "regla condition" : "reglas condition"} tone="#f43f5e" Icon={Bolt} />
+          </div>
+        )}
 
         {/* Error banner */}
         {error && (
@@ -431,7 +458,7 @@ export default function AlertasReglasPage() {
 
         {/* Grupos por módulo */}
         {!loading && rules.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
             {rulesByModule.map(([module, ruleList]) => (
               <ModuleGroup
                 key={module}
@@ -533,33 +560,77 @@ export default function AlertasReglasPage() {
 // Subcomponents
 // ═══════════════════════════════════════════════════════════════════
 
-function KpiCard({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: string }) {
+function KpiCardPremium({
+  label,
+  value,
+  sub,
+  tone,
+  Icon,
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  tone: string;
+  Icon: any;
+}) {
   return (
     <div
       style={{
-        padding: "10px 14px",
+        padding: "20px 22px",
         background: "white",
-        borderRadius: 10,
-        border: "1px solid rgba(15, 23, 42, 0.06)",
-        minWidth: 92,
+        borderRadius: 14,
+        border: "1px solid rgba(15, 23, 42, 0.05)",
+        boxShadow: "0 1px 3px rgba(15, 23, 42, 0.02), 0 4px 14px rgba(15, 23, 42, 0.03)",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-        {label}
-      </div>
+      {/* Acento de color superior sutil */}
       <div
         style={{
-          fontSize: 22,
-          fontWeight: 700,
-          color: tone,
-          fontVariantNumeric: "tabular-nums",
-          marginTop: 2,
-          letterSpacing: "-0.02em",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 2,
+          background: `linear-gradient(90deg, ${tone}, ${tone}40)`,
         }}
-      >
-        {value}
+      />
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+            {label}
+          </div>
+          <div
+            style={{
+              fontSize: 32,
+              fontWeight: 700,
+              color: "#0f172a",
+              fontVariantNumeric: "tabular-nums",
+              letterSpacing: "-0.03em",
+              lineHeight: 1,
+            }}
+          >
+            {value}
+          </div>
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>{sub}</div>
+        </div>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: `${tone}12`,
+            color: tone,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <Icon size={16} />
+        </div>
       </div>
-      <div style={{ fontSize: 10, color: "#64748b" }}>{sub}</div>
     </div>
   );
 }
@@ -585,40 +656,36 @@ function ModuleGroup({
   const Icon = meta.Icon;
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+      {/* Header de grupo prominente con divider */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <div
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: 8,
+            width: 38,
+            height: 38,
+            borderRadius: 10,
             background: meta.gradient,
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
             color: "white",
+            boxShadow: `0 4px 14px ${meta.tone}30`,
           }}
         >
-          <Icon size={16} />
+          <Icon size={18} />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
-          {meta.label}
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+            {meta.label}
+          </div>
+          <div style={{ fontSize: 11, color: "#94a3b8", fontVariantNumeric: "tabular-nums" }}>
+            {rules.length} {rules.length === 1 ? "regla activa" : "reglas activas"}
+          </div>
         </div>
-        <div
-          style={{
-            fontSize: 11,
-            color: "#94a3b8",
-            background: "white",
-            border: "1px solid rgba(15,23,42,0.06)",
-            padding: "2px 8px",
-            borderRadius: 999,
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {rules.length} {rules.length === 1 ? "regla" : "reglas"}
-        </div>
+        {/* Divider sutil */}
+        <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, rgba(15,23,42,0.08), transparent)", marginLeft: 8 }} />
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {rules.map((rule) => {
           const prim = catalog.find((p) => p.key === rule.primitiveKey);
           return (
@@ -660,78 +727,101 @@ function RuleCard({
   const description = primitive?.description ?? "Sin descripción";
   const channels = rule.channels ?? [];
   const sevColor = rule.severity === "critical" ? "#ef4444" : rule.severity === "warning" ? "#f59e0b" : "#0ea5e9";
+  const sevLabel = rule.severity === "critical" ? "Crítica" : rule.severity === "warning" ? "Atención" : "Info";
 
   return (
     <div
       style={{
         background: "white",
-        borderRadius: 12,
-        border: "1px solid rgba(15, 23, 42, 0.06)",
-        padding: 16,
-        opacity: rule.enabled ? 1 : 0.6,
-        transition: "opacity 0.2s",
+        borderRadius: 14,
+        border: "1px solid rgba(15, 23, 42, 0.05)",
+        position: "relative",
+        overflow: "hidden",
+        opacity: rule.enabled ? 1 : 0.65,
+        transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+        boxShadow: "0 1px 3px rgba(15, 23, 42, 0.02), 0 4px 14px rgba(15, 23, 42, 0.03)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06)";
+        e.currentTarget.style.borderColor = "rgba(15, 23, 42, 0.08)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(15, 23, 42, 0.02), 0 4px 14px rgba(15, 23, 42, 0.03)";
+        e.currentTarget.style.borderColor = "rgba(15, 23, 42, 0.05)";
       }}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Header con name + badges */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-            <div
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 999,
-                background: sevColor,
-                flexShrink: 0,
-                opacity: rule.enabled ? 1 : 0.3,
-              }}
-            />
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{rule.name}</div>
-            <Badge label={isSchedule ? "Reporte" : "Condición"} tone={isSchedule ? "#0ea5e9" : "#f43f5e"} />
-            {!rule.enabled && <Badge label="Desactivada" tone="#94a3b8" />}
+      {/* Accent bar lateral del color de severidad */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 4,
+          background: rule.enabled ? sevColor : "#cbd5e1",
+        }}
+      />
+
+      <div style={{ padding: "20px 22px 20px 26px" }}>
+        {/* TOP ROW: name + badges (left) | toggle switch (right) */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                {rule.name}
+              </div>
+              <Badge label={isSchedule ? "Reporte" : "Condición"} tone={isSchedule ? "#0ea5e9" : "#f43f5e"} />
+              <Badge label={sevLabel} tone={sevColor} />
+              {!rule.enabled && <Badge label="Pausada" tone="#94a3b8" />}
+            </div>
+            <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.5, paddingRight: 16 }}>
+              {description}
+            </div>
           </div>
 
-          {/* Descripción humana */}
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 10, lineHeight: 1.5 }}>
-            {description}
-          </div>
-
-          {/* Detalle compacto */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 11, color: "#475569" }}>
-            {isSchedule && rule.schedule && (
-              <DetailItem Icon={Calendar} text={describeSchedule(rule.schedule)} />
-            )}
-            {!isSchedule && Object.keys(rule.params || {}).length > 0 && (
-              <DetailItem Icon={Activity} text={describeParams(rule.params)} />
-            )}
-            <DetailItem
-              Icon={channels.includes("email") ? Mail : Bell}
-              text={`Canal: ${channels.join(", ") || "in_app"}`}
-            />
-            {rule.lastFiredAt && (
-              <DetailItem
-                Icon={CheckCircle2}
-                text={`Última vez: ${formatRelative(rule.lastFiredAt)}`}
-              />
-            )}
-            {isSchedule && rule.nextFireAt && (
-              <DetailItem Icon={Calendar} text={`Próxima: ${formatDate(rule.nextFireAt)}`} />
-            )}
-          </div>
+          {/* Toggle switch tipo iOS */}
+          <ToggleSwitch enabled={rule.enabled} onClick={onToggle} />
         </div>
 
-        {/* Acciones */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-          <ActionButton
-            Icon={Power}
-            label={rule.enabled ? "Activa" : "Pausada"}
-            tone={rule.enabled ? "#10b981" : "#94a3b8"}
-            onClick={onToggle}
-            tooltip={rule.enabled ? "Click para desactivar" : "Click para activar"}
+        {/* DETAIL CHIPS con backgrounds suaves */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 14 }}>
+          {isSchedule && rule.schedule && (
+            <DetailChip Icon={Calendar} text={describeSchedule(rule.schedule)} tone="#0ea5e9" />
+          )}
+          {!isSchedule && Object.keys(rule.params || {}).length > 0 && (
+            <DetailChip Icon={Activity} text={describeParams(rule.params)} tone="#6366f1" />
+          )}
+          <DetailChip
+            Icon={channels.includes("email") ? Mail : Bell}
+            text={channels.length > 0 ? channels.join(" + ") : "in_app"}
+            tone="#8b5cf6"
           />
-          <ActionButton Icon={Pencil} label="Editar" tone="#0ea5e9" onClick={onEdit} tooltip="Modificar parámetros, horario, severidad" />
-          <ActionButton Icon={Play} label="Probar ahora" tone="#6366f1" onClick={onPreview} tooltip="Ver cómo se vería la alerta" />
-          <ActionButton Icon={Trash2} label="Borrar" tone="#ef4444" onClick={onDelete} tooltip="Eliminar la regla" />
+          {rule.lastFiredAt && (
+            <DetailChip
+              Icon={CheckCircle2}
+              text={`Última: ${formatRelative(rule.lastFiredAt)}`}
+              tone="#10b981"
+            />
+          )}
+          {isSchedule && rule.nextFireAt && (
+            <DetailChip Icon={Clock} text={`Próxima: ${formatDate(rule.nextFireAt)}`} tone="#f59e0b" />
+          )}
+        </div>
+
+        {/* ACTIONS: icon-only buttons row, divider arriba */}
+        <div
+          style={{
+            marginTop: 16,
+            paddingTop: 14,
+            borderTop: "1px dashed rgba(15, 23, 42, 0.06)",
+            display: "flex",
+            gap: 6,
+            justifyContent: "flex-end",
+          }}
+        >
+          <IconButton Icon={Play} label="Probar ahora" onClick={onPreview} tone="#6366f1" />
+          <IconButton Icon={Pencil} label="Editar" onClick={onEdit} tone="#0ea5e9" />
+          <IconButton Icon={Trash2} label="Borrar" onClick={onDelete} tone="#ef4444" />
         </div>
       </div>
     </div>
@@ -757,57 +847,109 @@ function Badge({ label, tone }: { label: string; tone: string }) {
   );
 }
 
-function DetailItem({ Icon, text }: { Icon: any; text: string }) {
+// ── Detail chip con bg suave del tone ──
+function DetailChip({ Icon, text, tone }: { Icon: any; text: string; tone: string }) {
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-      <Icon size={12} style={{ color: "#94a3b8" }} />
-      <span style={{ fontVariantNumeric: "tabular-nums" }}>{text}</span>
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        padding: "5px 10px",
+        background: `${tone}0d`,
+        border: `1px solid ${tone}1f`,
+        borderRadius: 7,
+        fontSize: 11,
+        color: tone,
+        fontWeight: 600,
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      <Icon size={11} />
+      <span>{text}</span>
     </div>
   );
 }
 
-function ActionButton({
+// ── Toggle switch tipo iOS ──
+function ToggleSwitch({ enabled, onClick }: { enabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={enabled ? "Click para pausar" : "Click para activar"}
+      style={{
+        position: "relative",
+        width: 38,
+        height: 22,
+        borderRadius: 999,
+        background: enabled ? "linear-gradient(135deg, #10b981, #14b8a6)" : "#cbd5e1",
+        border: "none",
+        cursor: "pointer",
+        flexShrink: 0,
+        transition: "background 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+        boxShadow: enabled ? "0 2px 8px rgba(16, 185, 129, 0.35)" : "inset 0 1px 2px rgba(15,23,42,0.06)",
+        padding: 0,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 2,
+          left: enabled ? 18 : 2,
+          width: 18,
+          height: 18,
+          borderRadius: 999,
+          background: "white",
+          boxShadow: "0 2px 4px rgba(15, 23, 42, 0.2)",
+          transition: "left 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
+      />
+    </button>
+  );
+}
+
+// ── Icon button compacto con tooltip ──
+function IconButton({
   Icon,
   label,
-  tone,
   onClick,
-  tooltip,
+  tone,
 }: {
   Icon: any;
   label: string;
-  tone: string;
   onClick: () => void;
-  tooltip?: string;
+  tone: string;
 }) {
   return (
     <button
       onClick={onClick}
-      title={tooltip}
+      title={label}
       style={{
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        padding: "5px 10px",
-        background: `${tone}10`,
-        color: tone,
-        border: `1px solid ${tone}25`,
-        borderRadius: 7,
+        padding: "7px 12px",
+        background: "transparent",
+        color: "#64748b",
+        border: "1px solid rgba(15, 23, 42, 0.08)",
+        borderRadius: 8,
         cursor: "pointer",
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 600,
-        whiteSpace: "nowrap",
-        minWidth: 100,
-        justifyContent: "center",
         transition: "all 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = `${tone}20`;
+        e.currentTarget.style.background = `${tone}0d`;
+        e.currentTarget.style.color = tone;
+        e.currentTarget.style.borderColor = `${tone}33`;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = `${tone}10`;
+        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.color = "#64748b";
+        e.currentTarget.style.borderColor = "rgba(15, 23, 42, 0.08)";
       }}
     >
-      <Icon size={12} />
+      <Icon size={13} />
       {label}
     </button>
   );
