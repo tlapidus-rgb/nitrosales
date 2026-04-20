@@ -90,7 +90,7 @@ export default function PublicacionesPage() {
 
       <HeroHeader
         title="Publicaciones"
-        subtitle="Catálogo del seller ELMUNDODELJUG — para editar precio o stock, abrí el listing en MELI"
+        subtitle="Catálogo de tus publicaciones en MercadoLibre — para editar precio o stock, abrí el listing en MELI"
         Icon={Package}
       />
 

@@ -624,7 +624,7 @@ function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreat
             <input
               value={form.mentions}
               onChange={(e) => setForm({ ...form, mentions: e.target.value })}
-              placeholder="@mundodeljuguete"
+              placeholder="@tu_marca"
               className="w-full px-3 py-2.5 rounded-xl bg-transparent outline-none text-[13px]"
               style={{ color: THEME.textPrimary, border: `1px solid ${THEME.border}` }}
             />

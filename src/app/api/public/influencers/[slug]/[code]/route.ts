@@ -346,7 +346,7 @@ export async function GET(
     }
 
     // Build tracking URL for the influencer
-    const storeUrl = process.env.STORE_URL || "https://elmundodeljuguete.com.ar";
+    const storeUrl = process.env.STORE_URL || "";
     const trackingUrl = `${storeUrl.replace(/\/$/, "")}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
 
     const response = {

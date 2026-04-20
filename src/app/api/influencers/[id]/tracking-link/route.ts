@@ -27,7 +27,7 @@ export async function GET(
       return NextResponse.json({ error: "Influencer not found" }, { status: 404 });
     }
 
-    const baseUrl = customUrl || process.env.STORE_URL || "https://elmundodeljuguete.com.ar";
+    const baseUrl = customUrl || process.env.STORE_URL || "";
     let trackingLink = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}utm_source=inf_${influencer.code}&utm_medium=influencer`;
 
     // Add campaign if specified

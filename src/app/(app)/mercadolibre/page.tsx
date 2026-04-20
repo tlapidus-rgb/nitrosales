@@ -205,7 +205,7 @@ export default function MLDashboardPage() {
               MercadoLibre
             </h1>
             <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 10 }}>
-              Dashboard del seller ELMUNDODELJUG
+              Dashboard de tu seller en MercadoLibre
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", background: "rgba(16,185,129,.08)", borderRadius: 999, fontSize: 11, fontWeight: 600, color: "#059669" }}>
                 <span style={{ width: 6, height: 6, borderRadius: 999, background: "#10b981", animation: "pulseDot 2s infinite" }} />
                 Tiempo real

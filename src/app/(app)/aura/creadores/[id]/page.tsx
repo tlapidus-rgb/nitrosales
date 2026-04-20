@@ -622,10 +622,9 @@ export default function CreatorProfilePage() {
     setTimeout(() => setCopiedCode(false), 1800);
   };
   const handleCopyLink = (trackingLink: string | undefined, code: string) => {
-    // Fallback si el API no devolvió trackingLink: usar el dominio del store
+    // Fallback si el API no devolvió trackingLink: link relativo con UTM
     const url =
-      trackingLink ||
-      `https://elmundodeljuguete.com.ar/?utm_source=inf_${code}&utm_medium=influencer`;
+      trackingLink || `/?utm_source=inf_${code}&utm_medium=influencer`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 1800);

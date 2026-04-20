@@ -91,7 +91,7 @@ export default function ReputacionPage() {
     <PageShell>
       <Breadcrumb />
 
-      <HeroHeader title="Reputación" subtitle="Métricas oficiales del seller ELMUNDODELJUG según MercadoLibre" Icon={Award} />
+      <HeroHeader title="Reputación" subtitle="Métricas oficiales de tu seller según MercadoLibre" Icon={Award} />
 
       {/* LEVEL BANNER PREMIUM */}
       <div

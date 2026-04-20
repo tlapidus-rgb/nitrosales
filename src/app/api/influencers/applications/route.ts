@@ -118,7 +118,7 @@ export async function PUT(req: NextRequest) {
     });
 
     // Build tracking link and dashboard link
-    const storeUrl = process.env.STORE_URL || "https://elmundodeljuguete.com.ar";
+    const storeUrl = process.env.STORE_URL || "";
     const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
     const trackingLink = storeUrl ? `${storeUrl.replace(/\/$/, "")}/?utm_source=inf_${finalCode}&utm_medium=influencer` : `${appUrl}/?utm_source=inf_${finalCode}&utm_medium=influencer`;
     const dashboardLink = `${appUrl}/i/${org.slug}/${finalCode}`;

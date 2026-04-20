@@ -87,7 +87,7 @@ export async function POST(
     });
 
     // Build tracking link with campaign
-    const baseUrl = process.env.STORE_URL || "https://elmundodeljuguete.com.ar";
+    const baseUrl = process.env.STORE_URL || "";
     const campaignSlug = body.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")

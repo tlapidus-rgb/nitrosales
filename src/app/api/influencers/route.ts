@@ -116,9 +116,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Build tracking link
-    const baseUrl =
-      process.env.STORE_URL || "https://elmundodeljuguete.com.ar";
+    // Build tracking link (multi-tenant: env var o relativo)
+    const baseUrl = process.env.STORE_URL || "";
     const trackingLink = `${baseUrl}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
 
     return NextResponse.json({

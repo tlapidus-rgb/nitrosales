@@ -106,7 +106,7 @@ export default function PreguntasPage() {
       {/* HERO HEADER */}
       <HeroHeader
         title="Preguntas"
-        subtitle="Compradores en ELMUNDODELJUG — respondé desde MELI dentro de 24hs"
+        subtitle="Preguntas de compradores en MercadoLibre — respondé desde MELI dentro de 24hs"
         Icon={MessageSquare}
       />
 
