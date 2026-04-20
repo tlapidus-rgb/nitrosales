@@ -106,14 +106,43 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Webhook:Orders] Received: ${orderId} → ${state}`);
 
-    // ── Get organization + VTEX credentials ──
-    const connection = await prisma.connection.findFirst({
-      where: { platform: "VTEX", status: "ACTIVE" },
-      include: { organization: true },
-    });
+    // ── Get organization + VTEX credentials (multi-tenant safe) ──
+    // El orgId viene en la URL del webhook: ?key=XXX&org=<orgId>
+    // Cada org debe configurar su webhook en VTEX con su propio org querystring.
+    // Si no viene (webhooks viejos pre-multi-tenant), fallback con WARNING.
+    const orgParam = req.nextUrl.searchParams.get("org");
+    const connection = orgParam
+      ? await prisma.connection.findFirst({
+          where: { platform: "VTEX", status: "ACTIVE", organizationId: orgParam },
+          include: { organization: true },
+        })
+      : await (async () => {
+          // Backward compat: buscar la única connection VTEX activa (Mundo del
+          // Juguete, pre multi-tenant). Cuando Arredo conecte su propio
+          // webhook con ?org=, este branch queda obsoleto.
+          const conns = await prisma.connection.findMany({
+            where: { platform: "VTEX", status: "ACTIVE" },
+            include: { organization: true },
+          });
+          if (conns.length > 1) {
+            console.error(
+              `[Webhook:Orders] ⛔ MULTI-TENANT CONFLICT: ${conns.length} conns VTEX activas y webhook SIN ?org=. Rechazando para evitar leak.`
+            );
+            return null;
+          }
+          if (conns.length === 1) {
+            console.warn(
+              `[Webhook:Orders] ⚠ Webhook sin ?org= — usando única conn VTEX activa. Configurar ?org=${conns[0].organizationId} en VTEX Admin antes de conectar 2da org.`
+            );
+          }
+          return conns[0] ?? null;
+        })();
 
     if (!connection) {
-      return NextResponse.json({ error: "No active VTEX connection" }, { status: 404 });
+      return NextResponse.json(
+        { error: "No active VTEX connection for this webhook. Add ?org=<orgId> to the webhook URL." },
+        { status: 404 }
+      );
     }
 
     const org = connection.organization;

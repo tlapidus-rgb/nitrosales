@@ -52,14 +52,38 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Webhook:Inventory] Received ${notifications.length} notification(s)`);
 
-    // ── Get organization + VTEX credentials ──
-    const connection = await prisma.connection.findFirst({
-      where: { platform: "VTEX", status: "ACTIVE" },
-      include: { organization: true },
-    });
+    // ── Get organization + VTEX credentials (multi-tenant safe) ──
+    // orgId viene en ?org= del webhook URL. Backward compat si es único.
+    const orgParam = req.nextUrl.searchParams.get("org");
+    const connection = orgParam
+      ? await prisma.connection.findFirst({
+          where: { platform: "VTEX", status: "ACTIVE", organizationId: orgParam },
+          include: { organization: true },
+        })
+      : await (async () => {
+          const conns = await prisma.connection.findMany({
+            where: { platform: "VTEX", status: "ACTIVE" },
+            include: { organization: true },
+          });
+          if (conns.length > 1) {
+            console.error(
+              `[Webhook:Inventory] ⛔ MULTI-TENANT CONFLICT: ${conns.length} conns VTEX activas sin ?org=. Rechazando.`
+            );
+            return null;
+          }
+          if (conns.length === 1) {
+            console.warn(
+              `[Webhook:Inventory] ⚠ Webhook sin ?org= — usando única conn. Configurar ?org=${conns[0].organizationId} antes de 2da org.`
+            );
+          }
+          return conns[0] ?? null;
+        })();
 
     if (!connection) {
-      return NextResponse.json({ error: "No active VTEX connection" }, { status: 404 });
+      return NextResponse.json(
+        { error: "No active VTEX connection for this webhook. Add ?org=<orgId>." },
+        { status: 404 }
+      );
     }
 
     const org = connection.organization;
