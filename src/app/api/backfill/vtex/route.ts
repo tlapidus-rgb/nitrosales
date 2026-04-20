@@ -709,14 +709,26 @@ export async function GET(request: Request) {
         const diagFrom = url.searchParams.get("from") || "";
         const diagTo = url.searchParams.get("to") || "";
         if (!diagFrom || !diagTo) { result = { error: "Need from and to params (YYYY-MM-DD)" }; break; }
-        const dbOrders = await prisma.$queryRawUnsafe(`
-          SELECT "externalId", status, "totalValue"::numeric, "itemCount", "orderDate", channel
-          FROM orders 
-          WHERE "organizationId" = '${ORG_ID}' 
-          AND "orderDate" >= '${diagFrom}T00:00:00Z'::timestamptz 
-          AND "orderDate" <= '${diagTo}T23:59:59Z'::timestamptz
-          ORDER BY "orderDate" DESC
-        `);
+        // Validar formato YYYY-MM-DD antes de ejecutar (defense in depth contra SQLi,
+        // aunque el endpoint ya está detrás de BACKFILL_SECRET admin).
+        const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRe.test(diagFrom) || !dateRe.test(diagTo)) {
+          result = { error: "from and to must be YYYY-MM-DD" };
+          break;
+        }
+        // Query parametrizada (ORG_ID, from, to como $1/$2/$3 — no string interp)
+        const diagOrgId = vtexConfig.creds.accountName ? orgParam : orgParam;
+        const dbOrders = await prisma.$queryRawUnsafe(
+          `SELECT "externalId", status, "totalValue"::numeric, "itemCount", "orderDate", channel
+           FROM orders
+           WHERE "organizationId" = $1
+             AND "orderDate" >= ($2 || 'T00:00:00Z')::timestamptz
+             AND "orderDate" <= ($3 || 'T23:59:59Z')::timestamptz
+           ORDER BY "orderDate" DESC`,
+          orgParam,
+          diagFrom,
+          diagTo
+        );
         const serialized = JSON.parse(JSON.stringify(dbOrders, (k, v) => typeof v === "bigint" ? Number(v) : v));
         result = { 
           phase: "diagnose", from: diagFrom, to: diagTo, 

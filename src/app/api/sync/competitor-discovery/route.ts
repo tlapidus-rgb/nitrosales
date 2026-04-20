@@ -35,11 +35,18 @@ export async function GET(req: NextRequest) {
   const catIndex = parseInt(searchParams.get("catIndex") || "0", 10);
   const byCategory = searchParams.get("byCategory") === "true";
   const storeId = searchParams.get("store") || undefined;
+  const orgParam = searchParams.get("org") || undefined;
 
   try {
-    // Find active competitor store
+    // Multi-tenant: resolver store con scope apropiado
+    // - Si viene storeId → buscar ese store específico (id es cuid único, safe)
+    // - Si viene ?org=<orgId> → primer store activo de esa org
+    // - Si no → primer store activo de CUALQUIER org (legacy single-tenant; cuando
+    //   haya 2+ orgs con competitors el cron debería iterar todas — TODO post-Arredo)
     const store = storeId
       ? await prisma.competitorStore.findFirst({ where: { id: storeId, isActive: true } })
+      : orgParam
+      ? await prisma.competitorStore.findFirst({ where: { organizationId: orgParam, isActive: true } })
       : await prisma.competitorStore.findFirst({ where: { isActive: true } });
 
     if (!store) {
