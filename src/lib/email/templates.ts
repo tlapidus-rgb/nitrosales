@@ -2,6 +2,17 @@
 // Email templates — HTML emails for NitroSales
 // ══════════════════════════════════════════════
 
+// Multi-tenant: usa la URL del app (NitroSales), NO de la tienda del cliente.
+// Los emails linkean al app de NitroSales (settings, alertas, dashboard).
+// Ambas orgs (MdJ, Arredo, etc.) acceden al mismo app URL.
+function appUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    "https://nitrosales.vercel.app"
+  ).replace(/\/+$/, "");
+}
+
 const BRAND_ORANGE = "#FF5E1A";
 const BRAND_BG = "#0A0A0F";
 const CARD_BG = "#141419";
@@ -34,7 +45,7 @@ function baseLayout(title: string, content: string): string {
       NitroSales — Inteligencia Comercial para Ecommerce
     </p>
     <p style="color:${TEXT_SECONDARY};font-size:11px;margin:8px 0 0;">
-      <a href="https://nitrosales.vercel.app/settings" style="color:${BRAND_ORANGE};text-decoration:none;">
+      <a href="${appUrl()}/settings" style="color:${BRAND_ORANGE};text-decoration:none;">
         Configurar alertas
       </a>
     </p>
@@ -111,7 +122,7 @@ export function anomalyAlertEmail(orgName: string, anomalies: AnomalyForEmail[])
     </p>
     ${anomalyCards}
     <div style="text-align:center;margin-top:24px;">
-      <a href="https://nitrosales.vercel.app/alertas" style="display:inline-block;padding:12px 32px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">
+      <a href="${appUrl()}/alertas" style="display:inline-block;padding:12px 32px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">
         Ver en NitroSales
       </a>
     </div>
@@ -223,7 +234,7 @@ export function weeklyDigestEmail(orgName: string, metrics: DigestMetrics, narra
     </div>` : ""}
 
     <div style="text-align:center;margin-top:24px;">
-      <a href="https://nitrosales.vercel.app/dashboard" style="display:inline-block;padding:12px 32px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">
+      <a href="${appUrl()}/dashboard" style="display:inline-block;padding:12px 32px;background:${BRAND_ORANGE};color:white;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">
         Abrir Dashboard
       </a>
     </div>
