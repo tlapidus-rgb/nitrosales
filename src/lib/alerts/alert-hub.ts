@@ -419,6 +419,15 @@ export async function buildUnifiedAlerts(params: {
 }> {
   const { orgId, userId, baseUrl, cookie } = params;
 
+  // Import engine dinámico para no romper si todavía no hay rules
+  let customRules: UnifiedAlert[] = [];
+  try {
+    const { evaluateAllUserRules } = await import("./engine");
+    customRules = await evaluateAllUserRules(orgId, userId ?? null);
+  } catch (err) {
+    console.warn("[alert-hub] engine error:", err);
+  }
+
   const [
     systemSync,
     mercadolibre,
@@ -446,6 +455,7 @@ export async function buildUnifiedAlerts(params: {
     ...fiscalMono,
     ...predictive,
     ...aurumAsync,
+    ...customRules, // Fase 8g-1: alertas generadas por rules del user
   ].map((a) => ({
     ...a,
     favorited: favorites.has(a.id),
