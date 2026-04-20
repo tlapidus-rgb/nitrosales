@@ -350,32 +350,32 @@ export default function AlertasPage() {
   // Unread count global (server-sourced)
   const unreadCount = counts.unread;
 
-  // Count por módulo
+  // Count por módulo — solo NO LEÍDAS (lo que está pendiente de atender)
   const moduleCount = (m: typeof MODULES[0]): number => {
     if (m.comingSoon) return 0;
-    if (m.filterType === "all") return alerts.length;
-    if (m.filterType === "favorites") return counts.favorites;
-    if (m.filterType === "source") return counts.bySource[m.filterValue!] ?? 0;
-    if (m.filterType === "category") return counts.byCategory[m.filterValue!] ?? 0;
+    const unread = alerts.filter((a) => !a.read);
+    if (m.filterType === "all") return unread.length;
+    if (m.filterType === "favorites") return unread.filter((a) => a.favorited).length;
+    if (m.filterType === "source")
+      return unread.filter((a) => a.source === m.filterValue).length;
+    if (m.filterType === "category")
+      return unread.filter((a) => a.category === m.filterValue).length;
     return 0;
   };
 
+  // Módulo tiene críticas NO LEÍDAS
   const moduleHasCritical = (m: typeof MODULES[0]): boolean => {
     if (m.comingSoon) return false;
-    if (m.filterType === "all") return (counts.bySeverity.critical ?? 0) > 0;
-    if (m.filterType === "favorites") {
-      return alerts.some((a) => a.favorited && a.severity === "critical");
-    }
-    if (m.filterType === "source") {
-      return alerts.some(
-        (a) => a.source === m.filterValue && a.severity === "critical"
-      );
-    }
-    if (m.filterType === "category") {
-      return alerts.some(
-        (a) => a.category === m.filterValue && a.severity === "critical"
-      );
-    }
+    const unreadCritical = alerts.filter(
+      (a) => !a.read && a.severity === "critical"
+    );
+    if (m.filterType === "all") return unreadCritical.length > 0;
+    if (m.filterType === "favorites")
+      return unreadCritical.some((a) => a.favorited);
+    if (m.filterType === "source")
+      return unreadCritical.some((a) => a.source === m.filterValue);
+    if (m.filterType === "category")
+      return unreadCritical.some((a) => a.category === m.filterValue);
     return false;
   };
 
@@ -645,10 +645,12 @@ export default function AlertasPage() {
                     : s === "warning"
                     ? "Atención"
                     : "Info";
+                // Unread-only counts (matching sidebar behavior)
+                const unreadOnly = alerts.filter((a) => !a.read);
                 const count =
                   s === "all"
-                    ? alerts.length
-                    : counts.bySeverity[s] ?? 0;
+                    ? unreadOnly.length
+                    : unreadOnly.filter((a) => a.severity === s).length;
                 const dotColor =
                   s === "critical" ? "#dc2626" : s === "warning" ? "#f59e0b" : s === "info" ? "#3b82f6" : null;
                 return (
@@ -961,10 +963,12 @@ function AlertRow({
           background: sev.color,
           marginTop: 6,
           flexShrink: 0,
+          opacity: isRead ? 0.25 : 1,
           boxShadow:
-            alert.severity === "critical"
+            alert.severity === "critical" && !isRead
               ? "0 0 6px rgba(220, 38, 38, 0.5)"
               : "none",
+          transition: "opacity .2s",
         }}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -1116,7 +1120,7 @@ function AlertDetail({
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
           <button
             onClick={onToggleRead}
-            title={alert.read ? "Marcar como no leída" : "Marcar como leída"}
+            title={alert.read ? "Click para marcar como no leída" : "Click para marcar como leída"}
             style={{
               padding: "4px 10px",
               borderRadius: 6,
@@ -1124,17 +1128,17 @@ function AlertDetail({
               fontWeight: 600,
               textTransform: "uppercase",
               letterSpacing: "0.05em",
-              background: alert.read ? "white" : "#eff6ff",
-              color: alert.read ? "#64748b" : "#1d4ed8",
-              border: `1px solid ${alert.read ? "rgba(15, 23, 42, 0.12)" : "#bfdbfe"}`,
+              background: alert.read ? "#f0fdf4" : "#eff6ff",
+              color: alert.read ? "#15803d" : "#1d4ed8",
+              border: `1px solid ${alert.read ? "#bbf7d0" : "#bfdbfe"}`,
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
               gap: 5,
             }}
           >
-            {alert.read ? <Circle size={12} /> : <CircleDot size={12} />}
-            {alert.read ? "No leída" : "Leída"}
+            {alert.read ? <CheckCircle2 size={12} /> : <CircleDot size={12} />}
+            {alert.read ? "Leída" : "No leída"}
           </button>
           <span
             style={{
