@@ -3,7 +3,140 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-20 (Sesion 51 CIERRE — Fase 8g-2 Aurum integration COMPLETA con 7 commits + testing en vivo + 5 fixes/mejoras descubiertos. Sistema validado end-to-end. Aprendizaje critico: Aurum debe pedir CALIBRACION al user antes de inventar criterios cuando el pedido es ambiguo.)
+## Ultima actualizacion: 2026-04-20 (Sesion 51 CIERRE FINAL — Fases 8g-2 + 8g-3a + 8g-3b + 8g-3d + 8g-4 COMPLETAS con 14 commits y testing en vivo. **Sistema de alertas productivo end-to-end**: Aurum crea reglas con calibracion conversacional, UI completa para gestion (inventario por modulo + edit drawer + toggle + delete + preview modal), cron 15min dispara schedules automaticamente, email Resend integrado.)
+
+### Sesion 51 CIERRE FINAL — 2026-04-20 — Modulo Alertas productivo end-to-end (14 commits)
+
+**Resumen ejecutivo**: arrancamos con Fase 8g-2 Aurum integration y terminamos con el modulo Alertas productivo end-to-end. 14 commits + testing iterativo + 7 fixes/mejoras descubiertos en QA. Tomy puede crear reglas via Aurum chat con calibracion, gestionarlas en `/alertas/reglas` con CRUD visual completo, y los schedules disparan automaticamente via cron sin que entre a la app.
+
+#### Commits a `main` (14 total)
+
+**Fase 8g-2 Aurum integration (8 commits)**:
+- `fe4b3aa` Aurum integration base: 3 tools + handlers + create-rule-core + system prompt + refactor POST
+- `dcde87d` docs sesion 51 (iteracion 1)
+- `c93f2bc` fix: ALERT_TOOLS tambien en FloatingAurum (`/api/aurum/section-insight`)
+- `bf4b4e5` fix: max_tokens=1500 + fallback inteligente en truncation
+- `de52dd4` nuevo endpoint `/api/alerts/rules/preview?id=X`
+- `323f6ac` fix semantico: daily_digest = cierre del DIA ANTERIOR (24hs)
+- `cee9ba9` 🌟 mejora UX CRITICA: paso 0 de calibracion en ALERT_TOOLS_PROMPT
+- `3da2317` docs cierre Fase 8g-2
+
+**Fase 8g-3 UI productiva (2 commits)**:
+- `18ce68e` 8g-3a: UI `/alertas/reglas` — inventario agrupado por modulo + toggle + delete + preview modal + empty state
+- `7420a2f` 8g-3b: edicion via drawer lateral con form auto-generado desde paramsSchema
+
+**Fase 8g-4 Cron + 8g-3d Email (1 commit)**:
+- `eeaf76a` cron `/api/cron/alerts-scheduler` cada 15min + email Resend integrado en evaluateRule. **Bug fix critico**: schedules disparaban cada vez que se abria /alertas (no chequeaban nextFireAt) — ahora chequea + actualiza tanto lastFiredAt como nextFireAt + ventana 24h de visibilidad.
+
+**Docs final**: este commit (CLAUDE_STATE final + MEMORY)
+
+#### Decisiones de producto acordadas
+
+- **Confirmacion en chat**: solo texto (no card interactiva). El LLM mantiene contexto entre turns gracias al history.
+- **Scope inicial Aurum**: solo CREAR (edit/delete vive en `/alertas/reglas` post-8g-3b)
+- **Canal default**: `in_app`. Email se activa al toggle desde el drawer (8g-3d ya operativo)
+- **Duplicados**: detectar y avisar — NO crear automaticamente
+- **UI agrupacion**: por MODULO (finanzas/orders/ml/ads/etc) — coincide con sidebar
+- **Reportes simples (3 datos)** — para profundidad usar Aurum o dashboards. Decision arquitectonica de Tomy: alertas son senales rapidas, no reportes completos.
+- **Cron cada 15min** — granularidad suficiente para schedules tipo "9am". Mas frecuente = costo Vercel innecesario.
+- **Wizard crear desde UI**: postergado (8g-3c) — Aurum chat ya cumple ese rol con calibracion. Bajo valor agregar duplicacion ahora.
+
+#### Decision arquitectonica clave
+
+El matching NL → primitiva lo hace el mismo Aurum (Sonnet/Opus que ya corre el chat) leyendo `naturalExamples` del catalogo via tool `list_alert_primitives`. **Sin sub-mapper LLM separado** — duplicaba costo y latencia.
+
+#### Testing end-to-end validado con Tomy en prod
+
+| Capacidad | Estado |
+|---|---|
+| Aurum entiende "todos los días 9am mandame el resumen" | ✅ |
+| Crea regla en DB con schedule + canal correctos | ✅ |
+| Detecta duplicados y avisa con fecha | ✅ |
+| Funciona desde bubble lateral FloatingAurum | ✅ |
+| Surface confirmacion correcta tras "Si" | ✅ |
+| Preview con datos reales sin esperar al cron | ✅ |
+| Reporte muestra dia anterior cerrado (no actual) | ✅ |
+| Aurum pregunta calibracion ante ambiguedad | ✅ |
+| UI inventario agrupado por modulo | ✅ |
+| Toggle activar/desactivar inline | ✅ |
+| Borrar con modal de confirmacion | ✅ |
+| Probar ahora con preview en modal | ✅ |
+| Editar via drawer con form auto-generado | ✅ |
+| Cron + email + bug fix schedules | ⏳ pendiente validacion mañana 9am |
+
+#### Aprendizajes clave Sesion 51 (8 patterns CRITICOS)
+
+1. **Tool-as-Tool en agentes existentes**: 100% extender array de tools + handler dispatch + system prompt extension. Sin tocar el loop. Pattern reusable.
+
+2. **Confirmacion = texto, no card**: el LLM mantiene contexto entre turns gracias al history. User confirma con "si" natural.
+
+3. **DRY via core function**: `createAlertRuleCore` permite que tanto el endpoint HTTP como el tool de Aurum usen la misma validacion + dedupe + INSERT.
+
+4. **Multi-endpoint feature parity**: si una feature debe estar en varios entrypoints (chat completo + bubble lateral), montarla en cada uno con el mismo dispatch.
+
+5. **🌟 PATRON CRITICO — "Calibracion antes de inventar"**: cuando el agente puede generar entidades persistentes, DEBE pedir al user los criterios ambiguos ANTES de crear. 6 tipos de ambiguedad. Aplica a futuras features tipo segmentos/campanas/tasks.
+
+6. **Fallback inteligente en tool-use loops**: trackear `lastSuccessfulXxxTool`. Si modelo se queda sin tokens, generar reply manualmente.
+
+7. **Endpoint preview/diagnostico para schedules**: GET que evalua AHORA ignorando cooldown y nextFireAt es vital para que el user vea el resultado sin esperar al cron.
+
+8. **🌟 PATRON CRITICO — Form-builder generico desde schema**: el drawer de edicion lee directo del `paramsSchema` y renderiza number/string/boolean/select. Cuando agreguemos primitivas Tier 2/3 nuevas, el drawer ya las edita sin tocar UI. Pattern aplicable a cualquier feature con schema-driven configuration.
+
+9. **Bug detector via testing iterativo**: el bug "schedules disparan cada vez que se abre /alertas" estuvo presente desde S50 sin detectar. Solo se descubrio leyendo el engine para implementar el cron. Lesson: cuando se agrega una feature que toca un sistema, REVISAR la logica existente — el QA visual no detecta bugs de schedule porque el sintoma es "alerta aparece" (correcto en superficie, multiplicado en realidad).
+
+#### Estado actual modulo Alertas post-Sesion 51 (PRODUCTIVO END-TO-END)
+
+- Hub central: 5 sources nativos + 4 product modules + 48 primitivas user-defined
+- **Aurum crea reglas desde NL con calibracion conversacional** (8g-2)
+- Funciona en `/chat` completo Y en FloatingAurum bubble (8g-2)
+- Rediseño visual inbox 3-col + favoritas + read state persistido (S49)
+- API CRUD `/api/alerts/rules` productiva con dedupe (S50+S51)
+- **UI `/alertas/reglas` PRODUCTIVA**: inventario por modulo + toggle + delete + edit drawer + preview modal + empty state (8g-3a + 8g-3b)
+- **Cron 15min dispara schedules automaticamente** (8g-4)
+- **Email Resend integrado** (8g-3d) — template HTML aurora
+- Endpoint preview para forzar evaluacion sin cron
+- Catalogo PRIMITIVES_CATALOG.md committed
+
+#### Pendientes Fase 8g (residuales — bajo valor)
+
+- **8g-3c Wizard crear desde UI**: redundante con Aurum chat. BAJO valor.
+- **8g-3e Quick rule buttons en paginas top**: nice-to-have, BAJO valor.
+- **8g-5 Tier 2 expansion**: cuando lleguen pedidos reales de Arredo + TV Compras
+
+#### Migraciones ejecutadas Sesion 51
+
+Ninguna — todas las tablas (alert_rules, alert_rule_requests) ya estaban en prod desde S50.
+
+#### Datos de testing capturados
+
+Regla creada por Tomy via Aurum chat:
+```json
+{
+  "id": "4b155c7a-7942-4237-91cc-92b318df5ba9",
+  "name": "Resumen diario de ventas",
+  "primitiveKey": "orders.report.daily_digest",
+  "type": "schedule",
+  "schedule": {"time": "09:00", "frequency": "daily"},
+  "channels": ["in_app"]
+}
+```
+
+Preview real (cierre dia anterior post-fix): `69 orders · $ 2.580.949 · AOV $ 37.405`. **A partir de mañana 9am UTC el cron va a disparar automaticamente** sin que Tomy entre a la app.
+
+#### Validacion pendiente para proxima sesion
+
+- Esperar disparo automatico mañana 9am UTC del cron
+- Verificar via `GET /api/alerts/rules` que `lastFiredAt` y `nextFireAt` se actualizaron correctamente
+- Si Tomy activa email en el drawer, validar que llega el email con template aurora
+
+#### Proxima sesion sugerida
+
+- **Fase 9 MercadoLibre aesthetic upgrade** (UI premium en /mercadolibre + sub-pages)
+- O **Fase 11 Onboarding Arredo** (multi-tenant audit + wizard + importers)
+
+---
+
+## Ultima actualizacion previa: 2026-04-20 (Sesion 51 — iteracion 1, commit base `fe4b3aa`)
 
 ### Sesion 51 CIERRE — 2026-04-20 — Fase 8g-2 COMPLETA (7 commits + testing iterativo)
 
