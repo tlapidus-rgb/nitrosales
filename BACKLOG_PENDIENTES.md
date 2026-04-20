@@ -8,49 +8,43 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-21 — Sesión 52 (auditoría multi-tenant + 4 pendientes nuevos pre-Arredo).
+> **Última actualización**: 2026-04-20 — Sesión 53 (cerrados 4 pendientes pre-Arredo).
 
 ---
 
-## 🔴🔴 URGENTE — Pre-onboarding Arredo (Sesión 52)
+## ✅ Pre-onboarding Arredo — COMPLETADO (Sesión 53)
 
-Son los 4 pendientes que quedaron de la auditoría multi-tenant. Los 3 de código + 1 operativo deben cerrarse ANTES de crear la org de Arredo y conectar sus plataformas.
+Los 4 pendientes de la auditoría multi-tenant quedaron cerrados. **La plataforma está lista para onboardear Arredo.**
 
 ### BP-MT-001 — Cron ML-sync: iterar TODAS las orgs activas
-**Entró**: 2026-04-21 (Sesión 52)
-**Estado**: 📝 pendiente
-**Prioridad**: CRÍTICA (bloqueante pre-Arredo)
-**Contexto**: `src/app/api/cron/ml-sync/route.ts` hoy procesa solo la PRIMERA conn ML activa (TODO explícito en código). Cuando Arredo tenga ML conectado, si el cron corre con MdJ primero, Arredo NO sincroniza vía el safety net. Los webhooks siguen andando, pero si MELI falla un webhook, Arredo se queda sin update.
-**Fix**: cambiar el cron para iterar todas las conns ML activas (loop secuencial por org). Esfuerzo: ~20 min.
+**Resuelto**: 2026-04-20 (Sesión 53) — commit `c215039`
+**Qué se hizo**: Refactor de `api/cron/ml-sync/route.ts` con helper `syncOneOrg(orgId, connId)`. Handler ahora itera todas las conns ML ACTIVE con fail-soft por org. Resultado per-org en el response.
 
 ### BP-MT-002 — Schema `user_alert_favorites` y `user_alert_reads` con `organizationId`
-**Entró**: 2026-04-21 (Sesión 52)
-**Estado**: 📝 pendiente
-**Prioridad**: MEDIA (defense in depth — hoy ya hay ownership check por prefijo)
-**Contexto**: Las 2 tablas no tienen columna `organizationId`. Hoy el endpoint valida ownership leyendo el `rule.` prefix y matcheando contra `alert_rules`. Para prefijos nativos (fiscal, finanzas, ml, system) la protección depende del hub GET. Agregar la columna estructural cierra el loop 100%.
-**Fix**: endpoint admin de migración (`ALTER TABLE ADD COLUMN organizationId + index + backfill`) + schema.prisma + actualizar 2 endpoints. Esfuerzo: ~45 min + 1 curl admin.
+**Resuelto**: 2026-04-20 (Sesión 53) — commit `37b60eb`
+**Qué se hizo**:
+- Endpoint `/api/admin/migrate-alert-favs-reads-orgid` agregó columna `organizationId` + FK CASCADE + index
+- Backfill: 0 rows en favorites, 4 rows en reads
+- UNIQUE viejo `(userId, alertId)` reemplazado por `(userId, alertId, organizationId)`
+- `alerts/favorite` + `alerts/read` + `lib/alerts/alert-hub.ts` actualizados para filtrar por orgId
 
-### BP-MT-003 — STORE_URL multi-tenant: migrar 7 endpoints al helper `getStoreUrl(orgId)`
-**Entró**: 2026-04-21 (Sesión 52)
-**Estado**: 📝 pendiente
-**Prioridad**: MEDIA (no bloqueante si Arredo no usa Aura/influencers inicialmente)
-**Contexto**: El helper `src/lib/org-store-url.ts` ya existe y lee de `Organization.settings.storeUrl` → env var → empty. Los 7 endpoints de influencers/aura todavía usan `process.env.STORE_URL || ""` directamente. Cuando Arredo tenga su propio dominio, los tracking links apuntarían al STORE_URL env (que es de MdJ) o quedarían vacíos.
-**Fix**:
-1. Migrar los 7 endpoints a usar `await getStoreUrl(orgId)` (async chain)
-2. Agregar UI en `/settings/organization` para que cada org configure su `storeUrl` (guardar en `Organization.settings.storeUrl`)
-Esfuerzo: ~3-4 hs.
-**Archivos**: `api/public/influencers/[slug]/[code]/route.ts` · `api/influencers/route.ts` + 4 en `[id]/*` · `api/influencers/applications/route.ts` · `api/aura/creators/[id]/route.ts`.
+### BP-MT-003 — STORE_URL multi-tenant
+**Resuelto**: 2026-04-20 (Sesión 53) — commit `ed5a155`
+**Qué se hizo**:
+- 8 endpoints migrados a `getStoreUrl(orgId)` (helper ya existía)
+- API `/api/settings/organization` GET/PUT acepta `storeUrl`
+- UI `/settings/organizacion`: input "URL de tu tienda" + Organization ID visible read-only con botón Copiar
+- Bug fix bonus: `aura/creators/[id]/send-password` tenía `STORE_URL` como fallback del APP URL (mal) + hardcode "elmundodeljuguete" en slug. Ambos arreglados.
+- Tomy seteó storeUrl de MdJ vía UI post-deploy
 
-### BP-MT-OPS-001 — Reconfigurar webhook VTEX de MdJ con `?org=<mdjOrgId>`
-**Entró**: 2026-04-21 (Sesión 52)
-**Estado**: 📝 pendiente (acción **operativa**, NO código)
-**Prioridad**: CRÍTICA (bloqueante pre-Arredo)
-**Contexto**: Los webhooks VTEX ahora aceptan `?org=<orgId>` en la URL. Si hay >1 conn VTEX activa y un webhook NO trae orgId, el sistema rechaza con 404 por safety (no data leak). **ANTES de conectar VTEX de Arredo, Tomy debe reconfigurar la URL del webhook de MdJ en VTEX Admin agregando `&org=<mdjOrgId>`**. Si no lo hace, cuando Arredo conecte su webhook, los 2 webhooks (MdJ + Arredo) van a fallar 404 inmediatamente.
-**Acción operativa**:
-1. Obtener orgId de MdJ (consulta SQL o visitar `/settings/organization` logueado como MdJ)
-2. Ir a VTEX Admin → Hooks → encontrar los 2 webhooks NitroSales (orders + inventory)
-3. Editar cada URL agregando `&org=<mdjOrgId>` al final
-4. Guardar y verificar en Vercel logs que el próximo webhook entra OK
+### BP-MT-OPS-001 — Reconfigurar webhook VTEX con `?org=<mdjOrgId>`
+**Resuelto**: 2026-04-20 (Sesión 53) — operación en VTEX prod vía API
+**Qué se hizo**:
+- Inventory webhook: Tomy actualizó manualmente en VTEX Admin → Afiliados → NSL
+- Orders webhook: descubrimos que estaba configurado vía `/api/orders/hook/config` (API-only, no UI en VTEX). Ejecutamos POST con la URL actualizada (`&org=cmmmga1uq0000sb43w0krvvys`) tras dry-run de validación.
+- Verificación end-to-end: orden REAL `1626321512569-01` procesada correctamente via URL nueva en 785ms (items, productos, customer, pixelAttribution OK).
+
+**Aprendizaje clave** (agregado a MEMORY.md): los "Afiliados" en VTEX Admin NO cubren todos los hooks. El Orders Broadcaster es API-only. Para futuros onboardings, siempre chequear `/api/orders/hook/config` vía API, no solo la UI de Afiliados.
 
 ---
 
