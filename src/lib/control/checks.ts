@@ -1,0 +1,211 @@
+// ══════════════════════════════════════════════════════════════
+// Control health checks
+// ══════════════════════════════════════════════════════════════
+// Lógica reusable para evaluar la salud operativa de cada cliente.
+// Usado por el endpoint de alertas (cron) y /api/control/clients-health.
+// ══════════════════════════════════════════════════════════════
+
+import { prisma } from "@/lib/db/client";
+
+export type HealthLevel = "ok" | "warn" | "error" | "pending";
+
+export interface ConnectionIssue {
+  orgId: string;
+  orgName: string;
+  platform: string;
+  level: "warn" | "error";
+  reason: string;
+  minsSinceSync: number | null;
+  lastError: string | null;
+}
+
+export interface StuckOnboarding {
+  id: string;
+  companyName: string;
+  contactEmail: string;
+  status: string;
+  hoursOld: number;
+}
+
+export interface InactiveClient {
+  orgId: string;
+  orgName: string;
+  daysSinceLogin: number | null;
+  daysSinceOrder: number | null;
+}
+
+// Umbrales (minutos) por plataforma para considerar "desincronizado".
+const SYNC_THRESHOLDS_MIN: Record<string, number> = {
+  VTEX: 60 * 24,
+  MERCADOLIBRE: 60 * 24,
+  META_ADS: 60 * 24,
+  GOOGLE_ADS: 60 * 24,
+  GA4: 60 * 36,
+  GSC: 60 * 36,
+};
+
+const STUCK_ONBOARDING_HOURS = 72;
+const INACTIVE_CLIENT_DAYS = 14;
+
+// ─── Check 1: conexiones caídas/lentas ───
+export async function checkConnectionIssues(): Promise<ConnectionIssue[]> {
+  const connections = await prisma.connection.findMany({
+    select: {
+      platform: true,
+      status: true,
+      lastSyncAt: true,
+      lastSyncError: true,
+      organizationId: true,
+      organization: { select: { name: true } },
+    },
+  });
+
+  const issues: ConnectionIssue[] = [];
+
+  for (const c of connections) {
+    const threshold = SYNC_THRESHOLDS_MIN[c.platform] || 60 * 24;
+    const minsSinceSync = c.lastSyncAt
+      ? Math.floor((Date.now() - new Date(c.lastSyncAt).getTime()) / 60000)
+      : null;
+
+    // ERROR status = crítico
+    if (c.status === "ERROR") {
+      issues.push({
+        orgId: c.organizationId,
+        orgName: c.organization.name,
+        platform: c.platform,
+        level: "error",
+        reason: "Conexión en estado ERROR",
+        minsSinceSync,
+        lastError: c.lastSyncError,
+      });
+      continue;
+    }
+
+    // PENDING = ignorar (aún no se configuró el OAuth)
+    if (c.status === "PENDING") continue;
+
+    // Sync antiguo
+    if (minsSinceSync !== null && minsSinceSync > threshold * 2) {
+      issues.push({
+        orgId: c.organizationId,
+        orgName: c.organization.name,
+        platform: c.platform,
+        level: "error",
+        reason: `Sin sync hace ${formatMins(minsSinceSync)} (umbral ${formatMins(threshold * 2)})`,
+        minsSinceSync,
+        lastError: c.lastSyncError,
+      });
+    } else if (minsSinceSync !== null && minsSinceSync > threshold) {
+      issues.push({
+        orgId: c.organizationId,
+        orgName: c.organization.name,
+        platform: c.platform,
+        level: "warn",
+        reason: `Sync lento (hace ${formatMins(minsSinceSync)})`,
+        minsSinceSync,
+        lastError: c.lastSyncError,
+      });
+    }
+
+    // Si el último sync falló pero intentó reciente
+    if (c.lastSyncError && minsSinceSync !== null && minsSinceSync < threshold) {
+      // ya tiene issue si estaba viejo; si está reciente pero con error, es warn
+      if (!issues.find((i) => i.orgId === c.organizationId && i.platform === c.platform)) {
+        issues.push({
+          orgId: c.organizationId,
+          orgName: c.organization.name,
+          platform: c.platform,
+          level: "warn",
+          reason: "Último sync con error",
+          minsSinceSync,
+          lastError: c.lastSyncError,
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+// ─── Check 2: onboardings pendientes >72h ───
+export async function checkStuckOnboardings(): Promise<StuckOnboarding[]> {
+  const since = new Date(Date.now() - STUCK_ONBOARDING_HOURS * 3600 * 1000);
+
+  const rows = await prisma.$queryRawUnsafe<Array<any>>(
+    `SELECT "id", "companyName", "contactEmail", "status", "createdAt"
+     FROM "onboarding_requests"
+     WHERE "status" IN ('PENDING', 'NEEDS_INFO', 'IN_PROGRESS')
+       AND "createdAt" < $1
+     ORDER BY "createdAt" ASC`,
+    since
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    companyName: r.companyName,
+    contactEmail: r.contactEmail,
+    status: r.status,
+    hoursOld: Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 3600000),
+  }));
+}
+
+// ─── Check 3: clientes inactivos (sin login >14d) ───
+export async function checkInactiveClients(): Promise<InactiveClient[]> {
+  const orgs = await prisma.organization.findMany({
+    select: { id: true, name: true },
+  });
+
+  const inactives: InactiveClient[] = [];
+  const since = new Date(Date.now() - INACTIVE_CLIENT_DAYS * 24 * 3600 * 1000);
+
+  for (const org of orgs) {
+    const lastLoginRow = await prisma.$queryRawUnsafe<Array<any>>(
+      `SELECT MAX(le."createdAt") as "lastLogin"
+       FROM "login_events" le
+       JOIN "users" u ON u.id = le."userId"
+       WHERE u."organizationId" = $1 AND le."success" = true`,
+      org.id
+    );
+    const lastLogin: Date | null = lastLoginRow[0]?.lastLogin
+      ? new Date(lastLoginRow[0].lastLogin)
+      : null;
+
+    const lastOrderRow = await prisma.order.findFirst({
+      where: { organizationId: org.id },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    const lastOrder = lastOrderRow?.createdAt || null;
+
+    const daysSinceLogin = lastLogin
+      ? Math.floor((Date.now() - lastLogin.getTime()) / (24 * 3600 * 1000))
+      : null;
+    const daysSinceOrder = lastOrder
+      ? Math.floor((Date.now() - lastOrder.getTime()) / (24 * 3600 * 1000))
+      : null;
+
+    // Cliente inactivo: sin login >14d (o nunca) Y sin order reciente
+    const inactiveByLogin = daysSinceLogin === null || daysSinceLogin > INACTIVE_CLIENT_DAYS;
+    const inactiveByOrders = daysSinceOrder === null || daysSinceOrder > INACTIVE_CLIENT_DAYS;
+
+    if (inactiveByLogin && inactiveByOrders) {
+      inactives.push({
+        orgId: org.id,
+        orgName: org.name,
+        daysSinceLogin,
+        daysSinceOrder,
+      });
+    }
+  }
+
+  return inactives;
+}
+
+// ─── helper ───
+function formatMins(mins: number): string {
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
