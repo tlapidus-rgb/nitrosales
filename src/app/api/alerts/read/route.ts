@@ -20,6 +20,41 @@ async function getUserId(): Promise<string | null> {
   return (session?.user as any)?.id ?? null;
 }
 
+// GET: diagnostico — cuantas filas tiene el user en user_alert_reads
+export async function GET() {
+  try {
+    const userId = await getUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "No autenticado", userId: null }, { status: 401 });
+    }
+
+    const rows = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+      `SELECT COUNT(*)::bigint AS count FROM "user_alert_reads" WHERE "userId" = $1`,
+      userId
+    );
+    const count = Number(rows?.[0]?.count ?? 0);
+
+    // Primeras 5 filas como muestra
+    const sample = await prisma.$queryRawUnsafe<Array<{ alertId: string; readAt: Date }>>(
+      `SELECT "alertId", "readAt" FROM "user_alert_reads" WHERE "userId" = $1 ORDER BY "readAt" DESC LIMIT 5`,
+      userId
+    );
+
+    return NextResponse.json({
+      ok: true,
+      userId,
+      totalReads: count,
+      recentReads: sample,
+    });
+  } catch (error: any) {
+    console.error("[/api/alerts/read GET] error:", error);
+    return NextResponse.json(
+      { error: String(error?.message ?? error) },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const userId = await getUserId();

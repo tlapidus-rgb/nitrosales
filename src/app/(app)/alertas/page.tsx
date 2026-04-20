@@ -196,6 +196,14 @@ export default function AlertasPage() {
   // Selection
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Banner transitorio
+  const [warning, setWarning] = useState<string | null>(null);
+  useEffect(() => {
+    if (!warning) return;
+    const t = setTimeout(() => setWarning(null), 8000);
+    return () => clearTimeout(t);
+  }, [warning]);
+
   // Carga
   const load = async () => {
     setLoading(true);
@@ -268,21 +276,39 @@ export default function AlertasPage() {
     );
     setCounts((c) => ({ ...c, unread: Math.max(0, c.unread + (read ? -1 : 1)) }));
     try {
+      let res: Response;
       if (read) {
-        await fetch(`/api/alerts/read`, {
+        res = await fetch(`/api/alerts/read`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ alertId }),
         });
       } else {
-        await fetch(
+        res = await fetch(
           `/api/alerts/read?alertId=${encodeURIComponent(alertId)}`,
           { method: "DELETE" }
         );
       }
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.error(
+          `[alertas] Fallo al guardar estado lectura (${res.status})`,
+          errText
+        );
+        setWarning(
+          `No se pudo guardar estado de lectura (HTTP ${res.status}). ${errText.slice(0, 200)}`
+        );
+        // rollback
+        setAlerts((prev) =>
+          prev.map((a) => (a.id === alertId ? { ...a, read: !read } : a))
+        );
+        setCounts((c) => ({ ...c, unread: c.unread + (read ? 1 : -1) }));
+        return;
+      }
       pingBadgeRefresh();
-    } catch {
-      // rollback
+    } catch (err) {
+      console.error("[alertas] Error red guardando lectura", err);
+      setWarning(`Error de red al guardar lectura: ${String(err)}`);
       setAlerts((prev) =>
         prev.map((a) => (a.id === alertId ? { ...a, read: !read } : a))
       );
@@ -494,6 +520,39 @@ export default function AlertasPage() {
           </Link>
         </div>
       </div>
+
+      {/* Warning banner (guardado fallido) */}
+      {warning && (
+        <div
+          style={{
+            position: "relative",
+            zIndex: 2,
+            padding: "10px 24px",
+            background: "#fef2f2",
+            borderBottom: "1px solid #fecaca",
+            color: "#991b1b",
+            fontSize: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <AlertTriangle size={14} />
+          <span style={{ flex: 1 }}>{warning}</span>
+          <button
+            onClick={() => setWarning(null)}
+            style={{
+              border: "none",
+              background: "transparent",
+              color: "#991b1b",
+              cursor: "pointer",
+              fontSize: 14,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Main 3-col */}
       <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", overflow: "hidden" }}>
