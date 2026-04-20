@@ -6,9 +6,10 @@
 > sesión nueva, **tratá estas reglas como inmutables** salvo que Tomy
 > explícitamente las cambie en el chat.
 
-> **Última actualización: 2026-04-19 — Agregada REGLA #6: separación de
-> dominios con Claude VM. La carpeta `CLAUDE_VM/` es read-only para
-> Claude de Producto. Ver `CLAUDE_VM/PARA_CLAUDE_PRODUCTO.md`.**
+> **Última actualización: 2026-04-20 — Agregada REGLA #7: workflow git
+> con dos Claudes en paralelo (pull --rebase antes de push). Caso real
+> S52 con el Claude VM trabajando en `CLAUDE_VM/` mientras yo trabajaba
+> en `/mercadolibre/*`.**
 
 ---
 
@@ -163,6 +164,47 @@ arreglo yo. Referencia completa: `CLAUDE_VM/PARA_CLAUDE_PRODUCTO.md`.
 comunicación comercial (ej: terminé X, hay que anunciarla), anoto en
 `BACKLOG_PENDIENTES.md` con prefijo `PR-YYYYMMDD-NN` y le aviso a
 Tomy. No toco `CLAUDE_VM/`.
+
+---
+
+## REGLA #7 — Workflow git con DOS Claudes en paralelo (Producto + VM)
+
+Aunque trabajemos en carpetas distintas (`CLAUDE_VM/` vs resto del repo),
+el repo git es **uno solo**. Si el Claude VM commitea y pushea mientras
+yo estoy trabajando, el remote `origin/main` avanza y mi push local va
+a ser **rechazado** con `error: failed to push some refs ... rejected
+(fetch first)`.
+
+**Flujo correcto ANTES de cualquier `git push origin main`:**
+
+```bash
+git fetch origin
+git pull --rebase origin main
+# → trae los commits del VM (si los hay) y rebasea los míos encima
+git push origin main
+```
+
+**Si tengo cambios sin commitear** cuando detecto que el remote avanzó:
+
+```bash
+git stash push -m "wip mi feature"
+git pull --rebase origin main
+git stash pop
+# validar tsc, commit, push
+```
+
+**Por qué no hay conflictos reales**: el Claude VM trabaja **solo**
+dentro de `CLAUDE_VM/*` y yo trabajo **fuera** de esa carpeta. Git
+rebasea limpio sin merge conflicts. El único problema es el "not
+fast-forward" que se resuelve con el pull rebase.
+
+**Señal de alarma**: si un push es rechazado con `non-fast-forward`,
+**nunca forzar** (`git push --force` puede borrar trabajo del VM).
+Siempre `pull --rebase + push`.
+
+**Caso real S52 (2026-04-20)**: el Claude VM pusheó `f860df9` mientras
+yo tenía trabajo pendiente en la página de reputación. Resolución:
+stash → pull rebase → pop → commit → push. Funcionó limpio en 10 seg.
 
 ---
 
