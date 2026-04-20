@@ -65,8 +65,12 @@ export async function GET(req: NextRequest) {
     const forceSync = req.nextUrl.searchParams.get("force") === "true";
     const noCache = req.nextUrl.searchParams.get("nocache") === "true";
 
-    // 2. Org
-    const org = await getOrganization();
+    // 2. Org (multi-tenant: ?org=<orgId> override; si no, getOrganization() fallback condicional)
+    const orgParam = req.nextUrl.searchParams.get("org");
+    const org = orgParam
+      ? await prisma.organization.findUnique({ where: { id: orgParam } })
+      : await getOrganization();
+    if (!org) return NextResponse.json({ error: "Org no encontrada" }, { status: 404 });
 
     // 3. VTEX creds (centralized)
     const vtexCreds = await getVtexCredentials(org.id);

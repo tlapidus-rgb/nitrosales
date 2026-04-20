@@ -42,7 +42,12 @@ export async function GET(request: NextRequest) {
     }
 
     const serviceAccount = JSON.parse(saJson);
-    const org = await getOrganization();
+    // Multi-tenant: ?org=<orgId> override; si no, getOrganization() (fallback condicional)
+    const orgParam = searchParams.get("org");
+    const org = orgParam
+      ? await prisma.organization.findUnique({ where: { id: orgParam } })
+      : await getOrganization();
+    if (!org) return NextResponse.json({ error: "Org no encontrada" }, { status: 404 });
 
     // ── Get access token ──
     const accessToken = await getGSCAccessToken(serviceAccount);
@@ -179,11 +184,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (e: any) {
     console.error("[GSC Sync] Error:", e.message);
-    // Try to update connection status to ERROR
-    try {
-      const org = await getOrganization();
-      await updateConnectionStatus(org.id, "ERROR", e.message?.substring(0, 200));
-    } catch {}
+    // Best-effort connection status update (skip en multi-tenant: no intentar resolver org en catch)
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

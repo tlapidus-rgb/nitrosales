@@ -23,15 +23,17 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  const ORG_ID = await getOrganizationId();
+  const key = req.nextUrl.searchParams.get("key") || "";
+  if (key !== process.env.NEXTAUTH_SECRET) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  // Multi-tenant: ?org=<orgId> override (para crones que iteran); si no, fallback condicional
+  const orgParam = req.nextUrl.searchParams.get("org");
+  const ORG_ID = orgParam || (await getOrganizationId());
   const startTime = Date.now();
 
   try {
-    const key = req.nextUrl.searchParams.get("key") || "";
-    if (key !== process.env.NEXTAUTH_SECRET) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
     const dryRun = req.nextUrl.searchParams.get("dryrun") !== "false";
     const batchSize = parseInt(req.nextUrl.searchParams.get("batch") || "100");
 

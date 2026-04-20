@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { getVtexConfig } from "@/lib/vtex-credentials";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-const VTEX_SEARCH_BASE = "https://mundojuguete.vtexcommercestable.com.br/api/catalog_system/pub/products/search";
 const PAGE_SIZE = 50;
 const DEFAULT_MAX_PAGES = 10; // 500 products per call — safe within 60s
 
@@ -70,10 +70,14 @@ async function syncCatalog(startPage: number, maxPages: number, ORG_ID: string) 
   let pagesProcessed = 0;
   let reachedEnd = false;
 
+  // Multi-tenant: resolver account VTEX de la org (no hardcodear mundojuguete)
+  const vtexConfig = await getVtexConfig(ORG_ID);
+  const searchBase = `${vtexConfig.baseUrl}/api/catalog_system/pub/products/search`;
+
   while (pagesProcessed < maxPages) {
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    const url = `${VTEX_SEARCH_BASE}?_from=${from}&_to=${to}`;
+    const url = `${searchBase}?_from=${from}&_to=${to}`;
 
     const res = await fetch(url, {
       headers: { Accept: "application/json" },

@@ -16,7 +16,12 @@ export async function GET(req: Request) {
     const batchSize = parseInt(url.searchParams.get("batch") || "5");
     const mode = url.searchParams.get("mode") || "normal";
 
-    const org = await getOrganization();
+    // Multi-tenant: ?org=<orgId> override; si no, getOrganization() (fallback condicional)
+    const orgParam = url.searchParams.get("org");
+    const org = orgParam
+      ? await prisma.organization.findUnique({ where: { id: orgParam } })
+      : await getOrganization();
+    if (!org) return NextResponse.json({ error: "Org no encontrada" }, { status: 404 });
 
     const vtexConfig = await getVtexConfig(org.id);
     const account = vtexConfig.creds.accountName;

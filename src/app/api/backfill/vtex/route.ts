@@ -582,14 +582,24 @@ export async function GET(request: Request) {
   const batch = parseInt(url.searchParams.get("batch") || "0", 10);
   const startPage = parseInt(url.searchParams.get('page') || '1', 10);
   const startIndex = parseInt(url.searchParams.get('startIndex') || '0', 10);
+  const orgParam = url.searchParams.get("org");
 
   // Security check
   if (key !== BACKFILL_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Load VTEX credentials dynamically (centralized)
-  const vtexConfig = await getVtexConfig(null);
+  // Multi-tenant: requerir ?org=<orgId> explícito para resolver credenciales VTEX.
+  // Sin fallback: admin endpoint que toca prod de un tenant específico.
+  if (!orgParam) {
+    return NextResponse.json(
+      { error: "Missing ?org=<orgId>. Admin endpoint requiere orgId explícito para resolver credenciales VTEX del tenant correcto." },
+      { status: 400 }
+    );
+  }
+
+  // Load VTEX credentials dinámicamente para la org correcta
+  const vtexConfig = await getVtexConfig(orgParam);
   VTEX_KEY = vtexConfig.creds.appKey;
   VTEX_TOKEN = vtexConfig.creds.appToken;
   VTEX_ACCOUNT = vtexConfig.creds.accountName;

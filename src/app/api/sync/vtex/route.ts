@@ -167,7 +167,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: `Use phase=${validPhases.join("|")}` }, { status: 400 });
     }
 
-    const org = await getOrganization();
+    // Multi-tenant: ?org=<orgId> override; si no, getOrganization() (fallback condicional)
+    const orgParam = searchParams.get("org");
+    const org = orgParam
+      ? await prisma.organization.findUnique({ where: { id: orgParam } })
+      : await getOrganization();
+    if (!org) return NextResponse.json({ error: "Org no encontrada" }, { status: 404 });
 
     const vtexConfig = await getVtexConfig(org.id);
     const account = vtexConfig.creds.accountName;
@@ -357,12 +362,19 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { syncKey, page = 1, since, until } = await req.json();
+    const body = await req.json();
+    const { syncKey, page = 1, since, until, orgId: bodyOrgId } = body;
     if (syncKey !== process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const org = await getOrganization();
+    // Multi-tenant: orgId desde body O ?org= query O fallback
+    const reqUrl = new URL(req.url);
+    const orgParam = bodyOrgId || reqUrl.searchParams.get("org");
+    const org = orgParam
+      ? await prisma.organization.findUnique({ where: { id: orgParam } })
+      : await getOrganization();
+    if (!org) return NextResponse.json({ error: "Org no encontrada" }, { status: 404 });
 
     const vtexConfig = await getVtexConfig(org.id);
     const account = vtexConfig.creds.accountName;

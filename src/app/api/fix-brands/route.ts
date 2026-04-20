@@ -10,27 +10,24 @@ const BACKFILL_KEY = "nitrosales-backfill-2024";
 const BATCH_SIZE = 50;
 const DELAY_MS = 200; // Rate limit: ~5 req/s to VTEX // v3
 
-// Cached credentials for the current request lifecycle
-let _cachedHeaders: Record<string, string> | null = null;
-let _cachedBaseUrl: string | null = null;
+// Multi-tenant: request-scoped VTEX config (NO cache global — evitar leak de creds entre orgs)
+// Cada request resuelve las credenciales de la org pasada por ?org=<orgId>
+let _requestHeaders: Record<string, string> | null = null;
+let _requestBaseUrl: string | null = null;
 
-async function getVtexHeadersAndUrl() {
-  if (_cachedHeaders && _cachedBaseUrl) {
-    return { headers: _cachedHeaders, baseUrl: _cachedBaseUrl };
-  }
-  // Use null orgId for now (env var mode) - will use real orgId after auth guard
-  const config = await getVtexConfig(null);
-  _cachedHeaders = { ...config.headers, Accept: "application/json" };
-  _cachedBaseUrl = config.baseUrl;
-  return { headers: _cachedHeaders, baseUrl: _cachedBaseUrl };
+async function getVtexHeadersAndUrl(orgId: string) {
+  // Siempre fresco por request (no reuse global — puede leakear entre orgs concurrentes)
+  const config = await getVtexConfig(orgId);
+  _requestHeaders = { ...config.headers, Accept: "application/json" };
+  _requestBaseUrl = config.baseUrl;
+  return { headers: _requestHeaders, baseUrl: _requestBaseUrl };
 }
 
 function vtexHeaders() {
-  // Sync wrapper - must call getVtexHeadersAndUrl() first in the request handler
-  if (!_cachedHeaders) {
-    throw new Error("Call getVtexHeadersAndUrl() before using vtexHeaders()");
+  if (!_requestHeaders) {
+    throw new Error("Call getVtexHeadersAndUrl(orgId) before using vtexHeaders()");
   }
-  return _cachedHeaders;
+  return _requestHeaders;
 }
 
 async function sleep(ms: number) {
@@ -42,7 +39,7 @@ async function sleep(ms: number) {
  * Uses: GET /api/catalog/pvt/category/{categoryId}
  */
 async function getVtexCategoryName(categoryId: number): Promise<string> {
-  const baseUrl = `${_cachedBaseUrl}`;
+  const baseUrl = `${_requestBaseUrl}`;
   try {
     const catRes = await fetch(
       `${baseUrl}/api/catalog/pvt/category/${categoryId}`,
@@ -68,7 +65,7 @@ async function getVtexCategoryName(categoryId: number): Promise<string> {
 async function getVtexBrand(
   externalId: string
 ): Promise<{ brand: string; category: string } | null> {
-  const baseUrl = `${_cachedBaseUrl}`;
+  const baseUrl = `${_requestBaseUrl}`;
 
   // Step 1: Get BrandId and CategoryId from product
   let brandId: number | null = null;
@@ -178,7 +175,7 @@ async function getVtexCategoryInfo(
   if (_categoryCache.has(categoryId)) {
     return _categoryCache.get(categoryId)!;
   }
-  const baseUrl = `${_cachedBaseUrl}`;
+  const baseUrl = `${_requestBaseUrl}`;
   try {
     const catRes = await fetch(
       `${baseUrl}/api/catalog/pvt/category/${categoryId}`,
@@ -209,7 +206,7 @@ async function getVtexCategoryInfo(
 async function getVtexCategoryPath(
   externalId: string
 ): Promise<string | null> {
-  const baseUrl = `${_cachedBaseUrl}`;
+  const baseUrl = `${_requestBaseUrl}`;
   let leafCategoryId: number | null = null;
 
   try {
@@ -275,7 +272,7 @@ async function getVtexCategoryPath(
  * Used by fix-categories action.
  */
 async function getVtexCategory(externalId: string): Promise<string | null> {
-  const baseUrl = `${_cachedBaseUrl}`;
+  const baseUrl = `${_requestBaseUrl}`;
   let categoryId: number | null = null;
 
   try {
@@ -345,7 +342,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Initialize VTEX credentials (cached for this request)
-  await getVtexHeadersAndUrl();
+  await getVtexHeadersAndUrl(ORG_ID);
 
   // --- ACTION: stats ---
   if (action === "stats") {
@@ -725,8 +722,8 @@ export async function GET(request: NextRequest) {
   // --- ACTION: debug ---
   if (action === "debug") {
     return NextResponse.json({
-      credentialSource: _cachedBaseUrl ? "centralized" : "not-loaded",
-      baseUrl: _cachedBaseUrl || "not-loaded",
+      credentialSource: _requestBaseUrl ? "centralized" : "not-loaded",
+      baseUrl: _requestBaseUrl || "not-loaded",
       timestamp: new Date().toISOString(),
     });
   }
@@ -1072,7 +1069,7 @@ export async function GET(request: NextRequest) {
     const startedAt = Date.now();
 
     // Paso 1: traer arbol completo VTEX (1 sola llamada)
-    const baseUrl = `${_cachedBaseUrl}`;
+    const baseUrl = `${_requestBaseUrl}`;
     let tree: any[] = [];
     try {
       const treeRes = await fetch(
@@ -1272,7 +1269,7 @@ export async function GET(request: NextRequest) {
         errors: [] as any[],
       };
 
-      const baseUrl = `${_cachedBaseUrl}`;
+      const baseUrl = `${_requestBaseUrl}`;
 
       for (const cat of numericCategories) {
         const catId = cat.category.replace(/\//g, "");

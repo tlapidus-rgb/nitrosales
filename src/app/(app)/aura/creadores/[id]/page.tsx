@@ -629,11 +629,14 @@ export default function CreatorProfilePage() {
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 1800);
   };
-  const handleCopyDashboard = (dashboardUrl: string | undefined, code: string) => {
-    const url =
-      dashboardUrl ||
-      `${window.location.origin}/i/elmundodeljuguete/${code}`;
-    navigator.clipboard.writeText(url);
+  const handleCopyDashboard = (dashboardUrl: string | undefined, _code: string) => {
+    // Multi-tenant: si el API no devolvió dashboardUrl, NO fallback a slug hardcoded.
+    // Mostrar error y no copiar algo que apunte a la org equivocada.
+    if (!dashboardUrl) {
+      console.warn("[Aura Creator] dashboardUrl ausente del API — no se puede copiar link");
+      return;
+    }
+    navigator.clipboard.writeText(dashboardUrl);
     setCopiedDashboard(true);
     setTimeout(() => setCopiedDashboard(false), 1800);
   };
