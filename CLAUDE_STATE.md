@@ -3,7 +3,92 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-19 (Sesion 50 — Catalogo exhaustivo 602 primitivas + Fase 8g-1 Rules Engine productivo: 3 commits que dejan el motor de alertas personalizables listo, con 48 primitivas Tier 1 evaluando contra DB real + engine con cooldown + API CRUD /api/alerts/rules)
+## Ultima actualizacion: 2026-04-20 (Sesion 51 — Fase 8g-2 Aurum integration: 1 commit que conecta el chat de Aurum al rules engine. 3 tools nuevas (list_alert_primitives + create_alert_rule + request_alert_primitive) + system prompt extension con flujo conversacional discovery → propuesta → confirmacion → creacion. Refactor del POST endpoint para reusar core. Sin migraciones DB.)
+
+### Sesion 51 — 2026-04-20 — Fase 8g-2 Aurum integration (1 commit `fe4b3aa`)
+
+**Objetivo**: que el user pueda escribir en el chat de Aurum cosas como "avisame si el runway baja de 3 meses" o "todos los lunes 9am mandame el resumen de ventas" y que automaticamente se cree la regla de alerta correspondiente.
+
+**Decisiones de producto acordadas con Tomy al arranque**:
+- Confirmacion: solo texto (no card interactiva con botones embebidos). Encaja con el renderer actual del chat sin extension de UI. Aurum propone en su mensaje y el user confirma con "si" en el siguiente turn.
+- Scope: solo CREAR (no edit/delete desde chat). Edicion vivira en UI /alertas/reglas (Fase 8g-3).
+- Canal default: solo `in_app`. El email se activa en Fase 8g-3 (Resend integration).
+- Duplicados: detectar y avisar — NO crear automaticamente. Si el user confirma explicitamente, allowDuplicate=true.
+
+**Decision arquitectonica clave**: el matching NL→primitiva lo hace el mismo Aurum (Sonnet/Opus que ya corre el chat) leyendo `naturalExamples` del catalogo via tool `list_alert_primitives`. **Sin sub-mapper LLM separado** — duplicaba costo y latencia. Token overhead: ~0 cuando no hay intent de alerta, ~2-3K extra solo en turns donde se crea una. Decidido tras explorar arquitectura del chat (12 tools agente actual con Anthropic SDK directo, tool-use loop multi-ronda).
+
+#### Commit a `main` (1 total)
+
+**`fe4b3aa` alertas/fase8g-2: Aurum integration**
+
+Archivos creados/modificados (5):
+
+- **`src/lib/alerts/create-rule-core.ts`** (~210 lineas, NUEVO):
+  - `validateAndDefaultParams(primitive, raw)` — type coercion + min/max + enum check + defaults desde paramsSchema. Devuelve `{ok, params}` o `{ok:false, error}`.
+  - `findDuplicateRule(orgId, userId, primitiveKey, params)` — busca matches con `JSON.stringify(sortKeysDeep(params))` para evitar falsos negativos por orden de keys.
+  - `createAlertRuleCore(orgId, userId, input)` — validacion + dedupe check + INSERT raw a alert_rules. Devuelve `{ok:true, id, primitive, cleanedParams}` o `{ok:false, error, duplicate?}`.
+  - `requestPrimitiveCore(orgId, userId, naturalRequest, reason)` — INSERT a alert_rule_requests con status='pending'.
+- **`src/lib/alerts/aurum-tools.ts`** (~135 lineas, NUEVO):
+  - `ALERT_TOOLS` array con 3 tool definitions Anthropic.
+  - `ALERT_TOOLS_PROMPT` — extension al system prompt con flujo conversacional obligatorio (discovery → propuesta + esperar confirmacion → creacion) + reglas (canal default in_app, duplicados, schedule shape, errores).
+  - `isAlertToolName(name)` type guard para dispatch.
+- **`src/lib/alerts/aurum-handlers.ts`** (~155 lineas, NUEVO):
+  - `executeAlertTool(name, input, ctx)` dispatcher con check de userId.
+  - `handleListPrimitives` — filtra por module/type/query, formatea cada primitiva con paramsSchema + naturalExamples + defaults. Cap a 25 para no quemar tokens.
+  - `handleCreateRule` — invoca core, formatea respuesta con instrucciones explicitas para Aurum (que decirle al user en cada caso: ok / duplicado / error).
+  - `handleRequestPrimitive` — registra en backlog y formatea respuesta.
+- **`src/app/api/alerts/rules/route.ts`** (refactor):
+  - POST ahora delega a `createAlertRuleCore`. Devuelve 409 + `duplicate` cuando hay match en vez de 200 silencioso. Imports limpiados.
+- **`src/app/api/chat/route.ts`** (extendido):
+  - Importa ALERT_TOOLS, ALERT_TOOLS_PROMPT, executeAlertTool, getSessionUserId.
+  - userId resuelto via `getSessionUserId()` (email-fallback) — anti JWT-stale-token. Patron consistente con S49.
+  - `allTools = [...INTELLIGENCE_TOOLS, ...ALERT_TOOLS]` montado en el loop.
+  - `fullSystemPrompt` ahora incluye `ALERT_TOOLS_PROMPT` antes del mode suffix.
+  - Dispatch en el tool-result map: si nombre matchea alert tool → `executeAlertTool` (con userId), sino → `executeToolCall` original.
+
+**Validaciones**:
+- `tsc --noEmit` clean
+- Push directo a main (regla #1 CLAUDE.md)
+
+**Sin migraciones DB en esta sesion** — alert_rules + alert_rule_requests ya estaban listas desde S50.
+
+#### Aprendizajes clave Sesion 51
+
+1. **Tool-as-Tool en agentes existentes**: cuando ya hay un agente con tool-use loop funcionando, agregar features nuevas (como crear reglas) es 100% extender el array de tools + handler dispatch + system prompt extension. Sin tocar el loop. Sin streaming. Sin nueva UI. Pattern altamente reusable para futuros features tipo "crear segmento desde chat", "crear campaña desde chat", etc.
+2. **Confirmacion = texto, no card**: en chats conversacionales con LLMs avanzados, la "card interactiva con botones Confirmar/Cancelar" es overkill. El LLM mantiene el contexto entre turns gracias al history (los ultimos 10 mensajes pasan al modelo) y el user confirma con "si" natural. Mucho menos codigo, igual UX.
+3. **DRY via core function**: extraer la logica de creacion del POST handler a `createAlertRuleCore` permite que tanto el endpoint HTTP como el tool de Aurum usen la misma validacion + dedupe + INSERT. Si manana sumamos un wizard UI o un import masivo, todos consumen lo mismo.
+4. **Dispatch separado por origen de la tool**: las tools de alertas necesitan `userId` (las reglas son per-user, no per-org), las de inteligencia solo `orgId`. Resolverlo en el dispatch del chat route via `isAlertToolName(name)` mantiene `executeToolCall` (intelligence) sin contaminar.
+5. **Prompt instructivo > rule-based en cliente**: en vez de codear logica conversacional ("si no hay confirmacion, pregunta", "si hay duplicado, ofrece opciones") en el handler, **se le instruye a Aurum en el system prompt extension**. El handler devuelve datos + instrucciones explicitas ("Decile al user: ..."). Mas mantenible y permite variaciones contextuales.
+
+#### Estado actual modulo Alertas post-Sesion 51
+
+- Hub central: 5 sources nativos + 4 product modules + 48 primitivas user-defined via rules engine.
+- Aurum puede crear reglas desde NL, con discovery + propuesta + confirmacion + dedupe + backlog (S51).
+- Rediseño visual inbox 3-col + favoritas + read state persistido (S49).
+- API CRUD /api/alerts/rules productiva, ahora con dedupe y reuso desde core (S51).
+- Catalogo PRIMITIVES_CATALOG.md committed como fuente de verdad (S50).
+- Placeholder /alertas/reglas pendiente de UI productiva (Fase 8g-3).
+
+#### Pendientes Fase 8g
+
+- **8g-3 UI + Email + Quick buttons**: rewrite `/alertas/reglas` con CRUD visual, canal email via Resend, botones "Avisarme cuando..." en 4 paginas top.
+- **8g-4 Cron scheduler**: `/api/cron/alerts-scheduler` cada 15min para reglas type=schedule, Vercel cron config.
+- **8g-5 Tier 2 expansion**: post-feedback Arredo + TV Compras.
+
+#### Migraciones ejecutadas Sesion 51
+
+Ninguna — todas las tablas necesarias (alert_rules, alert_rule_requests) ya estaban en prod desde S50.
+
+#### Criterio de aceptacion (a validar por Tomy en prod tras deploy)
+
+1. "avisame si el runway baja de 2 meses" → debe crear `finanzas.runway.below_months` con `params={months:2}`
+2. "todos los lunes 9am mandame el resumen de ventas" → debe crear `orders.report.weekly_summary` con schedule weekly mon 09:00
+3. "avisame cuando llueva en Buenos Aires" → debe llamar `request_alert_primitive` y crear entry en `alert_rule_requests`
+4. Si Tomy pide la misma regla 2 veces, la segunda debe surfacear el duplicado y preguntar.
+
+---
+
+## Ultima actualizacion previa: 2026-04-19 (Sesion 50 — Catalogo exhaustivo 602 primitivas + Fase 8g-1 Rules Engine productivo: 3 commits que dejan el motor de alertas personalizables listo, con 48 primitivas Tier 1 evaluando contra DB real + engine con cooldown + API CRUD /api/alerts/rules)
 
 ### Sesion 50 — 2026-04-19 — Catalogo + Rules Engine Fase 8g-1 (3 commits)
 
