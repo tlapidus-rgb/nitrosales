@@ -8,7 +8,49 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-19 — Sesión 48 (BP-007 sub-permisos por tipo de dato agregado a Prioridad MEDIA).
+> **Última actualización**: 2026-04-21 — Sesión 52 (auditoría multi-tenant + 4 pendientes nuevos pre-Arredo).
+
+---
+
+## 🔴🔴 URGENTE — Pre-onboarding Arredo (Sesión 52)
+
+Son los 4 pendientes que quedaron de la auditoría multi-tenant. Los 3 de código + 1 operativo deben cerrarse ANTES de crear la org de Arredo y conectar sus plataformas.
+
+### BP-MT-001 — Cron ML-sync: iterar TODAS las orgs activas
+**Entró**: 2026-04-21 (Sesión 52)
+**Estado**: 📝 pendiente
+**Prioridad**: CRÍTICA (bloqueante pre-Arredo)
+**Contexto**: `src/app/api/cron/ml-sync/route.ts` hoy procesa solo la PRIMERA conn ML activa (TODO explícito en código). Cuando Arredo tenga ML conectado, si el cron corre con MdJ primero, Arredo NO sincroniza vía el safety net. Los webhooks siguen andando, pero si MELI falla un webhook, Arredo se queda sin update.
+**Fix**: cambiar el cron para iterar todas las conns ML activas (loop secuencial por org). Esfuerzo: ~20 min.
+
+### BP-MT-002 — Schema `user_alert_favorites` y `user_alert_reads` con `organizationId`
+**Entró**: 2026-04-21 (Sesión 52)
+**Estado**: 📝 pendiente
+**Prioridad**: MEDIA (defense in depth — hoy ya hay ownership check por prefijo)
+**Contexto**: Las 2 tablas no tienen columna `organizationId`. Hoy el endpoint valida ownership leyendo el `rule.` prefix y matcheando contra `alert_rules`. Para prefijos nativos (fiscal, finanzas, ml, system) la protección depende del hub GET. Agregar la columna estructural cierra el loop 100%.
+**Fix**: endpoint admin de migración (`ALTER TABLE ADD COLUMN organizationId + index + backfill`) + schema.prisma + actualizar 2 endpoints. Esfuerzo: ~45 min + 1 curl admin.
+
+### BP-MT-003 — STORE_URL multi-tenant: migrar 7 endpoints al helper `getStoreUrl(orgId)`
+**Entró**: 2026-04-21 (Sesión 52)
+**Estado**: 📝 pendiente
+**Prioridad**: MEDIA (no bloqueante si Arredo no usa Aura/influencers inicialmente)
+**Contexto**: El helper `src/lib/org-store-url.ts` ya existe y lee de `Organization.settings.storeUrl` → env var → empty. Los 7 endpoints de influencers/aura todavía usan `process.env.STORE_URL || ""` directamente. Cuando Arredo tenga su propio dominio, los tracking links apuntarían al STORE_URL env (que es de MdJ) o quedarían vacíos.
+**Fix**:
+1. Migrar los 7 endpoints a usar `await getStoreUrl(orgId)` (async chain)
+2. Agregar UI en `/settings/organization` para que cada org configure su `storeUrl` (guardar en `Organization.settings.storeUrl`)
+Esfuerzo: ~3-4 hs.
+**Archivos**: `api/public/influencers/[slug]/[code]/route.ts` · `api/influencers/route.ts` + 4 en `[id]/*` · `api/influencers/applications/route.ts` · `api/aura/creators/[id]/route.ts`.
+
+### BP-MT-OPS-001 — Reconfigurar webhook VTEX de MdJ con `?org=<mdjOrgId>`
+**Entró**: 2026-04-21 (Sesión 52)
+**Estado**: 📝 pendiente (acción **operativa**, NO código)
+**Prioridad**: CRÍTICA (bloqueante pre-Arredo)
+**Contexto**: Los webhooks VTEX ahora aceptan `?org=<orgId>` en la URL. Si hay >1 conn VTEX activa y un webhook NO trae orgId, el sistema rechaza con 404 por safety (no data leak). **ANTES de conectar VTEX de Arredo, Tomy debe reconfigurar la URL del webhook de MdJ en VTEX Admin agregando `&org=<mdjOrgId>`**. Si no lo hace, cuando Arredo conecte su webhook, los 2 webhooks (MdJ + Arredo) van a fallar 404 inmediatamente.
+**Acción operativa**:
+1. Obtener orgId de MdJ (consulta SQL o visitar `/settings/organization` logueado como MdJ)
+2. Ir a VTEX Admin → Hooks → encontrar los 2 webhooks NitroSales (orders + inventory)
+3. Editar cada URL agregando `&org=<mdjOrgId>` al final
+4. Guardar y verificar en Vercel logs que el próximo webhook entra OK
 
 ---
 

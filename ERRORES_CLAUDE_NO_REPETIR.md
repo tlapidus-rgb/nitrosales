@@ -4,7 +4,73 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-20 — Sesión 51 (3 errores nuevos: schedule disparando cada apertura por no chequear nextFireAt, max_tokens chico que trunca reply tras tool exitosa sin fallback informativo, descartar feature como "redundante" sin evaluar costos operativos reales).**
+> **Última actualización: 2026-04-21 — Sesión 52 (2 errores nuevos: findFirst sin orgId en ecosistemas multi-tenant, auditorías de un solo pase son insuficientes).**
+
+---
+
+## Error #S52-FINDFIRST-SIN-ORGID — findFirst sin scoping de organizationId (multi-tenant unsafe)
+
+**Cuándo pasó**: Sesión 52, auditoría multi-tenant profunda. Encontré 21 endpoints/funciones que usaban `prisma.X.findFirst({ where: { platform: "..." } })` SIN incluir `organizationId` en el where. Todos funcionaban perfecto en single-tenant (1 sola org en DB) pero habrían causado data leak silencioso el día que se cree la 2da org (Arredo). Específicamente:
+- `getSellerToken()` devolvía el token de cualquier conn ML
+- Webhooks VTEX podían procesar órdenes en la org equivocada
+- Endpoints de páginas ML (dashboard, reputacion, preguntas, publicaciones) usaban findFirst para resolver orgId en vez de tomarlo de session
+- Admin endpoints (fix-brands, etc) tenían orgId hardcoded o default a org específica
+
+### Causa raíz
+- En single-tenant no hay penalty — siempre hay solo 1 conn VTEX/ML/etc, así que findFirst siempre devuelve la correcta.
+- Dev diario no expone el bug → se propaga por meses.
+- El bug se manifiesta EL DÍA que se crea la 2da org y ya es tarde (data mezclada silenciosamente).
+
+### Regla
+**En cualquier query que busque entidades scopeadas a org (Connection, Product, Order, Customer, Alert, etc.), SIEMPRE incluir `organizationId` en el WHERE.** Si no hay orgId en scope, resolverlo explícitamente antes:
+- Endpoints autenticados: `const orgId = await getOrganizationId()` desde session
+- Endpoints públicos (webhooks): resolver por identifier único del payload (mlUserId, accountName, etc.) o query param `?org=`
+- Endpoints admin sin session: query param `?org=` explícito
+
+```ts
+// ✅ BIEN
+const orgId = await getOrganizationId();
+const connection = await prisma.connection.findFirst({
+  where: { platform: "MERCADOLIBRE" as any, organizationId: orgId },
+});
+
+// ❌ MAL (multi-tenant unsafe)
+const connection = await prisma.connection.findFirst({
+  where: { platform: "MERCADOLIBRE" as any },
+});
+```
+
+**Antipatrón adicional**: `const orgId = connection.organizationId` **después** del findFirst. Esto es circular — ya usaste la conn de org equivocada.
+
+**Ver también**: patrón de fallback condicional en auth-guard para casos transicionales single→multi.
+
+---
+
+## Error #S52-AUDITORIA-UN-SOLO-PASE — Auditorías de seguridad de un solo pase son insuficientes
+
+**Cuándo pasó**: Sesión 52. Primer pase de auditoría multi-tenant encontró 13 hallazgos. Tomy pidió auditoría profunda PRE-MERGE para "cero margen de error". Segundo pase encontró **8 bugs adicionales** que se habían escapado del pase inicial. Si hubiera mergeado con solo el pase 1, esos 8 bugs habrían llegado a producción.
+
+### Causa raíz
+- Primer pase usa queries amplias (Agent Explore) que cubren los casos obvios pero miss patterns específicos.
+- Los bugs multi-tenant son sutiles: no rompen tsc, no rompen en single-tenant, no se ven en testing visual.
+- Exceso de confianza post-primer pase = tentación de mergear sin segundo review.
+
+### Regla
+**Para cambios sistémicos críticos (multi-tenant, auth, permisos, pagos), SIEMPRE hacer 2 pases de auditoría antes de mergear:**
+
+**Pase 1 (amplio)**: Agent Explore o similar — lista amplia de hallazgos.
+**Pase 2 (profundo, pre-merge)**: greps específicos con patterns exactos:
+- `platform:\s*"X"` sin `organizationId`
+- `updateMany\(` / `deleteMany\(` sin filter de org
+- `organization\.findFirst\(\)` sin filter
+- `const ORG_ID = env \|\| "hardcoded"`
+- Hardcoded IDs literales del cliente actual
+
+El pase 2 típicamente descubre **~50% más bugs** que el pase 1. Si no se hace, esos bugs llegan a producción.
+
+**Regla adicional — branch preview pre-merge**: para cambios críticos, usar branch + preview URL de Vercel + validación user antes de merge a main. NO es violación de la "solo main" rule si el user lo autoriza explícitamente.
+
+**Señal de alarma**: si pensaste "ya está todo cubierto, mergeo" tras el primer pase → hacé el pase 2 igual. Toma 30 minutos extra, previene data leak silencioso en producción.
 
 ---
 
