@@ -1,9 +1,11 @@
-// Sync Lock (Mutex) — NitroSales [FASE 2.2]
+// Sync Lock (Mutex) — NitroSales [FASE 2.2 + Multi-tenant S52]
 // Previene que dos syncs corran al mismo tiempo (cron overlap)
-// Usa una tabla/registro en DB como lock distribuido
+// Usa una tabla/registro en DB como lock distribuido.
+//
+// Multi-tenant: el lock es per-org. Dos orgs distintas pueden sincronizar
+// en paralelo. Dos syncs de la MISMA org se bloquean entre sí.
 import { prisma } from "@/lib/db/client";
 
-const ORG_ID = process.env.ORG_ID || "cmmmga1uq0000sb43w0krvvys";
 const LOCK_TTL_MS = 5 * 60 * 1000; // 5 minutos — despues se considera stale
 
 interface LockResult {
@@ -11,11 +13,22 @@ interface LockResult {
   reason?: string;
 }
 
-export async function acquireSyncLock(lockType: string): Promise<LockResult> {
+/**
+ * Adquiere un lock de sync para una org específica.
+ * orgId es OBLIGATORIO — multi-tenant safety.
+ */
+export async function acquireSyncLock(
+  orgId: string,
+  lockType: string
+): Promise<LockResult> {
+  if (!orgId) {
+    console.error("[sync-lock] acquireSyncLock sin orgId — rechazado");
+    return { acquired: false, reason: "orgId obligatorio" };
+  }
   try {
     // Check if there's an active lock
     const existing = await prisma.connection.findFirst({
-      where: { organizationId: ORG_ID, platform: "VTEX" },
+      where: { organizationId: orgId, platform: "VTEX" },
       select: { lastSyncAt: true, lastSyncError: true },
     });
 
@@ -31,13 +44,13 @@ export async function acquireSyncLock(lockType: string): Promise<LockResult> {
       // Stale lock — proceed (will be overwritten)
       console.warn(JSON.stringify({
         timestamp: new Date().toISOString(), level: "warn", service: "sync-lock",
-        action: "stale-lock-override", details: { lockType, lockAgeMs: lockAge },
+        action: "stale-lock-override", details: { orgId, lockType, lockAgeMs: lockAge },
       }));
     }
 
     // Acquire lock
     await prisma.connection.updateMany({
-      where: { organizationId: ORG_ID, platform: "VTEX" },
+      where: { organizationId: orgId, platform: "VTEX" },
       data: { lastSyncError: `LOCK:${lockType}`, lastSyncAt: new Date() },
     });
 
@@ -48,11 +61,19 @@ export async function acquireSyncLock(lockType: string): Promise<LockResult> {
   }
 }
 
-export async function releaseSyncLock(): Promise<void> {
+/**
+ * Libera el lock de sync de una org específica.
+ * orgId es OBLIGATORIO.
+ */
+export async function releaseSyncLock(orgId: string): Promise<void> {
+  if (!orgId) {
+    console.error("[sync-lock] releaseSyncLock sin orgId — skipped");
+    return;
+  }
   try {
     await prisma.connection.updateMany({
       where: {
-        organizationId: ORG_ID,
+        organizationId: orgId,
         platform: "VTEX",
         lastSyncError: { startsWith: "LOCK:" },
       },

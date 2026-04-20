@@ -3,6 +3,7 @@
 // en una sola request con time-budgeting inteligente
 // ══════════════════════════════════════════════════════════════
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db/client";
 import { markSyncSuccess } from "@/lib/sync-tracker";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/sync-lock";
 
@@ -11,6 +12,7 @@ export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
+  let orgIdForFinally: string | null = null;
 
   try {
     // Browser navigation guard — redirect browsers to dashboard
@@ -30,8 +32,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // Acquire sync lock — prevent overlapping chain runs
-    const lock = await acquireSyncLock("chain");
+    // Resolver org de la conn VTEX activa (multi-tenant safe).
+    // TODO post-Arredo: iterar por todas las conns VTEX activas en paralelo.
+    const vtexConn = await prisma.connection.findFirst({
+      where: { platform: "VTEX" as any, status: "ACTIVE" as any },
+      select: { organizationId: true },
+    });
+    if (!vtexConn) {
+      return NextResponse.json({ error: "No active VTEX connection" }, { status: 404 });
+    }
+    const orgId = vtexConn.organizationId;
+    orgIdForFinally = orgId;
+
+    // Acquire sync lock per-org — prevent overlapping chain runs (misma org)
+    const lock = await acquireSyncLock(orgId, "chain");
     if (!lock.acquired) {
       return NextResponse.json({ ok: false, skipped: true, reason: lock.reason }, { status: 200 });
     }
@@ -93,7 +107,7 @@ export async function GET(req: NextRequest) {
     const detailsPending = results.vtexDetails?.remaining || 0;
     const isComplete = inventoryPending === 0 && detailsPending === 0;
 
-    await markSyncSuccess("VTEX");
+    await markSyncSuccess(orgId, "VTEX");
 
     return NextResponse.json({
       ok: true,
@@ -115,7 +129,9 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   } finally {
-    await releaseSyncLock();
+    if (orgIdForFinally) {
+      await releaseSyncLock(orgIdForFinally);
+    }
   }
 }
 

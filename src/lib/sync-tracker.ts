@@ -1,13 +1,23 @@
-// Sync Tracker — NitroSales [FASE 1.3]
-// Actualiza lastSuccessfulSyncAt en Connection despues de sync exitoso
+// Sync Tracker — NitroSales [FASE 1.3 + Multi-tenant S52]
+// Actualiza lastSuccessfulSyncAt en Connection después de sync exitoso.
+// Multi-tenant safe: cada org trackea su propia Connection.
 import { prisma } from "@/lib/db/client";
 
-const ORG_ID = process.env.ORG_ID || "cmmmga1uq0000sb43w0krvvys";
-
-export async function markSyncSuccess(platform: string = "VTEX") {
+/**
+ * Marca sync exitoso para una org + plataforma específica.
+ * orgId es OBLIGATORIO.
+ */
+export async function markSyncSuccess(
+  orgId: string,
+  platform: string = "VTEX"
+) {
+  if (!orgId) {
+    console.error("[sync-tracker] markSyncSuccess sin orgId — skipped");
+    return;
+  }
   try {
     await prisma.connection.updateMany({
-      where: { organizationId: ORG_ID, platform: platform as any },
+      where: { organizationId: orgId, platform: platform as any },
       data: { lastSuccessfulSyncAt: new Date(), lastSyncAt: new Date(), lastSyncError: null },
     });
   } catch (error) {
@@ -15,10 +25,22 @@ export async function markSyncSuccess(platform: string = "VTEX") {
   }
 }
 
-export async function markSyncError(platform: string = "VTEX", errorMsg: string) {
+/**
+ * Marca sync fallido para una org + plataforma específica.
+ * orgId es OBLIGATORIO.
+ */
+export async function markSyncError(
+  orgId: string,
+  platform: string = "VTEX",
+  errorMsg: string
+) {
+  if (!orgId) {
+    console.error("[sync-tracker] markSyncError sin orgId — skipped");
+    return;
+  }
   try {
     await prisma.connection.updateMany({
-      where: { organizationId: ORG_ID, platform: platform as any },
+      where: { organizationId: orgId, platform: platform as any },
       data: { lastSyncAt: new Date(), lastSyncError: errorMsg },
     });
   } catch (err) {

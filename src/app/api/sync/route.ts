@@ -12,14 +12,16 @@ async function runSync(syncKey: string) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  // Acquire sync lock — prevent overlapping cron runs
-  const lock = await acquireSyncLock("sync");
+  // Resolver org antes del lock (multi-tenant safety)
+  const org = await getOrganization();
+
+  // Acquire sync lock per-org — prevent overlapping cron runs (misma org)
+  const lock = await acquireSyncLock(org.id, "sync");
   if (!lock.acquired) {
     return NextResponse.json({ ok: false, skipped: true, reason: lock.reason }, { status: 200 });
   }
 
   try {
-  const org = await getOrganization();
 
   const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
 
@@ -71,10 +73,10 @@ async function runSync(syncKey: string) {
   // 4. Meta Ads — now runs on its own dedicated cron (see vercel.json)
   results.metaAds = { status: "independent_cron", schedule: "*/15 * * * *" };
 
-  await markSyncSuccess("VTEX");
+  await markSyncSuccess(org.id, "VTEX");
   return NextResponse.json({ ok: true, results });
   } finally {
-    await releaseSyncLock();
+    await releaseSyncLock(org.id);
   }
 }
 
