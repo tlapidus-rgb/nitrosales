@@ -1,10 +1,14 @@
 // @ts-nocheck
 // ═══════════════════════════════════════════════════════════════════
-// /api/alerts/read — Fase 8e fix
+// /api/alerts/read — Fase 8e fix + Multi-tenant S53 BP-MT-002
 // ═══════════════════════════════════════════════════════════════════
-// POST   { alertId }       -> marca una alerta como leida por el user
+// POST   { alertId }       -> marca una alerta como leida por el user (scoped org)
 // POST   { alertIds: [] }  -> marca varias (bulk)
 // DELETE ?alertId=X        -> vuelve a marcar como no leida
+// GET                      -> diagnostico
+//
+// Multi-tenant safe: tabla user_alert_reads ahora tiene columna
+// organizationId. UNIQUE (userId, alertId, organizationId).
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -57,7 +61,6 @@ export async function GET() {
     );
     const count = Number(rows?.[0]?.count ?? 0);
 
-    // Primeras 5 filas como muestra
     const sample = await prisma.$queryRawUnsafe<Array<{ alertId: string; readAt: Date }>>(
       `SELECT "alertId", "readAt" FROM "user_alert_reads" WHERE "userId" = $1 ORDER BY "readAt" DESC LIMIT 5`,
       userId
@@ -111,12 +114,13 @@ export async function POST(req: NextRequest) {
       }
       const id = randomUUID();
       await prisma.$executeRawUnsafe(
-        `INSERT INTO "user_alert_reads" ("id", "userId", "alertId", "readAt")
-         VALUES ($1, $2, $3, NOW())
-         ON CONFLICT ("userId", "alertId") DO NOTHING`,
+        `INSERT INTO "user_alert_reads" ("id", "userId", "alertId", "organizationId", "readAt")
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT ("userId", "alertId", "organizationId") DO NOTHING`,
         id,
         userId,
-        alertId
+        alertId,
+        orgId
       );
     }
 
@@ -136,6 +140,7 @@ export async function DELETE(req: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
+    const orgId = await getOrganizationId();
 
     const url = new URL(req.url);
     const alertId = url.searchParams.get("alertId")?.trim();
@@ -144,9 +149,10 @@ export async function DELETE(req: NextRequest) {
     }
 
     await prisma.$executeRawUnsafe(
-      `DELETE FROM "user_alert_reads" WHERE "userId" = $1 AND "alertId" = $2`,
+      `DELETE FROM "user_alert_reads" WHERE "userId" = $1 AND "alertId" = $2 AND "organizationId" = $3`,
       userId,
-      alertId
+      alertId,
+      orgId
     );
 
     return NextResponse.json({ ok: true, read: false });

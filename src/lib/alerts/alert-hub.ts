@@ -369,15 +369,21 @@ async function getAurumAsyncAlerts(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Favoritas del user (Fase 8e)
+// Favoritas del user (Fase 8e + Multi-tenant S53)
 // ─────────────────────────────────────────────────────────────
-async function getUserFavorites(userId: string | null): Promise<Set<string>> {
+async function getUserFavorites(userId: string | null, orgId?: string | null): Promise<Set<string>> {
   if (!userId) return new Set();
   try {
-    const rows = await prisma.$queryRawUnsafe<Array<{ alertId: string }>>(
-      `SELECT "alertId" FROM "user_alert_favorites" WHERE "userId" = $1`,
-      userId
-    );
+    const rows = orgId
+      ? await prisma.$queryRawUnsafe<Array<{ alertId: string }>>(
+          `SELECT "alertId" FROM "user_alert_favorites" WHERE "userId" = $1 AND "organizationId" = $2`,
+          userId,
+          orgId
+        )
+      : await prisma.$queryRawUnsafe<Array<{ alertId: string }>>(
+          `SELECT "alertId" FROM "user_alert_favorites" WHERE "userId" = $1`,
+          userId
+        );
     return new Set(rows.map((r) => r.alertId));
   } catch {
     return new Set();
@@ -385,15 +391,21 @@ async function getUserFavorites(userId: string | null): Promise<Set<string>> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Lecturas del user (Fase 8e fix)
+// Lecturas del user (Fase 8e fix + Multi-tenant S53)
 // ─────────────────────────────────────────────────────────────
-async function getUserReads(userId: string | null): Promise<Set<string>> {
+async function getUserReads(userId: string | null, orgId?: string | null): Promise<Set<string>> {
   if (!userId) return new Set();
   try {
-    const rows = await prisma.$queryRawUnsafe<Array<{ alertId: string }>>(
-      `SELECT "alertId" FROM "user_alert_reads" WHERE "userId" = $1`,
-      userId
-    );
+    const rows = orgId
+      ? await prisma.$queryRawUnsafe<Array<{ alertId: string }>>(
+          `SELECT "alertId" FROM "user_alert_reads" WHERE "userId" = $1 AND "organizationId" = $2`,
+          userId,
+          orgId
+        )
+      : await prisma.$queryRawUnsafe<Array<{ alertId: string }>>(
+          `SELECT "alertId" FROM "user_alert_reads" WHERE "userId" = $1`,
+          userId
+        );
     return new Set(rows.map((r) => r.alertId));
   } catch {
     return new Set();
@@ -444,8 +456,8 @@ export async function buildUnifiedAlerts(params: {
     getFiscalMonotributoAlerts(orgId),
     baseUrl ? getPredictiveFinanceAlerts(baseUrl, cookie ?? "") : Promise.resolve([]),
     getAurumAsyncAlerts(orgId, userId ?? null),
-    getUserFavorites(userId ?? null),
-    getUserReads(userId ?? null),
+    getUserFavorites(userId ?? null, orgId),
+    getUserReads(userId ?? null, orgId),
   ]);
 
   const all = [
