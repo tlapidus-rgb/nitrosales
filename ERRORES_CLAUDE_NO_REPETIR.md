@@ -4,7 +4,91 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-21 — Sesión 52 (2 errores nuevos: findFirst sin orgId en ecosistemas multi-tenant, auditorías de un solo pase son insuficientes).**
+> **Última actualización: 2026-04-20 — Sesión 53 (2 errores/patrones nuevos: VTEX tiene 2 mecanismos de webhooks (uno con UI y otro API-only), cambios en config de terceros en prod requieren checklist de 7+ puntos + dry-run).**
+
+---
+
+## Error #S53-VTEX-HOOKS-TWO-MECHANISMS — Asumir que los webhooks de VTEX estan todos en la UI de Admin
+
+**Cuándo pasó**: Sesión 53, cerrando BP-MT-OPS-001. Asumí inicialmente que todos los webhooks de VTEX estaban en un solo lugar de la UI. Tomy tambien recordaba "haberlos configurado en el admin". Pero al buscar encontramos solo 1 de los 2 (el de inventory, en Afiliados). Después de revisar código, docs y confirmar via API, descubrí que VTEX tiene DOS mecanismos separados:
+
+1. **Afiliados** (Admin → Configuracion de la tienda → Pedidos → Configuracion → tab Afiliados) — TIENE UI. Cada afiliado tiene un "Endpoint de busca". Maneja eventos de SKU/inventory principalmente.
+2. **Orders Broadcaster** (`POST /api/orders/hook/config`) — **NO TIENE UI**. Solo API. Maneja cambios de estado de ordenes (order-created, payment-approved, invoiced, etc.).
+
+### Causa raíz
+- Asumí paridad entre UI y totalidad de features. Error tipico: "si tiene UI para A, tiene UI para todo".
+- La doc de VTEX está fragmentada y no deja claro que son 2 mecanismos separados.
+
+### Regla
+**Para onboarding / auditoria de webhooks en plataformas externas (VTEX, MELI, Shopify, etc.), SIEMPRE chequear via API además de la UI.** No basta con la UI del admin.
+
+Para VTEX específicamente, siempre correr estos 2 curls al inicio:
+```bash
+# Lista Afiliados (orders API si existe en UI)
+curl -H "X-VTEX-API-AppKey: $KEY" -H "X-VTEX-API-AppToken: $TOKEN" \
+  "https://{account}.vtexcommercestable.com.br/api/checkout/pvt/configuration/orderForm/affiliates"
+
+# Lista Orders Broadcaster (API-only, NO aparece en UI)
+curl -H "X-VTEX-API-AppKey: $KEY" -H "X-VTEX-API-AppToken: $TOKEN" \
+  "https://{account}.vtexcommercestable.com.br/api/orders/hook/config"
+```
+
+El segundo es el que uno olvida. Si devuelve un objeto con `hook.url`, hay un webhook de orders configurado via API que **no aparece** en la UI.
+
+### Prevención
+- Al onboardear cualquier cliente VTEX, incluir en checklist: "lista hooks via ambos endpoints"
+- Documentar en el runbook de onboarding que el Orders Broadcaster es API-only
+- Agregado a MEMORY.md como patron crítico multi-tenant
+
+---
+
+## Error #S53-PROD-CHANGES-SIN-DRY-RUN — Ejecutar cambios en producción externa sin checklist ni dry-run
+
+**Cuándo pasó**: Sesión 53. Inicialmente propuse a Tomy "ejecutar el PUT para actualizar el webhook VTEX" con un plan de 4 pasos simples. Tomy (con razón) me frenó 3 veces pidiendo análisis más profundo. Me llamó la atención explícita: *"necesito que seas más quirúrgico y minucioso"*.
+
+Tras la tercera iteración terminé con un plan robusto que incluyó:
+- Checklist de 7 puntos pre-ejecución
+- Dry-run idempotente (POST con config actual sin cambios) para validar creds + payload
+- Rollback payload listo
+- Verificación end-to-end triggerendo con data real (orden real de hace 2 min)
+
+Esto debería haber sido el plan DESDE el inicio, no después de que Tomy me lo exigiera 3 veces.
+
+### Causa raíz
+- Confundí "acción reversible en minutos" con "acción de bajo riesgo justificando plan simple"
+- No internalicé que producción externa (VTEX, MELI, etc.) merece el mismo nivel de cuidado que producción propia (DB)
+- Tomy es founder no técnico — mi trabajo es proteger su plataforma con el máximo rigor, no optimizar para velocidad
+
+### Regla
+**Para cualquier cambio en config de sistema externo en prod (VTEX, MELI, Meta, Google, GA4, Resend, etc.), ejecutar este checklist MÍNIMO de 7 puntos ANTES de cualquier POST/PUT/DELETE:**
+
+1. **Código receptor deployado**: ¿el codigo que va a recibir el nuevo shape YA está en `origin/main`? (verificar con `git merge-base --is-ancestor <commit> origin/main`)
+2. **Fallback en código propio**: ¿si llega payload viejo durante la ventana, el código no crashea?
+3. **Atomicidad en el sistema externo**: ¿el POST/PUT reemplaza config de manera atómica (sin half-applied state)?
+4. **Backup capturado**: ¿tengo la config actual guardada byte a byte para rollback?
+5. **Rollback en un comando**: ¿tengo el curl exacto para volver al estado previo?
+6. **Red de seguridad secundaria**: ¿hay cron nocturno / reintentos / data persistida en el sistema externo que garantice recuperación aunque el cambio falle?
+7. **Dry-run idempotente**: ¿puedo probar las credenciales de escritura enviando la config ACTUAL (idéntica) antes del cambio real?
+
+Solo tras PASAR los 7 puntos, ejecutar el cambio real + GET verificación + test end-to-end con data real.
+
+**Patron DRY-RUN**: el dry-run es un POST con la config actual (sin cambios). Si devuelve 2xx, probamos que:
+- Credenciales tienen permiso de escritura ✅
+- Payload es aceptado por el endpoint ✅
+- No cambió nada (idempotente) ✅
+
+Solo después del dry-run exitoso, ejecutar el cambio real.
+
+**Patrón TEST END-TO-END**: no conformarse con "HTTP 200 en el save". Triggerear el flujo completo con data real:
+- Para webhooks: simular el webhook con un orderId REAL reciente
+- Para API keys: hacer una llamada real al endpoint protegido
+- Para DB migrations: correr una query de ejemplo que use el schema nuevo
+
+Solo si el pipeline COMPLETO procesa correctamente, confirmar éxito.
+
+### Prevención
+- Agregado a MEMORY.md como patron crítico para cambios en prod externa
+- En sesiones futuras, si Tomy menciona "quirúrgico", "cero margen de error", "minucioso" — arrancar DIRECTO con el checklist de 7 puntos sin esperar que me lo pida
 
 ---
 

@@ -3,7 +3,62 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-21 (Sesion 52 — AUDITORIA MULTI-TENANT PROFUNDA + FASE 9 ML PREMIUM + UMBRALES LIVE MELI + REGLA #7 GIT DOS CLAUDES. 14 commits a main (en branch multi-tenant-audit luego fast-forward merged). Sistema listo para onboarding Arredo con 4 pendientes de cierre documentados.)
+## Ultima actualizacion: 2026-04-20 (Sesion 53 — CIERRE 4 PENDIENTES PRE-ARREDO. Multi-tenant COMPLETO. MdJ 100% ready. Plataforma lista para onboardear Arredo.)
+
+### Sesion 53 — 2026-04-20 — Cierre 4 pendientes pre-Arredo (BP-MT-001, 002, 003, OPS-001)
+
+**Resumen ejecutivo**: sesion quirurgica ejecutando los 4 pendientes documentados en BACKLOG_PENDIENTES.md tras auditoria S52. 4 commits a main + 1 operacion VTEX prod via API. Sistema multi-tenant 100% funcional, MdJ seteado end-to-end.
+
+#### Commits a `main` (4)
+
+- `c215039` **BP-MT-001** — cron ML-sync itera TODAS las orgs con ML activo (antes solo la primera). Helper `syncOneOrg(orgId, connId)` con fail-soft por org. Response per-org.
+- `37b60eb` **BP-MT-002** — user_alert_favorites + user_alert_reads con organizationId. Endpoint admin de migracion + backfill (0 favs, 4 reads) + UNIQUE nuevo (userId, alertId, organizationId) + FK CASCADE + index. Endpoints /alerts/favorite + /alerts/read + lib/alerts/alert-hub.ts filtran por orgId.
+- `ed5a155` **BP-MT-003** — STORE_URL multi-tenant en 8 endpoints. Helper `getStoreUrl(orgId)` ya existia, migrados: influencers (list/detail/campaigns/tracking-link/applications), aura/creators/[id] (+ send-password con bug fix: STORE_URL no corresponde a app URL), public/influencers. API /api/settings/organization acepta storeUrl con validacion URL. UI /settings/organizacion: input "URL de tu tienda" + Organization ID visible read-only con boton Copiar.
+- `487553a` docs(backlog): 4 pendientes pre-Arredo cerrados en S53
+
+#### Operacion en produccion VTEX (BP-MT-OPS-001)
+
+**Descubrimiento clave**: VTEX tiene DOS mecanismos de webhooks separados:
+1. **Afiliados** (UI en Admin → Configuracion → Pedidos → Configuracion → tab Afiliados) — Tomy lo encontro tras explorar. Ahi estaba el webhook de inventory. Tomy actualizo manualmente la URL agregando `&org=cmmmga1uq0000sb43w0krvvys`.
+2. **Orders Broadcaster** (endpoint `POST /api/orders/hook/config`, **API-only**, no UI) — ahi estaba el webhook de orders. Descubierto haciendo GET del endpoint via curl con VTEX credentials.
+
+**Ejecucion quirurgica del PUT al Orders Broadcaster**:
+1. Dry-run: POST con la config ACTUAL sin cambios → HTTP 200 (valida creds write + payload shape)
+2. PUT real: POST con `&org=cmmmga1uq0000sb43w0krvvys` agregado a la URL → HTTP 200
+3. GET verificacion: URL nueva persistida correctamente
+4. **Test end-to-end**: simule webhook con orderId REAL (`1626321512569-01`, de hace 2 min) → HTTP 200, 785ms, pipeline completo OK (items=1, products=1, customer=linked, pixelAttribution=true)
+
+#### Storekl setup MdJ
+
+Tomy seteo via UI en /settings/organizacion su storeUrl (`https://www.elmundodeljuguete.com.ar` o similar). Confirmado guardado. MdJ ahora 100% multi-tenant ready.
+
+#### Bugs bonus arreglados en la sesion
+
+- `api/aura/creators/[id]/send-password`: usaba `process.env.STORE_URL` como fallback del APP URL de NitroSales — INCORRECTO (la tienda del cliente != la app de NitroSales). Ademas hardcodeaba `"elmundodeljuguete"` como slug fallback. Ambos arreglados (fallback chain: NEXT_PUBLIC_APP_URL → NEXTAUTH_URL → default NitroSales URL, slug siempre desde `org.slug`).
+
+#### Dinamicas clave con Tomy
+
+- Tomy pidio explicitamente "quirurgicamente excelente", "cero margen de error", "se mas quirurgico y minucioso"
+- Tomy pidio analogia simple para entender (portero del edificio que recibe paquetes sin numero de depto)
+- Tomy pidio justificar POR QUE tocar prod si "solo leemos datos" — explicacion: el PUT no cambia datos de negocio, solo la URL de destino de webhooks (plumbing), y sin `?org=` habra reject 404 cuando entre Arredo
+- Tomy exigio analisis profundo de riesgo antes de ejecutar PUT. Escenarios A/B/C/D evaluados. Peor caso identificado: ~5-10 min de webhooks fallando con orders quedando en VTEX (cron 3am recupera). Impacto data=0.
+- Tomy aprobo explicitamente ejecucion tras revisar plan quirurgico de 4 pasos
+
+#### Mejoras de token GitHub
+
+Durante la sesion, el token PAT de Tomy estaba configurado con solo "Read" — bloqueaba pushes. Guie a Tomy en editar el token fine-grained en github.com/settings/tokens agregando "Contents: Read and write". Resolvio el bloqueo y pude pushear los 4 commits.
+
+#### Estado final
+
+**MdJ operando 100% en prod multi-tenant**:
+- Cron ML iterando conexiones activas (comportamiento nuevo — hoy solo hay 1, pero cuando entre Arredo ambas se procesan)
+- Webhooks VTEX (orders + inventory) firmados con `?org=cmmmga1uq0000sb43w0krvvys`
+- storeUrl guardado en Organization.settings.storeUrl
+- Alerts scope-adas por orgId estructural
+
+**Arredo onboarding ready**: cuando Tomy decida, los pasos operacionales estan claros (crear org + ingresar storeUrl + conectar VTEX con webhooks firmados con su orgId + conectar ML).
+
+---
 
 ### Sesion 52 — 2026-04-21 — Auditoria multi-tenant + ML premium + umbrales live + git regla #7
 

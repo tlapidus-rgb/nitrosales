@@ -307,4 +307,41 @@ verificar PRIMERO las tareas programadas de Claude Desktop
 
 ---
 
-_Última actualización: 2026-04-19 — REGLA #6 agregada (dominio exclusivo CLAUDE_VM/)._
+_Última actualización: 2026-04-20 — Sesión 53. Multi-tenant cerrado pre-Arredo. Patron VTEX webhooks dual (Afiliados UI + Orders Broadcaster API-only) agregado a referencias._
+
+---
+
+## Multi-tenant webhooks VTEX (Sesión 53)
+
+VTEX tiene **2 mecanismos separados** para webhooks. Ambos hay que configurar con `?org=<orgId>` al onboardear cada cliente:
+
+| Mecanismo | Dónde se configura | Qué eventos recibe |
+|---|---|---|
+| **Afiliados** | VTEX Admin → Config tienda → Pedidos → Config → tab "Afiliados" | SKU / inventory changes |
+| **Orders Broadcaster** | `POST /api/orders/hook/config` (API-only, **NO UI**) | Order state changes (order-created, payment-approved, invoiced, canceled, etc.) |
+
+**Al onboardear nuevo cliente VTEX**, correr estos curls con las credenciales del cliente para listar lo configurado:
+
+```bash
+curl -H "X-VTEX-API-AppKey: $KEY" -H "X-VTEX-API-AppToken: $TOKEN" \
+  "https://{account}.vtexcommercestable.com.br/api/orders/hook/config"
+```
+
+Si hay un hook configurado sin `?org=<orgId>` en la URL, actualizar con POST al mismo endpoint. Ver `ERRORES_CLAUDE_NO_REPETIR.md` → Error #S53-VTEX-HOOKS-TWO-MECHANISMS.
+
+---
+
+## Cambios en config de sistemas externos en prod (Sesión 53)
+
+Para modificar config en VTEX / MELI / Meta / Google / GA4 / Resend en prod:
+
+**NUNCA ejecutar sin**:
+1. Código receptor deployado en `origin/main`
+2. Fallback en código propio si llega payload viejo
+3. Backup del estado actual capturado
+4. Rollback en 1 comando preparado
+5. Red de seguridad secundaria identificada (cron, reintentos)
+6. Dry-run idempotente ejecutado (POST con config actual sin cambios)
+7. Test end-to-end con data real post-cambio
+
+Ver `ERRORES_CLAUDE_NO_REPETIR.md` → Error #S53-PROD-CHANGES-SIN-DRY-RUN para el patrón completo.
