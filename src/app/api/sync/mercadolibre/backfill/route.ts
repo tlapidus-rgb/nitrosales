@@ -34,14 +34,16 @@ export async function GET(req: NextRequest) {
   const week = parseInt(searchParams.get("week") || "1");
 
   try {
-    const { token, mlUserId } = await getSellerToken();
+    // Multi-tenant safe: resolver orgId de la connection activa primero.
     const connection = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any },
+      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
+      select: { id: true, organizationId: true },
     });
     if (!connection) {
-      return NextResponse.json({ error: "No ML connection" }, { status: 404 });
+      return NextResponse.json({ error: "No active ML connection" }, { status: 404 });
     }
     const orgId = connection.organizationId;
+    const { token, mlUserId } = await getSellerToken(orgId);
 
     let result: any = {};
 

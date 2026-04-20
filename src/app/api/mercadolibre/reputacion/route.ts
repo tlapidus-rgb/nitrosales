@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     } | null = null;
     let thresholdsError: string | null = null;
     try {
-      const tokenInfo = await getSellerToken();
+      const tokenInfo = await getSellerToken(orgId);
       if (tokenInfo?.token && tokenInfo?.mlUserId) {
         const liveRep = await fetchSellerReputation(tokenInfo.token, tokenInfo.mlUserId);
         thresholds = {

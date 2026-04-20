@@ -29,19 +29,36 @@ interface MLNotification {
 // ── Main dispatcher ─────────────────────────────────────────
 
 export async function processMLNotification(notification: MLNotification): Promise<void> {
-  const { topic, resource } = notification;
+  const { topic, resource, user_id: mlUserId } = notification;
 
   try {
-    // Get valid token and org info
-    const { token } = await getSellerToken();
-    const connection = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any },
-    });
-    if (!connection) {
-      console.error("[ML Processor] No ML connection found");
+    // Multi-tenant safe: resolver orgId por mlUserId del payload.
+    // mlUserId es único global en MELI, así que matcheamos exactamente la
+    // org que tiene esa cuenta ML conectada.
+    if (!mlUserId) {
+      console.error("[ML Processor] Notification sin user_id — NO se puede resolver org. Descartada.");
       return;
     }
+
+    const connections = await prisma.connection.findMany({
+      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
+      select: { id: true, organizationId: true, credentials: true },
+    });
+
+    const connection = connections.find((c) => {
+      const creds = c.credentials as any;
+      return creds?.mlUserId === mlUserId;
+    });
+
+    if (!connection) {
+      console.error(
+        `[ML Processor] No active ML connection match para user_id=${mlUserId}. Notification descartada (posiblemente de una org que se desconectó).`
+      );
+      return;
+    }
+
     const orgId = connection.organizationId;
+    const { token } = await getSellerToken(orgId);
 
     // Dispatch to topic handler
     switch (topic) {

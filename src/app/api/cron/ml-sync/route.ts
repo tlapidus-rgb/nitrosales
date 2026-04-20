@@ -47,16 +47,28 @@ export async function GET(req: NextRequest) {
   const log: string[] = [];
 
   try {
-    const { token, mlUserId } = await getSellerToken();
-    log.push(`Token OK for user ${mlUserId}`);
-
-    const connection = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any },
+    // Multi-tenant safe: iterar TODAS las orgs con ML activo.
+    // TODO (post Arredo): paralelizar si hay >5 orgs con ML.
+    const mlConnections = await prisma.connection.findMany({
+      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
+      select: { id: true, organizationId: true },
     });
-    if (!connection) {
-      return NextResponse.json({ error: "No ML connection" }, { status: 404 });
+
+    if (mlConnections.length === 0) {
+      return NextResponse.json({ error: "No active ML connections" }, { status: 404 });
     }
-    const orgId = connection.organizationId;
+
+    if (mlConnections.length > 1) {
+      log.push(`[multi-tenant] Procesando ${mlConnections.length} orgs con ML activo`);
+    }
+
+    // Por ahora procesamos la primera (compatible con setup actual de 1 tenant).
+    // Cuando entre Arredo, cambiar a loop paralelo.
+    const primaryConn = mlConnections[0];
+    const orgId = primaryConn.organizationId;
+
+    const { token, mlUserId } = await getSellerToken(orgId);
+    log.push(`Token OK for org ${orgId} user ${mlUserId}`);
 
     // ── 1. Sync recent orders from ML API (last 48h) ─────────
     // This is the PRIMARY safety net — catches any orders the
@@ -296,7 +308,7 @@ export async function GET(req: NextRequest) {
 
     // ── Update connection ─────────────────────────────────────
     await prisma.connection.update({
-      where: { id: connection.id },
+      where: { id: primaryConn.id },
       data: { lastSyncAt: new Date() },
     });
 

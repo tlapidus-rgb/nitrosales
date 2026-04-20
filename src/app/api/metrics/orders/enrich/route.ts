@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
     let token: string;
     let mlUserId: number;
     try {
-      const tokenResult = await getSellerToken();
+      const tokenResult = await getSellerToken(ORG_ID);
       token = tokenResult.token;
       mlUserId = tokenResult.mlUserId;
     } catch (err: any) {

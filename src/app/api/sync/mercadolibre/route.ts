@@ -26,16 +26,17 @@ export async function GET(req: NextRequest) {
   const errors: string[] = [];
 
   try {
-    // ── Step 0: Get valid token ──────────────────────────────
-    const { token, mlUserId } = await getSellerToken();
-    log.push(`Token OK for user ${mlUserId}`);
-
-    // Get org ID
+    // ── Step 0: Resolve org (multi-tenant safe) ──────────────
+    // TODO post-Arredo: aceptar ?orgId= en query para sync selectivo.
     const connection = await prisma.connection.findFirst({
-      where: { platform: "MERCADOLIBRE" as any },
+      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
+      select: { id: true, organizationId: true },
     });
-    if (!connection) throw new Error("No ML connection");
+    if (!connection) throw new Error("No active ML connection");
     const orgId = connection.organizationId;
+
+    const { token, mlUserId } = await getSellerToken(orgId);
+    log.push(`Token OK for org ${orgId} user ${mlUserId}`);
 
     // ── Step 1: Sync Listings ────────────────────────────────
     try {

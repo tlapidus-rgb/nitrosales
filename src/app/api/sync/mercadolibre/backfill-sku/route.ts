@@ -42,7 +42,15 @@ export async function GET(req: NextRequest) {
   const dry = searchParams.get("dry") === "1";
 
   try {
-    const { token } = await getSellerToken();
+    // Multi-tenant safe: resolver orgId activa antes de pedir token
+    const conn = await prisma.connection.findFirst({
+      where: { platform: "MERCADOLIBRE" as any, status: "ACTIVE" as any },
+      select: { organizationId: true },
+    });
+    if (!conn) {
+      return NextResponse.json({ error: "No active ML connection" }, { status: 404 });
+    }
+    const { token } = await getSellerToken(conn.organizationId);
 
     // Buscar productos MELI que necesitan backfill
     const candidates: Array<{

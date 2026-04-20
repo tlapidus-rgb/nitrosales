@@ -32,14 +32,24 @@ interface MLStoredCredentials {
 /**
  * Get a valid ML access token for seller-scoped operations.
  * Auto-refreshes using refresh_token if expired, and persists new tokens to DB.
+ *
+ * orgId es OBLIGATORIO para multi-tenant safety. Si lo omitís, throw.
+ * Cambio Sesión 52 Fase 12: antes hacía findFirst sin orgId (bug CRITICAL
+ * cuando hay múltiples orgs con ML conectado).
  */
-export async function getSellerToken(): Promise<{ token: string; mlUserId: number }> {
+export async function getSellerToken(
+  orgId: string
+): Promise<{ token: string; mlUserId: number }> {
+  if (!orgId) {
+    throw new Error("getSellerToken: orgId es obligatorio (multi-tenant safety)");
+  }
+
   const connection = await prisma.connection.findFirst({
-    where: { platform: "MERCADOLIBRE" as any },
+    where: { platform: "MERCADOLIBRE" as any, organizationId: orgId },
   });
 
   if (!connection) {
-    throw new Error("No MercadoLibre connection found");
+    throw new Error(`No MercadoLibre connection found for org ${orgId}`);
   }
 
   const creds = connection.credentials as unknown as MLStoredCredentials;
