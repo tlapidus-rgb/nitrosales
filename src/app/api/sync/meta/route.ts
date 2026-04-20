@@ -37,11 +37,18 @@ export async function GET(req: Request) {
 
   let stoppedEarly = false;
 
-  const metaToken = process.env.META_ADS_ACCESS_TOKEN || "";
-  const metaAdAccount = process.env.META_ADS_AD_ACCOUNT_ID || "";
+  // Multi-tenant: leer credentials de Meta Ads desde Connection de la org
+  // (NO fallback a env vars — evita mezclar credentials entre orgs)
+  const metaConn = await prisma.connection.findFirst({
+    where: { organizationId: org.id, platform: "META_ADS" as any, status: "ACTIVE" as any },
+    select: { credentials: true },
+  });
+  const metaCreds = (metaConn?.credentials as any) || {};
+  const metaToken = metaCreds.accessToken || metaCreds.access_token || "";
+  const metaAdAccount = metaCreds.adAccountId || metaCreds.ad_account_id || "";
 
   if (!metaToken || !metaAdAccount) {
-    return NextResponse.json({ error: "Missing Meta credentials" });
+    return NextResponse.json({ error: "Missing Meta credentials — conectar Meta Ads en /settings/integraciones" }, { status: 400 });
   }
 
   const now = new Date();

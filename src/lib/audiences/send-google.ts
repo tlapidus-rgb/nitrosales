@@ -69,9 +69,8 @@ async function resolveGoogleAdsCredentials(organizationId: string): Promise<{
     loginCustomerId = creds.loginCustomerId || creds.login_customer_id;
   }
 
-  // Fallback to env vars
-  accessToken = accessToken || process.env.GOOGLE_ADS_ACCESS_TOKEN;
-  customerId = customerId || process.env.GOOGLE_ADS_CUSTOMER_ID;
+  // Multi-tenant: accessToken + customerId son per-org (Connection table only).
+  // developerToken es a nivel APP de NitroSales (compartido entre orgs) — OK fallback env.
   developerToken = developerToken || process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
 
   if (!accessToken || !customerId || !developerToken) return null;

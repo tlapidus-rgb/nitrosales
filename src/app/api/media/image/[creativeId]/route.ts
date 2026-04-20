@@ -36,12 +36,11 @@ interface MetaImageResult {
   debug: any;
 }
 
-async function resolveMetaImage(externalAdId: string): Promise<MetaImageResult> {
-  const adsToken = process.env.META_ADS_ACCESS_TOKEN || "";
+async function resolveMetaImage(externalAdId: string, adsToken: string): Promise<MetaImageResult> {
   const debug: any = { externalAdId, steps: [] };
 
   if (!adsToken) {
-    return { imageUrl: null, isDynamic: false, permalinkUrl: null, error: "Falta META_ADS_ACCESS_TOKEN", debug };
+    return { imageUrl: null, isDynamic: false, permalinkUrl: null, error: "Org sin Meta Ads conectado", debug };
   }
 
   try {
@@ -139,7 +138,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
 
   const creative = await prisma.adCreative.findUnique({
     where: { id: creativeId },
-    select: { id: true, externalId: true, platform: true, type: true, mediaUrls: true },
+    select: { id: true, externalId: true, platform: true, type: true, mediaUrls: true, organizationId: true },
   });
 
   if (!creative) {
@@ -147,7 +146,15 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
   }
 
   if (creative.platform === "META") {
-    const result = await resolveMetaImage(creative.externalId);
+    // Multi-tenant: resolver Meta Ads access token desde Connection de la org del creative
+    const metaConn = await prisma.connection.findFirst({
+      where: { organizationId: creative.organizationId, platform: "META_ADS" as any, status: "ACTIVE" as any },
+      select: { credentials: true },
+    });
+    const metaCreds = (metaConn?.credentials as any) || {};
+    const adsToken = metaCreds.accessToken || metaCreds.access_token || "";
+
+    const result = await resolveMetaImage(creative.externalId, adsToken);
     return NextResponse.json({
       source: "meta",
       imageUrl: result.imageUrl || creative.mediaUrls?.[0] || null,

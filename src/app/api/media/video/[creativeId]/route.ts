@@ -38,16 +38,15 @@ interface MetaResolveResult {
   debug: any;
 }
 
-async function resolveMetaVideo(externalAdId: string): Promise<MetaResolveResult> {
-  // Token para metadata del ad (ads_read alcanza)
-  const adsToken = process.env.META_ADS_ACCESS_TOKEN || "";
+async function resolveMetaVideo(externalAdId: string, adsToken: string): Promise<MetaResolveResult> {
   // Token de System User con Page asignada → unico que puede leer video.source.
-  // Si no esta seteado, caemos al ads token (va a fallar con #10 igual que antes).
+  // Si no esta seteado en env, caemos al ads token (va a fallar con #10 igual que antes).
+  // META_PAGE_ACCESS_TOKEN queda a nivel app (page compartida entre orgs en practica).
   const pageToken = process.env.META_PAGE_ACCESS_TOKEN || adsToken;
   const debug: any = { externalAdId, steps: [], hasPageToken: !!process.env.META_PAGE_ACCESS_TOKEN };
 
   if (!adsToken) {
-    return { videoUrl: null, posterUrl: null, videoId: null, permalinkUrl: null, error: "Falta META_ADS_ACCESS_TOKEN", debug };
+    return { videoUrl: null, posterUrl: null, videoId: null, permalinkUrl: null, error: "Org sin Meta Ads conectado", debug };
   }
 
   // ── Step 1: ad → adcreatives → video_id + image_url + thumbnail_url + permalink fallback
@@ -173,7 +172,7 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
 
   const creative = await prisma.adCreative.findUnique({
     where: { id: creativeId },
-    select: { id: true, externalId: true, platform: true, type: true, mediaUrls: true },
+    select: { id: true, externalId: true, platform: true, type: true, mediaUrls: true, organizationId: true },
   });
 
   if (!creative) {
@@ -182,7 +181,15 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
 
   // META: pedir source on-demand
   if (creative.platform === "META") {
-    const result = await resolveMetaVideo(creative.externalId);
+    // Multi-tenant: resolver access token desde Connection de la org del creative
+    const metaConn = await prisma.connection.findFirst({
+      where: { organizationId: creative.organizationId, platform: "META_ADS" as any, status: "ACTIVE" as any },
+      select: { credentials: true },
+    });
+    const metaCreds = (metaConn?.credentials as any) || {};
+    const adsToken = metaCreds.accessToken || metaCreds.access_token || "";
+
+    const result = await resolveMetaVideo(creative.externalId, adsToken);
     return NextResponse.json({
       source: "meta",
       videoUrl: result.videoUrl,

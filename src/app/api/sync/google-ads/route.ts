@@ -9,14 +9,23 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Google Ads OAuth: get access token from refresh token ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
-async function getAccessToken(): Promise<string> {
+// Multi-tenant: refresh_token, customerId y loginCustomerId se pasan como args
+// (desde Connection table de la org). client_id/client_secret/developer_token
+// son a nivel APP NitroSales (OK env).
+interface GoogleAdsCreds {
+  refreshToken: string;
+  customerId: string;
+  loginCustomerId?: string;
+}
+
+async function getAccessToken(refreshToken: string): Promise<string> {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: process.env.GOOGLE_ADS_CLIENT_ID || "",
       client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET || "",
-      refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN || "",
+      refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
   });
@@ -31,16 +40,17 @@ async function getAccessToken(): Promise<string> {
 }
 
 // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Execute GAQL query via searchStream ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
-async function queryGoogleAds(accessToken: string, gaql: string): Promise<any[]> {
-  const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID || "").replace(/-/g, "");
+async function queryGoogleAds(accessToken: string, gaql: string, creds: GoogleAdsCreds): Promise<any[]> {
+  const customerId = creds.customerId.replace(/-/g, "");
   const url = `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`;
+  const loginCustomerId = (creds.loginCustomerId || "").replace(/-/g, "");
 
   const response = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "developer-token": process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "",
-      "login-customer-id": (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "").replace(/-/g, ""),
+      ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {}),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ query: gaql }),
@@ -76,20 +86,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Validate env vars
-    const required = [
-      "GOOGLE_ADS_CLIENT_ID",
-      "GOOGLE_ADS_CLIENT_SECRET",
-      "GOOGLE_ADS_REFRESH_TOKEN",
-      "GOOGLE_ADS_DEVELOPER_TOKEN",
-      "GOOGLE_ADS_CUSTOMER_ID",
-    ];
-    const missing = required.filter((k) => !process.env[k]);
-    if (missing.length > 0) {
-      return NextResponse.json({
-        status: "skipped",
-        reason: `Missing env vars: ${missing.join(", ")}`,
-      });
+    // Validar env vars APP-level (client/secret/developer_token son compartidos entre orgs)
+    const appRequired = ["GOOGLE_ADS_CLIENT_ID", "GOOGLE_ADS_CLIENT_SECRET", "GOOGLE_ADS_DEVELOPER_TOKEN"];
+    const missingApp = appRequired.filter((k) => !process.env[k]);
+    if (missingApp.length > 0) {
+      return NextResponse.json({ status: "skipped", reason: `Missing APP env vars: ${missingApp.join(", ")}` });
     }
 
     // Multi-tenant: si viene organizationId, usar esa
@@ -109,6 +110,24 @@ export async function GET(req: Request) {
       org = await getOrganization();
     }
 
+    // Multi-tenant: resolver Google Ads credentials desde Connection de la org
+    const gaConn = await prisma.connection.findFirst({
+      where: { organizationId: org.id, platform: "GOOGLE_ADS" as any, status: "ACTIVE" as any },
+      select: { credentials: true },
+    });
+    const gaCredsRaw = (gaConn?.credentials as any) || {};
+    const orgCreds: GoogleAdsCreds = {
+      refreshToken: gaCredsRaw.refreshToken || gaCredsRaw.refresh_token || "",
+      customerId: gaCredsRaw.customerId || gaCredsRaw.customer_id || "",
+      loginCustomerId: gaCredsRaw.loginCustomerId || gaCredsRaw.login_customer_id || undefined,
+    };
+    if (!orgCreds.refreshToken || !orgCreds.customerId) {
+      return NextResponse.json(
+        { status: "skipped", reason: "Missing Google Ads credentials for org — conectar en /settings/integraciones" },
+        { status: 400 }
+      );
+    }
+
     // Step 0: Self-heal schema (idempotente; no-op si ya existe)
     try {
       await prisma.$executeRawUnsafe(
@@ -119,7 +138,7 @@ export async function GET(req: Request) {
     }
 
     // Step 1: Get access token
-    const accessToken = await getAccessToken();
+    const accessToken = await getAccessToken(orgCreds.refreshToken);
 
     // Step 2: Fetch campaigns
     const campaignResults = await queryGoogleAds(
@@ -132,7 +151,7 @@ export async function GET(req: Request) {
       FROM campaign
       WHERE campaign.status != 'REMOVED'
       ORDER BY campaign.name`
-    );
+    , orgCreds);
 
     // Step 3: Upsert campaigns into DB
     const campaignMap: Record<string, string> = {}; // externalId ÃÂ¢ÃÂÃÂ dbId
@@ -187,7 +206,7 @@ export async function GET(req: Request) {
       FROM campaign
       WHERE segments.date BETWEEN '${formatDate(startDate)}' AND '${formatDate(endDate)}'
         AND campaign.status != 'REMOVED'`
-    );
+    , orgCreds);
 
     // Step 5: Upsert daily metrics
     let metricsUpserted = 0;
@@ -271,7 +290,7 @@ export async function GET(req: Request) {
         FROM ad_group
         WHERE ad_group.status != 'REMOVED'
           AND campaign.status != 'REMOVED'`
-      );
+      , orgCreds);
 
       for (const row of adGroupResults) {
         const ag = row.adGroup;
@@ -323,7 +342,7 @@ export async function GET(req: Request) {
         WHERE segments.date BETWEEN '${formatDate(startDate)}' AND '${formatDate(endDate)}'
           AND ad_group.status != 'REMOVED'
           AND campaign.status != 'REMOVED'`
-      );
+      , orgCreds);
 
       for (const row of agMetricResults) {
         try {
@@ -394,7 +413,7 @@ export async function GET(req: Request) {
           AND ad_group_criterion.status != 'REMOVED'
           AND ad_group.status != 'REMOVED'
           AND campaign.status != 'REMOVED'`
-      );
+      , orgCreds);
       // Agregamos por ad_group + keyword text para sumar métricas
       const agg: Record<string, Record<string, any>> = {};
       for (const row of keywordResults) {
@@ -447,7 +466,7 @@ export async function GET(req: Request) {
         FROM ad_group_ad
         WHERE ad_group_ad.status != 'REMOVED'
           AND campaign.status != 'REMOVED'`
-      );
+      , orgCreds);
 
       for (const row of adResults) {
         const ad = row.adGroupAd?.ad;
@@ -539,7 +558,7 @@ export async function GET(req: Request) {
         WHERE segments.date BETWEEN '${formatDate(startDate)}' AND '${formatDate(endDate)}'
           AND ad_group_ad.status != 'REMOVED'
           AND campaign.status != 'REMOVED'`
-      );
+      , orgCreds);
 
       for (const row of adMetricResults) {
         try {

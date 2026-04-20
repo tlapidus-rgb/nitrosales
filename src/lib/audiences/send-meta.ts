@@ -49,9 +49,9 @@ async function resolveMetaAdsCredentials(organizationId: string): Promise<{
     accessToken = creds.accessToken || creds.access_token;
   }
 
-  // Fallback to env vars
-  adAccountId = adAccountId || process.env.META_AD_ACCOUNT_ID;
-  accessToken = accessToken || process.env.META_ADS_ACCESS_TOKEN;
+  // Multi-tenant: NO fallback env vars (META_AD_ACCOUNT_ID / META_ADS_ACCESS_TOKEN)
+  // Solo se usan las credentials de la Connection de la org. Si la org no tiene
+  // Meta Ads conectado, retorna null y el sync se skipea.
 
   if (!adAccountId || !accessToken) return null;
   return { adAccountId, accessToken };

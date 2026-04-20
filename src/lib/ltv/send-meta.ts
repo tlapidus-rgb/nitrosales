@@ -49,6 +49,7 @@ async function resolveMetaCredentials(
     select: { credentials: true },
   });
 
+  // Multi-tenant: credentials EXCLUSIVAMENTE desde Connection table (no env fallback)
   let pixelId: string | undefined;
   let accessToken: string | undefined;
 
@@ -56,11 +57,6 @@ async function resolveMetaCredentials(
     const creds = connection.credentials as Record<string, string>;
     pixelId = creds.pixelId || creds.pixel_id;
     accessToken = creds.accessToken || creds.access_token;
-  }
-
-  if (!pixelId || !accessToken) {
-    pixelId = pixelId || process.env.META_PIXEL_ID;
-    accessToken = accessToken || process.env.META_ADS_ACCESS_TOKEN;
   }
 
   if (!pixelId || !accessToken) return null;
