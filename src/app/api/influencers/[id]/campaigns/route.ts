@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
+import { getStoreUrl } from "@/lib/org-store-url";
 
 export const revalidate = 0;
 
@@ -86,8 +87,8 @@ export async function POST(
       },
     });
 
-    // Build tracking link with campaign
-    const baseUrl = process.env.STORE_URL || "";
+    // Build tracking link with campaign (multi-tenant)
+    const baseUrl = await getStoreUrl(org.id);
     const campaignSlug = body.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")

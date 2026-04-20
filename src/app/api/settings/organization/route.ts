@@ -65,6 +65,7 @@ export async function GET() {
     }
     const settings = (org.settings as Record<string, unknown>) || {};
     const whiteLabel = (settings.whiteLabel as WhiteLabel) || {};
+    const storeUrl = typeof settings.storeUrl === "string" ? settings.storeUrl : null;
 
     return NextResponse.json({
       id: org.id,
@@ -72,6 +73,7 @@ export async function GET() {
       slug: org.slug,
       plan: org.plan,
       createdAt: org.createdAt,
+      storeUrl,
       whiteLabel: {
         logoUrl: whiteLabel.logoUrl ?? null,
         primaryColor: whiteLabel.primaryColor ?? null,
@@ -134,6 +136,29 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "timezone invalido" }, { status: 400 });
     }
 
+    // storeUrl: URL pública de la tienda del cliente (multi-tenant)
+    // Usado para generar tracking links de influencers. Cada org la suya.
+    let storeUrlClean: string | null | undefined = undefined;
+    if (body.storeUrl !== undefined) {
+      if (body.storeUrl === null || body.storeUrl === "") {
+        storeUrlClean = null;
+      } else if (typeof body.storeUrl !== "string") {
+        return NextResponse.json({ error: "storeUrl debe ser string" }, { status: 400 });
+      } else {
+        const trimmed = body.storeUrl.trim().replace(/\/+$/, "");
+        if (!/^https?:\/\/.+\..+/.test(trimmed)) {
+          return NextResponse.json(
+            { error: "storeUrl debe ser una URL válida (ej https://mitienda.com)" },
+            { status: 400 }
+          );
+        }
+        if (trimmed.length > 200) {
+          return NextResponse.json({ error: "storeUrl demasiado larga" }, { status: 400 });
+        }
+        storeUrlClean = trimmed;
+      }
+    }
+
     // Fetch existing settings para merge
     const existing = await prisma.organization.findUnique({
       where: { id: orgId },
@@ -151,12 +176,20 @@ export async function PUT(req: NextRequest) {
       ...(wl.domain !== undefined ? { domain: wl.domain } : {}),
     };
 
-    const updateData: any = {
-      settings: {
-        ...currentSettings,
-        whiteLabel: nextWhiteLabel,
-      },
+    const nextSettings: Record<string, unknown> = {
+      ...currentSettings,
+      whiteLabel: nextWhiteLabel,
     };
+    // Solo sobrescribo storeUrl si venía explícito en el body
+    if (storeUrlClean !== undefined) {
+      if (storeUrlClean === null) {
+        delete nextSettings.storeUrl;
+      } else {
+        nextSettings.storeUrl = storeUrlClean;
+      }
+    }
+
+    const updateData: any = { settings: nextSettings };
     if (body.name != null) updateData.name = body.name;
     if (body.slug != null) updateData.slug = body.slug;
 
@@ -166,6 +199,11 @@ export async function PUT(req: NextRequest) {
       select: { id: true, name: true, slug: true, plan: true, settings: true },
     });
 
+    const finalStoreUrl =
+      typeof (updated.settings as any)?.storeUrl === "string"
+        ? (updated.settings as any).storeUrl
+        : null;
+
     return NextResponse.json({
       ok: true,
       organization: {
@@ -173,6 +211,7 @@ export async function PUT(req: NextRequest) {
         name: updated.name,
         slug: updated.slug,
         plan: updated.plan,
+        storeUrl: finalStoreUrl,
         whiteLabel: nextWhiteLabel,
       },
     });

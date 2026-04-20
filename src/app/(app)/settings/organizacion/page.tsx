@@ -27,6 +27,8 @@ import {
   Upload,
   Check,
   X,
+  Copy,
+  Link2,
 } from "lucide-react";
 
 const ES = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -60,6 +62,7 @@ interface OrgData {
   slug: string;
   plan: string;
   createdAt: string;
+  storeUrl: string | null;
   whiteLabel: {
     logoUrl: string | null;
     primaryColor: string | null;
@@ -77,6 +80,8 @@ export default function OrganizacionPage() {
 
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [storeUrl, setStoreUrl] = useState<string>("");
+  const [copiedOrgId, setCopiedOrgId] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [primaryColor, setPrimaryColor] = useState<string>("#0ea5e9");
   const [industry, setIndustry] = useState<string>("");
@@ -92,6 +97,7 @@ export default function OrganizacionPage() {
       setData(json);
       setName(json.name);
       setSlug(json.slug);
+      setStoreUrl(json.storeUrl ?? "");
       setLogoUrl(json.whiteLabel.logoUrl ?? null);
       setPrimaryColor(json.whiteLabel.primaryColor ?? "#0ea5e9");
       setIndustry(json.whiteLabel.industry ?? "");
@@ -132,10 +138,15 @@ export default function OrganizacionPage() {
   const saveBasic = async () => {
     setSaving(true);
     try {
+      const trimmedStoreUrl = storeUrl.trim();
+      const payload: any = { name, slug };
+      // storeUrl: "" significa "borrar" (null), valor significa "guardar"
+      payload.storeUrl = trimmedStoreUrl === "" ? null : trimmedStoreUrl;
+
       const res = await fetch("/api/settings/organization", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, slug }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
@@ -145,6 +156,17 @@ export default function OrganizacionPage() {
       showToast(e.message || "Error guardando", "err");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const copyOrgId = async () => {
+    if (!data?.id) return;
+    try {
+      await navigator.clipboard.writeText(data.id);
+      setCopiedOrgId(true);
+      setTimeout(() => setCopiedOrgId(false), 2000);
+    } catch {
+      showToast("No se pudo copiar el ID", "err");
     }
   };
 
@@ -177,8 +199,9 @@ export default function OrganizacionPage() {
 
   const basicDirty = useMemo(() => {
     if (!data) return false;
-    return name !== data.name || slug !== data.slug;
-  }, [data, name, slug]);
+    const currentStoreUrl = data.storeUrl ?? "";
+    return name !== data.name || slug !== data.slug || storeUrl.trim() !== currentStoreUrl;
+  }, [data, name, slug, storeUrl]);
 
   const whiteLabelDirty = useMemo(() => {
     if (!data) return false;
@@ -239,6 +262,58 @@ export default function OrganizacionPage() {
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
                 placeholder="arredo"
               />
+            </div>
+          </FormField>
+        </div>
+
+        <div className="mt-4">
+          <FormField
+            label={
+              <span className="inline-flex items-center gap-1.5">
+                <Link2 className="h-3.5 w-3.5 text-slate-400" />
+                URL de tu tienda
+              </span>
+            }
+            hint="Dominio público donde compran tus clientes. Se usa para armar los links de tracking de influencers y creadores."
+          >
+            <input
+              type="url"
+              value={storeUrl}
+              onChange={(e) => setStoreUrl(e.target.value)}
+              maxLength={200}
+              className="w-full max-w-xl rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+              placeholder="https://mitienda.com"
+            />
+          </FormField>
+        </div>
+
+        <div className="mt-4">
+          <FormField
+            label="Organization ID"
+            hint="Identificador único de tu organización. Útil para soporte técnico y configuraciones avanzadas."
+          >
+            <div className="flex items-center gap-2">
+              <code className="flex-1 max-w-xl truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[12px] text-slate-600">
+                {data?.id ?? "—"}
+              </code>
+              <button
+                type="button"
+                onClick={copyOrgId}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                style={{ transition: `all 160ms ${ES}` }}
+              >
+                {copiedOrgId ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                    Copiado
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" />
+                    Copiar
+                  </>
+                )}
+              </button>
             </div>
           </FormField>
         </div>

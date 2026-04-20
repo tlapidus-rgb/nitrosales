@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { Prisma } from "@prisma/client";
 import { createHash } from "crypto";
+import { getStoreUrl } from "@/lib/org-store-url";
 
 function hashPassword(password: string): string {
   return createHash("sha256").update(password).digest("hex");
@@ -345,8 +346,8 @@ export async function GET(
       `);
     }
 
-    // Build tracking URL for the influencer
-    const storeUrl = process.env.STORE_URL || "";
+    // Build tracking URL for the influencer (multi-tenant: org-scoped store URL)
+    const storeUrl = await getStoreUrl(org.id);
     const trackingUrl = `${storeUrl.replace(/\/$/, "")}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
 
     const response = {

@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
+import { getStoreUrl } from "@/lib/org-store-url";
 
 export async function GET(
   req: NextRequest,
@@ -27,7 +28,7 @@ export async function GET(
       return NextResponse.json({ error: "Influencer not found" }, { status: 404 });
     }
 
-    const baseUrl = customUrl || process.env.STORE_URL || "";
+    const baseUrl = customUrl || (await getStoreUrl(org.id));
     let trackingLink = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}utm_source=inf_${influencer.code}&utm_medium=influencer`;
 
     // Add campaign if specified

@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
 import { createHash } from "crypto";
+import { getStoreUrl } from "@/lib/org-store-url";
 
 function hashPassword(password: string): string {
   return createHash("sha256").update(password).digest("hex");
@@ -52,8 +53,8 @@ export async function GET(
       _count: { id: true },
     });
 
-    // Build tracking link
-    const baseUrl = process.env.STORE_URL || "";
+    // Build tracking link (multi-tenant: Organization.settings.storeUrl)
+    const baseUrl = await getStoreUrl(org.id);
     const trackingLink = `${baseUrl}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
 
     return NextResponse.json({

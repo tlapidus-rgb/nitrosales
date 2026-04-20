@@ -13,6 +13,7 @@ import { getOrganization } from "@/lib/auth-guard";
 import { sendEmail } from "@/lib/email/send";
 import { welcomeInfluencerEmail } from "@/lib/email/templates";
 import { createHash, randomBytes } from "crypto";
+import { getStoreUrl } from "@/lib/org-store-url";
 
 function generatePassword(): string {
   // 6 char alphanumeric, easy to type
@@ -117,8 +118,8 @@ export async function PUT(req: NextRequest) {
       data: { status: "APPROVED", reviewedAt: new Date(), notes: notes || null },
     });
 
-    // Build tracking link and dashboard link
-    const storeUrl = process.env.STORE_URL || "";
+    // Build tracking link and dashboard link (multi-tenant storeUrl)
+    const storeUrl = await getStoreUrl(org.id);
     const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
     const trackingLink = storeUrl ? `${storeUrl.replace(/\/$/, "")}/?utm_source=inf_${finalCode}&utm_medium=influencer` : `${appUrl}/?utm_source=inf_${finalCode}&utm_medium=influencer`;
     const dashboardLink = `${appUrl}/i/${org.slug}/${finalCode}`;

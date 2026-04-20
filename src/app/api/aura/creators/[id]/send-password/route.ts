@@ -67,13 +67,13 @@ export async function POST(
       });
     }
 
-    // Construir link del dashboard
+    // Construir link del dashboard (NitroSales app URL, NO la tienda del cliente)
+    // Multi-tenant: no usar STORE_URL ni hardcodear slug de MdJ
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.STORE_URL ||
+      process.env.NEXTAUTH_URL ||
       "https://nitrosales.vercel.app";
-    const orgSlug = org.slug || "elmundodeljuguete";
-    const dashboardLink = `${baseUrl}/i/${orgSlug}/${influencer.code}`;
+    const dashboardLink = `${baseUrl}/i/${org.slug}/${influencer.code}`;
 
     const subject = didRegenerate
       ? `Tu nueva contraseña para ${org.name}`

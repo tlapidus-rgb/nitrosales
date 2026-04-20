@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganization } from "@/lib/auth-guard";
 import { prisma } from "@/lib/db/client";
+import { getStoreUrl } from "@/lib/org-store-url";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -333,8 +334,8 @@ export async function GET(
     // por ahora (no hay campo en schema); el front muestra el botón solo si existe.
     const whatsapp: string | null = null;
 
-    // Links: tracking (al store) + dashboard público del creador (en la app)
-    const storeUrl = process.env.STORE_URL || "";
+    // Links: tracking (al store, multi-tenant) + dashboard público del creador (en la app)
+    const storeUrl = await getStoreUrl(org.id);
     const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
     const trackingLink = `${storeUrl}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
     const dashboardUrl = `${appUrl}/i/${org.slug}/${influencer.code}`;
