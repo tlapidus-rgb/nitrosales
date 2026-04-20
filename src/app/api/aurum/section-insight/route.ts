@@ -9,7 +9,10 @@ import { getSessionUserId } from "@/lib/alerts/get-user-id";
 export const dynamic = "force-dynamic";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MAX_TOOL_ROUNDS = 3;
+const MAX_TOOL_ROUNDS = 5;
+// 1500 (vs 600 original) deja margen para que Haiku pueda generar el mensaje
+// de confirmación después de ejecutar las alert tools sin cortarse por max_tokens.
+const MAX_TOKENS_WITH_TOOLS = 1500;
 
 /**
  * POST /api/aurum/section-insight
@@ -134,19 +137,21 @@ export async function POST(req: Request) {
           : question!.trim(),
     });
 
-    // Tool-use loop (max 3 rondas) — solo se ativa si Aurum llama a las
-    // ALERT_TOOLS (creación de reglas). En la mayoría de los casos
-    // (insight inicial / pregunta puntual sobre la tab) sale en la 1° ronda
-    // sin usar tools.
+    // Tool-use loop — solo se activa si Aurum llama a las ALERT_TOOLS
+    // (creación de reglas). En la mayoría de los casos (insight inicial /
+    // pregunta puntual sobre la tab) sale en la 1° ronda sin usar tools.
     let currentMessages = [...messages];
     let finalReply = "";
     let tokensIn = 0;
     let tokensOut = 0;
+    // Tracking del último tool exitoso para fallback inteligente si el modelo
+    // se queda sin tokens y no genera el mensaje de cierre.
+    let lastSuccessfulAlertTool: { name: string; resultText: string } | null = null;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const response = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 600,
+        max_tokens: MAX_TOKENS_WITH_TOOLS,
         system: systemPrompt,
         tools: ALERT_TOOLS,
         messages: currentMessages,
@@ -161,7 +166,7 @@ export async function POST(req: Request) {
 
       if (toolUseBlocks.length === 0) {
         const textBlock = response.content.find((b) => b.type === "text");
-        finalReply = textBlock && textBlock.type === "text" ? textBlock.text : "No pude generar una respuesta.";
+        finalReply = textBlock && textBlock.type === "text" ? textBlock.text : "";
         break;
       }
 
@@ -174,6 +179,10 @@ export async function POST(req: Request) {
               toolBlock.input,
               { orgId: org.id, userId: resolvedUserId }
             );
+            // Capturamos el último alert tool ejecutado con éxito para fallback
+            if (result.startsWith("OK ")) {
+              lastSuccessfulAlertTool = { name: toolBlock.name, resultText: result };
+            }
           } else {
             result = `ERROR: tool "${toolBlock.name}" no disponible en Aurum contextual. Acá solo podés usar las tools de creación de alertas.`;
           }
@@ -194,6 +203,21 @@ export async function POST(req: Request) {
           finalReply = textBlock.text;
           break;
         }
+      }
+    }
+
+    // Fallback inteligente: si Haiku se quedó sin tokens o sin rondas pero
+    // ejecutó con éxito una alert tool, generamos el reply nosotros para
+    // no mostrar "no pude generar respuesta" cuando en realidad la regla SÍ
+    // se creó (o el pedido SÍ se anotó en el backlog).
+    if (!finalReply && lastSuccessfulAlertTool) {
+      const last = lastSuccessfulAlertTool as { name: string; resultText: string };
+      if (last.name === "create_alert_rule") {
+        finalReply = "✓ Listo, regla creada. Ya está activa y va a evaluarse en el próximo ciclo. Podés verla y editarla en **/alertas/reglas**.";
+      } else if (last.name === "request_alert_primitive") {
+        finalReply = "✓ Lo anoté en el backlog. El equipo lo va a evaluar en próximas iteraciones para sumar esa primitiva al catálogo.";
+      } else {
+        finalReply = "✓ Tool ejecutada con éxito.";
       }
     }
 
