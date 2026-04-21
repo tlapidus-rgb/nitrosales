@@ -20,7 +20,7 @@ export async function sendEmail({ to, subject, html, from }: SendEmailParams): P
     return { ok: false, error: "RESEND_API_KEY not configured" };
   }
 
-  const sender = from || process.env.RESEND_FROM || "NitroSales <hola@nitrosales.ai>";
+  const sender = from || process.env.RESEND_FROM || "NitroSales <team@nitrosales.ai>";
   const recipients = Array.isArray(to) ? to : [to];
 
   try {
