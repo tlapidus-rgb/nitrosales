@@ -4,7 +4,100 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-20 — Sesión 53 (2 errores/patrones nuevos: VTEX tiene 2 mecanismos de webhooks (uno con UI y otro API-only), cambios en config de terceros en prod requieren checklist de 7+ puntos + dry-run).**
+> **Última actualización: 2026-04-21 — Sesión 54 (3 errores nuevos: overlay de onboarding solo miraba status enum sin chequear realidad, FROM email hardcoded con dominio equivocado, refactor grande sin confirmar plan).**
+
+---
+
+## Error #S54-OVERLAY-FALSIFIABLE — Confiar solo en un status enum para gating de UI sin chequear realidad
+
+**Cuándo pasó**: Sesión 54. El OnboardingOverlay del producto decidia si mostrar o no el bloqueo en base SOLO al campo `status` del `onboarding_request`. Durante testeo con `debug-flip-my-test`, flipeé a status ACTIVE y el cliente entró al producto sin haber hecho NADA del onboarding (sin connections, sin backfill). Tomy detectó el bug: "no te deberia habilitar el producto hasta no terminar completamente el onboarding".
+
+### Causa raíz
+- Asumí que el `status` del onboarding_request era la única fuente de verdad.
+- No considere que el status puede quedar inconsistente con la realidad por: bug, debug endpoint, edición manual en DB, migración mal hecha, race condition, etc.
+
+### Regla
+**Para gating crítico de UI (overlays bloqueantes, permisos, acceso a features pagas), NUNCA confiar en un solo status enum. Siempre chequear también la REALIDAD:**
+- ¿Hay los recursos que deberían estar si el status fuera correcto? (connections ACTIVE, jobs completados, data presente)
+- ¿Hay procesos en curso que deberían bloquear? (backfill jobs RUNNING/QUEUED, alerts pendientes)
+
+Si cualquier señal real contradice el status, **fallar cerrado** (mantener bloqueado), no abrir.
+
+### Ejemplo del fix
+```ts
+// MAL — solo mira status
+if (onboarding.status === "ACTIVE") return { locked: false };
+
+// BIEN — chequea realidad
+const hasActiveConnections = await count("connections", { orgId, status: "ACTIVE" }) > 0;
+const hasActiveBackfill = await count("backfill_jobs", { orgId, status: ["RUNNING", "QUEUED"] }) > 0;
+if (onboarding.status === "ACTIVE" && hasActiveConnections && !hasActiveBackfill) {
+  return { locked: false };
+}
+return { locked: true };
+```
+
+### Prevención
+- Al armar gating/overlays, siempre listar 2-3 señales REALES que deben coincidir con el status declarado.
+- Agregar `signals` al response del endpoint (diagnóstico) para poder debuggear facil por que esta bloqueado.
+
+---
+
+## Error #S54-FROM-HARDCODED — Email FROM hardcoded con dominio que no es del cliente
+
+**Cuándo pasó**: Sesión 54. El codigo tenia `NitroSales <alertas@nitrosales.com>` hardcodeado como default de `RESEND_FROM`, pero el dominio real de Tomy es `nitrosales.ai` (.ai, no .com). Resend aceptaba los emails via API (devolvia `ok:true` con un ID), pero Gmail los rechazaba silencioso por SPF/DKIM fail — el dominio no tenia registros DNS porque Tomy nunca fue dueño de nitrosales.com.
+
+Debug: endpoint de test reportaba OK pero emails no llegaban. Solo revisando el codigo encontramos el mismatch.
+
+### Causa raíz
+- Default hardcodeado sin verificar que el dominio existe y esta verificado en Resend.
+- Resend no falla loud cuando manda desde dominio no verificado — solo silenciosamente el email no entrega.
+- El debug inicial decia "todo OK" porque solo chequeaba el response de Resend, no la entrega efectiva.
+
+### Regla
+**Al configurar emails transaccionales en produccion, SIEMPRE:**
+1. Verificar el dominio del FROM en el provider (Resend, SendGrid, etc.) con SPF/DKIM configurados
+2. Confirmar que el dominio del FROM pertenece al cliente (no hardcodear dominios genericos)
+3. Testear entrega real (abrir Gmail y verificar que llega al inbox, no solo que la API devuelva OK)
+4. Considerar que providers como Gmail rechazan silencioso mails con DKIM fail — la API dice OK pero el mail nunca llega
+
+### Prevención
+- Agregar endpoint `/api/admin/debug-email-test` que testea envio real y deja claro el `resendFrom` que usa (ya implementado).
+- Documentar en README/onboarding docs: "antes de mandar emails a clientes, verificar dominio en Resend y configurar DNS".
+- Para nuevos clientes: usar un subdominio o dominio dedicado con SPF/DKIM desde el dia 1.
+
+---
+
+## Error #S54-REFACTOR-SIN-CONFIRMAR — Hacer refactor grande sin confirmar el plan con Tomy
+
+**Cuándo pasó**: Sesión 54. Tomy pidio un flow hibrido (form corto + wizard adentro del producto en `/setup`). Implemente el refactor completo en ~2 horas (pagina `/setup`, layout, endpoint, etc.). Cuando le mostre a Tomy, cambio de estrategia: no queria `/setup` como URL separada, queria overlay DENTRO del producto. Borre todo el codigo de `/setup`.
+
+No fue error en el codigo — fue error de proceso. 2 horas perdidas por no confirmar el plan antes.
+
+### Causa raíz
+- Interprete el pedido de Tomy como "implementa el flow hibrido" sin mostrar antes un mockup o diagrama de la experiencia.
+- Tomy estaba pensando el flow desde la perspectiva UX, no desde la implementacion tecnica — y la diferencia clave (URL separada vs overlay) no era obvia para el desde mi descripcion.
+
+### Regla
+**Para refactors grandes (>2 archivos nuevos o >200 LOC nuevos):**
+1. Describir el plan en 4-5 lineas ANTES de codear
+2. Incluir: "X va a pasar desde Y a Z", "URL va a ser W", "visual es A o B"
+3. Pedir "confirmame" explicito
+4. Si la descripcion es ambigua (ej: "wizard dentro del producto" puede ser URL separada O overlay), listar las 2-3 opciones y preguntar
+
+### Prevención
+Antes de codear refactor grande, mostrar algo asi:
+```
+Plan:
+1. Nueva ruta /setup (pagina full-screen con wizard)
+2. Form publico /onboarding se acorta a solo datos de contacto
+3. Cliente loguea y es redirigido a /setup si no completo
+4. Desde /setup sale al producto al terminar
+
+Confirmame que es esto o si preferis otra cosa (ej: overlay DENTRO del producto en la misma URL).
+```
+
+Si hubiera hecho esto, Tomy habria dicho "no, overlay en misma URL" en 2 minutos en vez de descubrirlo 2 horas despues.
 
 ---
 

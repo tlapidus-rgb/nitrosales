@@ -3,7 +3,104 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-20 (Sesion 53 — CIERRE 4 PENDIENTES PRE-ARREDO. Multi-tenant COMPLETO. MdJ 100% ready. Plataforma lista para onboardear Arredo.)
+## Ultima actualizacion: 2026-04-21 (Sesion 54 — Centro de Control + Backfill async + Flow de 2 aprobaciones con Overlay bloqueante. Email domain verified. Listo para test end-to-end mañana con credenciales reales de EMDJ.)
+
+### Sesion 54 — 2026-04-21 — Centro de Control, Backfill asincrono, Overlay bloqueante 2 aprobaciones
+
+**Resumen ejecutivo**: sesion larga, muchos cambios de direccion estrategicos. Empezamos armando Centro de Control (panel interno separado del producto), seguimos con sistema de backfill asincrono con rango elegible por cliente, y terminamos rehaciendo el flujo de onboarding 3 veces hasta llegar al modelo definitivo: form publico ultra-simple de postulacion → 2 aprobaciones humanas (cuenta + backfill) → Overlay bloqueante dentro del producto con wizard paso-a-paso.
+
+#### Commits a `main` relevantes de la sesion
+
+**Centro de Control (commits 1-2)**:
+- `b995bc1` control/commit-1: layout dark + 3 pantallas (Inicio/Clientes/Onboardings) + endpoints de salud
+- `aa533dc` control/commit-2: sistema de alertas por email (checks + cron cada 6h + template aurora)
+- `95230aa` fixes post-primera prueba: SQL 'createdAt ambiguous' + plataformas on-demand no alertan por staleness + endpoint debug-errors
+- `87f83f2` distinguir lastSyncError FRESCO de VIEJO (comparar vs lastSuccessfulSyncAt)
+- `fb72752` control A: sync routes legacy limpian lastSyncError al salir OK
+
+**Backfill asincrono (commit B)**:
+- `49d3815` control B/1: tabla backfill_jobs + enum BACKFILLING + columnas historyXxxMonths + job-manager + VTEX processor + cron runner cada 5min
+- `7295a95` control B/2: UI del rango historico en form + progreso en drawer admin
+
+**Refactor hibrido (commit C, después tirado por cambio de estrategia)**:
+- `4a5d0fb` control C/1: form publico corto (checkboxes en vez de credenciales)
+- `70b8da1` control C/2: wizard /setup dentro del producto (después borrado)
+- `6b3d029` control C/3+C/4: boton "Aprobar backfill" en drawer + borrar /setup
+
+**Flow definitivo de 2 aprobaciones (commit D)**:
+- `77e34b1` control D/1: 2 aprobaciones (cuenta + backfill) — form corto + activate solo crea cuenta + endpoint submit-wizard + endpoint approve-backfill
+- `a9557fa` control D/2: OnboardingOverlay full-screen bloqueante con 4 fases (wizard/validating/backfilling/done)
+
+**Form postulacion ultra-simple (commit E)**:
+- `0568d0e` control E: form de postulacion 1 pantalla 6 campos (empresa, nombre, email, telefono opcional, referralSource, notes) + copy nuevo "Postulate para usar NitroSales · La plataforma de operaciones mas robusta de LATAM" sin promesas de plazo
+- `012b937` endpoint /api/admin/debug-email-test para diagnosticar Resend
+
+**Fix emails (dominio verified)**:
+- `22861ee` endpoints admin para registrar y verificar dominio en Resend via API
+- `621a22a` fix Resend 403 "registered already"
+- `95f1184` FROM default cambiado a hola@nitrosales.ai (dominio verificado) — antes era alertas@nitrosales.com que NO es el dominio de Tomy
+- `2ebb0ce` FROM = team@nitrosales.ai (decision final)
+
+**Wizard refactor + fix critico**:
+- `cb35773` wizard paso-a-paso con tutoriales quirurgicos (rol exacto + permisos exactos para VTEX/ML/Meta Ads/Meta Pixel/Google Ads)
+- `499469f` endpoint debug-flip-onboarding para saltar entre fases sin reconectar
+- `51ae508` endpoint debug-flip-my-test (atajo 1-request)
+- `d133b3a` **FIX CRITICO**: overlay infalsificable — ahora requiere 3 condiciones REALES para desbloquear (status=ACTIVE + al menos 1 connection ACTIVE + cero backfill jobs RUNNING/QUEUED). Antes solo miraba status, que podia quedar mal por bug/debug y dejaba al cliente entrar al producto sin onboarding.
+
+#### Arquitectura final del flow de onboarding
+
+```
+1. Cliente entra a nitrosales.vercel.app/onboarding
+2. Form ultra-simple (6 campos, 1 pantalla) — SOLO datos de contacto + como nos conocio
+3. Email de confirmacion al cliente ("vamos a evaluar tu postulacion")
+4. Tomy ve en /control/onboardings con status "Pendiente aprobar cuenta"
+5. APROBACION 1: click "Aprobar cuenta (paso 1)" → crea Organization + User OWNER + manda email con credenciales de login (no crea Connections)
+6. Cliente loguea en nitrosales.vercel.app/ → ve OnboardingOverlay full-screen bloqueante encima del producto
+7. Fase WIZARD: wizard paso-a-paso, uno por plataforma seleccionada, con tutorial embebido expandido por default (rol "Owner (Admin Super)" para VTEX, permisos exactos ads_read/ads_management/business_management para Meta, etc.)
+8. Cliente completa wizard → POST /api/me/onboarding/submit-wizard → crea Connections PENDING con credenciales encriptadas + guarda historyXxxMonths
+9. Status onboarding → NEEDS_INFO. Email notificacion a Tomy.
+10. Fase VALIDATING: overlay cambia a card "estamos validando tus datos, 2-24hs habiles"
+11. Tomy ve drawer con boton "Aprobar backfill (paso 2)" + credenciales del cliente visibles para validar
+12. APROBACION 2: click → Connections pasan a ACTIVE (excepto OAuth pending) + crea backfill jobs + status BACKFILLING + email "arranco tu backfill"
+13. Fase BACKFILLING: overlay muestra progreso real por plataforma con barras y % en vivo
+14. Backfill runner (cron 5min) procesa chunks, al terminar el ultimo job: status ACTIVE + email "tu data esta lista"
+15. Fase DONE: overlay desaparece solo, producto desbloqueado (misma URL, sin redirects)
+```
+
+#### Infraestructura nueva
+
+- **Tabla `backfill_jobs`** con indices sobre status, org+platform, onboardingRequestId
+- **Enum `OnboardingStatus`**: agregado valor `BACKFILLING`
+- **Columnas nuevas en onboarding_requests**: historyVtexMonths/historyMlMonths/historyMetaMonths/historyGoogleMonths (default 12/12/6/6) + usesVtex/usesMl/usesMeta/usesMetaPixel/usesGoogle booleans + referralSource + notes. DROP NOT NULL en proposedSlug/storeUrl/timezone/currency (se completan adentro del producto ahora).
+- **Endpoints nuevos**: state (overlay decision), submit-wizard, approve-backfill, control clients-health, control client drill-down, control-alerts cron, backfill-runner cron, debug suite (email-test, resend-confirmation, flip-onboarding, flip-my-test, resend-add-domain, resend-verify-domain)
+- **Email infrastructure**: dominio nitrosales.ai verificado en Resend. FROM default = team@nitrosales.ai
+- **Componente OnboardingOverlay** (~850 lineas): wizard por pasos con tutoriales quirurgicos. Se inyecta en (app)/layout.tsx, auto-refresh cada 30s.
+
+#### Cambios de direccion estrategica
+
+1. **Inicialmente**: form largo con credenciales + 1 aprobacion
+2. **Cambio 1**: form hibrido (corto + wizard /setup separado) — implementado y rechazado porque "se sentia como otra plataforma"
+3. **Cambio 2 (definitivo)**: form ultra-simple + overlay bloqueante dentro del producto + 2 aprobaciones humanas
+
+**Leccion clave**: cuando Tomy pide cambio de estrategia, tirar codigo anterior es OK. Hicimos refactor wizard /setup completo y lo borramos 2 horas despues. Lo importante es llegar al flow correcto.
+
+#### Estado final sesion 54
+
+**Listo para test end-to-end mañana (sesion 55)**:
+- Form publico de postulacion live
+- 2 aprobaciones en /control/onboardings
+- OnboardingOverlay con wizard quirurgico
+- Backfill runner corriendo
+- Email domain verified
+- Overlay infalsificable (3 condiciones)
+
+**NO probado todavia (critico para sesion 55)**:
+- Wizard completo con credenciales reales
+- Backfill real corriendo con data de VTEX de EMDJ
+- Fase BACKFILLING con progreso real
+- Fase DONE con connections ACTIVE reales
+
+---
 
 ### Sesion 53 — 2026-04-20 — Cierre 4 pendientes pre-Arredo (BP-MT-001, 002, 003, OPS-001)
 

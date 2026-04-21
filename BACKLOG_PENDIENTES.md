@@ -8,7 +8,38 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-20 — Sesión 53 (cerrados 4 pendientes pre-Arredo).
+> **Última actualización**: 2026-04-21 — Sesión 54 (Centro de Control + Backfill async + 2 aprobaciones + Overlay bloqueante). Pendiente critico para 55: test end-to-end con credenciales reales de EMDJ.
+
+---
+
+## 🔴 Prioridad URGENTE — Sesión 55 (próxima)
+
+### BP-S55-001 — Test end-to-end del onboarding con credenciales REALES de EMDJ
+
+**Entró al backlog**: 2026-04-21 (Sesión 54)
+**Estado**: 📝 pendiente — arranca sesión 55
+**Contexto**: Armamos todo el flow de onboarding nuevo pero solo lo probamos con jobs fake via `debug-flip-my-test`. Nunca probamos con credenciales reales pasando data real al sistema.
+
+**Qué hay que hacer mañana (pedido explicito de Tomy)**:
+1. Tomy logueado como `tomylapidus1999@gmail.com` (user de prueba de la postulación que creó en S54)
+2. Completar el wizard del overlay pegando las credenciales REALES de VTEX de EMDJ (accountName, appKey, appToken)
+3. Elegir rango chico (3 o 6 meses) para que el backfill termine rápido
+4. Enviar wizard → ver fase `validating`
+5. Cambiar a sesión Owner → `/control/onboardings` → click "Aprobar backfill"
+6. Volver a sesión prueba → ver fase `backfilling` con progreso REAL
+7. Esperar que termine (minutos a horas dependiendo del rango)
+8. Confirmar que el overlay desaparece solo cuando el backfill termina
+9. **Probar las credenciales de EMDJ en la nueva cuenta a ver cómo pasa la data** (textual de Tomy al cerrar la sesion 54)
+
+**Importante**: con el fix S54 del overlay infalsificable, ahora necesitamos connections ACTIVE de verdad para desbloquear. El test real es la única forma de validar que todo funciona end-to-end.
+
+**Pregunta pendiente para responder durante el test**: ¿qué tan rápido carga realmente el backfill con data real? ¿El ETA que mostramos en el selector ("~30 min para 6 meses") es realista?
+
+**Estado actual para arrancar**:
+- Form `/onboarding` live
+- Postulación de tomylapidus1999@gmail.com ya aprobada (status = IN_PROGRESS después del fix de overlay)
+- Overlay mostrando fase `wizard` al loguear como user de prueba
+- Todo listo para pegar credenciales REALES
 
 ---
 
