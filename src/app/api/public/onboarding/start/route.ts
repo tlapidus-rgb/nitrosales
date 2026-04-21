@@ -167,6 +167,21 @@ export async function POST(req: NextRequest) {
       ? String(body.googleAdsCustomerId).trim().slice(0, 40)
       : null;
 
+    // History range por plataforma (meses). Valores validos: 0,3,6,12,24,36,-1
+    // -1 representa "todo lo disponible" (lo traducimos a 120 meses = 10 años).
+    const parseHistoryMonths = (v: any, defaultMonths: number): number => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return defaultMonths;
+      if (n === -1) return 120;
+      if (n < 0) return defaultMonths;
+      if (n > 120) return 120;
+      return Math.round(n);
+    };
+    const historyVtexMonths = parseHistoryMonths(body.historyVtexMonths, 12);
+    const historyMlMonths = parseHistoryMonths(body.historyMlMonths, 12);
+    const historyMetaMonths = parseHistoryMonths(body.historyMetaMonths, 6);
+    const historyGoogleMonths = parseHistoryMonths(body.historyGoogleMonths, 6);
+
     // Generar IDs
     const id = randomUUID();
     const token = randomBytes(24).toString("hex"); // 48 chars
@@ -183,6 +198,7 @@ export async function POST(req: NextRequest) {
         "metaAdAccountId", "metaAccessTokenEncrypted",
         "metaPixelId", "metaPixelTokenEncrypted",
         "googleAdsCustomerId",
+        "historyVtexMonths", "historyMlMonths", "historyMetaMonths", "historyGoogleMonths",
         "progressStage", "createdAt", "updatedAt"
       ) VALUES (
         $1, 'PENDING', $2,
@@ -194,6 +210,7 @@ export async function POST(req: NextRequest) {
         $19, $20,
         $21, $22,
         $23,
+        $24, $25, $26, $27,
         'received', NOW(), NOW()
       )`,
       id,
@@ -218,7 +235,11 @@ export async function POST(req: NextRequest) {
       metaAccessTokenEncrypted,
       metaPixelId,
       metaPixelTokenEncrypted,
-      googleAdsCustomerId
+      googleAdsCustomerId,
+      historyVtexMonths,
+      historyMlMonths,
+      historyMetaMonths,
+      historyGoogleMonths
     );
 
     // Email de confirmación (fire-and-forget)

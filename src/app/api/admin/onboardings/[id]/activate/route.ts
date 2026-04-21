@@ -19,6 +19,7 @@ import { isInternalUser } from "@/lib/feature-flags";
 import { decryptCredentials } from "@/lib/crypto";
 import { sendEmail } from "@/lib/email/send";
 import { onboardingActivationEmail } from "@/lib/onboarding/emails";
+import { createBackfillJob } from "@/lib/backfill/job-manager";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
 
@@ -124,6 +125,8 @@ export async function POST(
     // ── Transaction ──
     const result = await prisma.$transaction(async (tx) => {
       // 1. Crear Organization (con timezone, currency, fiscal de la solicitud)
+      // Guardamos la password temporal en settings para que el backfill runner
+      // pueda usarla al mandar el email cuando termine el backfill.
       const org = await tx.organization.create({
         data: {
           name: request.companyName,
@@ -132,6 +135,7 @@ export async function POST(
             storeUrl: request.storeUrl,
             currency: request.currency || "ARS",
             fiscalCondition: request.fiscalCondition || null,
+            _initialPassword: tempPassword,
             whiteLabel: {
               industry: request.industry ?? null,
               timezone: request.timezone || "America/Argentina/Buenos_Aires",
@@ -233,42 +237,85 @@ export async function POST(
         connectionsCreated.push("Google Ads (pending OAuth)");
       }
 
-      // 4. Marcar solicitud como ACTIVE
+      // 4. Decidir estado final: si hay VTEX o ML con meses > 0, queda BACKFILLING
+      //    (el backfill runner va a completarlo y mandar email cuando termine).
+      //    Si no, pasa directo a ACTIVE.
+      const hasVtexBackfill =
+        request.vtexAccountName && (Number(request.historyVtexMonths) || 0) > 0;
+      const hasMlBackfill =
+        request.mlUsername && (Number(request.historyMlMonths) || 0) > 0;
+      const needsBackfill = hasVtexBackfill || hasMlBackfill;
+
+      const newStatus = needsBackfill ? "BACKFILLING" : "ACTIVE";
+
       await tx.$executeRawUnsafe(
         `UPDATE "onboarding_requests"
-         SET "status" = 'ACTIVE'::"OnboardingStatus",
+         SET "status" = $3::"OnboardingStatus",
              "createdOrgId" = $2,
              "activatedAt" = NOW(),
-             "progressStage" = 'activated',
+             "progressStage" = $4,
              "updatedAt" = NOW()
          WHERE "id" = $1`,
         request.id,
-        org.id
+        org.id,
+        newStatus,
+        needsBackfill ? "backfilling" : "activated"
       );
 
-      return { org, user, connectionsCreated };
+      return { org, user, connectionsCreated, needsBackfill, hasVtexBackfill, hasMlBackfill };
     });
 
-    // Fuera de la transaction: mandar email (fire-and-forget) con snippet NitroPixel
-    const { subject, html } = onboardingActivationEmail({
-      contactName: request.contactName,
-      companyName: request.companyName,
-      loginEmail: request.contactEmail,
-      temporaryPassword: tempPassword,
-      orgId: result.org.id,
-    });
-    sendEmail({ to: request.contactEmail, subject, html }).catch((err) => {
-      console.error("[activate] email send failed:", err?.message);
-    });
+    // ── Fuera de la transaction ────────────────────────────────
+    if (result.needsBackfill) {
+      // Crear backfill jobs (VTEX + ML si aplica). Corren via cron cada 5 min.
+      const createdJobs: string[] = [];
+      if (result.hasVtexBackfill) {
+        const months = Number(request.historyVtexMonths) || 12;
+        const jobId = await createBackfillJob({
+          organizationId: result.org.id,
+          platform: "VTEX",
+          monthsRequested: months,
+          onboardingRequestId: request.id,
+        });
+        createdJobs.push(`VTEX:${jobId}`);
+      }
+      if (result.hasMlBackfill) {
+        const months = Number(request.historyMlMonths) || 12;
+        const jobId = await createBackfillJob({
+          organizationId: result.org.id,
+          platform: "MERCADOLIBRE",
+          monthsRequested: months,
+          onboardingRequestId: request.id,
+        });
+        createdJobs.push(`ML:${jobId}`);
+      }
+      console.log(`[activate] backfill jobs creados: ${createdJobs.join(", ")}`);
+      // NO mandamos email todavia — el backfill runner lo manda cuando termine.
+    } else {
+      // Sin backfill → mandamos email ahora mismo (flow clasico).
+      const { subject, html } = onboardingActivationEmail({
+        contactName: request.contactName,
+        companyName: request.companyName,
+        loginEmail: request.contactEmail,
+        temporaryPassword: tempPassword,
+        orgId: result.org.id,
+      });
+      sendEmail({ to: request.contactEmail, subject, html }).catch((err) => {
+        console.error("[activate] email send failed:", err?.message);
+      });
+    }
 
     return NextResponse.json({
       ok: true,
-      message: `Cuenta activada para ${request.companyName}`,
+      message: result.needsBackfill
+        ? `Cuenta de ${request.companyName} creada, arranca backfill histórico. Email se manda al completar.`
+        : `Cuenta activada para ${request.companyName}`,
       orgId: result.org.id,
       orgSlug: result.org.slug,
       userId: result.user.id,
       connectionsCreated: result.connectionsCreated,
-      emailSentTo: request.contactEmail,
+      backfillStarted: result.needsBackfill,
+      emailSentTo: result.needsBackfill ? null : request.contactEmail,
       // temporaryPassword devolvemos SOLO en la respuesta al admin (por si el email falla)
       _adminNote: {
         temporaryPassword: tempPassword,
