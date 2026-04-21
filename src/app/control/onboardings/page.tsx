@@ -30,8 +30,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; priority: nu
   PENDING: { label: "Pendiente", color: ACCENT_AMBER, priority: 1 },
   IN_PROGRESS: { label: "En curso", color: BRAND_ORANGE, priority: 2 },
   NEEDS_INFO: { label: "Falta info", color: ACCENT_AMBER, priority: 3 },
-  ACTIVE: { label: "Activa", color: ACCENT_GREEN, priority: 4 },
-  REJECTED: { label: "Rechazada", color: ACCENT_RED, priority: 5 },
+  BACKFILLING: { label: "Backfill", color: BRAND_ORANGE, priority: 4 },
+  ACTIVE: { label: "Activa", color: ACCENT_GREEN, priority: 5 },
+  REJECTED: { label: "Rechazada", color: ACCENT_RED, priority: 6 },
 };
 
 export default function ControlOnboardingsPage() {
@@ -615,6 +616,10 @@ function DetailDrawer({
                 <StatusPill status={detail.status} />
               </div>
 
+              {detail.status === "BACKFILLING" && (
+                <BackfillProgress onboardingId={detail.id} />
+              )}
+
               <DSection title="Empresa">
                 <DRow label="Nombre" value={detail.companyName} />
                 <DRow label="Slug" value={detail.proposedSlug} copyable onCopy={copy} field="slug" copied={copiedField === "slug"} />
@@ -1028,6 +1033,226 @@ function EmptyLabel({ label }: { label: string }) {
   return (
     <div style={{ padding: "10px 0", fontSize: 11, color: "#52525B", fontStyle: "italic", textAlign: "center" }}>
       {label}
+    </div>
+  );
+}
+
+// ─── Backfill progress (visible cuando status=BACKFILLING) ────
+function BackfillProgress({ onboardingId }: { onboardingId: string }) {
+  const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    try {
+      const res = await fetch(`/api/admin/onboardings/${onboardingId}/backfill-status`, {
+        cache: "no-store",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || "Error");
+        return;
+      }
+      setData(json);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 15000); // refresh cada 15s
+    return () => clearInterval(t);
+  }, [onboardingId]);
+
+  if (error) {
+    return (
+      <div
+        style={{
+          padding: "12px 14px",
+          background: "rgba(239,68,68,0.08)",
+          border: "1px solid rgba(239,68,68,0.3)",
+          borderRadius: 8,
+          color: "#F87171",
+          fontSize: 12,
+          marginBottom: 20,
+        }}
+      >
+        Error cargando progreso: {error}
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const { jobs, summary } = data;
+
+  return (
+    <div
+      style={{
+        marginBottom: 20,
+        padding: "16px 18px",
+        background: "linear-gradient(135deg, rgba(255,94,26,0.08), rgba(255,140,74,0.04))",
+        border: "1px solid rgba(255,94,26,0.2)",
+        borderRadius: 12,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>
+            Backfill en progreso
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+            {summary.overallPct}% completo
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: "#A1A1AA", textAlign: "right" }}>
+          {summary.completed}/{summary.total} jobs
+          <br />
+          {summary.running > 0 && (
+            <span style={{ color: BRAND_ORANGE }}>{summary.running} corriendo</span>
+          )}
+          {summary.running === 0 && summary.queued > 0 && (
+            <span style={{ color: "#71717A" }}>{summary.queued} en cola</span>
+          )}
+        </div>
+      </div>
+
+      {/* Overall progress bar */}
+      <div
+        style={{
+          height: 6,
+          background: "rgba(255,255,255,0.08)",
+          borderRadius: 3,
+          overflow: "hidden",
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            width: `${summary.overallPct}%`,
+            height: "100%",
+            background: `linear-gradient(90deg, ${BRAND_ORANGE}, #FF8C4A)`,
+            transition: "width 400ms ease",
+          }}
+        />
+      </div>
+
+      {/* Per-platform */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {jobs.map((j: any) => (
+          <BackfillJobRow key={j.id} job={j} />
+        ))}
+      </div>
+
+      <div
+        style={{
+          marginTop: 12,
+          paddingTop: 12,
+          borderTop: "1px dashed rgba(255,255,255,0.08)",
+          fontSize: 10,
+          color: "#71717A",
+          textAlign: "center",
+        }}
+      >
+        El email de activación se envía automáticamente cuando todos los jobs terminen.
+      </div>
+    </div>
+  );
+}
+
+function BackfillJobRow({ job }: { job: any }) {
+  const colorByStatus: Record<string, string> = {
+    QUEUED: "#71717A",
+    RUNNING: BRAND_ORANGE,
+    COMPLETED: ACCENT_GREEN,
+    FAILED: ACCENT_RED,
+  };
+  const tone = colorByStatus[job.status] || "#71717A";
+
+  const platformColors: Record<string, string> = {
+    VTEX: "#FF0080",
+    MERCADOLIBRE: "#FFE600",
+    META_ADS: "#1877F2",
+    GOOGLE_ADS: "#4285F4",
+  };
+  const pc = platformColors[job.platform] || "#71717A";
+
+  return (
+    <div
+      style={{
+        padding: "10px 12px",
+        background: "rgba(0,0,0,0.2)",
+        border: "1px solid rgba(255,255,255,0.06)",
+        borderRadius: 8,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: pc }} />
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", flex: 1 }}>
+          {job.platform}
+          <span style={{ fontSize: 10, color: "#71717A", fontWeight: 500, marginLeft: 6 }}>
+            {job.monthsRequested === 120 ? "todo" : `${job.monthsRequested} meses`}
+          </span>
+        </div>
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            padding: "2px 7px",
+            background: `${tone}1A`,
+            color: tone,
+            borderRadius: 99,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}
+        >
+          {job.status}
+        </span>
+        <div style={{ fontSize: 11, color: "#A1A1AA", fontWeight: 600, minWidth: 36, textAlign: "right" }}>
+          {job.progressPct}%
+        </div>
+      </div>
+      <div
+        style={{
+          height: 3,
+          background: "rgba(255,255,255,0.06)",
+          borderRadius: 2,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${job.progressPct}%`,
+            height: "100%",
+            background: tone,
+            transition: "width 400ms ease",
+          }}
+        />
+      </div>
+      {job.processedCount > 0 && (
+        <div style={{ fontSize: 10, color: "#71717A", marginTop: 4 }}>
+          {job.processedCount.toLocaleString("es-AR")} procesadas
+          {job.totalEstimate && ` / ${job.totalEstimate.toLocaleString("es-AR")} estimadas`}
+        </div>
+      )}
+      {job.lastError && (
+        <div
+          style={{
+            marginTop: 6,
+            padding: "5px 7px",
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.2)",
+            borderRadius: 5,
+            fontSize: 10,
+            color: "#FCA5A5",
+            fontFamily: "'SF Mono', Menlo, monospace",
+            wordBreak: "break-word",
+          }}
+        >
+          {job.lastError.slice(0, 200)}
+        </div>
+      )}
     </div>
   );
 }

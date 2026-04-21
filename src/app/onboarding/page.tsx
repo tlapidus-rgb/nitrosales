@@ -82,6 +82,11 @@ interface FormData {
   metaPixelId: string;
   metaPixelToken: string;
   googleAdsCustomerId: string;
+  // Step 3b — rango historico por plataforma (meses)
+  historyVtexMonths: number;
+  historyMlMonths: number;
+  historyMetaMonths: number;
+  historyGoogleMonths: number;
 }
 
 const initialData: FormData = {
@@ -106,6 +111,10 @@ const initialData: FormData = {
   metaPixelId: "",
   metaPixelToken: "",
   googleAdsCustomerId: "",
+  historyVtexMonths: 12,
+  historyMlMonths: 12,
+  historyMetaMonths: 6,
+  historyGoogleMonths: 6,
 };
 
 // Auto-slugify
@@ -250,6 +259,10 @@ export default function OnboardingPage() {
           metaPixelId: data.metaPixelId.trim() || undefined,
           metaPixelToken: data.metaPixelToken.trim() || undefined,
           googleAdsCustomerId: data.googleAdsCustomerId.trim() || undefined,
+          historyVtexMonths: data.historyVtexMonths,
+          historyMlMonths: data.historyMlMonths,
+          historyMetaMonths: data.historyMetaMonths,
+          historyGoogleMonths: data.historyGoogleMonths,
         }),
       });
       const json = await res.json();
@@ -1143,6 +1156,12 @@ function Step3({ data, update, errors }: any) {
             mono
           />
         </Field>
+        <HistoryRangeSelector
+          value={data.historyVtexMonths}
+          onChange={(months) => update({ historyVtexMonths: months })}
+          color="#FF0080"
+          platform="VTEX"
+        />
       </PlatformCard>
 
       {/* MercadoLibre */}
@@ -1171,6 +1190,12 @@ function Step3({ data, update, errors }: any) {
             maxLength={60}
           />
         </Field>
+        <HistoryRangeSelector
+          value={data.historyMlMonths}
+          onChange={(months) => update({ historyMlMonths: months })}
+          color="#FFE600"
+          platform="MercadoLibre"
+        />
       </PlatformCard>
 
       {/* Meta Ads */}
@@ -1270,6 +1295,12 @@ function Step3({ data, update, errors }: any) {
             mono
           />
         </Field>
+        <HistoryRangeSelector
+          value={data.historyMetaMonths}
+          onChange={(months) => update({ historyMetaMonths: months })}
+          color="#1877F2"
+          platform="Meta"
+        />
       </PlatformCard>
 
       {/* Google Ads */}
@@ -1299,6 +1330,12 @@ function Step3({ data, update, errors }: any) {
             maxLength={10}
           />
         </Field>
+        <HistoryRangeSelector
+          value={data.historyGoogleMonths}
+          onChange={(months) => update({ historyGoogleMonths: months })}
+          color="#4285F4"
+          platform="Google Ads"
+        />
       </PlatformCard>
     </div>
   );
@@ -1339,6 +1376,95 @@ function PlatformCard({
       </div>
       <p style={{ color: TEXT_SECONDARY, fontSize: 13, margin: "0 0 18px", lineHeight: 1.5 }}>{description}</p>
       {children}
+    </div>
+  );
+}
+
+// ─── Selector de rango histórico ─────────────────────────────
+// Aparece al final de cada PlatformCard para que el cliente elija cuánta
+// historia traer. Valores: 3, 6, 12, 24, 36, -1 (todo). Default según
+// plataforma. Mensaje informativo sobre tiempo de activación.
+function HistoryRangeSelector({
+  value,
+  onChange,
+  color,
+  platform,
+}: {
+  value: number;
+  onChange: (months: number) => void;
+  color: string;
+  platform: string;
+}) {
+  const options: Array<{ months: number; label: string; eta?: string }> = [
+    { months: 3, label: "3 meses", eta: "minutos" },
+    { months: 6, label: "6 meses", eta: "~30 min" },
+    { months: 12, label: "1 año", eta: "1-2 hs" },
+    { months: 24, label: "2 años", eta: "3-6 hs" },
+    { months: -1, label: "Todo", eta: "hasta 1 día" },
+  ];
+
+  return (
+    <div
+      style={{
+        marginTop: 18,
+        paddingTop: 18,
+        borderTop: `1px dashed ${BORDER}`,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: TEXT_PRIMARY,
+          marginBottom: 4,
+        }}
+      >
+        ¿Cuánta historia de {platform} querés traer?
+      </div>
+      <div style={{ fontSize: 11, color: TEXT_SECONDARY, marginBottom: 12, lineHeight: 1.5 }}>
+        Más tiempo = activación más lenta, pero más data histórica disponible desde día 1.
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+          gap: 8,
+        }}
+      >
+        {options.map((opt) => {
+          const active = value === opt.months;
+          return (
+            <button
+              key={opt.months}
+              type="button"
+              onClick={() => onChange(opt.months)}
+              style={{
+                padding: "10px 8px",
+                background: active ? `${color}1A` : "rgba(255,255,255,0.03)",
+                border: `1px solid ${active ? color : BORDER}`,
+                borderRadius: 10,
+                color: active ? "#fff" : TEXT_SECONDARY,
+                cursor: "pointer",
+                textAlign: "center",
+                transition: "all 120ms",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: active ? 700 : 500,
+                  marginBottom: 2,
+                }}
+              >
+                {opt.label}
+              </div>
+              <div style={{ fontSize: 10, color: active ? color : TEXT_SECONDARY, fontWeight: 500 }}>
+                {opt.eta}
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
