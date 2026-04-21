@@ -27,10 +27,10 @@ const ACCENT_AMBER = "#F59E0B";
 const ACCENT_RED = "#EF4444";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; priority: number }> = {
-  PENDING: { label: "Pendiente", color: ACCENT_AMBER, priority: 1 },
-  IN_PROGRESS: { label: "En curso", color: BRAND_ORANGE, priority: 2 },
-  NEEDS_INFO: { label: "Falta info", color: ACCENT_AMBER, priority: 3 },
-  BACKFILLING: { label: "Backfill", color: BRAND_ORANGE, priority: 4 },
+  PENDING: { label: "Pendiente aprobar cuenta", color: ACCENT_AMBER, priority: 1 },
+  NEEDS_INFO: { label: "Pendiente aprobar backfill", color: ACCENT_AMBER, priority: 2 },
+  IN_PROGRESS: { label: "Cliente completando wizard", color: BRAND_ORANGE, priority: 3 },
+  BACKFILLING: { label: "Backfilling", color: BRAND_ORANGE, priority: 4 },
   ACTIVE: { label: "Activa", color: ACCENT_GREEN, priority: 5 },
   REJECTED: { label: "Rechazada", color: ACCENT_RED, priority: 6 },
 };
@@ -404,6 +404,7 @@ function DetailDrawer({
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [approvingBackfill, setApprovingBackfill] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -463,6 +464,30 @@ function DetailDrawer({
       onClose();
     } finally {
       setRejecting(false);
+    }
+  };
+
+  const approveBackfill = async () => {
+    if (!confirm(`¿Aprobar el backfill para ${detail.companyName}?\n\nVa a arrancar a procesar la data histórica de VTEX y MercadoLibre. Recibís email cuando termine.`)) return;
+    setApprovingBackfill(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/admin/onboardings/${id}/approve-backfill`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setErrorMsg(json.error || "Error");
+        setApprovingBackfill(false);
+        return;
+      }
+      onRefresh();
+      // Releer detail para que muestre estado BACKFILLING
+      const detailRes = await fetch(`/api/admin/onboardings/${id}`);
+      const detailJson = await detailRes.json();
+      if (detailRes.ok) setDetail(detailJson.request);
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setApprovingBackfill(false);
     }
   };
 
@@ -698,7 +723,8 @@ function DetailDrawer({
                 </DSection>
               )}
 
-              {detail.status !== "ACTIVE" && detail.status !== "REJECTED" && !result && (
+              {/* Aprobacion 1: cuenta */}
+              {detail.status === "PENDING" && !result && (
                 <div style={{ display: "flex", gap: 10, marginTop: 24, paddingTop: 20, borderTop: "1px solid #1F1F23" }}>
                   <button
                     onClick={activate}
@@ -720,7 +746,7 @@ function DetailDrawer({
                     }}
                   >
                     <CheckCircle2 size={14} />
-                    {activating ? "Activando…" : "Activar cuenta"}
+                    {activating ? "Activando…" : "Aprobar cuenta (paso 1)"}
                   </button>
                   <button
                     onClick={reject}
@@ -741,6 +767,58 @@ function DetailDrawer({
                   >
                     <XCircle size={14} />
                     {rejecting ? "…" : "Rechazar"}
+                  </button>
+                </div>
+              )}
+
+              {/* Estado intermedio: cuenta creada, esperando wizard del cliente */}
+              {detail.status === "IN_PROGRESS" && (
+                <div style={{
+                  marginTop: 24, paddingTop: 20, borderTop: "1px solid #1F1F23",
+                  padding: "16px 18px", background: "rgba(255,94,26,0.06)",
+                  border: "1px solid rgba(255,94,26,0.2)", borderRadius: 10,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                    Esperando al cliente
+                  </div>
+                  <div style={{ fontSize: 13, color: "#A1A1AA", lineHeight: 1.6 }}>
+                    Cuenta creada. El cliente recibió email con credenciales de login. Cuando complete el wizard adentro del producto, vas a recibir notificación para aprobar el backfill.
+                  </div>
+                </div>
+              )}
+
+              {/* Aprobacion 2: backfill */}
+              {detail.status === "NEEDS_INFO" && !result && (
+                <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #1F1F23" }}>
+                  <div style={{
+                    padding: "12px 14px", background: "rgba(34,197,94,0.06)",
+                    border: "1px solid rgba(34,197,94,0.2)", borderRadius: 8,
+                    fontSize: 12, color: "#86EFAC", marginBottom: 14,
+                  }}>
+                    El cliente completó el wizard. Revisá las credenciales arriba (botón "Ver" en cada token) antes de aprobar el backfill.
+                  </div>
+                  <button
+                    onClick={approveBackfill}
+                    disabled={approvingBackfill}
+                    style={{
+                      width: "100%",
+                      padding: "12px 18px",
+                      background: approvingBackfill ? "#27272A" : `linear-gradient(135deg, ${BRAND_ORANGE}, #FF8C4A)`,
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: approvingBackfill ? "wait" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      boxShadow: approvingBackfill ? "none" : "0 4px 16px rgba(255,94,26,0.25)",
+                    }}
+                  >
+                    <CheckCircle2 size={14} />
+                    {approvingBackfill ? "Aprobando…" : "Aprobar backfill (paso 2)"}
                   </button>
                 </div>
               )}
