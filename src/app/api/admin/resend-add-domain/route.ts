@@ -42,11 +42,11 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ name: domain, region }),
     });
 
-    // Si ya existe, Resend tira 400/422 — en ese caso, listamos y devolvemos los records actuales
+    // Si ya existe, Resend tira error (403/422/400) — detectamos y listamos.
     let alreadyExists = false;
     if (!createRes.ok) {
       const errText = await createRes.text();
-      if (createRes.status === 422 || /already exists|conflict/i.test(errText)) {
+      if (/already|registered|exists|conflict/i.test(errText)) {
         alreadyExists = true;
       } else {
         return NextResponse.json(
