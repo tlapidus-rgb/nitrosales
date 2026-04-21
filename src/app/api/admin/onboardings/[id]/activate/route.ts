@@ -155,95 +155,104 @@ export async function POST(
         },
       });
 
-      // 3. Crear Connections
+      // 3. Crear Connections — en el flow hibrido quedan PENDING hasta que
+      // el cliente las configure desde /setup dentro del producto. Si el form
+      // vino con credenciales (back-compat del form viejo), las marcamos ACTIVE.
       const connectionsCreated: string[] = [];
 
-      if (request.vtexAccountName && vtexAppKey && vtexAppToken) {
+      // VTEX
+      if (request.usesVtex || request.vtexAccountName) {
+        const hasCreds = request.vtexAccountName && vtexAppKey && vtexAppToken;
         await tx.connection.create({
           data: {
             organizationId: org.id,
             platform: "VTEX",
-            status: "ACTIVE",
-            credentials: {
-              accountName: request.vtexAccountName,
-              appKey: vtexAppKey,
-              appToken: vtexAppToken,
-            },
+            status: hasCreds ? "ACTIVE" : "PENDING",
+            credentials: hasCreds
+              ? { accountName: request.vtexAccountName, appKey: vtexAppKey, appToken: vtexAppToken }
+              : { needsSetup: true },
           },
         });
-        connectionsCreated.push("VTEX");
+        connectionsCreated.push(hasCreds ? "VTEX" : "VTEX (pending setup)");
       }
 
-      if (request.mlUsername) {
-        // ML requiere OAuth flow — creamos placeholder PENDING hasta que hagan OAuth
+      // MercadoLibre — siempre PENDING (requiere OAuth)
+      if (request.usesMl || request.mlUsername) {
         await tx.connection.create({
           data: {
             organizationId: org.id,
             platform: "MERCADOLIBRE",
             status: "PENDING",
             credentials: {
-              username: request.mlUsername,
+              username: request.mlUsername || null,
               needsOAuth: true,
+              needsSetup: !request.mlUsername,
             },
           },
         });
         connectionsCreated.push("ML (pending OAuth)");
       }
 
-      if (request.metaAdAccountId && metaAccessToken) {
+      // Meta Ads
+      if (request.usesMeta || request.metaAdAccountId) {
+        const hasCreds = request.metaAdAccountId && metaAccessToken;
         await tx.connection.create({
           data: {
             organizationId: org.id,
             platform: "META_ADS",
-            status: "ACTIVE",
-            credentials: {
-              adAccountId: request.metaAdAccountId,
-              accessToken: metaAccessToken,
-            },
+            status: hasCreds ? "ACTIVE" : "PENDING",
+            credentials: hasCreds
+              ? { adAccountId: request.metaAdAccountId, accessToken: metaAccessToken }
+              : { needsSetup: true },
           },
         });
-        connectionsCreated.push("Meta Ads");
+        connectionsCreated.push(hasCreds ? "Meta Ads" : "Meta Ads (pending setup)");
       }
 
-      // Meta Pixel (CAPI) — connection separada tipo META_PIXEL
-      if (request.metaPixelId && metaPixelToken) {
+      // Meta Pixel (CAPI)
+      if (request.usesMetaPixel || request.metaPixelId) {
+        const hasCreds = request.metaPixelId && metaPixelToken;
         await tx.connection.create({
           data: {
             organizationId: org.id,
             platform: "META_PIXEL" as any,
-            status: "ACTIVE",
-            credentials: {
-              pixelId: request.metaPixelId,
-              accessToken: metaPixelToken,
-            },
+            status: hasCreds ? "ACTIVE" : "PENDING",
+            credentials: hasCreds
+              ? { pixelId: request.metaPixelId, accessToken: metaPixelToken }
+              : { needsSetup: true },
           },
         });
-        connectionsCreated.push("Meta Pixel (CAPI)");
+        connectionsCreated.push(hasCreds ? "Meta Pixel" : "Meta Pixel (pending setup)");
       }
 
-      if (request.googleAdsCustomerId) {
-        // Google Ads requiere OAuth para refreshToken — placeholder PENDING
+      // Google Ads — siempre PENDING (requiere OAuth)
+      if (request.usesGoogle || request.googleAdsCustomerId) {
         await tx.connection.create({
           data: {
             organizationId: org.id,
             platform: "GOOGLE_ADS",
             status: "PENDING",
             credentials: {
-              customerId: request.googleAdsCustomerId,
+              customerId: request.googleAdsCustomerId || null,
               needsOAuth: true,
+              needsSetup: !request.googleAdsCustomerId,
             },
           },
         });
         connectionsCreated.push("Google Ads (pending OAuth)");
       }
 
-      // 4. Decidir estado final: si hay VTEX o ML con meses > 0, queda BACKFILLING
-      //    (el backfill runner va a completarlo y mandar email cuando termine).
-      //    Si no, pasa directo a ACTIVE.
+      // 4. Decidir estado final: si hay VTEX o ML con meses > 0 Y hay credenciales,
+      //    queda BACKFILLING (el runner completa y manda email). Si no hay credenciales
+      //    (flow hibrido), queda ACTIVE — el cliente entra y completa el setup adentro,
+      //    el backfill se dispara desde /setup al terminar el wizard.
       const hasVtexBackfill =
-        request.vtexAccountName && (Number(request.historyVtexMonths) || 0) > 0;
+        request.vtexAccountName && vtexAppKey && vtexAppToken &&
+        (Number(request.historyVtexMonths) || 0) > 0;
+      // ML backfill solo si ya hay usuario configurado (el OAuth se hace despues
+      // desde /setup, pero si ya tenemos username del form legacy lo arrancamos).
       const hasMlBackfill =
-        request.mlUsername && (Number(request.historyMlMonths) || 0) > 0;
+        !!request.mlUsername && (Number(request.historyMlMonths) || 0) > 0;
       const needsBackfill = hasVtexBackfill || hasMlBackfill;
 
       const newStatus = needsBackfill ? "BACKFILLING" : "ACTIVE";

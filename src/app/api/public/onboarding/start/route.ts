@@ -182,6 +182,15 @@ export async function POST(req: NextRequest) {
     const historyMetaMonths = parseHistoryMonths(body.historyMetaMonths, 6);
     const historyGoogleMonths = parseHistoryMonths(body.historyGoogleMonths, 6);
 
+    // Flags de plataformas (flow hibrido: el cliente marca cuales usa,
+    // completa credenciales despues en /setup dentro del producto).
+    // Back-compat: si ya vienen credenciales, asumimos que usa esa plataforma.
+    const usesVtex = !!body.usesVtex || !!vtexAccountName;
+    const usesMl = !!body.usesMl || !!mlUsername;
+    const usesMeta = !!body.usesMeta || !!metaAdAccountId;
+    const usesMetaPixel = !!body.usesMetaPixel || !!metaPixelId;
+    const usesGoogle = !!body.usesGoogle || !!googleAdsCustomerId;
+
     // Generar IDs
     const id = randomUUID();
     const token = randomBytes(24).toString("hex"); // 48 chars
@@ -199,6 +208,7 @@ export async function POST(req: NextRequest) {
         "metaPixelId", "metaPixelTokenEncrypted",
         "googleAdsCustomerId",
         "historyVtexMonths", "historyMlMonths", "historyMetaMonths", "historyGoogleMonths",
+        "usesVtex", "usesMl", "usesMeta", "usesMetaPixel", "usesGoogle",
         "progressStage", "createdAt", "updatedAt"
       ) VALUES (
         $1, 'PENDING', $2,
@@ -211,6 +221,7 @@ export async function POST(req: NextRequest) {
         $21, $22,
         $23,
         $24, $25, $26, $27,
+        $28, $29, $30, $31, $32,
         'received', NOW(), NOW()
       )`,
       id,
@@ -239,7 +250,12 @@ export async function POST(req: NextRequest) {
       historyVtexMonths,
       historyMlMonths,
       historyMetaMonths,
-      historyGoogleMonths
+      historyGoogleMonths,
+      usesVtex,
+      usesMl,
+      usesMeta,
+      usesMetaPixel,
+      usesGoogle
     );
 
     // Email de confirmación (fire-and-forget)

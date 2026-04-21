@@ -72,16 +72,12 @@ interface FormData {
   contactEmail: string;
   contactPhone: string;
   contactWhatsapp: string;
-  // Step 3
-  vtexAccountName: string;
-  vtexAppKey: string;
-  vtexAppToken: string;
-  mlUsername: string;
-  metaAdAccountId: string;
-  metaAccessToken: string;
-  metaPixelId: string;
-  metaPixelToken: string;
-  googleAdsCustomerId: string;
+  // Step 3 — Plataformas (flow hibrido: solo se elige, credenciales en /setup)
+  usesVtex: boolean;
+  usesMl: boolean;
+  usesMeta: boolean;
+  usesMetaPixel: boolean;
+  usesGoogle: boolean;
   // Step 3b — rango historico por plataforma (meses)
   historyVtexMonths: number;
   historyMlMonths: number;
@@ -102,15 +98,11 @@ const initialData: FormData = {
   contactEmail: "",
   contactPhone: "",
   contactWhatsapp: "",
-  vtexAccountName: "",
-  vtexAppKey: "",
-  vtexAppToken: "",
-  mlUsername: "",
-  metaAdAccountId: "",
-  metaAccessToken: "",
-  metaPixelId: "",
-  metaPixelToken: "",
-  googleAdsCustomerId: "",
+  usesVtex: false,
+  usesMl: false,
+  usesMeta: false,
+  usesMetaPixel: false,
+  usesGoogle: false,
   historyVtexMonths: 12,
   historyMlMonths: 12,
   historyMetaMonths: 6,
@@ -178,26 +170,11 @@ export default function OnboardingPage() {
         e.contactEmail = "Email inválido";
     }
     if (s === 3) {
-      // Al menos una plataforma debe estar (si no, la activación no tiene sentido)
-      const hasVtex = data.vtexAccountName && data.vtexAppKey && data.vtexAppToken;
-      const hasMl = !!data.mlUsername;
-      const hasMeta = data.metaAdAccountId && data.metaAccessToken;
-      const hasGoogle = !!data.googleAdsCustomerId;
-      if (!hasVtex && !hasMl && !hasMeta && !hasGoogle) {
-        e._global = "Conectá al menos una plataforma para poder activar tu cuenta";
-      }
-      // Si llenó parcial de VTEX, pedir completar
-      if (
-        (data.vtexAccountName || data.vtexAppKey || data.vtexAppToken) &&
-        !(data.vtexAccountName && data.vtexAppKey && data.vtexAppToken)
-      ) {
-        e.vtexAccountName = "Completá los 3 campos de VTEX o dejalos vacíos";
-      }
-      if (
-        (data.metaAdAccountId || data.metaAccessToken) &&
-        !(data.metaAdAccountId && data.metaAccessToken)
-      ) {
-        e.metaAdAccountId = "Completá los 2 campos de Meta Ads o dejalos vacíos";
+      // Al menos una plataforma debe estar marcada.
+      const any =
+        data.usesVtex || data.usesMl || data.usesMeta || data.usesMetaPixel || data.usesGoogle;
+      if (!any) {
+        e._global = "Seleccioná al menos una plataforma para activar tu cuenta.";
       }
     }
     return e;
@@ -250,15 +227,11 @@ export default function OnboardingPage() {
           contactEmail: data.contactEmail.trim().toLowerCase(),
           contactPhone: data.contactPhone.trim() || undefined,
           contactWhatsapp: data.contactWhatsapp.trim() || undefined,
-          vtexAccountName: data.vtexAccountName.trim() || undefined,
-          vtexAppKey: data.vtexAppKey.trim() || undefined,
-          vtexAppToken: data.vtexAppToken.trim() || undefined,
-          mlUsername: data.mlUsername.trim() || undefined,
-          metaAdAccountId: data.metaAdAccountId.trim() || undefined,
-          metaAccessToken: data.metaAccessToken.trim() || undefined,
-          metaPixelId: data.metaPixelId.trim() || undefined,
-          metaPixelToken: data.metaPixelToken.trim() || undefined,
-          googleAdsCustomerId: data.googleAdsCustomerId.trim() || undefined,
+          usesVtex: data.usesVtex,
+          usesMl: data.usesMl,
+          usesMeta: data.usesMeta,
+          usesMetaPixel: data.usesMetaPixel,
+          usesGoogle: data.usesGoogle,
           historyVtexMonths: data.historyVtexMonths,
           historyMlMonths: data.historyMlMonths,
           historyMetaMonths: data.historyMetaMonths,
@@ -1077,16 +1050,62 @@ function Step2({ data, update, errors }: any) {
 
 // ─── Step 3 — Plataformas ───────────────────────────────────
 function Step3({ data, update, errors }: any) {
+  const platforms: Array<{
+    key: "usesVtex" | "usesMl" | "usesMeta" | "usesMetaPixel" | "usesGoogle";
+    name: string;
+    color: string;
+    description: string;
+    historyKey?: "historyVtexMonths" | "historyMlMonths" | "historyMetaMonths" | "historyGoogleMonths";
+  }> = [
+    {
+      key: "usesVtex",
+      name: "VTEX",
+      color: "#FF0080",
+      description: "Ecommerce principal: pedidos, productos, stock en tiempo real.",
+      historyKey: "historyVtexMonths",
+    },
+    {
+      key: "usesMl",
+      name: "MercadoLibre",
+      color: "#FFE600",
+      description: "Cuenta vendedor. Conectamos via OAuth cuando entres al producto.",
+      historyKey: "historyMlMonths",
+    },
+    {
+      key: "usesMeta",
+      name: "Meta Ads (Facebook e Instagram)",
+      color: "#1877F2",
+      description: "Campañas de publicidad Meta. Atribución y ROAS.",
+      historyKey: "historyMetaMonths",
+    },
+    {
+      key: "usesMetaPixel",
+      name: "Meta Pixel (Conversiones API)",
+      color: "#1877F2",
+      description: "Tracking server-side de conversiones hacia Meta.",
+    },
+    {
+      key: "usesGoogle",
+      name: "Google Ads",
+      color: "#4285F4",
+      description: "Campañas Search, Shopping, Performance Max. ROAS y atribución.",
+      historyKey: "historyGoogleMonths",
+    },
+  ];
+
   return (
     <div>
-      <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 8 }}>Tus plataformas</h2>
+      <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 8 }}>
+        Tus plataformas
+      </h2>
       <p style={{ color: TEXT_SECONDARY, fontSize: 14, marginBottom: 12, lineHeight: 1.6 }}>
-        Conectá las plataformas que usa tu negocio. Podés agregar más después desde el panel.
+        Marcá las plataformas que usa tu negocio. Las vas a conectar adentro del producto cuando recibas las credenciales de acceso.
       </p>
+
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           gap: 10,
           padding: "12px 14px",
           background: "rgba(34,197,94,0.06)",
@@ -1095,251 +1114,107 @@ function Step3({ data, update, errors }: any) {
           marginBottom: 28,
         }}
       >
-        <ShieldCheck size={14} color={ACCENT_GREEN} style={{ flexShrink: 0 }} />
+        <ShieldCheck size={14} color={ACCENT_GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
         <span style={{ fontSize: 12, color: TEXT_SECONDARY, lineHeight: 1.5 }}>
-          Todas tus credenciales se encriptan con AES-256 antes de guardarse. Nadie las puede ver sin la clave.
+          Acá no te pedimos claves ni tokens. Solo indicanos qué usás. Cuando activemos tu cuenta, te guiamos paso a paso adentro del producto con tutoriales embebidos para conectar cada plataforma de forma segura.
         </span>
       </div>
 
-      {/* VTEX */}
-      <PlatformCard
-        name="VTEX"
-        color="#FF0080"
-        description="Sincroniza pedidos, productos y stock en tiempo real via webhooks."
-      >
-        <Field
-          label="VTEX Account Name"
-          error={errors.vtexAccountName}
-          tutorial={{
-            title: "¿Cuál es mi Account Name?",
-            steps: [
-              "Es el subdomain de tu admin VTEX.",
-              'Ejemplo: si tu admin es "arredo.myvtex.com", tu account name es "arredo".',
-              'Si es "miempresa.vtexcommercestable.com.br", es "miempresa".',
-            ],
+      {errors._global && (
+        <div
+          style={{
+            padding: "12px 14px",
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            borderRadius: 8,
+            color: "#F87171",
+            fontSize: 13,
+            marginBottom: 20,
           }}
         >
-          <TextInput
-            value={data.vtexAccountName}
-            onChange={(v) => update({ vtexAccountName: v })}
-            placeholder="arredo (el subdomain de tu tienda)"
-            maxLength={60}
-          />
-        </Field>
-        <Field
-          label="App Key"
-          tutorial={{
-            title: "¿Cómo genero App Key + Token?",
-            steps: [
-              "Ingresá a tu VTEX Admin.",
-              "Ir a: Cuenta → Gestión de usuarios → App Keys.",
-              'Click en "Crear key" (nombre sugerido: "NitroSales").',
-              "Asignar estos roles mínimos: Order Viewer, Catalog Read, Product Viewer.",
-              "Copiar el App Key y el App Token que se generan.",
-              "Pegarlos en los campos de abajo.",
-            ],
-            docUrl: "https://developers.vtex.com/docs/guides/api-authentication-using-application-keys",
-          }}
-        >
-          <TextInput
-            value={data.vtexAppKey}
-            onChange={(v) => update({ vtexAppKey: v })}
-            placeholder="vtexappkey-..."
-            mono
-          />
-        </Field>
-        <Field label="App Token">
-          <TextInput
-            value={data.vtexAppToken}
-            onChange={(v) => update({ vtexAppToken: v })}
-            placeholder="Token largo alfanumérico"
-            mono
-          />
-        </Field>
-        <HistoryRangeSelector
-          value={data.historyVtexMonths}
-          onChange={(months) => update({ historyVtexMonths: months })}
-          color="#FF0080"
-          platform="VTEX"
-        />
-      </PlatformCard>
+          {errors._global}
+        </div>
+      )}
 
-      {/* MercadoLibre */}
-      <PlatformCard
-        name="MercadoLibre"
-        color="#FFE600"
-        description="Conectamos tu cuenta de vendedor MELI via OAuth seguro al activar."
-      >
-        <Field
-          label="Nombre de usuario ML"
-          hint="Te contactaremos para que autorices el OAuth (login de MELI)."
-          tutorial={{
-            title: "¿Dónde veo mi usuario ML?",
-            steps: [
-              "Entrá a mercadolibre.com.ar logueado con tu cuenta vendedor.",
-              "Arriba a la derecha, hacé click en tu nombre.",
-              'Tu usuario aparece en el menú (empieza con una "@" o es alfanumérico).',
-              "Pegalo acá sin la @.",
-            ],
-          }}
-        >
-          <TextInput
-            value={data.mlUsername}
-            onChange={(v) => update({ mlUsername: v })}
-            placeholder="tuusuario"
-            maxLength={60}
-          />
-        </Field>
-        <HistoryRangeSelector
-          value={data.historyMlMonths}
-          onChange={(months) => update({ historyMlMonths: months })}
-          color="#FFE600"
-          platform="MercadoLibre"
-        />
-      </PlatformCard>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {platforms.map((p) => {
+          const checked = !!data[p.key];
+          return (
+            <div
+              key={p.key}
+              onClick={() => update({ [p.key]: !checked })}
+              style={{
+                padding: 18,
+                background: checked ? `${p.color}0D` : CARD_BG,
+                border: `1px solid ${checked ? `${p.color}44` : BORDER}`,
+                borderRadius: 14,
+                cursor: "pointer",
+                transition: "all 160ms",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                {/* Checkbox visual */}
+                <div
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 6,
+                    border: `2px solid ${checked ? p.color : "#3F3F46"}`,
+                    background: checked ? p.color : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    marginTop: 2,
+                    transition: "all 120ms",
+                  }}
+                >
+                  {checked && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                    <div
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: p.color,
+                        boxShadow: checked ? `0 0 8px ${p.color}` : "none",
+                      }}
+                    />
+                    <div style={{ fontSize: 15, fontWeight: 700, color: checked ? "#fff" : TEXT_PRIMARY }}>
+                      {p.name}
+                    </div>
+                  </div>
+                  <p style={{ color: TEXT_SECONDARY, fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+                    {p.description}
+                  </p>
+                </div>
+              </div>
 
-      {/* Meta Ads */}
-      <PlatformCard
-        name="Meta Ads (Facebook e Instagram)"
-        color="#1877F2"
-        description="Opcional. Sincroniza campañas y métricas de Facebook e Instagram Ads."
-      >
-        <Field
-          label="Ad Account ID"
-          error={errors.metaAdAccountId}
-          tutorial={{
-            title: "¿Cómo encuentro mi Ad Account ID?",
-            steps: [
-              "Entrá a business.facebook.com logueado.",
-              "Arriba a la izquierda: Configuración del negocio.",
-              "Cuentas → Cuentas publicitarias.",
-              'Copiá el ID de la cuenta que querés conectar (empieza con "act_").',
-            ],
-            docUrl: "https://www.facebook.com/business/help/1492627900875762",
-          }}
-        >
-          <TextInput
-            value={data.metaAdAccountId}
-            onChange={(v) => update({ metaAdAccountId: v })}
-            placeholder="act_123456789"
-            mono
-          />
-        </Field>
-        <Field
-          label="Access Token (System User)"
-          tutorial={{
-            title: "¿Cómo genero el Access Token?",
-            steps: [
-              "En Business Manager: Configuración del negocio → Usuarios del sistema.",
-              'Click en "Agregar" → crear usuario con rol "Admin".',
-              "Asignar tu Ad Account al nuevo usuario.",
-              'Click en "Generar token" → seleccionar permisos: ads_management, ads_read, business_management.',
-              "Copiar el token (solo se muestra una vez).",
-              "Importante: usar System User, NO un token personal (los personales expiran).",
-            ],
-            docUrl: "https://developers.facebook.com/docs/marketing-api/system-users",
-          }}
-        >
-          <TextInput
-            value={data.metaAccessToken}
-            onChange={(v) => update({ metaAccessToken: v })}
-            placeholder="Token de System User"
-            mono
-          />
-        </Field>
-      </PlatformCard>
-
-      {/* Meta Pixel — separado de Meta Ads, para CAPI */}
-      <PlatformCard
-        name="Meta Pixel (Conversiones API)"
-        color="#1877F2"
-        description="Opcional. Enviamos eventos de compra server-side a Meta para mejor match quality. Separado de Meta Ads Business."
-      >
-        <Field
-          label="Pixel ID"
-          tutorial={{
-            title: "¿Qué es el Pixel ID y cómo lo encuentro?",
-            steps: [
-              "Es distinto del Ad Account ID — es un identificador del pixel de conversiones.",
-              "Entrá a Events Manager: business.facebook.com/events_manager.",
-              'Seleccioná tu pixel en la lista (o creá uno nuevo con "+ Conectar fuente de datos").',
-              'En "Configuración", copiá el "ID del pixel" (15-16 dígitos).',
-            ],
-            docUrl: "https://www.facebook.com/business/help/952192354843755",
-          }}
-        >
-          <TextInput
-            value={data.metaPixelId}
-            onChange={(v) => update({ metaPixelId: v.replace(/[^0-9]/g, "") })}
-            placeholder="1234567890123456"
-            mono
-            maxLength={20}
-          />
-        </Field>
-        <Field
-          label="Access Token para CAPI"
-          hint="Puede ser el mismo del System User de arriba, o uno específico con permiso ads_management."
-          tutorial={{
-            title: "¿Puedo usar el mismo token que Meta Ads?",
-            steps: [
-              "Sí. Si el System User tiene permiso ads_management, sirve para ambos.",
-              'Si no, generá uno nuevo en Events Manager → tu pixel → Configuración → "Configurar" CAPI → Generar token.',
-              "Pegá el token que obtengas en este campo.",
-            ],
-          }}
-        >
-          <TextInput
-            value={data.metaPixelToken}
-            onChange={(v) => update({ metaPixelToken: v })}
-            placeholder="Token de acceso"
-            mono
-          />
-        </Field>
-        <HistoryRangeSelector
-          value={data.historyMetaMonths}
-          onChange={(months) => update({ historyMetaMonths: months })}
-          color="#1877F2"
-          platform="Meta"
-        />
-      </PlatformCard>
-
-      {/* Google Ads */}
-      <PlatformCard
-        name="Google Ads"
-        color="#4285F4"
-        description="Opcional. Conectamos via OAuth al activar la cuenta."
-      >
-        <Field
-          label="Customer ID"
-          tutorial={{
-            title: "¿Cómo encuentro mi Customer ID?",
-            steps: [
-              "Entrá a ads.google.com logueado con tu cuenta.",
-              "Arriba a la derecha, al costado del menú de cuentas, ves un número con formato 123-456-7890.",
-              "Ese es tu Customer ID.",
-              "Pegalo acá SIN los guiones (solo los 10 dígitos).",
-            ],
-            docUrl: "https://support.google.com/google-ads/answer/1704344",
-          }}
-        >
-          <TextInput
-            value={data.googleAdsCustomerId}
-            onChange={(v) => update({ googleAdsCustomerId: v.replace(/[^0-9]/g, "") })}
-            placeholder="1234567890"
-            mono
-            maxLength={10}
-          />
-        </Field>
-        <HistoryRangeSelector
-          value={data.historyGoogleMonths}
-          onChange={(months) => update({ historyGoogleMonths: months })}
-          color="#4285F4"
-          platform="Google Ads"
-        />
-      </PlatformCard>
+              {/* Rango histórico — solo si seleccionó y hay historyKey */}
+              {checked && p.historyKey && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <HistoryRangeSelector
+                    value={data[p.historyKey]}
+                    onChange={(months) => update({ [p.historyKey!]: months })}
+                    color={p.color}
+                    platform={p.name.split(" ")[0]}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
+
 
 function PlatformCard({
   name,
