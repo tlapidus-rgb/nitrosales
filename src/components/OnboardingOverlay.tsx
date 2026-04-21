@@ -2,14 +2,17 @@
 "use client";
 
 // ══════════════════════════════════════════════════════════════
-// OnboardingOverlay v2 — wizard por pasos, tutoriales quirúrgicos
+// OnboardingOverlay v3 — split view (sidebar izquierdo + panel derecho)
 // ══════════════════════════════════════════════════════════════
 // 4 fases:
-//   - wizard:     flow por pasos, uno por plataforma seleccionada.
-//                 Cada paso tiene tutorial completo con rol/permisos exactos.
-//   - validating: esperando aprobación admin del backfill.
-//   - backfilling: jobs corriendo, overlay muestra progreso.
-//   - done:       null (desbloqueado).
+//   - wizard:     split view con sidebar de plataformas + % completitud
+//                 por cada una, panel derecho con tutorial + inputs
+//   - validating: esperando aprobacion admin del backfill
+//   - backfilling: jobs corriendo, overlay muestra progreso
+//   - done:       null (desbloqueado)
+//
+// Plataformas (5, sin GA4 — los analytics salen de NitroPixel):
+//   VTEX, MercadoLibre, Meta Ads, Meta Pixel, Google Ads, Google Search Console
 // ══════════════════════════════════════════════════════════════
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -22,9 +25,8 @@ import {
   ExternalLink,
   Info,
   ShieldCheck,
-  Copy,
-  Check,
 } from "lucide-react";
+import { BrandLogo, type BrandKey } from "./BrandLogo";
 
 const BRAND_ORANGE = "#FF5E1A";
 const CARD_BG = "rgba(20,20,25,0.95)";
@@ -34,7 +36,10 @@ const TEXT_SECONDARY = "#9CA3AF";
 const TEXT_MUTED = "#6B7280";
 const ACCENT_GREEN = "#22C55E";
 
-// ─── Overlay container ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// Overlay container
+// ═══════════════════════════════════════════════════════════════
+
 export default function OnboardingOverlay() {
   const [state, setState] = useState<any>(null);
   const [loaded, setLoaded] = useState(false);
@@ -63,6 +68,8 @@ export default function OnboardingOverlay() {
 
   if (!loaded || !state || !state.locked) return null;
 
+  const isWizard = state.phase === "wizard";
+
   return (
     <div
       style={{
@@ -83,27 +90,39 @@ export default function OnboardingOverlay() {
       <div
         style={{
           width: "100%",
-          maxWidth: 680,
+          maxWidth: isWizard ? 1040 : 680,
           maxHeight: "92vh",
-          overflow: "auto",
           background: CARD_BG,
           border: `1px solid ${BORDER}`,
           borderRadius: 20,
           boxShadow: "0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset",
-          padding: 36,
           color: TEXT_PRIMARY,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         {state.phase === "wizard" && <WizardFlow onSubmitted={fetchState} />}
-        {state.phase === "validating" && <ValidatingPhase />}
-        {state.phase === "backfilling" && <BackfillingPhase progress={state.backfillProgress} />}
+        {state.phase === "validating" && (
+          <div style={{ padding: 36, overflow: "auto" }}>
+            <ValidatingPhase />
+          </div>
+        )}
+        {state.phase === "backfilling" && (
+          <div style={{ padding: 36, overflow: "auto" }}>
+            <BackfillingPhase progress={state.backfillProgress} />
+          </div>
+        )}
       </div>
       <style jsx global>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
 
-// ─── Validating phase ────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// Validating + Backfilling (centered, single-column)
+// ═══════════════════════════════════════════════════════════════
+
 function ValidatingPhase() {
   return (
     <div style={{ textAlign: "center", padding: "20px 0" }}>
@@ -126,7 +145,6 @@ function ValidatingPhase() {
   );
 }
 
-// ─── Backfilling phase ───────────────────────────────────────
 function BackfillingPhase({ progress }: { progress: any }) {
   const overallPct = progress?.overallPct || 0;
   const jobs = progress?.jobs || [];
@@ -172,19 +190,35 @@ function BackfillingPhase({ progress }: { progress: any }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Wizard flow — pasos guiados
+// Wizard (split view)
 // ═══════════════════════════════════════════════════════════════
 
-const ALL_PLATFORMS = [
-  { key: "VTEX", name: "VTEX", color: "#FF0080", description: "Ecommerce — pedidos, productos, stock" },
-  { key: "MERCADOLIBRE", name: "MercadoLibre", color: "#FFE600", description: "Marketplace — OAuth después" },
-  { key: "META_ADS", name: "Meta Ads", color: "#1877F2", description: "Facebook + Instagram Ads" },
-  { key: "META_PIXEL", name: "Meta Pixel", color: "#1877F2", description: "Conversiones API server-side" },
-  { key: "GOOGLE_ADS", name: "Google Ads", color: "#4285F4", description: "Search, Shopping, PMax" },
+interface Platform {
+  key: BrandKey;
+  name: string;
+  subtitle: string;
+  requiredFields: string[];
+  oauth: boolean;
+}
+
+const ALL_PLATFORMS: Platform[] = [
+  { key: "VTEX", name: "VTEX", subtitle: "Ecommerce — pedidos, productos, stock", requiredFields: ["accountName", "appKey", "appToken"], oauth: false },
+  { key: "MERCADOLIBRE", name: "MercadoLibre", subtitle: "Marketplace — OAuth después", requiredFields: ["username"], oauth: true },
+  { key: "META_ADS", name: "Meta Ads", subtitle: "Facebook + Instagram Ads", requiredFields: ["adAccountId", "accessToken"], oauth: false },
+  { key: "META_PIXEL", name: "Meta Pixel", subtitle: "Conversiones API server-side", requiredFields: ["pixelId", "accessToken"], oauth: false },
+  { key: "GOOGLE_ADS", name: "Google Ads", subtitle: "Search, Shopping, PMax — OAuth después", requiredFields: ["customerId"], oauth: true },
+  { key: "GSC", name: "Search Console", subtitle: "SEO — OAuth después", requiredFields: ["propertyUrl"], oauth: true },
 ];
 
+function calcCompletion(platformKey: BrandKey, creds: any): number {
+  const p = ALL_PLATFORMS.find((pl) => pl.key === platformKey);
+  if (!p) return 0;
+  const total = p.requiredFields.length;
+  const filled = p.requiredFields.filter((f) => !!(creds?.[f] || "").trim()).length;
+  return total === 0 ? 0 : Math.round((filled / total) * 100);
+}
+
 function WizardFlow({ onSubmitted }: { onSubmitted: () => void }) {
-  // State
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [creds, setCreds] = useState<Record<string, any>>({});
   const [history, setHistory] = useState<Record<string, number>>({
@@ -192,15 +226,15 @@ function WizardFlow({ onSubmitted }: { onSubmitted: () => void }) {
     MERCADOLIBRE: 12,
     META_ADS: 6,
     GOOGLE_ADS: 6,
+    GSC: 6,
   });
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pasos dinámicos: intro + plataformas seleccionadas + historia + confirmar
   const activePlatforms = ALL_PLATFORMS.filter((p) => selected[p.key]);
   const steps = useMemo(() => {
-    const s: Array<{ id: string; label: string; kind: string; platform?: string }> = [
+    const s: Array<{ id: string; label: string; kind: string; platform?: BrandKey }> = [
       { id: "intro", label: "Plataformas", kind: "intro" },
     ];
     for (const p of activePlatforms) {
@@ -214,39 +248,13 @@ function WizardFlow({ onSubmitted }: { onSubmitted: () => void }) {
   }, [activePlatforms.map((p) => p.key).join(",")]);
 
   const currentStep = steps[step] || steps[0];
-  const totalSteps = steps.length;
 
-  const toggleSelected = (k: string) => setSelected((s) => ({ ...s, [k]: !s[k] }));
+  const toggleSelected = (k: string) => {
+    setSelected((s) => ({ ...s, [k]: !s[k] }));
+    if (!creds[k]) setCreds((c) => ({ ...c, [k]: {} }));
+  };
   const updateCred = (p: string, field: string, value: string) =>
     setCreds((c) => ({ ...c, [p]: { ...(c[p] || {}), [field]: value } }));
-
-  const validateCurrentPlatform = (): string | null => {
-    if (currentStep.kind !== "platform") return null;
-    const p = currentStep.platform!;
-    const c = creds[p] || {};
-    switch (p) {
-      case "VTEX":
-        if (!c.accountName?.trim()) return "Account Name requerido";
-        if (!c.appKey?.trim()) return "App Key requerido";
-        if (!c.appToken?.trim()) return "App Token requerido";
-        break;
-      case "MERCADOLIBRE":
-        if (!c.username?.trim()) return "Usuario ML requerido";
-        break;
-      case "META_ADS":
-        if (!c.adAccountId?.trim()) return "Ad Account ID requerido";
-        if (!c.accessToken?.trim()) return "Access Token requerido";
-        break;
-      case "META_PIXEL":
-        if (!c.pixelId?.trim()) return "Pixel ID requerido";
-        if (!c.accessToken?.trim()) return "Access Token requerido";
-        break;
-      case "GOOGLE_ADS":
-        if (!c.customerId?.trim()) return "Customer ID requerido";
-        break;
-    }
-    return null;
-  };
 
   const handleNext = () => {
     setError(null);
@@ -254,20 +262,34 @@ function WizardFlow({ onSubmitted }: { onSubmitted: () => void }) {
       setError("Seleccioná al menos una plataforma para continuar");
       return;
     }
-    const v = validateCurrentPlatform();
-    if (v) {
-      setError(v);
-      return;
-    }
     setStep(step + 1);
   };
-
   const handleBack = () => {
     setError(null);
     if (step > 0) setStep(step - 1);
   };
 
+  // Click en sidebar para saltar
+  const jumpToStep = (targetIdx: number) => {
+    setError(null);
+    setStep(targetIdx);
+  };
+
   const submit = async () => {
+    // Validar que todas las plataformas seleccionadas tengan los required
+    for (const p of activePlatforms) {
+      const c = creds[p.key] || {};
+      for (const field of p.requiredFields) {
+        if (!(c[field] || "").trim()) {
+          setError(`Falta completar "${field}" en ${p.name}`);
+          // Saltar al step de esa plataforma
+          const idx = steps.findIndex((s) => s.platform === p.key);
+          if (idx >= 0) setStep(idx);
+          return;
+        }
+      }
+    }
+
     setSubmitting(true);
     setError(null);
     try {
@@ -293,128 +315,252 @@ function WizardFlow({ onSubmitted }: { onSubmitted: () => void }) {
     }
   };
 
+  const isIntro = currentStep.kind === "intro";
   const isLast = step === steps.length - 1;
 
-  return (
-    <div>
-      {/* Progress */}
-      <StepProgress currentIndex={step} total={totalSteps} label={currentStep.label} />
+  // Cuando es intro, layout full-width. Cuando ya arrancó con plataformas, split view.
+  if (isIntro) {
+    return (
+      <div style={{ padding: 36, overflow: "auto", maxHeight: "92vh" }}>
+        <IntroStep selected={selected} onToggle={toggleSelected} />
+        {error && (
+          <div style={errorBoxStyle}>{error}</div>
+        )}
+        <NavBar
+          showBack={false}
+          canSubmit={false}
+          isLast={false}
+          submitting={submitting}
+          onBack={handleBack}
+          onNext={handleNext}
+          onSubmit={submit}
+        />
+      </div>
+    );
+  }
 
-      {/* Body */}
-      <div style={{ marginTop: 24 }}>
-        {currentStep.kind === "intro" && (
-          <IntroStep selected={selected} onToggle={toggleSelected} />
-        )}
-        {currentStep.kind === "platform" && (
-          <PlatformStep
-            platformKey={currentStep.platform!}
-            creds={creds[currentStep.platform!] || {}}
-            onChange={(field, value) => updateCred(currentStep.platform!, field, value)}
-          />
-        )}
-        {currentStep.kind === "history" && (
-          <HistoryStep
-            active={activePlatforms.map((p) => p.key)}
-            history={history}
-            onChange={(k, v) => setHistory((h) => ({ ...h, [k]: v }))}
-          />
-        )}
-        {currentStep.kind === "confirm" && (
-          <ConfirmStep activePlatforms={activePlatforms} history={history} creds={creds} />
-        )}
+  // Split view: sidebar izquierdo + panel derecho
+  return (
+    <div style={{ display: "flex", minHeight: 560, maxHeight: "92vh" }}>
+      {/* Sidebar izquierdo */}
+      <div
+        style={{
+          width: 320,
+          flexShrink: 0,
+          background: "rgba(0,0,0,0.15)",
+          borderRight: `1px solid ${BORDER}`,
+          overflowY: "auto",
+          padding: "28px 20px",
+        }}
+      >
+        <div style={{ fontSize: 10, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 16 }}>
+          Tu onboarding
+        </div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: "0 0 20px", letterSpacing: "-0.01em" }}>
+          Plataformas a conectar
+        </h2>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {activePlatforms.map((p) => {
+            const idx = steps.findIndex((s) => s.platform === p.key);
+            const isCurrent = idx === step;
+            const completion = calcCompletion(p.key, creds[p.key]);
+            return (
+              <button
+                key={p.key}
+                onClick={() => jumpToStep(idx)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 12px",
+                  background: isCurrent ? "rgba(255,94,26,0.08)" : "transparent",
+                  border: `1px solid ${isCurrent ? "rgba(255,94,26,0.3)" : "transparent"}`,
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  color: "inherit",
+                  transition: "all 160ms",
+                  width: "100%",
+                }}
+              >
+                <div style={{ flexShrink: 0, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <BrandLogo brand={p.key} size={24} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: isCurrent ? "#fff" : TEXT_PRIMARY, marginBottom: 4 }}>
+                    {p.name}
+                  </div>
+                  {/* Progress bar */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{
+                      flex: 1,
+                      height: 3,
+                      background: "rgba(255,255,255,0.06)",
+                      borderRadius: 99,
+                      overflow: "hidden",
+                    }}>
+                      <div style={{
+                        width: `${completion}%`,
+                        height: "100%",
+                        background: completion === 100 ? ACCENT_GREEN : BRAND_ORANGE,
+                        transition: "width 300ms ease",
+                      }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: completion === 100 ? ACCENT_GREEN : TEXT_MUTED, fontWeight: 600, minWidth: 26, textAlign: "right" }}>
+                      {completion === 100 ? "✓" : `${completion}%`}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Steps finales (Historico + Confirmar) */}
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px dashed ${BORDER}` }}>
+          {steps.slice(1 + activePlatforms.length).map((s, i) => {
+            const realIdx = 1 + activePlatforms.length + i;
+            const isCurrent = realIdx === step;
+            return (
+              <button
+                key={s.id}
+                onClick={() => jumpToStep(realIdx)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  background: isCurrent ? "rgba(255,94,26,0.08)" : "transparent",
+                  border: `1px solid ${isCurrent ? "rgba(255,94,26,0.3)" : "transparent"}`,
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  color: isCurrent ? "#fff" : TEXT_SECONDARY,
+                  transition: "all 160ms",
+                  width: "100%",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 4,
+                }}
+              >
+                <div style={{
+                  width: 22, height: 22, borderRadius: "50%",
+                  background: isCurrent ? BRAND_ORANGE : "rgba(255,255,255,0.06)",
+                  color: isCurrent ? "#fff" : TEXT_SECONDARY,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: 700, flexShrink: 0,
+                }}>
+                  {i + 1}
+                </div>
+                {s.kind === "history" ? "Rango histórico" : "Revisar y enviar"}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Back to intro */}
+        <div style={{ marginTop: 20 }}>
+          <button
+            onClick={() => jumpToStep(0)}
+            style={{
+              fontSize: 11,
+              color: TEXT_MUTED,
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: 0,
+              textDecoration: "underline",
+            }}
+          >
+            ← Cambiar plataformas
+          </button>
+        </div>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div style={{
-          marginTop: 16, padding: "10px 14px",
-          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
-          borderRadius: 8, color: "#F87171", fontSize: 12,
-        }}>
-          {error}
+      {/* Panel derecho */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "32px 36px" }}>
+          {currentStep.kind === "platform" && (
+            <PlatformStep
+              platformKey={currentStep.platform!}
+              creds={creds[currentStep.platform!] || {}}
+              onChange={(field, value) => updateCred(currentStep.platform!, field, value)}
+            />
+          )}
+          {currentStep.kind === "history" && (
+            <HistoryStep
+              active={activePlatforms.map((p) => p.key)}
+              history={history}
+              onChange={(k, v) => setHistory((h) => ({ ...h, [k]: v }))}
+            />
+          )}
+          {currentStep.kind === "confirm" && (
+            <ConfirmStep activePlatforms={activePlatforms} history={history} creds={creds} />
+          )}
+          {error && <div style={errorBoxStyle}>{error}</div>}
         </div>
-      )}
+        <div style={{ borderTop: `1px solid ${BORDER}`, padding: "16px 28px" }}>
+          <NavBar
+            showBack={true}
+            canSubmit={true}
+            isLast={isLast}
+            submitting={submitting}
+            onBack={handleBack}
+            onNext={handleNext}
+            onSubmit={submit}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      {/* Navigation */}
-      <div style={{ marginTop: 28, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <button
-          onClick={handleBack}
-          disabled={step === 0 || submitting}
-          style={{
-            padding: "10px 18px",
-            background: "transparent",
-            border: `1px solid ${BORDER}`,
-            borderRadius: 8,
-            color: step === 0 ? TEXT_MUTED : TEXT_SECONDARY,
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: step === 0 || submitting ? "not-allowed" : "pointer",
-            opacity: step === 0 ? 0.4 : 1,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
+// ─── NavBar (Atras/Continuar o Atras/Enviar) ──────────────────
+function NavBar({ showBack, canSubmit, isLast, submitting, onBack, onNext, onSubmit }: any) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+      {showBack ? (
+        <button onClick={onBack} disabled={submitting} style={secondaryBtn(submitting)}>
           <ArrowLeft size={14} /> Atrás
         </button>
-
-        {isLast ? (
-          <button
-            onClick={submit}
-            disabled={submitting}
-            style={primaryBtn(submitting)}
-          >
-            {submitting ? (
-              <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Enviando…</>
-            ) : (
-              <>Enviar para validación <ArrowRight size={14} /></>
-            )}
-          </button>
-        ) : (
-          <button onClick={handleNext} style={primaryBtn(false)}>
-            Continuar <ArrowRight size={14} />
-          </button>
-        )}
-      </div>
+      ) : (
+        <div />
+      )}
+      {isLast && canSubmit ? (
+        <button onClick={onSubmit} disabled={submitting} style={primaryBtn(submitting)}>
+          {submitting ? (
+            <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Enviando…</>
+          ) : (
+            <>Enviar para validación <ArrowRight size={14} /></>
+          )}
+        </button>
+      ) : (
+        <button onClick={onNext} style={primaryBtn(false)}>
+          Continuar <ArrowRight size={14} />
+        </button>
+      )}
     </div>
   );
 }
 
-// ─── Step progress bar ───────────────────────────────────────
-function StepProgress({ currentIndex, total, label }: { currentIndex: number; total: number; label: string }) {
-  const pct = total > 1 ? (currentIndex / (total - 1)) * 100 : 0;
-  return (
-    <div>
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10,
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          Paso {currentIndex + 1} de {total} · {label}
-        </div>
-        <div style={{ fontSize: 11, color: TEXT_MUTED }}>{Math.round(pct)}%</div>
-      </div>
-      <div style={{ height: 4, background: "rgba(255,255,255,0.05)", borderRadius: 99, overflow: "hidden" }}>
-        <div style={{
-          width: `${pct}%`, height: "100%",
-          background: `linear-gradient(90deg, ${BRAND_ORANGE}, #FF8C4A)`,
-          transition: "width 400ms ease",
-        }} />
-      </div>
-    </div>
-  );
-}
+// ═══════════════════════════════════════════════════════════════
+// Intro — checkboxes plataformas
+// ═══════════════════════════════════════════════════════════════
 
-// ─── Step: intro ─────────────────────────────────────────────
 function IntroStep({ selected, onToggle }: { selected: Record<string, boolean>; onToggle: (k: string) => void }) {
   return (
     <div>
-      <Title>Bienvenido a NitroSales</Title>
-      <p style={{ color: TEXT_SECONDARY, fontSize: 14, lineHeight: 1.7, margin: "0 0 24px" }}>
-        Vamos a conectar tus plataformas paso a paso. Marcá las que usás — el orden y el detalle
-        de cada una lo vamos a ir viendo juntos en las pantallas siguientes.
-      </p>
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <Pretitle tone={BRAND_ORANGE}>Paso 1 de 1 · Plataformas</Pretitle>
+        <Title>Bienvenido a NitroSales</Title>
+        <p style={{ color: TEXT_SECONDARY, fontSize: 14, lineHeight: 1.7, margin: "0 auto", maxWidth: 520 }}>
+          Vamos a conectar tus plataformas paso a paso. Marcá las que usás — el orden y el detalle
+          de cada una lo vamos a ir viendo juntos en las pantallas siguientes.
+        </p>
+      </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 520, marginInline: "auto" }}>
         {ALL_PLATFORMS.map((p) => {
           const isSelected = !!selected[p.key];
           return (
@@ -422,10 +568,10 @@ function IntroStep({ selected, onToggle }: { selected: Record<string, boolean>; 
               key={p.key}
               onClick={() => onToggle(p.key)}
               style={{
-                display: "flex", alignItems: "center", gap: 12,
+                display: "flex", alignItems: "center", gap: 14,
                 padding: "14px 16px",
-                background: isSelected ? `${p.color}0D` : "rgba(255,255,255,0.02)",
-                border: `1px solid ${isSelected ? `${p.color}44` : BORDER}`,
+                background: isSelected ? "rgba(255,94,26,0.06)" : "rgba(255,255,255,0.02)",
+                border: `1px solid ${isSelected ? "rgba(255,94,26,0.3)" : BORDER}`,
                 borderRadius: 12,
                 cursor: "pointer",
                 transition: "all 160ms",
@@ -436,8 +582,8 @@ function IntroStep({ selected, onToggle }: { selected: Record<string, boolean>; 
             >
               <div style={{
                 width: 18, height: 18, borderRadius: 5,
-                border: `2px solid ${isSelected ? p.color : "#3F3F46"}`,
-                background: isSelected ? p.color : "transparent",
+                border: `2px solid ${isSelected ? BRAND_ORANGE : "#3F3F46"}`,
+                background: isSelected ? BRAND_ORANGE : "transparent",
                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}>
                 {isSelected && (
@@ -446,12 +592,14 @@ function IntroStep({ selected, onToggle }: { selected: Record<string, boolean>; 
                   </svg>
                 )}
               </div>
-              <div style={{ width: 7, height: 7, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+              <div style={{ flexShrink: 0, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <BrandLogo brand={p.key} size={28} />
+              </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: isSelected ? "#fff" : TEXT_PRIMARY }}>
                   {p.name}
                 </div>
-                <div style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 2 }}>{p.description}</div>
+                <div style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 2 }}>{p.subtitle}</div>
               </div>
             </button>
           );
@@ -461,54 +609,56 @@ function IntroStep({ selected, onToggle }: { selected: Record<string, boolean>; 
   );
 }
 
-// ─── Step: platform ──────────────────────────────────────────
-function PlatformStep({ platformKey, creds, onChange }: {
-  platformKey: string;
-  creds: any;
-  onChange: (field: string, value: string) => void;
-}) {
+// ═══════════════════════════════════════════════════════════════
+// Platform step (tutorial + inputs)
+// ═══════════════════════════════════════════════════════════════
+
+function PlatformStep({ platformKey, creds, onChange }: any) {
   if (platformKey === "VTEX") return <VtexStep creds={creds} onChange={onChange} />;
   if (platformKey === "MERCADOLIBRE") return <MlStep creds={creds} onChange={onChange} />;
   if (platformKey === "META_ADS") return <MetaAdsStep creds={creds} onChange={onChange} />;
   if (platformKey === "META_PIXEL") return <MetaPixelStep creds={creds} onChange={onChange} />;
   if (platformKey === "GOOGLE_ADS") return <GoogleAdsStep creds={creds} onChange={onChange} />;
+  if (platformKey === "GSC") return <GscStep creds={creds} onChange={onChange} />;
   return null;
 }
 
-// ─── Step: VTEX ──────────────────────────────────────────────
+function PlatformHeader({ brand, name, description, children }: any) {
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
+        <BrandLogo brand={brand} size={36} />
+        <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", margin: 0, color: "#fff" }}>{name}</h2>
+      </div>
+      <p style={{ color: TEXT_SECONDARY, fontSize: 13, lineHeight: 1.7, margin: "0 0 18px" }}>{description}</p>
+      {children}
+    </div>
+  );
+}
+
 function VtexStep({ creds, onChange }: any) {
   return (
-    <PlatformHeader color="#FF0080" name="VTEX" description="Vamos a crear una App Key con permisos de lectura para que NitroSales pueda traer tus pedidos, productos y stock.">
+    <PlatformHeader brand="VTEX" name="VTEX" description="Vamos a crear una App Key con permisos de lectura para que NitroSales pueda traer tus pedidos, productos y stock.">
       <Tutorial
         title="Cómo crear la App Key en VTEX (5 min)"
         steps={[
           { text: "Abrí tu admin VTEX", detail: "https://{tu-cuenta}.myvtex.com/admin — reemplazá {tu-cuenta} por tu subdomain (ej. arredo)." },
           { text: "Menú lateral → ícono de Apps (puzzle piece) → Application Keys", detail: "Si no ves 'Application Keys', andá a: Cuenta → Gestión de usuarios → App Keys." },
-          { text: "Click en 'Manage my keys' → 'Generate New'", detail: "Si es la primera vez, puede pedirte confirmar que querés habilitar la feature." },
+          { text: "Click en 'Manage my keys' → 'Generate New'", detail: "" },
           { text: "Label: escribí 'NitroSales'", detail: "Es solo un nombre interno para identificarlo." },
-          { text: "Asignar Roles → buscá y seleccioná 'Owner (Admin Super)'", detail: "Es el rol recomendado por VTEX para integraciones de lectura de analytics. Podés refinarlo después si querés permisos más granulares (ver abajo)." },
-          { text: "Click 'Generate'", detail: "VTEX crea el par de credenciales." },
-          { text: "Copiá AHORA el App Key y el App Token — el Token solo se muestra UNA VEZ", detail: "Si se pierde, tenés que regenerarlo." },
+          { text: "Asignar Roles → seleccioná 'Owner (Admin Super)'", detail: "Es el rol recomendado por VTEX para integraciones. Podés refinarlo después si querés permisos más granulares." },
+          { text: "Click 'Generate' → copiá AHORA el App Key y el App Token", detail: "El Token solo se muestra UNA VEZ. Si se pierde, tenés que regenerarlo." },
         ]}
         docUrl="https://developers.vtex.com/docs/guides/api-authentication-using-application-keys"
       />
-      <AltRoleInfo>
-        <strong style={{ color: TEXT_PRIMARY }}>Alternativa más segura (opcional):</strong> en vez de "Owner", creá un rol custom con estos permisos mínimos:
-        <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
-          <li>OMS · List orders / Get order</li>
-          <li>Catalog · Get Product / Get SKU</li>
-          <li>Master Data v1 · Read (CL / CM)</li>
-        </ul>
-      </AltRoleInfo>
-
       <div style={{ marginTop: 20 }}>
-        <Field label="Account Name" hint="Es el subdomain de tu tienda VTEX (ej: 'arredo' si tu admin es arredo.myvtex.com).">
+        <Field label="Account Name" hint="Es el subdomain de tu tienda VTEX.">
           <Input value={creds.accountName || ""} onChange={(v) => onChange("accountName", v)} placeholder="arredo" maxLength={60} />
         </Field>
         <Field label="App Key" hint="Empieza con 'vtexappkey-'.">
           <Input value={creds.appKey || ""} onChange={(v) => onChange("appKey", v)} placeholder="vtexappkey-xxxxx-XXXXXX" mono />
         </Field>
-        <Field label="App Token" hint="Alfanumérico largo. Copialo del modal de VTEX (solo se muestra una vez).">
+        <Field label="App Token">
           <Input value={creds.appToken || ""} onChange={(v) => onChange("appToken", v)} placeholder="ABCD1234..." mono />
         </Field>
       </div>
@@ -516,29 +666,26 @@ function VtexStep({ creds, onChange }: any) {
   );
 }
 
-// ─── Step: MercadoLibre ──────────────────────────────────────
 function MlStep({ creds, onChange }: any) {
   return (
-    <PlatformHeader color="#FFE600" textColor="#78350F" name="MercadoLibre" description="Para conectar MELI vamos a usar OAuth (el método seguro oficial). Acá solo necesitamos tu usuario de vendedor para identificar la cuenta.">
+    <PlatformHeader brand="MERCADOLIBRE" name="MercadoLibre" description="Para conectar MELI vamos a usar OAuth (el método seguro oficial). Acá solo necesitamos tu usuario de vendedor para identificar la cuenta.">
       <Tutorial
         title="Dónde ves tu usuario de MercadoLibre"
         steps={[
-          { text: "Entrá a mercadolibre.com.ar logueado con tu cuenta vendedor", detail: "Tiene que ser la cuenta donde tenés tus publicaciones." },
+          { text: "Entrá a mercadolibre.com.ar logueado con tu cuenta vendedor", detail: "" },
           { text: "Arriba a la derecha, click en tu nombre", detail: "Se abre un menú desplegable." },
           { text: "Tu usuario aparece en el menú", detail: "Es alfanumérico, a veces empieza con '@'." },
           { text: "Pegalo acá sin la '@'", detail: "" },
         ]}
       />
-
       <div style={{ marginTop: 18, padding: "12px 14px", background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8 }}>
         <div style={{ display: "flex", gap: 8 }}>
           <Info size={14} color="#60A5FA" style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
-            <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, cuando NitroSales apruebe tus datos, te vamos a pedir que autorices a NitroSales desde tu cuenta MELI vía un login oficial de MercadoLibre. No necesitamos tu contraseña — OAuth es el método seguro estándar.
+            <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te vamos a pedir que autorices a NitroSales desde MELI vía login oficial.
           </div>
         </div>
       </div>
-
       <div style={{ marginTop: 20 }}>
         <Field label="Usuario MercadoLibre">
           <Input value={creds.username || ""} onChange={(v) => onChange("username", v)} placeholder="tuusuario (sin @)" maxLength={60} />
@@ -548,39 +695,29 @@ function MlStep({ creds, onChange }: any) {
   );
 }
 
-// ─── Step: Meta Ads ──────────────────────────────────────────
 function MetaAdsStep({ creds, onChange }: any) {
   return (
-    <PlatformHeader color="#1877F2" name="Meta Ads" description="Necesitamos un System User token de tu Business Manager (dura para siempre, no vence). Con eso traemos tus campañas, inversión y resultados de Facebook e Instagram Ads.">
+    <PlatformHeader brand="META_ADS" name="Meta Ads" description="Necesitamos un System User token de tu Business Manager (dura para siempre, no vence).">
       <Tutorial
-        title="Parte 1: Ad Account ID (30 segundos)"
+        title="Parte 1: Ad Account ID"
         steps={[
           { text: "Abrí business.facebook.com logueado", detail: "" },
-          { text: "Click en el engranaje arriba izquierda → 'Configuración del negocio'", detail: "" },
+          { text: "Engranaje arriba izquierda → 'Configuración del negocio'", detail: "" },
           { text: "Menú izquierdo: Cuentas → Cuentas publicitarias", detail: "" },
-          { text: "Copiá el ID de la cuenta que querés conectar", detail: "Son solo números (ej: 123456789). Ignorá el prefijo 'act_' si aparece." },
+          { text: "Copiá el ID de la cuenta (solo números, ignorá 'act_')", detail: "" },
         ]}
       />
-
       <Tutorial
-        title="Parte 2: System User + Access Token (5 min)"
+        title="Parte 2: System User + Access Token"
         steps={[
           { text: "Business Manager → Configuración → Usuarios → Usuarios del sistema", detail: "" },
-          { text: "Click 'Agregar' → Nombre: 'NitroSales System User' → rol 'Administrador'", detail: "" },
-          { text: "Click sobre el nuevo usuario → 'Agregar activos'", detail: "" },
-          { text: "Seleccionar: Cuentas publicitarias → tu cuenta → permiso 'Administración de la cuenta publicitaria'", detail: "Si no ves 'Administración', asigná 'Acceso completo'." },
-          { text: "Click 'Generar token'", detail: "Se abre un modal." },
-          { text: "App: si no tenés una, tenés que crear una gratuita en developers.facebook.com primero (ver nota abajo)", detail: "Para NitroSales creá una app tipo 'Business' — no necesita review ni publicarse." },
-          { text: "Permisos a seleccionar: ads_read, ads_management, business_management", detail: "No marques otros — solo esos 3." },
-          { text: "Click 'Generate Token' y copialo AHORA", detail: "Es muy largo, empieza con 'EAA...'. Solo se muestra una vez." },
+          { text: "Agregar → Nombre 'NitroSales' → rol 'Administrador'", detail: "" },
+          { text: "Agregar activos → Cuentas publicitarias → tu cuenta → 'Acceso completo'", detail: "" },
+          { text: "Generar token → permisos: ads_read, ads_management, business_management", detail: "No marques otros, solo esos 3." },
+          { text: "Copialo AHORA (empieza con 'EAA...')", detail: "Solo se muestra una vez." },
         ]}
         docUrl="https://developers.facebook.com/docs/marketing-api/system-users"
       />
-
-      <AltRoleInfo>
-        <strong style={{ color: TEXT_PRIMARY }}>Por qué System User y no tu token personal:</strong> los tokens personales vencen a los 60 días. Los de System User duran para siempre. Es el método recomendado por Meta para integraciones permanentes.
-      </AltRoleInfo>
-
       <div style={{ marginTop: 20 }}>
         <Field label="Ad Account ID" hint="Solo los números (sin 'act_').">
           <Input value={creds.adAccountId || ""} onChange={(v) => onChange("adAccountId", v.replace(/[^0-9]/g, ""))} placeholder="123456789" mono maxLength={30} />
@@ -593,34 +730,26 @@ function MetaAdsStep({ creds, onChange }: any) {
   );
 }
 
-// ─── Step: Meta Pixel ────────────────────────────────────────
 function MetaPixelStep({ creds, onChange }: any) {
   return (
-    <PlatformHeader color="#1877F2" name="Meta Pixel (Conversiones API)" description="El Pixel es distinto de Meta Ads — maneja el tracking de conversiones server-side. Con esto mandamos tus compras directo a Meta sin depender del navegador, mejorando el match rate.">
+    <PlatformHeader brand="META_PIXEL" name="Meta Pixel (CAPI)" description="El Pixel maneja tracking server-side de conversiones hacia Meta.">
       <Tutorial
-        title="Parte 1: Pixel ID (1 min)"
+        title="Parte 1: Pixel ID"
         steps={[
           { text: "Abrí business.facebook.com/events_manager", detail: "" },
-          { text: "Seleccioná tu pixel en el listado", detail: "Si no tenés uno, click '+ Conectar fuente de datos' → Web → Pixel de Meta." },
+          { text: "Seleccioná tu pixel", detail: "Si no tenés, '+ Conectar fuente de datos' → Web → Pixel de Meta." },
           { text: "Tab 'Configuración'", detail: "" },
-          { text: "Copiá el 'ID del pixel' (15-16 dígitos)", detail: "No es el Ad Account ID — son distintos." },
+          { text: "Copiá el 'ID del pixel' (15-16 dígitos)", detail: "" },
         ]}
       />
-
       <Tutorial
-        title="Parte 2: Access Token CAPI (2 min)"
+        title="Parte 2: Access Token CAPI"
         steps={[
-          { text: "Mismo pixel → tab 'Configuración'", detail: "" },
-          { text: "Scrollear hasta 'Conversions API' → 'Configurar manualmente'", detail: "" },
-          { text: "Click 'Generar token de acceso'", detail: "Genera un token dedicado para el pixel. Es distinto del System User de Meta Ads." },
+          { text: "Mismo pixel → Configuración → Conversions API → 'Configurar manualmente'", detail: "" },
+          { text: "Click 'Generar token de acceso'", detail: "" },
           { text: "Copialo AHORA — solo se muestra una vez", detail: "" },
         ]}
       />
-
-      <AltRoleInfo>
-        <strong style={{ color: TEXT_PRIMARY }}>Nota:</strong> si ya tenés el System User de Meta Ads con permiso <code style={{ background: "rgba(255,255,255,0.05)", padding: "1px 5px", borderRadius: 4 }}>ads_management</code>, ese mismo token también sirve acá. Pero Meta recomienda uno dedicado por pixel para mejor trazabilidad.
-      </AltRoleInfo>
-
       <div style={{ marginTop: 20 }}>
         <Field label="Pixel ID" hint="15-16 dígitos, solo números.">
           <Input value={creds.pixelId || ""} onChange={(v) => onChange("pixelId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890123456" mono maxLength={20} />
@@ -633,29 +762,26 @@ function MetaPixelStep({ creds, onChange }: any) {
   );
 }
 
-// ─── Step: Google Ads ────────────────────────────────────────
 function GoogleAdsStep({ creds, onChange }: any) {
   return (
-    <PlatformHeader color="#4285F4" name="Google Ads" description="Para Google Ads usamos OAuth (login oficial de Google) — acá solo necesitamos tu Customer ID para identificar la cuenta.">
+    <PlatformHeader brand="GOOGLE_ADS" name="Google Ads" description="Usamos OAuth oficial. Acá solo necesitamos tu Customer ID.">
       <Tutorial
         title="Dónde está el Customer ID"
         steps={[
-          { text: "Abrí ads.google.com logueado con tu cuenta", detail: "" },
-          { text: "Arriba a la derecha, al lado del selector de cuentas, ves un número con formato 123-456-7890", detail: "Puede aparecer también como 'CID: 1234567890'." },
-          { text: "Copialo SIN los guiones", detail: "Solo los 10 dígitos." },
+          { text: "Abrí ads.google.com logueado", detail: "" },
+          { text: "Arriba a la derecha ves un número 123-456-7890", detail: "Puede aparecer como 'CID: 1234567890'." },
+          { text: "Copialo SIN los guiones (10 dígitos)", detail: "" },
         ]}
         docUrl="https://support.google.com/google-ads/answer/1704344"
       />
-
       <div style={{ marginTop: 18, padding: "12px 14px", background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8 }}>
         <div style={{ display: "flex", gap: 8 }}>
           <Info size={14} color="#60A5FA" style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
-            <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, cuando NitroSales apruebe tus datos, te vamos a llevar a un login oficial de Google donde autorizás a NitroSales como app. No pedimos tu contraseña — es OAuth estándar.
+            <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te llevamos a login oficial de Google para autorizar.
           </div>
         </div>
       </div>
-
       <div style={{ marginTop: 20 }}>
         <Field label="Customer ID" hint="10 dígitos sin guiones.">
           <Input value={creds.customerId || ""} onChange={(v) => onChange("customerId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890" mono maxLength={10} />
@@ -665,8 +791,40 @@ function GoogleAdsStep({ creds, onChange }: any) {
   );
 }
 
-// ─── Step: History ───────────────────────────────────────────
-function HistoryStep({ active, history, onChange }: { active: string[]; history: Record<string, number>; onChange: (k: string, v: number) => void }) {
+function GscStep({ creds, onChange }: any) {
+  return (
+    <PlatformHeader brand="GSC" name="Google Search Console" description="Para Search Console usamos OAuth oficial. Acá solo necesitamos la URL de tu propiedad.">
+      <Tutorial
+        title="Dónde está la URL de tu propiedad"
+        steps={[
+          { text: "Abrí search.google.com/search-console logueado", detail: "" },
+          { text: "Arriba a la izquierda, selector de propiedades", detail: "Ves la lista de sitios verificados en tu cuenta." },
+          { text: "Copiá la URL exacta de tu propiedad", detail: "Ej: https://www.tutienda.com/ (con https y barra final si corresponde)." },
+        ]}
+        docUrl="https://support.google.com/webmasters/answer/34592"
+      />
+      <div style={{ marginTop: 18, padding: "12px 14px", background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Info size={14} color="#60A5FA" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+            <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te llevamos a login oficial de Google para autorizar acceso a Search Console.
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop: 20 }}>
+        <Field label="URL de tu propiedad" hint="La URL exacta como aparece en Search Console.">
+          <Input value={creds.propertyUrl || ""} onChange={(v) => onChange("propertyUrl", v)} placeholder="https://www.tutienda.com/" mono />
+        </Field>
+      </div>
+    </PlatformHeader>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// History step
+// ═══════════════════════════════════════════════════════════════
+
+function HistoryStep({ active, history, onChange }: { active: BrandKey[]; history: Record<string, number>; onChange: (k: string, v: number) => void }) {
   const OPTIONS = [
     { months: 3, label: "3 meses", eta: "minutos" },
     { months: 6, label: "6 meses", eta: "~30 min" },
@@ -674,47 +832,44 @@ function HistoryStep({ active, history, onChange }: { active: string[]; history:
     { months: 24, label: "2 años", eta: "3-6 hs" },
     { months: -1, label: "Todo", eta: "~1 día" },
   ];
-  const PLATFORMS_HISTORY: Record<string, { name: string; color: string }> = {
-    VTEX: { name: "VTEX", color: "#FF0080" },
-    MERCADOLIBRE: { name: "MercadoLibre", color: "#FFE600" },
-    META_ADS: { name: "Meta Ads", color: "#1877F2" },
-    GOOGLE_ADS: { name: "Google Ads", color: "#4285F4" },
-  };
-  const filtered = active.filter((k) => PLATFORMS_HISTORY[k]);
+
+  // GSC no tiene backfill historico (es SEO, no orders)
+  const filtered = active.filter((k) => k !== "GSC" && k !== "META_PIXEL");
 
   return (
     <div>
       <Title>Cuánta historia querés traer</Title>
       <p style={{ color: TEXT_SECONDARY, fontSize: 14, lineHeight: 1.7, margin: "0 0 20px" }}>
-        Más tiempo = más data histórica disponible desde día 1, pero la activación tarda más. Podés elegir distinto por plataforma.
+        Más tiempo = más data histórica desde día 1, pero la activación tarda más. Podés elegir distinto por plataforma.
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {filtered.map((k) => {
-          const meta = PLATFORMS_HISTORY[k];
+          const p = ALL_PLATFORMS.find((pl) => pl.key === k);
+          if (!p) return null;
           const value = history[k] ?? 12;
           return (
             <div key={k} style={{ padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}`, borderRadius: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: meta.color }} />
-                <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_PRIMARY }}>{meta.name}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <BrandLogo brand={k} size={20} />
+                <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_PRIMARY }}>{p.name}</div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
                 {OPTIONS.map((opt) => {
-                  const active = value === opt.months;
+                  const isActive = value === opt.months;
                   return (
                     <button key={opt.months} onClick={() => onChange(k, opt.months)} style={{
                       padding: "8px 4px",
-                      background: active ? `${meta.color}1A` : "rgba(255,255,255,0.03)",
-                      border: `1px solid ${active ? meta.color : BORDER}`,
+                      background: isActive ? "rgba(255,94,26,0.12)" : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${isActive ? BRAND_ORANGE : BORDER}`,
                       borderRadius: 7,
-                      color: active ? "#fff" : TEXT_SECONDARY,
+                      color: isActive ? "#fff" : TEXT_SECONDARY,
                       cursor: "pointer",
                       textAlign: "center",
                       fontSize: 11,
                     }}>
-                      <div style={{ fontWeight: active ? 700 : 500 }}>{opt.label}</div>
-                      <div style={{ fontSize: 9, color: active ? meta.color : TEXT_MUTED, marginTop: 2 }}>{opt.eta}</div>
+                      <div style={{ fontWeight: isActive ? 700 : 500 }}>{opt.label}</div>
+                      <div style={{ fontSize: 9, color: isActive ? BRAND_ORANGE : TEXT_MUTED, marginTop: 2 }}>{opt.eta}</div>
                     </button>
                   );
                 })}
@@ -727,10 +882,13 @@ function HistoryStep({ active, history, onChange }: { active: string[]; history:
   );
 }
 
-// ─── Step: Confirm ───────────────────────────────────────────
-function ConfirmStep({ activePlatforms, history, creds }: { activePlatforms: any[]; history: Record<string, number>; creds: Record<string, any> }) {
+// ═══════════════════════════════════════════════════════════════
+// Confirm step
+// ═══════════════════════════════════════════════════════════════
+
+function ConfirmStep({ activePlatforms, history, creds }: any) {
   const HIST_LABEL = (m: number) => {
-    if (m === -1) return "Todo lo disponible";
+    if (m === -1) return "Todo";
     if (m === 1) return "1 mes";
     return `${m} meses`;
   };
@@ -743,18 +901,27 @@ function ConfirmStep({ activePlatforms, history, creds }: { activePlatforms: any
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {activePlatforms.map((p) => (
-          <div key={p.key} style={{ padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}`, borderRadius: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 7, height: 7, borderRadius: "50%", background: p.color }} />
-              <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#fff" }}>{p.name}</div>
-              <CheckCircle2 size={14} color={ACCENT_GREEN} />
+        {activePlatforms.map((p: any) => {
+          const completion = calcCompletion(p.key, creds[p.key]);
+          return (
+            <div key={p.key} style={{ padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}`, borderRadius: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <BrandLogo brand={p.key} size={24} />
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#fff" }}>{p.name}</div>
+                {completion === 100 ? (
+                  <CheckCircle2 size={16} color={ACCENT_GREEN} />
+                ) : (
+                  <span style={{ fontSize: 10, color: "#FCA5A5", fontWeight: 600 }}>{completion}%</span>
+                )}
+              </div>
+              {p.key !== "GSC" && p.key !== "META_PIXEL" && (
+                <div style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 6, paddingLeft: 36 }}>
+                  Historia: <strong style={{ color: TEXT_PRIMARY }}>{HIST_LABEL(history[p.key] ?? 12)}</strong>
+                </div>
+              )}
             </div>
-            <div style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 6, paddingLeft: 17 }}>
-              Credenciales cargadas · Historia: <strong style={{ color: TEXT_PRIMARY }}>{HIST_LABEL(history[p.key] ?? 12)}</strong>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ marginTop: 18, padding: "12px 14px", background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 8, display: "flex", gap: 8 }}>
@@ -767,19 +934,9 @@ function ConfirmStep({ activePlatforms, history, creds }: { activePlatforms: any
   );
 }
 
-// ─── Shared components ──────────────────────────────────────
-function PlatformHeader({ color, textColor, name, description, children }: any) {
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, boxShadow: `0 0 10px ${color}` }} />
-        <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", margin: 0, color: "#fff" }}>{name}</h2>
-      </div>
-      <p style={{ color: TEXT_SECONDARY, fontSize: 13, lineHeight: 1.7, margin: "0 0 18px" }}>{description}</p>
-      {children}
-    </div>
-  );
-}
+// ═══════════════════════════════════════════════════════════════
+// Shared components
+// ═══════════════════════════════════════════════════════════════
 
 function Tutorial({ title, steps, docUrl }: { title: string; steps: Array<{ text: string; detail?: string }>; docUrl?: string }) {
   return (
@@ -825,23 +982,6 @@ function Tutorial({ title, steps, docUrl }: { title: string; steps: Array<{ text
           Ver doc oficial <ExternalLink size={10} />
         </a>
       )}
-    </div>
-  );
-}
-
-function AltRoleInfo({ children }: any) {
-  return (
-    <div style={{
-      padding: "10px 12px",
-      background: "rgba(255,255,255,0.02)",
-      border: `1px dashed ${BORDER}`,
-      borderRadius: 8,
-      fontSize: 11,
-      color: TEXT_SECONDARY,
-      lineHeight: 1.6,
-      marginTop: 4,
-    }}>
-      {children}
     </div>
   );
 }
@@ -928,6 +1068,16 @@ function iconCircle(color: string) {
   } as React.CSSProperties;
 }
 
+const errorBoxStyle: React.CSSProperties = {
+  marginTop: 16,
+  padding: "10px 14px",
+  background: "rgba(239,68,68,0.08)",
+  border: "1px solid rgba(239,68,68,0.3)",
+  borderRadius: 8,
+  color: "#F87171",
+  fontSize: 12,
+};
+
 function primaryBtn(disabled: boolean): React.CSSProperties {
   return {
     padding: "11px 22px",
@@ -942,5 +1092,22 @@ function primaryBtn(disabled: boolean): React.CSSProperties {
     alignItems: "center",
     gap: 6,
     boxShadow: disabled ? "none" : "0 4px 14px rgba(255,94,26,0.28)",
+  };
+}
+
+function secondaryBtn(disabled: boolean): React.CSSProperties {
+  return {
+    padding: "10px 18px",
+    background: "transparent",
+    border: `1px solid ${BORDER}`,
+    borderRadius: 8,
+    color: disabled ? TEXT_MUTED : TEXT_SECONDARY,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.5 : 1,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
   };
 }
