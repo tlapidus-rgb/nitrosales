@@ -53,8 +53,7 @@ const INDUSTRIES = [
 const STEPS = [
   { id: 1, label: "Empresa", icon: Building2 },
   { id: 2, label: "Contacto", icon: User },
-  { id: 3, label: "Plataformas", icon: Plug },
-  { id: 4, label: "Confirmar", icon: Check },
+  { id: 3, label: "Confirmar", icon: Check },
 ] as const;
 
 interface FormData {
@@ -169,14 +168,9 @@ export default function OnboardingPage() {
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.contactEmail))
         e.contactEmail = "Email inválido";
     }
-    if (s === 3) {
-      // Al menos una plataforma debe estar marcada.
-      const any =
-        data.usesVtex || data.usesMl || data.usesMeta || data.usesMetaPixel || data.usesGoogle;
-      if (!any) {
-        e._global = "Seleccioná al menos una plataforma para activar tu cuenta.";
-      }
-    }
+    // Antes había step 3 (Plataformas). Lo sacamos del form público:
+    // las plataformas + credenciales se completan adentro del producto
+    // una vez que el admin aprueba la cuenta.
     return e;
   };
 
@@ -184,7 +178,7 @@ export default function OnboardingPage() {
     const e = validateStep(step);
     setErrors(e);
     if (Object.keys(e).length === 0) {
-      setStep((s) => Math.min(4, s + 1));
+      setStep((s) => Math.min(3, s + 1));
       setServerError(null);
     }
   };
@@ -197,14 +191,11 @@ export default function OnboardingPage() {
     // Validar steps 1 y 2 (por si saltaron)
     const e1 = validateStep(1);
     const e2 = validateStep(2);
-    const e3 = validateStep(3);
-    const allErrors = { ...e1, ...e2, ...e3 };
+    const allErrors = { ...e1, ...e2 };
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
-      // Volver al primer step con error
       if (Object.keys(e1).length > 0) setStep(1);
       else if (Object.keys(e2).length > 0) setStep(2);
-      else if (Object.keys(e3).length > 0) setStep(3);
       return;
     }
 
@@ -227,15 +218,7 @@ export default function OnboardingPage() {
           contactEmail: data.contactEmail.trim().toLowerCase(),
           contactPhone: data.contactPhone.trim() || undefined,
           contactWhatsapp: data.contactWhatsapp.trim() || undefined,
-          usesVtex: data.usesVtex,
-          usesMl: data.usesMl,
-          usesMeta: data.usesMeta,
-          usesMetaPixel: data.usesMetaPixel,
-          usesGoogle: data.usesGoogle,
-          historyVtexMonths: data.historyVtexMonths,
-          historyMlMonths: data.historyMlMonths,
-          historyMetaMonths: data.historyMetaMonths,
-          historyGoogleMonths: data.historyGoogleMonths,
+          // Plataformas y credenciales se completan adentro del producto post-activacion
         }),
       });
       const json = await res.json();
@@ -252,7 +235,8 @@ export default function OnboardingPage() {
     }
   };
 
-  const progress = useMemo(() => ((step - 1) / 3) * 100, [step]);
+  // 3 pasos: Empresa, Contacto, Confirmar (sin plataformas — eso va adentro del producto)
+  const progress = useMemo(() => ((step - 1) / 2) * 100, [step]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", position: "relative", overflow: "hidden" }}>
@@ -427,7 +411,7 @@ export default function OnboardingPage() {
             }}
           >
             <div style={{ fontSize: 12, color: TEXT_SECONDARY, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-              Paso {step} de 4
+              Paso {step} de 3
             </div>
             <div style={{ fontSize: 12, color: TEXT_MUTED }}>{Math.round(progress)}%</div>
           </div>
@@ -442,7 +426,7 @@ export default function OnboardingPage() {
             <div
               style={{
                 height: "100%",
-                width: `${progress + 25}%`,
+                width: `${Math.min(100, progress + 33)}%`,
                 background: `linear-gradient(90deg, ${BRAND_ORANGE}, #FF8C4A)`,
                 borderRadius: 99,
                 transition: `width 400ms ${EASE}`,
@@ -462,8 +446,7 @@ export default function OnboardingPage() {
         >
           {step === 1 && <Step1 data={data} update={update} errors={errors} setSlugTouched={setSlugTouched} />}
           {step === 2 && <Step2 data={data} update={update} errors={errors} />}
-          {step === 3 && <Step3 data={data} update={update} errors={errors} />}
-          {step === 4 && <Step4 data={data} />}
+          {step === 3 && <Step4 data={data} />}
 
           {/* Global error */}
           {errors._global && (
@@ -531,7 +514,7 @@ export default function OnboardingPage() {
               <ArrowLeft size={16} /> Atrás
             </button>
 
-            {step < 4 ? (
+            {step < 3 ? (
               <button
                 onClick={next}
                 style={{
@@ -1386,32 +1369,29 @@ function Step4({ data }: { data: FormData }) {
         {data.contactWhatsapp && <SummaryRow label="WhatsApp" value={data.contactWhatsapp} />}
       </SummarySection>
 
-      <SummarySection title="Plataformas a activar">
-        {platforms.length > 0 ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {platforms.map((p) => (
-              <span
-                key={p}
-                style={{
-                  padding: "6px 12px",
-                  background: "rgba(34,197,94,0.1)",
-                  border: "1px solid rgba(34,197,94,0.3)",
-                  borderRadius: 99,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: ACCENT_GREEN,
-                }}
-              >
-                ✓ {p}
-              </span>
-            ))}
+      <div
+        style={{
+          padding: "16px 18px",
+          background: "rgba(34,197,94,0.06)",
+          border: "1px solid rgba(34,197,94,0.2)",
+          borderRadius: 12,
+          marginTop: 14,
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 12,
+        }}
+      >
+        <ShieldCheck size={16} color={ACCENT_GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: TEXT_PRIMARY, marginBottom: 4 }}>
+            Plataformas y credenciales
           </div>
-        ) : (
-          <div style={{ color: "#FCA5A5", fontSize: 13 }}>
-            No configuraste ninguna plataforma. Volvé al paso 3.
+          <div style={{ fontSize: 12, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+            Una vez activada tu cuenta, vas a conectar VTEX, MercadoLibre, Meta y Google adentro
+            del producto con tutoriales paso a paso. No necesitás traer claves ahora.
           </div>
-        )}
-      </SummarySection>
+        </div>
+      </div>
 
       <div
         style={{

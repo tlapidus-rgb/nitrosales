@@ -16,10 +16,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
-import { decryptCredentials } from "@/lib/crypto";
 import { sendEmail } from "@/lib/email/send";
 import { onboardingActivationEmail } from "@/lib/onboarding/emails";
-import { createBackfillJob } from "@/lib/backfill/job-manager";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
 
@@ -35,18 +33,8 @@ function generateTempPassword(): string {
   return out;
 }
 
-function decryptField(encryptedJson: string | null | undefined): string | null {
-  if (!encryptedJson) return null;
-  try {
-    const decrypted = decryptCredentials(encryptedJson);
-    // decryptCredentials devuelve el objeto original
-    const firstVal = decrypted ? Object.values(decrypted)[0] : null;
-    return typeof firstVal === "string" ? firstVal : null;
-  } catch (e) {
-    console.warn("[activate] decrypt failed:", (e as any)?.message);
-    return null;
-  }
-}
+// decryptField removido: ya no decryptamos credenciales aca (el cliente
+// las ingresa en el wizard adentro del producto).
 
 export async function POST(
   _req: NextRequest,
@@ -117,10 +105,8 @@ export async function POST(
     const hashedPassword = await hash(tempPassword, 12);
 
     // Desencriptar credentials
-    const vtexAppKey = decryptField(request.vtexAppKeyEncrypted);
-    const vtexAppToken = decryptField(request.vtexAppTokenEncrypted);
-    const metaAccessToken = decryptField(request.metaAccessTokenEncrypted);
-    const metaPixelToken = decryptField(request.metaPixelTokenEncrypted);
+    // (Las credenciales encriptadas ya no se usan aca — el cliente las
+    // ingresa adentro del producto via wizard.)
 
     // ── Transaction ──
     const result = await prisma.$transaction(async (tx) => {
@@ -155,176 +141,45 @@ export async function POST(
         },
       });
 
-      // 3. Crear Connections — en el flow hibrido quedan PENDING hasta que
-      // el cliente las configure desde /setup dentro del producto. Si el form
-      // vino con credenciales (back-compat del form viejo), las marcamos ACTIVE.
-      const connectionsCreated: string[] = [];
-
-      // VTEX
-      if (request.usesVtex || request.vtexAccountName) {
-        const hasCreds = request.vtexAccountName && vtexAppKey && vtexAppToken;
-        await tx.connection.create({
-          data: {
-            organizationId: org.id,
-            platform: "VTEX",
-            status: hasCreds ? "ACTIVE" : "PENDING",
-            credentials: hasCreds
-              ? { accountName: request.vtexAccountName, appKey: vtexAppKey, appToken: vtexAppToken }
-              : { needsSetup: true },
-          },
-        });
-        connectionsCreated.push(hasCreds ? "VTEX" : "VTEX (pending setup)");
-      }
-
-      // MercadoLibre — siempre PENDING (requiere OAuth)
-      if (request.usesMl || request.mlUsername) {
-        await tx.connection.create({
-          data: {
-            organizationId: org.id,
-            platform: "MERCADOLIBRE",
-            status: "PENDING",
-            credentials: {
-              username: request.mlUsername || null,
-              needsOAuth: true,
-              needsSetup: !request.mlUsername,
-            },
-          },
-        });
-        connectionsCreated.push("ML (pending OAuth)");
-      }
-
-      // Meta Ads
-      if (request.usesMeta || request.metaAdAccountId) {
-        const hasCreds = request.metaAdAccountId && metaAccessToken;
-        await tx.connection.create({
-          data: {
-            organizationId: org.id,
-            platform: "META_ADS",
-            status: hasCreds ? "ACTIVE" : "PENDING",
-            credentials: hasCreds
-              ? { adAccountId: request.metaAdAccountId, accessToken: metaAccessToken }
-              : { needsSetup: true },
-          },
-        });
-        connectionsCreated.push(hasCreds ? "Meta Ads" : "Meta Ads (pending setup)");
-      }
-
-      // Meta Pixel (CAPI)
-      if (request.usesMetaPixel || request.metaPixelId) {
-        const hasCreds = request.metaPixelId && metaPixelToken;
-        await tx.connection.create({
-          data: {
-            organizationId: org.id,
-            platform: "META_PIXEL" as any,
-            status: hasCreds ? "ACTIVE" : "PENDING",
-            credentials: hasCreds
-              ? { pixelId: request.metaPixelId, accessToken: metaPixelToken }
-              : { needsSetup: true },
-          },
-        });
-        connectionsCreated.push(hasCreds ? "Meta Pixel" : "Meta Pixel (pending setup)");
-      }
-
-      // Google Ads — siempre PENDING (requiere OAuth)
-      if (request.usesGoogle || request.googleAdsCustomerId) {
-        await tx.connection.create({
-          data: {
-            organizationId: org.id,
-            platform: "GOOGLE_ADS",
-            status: "PENDING",
-            credentials: {
-              customerId: request.googleAdsCustomerId || null,
-              needsOAuth: true,
-              needsSetup: !request.googleAdsCustomerId,
-            },
-          },
-        });
-        connectionsCreated.push("Google Ads (pending OAuth)");
-      }
-
-      // 4. Decidir estado final: si hay VTEX o ML con meses > 0 Y hay credenciales,
-      //    queda BACKFILLING (el runner completa y manda email). Si no hay credenciales
-      //    (flow hibrido), queda ACTIVE — el cliente entra y completa el setup adentro,
-      //    el backfill se dispara desde /setup al terminar el wizard.
-      const hasVtexBackfill =
-        request.vtexAccountName && vtexAppKey && vtexAppToken &&
-        (Number(request.historyVtexMonths) || 0) > 0;
-      // ML backfill solo si ya hay usuario configurado (el OAuth se hace despues
-      // desde /setup, pero si ya tenemos username del form legacy lo arrancamos).
-      const hasMlBackfill =
-        !!request.mlUsername && (Number(request.historyMlMonths) || 0) > 0;
-      const needsBackfill = hasVtexBackfill || hasMlBackfill;
-
-      const newStatus = needsBackfill ? "BACKFILLING" : "ACTIVE";
-
+      // 3. NO creamos Connections aca. El cliente las configura adentro del
+      //    producto via overlay/wizard despues de loguear (esto activa la
+      //    aprobacion 2 que dispara el backfill).
+      // 4. Marcar onboarding como IN_PROGRESS (cuenta creada, esperando wizard).
       await tx.$executeRawUnsafe(
         `UPDATE "onboarding_requests"
-         SET "status" = $3::"OnboardingStatus",
+         SET "status" = 'IN_PROGRESS'::"OnboardingStatus",
              "createdOrgId" = $2,
              "activatedAt" = NOW(),
-             "progressStage" = $4,
+             "progressStage" = 'awaiting_wizard',
              "updatedAt" = NOW()
          WHERE "id" = $1`,
         request.id,
-        org.id,
-        newStatus,
-        needsBackfill ? "backfilling" : "activated"
+        org.id
       );
 
-      return { org, user, connectionsCreated, needsBackfill, hasVtexBackfill, hasMlBackfill };
+      return { org, user };
     });
 
     // ── Fuera de la transaction ────────────────────────────────
-    if (result.needsBackfill) {
-      // Crear backfill jobs (VTEX + ML si aplica). Corren via cron cada 5 min.
-      const createdJobs: string[] = [];
-      if (result.hasVtexBackfill) {
-        const months = Number(request.historyVtexMonths) || 12;
-        const jobId = await createBackfillJob({
-          organizationId: result.org.id,
-          platform: "VTEX",
-          monthsRequested: months,
-          onboardingRequestId: request.id,
-        });
-        createdJobs.push(`VTEX:${jobId}`);
-      }
-      if (result.hasMlBackfill) {
-        const months = Number(request.historyMlMonths) || 12;
-        const jobId = await createBackfillJob({
-          organizationId: result.org.id,
-          platform: "MERCADOLIBRE",
-          monthsRequested: months,
-          onboardingRequestId: request.id,
-        });
-        createdJobs.push(`ML:${jobId}`);
-      }
-      console.log(`[activate] backfill jobs creados: ${createdJobs.join(", ")}`);
-      // NO mandamos email todavia — el backfill runner lo manda cuando termine.
-    } else {
-      // Sin backfill → mandamos email ahora mismo (flow clasico).
-      const { subject, html } = onboardingActivationEmail({
-        contactName: request.contactName,
-        companyName: request.companyName,
-        loginEmail: request.contactEmail,
-        temporaryPassword: tempPassword,
-        orgId: result.org.id,
-      });
-      sendEmail({ to: request.contactEmail, subject, html }).catch((err) => {
-        console.error("[activate] email send failed:", err?.message);
-      });
-    }
+    // Mandar email con credenciales de login al cliente.
+    const { subject, html } = onboardingActivationEmail({
+      contactName: request.contactName,
+      companyName: request.companyName,
+      loginEmail: request.contactEmail,
+      temporaryPassword: tempPassword,
+      orgId: result.org.id,
+    });
+    sendEmail({ to: request.contactEmail, subject, html }).catch((err) => {
+      console.error("[activate] email send failed:", err?.message);
+    });
 
     return NextResponse.json({
       ok: true,
-      message: result.needsBackfill
-        ? `Cuenta de ${request.companyName} creada, arranca backfill histórico. Email se manda al completar.`
-        : `Cuenta activada para ${request.companyName}`,
+      message: `Cuenta de ${request.companyName} creada. Email enviado a ${request.contactEmail}. El cliente va a completar plataformas y credenciales adentro del producto.`,
       orgId: result.org.id,
       orgSlug: result.org.slug,
       userId: result.user.id,
-      connectionsCreated: result.connectionsCreated,
-      backfillStarted: result.needsBackfill,
-      emailSentTo: result.needsBackfill ? null : request.contactEmail,
+      emailSentTo: request.contactEmail,
       // temporaryPassword devolvemos SOLO en la respuesta al admin (por si el email falla)
       _adminNote: {
         temporaryPassword: tempPassword,

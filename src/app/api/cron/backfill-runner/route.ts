@@ -21,7 +21,7 @@ import {
 } from "@/lib/backfill/job-manager";
 import { processChunk } from "@/lib/backfill/dispatcher";
 import { sendEmail } from "@/lib/email/send";
-import { onboardingActivationEmail } from "@/lib/onboarding/emails";
+// (onboardingActivationEmail ya no se usa aca — se manda en /activate)
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -95,49 +95,49 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Cuando TODOS los backfill jobs del onboarding terminaron → marcar la
-// cuenta como ACTIVE y mandar email al cliente con credenciales.
+// Cuando TODOS los backfill jobs del onboarding terminaron → marcar el
+// onboarding como ACTIVE (overlay desaparece) y mandar email "tu data esta lista".
+// El email de activacion (con credenciales de login) se mando en el momento de
+// la primera aprobacion (/activate), no aca.
 async function finalizeOnboarding(onboardingRequestId: string) {
-  // 1. Levanto la solicitud + la password temporal guardada en settings
   const rows = await prisma.$queryRawUnsafe<Array<any>>(
-    `SELECT o.*, org."settings" as "orgSettings", u."email" as "ownerEmail"
-     FROM "onboarding_requests" o
-     LEFT JOIN "organizations" org ON org."id" = o."createdOrgId"
-     LEFT JOIN "users" u ON u."organizationId" = org."id" AND u."role" = 'OWNER'
-     WHERE o."id" = $1 LIMIT 1`,
+    `SELECT * FROM "onboarding_requests" WHERE "id" = $1 LIMIT 1`,
     onboardingRequestId
   );
   if (!rows[0]) return;
   const r = rows[0];
 
-  // 2. Marcar ACTIVE
+  // Marcar ACTIVE (esto hace que el overlay del producto desaparezca solo)
   await prisma.$executeRawUnsafe(
     `UPDATE "onboarding_requests"
      SET "status" = 'ACTIVE'::"OnboardingStatus",
-         "activatedAt" = COALESCE("activatedAt", NOW()),
+         "progressStage" = 'completed',
          "updatedAt" = NOW()
      WHERE "id" = $1`,
     onboardingRequestId
   );
 
-  // 3. Enviar email
-  const orgSettings = r.orgSettings as any;
-  const tempPw = orgSettings?._initialPassword || null;
-  if (r.contactEmail && tempPw) {
+  // Email "tu data esta lista"
+  if (r.contactEmail) {
     try {
       const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
-      const { subject, html } = onboardingActivationEmail({
-        companyName: r.companyName,
-        contactName: r.contactName,
-        loginEmail: r.ownerEmail || r.contactEmail,
-        temporaryPassword: tempPw,
-        loginUrl: `${appUrl}/login`,
-        orgId: r.createdOrgId,
+      await sendEmail({
+        to: r.contactEmail,
+        subject: `✨ Tu data está lista — ${r.companyName}`,
+        html: `<!DOCTYPE html><html><body style="background:#0A0A0F;color:#fff;font-family:-apple-system,sans-serif;padding:40px 20px;">
+<div style="max-width:520px;margin:0 auto;background:#141419;border-radius:16px;padding:32px;border:1px solid #1F1F2E;">
+  <div style="font-size:11px;color:#22C55E;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">NitroSales · Listo</div>
+  <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Tu plataforma está completamente desbloqueada</h1>
+  <p style="color:#9CA3AF;font-size:14px;line-height:1.6;margin:0 0 24px;">
+    Hola ${r.contactName}, terminamos de procesar toda tu data histórica. Cuando entres a NitroSales vas a tener acceso completo a todos los productos.
+  </p>
+  <a href="${appUrl}" style="display:inline-block;background:linear-gradient(135deg,#FF5E1A,#FF8C4A);color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">Abrir NitroSales →</a>
+</div>
+</body></html>`,
       });
-      await sendEmail({ to: r.contactEmail, subject, html });
-      console.log(`[backfill-runner] Email de activacion enviado a ${r.contactEmail}`);
+      console.log(`[backfill-runner] Email 'data lista' enviado a ${r.contactEmail}`);
     } catch (err) {
-      console.error(`[backfill-runner] No se pudo enviar email activacion:`, err);
+      console.error(`[backfill-runner] Email failed:`, err);
     }
   }
 }
