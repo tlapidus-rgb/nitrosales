@@ -89,47 +89,31 @@ export function onboardingConfirmationEmail(opts: {
   companyName: string;
   statusToken: string;
 }) {
-  const { contactName, companyName, statusToken } = opts;
-  const statusUrl = `${appUrl()}/onboarding/status/${statusToken}`;
-  const subject = `Recibimos tu solicitud de activación — ${companyName}`;
-  const preheader = `Estamos preparando la cuenta de ${companyName}. Te avisaremos en 48-72 hs hábiles.`;
+  const { contactName, companyName } = opts;
+  const subject = `Recibimos tu postulación — ${companyName}`;
+  const preheader = `Vamos a evaluar tu postulación para sumarte a NitroSales.`;
 
   const content = `
     <div style="font-size:11px;font-weight:700;color:${ACCENT_GREEN};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;">
-      ✓ SOLICITUD RECIBIDA
+      ✓ POSTULACIÓN RECIBIDA
     </div>
     <h1 style="margin:0 0 16px;font-size:26px;font-weight:700;color:${TEXT_PRIMARY};line-height:1.3;letter-spacing:-0.02em;">
-      Bienvenido a NitroSales, ${contactName}
+      Gracias por postularte, ${contactName}
     </h1>
     <p style="margin:0 0 20px;color:${TEXT_SECONDARY};font-size:15px;line-height:1.7;">
-      Recibimos la solicitud de activación de <strong style="color:${TEXT_PRIMARY};">${companyName}</strong>. Nuestro equipo de implementación ya empezó a preparar tu cuenta.
+      Recibimos la postulación de <strong style="color:${TEXT_PRIMARY};">${companyName}</strong>. Vamos a evaluar tu negocio y te contactamos pronto.
     </p>
 
     <div style="background:rgba(255,94,26,0.06);border:1px solid rgba(255,94,26,0.2);border-radius:14px;padding:20px;margin:24px 0;">
       <div style="font-size:11px;font-weight:600;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">
-        Próximos pasos
+        Qué pasa ahora
       </div>
       <ul style="margin:0;padding:0 0 0 18px;color:${TEXT_PRIMARY};font-size:14px;line-height:1.9;">
-        <li>Validamos los datos de tu empresa y las credenciales de tus plataformas.</li>
-        <li>Configuramos las integraciones (VTEX, MercadoLibre, Ads si aplica).</li>
-        <li>Activamos los webhooks en tiempo real para que empiece a fluir la data.</li>
-        <li>Te enviamos el email de acceso con tus credenciales temporales.</li>
+        <li>Revisamos tu postulación.</li>
+        <li>Si calificás, te contactamos por email para darte acceso al producto.</li>
+        <li>Adentro de NitroSales conectás tus plataformas y arrancamos.</li>
       </ul>
     </div>
-
-    <div style="background:${BRAND_BG};border:1px solid ${BORDER};border-radius:14px;padding:18px 20px;margin:24px 0;">
-      <div style="font-size:11px;font-weight:600;color:${TEXT_SECONDARY};text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">
-        Tiempo estimado
-      </div>
-      <div style="font-size:18px;font-weight:700;color:${TEXT_PRIMARY};">
-        48 a 72 horas hábiles
-      </div>
-    </div>
-
-    <p style="margin:24px 0 20px;color:${TEXT_SECONDARY};font-size:14px;line-height:1.6;">
-      Mientras tanto, podés seguir el progreso de tu activación acá:
-    </p>
-    ${button("Ver estado de mi activación →", statusUrl)}
 
     <p style="margin:32px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;opacity:0.8;">
       Si tenés alguna pregunta, respondé a este email y el equipo te contactará.
