@@ -612,11 +612,12 @@ export async function GET(req: Request) {
       console.error("Google ad sync error (non-fatal):", e.message);
     }
 
-    // Update connection status to ACTIVE
+    // Update connection status to ACTIVE + marcar sync exitoso
+    const _okNow = new Date();
     await prisma.connection.upsert({
       where: { organizationId_platform: { organizationId: org.id, platform: "GOOGLE_ADS" } },
-      update: { status: "ACTIVE", lastSyncAt: new Date(), lastSyncError: null },
-      create: { organizationId: org.id, platform: "GOOGLE_ADS", status: "ACTIVE", lastSyncAt: new Date(), lastSyncError: null, credentials: {} },
+      update: { status: "ACTIVE", lastSyncAt: _okNow, lastSuccessfulSyncAt: _okNow, lastSyncError: null },
+      create: { organizationId: org.id, platform: "GOOGLE_ADS", status: "ACTIVE", lastSyncAt: _okNow, lastSuccessfulSyncAt: _okNow, lastSyncError: null, credentials: {} },
     });
 
     return NextResponse.json({

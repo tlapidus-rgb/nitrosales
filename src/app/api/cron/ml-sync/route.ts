@@ -272,10 +272,11 @@ async function syncOneOrg(
       log.push(`Item enrichment error: ${err.message}`);
     }
 
-    // ── Update connection lastSyncAt ─────────────────────────
+    // ── Update connection lastSyncAt + marcar sync exitoso ─────
+    const now = new Date();
     await prisma.connection.update({
       where: { id: connId },
-      data: { lastSyncAt: new Date() },
+      data: { lastSyncAt: now, lastSuccessfulSyncAt: now, lastSyncError: null },
     });
 
     return { ok: true, log };

@@ -338,7 +338,11 @@ export async function GET(req: NextRequest) {
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    await prisma.connection.update({ where: { id: connection.id }, data: { lastSyncAt: new Date() } });
+    const now = new Date();
+    await prisma.connection.update({
+      where: { id: connection.id },
+      data: { lastSyncAt: now, lastSuccessfulSyncAt: now, lastSyncError: null },
+    });
 
     return NextResponse.json({ ok: true, elapsed: `${elapsed}s`, ...result });
   } catch (err: any) {

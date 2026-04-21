@@ -514,10 +514,11 @@ export async function GET(req: Request) {
     cleanedUp = true;
   }
 
+  const _metaOkNow = new Date();
   await prisma.connection.upsert({
     where: { organizationId_platform: { organizationId: org.id, platform: "META_ADS" } },
-    update: { status: "ACTIVE", lastSyncAt: new Date(), lastSyncError: null },
-    create: { organizationId: org.id, platform: "META_ADS", status: "ACTIVE", lastSyncAt: new Date(), lastSyncError: null, credentials: {} },
+    update: { status: "ACTIVE", lastSyncAt: _metaOkNow, lastSuccessfulSyncAt: _metaOkNow, lastSyncError: null },
+    create: { organizationId: org.id, platform: "META_ADS", status: "ACTIVE", lastSyncAt: _metaOkNow, lastSuccessfulSyncAt: _metaOkNow, lastSyncError: null, credentials: {} },
   });
 
   // ═══════════════════════════════════════════

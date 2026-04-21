@@ -198,11 +198,15 @@ function escapeStr(s: string): string {
 
 async function updateConnectionStatus(orgId: string, status: string, error: string | null) {
   try {
+    // Si no hay error, marcamos lastSuccessfulSyncAt tambien (sync exitoso)
+    const okExtra = error ? "" : ', "lastSuccessfulSyncAt" = NOW()';
+    const okExtraInsert = error ? "" : ', "lastSuccessfulSyncAt"';
+    const okExtraValues = error ? "" : ", NOW()";
     await prisma.$executeRawUnsafe(`
-      INSERT INTO connections (id, platform, status, credentials, "organizationId", "createdAt", "updatedAt", "lastSyncAt"${error ? ', "lastSyncError"' : ''})
-      VALUES ($1, 'GOOGLE_SEARCH_CONSOLE', $2, '{}', $3, NOW(), NOW(), NOW()${error ? ', $4' : ''})
+      INSERT INTO connections (id, platform, status, credentials, "organizationId", "createdAt", "updatedAt", "lastSyncAt"${okExtraInsert}${error ? ', "lastSyncError"' : ''})
+      VALUES ($1, 'GOOGLE_SEARCH_CONSOLE', $2, '{}', $3, NOW(), NOW(), NOW()${okExtraValues}${error ? ', $4' : ''})
       ON CONFLICT ("organizationId", platform) DO UPDATE
-      SET status = $2, "updatedAt" = NOW(), "lastSyncAt" = NOW()${error ? ', "lastSyncError" = $4' : ', "lastSyncError" = NULL'}
+      SET status = $2, "updatedAt" = NOW(), "lastSyncAt" = NOW()${okExtra}${error ? ', "lastSyncError" = $4' : ', "lastSyncError" = NULL'}
     `, generateCuid(), status, orgId, ...(error ? [error] : []));
   } catch {
     // Non-fatal: connection tracking is secondary

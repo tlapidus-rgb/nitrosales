@@ -81,10 +81,11 @@ export async function processMLNotification(notification: MLNotification): Promi
         console.log(`[ML Processor] Unhandled topic: ${topic}`);
     }
 
-    // Update last sync timestamp
+    // Update last sync timestamp + marcar sync exitoso (limpia error previo)
+    const now = new Date();
     await prisma.connection.update({
       where: { id: connection.id },
-      data: { lastSyncAt: new Date() },
+      data: { lastSyncAt: now, lastSuccessfulSyncAt: now, lastSyncError: null },
     });
   } catch (err: any) {
     console.error(`[ML Processor] Error processing ${topic} ${resource}:`, err.message);

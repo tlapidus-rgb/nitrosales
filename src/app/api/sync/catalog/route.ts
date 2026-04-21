@@ -164,11 +164,11 @@ async function syncCatalog(startPage: number, maxPages: number, ORG_ID: string) 
     deactivated = result.count;
   }
 
-  // Update connector lastSyncAt
+  // Update connector lastSyncAt + marcar sync exitoso (limpia error previo)
   try {
     await prisma.connection.updateMany({
       where: { organizationId: ORG_ID, platform: "VTEX" },
-      data: { lastSyncAt: syncedAt },
+      data: { lastSyncAt: syncedAt, lastSuccessfulSyncAt: syncedAt, lastSyncError: null },
     });
   } catch (_) {}
 
