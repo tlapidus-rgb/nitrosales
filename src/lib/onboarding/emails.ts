@@ -495,12 +495,12 @@ function inviteHero(opts: {
 const INVITE_SUBJECT = "Tu acceso a NitroSales";
 
 // ──────────────────────────────────────────────────────────────
-// Variante A — "Pierde dinero" (custom: rojo chillón + glow)
+// Variante A — Profesional / Invite sobrio (tipo Linear/Notion/Stripe)
 // ──────────────────────────────────────────────────────────────
-// No usa inviteHero(): tiene un hero a medida donde "pierde dinero"
-// va en un rojo vibrante con text-shadow multicapa (glow premium).
-// Soportado en Gmail / Apple Mail / Outlook moderno. En clientes
-// viejos degradan al color sólido, que igual se lee bien.
+// Al lead ya le hablamos antes. El email confirma el acceso con
+// tono sobrio y confiable — no vende. La estructura es un invite
+// clásico de SaaS premium: eyebrow sutil → hero declarativo →
+// explicación corta del próximo paso → CTA → fine print de confianza.
 // ──────────────────────────────────────────────────────────────
 
 export function leadInviteVariantA(opts: {
@@ -510,44 +510,41 @@ export function leadInviteVariantA(opts: {
   const { contactName, companyName } = opts;
   const onboardingUrl = `${appUrl()}/onboarding`;
   const subject = INVITE_SUBJECT;
-  const preheader = `IA + píxel propio. Más visibilidad, más performance, más rentabilidad.`;
-
-  // Rojo profundo sobrio (Tailwind red-600 style) + glow MUY sutil de 1 capa.
-  // El peso visual viene del font-weight 900 y el color denso, no del halo.
-  const RED_HOT = "#DC2626";
-  const glow = `0 0 18px rgba(220,38,38,0.32)`;
+  const preheader = `El equipo habilitó el acceso para ${companyName}. Un formulario breve para activarlo.`;
 
   const content = `
     <div style="padding:36px 0 20px;text-align:left;">
-      <!-- Eyebrow -->
-      <div style="font-size:11px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.22em;margin-bottom:36px;">
-        ⚡ Implementá AI commerce
+      <!-- Eyebrow sobrio -->
+      <div style="font-size:11px;font-weight:700;color:${TEXT_SECONDARY};text-transform:uppercase;letter-spacing:0.22em;margin-bottom:36px;">
+        Invitación · NitroSales
       </div>
 
-      <!-- Greeting sutil -->
-      <div style="font-size:13px;color:${TEXT_SECONDARY};margin-bottom:18px;letter-spacing:0.02em;">
+      <!-- Greeting -->
+      <div style="font-size:13px;color:${TEXT_SECONDARY};margin-bottom:20px;letter-spacing:0.02em;">
         ${greeting(contactName)},
       </div>
 
-      <!-- HERO: 2 líneas, "pierde dinero" en rojo con glow -->
-      <h1 class="ns-hero" style="margin:0 0 24px;font-size:46px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.05;letter-spacing:-0.04em;">
-        Tu ecommerce<br/>
-        <span style="color:${RED_HOT};text-shadow:${glow};font-weight:900;">pierde dinero</span> todos los meses.
+      <!-- HERO declarativo, sin apelar al dolor -->
+      <h1 class="ns-hero" style="margin:0 0 24px;font-size:42px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.1;letter-spacing:-0.035em;">
+        Tu acceso a <span style="color:${BRAND_ORANGE};">NitroSales</span> está listo.
       </h1>
 
-      <!-- Subtítulo -->
-      <p class="ns-sub" style="margin:0 0 44px;color:${TEXT_SECONDARY};font-size:17px;line-height:1.5;font-weight:400;max-width:460px;">
-        Con <strong style="color:${TEXT_PRIMARY};font-weight:600;">inteligencia artificial</strong> y un <strong style="color:${TEXT_PRIMARY};font-weight:600;">píxel propio</strong>, NitroSales ve todo lo que pasa en tu negocio, potencia lo que funciona y te hace ganar más plata — rápido, sustentable y rentable.
+      <!-- Subtítulo profesional: qué es + próximo paso -->
+      <p class="ns-sub" style="margin:0 0 16px;color:${TEXT_SECONDARY};font-size:16px;line-height:1.6;font-weight:400;max-width:480px;">
+        El equipo habilitó el ingreso para <strong style="color:${TEXT_PRIMARY};font-weight:600;">${companyName}</strong>. NitroSales es la plataforma de inteligencia comercial para ecommerce LATAM — atribución propia, P&L en tiempo real y un agente de IA que opera con vos.
+      </p>
+      <p class="ns-sub" style="margin:0 0 40px;color:${TEXT_SECONDARY};font-size:16px;line-height:1.6;font-weight:400;max-width:480px;">
+        Para activar la cuenta, completá un formulario breve con los datos del negocio.
       </p>
 
-      <!-- CTA blanco sobre dark -->
-      <a href="${onboardingUrl}" style="display:inline-block;padding:16px 36px;background:${TEXT_PRIMARY};color:${BRAND_BG};text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.01em;">
-        Activar ${companyName} →
+      <!-- CTA -->
+      <a href="${onboardingUrl}" style="display:inline-block;padding:15px 32px;background:${TEXT_PRIMARY};color:${BRAND_BG};text-decoration:none;border-radius:11px;font-size:15px;font-weight:700;letter-spacing:0.01em;">
+        Comenzar configuración →
       </a>
 
-      <!-- Fine print -->
-      <p style="margin:40px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;opacity:0.6;">
-        Un formulario corto. Acceso inmediato al producto.
+      <!-- Fine print de confianza -->
+      <p style="margin:44px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;opacity:0.65;">
+        Este enlace es personal y está asociado a ${companyName}. Si no esperabas este email, podés ignorarlo.
       </p>
     </div>
   `;

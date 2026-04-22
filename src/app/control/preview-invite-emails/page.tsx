@@ -31,10 +31,10 @@ const VARIANTS = [
   },
   {
     key: "A",
-    label: "A — Dinero perdido",
-    tag: "Pain directo",
-    color: "#EF4444",
-    angle: "\"Tu ecommerce pierde dinero todos los meses.\"",
+    label: "A — Invite profesional",
+    tag: "Sobrio / confiable",
+    color: "#FF5E1A",
+    angle: "\"Tu acceso a NitroSales está listo.\" Tono Linear/Notion/Stripe.",
     render: leadInviteVariantA,
   },
   {
