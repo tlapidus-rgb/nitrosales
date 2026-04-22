@@ -108,6 +108,15 @@ function greeting(name: string | null | undefined): string {
   return n ? `Hola ${n}` : "Hola";
 }
 
+/** URL del onboarding con query params para pre-llenar + personalizar */
+export function onboardingLink(opts: { companyName?: string | null; contactName?: string | null }) {
+  const qs = new URLSearchParams();
+  if (opts.companyName) qs.set("company", opts.companyName);
+  if (opts.contactName) qs.set("contact", opts.contactName);
+  const q = qs.toString();
+  return `${appUrl()}/onboarding${q ? "?" + q : ""}`;
+}
+
 // ──────────────────────────────────────────────────────────────
 // DB-BACKED RENDER: intenta renderizar desde DB (template activo)
 // Fallback: devuelve null y el caller usa el hardcoded
@@ -145,7 +154,7 @@ export function leadInviteEmail(opts: {
   companyName: string;
 }) {
   const { contactName, companyName } = opts;
-  const onboardingUrl = `${appUrl()}/onboarding`;
+  const onboardingUrl = onboardingLink({ contactName, companyName });
   const subject = `Tu acceso a NitroSales`;
   const preheader = `El equipo de NitroSales te habilita el acceso para sumar a ${companyName}.`;
 
@@ -184,7 +193,7 @@ export function leadFollowupEmail(opts: {
   companyName: string;
 }) {
   const { contactName, companyName } = opts;
-  const onboardingUrl = `${appUrl()}/onboarding`;
+  const onboardingUrl = onboardingLink({ contactName, companyName });
   const subject = `Recordatorio de tu acceso a NitroSales`;
   const preheader = `El acceso para sumar a ${companyName} sigue disponible.`;
 
@@ -536,7 +545,7 @@ export function leadInviteVariantA(opts: {
   companyName: string;
 }) {
   const { contactName, companyName } = opts;
-  const onboardingUrl = `${appUrl()}/onboarding`;
+  const onboardingUrl = onboardingLink({ contactName, companyName });
   const subject = INVITE_SUBJECT;
   const preheader = `El equipo habilitó el acceso para ${companyName}. Un formulario breve para activarlo.`;
 
@@ -592,7 +601,7 @@ export function leadInviteVariantB(opts: {
   companyName: string;
 }) {
   const { contactName, companyName } = opts;
-  const onboardingUrl = `${appUrl()}/onboarding`;
+  const onboardingUrl = onboardingLink({ contactName, companyName });
   const subject = INVITE_SUBJECT;
   const preheader = `Hoy tu ecommerce opera a ciegas. Cambialo.`;
 
@@ -618,7 +627,7 @@ export function leadInviteVariantC(opts: {
   companyName: string;
 }) {
   const { contactName, companyName } = opts;
-  const onboardingUrl = `${appUrl()}/onboarding`;
+  const onboardingUrl = onboardingLink({ contactName, companyName });
   const subject = INVITE_SUBJECT;
   const preheader = `Cada campaña, cada producto, cada peso — con data en tiempo real.`;
 
@@ -644,7 +653,7 @@ export function leadInviteVariantD(opts: {
   companyName: string;
 }) {
   const { contactName, companyName } = opts;
-  const onboardingUrl = `${appUrl()}/onboarding`;
+  const onboardingUrl = onboardingLink({ contactName, companyName });
   const subject = INVITE_SUBJECT;
   const preheader = `Sin dashboards. Sin excel. Sin dudas. Tu ecommerce operado por IA.`;
 

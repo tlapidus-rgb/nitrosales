@@ -96,7 +96,11 @@ export function renderTemplateFromRow(
   row: TemplateRow,
   ctx: TemplateContext
 ): { subject: string; html: string } {
-  const onboardingUrl = `${appUrl()}/onboarding`;
+  // Onboarding URL con query params para pre-llenar el form + personalizar hero
+  const qs = new URLSearchParams();
+  if (ctx.companyName) qs.set("company", ctx.companyName);
+  if (ctx.contactName) qs.set("contact", ctx.contactName);
+  const onboardingUrl = `${appUrl()}/onboarding${qs.toString() ? "?" + qs.toString() : ""}`;
   const statusUrl = ctx.statusToken ? `${appUrl()}/onboarding/status/${ctx.statusToken}` : onboardingUrl;
   const loginUrl = `${appUrl()}/login`;
 
