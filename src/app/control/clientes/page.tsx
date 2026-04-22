@@ -18,6 +18,9 @@ import {
   ShoppingCart,
   MessageSquare,
   LogIn,
+  KeyRound,
+  Copy,
+  X,
 } from "lucide-react";
 
 const COL = {
@@ -300,39 +303,7 @@ function ClientDetail({ id }: { id: string }) {
       <Section title={`Usuarios · ${data.users.length}`}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {data.users.map((u: any) => (
-            <div
-              key={u.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "10px 14px",
-                background: "#0F0F11",
-                border: "1px solid #1F1F23",
-                borderRadius: 8,
-              }}
-            >
-              <div style={{ flex: 1, fontSize: 13 }}>
-                <div style={{ color: "#fff", fontWeight: 500 }}>{u.name || u.email}</div>
-                <div style={{ color: "#71717A", fontSize: 11, marginTop: 2 }}>
-                  {u.email}
-                </div>
-              </div>
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  background: "#27272A",
-                  color: "#A1A1AA",
-                  borderRadius: 99,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                {u.role}
-              </span>
-            </div>
+            <UserRow key={u.id} user={u} />
           ))}
         </div>
       </Section>
@@ -548,6 +519,212 @@ function ConnectionCard({ conn }: { conn: any }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UserRow — fila de usuario con boton "Regenerar password"
+// ═══════════════════════════════════════════════════════════════
+function UserRow({ user }: { user: any }) {
+  const [resetting, setResetting] = useState(false);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function handleReset() {
+    if (!confirm(`¿Regenerar password de ${user.email}? La password actual va a dejar de funcionar.`)) return;
+    setResetting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/reset-password`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setError(json.error || "Error al regenerar");
+      } else {
+        setNewPassword(json.newPassword);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Error de red");
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  async function handleCopy() {
+    if (!newPassword) return;
+    try {
+      await navigator.clipboard.writeText(newPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {}
+  }
+
+  return (
+    <>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "10px 14px",
+          background: "#0F0F11",
+          border: "1px solid #1F1F23",
+          borderRadius: 8,
+        }}
+      >
+        <div style={{ flex: 1, fontSize: 13 }}>
+          <div style={{ color: "#fff", fontWeight: 500 }}>{user.name || user.email}</div>
+          <div style={{ color: "#71717A", fontSize: 11, marginTop: 2 }}>{user.email}</div>
+        </div>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            padding: "2px 8px",
+            background: "#27272A",
+            color: "#A1A1AA",
+            borderRadius: 99,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}
+        >
+          {user.role}
+        </span>
+        <button
+          onClick={handleReset}
+          disabled={resetting}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "5px 10px",
+            background: "transparent",
+            border: "1px solid #3F3F46",
+            borderRadius: 6,
+            color: resetting ? "#52525B" : "#A1A1AA",
+            cursor: resetting ? "not-allowed" : "pointer",
+            fontSize: 11,
+            fontWeight: 500,
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            if (resetting) return;
+            e.currentTarget.style.borderColor = "#FF5E1A";
+            e.currentTarget.style.color = "#FF5E1A";
+          }}
+          onMouseLeave={(e) => {
+            if (resetting) return;
+            e.currentTarget.style.borderColor = "#3F3F46";
+            e.currentTarget.style.color = "#A1A1AA";
+          }}
+          title="Genera una password nueva. La anterior dejará de funcionar."
+        >
+          <KeyRound size={12} />
+          {resetting ? "Generando…" : "Regenerar password"}
+        </button>
+      </div>
+
+      {/* Modal con la nueva password (solo se ve UNA vez) */}
+      {newPassword && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            backdropFilter: "blur(4px)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+          onClick={() => setNewPassword(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#18181B",
+              border: "1px solid #27272A",
+              borderRadius: 14,
+              padding: 28,
+              maxWidth: 460,
+              width: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <KeyRound size={18} color="#FF5E1A" />
+                <h3 style={{ margin: 0, fontSize: 16, color: "#fff", fontWeight: 600 }}>Password regenerada</h3>
+              </div>
+              <button
+                onClick={() => setNewPassword(null)}
+                style={{ background: "transparent", border: "none", color: "#71717A", cursor: "pointer", padding: 4 }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: "#A1A1AA", marginBottom: 16 }}>
+              Para <strong style={{ color: "#fff" }}>{user.email}</strong>. Copiala ahora — no la vas a poder ver de nuevo.
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 14px",
+                background: "#0A0A0F",
+                border: "1px solid #FF5E1A",
+                borderRadius: 8,
+                marginBottom: 14,
+              }}
+            >
+              <code style={{ flex: 1, color: "#fff", fontSize: 16, fontFamily: "ui-monospace, SF Mono, Menlo, monospace", letterSpacing: "0.04em" }}>
+                {newPassword}
+              </code>
+              <button
+                onClick={handleCopy}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  background: copied ? "rgba(34,197,94,0.15)" : "#FF5E1A",
+                  border: copied ? "1px solid rgba(34,197,94,0.4)" : "none",
+                  borderRadius: 6,
+                  color: copied ? "#22C55E" : "#fff",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}
+                {copied ? "Copiada" : "Copiar"}
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: "#71717A", lineHeight: 1.5 }}>
+              💡 Pasasela al cliente por un canal seguro (no por email). Si la perdés, vas a tener que regenerar otra.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            padding: "8px 12px",
+            background: "rgba(239,68,68,0.1)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            borderRadius: 6,
+            color: "#FCA5A5",
+            fontSize: 11,
+            marginTop: 4,
+          }}
+        >
+          {error}
+        </div>
+      )}
+    </>
   );
 }
 
