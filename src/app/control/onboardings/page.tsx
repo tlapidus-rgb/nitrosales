@@ -407,6 +407,9 @@ function DetailDrawer({
   const [approvingBackfill, setApprovingBackfill] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // F1.3 — Test de credenciales del lado admin
+  const [testingCreds, setTestingCreds] = useState(false);
+  const [credTestResult, setCredTestResult] = useState<any>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
@@ -464,6 +467,25 @@ function DetailDrawer({
       onClose();
     } finally {
       setRejecting(false);
+    }
+  };
+
+  const testAllCredentials = async () => {
+    setTestingCreds(true);
+    setCredTestResult(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/admin/onboardings/${id}/test-credentials`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setErrorMsg(json.error || "Error al probar credenciales");
+        return;
+      }
+      setCredTestResult(json);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Error de red");
+    } finally {
+      setTestingCreds(false);
     }
   };
 
@@ -795,8 +817,16 @@ function DetailDrawer({
                     border: "1px solid rgba(34,197,94,0.2)", borderRadius: 8,
                     fontSize: 12, color: "#86EFAC", marginBottom: 14,
                   }}>
-                    El cliente completó el wizard. Revisá las credenciales arriba (botón "Ver" en cada token) antes de aprobar el backfill.
+                    El cliente completó el wizard. <strong>Probá las credenciales</strong> antes de aprobar el backfill — si alguna falla, pedile al cliente que la corrija desde la app.
                   </div>
+
+                  {/* F1.3 — Test de credenciales */}
+                  <CredentialsTestBlock
+                    onTest={testAllCredentials}
+                    testing={testingCreds}
+                    result={credTestResult}
+                  />
+
                   <button
                     onClick={approveBackfill}
                     disabled={approvingBackfill}
@@ -862,6 +892,126 @@ function DetailDrawer({
 }
 
 // ─── dark variants ───
+// ═══════════════════════════════════════════════════════════════
+// CredentialsTestBlock — F1.3: probar credenciales antes de aprobar
+// ═══════════════════════════════════════════════════════════════
+function CredentialsTestBlock({
+  onTest,
+  testing,
+  result,
+}: {
+  onTest: () => void;
+  testing: boolean;
+  result: any;
+}) {
+  const summary = result?.summary;
+  const allOk = summary && summary.failed === 0 && summary.passed > 0;
+  const someFailed = summary && summary.failed > 0;
+
+  return (
+    <div
+      style={{
+        marginBottom: 14,
+        padding: 14,
+        background: allOk
+          ? "rgba(34,197,94,0.06)"
+          : someFailed
+          ? "rgba(239,68,68,0.06)"
+          : "rgba(255,255,255,0.02)",
+        border: `1px solid ${allOk ? "rgba(34,197,94,0.25)" : someFailed ? "rgba(239,68,68,0.25)" : "#27272A"}`,
+        borderRadius: 10,
+        transition: "all 0.25s ease",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: result ? 12 : 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: allOk ? "#86EFAC" : someFailed ? "#FCA5A5" : "#A1A1AA", marginBottom: 2 }}>
+            {testing ? "Probando…" : allOk ? "Todas las credenciales OK" : someFailed ? `${summary.failed} de ${summary.total} fallaron` : "Probá las credenciales"}
+          </div>
+          <div style={{ fontSize: 11, color: "#71717A", lineHeight: 1.5 }}>
+            {testing
+              ? "Cada plataforma puede tardar 2-5 segundos."
+              : result
+              ? `${summary.total} plataforma${summary.total === 1 ? "" : "s"} testeada${summary.total === 1 ? "" : "s"}.`
+              : "Hace 1 request real a cada API para confirmar que las credenciales funcionan."}
+          </div>
+        </div>
+        <button
+          onClick={onTest}
+          disabled={testing}
+          style={{
+            padding: "7px 14px",
+            background: allOk ? "rgba(34,197,94,0.15)" : "#FF5E1A",
+            border: allOk ? "1px solid rgba(34,197,94,0.4)" : "none",
+            borderRadius: 7,
+            color: allOk ? "#86EFAC" : "#fff",
+            fontSize: 11.5,
+            fontWeight: 700,
+            cursor: testing ? "wait" : "pointer",
+            opacity: testing ? 0.6 : 1,
+            whiteSpace: "nowrap",
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+          }}
+        >
+          {testing ? <RefreshCw size={11} style={{ animation: "spin 1s linear infinite" }} /> : <CheckCircle2 size={11} />}
+          {testing ? "Probando" : result ? "Probar de nuevo" : "Probar credenciales"}
+        </button>
+      </div>
+
+      {result?.results && result.results.length === 0 && (
+        <div style={{ fontSize: 11, color: "#A1A1AA", padding: "8px 0" }}>
+          {result.note || "No hay connections cargadas todavía."}
+        </div>
+      )}
+
+      {result?.results && result.results.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+          {result.results.map((r: any, i: number) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                padding: "8px 10px",
+                background: "rgba(0,0,0,0.25)",
+                border: `1px solid ${r.ok ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
+                borderRadius: 6,
+              }}
+            >
+              {r.ok ? (
+                <CheckCircle2 size={14} color="#22C55E" style={{ flexShrink: 0, marginTop: 1 }} />
+              ) : (
+                <XCircle size={14} color="#EF4444" style={{ flexShrink: 0, marginTop: 1 }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color: "#E4E4E7", marginBottom: 1 }}>
+                  {r.platform}
+                  {r.skipped && (
+                    <span style={{ fontSize: 9, padding: "1px 5px", background: "#27272A", color: "#71717A", borderRadius: 99, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      OAuth
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: r.ok ? "#A1A1AA" : "#FCA5A5", lineHeight: 1.4, wordBreak: "break-word" }}>
+                  {r.detail}
+                </div>
+                {r.hint && (
+                  <div style={{ fontSize: 10.5, color: "#71717A", marginTop: 3, fontStyle: "italic" }}>
+                    💡 {r.hint}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 20 }}>

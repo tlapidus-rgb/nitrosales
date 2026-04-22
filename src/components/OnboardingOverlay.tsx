@@ -398,8 +398,6 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
   const [error, setError] = useState<string | null>(null);
   const [skipModalFor, setSkipModalFor] = useState<BrandKey | null>(null);
   const [focusedPlatform, setFocusedPlatform] = useState<BrandKey | null>(null);
-  // Fase 1.1 — Test de credenciales en vivo por plataforma
-  const [testStatus, setTestStatus] = useState<Record<string, { testing: boolean; ok?: boolean; detail?: string; hint?: string }>>({});
 
   // Comunicar el paso actual al overlay (para que Aurum tenga contexto)
   useEffect(() => {
@@ -415,34 +413,6 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
 
   const updateCred = (p: string, field: string, value: string | boolean) => {
     setCreds((c) => ({ ...c, [p]: { ...(c[p] || {}), [field]: value } }));
-    // Al editar, invalidar el test anterior (el user tiene que probar de nuevo)
-    setTestStatus((t) => {
-      if (!t[p]) return t;
-      const { [p]: _, ...rest } = t;
-      return rest;
-    });
-  };
-
-  const testCredentials = async (platform: BrandKey) => {
-    const credentials = creds[platform] || {};
-    setTestStatus((t) => ({ ...t, [platform]: { testing: true } }));
-    try {
-      const res = await fetch("/api/onboarding/test-credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, credentials }),
-      });
-      const json = await res.json();
-      setTestStatus((t) => ({
-        ...t,
-        [platform]: { testing: false, ok: !!json.ok, detail: json.detail, hint: json.hint },
-      }));
-    } catch (e: any) {
-      setTestStatus((t) => ({
-        ...t,
-        [platform]: { testing: false, ok: false, detail: e?.message || "Error de red" },
-      }));
-    }
   };
 
   const usePlatforms = ALL_PLATFORMS.filter((p) => decisions[p.key] === "use");
@@ -461,10 +431,6 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
     return Math.round((decided / total) * 100);
   }, [decisions, creds]);
 
-  // Plataformas que requieren test manual (VTEX + Meta). El resto son OAuth
-  // (MercadoLibre, Google Ads, GSC) o no aplica (NitroPixel = snippet).
-  const MANUAL_TEST_PLATFORMS = new Set(["VTEX", "META_ADS", "META_PIXEL"]);
-
   const submit = async () => {
     for (const p of ALL_PLATFORMS) {
       const d = decisions[p.key] || "pending";
@@ -478,15 +444,6 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
           setError(`Completá todos los campos de "${p.name}"`);
           setFocusedPlatform(p.key);
           return;
-        }
-        // Fase 1.1: si es una plataforma que requiere test, exigir que haya pasado
-        if (MANUAL_TEST_PLATFORMS.has(p.key)) {
-          const t = testStatus[p.key];
-          if (!t || !t.ok) {
-            setError(`Probá las credenciales de "${p.name}" antes de enviar. Usá el botón "Probar conexión".`);
-            setFocusedPlatform(p.key);
-            return;
-          }
         }
       }
     }
@@ -735,9 +692,6 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
             orgId={orgId}
             history={history[displayed]}
             onHistoryChange={(v) => setHistory((h) => ({ ...h, [displayed]: v }))}
-            testStatus={testStatus[displayed]}
-            onTest={() => testCredentials(displayed)}
-            canTest={MANUAL_TEST_PLATFORMS.has(displayed) && calcCompletion(displayed, creds[displayed]) === 100}
           />
         )}
       </main>
@@ -798,9 +752,8 @@ function EmptyCenter() {
   );
 }
 
-function PlatformCenterPanel({ platformKey, creds, onChange, orgId, history, onHistoryChange, testStatus, onTest, canTest }: any) {
+function PlatformCenterPanel({ platformKey, creds, onChange, orgId, history, onHistoryChange }: any) {
   const p = ALL_PLATFORMS.find((pl) => pl.key === platformKey)!;
-  const needsManualTest = platformKey === "VTEX" || platformKey === "META_ADS" || platformKey === "META_PIXEL";
   return (
     <div style={{ maxWidth: 640 }}>
       {/* Header */}
@@ -824,14 +777,6 @@ function PlatformCenterPanel({ platformKey, creds, onChange, orgId, history, onH
         {platformKey === "NITROPIXEL" && <NitroPixelInputs creds={creds} onChange={onChange} orgId={orgId} />}
       </div>
 
-      {/* Fase 1.1 — Test de credenciales en vivo (solo para plataformas manuales) */}
-      {needsManualTest && (
-        <TestCredentialsBlock
-          canTest={!!canTest}
-          status={testStatus}
-          onTest={onTest}
-        />
-      )}
 
       {/* Rango histórico inline si aplica */}
       {p.hasHistory && (
@@ -1381,87 +1326,6 @@ function iconCircle(color: string) {
     background: `${color}1A`, border: `1px solid ${color}4D`,
     display: "flex", alignItems: "center", justifyContent: "center",
   } as React.CSSProperties;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// TestCredentialsBlock — Fase 1.1 test de credenciales en vivo
-// ═══════════════════════════════════════════════════════════════
-function TestCredentialsBlock({ canTest, status, onTest }: { canTest: boolean; status: any; onTest: () => void }) {
-  const testing = !!status?.testing;
-  const result = status && !status.testing ? status : null;
-
-  let bgColor = "rgba(255,255,255,0.02)";
-  let borderColor = BORDER;
-  let iconColor = TEXT_SECONDARY;
-  if (result?.ok) {
-    bgColor = "rgba(34,197,94,0.08)";
-    borderColor = "rgba(34,197,94,0.3)";
-    iconColor = ACCENT_GREEN;
-  } else if (result && !result.ok) {
-    bgColor = "rgba(239,68,68,0.08)";
-    borderColor = "rgba(239,68,68,0.3)";
-    iconColor = ACCENT_RED;
-  }
-
-  return (
-    <div
-      style={{
-        marginTop: 22,
-        padding: 16,
-        background: bgColor,
-        border: `1px solid ${borderColor}`,
-        borderRadius: 12,
-        transition: "all 0.25s ease",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
-          {testing ? (
-            <Loader2 size={18} color={BRAND_ORANGE} style={{ animation: "spin 1s linear infinite", flexShrink: 0 }} />
-          ) : result?.ok ? (
-            <CheckCircle2 size={18} color={ACCENT_GREEN} style={{ flexShrink: 0 }} />
-          ) : result ? (
-            <Ban size={18} color={ACCENT_RED} style={{ flexShrink: 0 }} />
-          ) : (
-            <ShieldCheck size={18} color={TEXT_SECONDARY} style={{ flexShrink: 0 }} />
-          )}
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: iconColor, marginBottom: 2 }}>
-              {testing ? "Probando conexión…" : result?.ok ? "Credenciales OK" : result ? "No pudimos conectar" : "Probá tus credenciales"}
-            </div>
-            <div style={{ fontSize: 11.5, color: TEXT_SECONDARY, lineHeight: 1.5, wordBreak: "break-word" }}>
-              {testing ? "Tardará 2-5 segundos." : result?.detail || (canTest ? "Validamos que funcionen antes de enviarlas." : "Completá todos los campos primero.")}
-            </div>
-            {result?.hint && !result.ok && (
-              <div style={{ fontSize: 11, color: "#FCA5A5", marginTop: 4, lineHeight: 1.5 }}>
-                💡 {result.hint}
-              </div>
-            )}
-          </div>
-        </div>
-        <button
-          onClick={onTest}
-          disabled={!canTest || testing}
-          style={{
-            padding: "8px 14px",
-            background: result?.ok ? "rgba(34,197,94,0.15)" : BRAND_ORANGE,
-            border: result?.ok ? "1px solid rgba(34,197,94,0.35)" : "none",
-            borderRadius: 8,
-            color: result?.ok ? ACCENT_GREEN : "#fff",
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: !canTest || testing ? "not-allowed" : "pointer",
-            opacity: !canTest || testing ? 0.5 : 1,
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-            transition: "all 0.15s ease",
-          }}
-        >
-          {testing ? "Probando…" : result?.ok ? "Probar de nuevo" : "Probar conexión"}
-        </button>
-      </div>
-    </div>
-  );
 }
 
 // ═══════════════════════════════════════════════════════════════
