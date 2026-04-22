@@ -140,77 +140,37 @@ function OnboardingPageInner() {
 
   return (
     <PageShell>
-      <div className="split-wrap">
-        {/* ══════════ LEFT: HERO ══════════ */}
-        <div className="hero-pane">
-          <div style={{ maxWidth: 460 }}>
-            {/* Eyebrow */}
-            <div
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 7,
-                padding: "5px 12px",
-                background: "rgba(255,94,26,0.08)",
-                border: "1px solid rgba(255,94,26,0.25)",
-                borderRadius: 999,
-                fontSize: 10.5, fontWeight: 700, color: BRAND_ORANGE,
-                textTransform: "uppercase", letterSpacing: "0.16em",
-                marginBottom: 26,
-              }}
-            >
-              <Zap size={11} fill={BRAND_ORANGE} />
-              Implementá AI commerce
-            </div>
-
-            {/* Headline */}
-            <h1
-              style={{
-                fontSize: 44, fontWeight: 800, color: TEXT_PRIMARY,
-                letterSpacing: "-0.035em", lineHeight: 1.08,
-                margin: "0 0 18px",
-              }}
-              className="hero-h1"
-            >
-              {personalizedCompany ? (
-                <>
-                  Activá NitroSales para<br />
-                  <span style={{ color: BRAND_ORANGE }}>{personalizedCompany}</span>
-                </>
-              ) : (
-                <>
-                  Activá tu acceso<br />
-                  <span style={{ color: BRAND_ORANGE }}>a NitroSales</span>
-                </>
-              )}
-            </h1>
-
-            {/* Sub */}
-            <p style={{ margin: "0 0 32px", fontSize: 16, lineHeight: 1.6, color: TEXT_SECONDARY, maxWidth: 420 }}>
-              La plataforma de inteligencia comercial para ecommerce LATAM. Conectamos tus canales, medimos cada venta y un agente de IA opera con vos.
-            </p>
-
-            {/* Features */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 38 }}>
-              <FeatureRow icon={<BarChart3 size={16} />} title="Atribución propia" desc="Nuestro píxel mide cada venta sin depender de Meta ni Google." />
-              <FeatureRow icon={<TrendingUp size={16} />} title="P&L en tiempo real" desc="Rentabilidad por canal, producto y campaña. Sin esperar al contador." />
-              <FeatureRow icon={<Sparkles size={16} />} title="Operado por IA" desc="Aurum analiza tus datos y te dice qué hacer en cada momento." />
-            </div>
-
-            {/* Integraciones */}
-            <div style={{ paddingTop: 26, borderTop: `1px solid ${BORDER}` }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_MUTED, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 14 }}>
-                Integrado nativamente con
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <IntegrationChip label="VTEX" />
-                <IntegrationChip label="MercadoLibre" />
-                <IntegrationChip label="Meta Ads" />
-                <IntegrationChip label="Google Ads" />
-              </div>
-            </div>
-          </div>
+      {/* Headline compacto arriba del split — visible en first fold junto al form */}
+      <div className="top-hero">
+        <div
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 7,
+            padding: "5px 12px",
+            background: "rgba(255,94,26,0.08)",
+            border: "1px solid rgba(255,94,26,0.25)",
+            borderRadius: 999,
+            fontSize: 10.5, fontWeight: 700, color: BRAND_ORANGE,
+            textTransform: "uppercase", letterSpacing: "0.16em",
+            marginBottom: 16,
+          }}
+        >
+          <Zap size={11} fill={BRAND_ORANGE} />
+          Implementá AI commerce
         </div>
+        <h1 className="hero-h1" style={{ fontSize: 36, fontWeight: 800, color: TEXT_PRIMARY, letterSpacing: "-0.03em", lineHeight: 1.12, margin: "0 0 12px" }}>
+          {personalizedCompany ? (
+            <>Activá NitroSales para <span style={{ color: BRAND_ORANGE }}>{personalizedCompany}</span></>
+          ) : (
+            <>Activá tu acceso <span style={{ color: BRAND_ORANGE }}>a NitroSales</span></>
+          )}
+        </h1>
+        <p style={{ margin: "0 0 28px", fontSize: 15, lineHeight: 1.55, color: TEXT_SECONDARY, maxWidth: 640 }}>
+          La plataforma de inteligencia comercial para ecommerce LATAM. Completá el formulario y habilitamos tu acceso.
+        </p>
+      </div>
 
-        {/* ══════════ RIGHT: FORM ══════════ */}
+      <div className="split-wrap">
+        {/* ══════════ LEFT: FORM (aparece primero visualmente) ══════════ */}
         <div className="form-pane">
           <div
             style={{
@@ -311,32 +271,60 @@ function OnboardingPageInner() {
             </div>
           </div>
         </div>
+
+        {/* ══════════ RIGHT: features + integraciones (refuerzo visual) ══════════ */}
+        <div className="side-pane">
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 32 }}>
+            <FeatureRow icon={<BarChart3 size={16} />} title="Atribución propia" desc="Nuestro píxel mide cada venta sin depender de Meta ni Google." />
+            <FeatureRow icon={<TrendingUp size={16} />} title="P&L en tiempo real" desc="Rentabilidad por canal, producto y campaña." />
+            <FeatureRow icon={<Sparkles size={16} />} title="Operado por IA" desc="Aurum analiza tus datos y te dice qué hacer." />
+          </div>
+
+          <div style={{ paddingTop: 22, borderTop: `1px solid ${BORDER}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_MUTED, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 12 }}>
+              Integrado nativamente con
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              <IntegrationChip label="VTEX" />
+              <IntegrationChip label="MercadoLibre" />
+              <IntegrationChip label="Meta Ads" />
+              <IntegrationChip label="Google Ads" />
+            </div>
+          </div>
+        </div>
       </div>
 
       <style jsx global>{`
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        .top-hero {
+          max-width: 1160px;
+          margin: 8px auto 20px;
+          padding: 0 40px;
+          text-align: left;
+        }
+
         .split-wrap {
           display: grid;
-          grid-template-columns: 1.15fr 1fr;
-          gap: 72px;
+          grid-template-columns: 1fr 0.85fr;
+          gap: 56px;
           max-width: 1160px;
-          margin: 20px auto 80px;
-          padding: 20px 40px;
+          margin: 0 auto 80px;
+          padding: 8px 40px;
           align-items: flex-start;
         }
-        .hero-pane { padding-top: 20px; }
-        .form-pane { display: flex; justify-content: center; }
+        .form-pane { display: flex; justify-content: flex-start; }
+        .side-pane { padding-top: 16px; }
 
         @media (max-width: 960px) {
+          .top-hero { padding: 0 20px; margin-bottom: 16px; }
+          .hero-h1 { font-size: 28px !important; line-height: 1.15 !important; }
           .split-wrap {
             grid-template-columns: 1fr;
-            gap: 40px;
-            padding: 16px 20px;
-            margin-top: 8px;
+            gap: 32px;
+            padding: 0 20px;
           }
-          .hero-pane { padding-top: 0; text-align: left; }
-          .hero-h1 { font-size: 32px !important; line-height: 1.1 !important; }
+          .side-pane { padding-top: 0; }
         }
       `}</style>
     </PageShell>

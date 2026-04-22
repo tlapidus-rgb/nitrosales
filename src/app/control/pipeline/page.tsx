@@ -661,6 +661,10 @@ function AddLeadModal({ onClose, onCreated }: any) {
       setError("Para mandar la invitación necesito el email del lead");
       return;
     }
+    if (form.sendInvite && !form.companyName.trim()) {
+      setError("Para personalizar el email y el form, necesito el nombre de la empresa");
+      return;
+    }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("El email no parece válido");
       return;
@@ -727,26 +731,26 @@ function AddLeadModal({ onClose, onCreated }: any) {
         </p>
 
         <Field
-          label="Email *"
-          value={form.contactEmail}
-          onChange={(v: string) => setForm({ ...form, contactEmail: v })}
-          placeholder="juan@miempresa.com"
-          type="email"
+          label={`Empresa ${form.sendInvite ? "*" : ""}`}
+          value={form.companyName}
+          onChange={(v: string) => setForm({ ...form, companyName: v })}
+          placeholder="Arredo, TV Compras, etc."
           autoFocus
         />
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field
+            label={`Email ${form.sendInvite ? "*" : ""}`}
+            value={form.contactEmail}
+            onChange={(v: string) => setForm({ ...form, contactEmail: v })}
+            placeholder="juan@miempresa.com"
+            type="email"
+          />
+          <Field
             label="Nombre"
             value={form.contactName}
             onChange={(v: string) => setForm({ ...form, contactName: v })}
             placeholder="Juan"
-          />
-          <Field
-            label="Empresa"
-            value={form.companyName}
-            onChange={(v: string) => setForm({ ...form, companyName: v })}
-            placeholder="Mi Empresa"
           />
         </div>
 

@@ -28,18 +28,24 @@ export async function POST(req: Request) {
     const body = await req.json();
     const contactEmail = (body?.contactEmail || "").trim().toLowerCase();
     const contactName = (body?.contactName || "").trim() || null;
-    const companyName = (body?.companyName || "").trim() || (contactEmail ? contactEmail.split("@")[0] : "Sin nombre");
+    const rawCompanyName = (body?.companyName || "").trim();
     const sendInvite = !!body?.sendInvite;
 
-    // Si se pidio sendInvite, validar email
+    // Si se pidio sendInvite, validar email Y empresa (necesarios para personalizar mail + form)
     if (sendInvite && !contactEmail) {
       return NextResponse.json({ error: "Email requerido para enviar invitación" }, { status: 400 });
+    }
+    if (sendInvite && !rawCompanyName) {
+      return NextResponse.json({ error: "Empresa requerida para enviar invitación (se usa en el mail y el form)" }, { status: 400 });
     }
 
     // Email format basico
     if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
       return NextResponse.json({ error: "Email inválido" }, { status: 400 });
     }
+
+    // companyName final: usa lo cargado, o "Sin nombre" solo si no envía invite
+    const companyName = rawCompanyName || "Sin nombre";
 
     const id = randomUUID();
     const status = sendInvite ? "CONTACTADO" : "LEAD";
