@@ -512,12 +512,10 @@ export function leadInviteVariantA(opts: {
   const subject = INVITE_SUBJECT;
   const preheader = `Tu ecommerce pierde dinero todos los meses y no lo sabés.`;
 
-  const RED_HOT = "#FF3B4C";
-  const glow = [
-    `0 0 24px rgba(255,59,76,0.55)`,
-    `0 0 48px rgba(255,59,76,0.35)`,
-    `0 0 8px rgba(255,59,76,0.85)`,
-  ].join(",");
+  // Rojo profundo sobrio (Tailwind red-600 style) + glow MUY sutil de 1 capa.
+  // El peso visual viene del font-weight 900 y el color denso, no del halo.
+  const RED_HOT = "#DC2626";
+  const glow = `0 0 18px rgba(220,38,38,0.32)`;
 
   const content = `
     <div style="padding:36px 0 20px;text-align:left;">
