@@ -16,8 +16,11 @@ import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { createBackfillJob } from "@/lib/backfill/job-manager";
 import { sendEmail } from "@/lib/email/send";
+import { waitUntil } from "@vercel/functions";
 
 export const dynamic = "force-dynamic";
+
+const BACKFILL_RUNNER_KEY = "nitrosales-secret-key-2024-production";
 
 export async function POST(
   _req: NextRequest,
@@ -151,11 +154,25 @@ export async function POST(
 </body></html>`,
     }).catch((err) => console.error("[approve-backfill] client email failed:", err?.message));
 
+    // Trigger inmediato del runner: no esperar al proximo tick del cron (1 min).
+    // Disparamos el runner en background para que arranque a procesar AHORA.
+    // waitUntil mantiene la funcion alive despues de responder 200 al admin.
+    if (createdJobs.length > 0) {
+      const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+      const runnerUrl = `${baseUrl}/api/cron/backfill-runner?key=${encodeURIComponent(BACKFILL_RUNNER_KEY)}`;
+      waitUntil(
+        fetch(runnerUrl, { method: "GET" })
+          .then((r) => console.log(`[approve-backfill] runner triggered: HTTP ${r.status}`))
+          .catch((err) => console.error(`[approve-backfill] runner trigger failed: ${err.message}`))
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       message: `Backfill aprobado para ${ob.companyName}. Jobs creados: ${createdJobs.length}`,
       jobs: createdJobs,
       orgId: ob.createdOrgId,
+      runnerTriggered: createdJobs.length > 0,
     });
   } catch (error: any) {
     console.error("[admin/onboardings/approve-backfill] error:", error);

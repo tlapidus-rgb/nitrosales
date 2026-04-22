@@ -10,15 +10,21 @@
 // Los items/customer se enriquecen despues con el sync incremental
 // normal de VTEX cuando el cliente ya usa la plataforma.
 //
-// Ritmo: 8 paginas × 100 ordenes = ~800 ordenes/chunk, cron cada 5min
-// → ~9600/hora, ~1 año de data VTEX mediana en 1-2hs.
+// Ritmo: 20 paginas × 100 ordenes = ~2000 ordenes/chunk. Combinado con
+// el loop interno del runner (procesa varios chunks por invocacion) y
+// el trigger inmediato post-aprobacion, el backfill de 3 meses tipicos
+// se completa en minutos en vez de horas.
+//
+// Por que 20 paginas (no mas)? VTEX OMS tolera hasta ~50 req/min sin
+// rate-limit pero queremos margen. 20 paginas secuenciales tardan
+// ~10-20s, dejando amplio margen del budget de 4min del runner.
 // ══════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
 import { decryptCredentials } from "@/lib/crypto";
 import type { ChunkResult } from "../types";
 
-const PAGES_PER_CHUNK = 8;
+const PAGES_PER_CHUNK = 20;
 const PAGE_SIZE = 100;
 
 interface VtexCreds {

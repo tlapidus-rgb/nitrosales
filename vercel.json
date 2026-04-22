@@ -63,7 +63,7 @@
     },
     {
       "path": "/api/cron/backfill-runner?key=nitrosales-secret-key-2024-production",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     }
   ]
 }
