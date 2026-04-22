@@ -83,6 +83,8 @@ export default function ControlOnboardingsPage() {
       {/* Migration banner — MercadoLibre sync v2 */}
       <MigrationBanner />
 
+      {/* Email flow debug — diagnostica por qué no llegó el email */}
+      <EmailFlowDebug />
 
       {/* Filter tabs */}
       <div
@@ -1553,6 +1555,158 @@ function BackfillJobRow({ job }: { job: any }) {
           }}
         >
           {job.lastError.slice(0, 200)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// EmailFlowDebug — diagnostica por qué un email automático no llegó
+// ══════════════════════════════════════════════════════════════
+// Ejecuta el flujo paso a paso SIN modificar data. Devuelve un reporte
+// estructurado donde se ve qué falló (template render, Resend auth, etc).
+// ══════════════════════════════════════════════════════════════
+
+function EmailFlowDebug() {
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<"idle" | "running" | "done">("idle");
+  const [result, setResult] = useState<any>(null);
+
+  async function run(dryRun: boolean) {
+    setState("running");
+    setResult(null);
+    try {
+      const res = await fetch("/api/admin/debug-email-flow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun }),
+      });
+      const json = await res.json();
+      setResult(json);
+    } catch (err: any) {
+      setResult({ ok: false, summary: `Error de red: ${err.message}`, steps: [] });
+    } finally {
+      setState("done");
+    }
+  }
+
+  if (!open) {
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            padding: "6px 12px", fontSize: 12, color: "#A1A1AA",
+            background: "transparent", border: "1px solid #27272A",
+            borderRadius: 7, cursor: "pointer",
+          }}
+        >
+          🔧 Debug: ¿por qué no llega un email?
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        marginBottom: 24,
+        padding: "16px 20px",
+        background: "rgba(168,85,247,0.04)",
+        border: "1px solid rgba(168,85,247,0.2)",
+        borderRadius: 12,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#A855F7", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
+            🔧 Email flow debug
+          </div>
+          <div style={{ fontSize: 13, color: "#A1A1AA", lineHeight: 1.5 }}>
+            Diagnostica el flujo del <strong style={{ color: "#fff" }}>último onboarding creado</strong>: render del template, conexión a Resend, respuesta API. NO reenvía nada si usás "Dry run".
+          </div>
+        </div>
+        <button
+          onClick={() => { setOpen(false); setResult(null); setState("idle"); }}
+          style={{ padding: "6px 10px", background: "transparent", color: "#71717A", border: "1px solid #27272A", borderRadius: 7, fontSize: 11, cursor: "pointer" }}
+        >✕</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={() => run(true)}
+          disabled={state === "running"}
+          style={{
+            padding: "8px 14px", background: "#27272A", color: "#fff",
+            border: 0, borderRadius: 7, fontSize: 12, fontWeight: 600,
+            cursor: state === "running" ? "wait" : "pointer",
+          }}
+        >
+          Dry run (solo diagnostica)
+        </button>
+        <button
+          onClick={() => run(false)}
+          disabled={state === "running"}
+          style={{
+            padding: "8px 14px", background: "#A855F7", color: "#fff",
+            border: 0, borderRadius: 7, fontSize: 12, fontWeight: 600,
+            cursor: state === "running" ? "wait" : "pointer",
+          }}
+        >
+          Test real (envía email [DEBUG])
+        </button>
+      </div>
+
+      {state === "running" && (
+        <div style={{ color: "#A1A1AA", fontSize: 12 }}>Ejecutando diagnóstico...</div>
+      )}
+
+      {result && (
+        <div>
+          <div style={{
+            padding: "10px 12px", marginBottom: 12,
+            background: result.ok ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+            border: `1px solid ${result.ok ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+            borderRadius: 7, fontSize: 12,
+            color: result.ok ? "#4ADE80" : "#FCA5A5",
+            fontWeight: 600,
+          }}>
+            {result.ok ? "✓" : "✗"} {result.summary}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {(result.steps || []).map((s: any, i: number) => (
+              <div
+                key={i}
+                style={{
+                  padding: "8px 10px",
+                  background: s.ok ? "rgba(34,197,94,0.04)" : "rgba(239,68,68,0.04)",
+                  border: `1px solid ${s.ok ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.25)"}`,
+                  borderRadius: 6,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ color: s.ok ? "#4ADE80" : "#FCA5A5", fontSize: 13 }}>{s.ok ? "✓" : "✗"}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{s.step}</span>
+                </div>
+                {s.error && (
+                  <div style={{ fontSize: 11, color: "#FCA5A5", fontFamily: "'SF Mono', Menlo, monospace", marginTop: 4, wordBreak: "break-word" }}>
+                    {s.error}
+                  </div>
+                )}
+                {s.detail && (
+                  <pre style={{
+                    fontSize: 10, color: "#A1A1AA", fontFamily: "'SF Mono', Menlo, monospace",
+                    margin: "4px 0 0", padding: "6px 8px", background: "#0A0A0F",
+                    borderRadius: 5, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word",
+                    maxHeight: 200, overflowY: "auto",
+                  }}>
+                    {typeof s.detail === "string" ? s.detail : JSON.stringify(s.detail, null, 2)}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
