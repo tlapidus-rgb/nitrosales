@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { randomUUID, randomBytes } from "crypto";
 import { sendEmail } from "@/lib/email/send";
-import { onboardingConfirmationEmail } from "@/lib/onboarding/emails";
+import { onboardingConfirmationEmailActive } from "@/lib/onboarding/emails";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
     );
 
     // ─── Email de confirmacion ───────────────────────────────
-    const { subject, html } = onboardingConfirmationEmail({
+    const { subject, html } = await onboardingConfirmationEmailActive({
       contactName,
       companyName,
       statusToken: token,

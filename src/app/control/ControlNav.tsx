@@ -14,7 +14,7 @@ const ITEMS = [
   { href: "/control/pipeline", label: "Pipeline", icon: GitBranch },
   { href: "/control/clientes", label: "Clientes", icon: Users },
   { href: "/control/onboardings", label: "Onboardings", icon: Inbox },
-  { href: "/control/preview-invite-emails", label: "Preview emails", icon: Mail },
+  { href: "/control/email-templates", label: "Emails", icon: Mail },
 ];
 
 export default function ControlNav() {

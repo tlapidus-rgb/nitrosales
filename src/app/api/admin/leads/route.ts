@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { sendEmail } from "@/lib/email/send";
-import { leadInviteEmail } from "@/lib/onboarding/emails";
+import { leadInviteEmailActive } from "@/lib/onboarding/emails";
 import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     let emailResult: any = null;
     if (sendInvite && contactEmail) {
       try {
-        const { subject, html } = leadInviteEmail({ contactName, companyName });
+        const { subject, html } = await leadInviteEmailActive({ contactName, companyName });
         const r = await sendEmail({ to: contactEmail, subject, html });
         emailResult = { ok: r.ok, error: r.error };
       } catch (err: any) {

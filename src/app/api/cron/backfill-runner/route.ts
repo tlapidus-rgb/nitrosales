@@ -29,7 +29,7 @@ import {
 } from "@/lib/backfill/job-manager";
 import { processChunk } from "@/lib/backfill/dispatcher";
 import { sendEmail } from "@/lib/email/send";
-import { dataReadyEmail } from "@/lib/onboarding/emails";
+import { dataReadyEmailActive } from "@/lib/onboarding/emails";
 // (onboardingActivationEmail ya no se usa aca — se manda en /activate)
 
 export const dynamic = "force-dynamic";
@@ -189,7 +189,7 @@ async function finalizeOnboarding(onboardingRequestId: string) {
   // Email "tu data esta lista"
   if (r.contactEmail) {
     try {
-      const tpl = dataReadyEmail({
+      const tpl = await dataReadyEmailActive({
         contactName: r.contactName,
         companyName: r.companyName,
       });

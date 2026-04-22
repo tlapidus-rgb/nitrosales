@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { sendEmail } from "@/lib/email/send";
-import { leadInviteEmail, leadFollowupEmail } from "@/lib/onboarding/emails";
+import { leadInviteEmailActive, leadFollowupEmailActive } from "@/lib/onboarding/emails";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +42,8 @@ export async function POST(
     }
 
     const tpl = variant === "followup"
-      ? leadFollowupEmail({ contactName: lead.contactName, companyName: lead.companyName })
-      : leadInviteEmail({ contactName: lead.contactName, companyName: lead.companyName });
+      ? await leadFollowupEmailActive({ contactName: lead.contactName, companyName: lead.companyName })
+      : await leadInviteEmailActive({ contactName: lead.contactName, companyName: lead.companyName });
 
     const r = await sendEmail({
       to: lead.contactEmail,

@@ -109,6 +109,34 @@ function greeting(name: string | null | undefined): string {
 }
 
 // ──────────────────────────────────────────────────────────────
+// DB-BACKED RENDER: intenta renderizar desde DB (template activo)
+// Fallback: devuelve null y el caller usa el hardcoded
+// ──────────────────────────────────────────────────────────────
+
+async function tryRenderFromDb(
+  templateKey: string,
+  ctx: {
+    contactName?: string | null;
+    companyName?: string | null;
+    loginEmail?: string;
+    temporaryPassword?: string;
+    orgId?: string;
+    statusToken?: string;
+  }
+): Promise<{ subject: string; html: string } | null> {
+  try {
+    const { prisma } = await import("@/lib/db/client");
+    const { findActiveTemplate, renderTemplateFromRow } = await import("./template-renderer");
+    const row = await findActiveTemplate(prisma, templateKey);
+    if (!row) return null;
+    return renderTemplateFromRow(row, ctx);
+  } catch (err: any) {
+    console.warn(`[emails] tryRenderFromDb(${templateKey}) failed:`, err?.message);
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
 // 1. Invite — email inicial al lead con link al form /onboarding
 // ──────────────────────────────────────────────────────────────
 
@@ -631,6 +659,59 @@ export function leadInviteVariantD(opts: {
   });
 
   return { subject, html: baseLayout(subject, preheader, content) };
+}
+
+// ══════════════════════════════════════════════════════════════
+// VERSIONS *Active: leen template de DB (la marcada como activa)
+// y renderizan con las variables. Fallback al hardcoded si no
+// hay DB o el template no existe. Los callers del flow deben
+// usar estas versions para respetar las ediciones del admin.
+// ══════════════════════════════════════════════════════════════
+
+export async function leadInviteEmailActive(opts: {
+  contactName: string | null;
+  companyName: string;
+}) {
+  const db = await tryRenderFromDb("lead_invite", opts);
+  if (db) return db;
+  return leadInviteEmail(opts);
+}
+
+export async function leadFollowupEmailActive(opts: {
+  contactName: string | null;
+  companyName: string;
+}) {
+  const db = await tryRenderFromDb("lead_followup", opts);
+  if (db) return db;
+  return leadFollowupEmail(opts);
+}
+
+export async function onboardingConfirmationEmailActive(opts: {
+  contactName: string;
+  companyName: string;
+  statusToken: string;
+}) {
+  const db = await tryRenderFromDb("onboarding_confirmation", opts);
+  if (db) return db;
+  return onboardingConfirmationEmail(opts);
+}
+
+export async function backfillStartedEmailActive(opts: {
+  contactName: string | null;
+  companyName: string;
+}) {
+  const db = await tryRenderFromDb("backfill_started", opts);
+  if (db) return db;
+  return backfillStartedEmail(opts);
+}
+
+export async function dataReadyEmailActive(opts: {
+  contactName: string | null;
+  companyName: string;
+}) {
+  const db = await tryRenderFromDb("data_ready", opts);
+  if (db) return db;
+  return dataReadyEmail(opts);
 }
 
 // ──────────────────────────────────────────────────────────────

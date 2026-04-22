@@ -16,7 +16,7 @@ import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { createBackfillJob } from "@/lib/backfill/job-manager";
 import { sendEmail } from "@/lib/email/send";
-import { backfillStartedEmail } from "@/lib/onboarding/emails";
+import { backfillStartedEmailActive } from "@/lib/onboarding/emails";
 import { waitUntil } from "@vercel/functions";
 
 export const dynamic = "force-dynamic";
@@ -136,7 +136,7 @@ export async function POST(
     );
 
     // Email al cliente
-    const tpl = backfillStartedEmail({
+    const tpl = await backfillStartedEmailActive({
       contactName: ob.contactName,
       companyName: ob.companyName,
     });
