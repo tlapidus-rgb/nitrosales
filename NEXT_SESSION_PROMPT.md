@@ -1,4 +1,4 @@
-# NEXT_SESSION_PROMPT.md — Sesión 55: Test end-to-end con credenciales reales de EMDJ
+# NEXT_SESSION_PROMPT.md — Sesión 56: Auditoría completa de paginación + eficiencia en sync de TODAS las plataformas
 
 > **Cómo usar este archivo**: copiás el contenido de la sección "Prompt para pegar" y lo mandás como primer mensaje en la próxima sesión. Claude va a leer automáticamente CLAUDE.md + CLAUDE_STATE.md + ERRORES_CLAUDE_NO_REPETIR.md + BACKLOG_PENDIENTES.md + MEMORY.md al arrancar (via ritual #2), así que no hace falta que le mandes esos archivos — solo el prompt específico de la fase que sigue.
 
@@ -7,86 +7,98 @@
 ## Prompt para pegar
 
 ```
-Hola Claude. Sesión nueva (55). Venimos de cerrar sesión 54 donde armamos todo el flow de onboarding nuevo:
+Hola Claude. Sesión nueva (56). Venimos de cerrar sesión 55 con
+TEST END-TO-END EXITOSO del backfill: 12.437 ordenes en 4 min 9 seg
+para el onboarding del cliente de prueba. Sistema listo para
+onboardear Arredo.
 
-- Form público ultra-simple de postulación (/onboarding)
-- 2 aprobaciones humanas desde /control/onboardings (cuenta + backfill)
-- OnboardingOverlay bloqueante dentro del producto con wizard paso-a-paso y tutoriales quirúrgicos
-- Backfill asíncrono con cron cada 5min + rango elegible por cliente
-- Email domain nitrosales.ai verificado en Resend + FROM = team@nitrosales.ai
-- Fix crítico del overlay: ahora chequea realidad (connections ACTIVE + backfill jobs), no solo el status enum
+Leé primero:
+- CLAUDE_STATE.md sección "Sesion 55" para contexto completo
+- MEMORY.md (especialmente los 3 patrones críticos nuevos: límite
+  paginación, validación runtime, cooldowns vs loop interno)
+- ERRORES_CLAUDE_NO_REPETIR.md sección "S55" (3 errores nuevos
+  para no repetir)
+- BACKLOG_PENDIENTES.md sección "BP-S56-001"
 
-Leé primero CLAUDE_STATE.md sección "Sesion 54" para tener el contexto completo + ERRORES_CLAUDE_NO_REPETIR.md sección "S54" (3 errores nuevos para no repetir).
+**Tarea de esta sesión: BP-S56-001 — Auditoría completa de
+paginación + eficiencia en backfill + sync de TODAS las plataformas**
 
-**Tarea de esta sesión: BP-S55-001 — Test end-to-end con credenciales REALES de EMDJ**
+Pedido explícito de Tomy al cerrar S55: "Este cambio lo podemos
+replicar en las otras sincronizaciones, sincronizaciones, o hacer
+un análisis de cómo están hechas las otras sincronizaciones para
+la información para atrás, y poder determinar realmente cómo va a
+ser la forma más eficiente para todas las plataformas."
 
-Objetivo: probar el flow completo de onboarding con credenciales reales pasando data real al sistema. Todo lo que armamos en S54 solo lo probamos con jobs fake. Necesitamos ver que el backfill real funcione.
+Plan sugerido:
 
-Pasos del test (pedido explícito de Tomy al cerrar S54):
+1. **Auditar BACKFILL** (lo que se trae históricamente al onboardear)
+   por plataforma:
+   - VTEX: ✅ resuelto en S55 (date-window + loop)
+   - MercadoLibre: ❌ stub. Implementar con date-window
+   - Meta Ads: actualmente "on-demand". Evaluar si necesita backfill
+   - Google Ads: idem Meta. Evaluar
+   - GA4: cron diario sin backfill. Evaluar
+   - GSC: cron diario sin backfill. Evaluar
 
-1. Tomy logueado como tomylapidus1999@gmail.com (user de prueba que ya existe en DB — la postulación de S54)
-2. El overlay debería estar en fase "wizard" (con el fix de S54 así queda si no hay connections ACTIVE)
-3. Tomy completa el wizard pegando las credenciales REALES de VTEX de EMDJ (accountName="elmundodeljuguete" o lo que sea, appKey, appToken)
-4. Elegir rango chico: 3 meses (así el backfill termina en ~10-30 min real, no en horas)
-5. Enviar wizard → ver fase "validating"
-6. Cambiar a sesión Owner (Tomy Lapidus OWNER de MdJ) → /control/onboardings
-7. Click en la postulación de tomylapidus1999 → drawer con botón "Aprobar backfill (paso 2)"
-8. Click → confirmar
-9. Volver a sesión de prueba → ver fase "backfilling" con progreso REAL (no fake 45%)
-10. Esperar que termine
-11. Confirmar que el overlay desaparece solo cuando el backfill termina
-12. **Inspeccionar la DB**: ¿la data histórica de EMDJ apareció duplicada en la nueva org de prueba? ¿Las órdenes se procesaron correctamente?
+2. **Auditar SYNC INCREMENTAL** (lo que se trae cada día) por plataforma:
+   - Verificar que ninguna sufra el límite de paginación de VTEX
+   - Identificar cuellos de botella de tiempo
+   - Ver si vale agregar APIs bulk donde existan (Meta async insights,
+     Google Ads streaming, MELI bulk endpoints)
 
-Preguntas a responder durante el test:
-- ¿Qué tan rápido es el backfill real? (el ETA que mostramos en el selector es realista?)
-- ¿El progreso del overlay se actualiza bien en vivo?
-- ¿El email de "data lista" llega correctamente al email de prueba (tomylapidus1999@gmail.com)?
-- ¿Hay algún error en la consola o en los logs del server durante el proceso?
+3. **Aplicar patterns aprendidos donde corresponda**:
+   - Date-window pagination cuando hay límite de páginas
+   - Loop interno + trigger inmediato cuando hay sistema de jobs
+   - Pre-query para totalEstimate cuando se necesita progress real
 
-Arrancá preguntándome si estoy listo para probar, o si antes querés revisar algún archivo específico del flow.
+Reglas importantes:
+- NO tocar nada hasta haber hecho el análisis completo y obtener OK
+  de Tomy sobre el plan de cambios concretos
+- Empezar por LECTURA del código de cada plataforma + docs oficiales
+  para entender qué tiene cada una y dónde están los límites
+- Aplicar las 3 reglas críticas de S55: trace runtime, leer docs
+  para detectar límites, considerar cooldowns/locks al diseñar loops
+- El sync actual de producción funciona y mantiene la data al día.
+  No romper eso bajo ningún concepto.
 
-Si encontramos bugs durante el test, arreglarlos en el momento (es la prioridad). Documentar cada bug encontrado en ERRORES_CLAUDE_NO_REPETIR.md con sección #S55-XXX.
-
-Recordá: regla de autonomía. Avanzás solo en decisiones técnicas (fixes de bugs, ajustes de UI menores), me preguntás solo cosas de producto/UX con trade-offs reales.
+Arrancá preguntándome si querés profundizar en alguna plataforma
+específica o si arrancás con el análisis general primero.
 ```
 
 ---
 
-## Contexto rápido que Claude debería tener al arrancar
+## Contexto rápido para Claude al arrancar
 
-### Credenciales VTEX de EMDJ
-Están guardadas en la Connection de la org de MdJ (organizationId = `cmmmga1uq0000sb43w0krvvys`). Platform = VTEX, status = ACTIVE. Tomy puede compartirlas copy-paste desde el admin drawer (existe botón "Ver" que las muestra encriptadas → desencriptadas).
+### Lo que YA está resuelto (no tocar)
+- **VTEX backfill**: motor nuevo con date-window pagination, loop interno, trigger inmediato. 12.437 ordenes en 4 min 9 seg. Files: `src/lib/backfill/processors/vtex-processor.ts`, `src/app/api/cron/backfill-runner/route.ts`, `src/app/api/admin/onboardings/[id]/approve-backfill/route.ts`, `vercel.json` (cron 1min).
+- **Aurum Onboarding Assistant**: chat con vision en wizard. Files: `src/components/OnboardingAurumChat.tsx`, `src/app/api/onboarding/aurum-assist/route.ts`.
+- **Test admin de credenciales**: 7 plataformas. Files: `src/lib/onboarding/credential-tests.ts`, `src/app/api/admin/onboardings/[id]/test-credentials/route.ts`.
 
-O Claude puede hacer:
-```sql
-SELECT credentials FROM connections
-WHERE "organizationId" = 'cmmmga1uq0000sb43w0krvvys' AND platform = 'VTEX';
-```
+### Lo que es STUB (implementar)
+- **MercadoLibre backfill**: `src/lib/backfill/dispatcher.ts:14-21` devuelve `isComplete: true` sin procesar nada. Hay que implementar `processMercadoLibreChunk` siguiendo patron de `processVtexChunk` (date-window).
 
-### Endpoints útiles para diagnóstico durante el test
+### Plataformas con sync diario (auditar)
+- VTEX: cron 3am `/api/sync` (puede sufrir el mismo límite de 30 páginas si trae rangos grandes)
+- ML: cron 2am `/api/cron/ml-sync`
+- GA4: cron diario (parte de `/api/sync`)
+- GSC: cron 9am `/api/sync/gsc`
 
-- `GET /api/me/onboarding/state` — ver la fase actual del overlay + signals (obStatus, connectionsCount, activeConnectionsCount, activeBackfillCount)
-- `GET /api/admin/onboardings/{id}/backfill-status` — detalle de los jobs de un onboarding
-- `POST /api/admin/debug-flip-my-test?phase=wizard` — reset a fase wizard si hace falta empezar de cero
-- `GET /api/control/clients-health` — estado global de clientes
-- `/control/onboardings` — UI admin
+### Webhooks (real-time, posiblemente no tienen problema de paginación)
+- VTEX orders broadcaster
+- VTEX inventory afiliados
+- ML notifications
 
-### Estado al arrancar sesión 55 (si no pasó nada entre 54 y 55)
+### Donde mirar primero
+- `src/lib/connectors/*` — implementaciones de cada plataforma
+- `src/app/api/sync/*` — endpoints de sync
+- `vercel.json` — schedule de crons
+- Docs oficiales: VTEX Developer Portal, MercadoLibre API, Meta Marketing API, Google Ads API, GSC API
 
-- Postulación de `tomylapidus1999@gmail.com` existe en DB
-- Organization de prueba creada (con ese owner)
-- No hay connections reales para esa org
-- No hay backfill jobs activos
-- Overlay debería mostrar fase "wizard" al loguear
-
-Si el state cambió por debug-flipping durante S54, correr:
-```
-fetch('/api/admin/debug-flip-my-test?phase=wizard').then(r=>r.json()).then(console.log)
-```
-
-Para dejar todo listo para el test real.
+### BP residuales bajo prioridad (de S55, para cuando haya aire)
+- BP-S55-002: Activity log/Run history en Centro de Control
+- BP-S56-002: Implementar processor real de MercadoLibre para backfill (parte de la auditoría)
 
 ---
 
-**Versión**: 1.0 (cierre Sesión 54)
-**Fecha**: 2026-04-21
+**Versión**: 2.0 (cierre Sesión 55, generado 2026-04-22)
+**Última sesión**: S55 cerró exitosamente con backfill funcionando 64x más rápido que antes

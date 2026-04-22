@@ -3,7 +3,61 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-21 (Sesion 54 — Centro de Control + Backfill async + Flow de 2 aprobaciones con Overlay bloqueante. Email domain verified. Listo para test end-to-end mañana con credenciales reales de EMDJ.)
+## Ultima actualizacion: 2026-04-22 (Sesion 55 CIERRE EXITOSO — Onboarding end-to-end PROBADO con credenciales reales: 12.437 ordenes en 4 min 9 seg. Backfill speed refactor completo: date-window pagination + loop interno + trigger inmediato + cron 1min + pre-query totalEstimate. Aurum Onboarding Assistant + Test admin de credenciales para 7 plataformas. Sistema listo para Arredo.)
+
+### Sesion 55 — 2026-04-22 — Aurum Onboarding + Admin Tools + Backfill Speed Refactor + Test E2E Exitoso
+
+**Resumen ejecutivo**: arrancamos con plan de mejoras al onboarding por fases (F0 Aurum + F1 criticos + F2 premium + F3 polish). Implementamos F0 (Aurum Onboarding Assistant con vision + system prompt afinado). Cambio de approach en F1.1 por feedback de UX de Tomy: el botón "Probar credenciales" lo movimos al lado admin (no cliente). F1.3 ampliado a las 7 plataformas. Apareció el problema critico que Tomy sufría desde siempre: backfills no funcionaban para volumenes reales (cargaba data por CSV manual). **Encontramos el ROOT cause**: VTEX limita 30 paginas por consulta (3000 ordenes max). Implementamos date-window pagination + loop interno + trigger inmediato. Test end-to-end exitoso al 100%: 12.437 ordenes en 4 min 9 seg.
+
+#### Commits a `main` (orden cronologico)
+
+**Privacidad UX**:
+- `6214f4c` privacy: reemplazar nombres de clientes reales por ejemplos genericos en placeholders
+
+**Aurum Onboarding (Fase 0)**:
+- `b2e893e` F0: drawer chat + endpoint con vision + tabla logging + system prompt
+- `4207823` afinar system prompt: tono tecnico para seguridad/privacidad (no analogias informales)
+
+**Admin tools**:
+- `f62dd63` reset password de usuarios (endpoint + UI panel)
+- `09cc620` reset-backfill endpoint para borrar jobs y reaprobar
+- `6634229` test-credentials endpoint + UI bloque inicial cliente (despues revertido por UX)
+- `877b7c5` test-credentials para TODAS las plataformas (incluye OAuth + NitroPixel)
+- `bc03a8c` admin onboarding UI: mostrar Connections reales + bloque test mejorado
+- `8fa2587` test admin: clarificar "ordenes en historico" (no del backfill real)
+
+**Backfill speed refactor (4 commits criticos)**:
+- `4162d5b` refactor inicial: loop interno + trigger inmediato + cron 1min + chunks 2x
+- `debd13b` fix loop: reusar mismo job esquivando cooldown legítimo de pickNextJob
+- `73f0aca` ROOT FIX: date-window pagination para esquivar limite de 30 paginas de VTEX
+- `8d6144f` pre-query para totalEstimate (barra de progreso correcta)
+
+#### 5 patrones criticos aprendidos (documentados en MEMORY.md)
+
+1. **🌟 LIMITE DE PAGINACION en APIs e-commerce**: VTEX 30 paginas max por consulta = 3000 ordenes. Patron común. Antes de implementar paginación contra cualquier API externa, leer docs explicitamente. Si tiene limite, usar **date-window pagination** desde el inicio.
+
+2. **🌟 VALIDACION RUNTIME no es solo tsc/build**: cuando se toca logica de control (loops, async, race conditions), agregar tercer paso de validacion: TRACE MENTAL DEL FLOW documentando 5-7 casos antes de pushear.
+
+3. **🌟 COOLDOWNS ANTI-RACE vs LOOP INTERNO**: cuando una funcion tiene cooldown anti-race externo, llamarla desde loop interno del MISMO worker te bloquea. Solucion: variable local que mantiene "ownership" hasta complete.
+
+4. **🌟 BACKFILL/SYNC SEPARACION**: backfill = traer histórico al onboardear. Sync = traer nuevo cada día. Ambos pueden tener limites de paginacion. El refactor de hoy aplica a backfill — auditoria de sync queda pendiente para S56.
+
+5. **🌟 TEST DE CREDENCIALES del lado ADMIN no CLIENTE**: el cliente no debe ver fallas tecnicas en el wizard ("App Token invalido" genera ansiedad). El admin valida silenciosamente antes de aprobar el backfill.
+
+#### Estado al cierre
+
+- ✅ Test end-to-end del backfill: PASSED (12.437 ordenes en 4 min 9 seg, 0 errores)
+- ✅ Email "data lista" llego al cliente
+- ✅ Overlay desbloqueado automaticamente
+- ✅ Cliente entró al producto con data real cargada
+- ✅ ONBOARDING_ROADMAP.md documentado con plan F0/F1/F2/F3
+- ✅ BACKLOG actualizado con BP-S56-001 (auditoria paginacion completa) y BP-S55-002 (activity log)
+- ✅ ERRORES documentados: 3 nuevos en S55
+- ✅ MEMORY actualizado con 3 patrones criticos nuevos
+
+**Sistema listo para onboardear Arredo.**
+
+---
 
 ### Sesion 54 — 2026-04-21 — Centro de Control, Backfill asincrono, Overlay bloqueante 2 aprobaciones
 

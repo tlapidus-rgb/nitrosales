@@ -8,38 +8,89 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-21 — Sesión 54 (Centro de Control + Backfill async + 2 aprobaciones + Overlay bloqueante). Pendiente critico para 55: test end-to-end con credenciales reales de EMDJ.
+> **Última actualización**: 2026-04-22 — Sesión 55 CIERRE EXITOSO. Test end-to-end del backfill con credenciales reales: **12.437 órdenes en 4 min 9 seg** (vs 3.000 en 1 hora del motor viejo, ~64x más rápido). Onboarding listo para Arredo.
 
 ---
 
-## 🔴 Prioridad URGENTE — Sesión 55 (próxima)
+## ✅ BP-S55-001 — Test end-to-end EXITOSO (Sesión 55)
 
-### BP-S55-001 — Test end-to-end del onboarding con credenciales REALES de EMDJ
+**Resuelto**: 2026-04-22 — varios commits cubriendo Aurum Onboarding + admin tools + backfill speed refactor.
 
-**Entró al backlog**: 2026-04-21 (Sesión 54)
-**Estado**: 📝 pendiente — arranca sesión 55
-**Contexto**: Armamos todo el flow de onboarding nuevo pero solo lo probamos con jobs fake via `debug-flip-my-test`. Nunca probamos con credenciales reales pasando data real al sistema.
+**Resultado del test**:
+- Aprobado 03:36:02 → Completado 03:40:11 = **4 min 9 seg**
+- 12.437 órdenes procesadas correctamente, 0 errores
+- Email "tu data está lista" llegó al cliente
+- Overlay desbloqueado automáticamente al terminar
+- Cliente entró al producto con data real
 
-**Qué hay que hacer mañana (pedido explicito de Tomy)**:
-1. Tomy logueado como `tomylapidus1999@gmail.com` (user de prueba de la postulación que creó en S54)
-2. Completar el wizard del overlay pegando las credenciales REALES de VTEX de EMDJ (accountName, appKey, appToken)
-3. Elegir rango chico (3 o 6 meses) para que el backfill termine rápido
-4. Enviar wizard → ver fase `validating`
-5. Cambiar a sesión Owner → `/control/onboardings` → click "Aprobar backfill"
-6. Volver a sesión prueba → ver fase `backfilling` con progreso REAL
-7. Esperar que termine (minutos a horas dependiendo del rango)
-8. Confirmar que el overlay desaparece solo cuando el backfill termina
-9. **Probar las credenciales de EMDJ en la nueva cuenta a ver cómo pasa la data** (textual de Tomy al cerrar la sesion 54)
+**3 fixes críticos al backfill** (commits `4162d5b`, `debd13b`, `73f0aca`, `8d6144f`):
+1. Loop interno + trigger inmediato + cron 1min + chunks de 2000
+2. Reusar mismo job en loop interno (esquivar cooldown legítimo de pickNextJob)
+3. **Date-window pagination** para esquivar límite de 30 páginas de VTEX (este era el ROOT cause del problema histórico)
+4. Pre-query para totalEstimate (barra de progreso correcta)
 
-**Importante**: con el fix S54 del overlay infalsificable, ahora necesitamos connections ACTIVE de verdad para desbloquear. El test real es la única forma de validar que todo funciona end-to-end.
+---
 
-**Pregunta pendiente para responder durante el test**: ¿qué tan rápido carga realmente el backfill con data real? ¿El ETA que mostramos en el selector ("~30 min para 6 meses") es realista?
+## 🔴 Prioridad ALTA — Próxima sesión (S56)
 
-**Estado actual para arrancar**:
-- Form `/onboarding` live
-- Postulación de tomylapidus1999@gmail.com ya aprobada (status = IN_PROGRESS después del fix de overlay)
-- Overlay mostrando fase `wizard` al loguear como user de prueba
-- Todo listo para pegar credenciales REALES
+### BP-S56-001 — Auditoría completa de paginación + eficiencia en sync de TODAS las plataformas
+
+**Entró al backlog**: 2026-04-22 (Sesión 55, pedido explícito de Tomy)
+**Estado**: 📝 pendiente
+**Contexto**: Hoy arreglamos el backfill de VTEX (date-window, loop, etc). Tomy preguntó si esto se puede replicar a las otras plataformas. La respuesta es SÍ pero requiere análisis dedicado.
+
+**Qué hay que hacer**:
+1. **Auditar BACKFILL** (lo que se trae históricamente al onboardear) por plataforma:
+   - VTEX: ✅ resuelto en S55
+   - MercadoLibre: ❌ stub (devuelve isComplete=true sin procesar). Implementar con date-window similar a VTEX (`/orders/search` con filtros por fecha)
+   - Meta Ads: actualmente es "on-demand" cuando el user abre la página. Evaluar si necesita backfill explícito en onboarding
+   - Google Ads: idem Meta, on-demand. Evaluar
+   - GA4: cron diario, sin backfill explícito. Evaluar
+   - GSC: cron diario, sin backfill explícito. Evaluar
+
+2. **Auditar SYNC INCREMENTAL** (lo que se trae cada día) por plataforma:
+   - Verificar que ninguna sufra el límite de paginación que tuvo VTEX
+   - Identificar cuellos de botella de tiempo
+   - Ver si vale agregar APIs bulk donde existan (Meta async insights, Google Ads streaming, MELI bulk endpoints)
+
+3. **Aplicar patterns aprendidos donde corresponda**:
+   - Date-window pagination cuando hay límite de páginas
+   - Loop interno + trigger inmediato cuando hay sistema de jobs
+   - Pre-query para totalEstimate cuando se necesita progress real
+
+**Estimación**: 2-3 horas dedicadas (sesión completa).
+
+**Importante**: NO tocar nada hasta que Tomy esté en sesión y apruebe. El sync actual de producción funciona y mantiene la data al día.
+
+---
+
+## 🟡 Prioridad MEDIA — Para cuando haya aire
+
+### BP-S56-002 — Implementar processor real de MercadoLibre para backfill
+
+**Entró al backlog**: 2026-04-22 (Sesión 55)
+**Estado**: 📝 pendiente
+**Contexto**: El dispatcher actual de ML (`src/lib/backfill/dispatcher.ts:14-21`) devuelve `isComplete: true` sin procesar nada. Funciona el sync incremental normal de ML pero NO trae histórico al hacer onboarding.
+
+**Qué hay que hacer**: implementar `processMercadoLibreChunk` siguiendo el patrón de `processVtexChunk`. ML usa `/orders/search` con filtros por fecha y paginado, similar a VTEX.
+
+**Cuándo**: cuando llegue un cliente que use ML como canal principal (no es bloqueante para Arredo que no usa ML).
+
+---
+
+## 🟡 Prioridad MEDIA — Centro de Control
+
+### BP-S55-002 — Panel de "Activity log / Run history" en Centro de Control
+
+**Entró al backlog**: 2026-04-22 (Sesión 55, pedido de Tomy durante el test)
+**Estado**: 📝 pendiente
+**Contexto**: La tabla `backfill_jobs` guarda el detalle de cada job con timestamps. Hoy esa info solo se ve por queries directas a DB o el endpoint `backfill-status`.
+
+**Qué hay que hacer**: agregar página `/control/activity` que muestre log histórico de:
+- Backfills (de tabla `backfill_jobs`)
+- Syncs incrementales (con timestamps, items procesados, errores)
+- Webhooks recibidos (VTEX, ML, etc)
+- Inspirado en "Activity log" de Stripe/Segment
 
 ---
 

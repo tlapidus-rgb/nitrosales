@@ -4,7 +4,83 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-21 — Sesión 54 (3 errores nuevos: overlay de onboarding solo miraba status enum sin chequear realidad, FROM email hardcoded con dominio equivocado, refactor grande sin confirmar plan).**
+> **Última actualización: 2026-04-22 — Sesión 55 (3 errores criticos nuevos: limite de paginacion no documentado de VTEX, validacion solo con tsc/build sin trace runtime, cooldown anti-race compitiendo con loop interno propio).**
+
+---
+
+## Error #S55-VTEX-PAGE-LIMIT — Asumir que un endpoint paginado no tiene límite de páginas máximo
+
+**Cuándo pasó**: Sesión 55. Despues de 4 commits para acelerar el backfill de VTEX, el job se trababa en 3.000 órdenes con error `"Max page exceed ( 30 ), refine filter"`. La API `/api/oms/pvt/orders` de VTEX permite MAXIMO 30 páginas por filtro de fecha = 3.000 órdenes max por consulta.
+
+Esto significa que el backfill VIEJO TAMBIEN estaba roto desde siempre — solo que tardaba muchísimo en chocar con el límite. Tomy reportaba históricamente que los backfills no funcionaban y terminaba cargando por CSV.
+
+### Causa raíz
+- Asumí que la API de VTEX permitía paginar indefinidamente con `?page=N`. Es lo más común en APIs paginadas.
+- No leí docs de VTEX previamente para detectar limites.
+- El bug solo se manifestaba con volumen real (>3.000 ordenes) que en testeos sintéticos nunca se alcanzaba.
+
+### Regla
+**Antes de implementar paginación contra una API externa, verificar EXPLÍCITAMENTE en la doc oficial:**
+- ¿Hay límite de páginas máximo? (ej VTEX: 30)
+- ¿Hay límite de items totales por consulta? (ej Shopify: 250 por request)
+- ¿Hay APIs alternativas para volúmenes grandes? (bulk export, async insights, streaming)
+
+**Si el endpoint es paginado, asumí que TIENE límite hasta que la doc te diga lo contrario.** Si tiene límite, usar **date-window pagination** desde el inicio:
+- Dividir el rango total en ventanas chicas
+- Paginar dentro de cada ventana hasta el límite
+- Mover ventana cuando se agota
+
+Pattern aplicado en `src/lib/backfill/processors/vtex-processor.ts`. Replicar en futuros processors (ML, Shopify, Tiendanube).
+
+---
+
+## Error #S55-RUNTIME-TRACE-MISSING — Validar solo con tsc/build sin tracear flow runtime
+
+**Cuándo pasó**: Sesión 55. Pushé el primer fix del backfill (loop interno) confiando en que `tsc --noEmit + next build` validaban. El loop NO funcionaba — solo procesaba 1 chunk por invoke (el bug del cooldown de pickNextJob). Tomy lo descubrió al medir y me pidió: "valida porque la vez anterior validaste mal".
+
+### Causa raíz
+- tsc valida tipos. Build valida sintaxis y compilación.
+- **NINGUNO valida lógica runtime**: race conditions, condiciones de break, interacciones entre módulos en tiempo de ejecución.
+- Yo asumí que "compila OK" era suficiente para deployar a producción.
+
+### Regla
+**Cuando se toca lógica de control (loops, condicionales complejos, race conditions, interacciones async), agregar SIEMPRE un tercer paso de validación: TRACE MENTAL DEL FLOW.**
+
+Antes de pushear, escribir explícitamente (puede ser solo en la cabeza pero detallado):
+- Caso 1 — Flujo normal: ¿qué pasa en iter 0, 1, 2...?
+- Caso 2 — Edge case del input vacío
+- Caso 3 — Error mid-loop
+- Caso 4 — Race condition con worker concurrente
+- Caso 5 — Backwards compat con datos viejos
+- Caso 6 — Cuando otro componente que llama a este se comporta inesperado
+
+Si algún caso no tiene respuesta clara, **NO pushear** hasta cubrirlo con código o test.
+
+Aplicado correctamente en el fix del loop (Sesión 55 commit `debd13b`) — se documentaron 6 casos antes de pushear y todos resultaron correctos en producción.
+
+---
+
+## Error #S55-COOLDOWN-VS-INTERNAL-LOOP — Mecanismo de seguridad anti-race compitiendo con loop interno propio
+
+**Cuándo pasó**: Sesión 55. Implementé un loop interno en el runner del backfill para procesar varios chunks por invoke. La función `pickNextJob` tenía un cooldown de 2 minutos para evitar race conditions entre cron + waitUntil (legítimo). Pero ese cooldown bloqueaba al mismo runner cuando intentaba retomar el job que él mismo acababa de procesar — el loop solo procesaba 1 chunk y break.
+
+### Causa raíz
+- pickNextJob fue diseñado para resolver un problema específico (workers concurrentes compitiendo por el mismo job).
+- El cooldown como "última escritura > 2 min ago" funcionaba para ese caso.
+- Cuando agregué loop interno, el mismo worker volvió a llamar pickNextJob al instante → su propia lastChunkAt fresca lo bloqueaba.
+- No previ que el mecanismo de seguridad antiRace se interpondría con uso legítimo del mismo worker.
+
+### Regla
+**Cuando una función tiene mecanismos de seguridad (cooldowns, locks, throttling), antes de llamarla en un nuevo contexto preguntar:**
+1. ¿El nuevo contexto choca con la condición de seguridad? (ej: mismo worker reusando lock propio)
+2. ¿La función debería distinguir entre uso "externo" (otro worker, otro request) vs "interno" (mismo flujo)?
+3. ¿La solución es:
+   - (a) bypassear el mecanismo desde el contexto interno (lo que hice), o
+   - (b) refactorizar el mecanismo para que sea más fino (ej: lock por workerId, no por timestamp)?
+
+Para casos puntuales de iteración interna, **(a) es aceptable y más simple**: tener una variable local del worker que mantiene el "ownership" del job y reutilizarla sin re-pickear hasta que complete.
+
+Aplicado en commit `debd13b`: el runner ahora mantiene `currentJob` local y solo llama `pickNextJob` la primera vez o cuando el actual completa.
 
 ---
 
