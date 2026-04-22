@@ -81,14 +81,14 @@ export default function PreviewInviteEmailsPage() {
         </p>
       </div>
 
-      {/* Grid */}
+      {/* Grid — minmax 640 para que el email de 600 entre sin recortarse */}
       <div
         style={{
           maxWidth: 1400,
           margin: "0 auto",
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(420px,1fr))",
-          gap: 20,
+          gridTemplateColumns: "repeat(auto-fit,minmax(640px,1fr))",
+          gap: 24,
         }}
       >
         {rendered.map((v) => (

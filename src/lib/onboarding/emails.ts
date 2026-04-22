@@ -35,18 +35,36 @@ export function baseLayout(title: string, preheader: string, content: string): s
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark light">
+  <meta name="supported-color-schemes" content="dark light">
   <title>${title}</title>
+  <style>
+    /* Responsive: mobile = full width, sin bordes, hero escalado */
+    @media only screen and (max-width: 620px) {
+      .ns-card { width: 100% !important; max-width: 100% !important; border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+      .ns-outer { padding: 0 !important; }
+      .ns-pad-h { padding-left: 22px !important; padding-right: 22px !important; }
+      .ns-hero { font-size: 34px !important; line-height: 1.08 !important; }
+      .ns-sub { font-size: 15px !important; }
+    }
+    /* Dark mode safety para clientes que fuerzan light */
+    @media (prefers-color-scheme: light) {
+      .ns-card { background: ${BRAND_BG} !important; }
+    }
+    body { margin: 0; padding: 0; background: ${BRAND_BG}; }
+    a { text-decoration: none; }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:${BRAND_BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND_BG};padding:40px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND_BG};">
     <tr>
-      <td align="center">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:${CARD_BG};border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+      <td align="center" class="ns-outer" style="padding:0;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" class="ns-card" style="width:100%;max-width:600px;background:${BRAND_BG};border-left:1px solid ${BORDER};border-right:1px solid ${BORDER};">
           <!-- Header -->
           <tr>
-            <td style="padding:36px 40px 24px;border-bottom:1px solid ${BORDER};">
-              <div style="font-size:22px;font-weight:700;letter-spacing:-0.5px;color:${TEXT_PRIMARY};">
+            <td class="ns-pad-h" style="padding:40px 48px 20px;">
+              <div style="font-size:20px;font-weight:800;letter-spacing:-0.02em;color:${TEXT_PRIMARY};">
                 NITRO<span style="color:${BRAND_ORANGE};">SALES</span>
               </div>
             </td>
@@ -54,14 +72,14 @@ export function baseLayout(title: string, preheader: string, content: string): s
 
           <!-- Content -->
           <tr>
-            <td style="padding:36px 40px;">
+            <td class="ns-pad-h" style="padding:8px 48px 48px;">
               ${content}
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="padding:24px 40px 32px;border-top:1px solid ${BORDER};background:${BRAND_BG};">
+            <td class="ns-pad-h" style="padding:28px 48px 48px;border-top:1px solid ${BORDER};">
               <p style="margin:0 0 6px;color:${TEXT_SECONDARY};font-size:12px;line-height:1.5;">
                 NitroSales — Inteligencia comercial para ecommerce
               </p>
@@ -451,13 +469,13 @@ function inviteHero(opts: {
       </div>
 
       <!-- HERO -->
-      <h1 style="margin:0 0 22px;font-size:46px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.05;letter-spacing:-0.04em;">
+      <h1 class="ns-hero" style="margin:0 0 22px;font-size:46px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.05;letter-spacing:-0.04em;">
         ${heroTop}<br/>
         <span style="color:${BRAND_ORANGE};">${heroAccent}</span>
       </h1>
 
       <!-- Subtítulo -->
-      <p style="margin:0 0 44px;color:${TEXT_SECONDARY};font-size:17px;line-height:1.5;font-weight:400;max-width:440px;">
+      <p class="ns-sub" style="margin:0 0 44px;color:${TEXT_SECONDARY};font-size:17px;line-height:1.5;font-weight:400;max-width:440px;">
         ${sub}
       </p>
 
@@ -514,7 +532,7 @@ export function leadInviteVariantA(opts: {
       </div>
 
       <!-- HERO: 2 líneas, "pierde dinero" en rojo con glow -->
-      <h1 style="margin:0 0 24px;font-size:46px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.05;letter-spacing:-0.04em;">
+      <h1 class="ns-hero" style="margin:0 0 24px;font-size:46px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.05;letter-spacing:-0.04em;">
         Tu ecommerce<br/>
         <span style="color:${RED_HOT};text-shadow:${glow};font-weight:900;">pierde dinero</span> todos los meses.
       </h1>
