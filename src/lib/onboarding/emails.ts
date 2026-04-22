@@ -413,17 +413,71 @@ export function dataReadyEmail(opts: {
 // ══════════════════════════════════════════════════════════════
 // VARIANTES DE INVITACIÓN (A/B/C/D) — para A/B testing / preview
 // ══════════════════════════════════════════════════════════════
-// Todas apuntan al mismo /onboarding pero con distinto ángulo de copy
-// y layout. Se pueden enchufar en reemplazo de leadInviteEmail()
-// cuando Tomy elija la que mejor convierta.
+// Al lead YA lo contactamos antes, el email es el link para que
+// entre al form. Entonces subject = utilitario ("Tu acceso a
+// NitroSales") y el body pega duro con un HERO minimal tipo
+// Vercel/Linear:
+//
+//   [eyebrow naranja: IMPLEMENTÁ AI COMMERCE]
+//   [HERO gigante 48px con keyword en naranja]
+//   [subtítulo 17px, 1 o 2 líneas, que pega]
+//   [CTA blanco]
+//   [fine print]
+//
+// Las 4 variantes solo cambian el hero + sub. Estructura idéntica.
 // ══════════════════════════════════════════════════════════════
 
+/** Helper: render del hero premium minimalista compartido */
+function inviteHero(opts: {
+  contactName: string | null;
+  companyName: string;
+  heroTop: string;          // texto blanco (parte 1 del hero)
+  heroAccent: string;       // texto en naranja (parte 2, remate)
+  sub: string;              // subtítulo 1-2 líneas
+  ctaLabel: string;         // label del boton
+  onboardingUrl: string;
+}): string {
+  const { contactName, heroTop, heroAccent, sub, ctaLabel, onboardingUrl } = opts;
+  return `
+    <div style="padding:36px 0 20px;text-align:left;">
+      <!-- Eyebrow -->
+      <div style="font-size:11px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.22em;margin-bottom:36px;">
+        ⚡ Implementá AI commerce
+      </div>
+
+      <!-- Greeting sutil -->
+      <div style="font-size:13px;color:${TEXT_SECONDARY};margin-bottom:18px;letter-spacing:0.02em;">
+        ${greeting(contactName)},
+      </div>
+
+      <!-- HERO -->
+      <h1 style="margin:0 0 22px;font-size:46px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.05;letter-spacing:-0.04em;">
+        ${heroTop}<br/>
+        <span style="color:${BRAND_ORANGE};">${heroAccent}</span>
+      </h1>
+
+      <!-- Subtítulo -->
+      <p style="margin:0 0 44px;color:${TEXT_SECONDARY};font-size:17px;line-height:1.5;font-weight:400;max-width:440px;">
+        ${sub}
+      </p>
+
+      <!-- CTA blanco sobre dark -->
+      <a href="${onboardingUrl}" style="display:inline-block;padding:16px 36px;background:${TEXT_PRIMARY};color:${BRAND_BG};text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.01em;">
+        ${ctaLabel} →
+      </a>
+
+      <!-- Fine print -->
+      <p style="margin:40px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;opacity:0.6;">
+        Un formulario corto. Acceso inmediato al producto.
+      </p>
+    </div>
+  `;
+}
+
+const INVITE_SUBJECT = "Tu acceso a NitroSales";
+
 // ──────────────────────────────────────────────────────────────
-// Variante A — Pain / FOMO ("estás perdiendo plata")
-// ──────────────────────────────────────────────────────────────
-// Hook: stat gigante con cifra que duele. Urgencia en cada párrafo.
-// Tono: confrontativo pero respetuoso. Funciona si el lead es un
-// founder que sabe que tiene un problema pero lo está posponiendo.
+// Variante A — "Dejá de perder plata"
 // ──────────────────────────────────────────────────────────────
 
 export function leadInviteVariantA(opts: {
@@ -432,58 +486,24 @@ export function leadInviteVariantA(opts: {
 }) {
   const { contactName, companyName } = opts;
   const onboardingUrl = `${appUrl()}/onboarding`;
-  const subject = `${companyName}: estás perdiendo plata sin saberlo`;
-  const preheader = `El 40% de tu inversión en ads no se puede rastrear. Adentro de NitroSales, sí.`;
+  const subject = INVITE_SUBJECT;
+  const preheader = `Tu ecommerce pierde dinero todos los meses y no lo sabés.`;
 
-  const content = `
-    <!-- Micro eyebrow -->
-    <div style="font-size:11px;font-weight:700;color:#EF4444;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:14px;">
-      ⚠ LO QUE NO SE MIDE, SE PIERDE
-    </div>
-
-    <!-- Big number -->
-    <div style="background:linear-gradient(135deg,rgba(239,68,68,0.08) 0%,rgba(255,94,26,0.06) 100%);border:1px solid rgba(239,68,68,0.25);border-radius:18px;padding:28px 24px;margin:0 0 28px;text-align:center;">
-      <div style="font-size:64px;font-weight:800;color:#fff;line-height:1;letter-spacing:-0.04em;margin-bottom:8px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;">
-        40<span style="color:#EF4444;">%</span>
-      </div>
-      <div style="font-size:13px;color:${TEXT_SECONDARY};line-height:1.5;max-width:360px;margin:0 auto;">
-        de tu inversión en Meta y Google Ads hoy <strong style="color:${TEXT_PRIMARY};">no se puede atribuir a una venta real</strong>. Se pierde en el iOS14+ y en los cookies rotos.
-      </div>
-    </div>
-
-    <!-- Headline -->
-    <h1 style="margin:0 0 14px;font-size:28px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.2;letter-spacing:-0.025em;">
-      ${greeting(contactName)}. ${companyName} puede cambiar eso hoy.
-    </h1>
-
-    <p style="margin:0 0 12px;color:${TEXT_SECONDARY};font-size:15px;line-height:1.65;">
-      NitroSales es el sistema operativo comercial para ecommerce LATAM. Atribución propia (NitroPixel), P&L real por canal, agente de IA que te avisa lo que está roto <strong style="color:${TEXT_PRIMARY};">antes</strong> de que pierdas plata.
-    </p>
-
-    <p style="margin:0 0 28px;color:${TEXT_SECONDARY};font-size:15px;line-height:1.65;">
-      Mientras tu competencia sigue mirando métricas tarde, vos operás con información en tiempo real.
-    </p>
-
-    <!-- CTA -->
-    <div style="margin:0 0 20px;">
-      <a href="${onboardingUrl}" style="display:inline-block;padding:16px 36px;background:linear-gradient(135deg,${BRAND_ORANGE} 0%,#FF8C4A 100%);color:#fff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.01em;box-shadow:0 8px 24px rgba(255,94,26,0.35);">
-        Dejar de perder plata →
-      </a>
-    </div>
-
-    <p style="margin:0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.55;opacity:0.7;">
-      Formulario corto. Sin compromiso. El equipo revisa y habilita el acceso.
-    </p>
-  `;
+  const content = inviteHero({
+    contactName,
+    companyName,
+    heroTop: "Tu ecommerce pierde dinero",
+    heroAccent: "todos los meses.",
+    sub: "Y hoy no tenés forma de saberlo. NitroSales te muestra dónde, por qué, y cómo frenarlo — en tiempo real.",
+    ctaLabel: `Activar ${companyName}`,
+    onboardingUrl,
+  });
 
   return { subject, html: baseLayout(subject, preheader, content) };
 }
 
 // ──────────────────────────────────────────────────────────────
-// Variante B — Exclusividad ("acceso anticipado")
-// ──────────────────────────────────────────────────────────────
-// Hook: status + pertenencia. "No cualquiera entra". Efecto Superhuman.
-// Tono: elegante, sofisticado, aspiracional.
+// Variante B — "Vas a ciegas"
 // ──────────────────────────────────────────────────────────────
 
 export function leadInviteVariantB(opts: {
@@ -492,68 +512,24 @@ export function leadInviteVariantB(opts: {
 }) {
   const { contactName, companyName } = opts;
   const onboardingUrl = `${appUrl()}/onboarding`;
-  const subject = `Acceso anticipado a NitroSales — ${companyName}`;
-  const preheader = `Una invitación exclusiva. Solo para los ecommerce que operan en serio.`;
+  const subject = INVITE_SUBJECT;
+  const preheader = `Hoy tu ecommerce opera a ciegas. Cambialo.`;
 
-  const content = `
-    <!-- Seal -->
-    <div style="display:inline-block;padding:6px 14px;background:rgba(255,94,26,0.12);border:1px solid rgba(255,94,26,0.35);border-radius:999px;margin-bottom:24px;">
-      <div style="font-size:10px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.15em;">
-        ✦ Invitación privada
-      </div>
-    </div>
-
-    <!-- Headline -->
-    <h1 style="margin:0 0 18px;font-size:32px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.15;letter-spacing:-0.03em;">
-      ${greeting(contactName)},<br/>
-      <span style="background:linear-gradient(135deg,#FF5E1A 0%,#FF8C4A 50%,#FFB580 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${companyName}</span> fue elegido.
-    </h1>
-
-    <p style="margin:0 0 24px;color:${TEXT_SECONDARY};font-size:16px;line-height:1.65;">
-      NitroSales está abriendo acceso de forma selectiva a ecommerce que operan a escala. Tu negocio cumple el criterio.
-    </p>
-
-    <!-- Decorative separator -->
-    <div style="height:1px;background:linear-gradient(90deg,transparent 0%,${BORDER} 50%,transparent 100%);margin:32px 0;"></div>
-
-    <!-- What's inside -->
-    <div style="font-size:11px;font-weight:700;color:${TEXT_SECONDARY};text-transform:uppercase;letter-spacing:0.14em;margin-bottom:18px;">
-      Lo que te espera adentro
-    </div>
-
-    <div style="display:block;margin-bottom:28px;">
-      <div style="padding:16px 0;border-bottom:1px solid ${BORDER};">
-        <div style="color:${TEXT_PRIMARY};font-size:14px;font-weight:600;margin-bottom:4px;">⚡ Atribución propia</div>
-        <div style="color:${TEXT_SECONDARY};font-size:13px;line-height:1.5;">NitroPixel mide cada venta sin depender de Meta ni Google.</div>
-      </div>
-      <div style="padding:16px 0;border-bottom:1px solid ${BORDER};">
-        <div style="color:${TEXT_PRIMARY};font-size:14px;font-weight:600;margin-bottom:4px;">◆ P&L en tiempo real</div>
-        <div style="color:${TEXT_SECONDARY};font-size:13px;line-height:1.5;">Rentabilidad por canal, producto, campaña. Sin esperar al contador.</div>
-      </div>
-      <div style="padding:16px 0;">
-        <div style="color:${TEXT_PRIMARY};font-size:14px;font-weight:600;margin-bottom:4px;">✦ Aurum, tu copiloto</div>
-        <div style="color:${TEXT_SECONDARY};font-size:13px;line-height:1.5;">Un agente de IA que opera tu negocio contigo.</div>
-      </div>
-    </div>
-
-    <!-- CTA -->
-    <a href="${onboardingUrl}" style="display:inline-block;padding:15px 34px;background:${TEXT_PRIMARY};color:${BRAND_BG};text-decoration:none;border-radius:12px;font-size:14px;font-weight:700;letter-spacing:0.02em;">
-      Aceptar invitación →
-    </a>
-
-    <p style="margin:28px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;opacity:0.7;">
-      Este acceso es personal. No lo compartas.
-    </p>
-  `;
+  const content = inviteHero({
+    contactName,
+    companyName,
+    heroTop: "Tu ecommerce",
+    heroAccent: "vuela a ciegas.",
+    sub: "Campañas que no sabés si rinden, stock que no sabés qué rota, márgenes que no sabés dónde se escapan. Adentro se ve todo.",
+    ctaLabel: `Activar ${companyName}`,
+    onboardingUrl,
+  });
 
   return { subject, html: baseLayout(subject, preheader, content) };
 }
 
 // ──────────────────────────────────────────────────────────────
-// Variante C — Números concretos ("social proof numérico")
-// ──────────────────────────────────────────────────────────────
-// Hook: 3 stats gigantes en grid con colores distintos.
-// Tono: directo, cuantitativo, data-driven.
+// Variante C — "Dejá de decidir a ojo"
 // ──────────────────────────────────────────────────────────────
 
 export function leadInviteVariantC(opts: {
@@ -562,79 +538,24 @@ export function leadInviteVariantC(opts: {
 }) {
   const { contactName, companyName } = opts;
   const onboardingUrl = `${appUrl()}/onboarding`;
-  const subject = `Los números que podés tener en ${companyName}`;
-  const preheader = `+32% ROAS. 4x velocidad de decisión. -60% tiempo en reportes.`;
+  const subject = INVITE_SUBJECT;
+  const preheader = `Cada campaña, cada producto, cada peso — con data en tiempo real.`;
 
-  const content = `
-    <!-- Eyebrow -->
-    <div style="font-size:11px;font-weight:700;color:${ACCENT_GREEN};text-transform:uppercase;letter-spacing:0.14em;margin-bottom:16px;">
-      📊 RESULTADOS REALES
-    </div>
-
-    <!-- Headline -->
-    <h1 style="margin:0 0 12px;font-size:26px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.25;letter-spacing:-0.025em;">
-      ${greeting(contactName)}, esto pasa cuando medís bien.
-    </h1>
-    <p style="margin:0 0 28px;color:${TEXT_SECONDARY};font-size:14px;line-height:1.6;">
-      Promedios de ecommerce LATAM en sus primeros 90 días con NitroSales.
-    </p>
-
-    <!-- Stats grid (3 cols mobile-safe vertical stack) -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
-      <tr>
-        <td style="padding:0 0 12px;">
-          <div style="background:linear-gradient(135deg,rgba(34,197,94,0.08) 0%,rgba(34,197,94,0.02) 100%);border:1px solid rgba(34,197,94,0.25);border-radius:14px;padding:22px 24px;">
-            <div style="font-size:42px;font-weight:800;color:${ACCENT_GREEN};line-height:1;letter-spacing:-0.03em;margin-bottom:8px;">
-              +32<span style="font-size:28px;">%</span>
-            </div>
-            <div style="font-size:13px;color:${TEXT_PRIMARY};font-weight:600;margin-bottom:2px;">ROAS en Meta + Google</div>
-            <div style="font-size:11px;color:${TEXT_SECONDARY};line-height:1.5;">Al redirigir presupuesto de campañas que no atribuyen.</div>
-          </div>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:0 0 12px;">
-          <div style="background:linear-gradient(135deg,rgba(255,94,26,0.08) 0%,rgba(255,94,26,0.02) 100%);border:1px solid rgba(255,94,26,0.25);border-radius:14px;padding:22px 24px;">
-            <div style="font-size:42px;font-weight:800;color:${BRAND_ORANGE};line-height:1;letter-spacing:-0.03em;margin-bottom:8px;">
-              4<span style="font-size:28px;">x</span>
-            </div>
-            <div style="font-size:13px;color:${TEXT_PRIMARY};font-weight:600;margin-bottom:2px;">Velocidad de decisión</div>
-            <div style="font-size:11px;color:${TEXT_SECONDARY};line-height:1.5;">Alertas en tiempo real vs reportes semanales.</div>
-          </div>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:0;">
-          <div style="background:linear-gradient(135deg,rgba(168,85,247,0.08) 0%,rgba(168,85,247,0.02) 100%);border:1px solid rgba(168,85,247,0.25);border-radius:14px;padding:22px 24px;">
-            <div style="font-size:42px;font-weight:800;color:${ACCENT_PURPLE};line-height:1;letter-spacing:-0.03em;margin-bottom:8px;">
-              -60<span style="font-size:28px;">%</span>
-            </div>
-            <div style="font-size:13px;color:${TEXT_PRIMARY};font-weight:600;margin-bottom:2px;">Tiempo armando reportes</div>
-            <div style="font-size:11px;color:${TEXT_SECONDARY};line-height:1.5;">P&L y métricas automatizadas. Preguntale a Aurum lo que necesites.</div>
-          </div>
-        </td>
-      </tr>
-    </table>
-
-    <!-- CTA -->
-    <a href="${onboardingUrl}" style="display:inline-block;padding:16px 34px;background:linear-gradient(135deg,${BRAND_ORANGE} 0%,#FF8C4A 100%);color:#fff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.01em;box-shadow:0 8px 24px rgba(255,94,26,0.3);">
-      Quiero esos números →
-    </a>
-
-    <p style="margin:22px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.55;opacity:0.75;">
-      Formulario de 2 minutos. Sin tarjeta. El equipo revisa y habilita.
-    </p>
-  `;
+  const content = inviteHero({
+    contactName,
+    companyName,
+    heroTop: "Dejá de decidir",
+    heroAccent: "a ojo.",
+    sub: "Cada campaña, cada producto, cada peso — con la data real en tus manos, en tiempo real. Así opera el ecommerce top de LATAM.",
+    ctaLabel: `Activar ${companyName}`,
+    onboardingUrl,
+  });
 
   return { subject, html: baseLayout(subject, preheader, content) };
 }
 
 // ──────────────────────────────────────────────────────────────
-// Variante D — Minimal hero ("un solo punch")
-// ──────────────────────────────────────────────────────────────
-// Hook: frase sola que atraviesa. Cero clutter. Vercel/Linear vibe.
-// Tono: seguro, declarativo, casi poético. Para founders que aprecian
-// el diseño y se aburren de los emails tipo marketing.
+// Variante D — "Operado por IA"
 // ──────────────────────────────────────────────────────────────
 
 export function leadInviteVariantD(opts: {
@@ -643,39 +564,18 @@ export function leadInviteVariantD(opts: {
 }) {
   const { contactName, companyName } = opts;
   const onboardingUrl = `${appUrl()}/onboarding`;
-  const subject = `Tu ecommerce tiene dos ojos cerrados`;
-  const preheader = `Abrilos.`;
+  const subject = INVITE_SUBJECT;
+  const preheader = `Sin dashboards. Sin excel. Sin dudas. Tu ecommerce operado por IA.`;
 
-  const content = `
-    <!-- Giant glow hero -->
-    <div style="position:relative;padding:40px 0 24px;text-align:left;">
-      <div style="font-size:10px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.18em;margin-bottom:32px;">
-        ${greeting(contactName)}
-      </div>
-
-      <h1 style="margin:0 0 24px;font-size:42px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.08;letter-spacing:-0.035em;">
-        Tu ecommerce tiene<br/>
-        <span style="background:linear-gradient(135deg,#FF5E1A 0%,#A855F7 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">dos ojos cerrados.</span>
-      </h1>
-
-      <p style="margin:0 0 40px;color:${TEXT_SECONDARY};font-size:17px;line-height:1.55;font-weight:400;max-width:420px;">
-        No sabés qué campaña trae qué venta. No sabés qué producto te hace ganar plata. No sabés qué canal crece.
-      </p>
-
-      <p style="margin:0 0 44px;color:${TEXT_PRIMARY};font-size:17px;line-height:1.55;font-weight:500;max-width:420px;">
-        NitroSales abre los dos.
-      </p>
-
-      <!-- CTA -->
-      <a href="${onboardingUrl}" style="display:inline-block;padding:18px 40px;background:${TEXT_PRIMARY};color:${BRAND_BG};text-decoration:none;border-radius:14px;font-size:15px;font-weight:700;letter-spacing:0.01em;">
-        Abrir los ojos de ${companyName} →
-      </a>
-
-      <p style="margin:40px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;opacity:0.6;">
-        Un formulario. Dos minutos. Acceso inmediato al producto.
-      </p>
-    </div>
-  `;
+  const content = inviteHero({
+    contactName,
+    companyName,
+    heroTop: "Tu ecommerce,",
+    heroAccent: "operado por IA.",
+    sub: "Sin dashboards. Sin excel. Sin dudas. NitroSales conecta tus plataformas y te dice qué hacer en cada momento.",
+    ctaLabel: `Activar ${companyName}`,
+    onboardingUrl,
+  });
 
   return { subject, html: baseLayout(subject, preheader, content) };
 }
