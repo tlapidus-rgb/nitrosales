@@ -1,4 +1,29 @@
-# NEXT_SESSION_PROMPT.md — Sesión 56: Auditoría completa de paginación + eficiencia en sync de TODAS las plataformas
+# NEXT_SESSION_PROMPT.md — Sesión 56: (a) Elegir variante de invite email + (b) Auditoría completa de paginación + eficiencia en sync de TODAS las plataformas
+
+## 🎯 Quick task al arrancar — Elegir variante de invite email (5 min)
+
+**Antes de meterte con la auditoría, pasar por `/control/preview-invite-emails`** y decidir con Tomy cuál variante del email de invitación queda como default. Variantes disponibles (hero minimal tipo Vercel/Linear):
+
+- **A — Dinero perdido** (perfilada iterativamente): *"Tu ecommerce / pierde dinero todos los meses."* — "pierde dinero" en rojo `#DC2626` con glow sutil. Subtítulo con IA + píxel + rentabilidad. **Esta es la que más le gustó a Tomy en S55 BIS.**
+- **B — Vuela a ciegas**: *"Tu ecommerce / vuela a ciegas."* — naranja brand.
+- **C — Dejá de decidir a ojo**: *"Dejá de decidir / a ojo."* — naranja brand.
+- **D — Operado por IA**: *"Tu ecommerce, / operado por IA."* — naranja brand.
+
+Todas comparten subject: **"Tu acceso a NitroSales"**, eyebrow *"⚡ IMPLEMENTÁ AI COMMERCE"*, y CTA *"Activar {empresa} →"*.
+
+**Cuando Tomy elija**, cambiar el import en 2 archivos:
+```ts
+// src/app/api/admin/leads/route.ts
+// src/app/api/admin/leads/[id]/send-email/route.ts
+import { leadInviteVariantA } from "@/lib/onboarding/emails"; // o B/C/D
+// y usar leadInviteVariantA(...) en vez de leadInviteEmail(...)
+```
+
+Commit + push. Listo en 2 min.
+
+---
+
+## Tarea principal — Auditoría completa de paginación + eficiencia en sync de TODAS las plataformas
 
 > **Cómo usar este archivo**: copiás el contenido de la sección "Prompt para pegar" y lo mandás como primer mensaje en la próxima sesión. Claude va a leer automáticamente CLAUDE.md + CLAUDE_STATE.md + ERRORES_CLAUDE_NO_REPETIR.md + BACKLOG_PENDIENTES.md + MEMORY.md al arrancar (via ritual #2), así que no hace falta que le mandes esos archivos — solo el prompt específico de la fase que sigue.
 

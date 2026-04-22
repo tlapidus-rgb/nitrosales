@@ -3,7 +3,53 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-22 (Sesion 55 CIERRE EXITOSO — Onboarding end-to-end PROBADO con credenciales reales: 12.437 ordenes en 4 min 9 seg. Backfill speed refactor completo: date-window pagination + loop interno + trigger inmediato + cron 1min + pre-query totalEstimate. Aurum Onboarding Assistant + Test admin de credenciales para 7 plataformas. Sistema listo para Arredo.)
+## Ultima actualizacion: 2026-04-22 (Sesion 55 BIS — Pipeline admin Kanban + auto-email invite flow + rewrite de los 5 emails del pipeline + 4 variantes A/B/C/D del email de invitacion + mejoras responsive al baseLayout. Variante A perfilada con hero "Tu ecommerce pierde dinero todos los meses" — pendiente confirmar con Tomy cual queda como default.)
+
+### Sesion 55 BIS — 2026-04-22 (post-cierre) — Pipeline admin + rewrite emails + 4 variantes invite
+
+**Contexto**: al cerrar S55 Tomy pidio "antes de dormir pongo en el admin una parte con todos los procesos abiertos" → derivo en rediseño completo del email de invitacion despues de que el primer mail le llego y no le gusto la voz.
+
+#### Commits a `main`
+
+**Pipeline admin Kanban**:
+- Pipeline `/control/pipeline`: Kanban 7 stages (LEAD→CONTACTADO→POSTULADO→CUENTA_OK→WIZARD_OK→BACKFILLING→ACTIVO) + tabla `leads` nueva + endpoints + modal templates + modal add lead con sendInvite toggle
+- `06b48cc` pipeline: agregar lead solo con email, auto-send invitacion
+- `cb35773` onboarding wizard paso-a-paso con tutoriales quirurgicos (de S55 pero pusheado al BIS)
+
+**Rewrite de los 5 emails del pipeline**:
+- `7aaf74a` reescritura 5 templates (tercera persona, sin firma personal, sin promesas de tiempo, solo verdades). Centralizados en `src/lib/onboarding/emails.ts` con `baseLayout` compartido:
+  1. `leadInviteEmail` (nuevo, reemplaza HTML inline en leads/*)
+  2. `leadFollowupEmail` (nuevo)
+  3. `backfillStartedEmail` (nuevo, reemplaza HTML inline en approve-backfill)
+  4. `dataReadyEmail` (nuevo con "por donde empezar", reemplaza HTML inline en backfill-runner)
+  5. `onboardingConfirmationEmail` + `onboardingActivationEmail` rescritos (el de activacion ya no miente — antes decia "conectamos plataformas" cuando el wizard arranca despues)
+
+**4 variantes A/B/C/D del email de invitacion**:
+- `352c623` primera version: 4 angulos (Pain/FOMO, Exclusividad, Numeros, Minimal hero) + preview page `/control/preview-invite-emails` con iframes lado a lado
+- `29a4098` rewrite completo: Tomy pidio subject utilitario "Tu acceso a NitroSales" (no hace falta seguir vendiendo al lead que ya contactamos) + hero minimal tipo Vercel/Linear con eyebrow naranja "IMPLEMENTÁ AI COMMERCE". 4 variantes comparten estructura via helper `inviteHero()`, solo cambian heroTop/heroAccent/sub.
+- `d687a62` variante A: hero a 2 lineas, "pierde dinero" en rojo chillon con glow multicapa
+- `8457cfe` variante A: rojo `#FF3B4C` → `#DC2626` (Tailwind red-600) + glow 3 capas → 1 sutil (el rojo anterior "vibraba" sin anclar, bordes lavados por glow)
+- `92fc0a6` variante A: subtitulo con IA + pixel + potenciar performance + rentabilidad
+
+**Mejoras responsive al baseLayout**:
+- `7e9c7a2` ya no flota: mismo bg BRAND_BG en body y card, bordes laterales sutiles en vez de card flotante con border-radius + shadow. max-width 600px. `<style>` tag con media queries: mobile <=620 → card full-width sin bordes, padding 22px, hero 34px, sub 15px. `prefers-color-scheme: light` fuerza bg dark (anti-Gmail-light-mode). Preview page grid `minmax(640)` (antes 420) asi iframe no recorta.
+
+#### Patron nuevo aprendido (ver MEMORY)
+
+**Color warning en dark mode**: rojos de alta luminosidad + saturacion (`#FF3B4C`) "vibran" sin anclarse visualmente — se perciben mas desaturados de lo que son. Sobre dark funciona mejor un rojo profundo tipo `#DC2626` (Tailwind red-600): menor luminosidad + misma saturacion = mas peso visual. El glow excesivo difumina los bordes y **reduce** la percepcion de contraste.
+
+#### Estado al cierre del BIS
+
+- ✅ Pipeline admin operativo en `/control/pipeline`
+- ✅ 5 emails del pipeline centralizados y coherentes (tercera persona, brand consistent)
+- ✅ 4 variantes del invite deployadas, visibles en `/control/preview-invite-emails`
+- ✅ Variante A perfilada iterativamente (texto + color + glow + responsive)
+- ✅ baseLayout responsive real (mobile + desktop + dark-mode safe)
+- ⏳ **Pendiente confirmar con Tomy cual variante queda como default**. Actualmente `leadInviteEmail` sigue siendo la version "actual neutra" (creada en `7aaf74a`). Cuando Tomy diga "va la X", cambiar el import en `src/app/api/admin/leads/route.ts` + `src/app/api/admin/leads/[id]/send-email/route.ts` de `leadInviteEmail` a `leadInviteVariantX`.
+
+---
+
+## Ultima actualizacion anterior: 2026-04-22 (Sesion 55 CIERRE EXITOSO)
 
 ### Sesion 55 — 2026-04-22 — Aurum Onboarding + Admin Tools + Backfill Speed Refactor + Test E2E Exitoso
 
