@@ -3,6 +3,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { processVtexChunk } from "./processors/vtex-processor";
+import { processMercadoLibreChunk } from "./processors/ml-processor";
 import type { ChunkResult } from "./types";
 
 export async function processChunk(job: any): Promise<ChunkResult> {
@@ -11,14 +12,7 @@ export async function processChunk(job: any): Promise<ChunkResult> {
       return await processVtexChunk(job);
 
     case "MERCADOLIBRE":
-      // TODO: implementar ML processor. Por ahora marcamos como complete
-      // sin hacer nada (el sync normal de ML ya incluye backfill propio
-      // via /api/sync/mercadolibre/backfill).
-      return {
-        itemsProcessed: 0,
-        newCursor: {},
-        isComplete: true,
-      };
+      return await processMercadoLibreChunk(job);
 
     case "META_ADS":
     case "GOOGLE_ADS":

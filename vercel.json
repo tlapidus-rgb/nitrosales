@@ -34,8 +34,16 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/ml-sync",
-      "schedule": "0 2 * * *"
+      "path": "/api/cron/ml-missed-feeds?key=nitrosales-secret-key-2024-production",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/ml-reconcile?key=nitrosales-secret-key-2024-production",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/ml-reconcile?key=nitrosales-secret-key-2024-production&mode=deep",
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/influencer-summary?key=nitrosales-secret-key-2024-production",
