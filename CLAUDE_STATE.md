@@ -3,7 +3,57 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-22 (Sesion 55 BIS — Pipeline admin Kanban + auto-email invite flow + rewrite de los 5 emails del pipeline + 4 variantes A/B/C/D del email de invitacion + mejoras responsive al baseLayout. Variante A perfilada con hero "Tu ecommerce pierde dinero todos los meses" — pendiente confirmar con Tomy cual queda como default.)
+## Ultima actualizacion: 2026-04-22 (Sesion 55 BIS+2 — Variante A final en tono PROFESIONAL/SOBRIO + editor admin de templates de email `/control/email-templates` con DB + onboarding form redesign split premium (form first-fold) + pipeline modal fix empresa requerida. Arrancando Tarea A: auditoria de paginacion en todas las plataformas.)
+
+### Sesion 55 BIS+2 (continuacion misma jornada, de dia) — Editor emails + onboarding redesign + modal fix
+
+**Commits clave**:
+- `e73451a` invite A: rewrite a tono profesional / invite sobrio (Linear/Notion/Stripe). Descarte del tono pain "pierde dinero" → "Tu acceso a NitroSales está listo". Tomy aclaro: al lead ya lo contactamos antes del mail → tiene que sonar profesional, no vendedor.
+- `b1a30a5` invite A polish: 6 refinamientos premium (eyebrow simplificado a "INVITACIÓN", acento naranja en el VERBO "listo." no en el brand, espaciado editorial, CTA con sombra 3 capas, divider antes del fine print, P&L entity correcta).
+- `df05718` **Editor admin de templates email** `/control/email-templates`:
+  - Tabla `email_templates` (migration endpoint admin idempotente). Columns: templateKey, variant, label, flowStage, stageOrder, trigger, subject, preheader, eyebrow, heroTop, heroAccent, subParagraphs[], ctaLabel, finePrint, isActive.
+  - 9 templates seedeados (4 variantes invite + followup + confirmation + needs_info + backfill_started + data_ready).
+  - `onboarding_activation` queda HARDCODED (tiene bloques especiales credenciales + NitroPixel, no representables genericamente).
+  - CRUD endpoints: GET list, PUT edit, POST activate, GET render (con sample Juan/Arredo).
+  - Template renderer compartido (`template-renderer.ts`): DB row → HTML con interpolacion {variables}.
+  - `emails.ts` refactor: funciones `*Active` (async) leen de DB con fallback al hardcoded. Callers del flow usan *Active.
+  - UI: timeline visual 2 fases (Pipeline pre-registro / Onboarding post-registro) + cards por template con trigger + drawer split edit-con-preview-en-vivo + toggle activa para variantes.
+- `005ea63` **Onboarding form redesign split premium** (`/onboarding`):
+  - Layout split 2 columnas: form + hero features/integraciones
+  - Hero: "Activá NitroSales para {empresa}" personalizado desde query params `?company=X&contact=Y`
+  - Eyebrow "IMPLEMENTÁ AI COMMERCE" naranja
+  - 3 features: Atribución propia (píxel) / P&L tiempo real / Operado por IA
+  - Row integraciones: VTEX · MercadoLibre · Meta Ads · Google Ads (chips premium)
+  - Copy alineado con email invite: "Postulate" → "Completá tu acceso". CTA "Completar activación".
+  - Aura bg más marcada (gradients elipticos 900x500 + 800x600).
+  - SuccessCard sin "Si calificas" (sonaba a rechazo) → confirma "Recibimos tus datos, estamos revisando la activación de {empresa}".
+- `e07e8f4` **Onboarding form first-fold + modal pipeline empresa requerida**:
+  - Estructura nueva onboarding: top-hero compacto (eyebrow + H1 36px + sub) arriba, split con FORM a la IZQUIERDA + features/integraciones a la DERECHA. Mobile: stack form-first. Objetivo: entrar y ver form SIN scrollear.
+  - Modal pipeline `/control/pipeline`: empresa PRIMERO (autoFocus), email/nombre en grid debajo. Labels con `*` cuando sendInvite=true. Validation server-side y client-side para rechazar sendInvite sin empresa.
+  - Backend `leads/route.ts`: removido el auto-prefix que extraía companyName del prefijo del email (juan@arredo.com → "juan"). Ahora si sendInvite sin empresa → HTTP 400.
+
+#### Patrones nuevos (documentados en design-patterns.md)
+
+1. **DB-backed templates con fallback hardcoded**: funciones `*Active` async que intentan DB primero y caen al hardcoded. Permite editar desde UI sin perder seguridad contra DB no migrada / tabla inexistente. Try/catch silencioso en el findActive.
+
+2. **Query params como personalizacion del funnel**: link del email → form prelleno. `?company=X&contact=Y` hace que el hero del form diga el nombre del lead y los campos ya vengan con la empresa. Reduce friccion y refuerza "te conocen".
+
+3. **Form first-fold en landing de conversion**: con scroll-less UX, form a la IZQUIERDA (donde el ojo aterriza por lectura L→R), hero auxiliar a la derecha. Alternative: hero compacto arriba + form abajo (stack natural en mobile).
+
+4. **Editor admin para productividad interna vs multi-tenant**: cuando el contenido es uniforme pero queres iteracion rapida, el editor admin es la solucion. Multi-tenant real requiere entity separada por tenant. Son patterns distintos.
+
+#### Estado al cierre del BIS+2
+
+- ✅ Editor admin de templates email `/control/email-templates` operativo — pendiente que Tomy ejecute la migracion admin (o use el boton in-UI)
+- ✅ Onboarding form con first-fold visible + personalizacion query params + copy coherente
+- ✅ Pipeline modal: empresa requerida si sendInvite
+- ⏳ Tarea A pendiente: auditoria de paginacion en sync de todas las plataformas (ML stub, Meta/Google on-demand, GA4/GSC cron)
+- ⏳ Tarea B pendiente: limpiar `VisualTutorials 2.tsx` duplicado + ejecutar migracion del editor (1 click)
+- ⏳ Tarea C pendiente: Activity log / Run history en Centro de Control (BP-S55-002)
+
+---
+
+## Ultima actualizacion anterior: 2026-04-22 (Sesion 55 BIS — Pipeline + rewrite emails + 4 variantes)
 
 ### Sesion 55 BIS — 2026-04-22 (post-cierre) — Pipeline admin + rewrite emails + 4 variantes invite
 

@@ -66,26 +66,17 @@
 
 ## 🟡 Prioridad MEDIA — Para cuando haya aire
 
-### BP-S57-001 — Editor admin de templates de email del flow
+### ✅ BP-S57-001 — Editor admin de templates de email (RESUELTO en S55 BIS+2)
 
-**Entró al backlog**: 2026-04-22 (Sesión 55 BIS, pedido de Tomy)
-**Estado**: 📝 pendiente (scope definido, esperando sesión dedicada)
-**Contexto**: Tomy pidió panel admin para ver/editar los 5 emails del flow de onboarding sin tocar código. Aclaración: NO es multi-tenant — los emails vienen de la marca NitroSales con voz uniforme (las variables `{companyName}` / `{contactName}` ya personalizan por cliente). El editor es productividad interna para iterar copy rápido.
+**Resuelto**: 2026-04-22 — commit `df05718`.
+- Tabla `email_templates` creada (migration idempotente en `/api/admin/migrate-email-templates`)
+- 9 templates seedeados (activation queda hardcoded por bloques especiales)
+- CRUD endpoints: GET list, PUT edit, POST activate, GET render
+- UI `/control/email-templates` con timeline 2 fases + drawer split edit-con-preview + toggle activa
+- `emails.ts`: funciones `*Active` async con fallback al hardcoded
+- Historial de versiones: pendiente como enhancement (no bloqueante)
 
-**Qué hay que hacer**:
-1. Tabla DB `email_templates` con campos editables: `key`, `variant`, `subject`, `preheader`, `eyebrow`, `heroTop`, `heroAccent`, `sub`, `ctaLabel`, `finePrint`, `isActive`, `version`, `updatedAt`.
-2. Endpoint admin GET/PUT `/api/admin/email-templates`.
-3. UI `/control/email-templates`: lista de los 5 emails (invite, postulación, activación, backfill-started, data-ready) + las 4 variantes del invite. Modal editar campos con preview en vivo a la derecha. Toggle "Activa" para variantes.
-4. Refactor `src/lib/onboarding/emails.ts`: funciones pasan a ser shells que leen template de DB (con fallback al hardcoded si DB no tiene).
-5. Historial de versiones (rollback 1 click).
-
-**Scope explícito**:
-- ✅ Editable desde UI: textos (subject, hero, sub, CTA, eyebrow, fine print)
-- ❌ NO editable desde UI: layout HTML, colores de brand, responsive, estructura. Eso sigue en código (decisiones de marca).
-
-**Estimación**: 1-2 horas dedicadas.
-
-**Cuándo**: después de BP-S56-001 (auditoría paginación) y cuando Tomy tenga aire para dedicarle.
+**Falta de Tomy**: ejecutar migración desde botón in-UI (10 seg).
 
 ---
 

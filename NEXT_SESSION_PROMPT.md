@@ -1,33 +1,18 @@
-# NEXT_SESSION_PROMPT.md — Sesión 56: (a) Elegir variante de invite email + (b) Auditoría completa de paginación + eficiencia en sync de TODAS las plataformas
+# NEXT_SESSION_PROMPT.md — Tarea A (auditoría paginación) · B (limpieza) · C (activity log)
 
-## 🧹 Limpieza rápida al arrancar (30 seg)
+> **Actualizado S55 BIS+2 (2026-04-22 tarde)**: editor emails + onboarding redesign + pipeline fix ya listos. Este archivo refleja el estado real.
 
-Hay un archivo duplicado generado por macOS en el commit `e73451a`:
-```
-src/components/VisualTutorials 2.tsx
-```
-No está importado en ningún lado (el nombre con espacio no se puede importar en JS). Confirmar con Tomy y borrarlo: `rm "src/components/VisualTutorials 2.tsx"` + commit.
+## ✅ Ya resueltos esta jornada
 
-## 🎯 Quick task al arrancar — Elegir variante de invite email (5 min)
+- Editor admin `/control/email-templates` (commit `df05718`) — pendiente que Tomy ejecute la migración (botón in-UI)
+- Onboarding form split + first-fold + personalización query params (`e07e8f4`)
+- Modal pipeline: empresa requerida cuando sendInvite (`e07e8f4`)
+- Variante A (profesional sobrio) activa como default en `leadInviteEmail`
 
-**Antes de meterte con la auditoría, pasar por `/control/preview-invite-emails`** y decidir con Tomy cuál variante del email de invitación queda como default. Variantes disponibles:
+## 🧹 Tarea B — Limpieza express (10 min)
 
-- **A — Invite profesional** *(recomendada al cierre de S55 BIS)*: *"Tu acceso a NitroSales está listo."* — tono sobrio Linear/Notion/Stripe. Eyebrow gris "INVITACIÓN · NITROSALES". CTA "Comenzar configuración →". **Sin agresividad comercial** — Tomy explicitó que prefiere tono profesional porque al lead ya se le habló antes.
-- **B — Vuela a ciegas**: *"Tu ecommerce / vuela a ciegas."* — naranja brand, agresiva. Backup si algún segmento pide tono pain.
-- **C — Dejá de decidir a ojo**: *"Dejá de decidir / a ojo."* — naranja brand.
-- **D — Operado por IA**: *"Tu ecommerce, / operado por IA."* — naranja brand.
-
-Todas comparten subject: **"Tu acceso a NitroSales"**.
-
-**Cuando Tomy elija**, cambiar el import en 2 archivos:
-```ts
-// src/app/api/admin/leads/route.ts
-// src/app/api/admin/leads/[id]/send-email/route.ts
-import { leadInviteVariantA } from "@/lib/onboarding/emails"; // o B/C/D
-// y usar leadInviteVariantA(...) en vez de leadInviteEmail(...)
-```
-
-Commit + push. Listo en 2 min.
+1. `rm "src/components/VisualTutorials 2.tsx"` (duplicado macOS) + commit
+2. Ejecutar migración editor emails: ir a `/control/email-templates` → botón "Ejecutar migración" (seedea 9 templates)
 
 ---
 
