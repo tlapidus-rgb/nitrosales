@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
       companyName,
       statusToken: token,
     });
-    sendEmail({ to: contactEmail, subject, html }).catch((err) => {
+    sendEmail({ to: contactEmail, subject, html, context: "onboarding.confirmation" }).catch((err) => {
       console.error("[onboarding/start] email send failed:", err?.message);
     });
 

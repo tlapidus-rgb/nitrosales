@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     if (sendInvite && contactEmail) {
       try {
         const { subject, html } = await leadInviteEmailActive({ contactName, companyName });
-        const r = await sendEmail({ to: contactEmail, subject, html });
+        const r = await sendEmail({ to: contactEmail, subject, html, context: "lead.invite" });
         emailResult = { ok: r.ok, error: r.error };
       } catch (err: any) {
         emailResult = { ok: false, error: err?.message };

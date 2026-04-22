@@ -169,7 +169,7 @@ export async function POST(
       temporaryPassword: tempPassword,
       orgId: result.org.id,
     });
-    sendEmail({ to: request.contactEmail, subject, html }).catch((err) => {
+    sendEmail({ to: request.contactEmail, subject, html, context: "onboarding.activate" }).catch((err) => {
       console.error("[activate] email send failed:", err?.message);
     });
 
