@@ -10,14 +10,24 @@
 // Los items/customer se enriquecen despues con el sync incremental
 // normal de VTEX cuando el cliente ya usa la plataforma.
 //
-// Ritmo: 20 paginas × 100 ordenes = ~2000 ordenes/chunk. Combinado con
-// el loop interno del runner (procesa varios chunks por invocacion) y
-// el trigger inmediato post-aprobacion, el backfill de 3 meses tipicos
-// se completa en minutos en vez de horas.
+// Ritmo: 20 paginas × 100 ordenes = ~2000 ordenes/chunk.
 //
-// Por que 20 paginas (no mas)? VTEX OMS tolera hasta ~50 req/min sin
-// rate-limit pero queremos margen. 20 paginas secuenciales tardan
-// ~10-20s, dejando amplio margen del budget de 4min del runner.
+// LIMITE CRITICO DE VTEX: la API /api/oms/pvt/orders permite MAXIMO 30
+// paginas por filtro de fecha (3000 ordenes max por consulta). Si pedis
+// la pagina 31 devuelve "Max page exceed ( 30 ), refine filter".
+//
+// SOLUCION: paginacion por VENTANAS DE FECHA. Dividimos el rango total
+// del job en ventanas chicas (7 dias) y paginamos hasta 30 dentro de
+// cada ventana. Cuando una ventana se agota, mover a la anterior.
+// Esto permite traer cualquier volumen historico sin chocar con el
+// limite de VTEX.
+//
+// Cursor shape: { windowEnd: ISO, windowStart: ISO, page: int }
+//   - windowEnd: limite superior de la ventana actual
+//   - windowStart: limite inferior (windowEnd - WINDOW_DAYS)
+//   - page: pagina actual dentro de la ventana
+// Backwards compat: si cursor viene viejo (solo {page}), lo descartamos
+// e inicializamos desde el final del rango (toDate del job).
 // ══════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/db/client";
@@ -26,6 +36,8 @@ import type { ChunkResult } from "../types";
 
 const PAGES_PER_CHUNK = 20;
 const PAGE_SIZE = 100;
+const WINDOW_DAYS = 7; // ventana de 7 dias por iteracion (max 30 pag × 100 = 3000 ordenes/ventana)
+const VTEX_PAGE_LIMIT = 30; // limite hardcoded de VTEX por consulta
 
 interface VtexCreds {
   accountName: string;
@@ -54,19 +66,38 @@ async function getVtexCreds(orgId: string): Promise<VtexCreds | null> {
 
 export async function processVtexChunk(job: any): Promise<ChunkResult> {
   const orgId = job.organizationId as string;
-  const cursor = (job.cursor as any) || {};
-  const startPage: number = cursor.page || 1;
-  const fromDate = new Date(job.fromDate);
-  const toDate = new Date(job.toDate);
+  const fromDate = new Date(job.fromDate); // limite mas viejo del rango (ej: hoy - 90 dias)
+  const toDate = new Date(job.toDate);     // limite mas nuevo del rango (ej: hoy)
 
   const creds = await getVtexCreds(orgId);
   if (!creds || !creds.accountName) {
     return {
       itemsProcessed: 0,
-      newCursor: cursor,
+      newCursor: job.cursor || {},
       isComplete: false,
       error: "VTEX credentials no configuradas",
     };
+  }
+
+  // ── Inicializar ventana actual desde cursor o desde el final del rango ──
+  // Vamos de mas reciente a mas viejo (windowEnd se mueve hacia atras).
+  const cursor = (job.cursor as any) || {};
+  let windowEnd: Date;
+  let windowStart: Date;
+  let startPage: number;
+
+  if (cursor.windowEnd && cursor.windowStart) {
+    // Cursor nuevo (date-window): retomar donde quedo
+    windowEnd = new Date(cursor.windowEnd);
+    windowStart = new Date(cursor.windowStart);
+    startPage = cursor.page || 1;
+  } else {
+    // Cursor viejo (solo {page}) o sin cursor: arrancar desde el final del rango
+    windowEnd = new Date(toDate);
+    windowStart = new Date(windowEnd);
+    windowStart.setDate(windowStart.getDate() - WINDOW_DAYS);
+    if (windowStart < fromDate) windowStart = new Date(fromDate);
+    startPage = 1;
   }
 
   const baseUrl = `https://${creds.accountName}.vtexcommercestable.com.br/api/oms/pvt/orders`;
@@ -76,20 +107,46 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
     Accept: "application/json",
   };
 
-  const fromStr = fromDate.toISOString();
-  const toStr = toDate.toISOString();
-
   let totalProcessed = 0;
-  let pagesRun = 0;
-  let isComplete = false;
-  let totalEstimate: number | undefined;
+  let pagesRunInChunk = 0;
+  let currentWindowEnd = windowEnd;
+  let currentWindowStart = windowStart;
+  let currentPage = startPage;
+  let totalEstimate: number | undefined = job.totalEstimate ? Number(job.totalEstimate) : undefined;
 
+  // Loop principal: procesar paginas. Cuando una ventana se agota, mover a la anterior.
   for (let i = 0; i < PAGES_PER_CHUNK; i++) {
-    const currentPage = startPage + i;
+    // Si llegamos al limite de paginas de VTEX en esta ventana, mover a ventana anterior.
+    if (currentPage > VTEX_PAGE_LIMIT) {
+      // Mover ventana hacia atras
+      const newEnd = new Date(currentWindowStart);
+      const newStart = new Date(newEnd);
+      newStart.setDate(newStart.getDate() - WINDOW_DAYS);
+      if (newStart < fromDate) {
+        currentWindowStart = new Date(fromDate);
+      } else {
+        currentWindowStart = newStart;
+      }
+      currentWindowEnd = newEnd;
+      currentPage = 1;
+
+      // Si la nueva ventana esta fuera del rango (windowEnd <= fromDate), terminamos
+      if (currentWindowEnd <= fromDate) {
+        return {
+          itemsProcessed: totalProcessed,
+          newCursor: {},
+          isComplete: true,
+          totalEstimate,
+        };
+      }
+    }
+
+    const fromStr = currentWindowStart.toISOString();
+    const toStr = currentWindowEnd.toISOString();
     const url =
       `${baseUrl}?per_page=${PAGE_SIZE}&page=${currentPage}` +
       `&f_creationDate=creationDate:[${fromStr}%20TO%20${toStr}]` +
-      `&orderBy=creationDate,asc`;
+      `&orderBy=creationDate,desc`;
 
     let res: Response;
     try {
@@ -97,16 +154,25 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
     } catch (err: any) {
       return {
         itemsProcessed: totalProcessed,
-        newCursor: { page: currentPage },
+        newCursor: {
+          windowStart: currentWindowStart.toISOString(),
+          windowEnd: currentWindowEnd.toISOString(),
+          page: currentPage,
+        },
         isComplete: false,
         error: `fetch: ${err.message}`,
       };
     }
 
     if (res.status === 429) {
+      // Rate limit — guardamos cursor y salimos. Proxima invocacion retoma.
       return {
         itemsProcessed: totalProcessed,
-        newCursor: { page: currentPage },
+        newCursor: {
+          windowStart: currentWindowStart.toISOString(),
+          windowEnd: currentWindowEnd.toISOString(),
+          page: currentPage,
+        },
         isComplete: false,
       };
     }
@@ -115,7 +181,11 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
       const errText = await res.text().catch(() => "");
       return {
         itemsProcessed: totalProcessed,
-        newCursor: { page: currentPage },
+        newCursor: {
+          windowStart: currentWindowStart.toISOString(),
+          windowEnd: currentWindowEnd.toISOString(),
+          page: currentPage,
+        },
         isComplete: false,
         error: `VTEX ${res.status}: ${errText.slice(0, 200)}`,
       };
@@ -124,15 +194,31 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
     const data = await res.json();
     const list = data?.list || [];
 
-    if (i === 0 && data?.paging?.total) {
-      totalEstimate = data.paging.total;
-    }
-
     if (list.length === 0) {
-      isComplete = true;
-      break;
+      // Ventana actual agotada → mover a ventana anterior (mas vieja)
+      // sin avanzar i (no consume del PAGES_PER_CHUNK por cambiar de ventana)
+      const newEnd = new Date(currentWindowStart);
+      const newStart = new Date(newEnd);
+      newStart.setDate(newStart.getDate() - WINDOW_DAYS);
+      const reachedEnd = newEnd <= fromDate;
+
+      if (reachedEnd) {
+        // Llegamos al inicio del rango total → backfill completo
+        return {
+          itemsProcessed: totalProcessed,
+          newCursor: {},
+          isComplete: true,
+          totalEstimate,
+        };
+      }
+
+      currentWindowEnd = newEnd;
+      currentWindowStart = newStart < fromDate ? new Date(fromDate) : newStart;
+      currentPage = 1;
+      continue; // no incrementar pagesRunInChunk porque no procesamos data esta iter
     }
 
+    // Procesar las ordenes de esta pagina
     for (const order of list) {
       try {
         await upsertVtexOrder(orgId, order);
@@ -142,20 +228,41 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
       }
     }
 
-    pagesRun++;
+    pagesRunInChunk++;
+    currentPage++;
 
+    // Si la pagina trajo menos del page size, esta ventana se agoto
     if (list.length < PAGE_SIZE) {
-      isComplete = true;
-      break;
+      // Mover a ventana anterior
+      const newEnd = new Date(currentWindowStart);
+      const newStart = new Date(newEnd);
+      newStart.setDate(newStart.getDate() - WINDOW_DAYS);
+      const reachedEnd = newEnd <= fromDate;
+
+      if (reachedEnd) {
+        return {
+          itemsProcessed: totalProcessed,
+          newCursor: {},
+          isComplete: true,
+          totalEstimate,
+        };
+      }
+
+      currentWindowEnd = newEnd;
+      currentWindowStart = newStart < fromDate ? new Date(fromDate) : newStart;
+      currentPage = 1;
     }
   }
 
-  const newPage = startPage + pagesRun;
-
+  // Salimos del loop por agotar PAGES_PER_CHUNK — guardar cursor para la proxima
   return {
     itemsProcessed: totalProcessed,
-    newCursor: { page: newPage },
-    isComplete,
+    newCursor: {
+      windowStart: currentWindowStart.toISOString(),
+      windowEnd: currentWindowEnd.toISOString(),
+      page: currentPage,
+    },
+    isComplete: false,
     totalEstimate,
   };
 }
