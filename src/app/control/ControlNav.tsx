@@ -7,13 +7,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Users, Inbox, LogOut, GitBranch } from "lucide-react";
+import { Activity, Users, Inbox, LogOut, GitBranch, Mail } from "lucide-react";
 
 const ITEMS = [
   { href: "/control", label: "Inicio", icon: Activity, exact: true },
   { href: "/control/pipeline", label: "Pipeline", icon: GitBranch },
   { href: "/control/clientes", label: "Clientes", icon: Users },
   { href: "/control/onboardings", label: "Onboardings", icon: Inbox },
+  { href: "/control/preview-invite-emails", label: "Preview emails", icon: Mail },
 ];
 
 export default function ControlNav() {
