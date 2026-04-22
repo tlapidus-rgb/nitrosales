@@ -1572,6 +1572,7 @@ function EmailFlowDebug() {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<"idle" | "running" | "done">("idle");
   const [result, setResult] = useState<any>(null);
+  const [which, setWhich] = useState<"invite" | "confirmation" | "activation" | "backfill_started" | "data_ready">("activation");
 
   async function run(dryRun: boolean) {
     setState("running");
@@ -1580,7 +1581,7 @@ function EmailFlowDebug() {
       const res = await fetch("/api/admin/debug-email-flow", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun }),
+        body: JSON.stringify({ dryRun, which }),
       });
       const json = await res.json();
       setResult(json);
@@ -1631,6 +1632,33 @@ function EmailFlowDebug() {
           onClick={() => { setOpen(false); setResult(null); setState("idle"); }}
           style={{ padding: "6px 10px", background: "transparent", color: "#71717A", border: "1px solid #27272A", borderRadius: 7, fontSize: 11, cursor: "pointer" }}
         >✕</button>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: "#71717A", marginBottom: 6 }}>¿Qué email testear?</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {[
+            { v: "invite", label: "Invitación" },
+            { v: "confirmation", label: "Postulación recibida" },
+            { v: "activation", label: "Cuenta activada" },
+            { v: "backfill_started", label: "Backfill arrancó" },
+            { v: "data_ready", label: "Data lista" },
+          ].map((o: any) => (
+            <button
+              key={o.v}
+              onClick={() => setWhich(o.v)}
+              style={{
+                padding: "5px 10px", fontSize: 11, borderRadius: 6,
+                background: which === o.v ? "rgba(168,85,247,0.18)" : "transparent",
+                border: `1px solid ${which === o.v ? "#A855F7" : "#27272A"}`,
+                color: which === o.v ? "#C4B5FD" : "#A1A1AA",
+                cursor: "pointer", fontWeight: 500,
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>

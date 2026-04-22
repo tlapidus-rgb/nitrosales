@@ -21,6 +21,10 @@ import { sendEmail } from "@/lib/email/send";
 import {
   onboardingConfirmationEmailActive,
   onboardingConfirmationEmail,
+  onboardingActivationEmail,
+  backfillStartedEmailActive,
+  dataReadyEmailActive,
+  leadInviteEmailActive,
 } from "@/lib/onboarding/emails";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +44,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const targetId = body?.onboardingRequestId;
     const dryRun = !!body?.dryRun;
+    const which = (body?.which || "confirmation") as
+      | "invite" | "confirmation" | "activation" | "backfill_started" | "data_ready";
     const steps: Step[] = [];
 
     // ── Step 1: Fetch onboarding_request ──────────────────────
@@ -89,16 +95,41 @@ export async function POST(req: NextRequest) {
       steps.push({ step: "2.templates-table-check", ok: false, error: err.message });
     }
 
-    // ── Step 3: Render con *Active (leer de DB si existe + fallback) ──
+    // ── Step 3: Render del email elegido (con *Active si aplica) ──
     let activeRender: any = null;
     try {
-      activeRender = await onboardingConfirmationEmailActive({
-        contactName: ob.contactName,
-        companyName: ob.companyName,
-        statusToken: ob.token || "no-token",
-      });
+      if (which === "invite") {
+        activeRender = await leadInviteEmailActive({
+          contactName: ob.contactName,
+          companyName: ob.companyName,
+        });
+      } else if (which === "activation") {
+        activeRender = onboardingActivationEmail({
+          contactName: ob.contactName,
+          companyName: ob.companyName,
+          loginEmail: ob.contactEmail,
+          temporaryPassword: "DEBUG-ONLY-NOT-REAL",
+          orgId: ob.createdOrgId || "debug-org-id",
+        });
+      } else if (which === "backfill_started") {
+        activeRender = await backfillStartedEmailActive({
+          contactName: ob.contactName,
+          companyName: ob.companyName,
+        });
+      } else if (which === "data_ready") {
+        activeRender = await dataReadyEmailActive({
+          contactName: ob.contactName,
+          companyName: ob.companyName,
+        });
+      } else {
+        activeRender = await onboardingConfirmationEmailActive({
+          contactName: ob.contactName,
+          companyName: ob.companyName,
+          statusToken: ob.token || "no-token",
+        });
+      }
       steps.push({
-        step: "3.render-active",
+        step: `3.render-${which}`,
         ok: true,
         detail: {
           subject: activeRender.subject,
@@ -107,26 +138,25 @@ export async function POST(req: NextRequest) {
         },
       });
     } catch (err: any) {
-      steps.push({ step: "3.render-active", ok: false, error: err.message });
+      steps.push({ step: `3.render-${which}`, ok: false, error: err.message });
     }
 
-    // ── Step 4: Render con hardcoded (sanity check) ────────────
-    try {
-      const hardcoded = onboardingConfirmationEmail({
-        contactName: ob.contactName,
-        companyName: ob.companyName,
-        statusToken: ob.token || "no-token",
-      });
-      steps.push({
-        step: "4.render-hardcoded",
-        ok: true,
-        detail: {
-          subject: hardcoded.subject,
-          htmlLength: hardcoded.html?.length || 0,
-        },
-      });
-    } catch (err: any) {
-      steps.push({ step: "4.render-hardcoded", ok: false, error: err.message });
+    // ── Step 4: Render hardcoded (sanity check, solo para confirmation) ──
+    if (which === "confirmation") {
+      try {
+        const hardcoded = onboardingConfirmationEmail({
+          contactName: ob.contactName,
+          companyName: ob.companyName,
+          statusToken: ob.token || "no-token",
+        });
+        steps.push({
+          step: "4.render-hardcoded",
+          ok: true,
+          detail: { subject: hardcoded.subject, htmlLength: hardcoded.html?.length || 0 },
+        });
+      } catch (err: any) {
+        steps.push({ step: "4.render-hardcoded", ok: false, error: err.message });
+      }
     }
 
     // ── Step 5: Environment check (Resend config) ──────────────
