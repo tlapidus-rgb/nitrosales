@@ -989,11 +989,6 @@ function CredentialsTestBlock({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color: "#E4E4E7", marginBottom: 1 }}>
                   {r.platform}
-                  {r.skipped && (
-                    <span style={{ fontSize: 9, padding: "1px 5px", background: "#27272A", color: "#71717A", borderRadius: 99, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      OAuth
-                    </span>
-                  )}
                 </div>
                 <div style={{ fontSize: 11, color: r.ok ? "#A1A1AA" : "#FCA5A5", lineHeight: 1.4, wordBreak: "break-word" }}>
                   {r.detail}

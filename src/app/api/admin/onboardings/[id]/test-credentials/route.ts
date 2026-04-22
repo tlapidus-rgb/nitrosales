@@ -29,12 +29,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { decryptCredentials, isEncrypted } from "@/lib/crypto";
-import { testCredentialsByPlatform } from "@/lib/onboarding/credential-tests";
+import { testCredentialsByPlatform, testNitroPixel } from "@/lib/onboarding/credential-tests";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-const TESTABLE_PLATFORMS = new Set(["VTEX", "META_ADS"]);
 
 export async function POST(
   _req: NextRequest,
@@ -78,21 +76,9 @@ export async function POST(
     }
 
     const results: Array<any> = [];
-    for (const conn of connections) {
-      // Si la plataforma no es testable manualmente, devolvemos info-only
-      if (!TESTABLE_PLATFORMS.has(conn.platform)) {
-        results.push({
-          platform: conn.platform,
-          connectionStatus: conn.status,
-          ok: conn.status === "ACTIVE",
-          detail: conn.status === "ACTIVE"
-            ? "OAuth válido (no aplica test manual)"
-            : `Estado: ${conn.status}`,
-          skipped: true,
-        });
-        continue;
-      }
 
+    // Test cada Connection con su API real
+    for (const conn of connections) {
       // Desencriptar credentials
       let creds: any = null;
       try {
@@ -115,10 +101,7 @@ export async function POST(
         continue;
       }
 
-      // META_PIXEL viene en la misma Connection que META_ADS o aparte? Por ahora
-      // testeamos lo que se pueda con lo que hay en la conexion (META_ADS).
-      const platformKey = conn.platform === "META_ADS" ? "META_ADS" : conn.platform;
-      const r = await testCredentialsByPlatform(platformKey, creds);
+      const r = await testCredentialsByPlatform(conn.platform, creds);
       results.push({
         platform: conn.platform,
         connectionStatus: conn.status,
@@ -126,6 +109,25 @@ export async function POST(
         detail: r.detail,
         hint: r.hint,
         lastSyncError: conn.lastSyncError || null,
+      });
+    }
+
+    // Adicional: NitroPixel — chequea eventos en DB (no hay Connection)
+    try {
+      const pixelResult = await testNitroPixel(ob.createdOrgId, prisma);
+      results.push({
+        platform: "NITROPIXEL",
+        connectionStatus: pixelResult.ok ? "ACTIVE" : "PENDING",
+        ok: pixelResult.ok,
+        detail: pixelResult.detail,
+        hint: pixelResult.hint,
+      });
+    } catch (e: any) {
+      results.push({
+        platform: "NITROPIXEL",
+        connectionStatus: "PENDING",
+        ok: false,
+        detail: "Error chequeando pixel: " + (e?.message || "?"),
       });
     }
 
