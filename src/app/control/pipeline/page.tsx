@@ -28,6 +28,8 @@ import {
   RefreshCw,
   ChevronRight,
   Trash2,
+  Send,
+  ChevronDown,
 } from "lucide-react";
 
 // ── Etapas del funnel (orden visual) ──
@@ -427,6 +429,31 @@ function PipelineCard({ item, stage, onAction }: any) {
     }
   };
 
+  const handleSendEmail = async (e: any, variant: "invite" | "followup" = "invite") => {
+    e.stopPropagation();
+    if (!item.contactEmail) {
+      alert("Este lead no tiene email cargado");
+      return;
+    }
+    const label = variant === "followup" ? "follow-up" : "invitación";
+    if (!confirm(`¿Enviar email de ${label} a ${item.contactEmail}?`)) return;
+    setActing(true);
+    try {
+      const res = await fetch(`/api/admin/leads/${item.id}/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variant }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        alert(`Error: ${json.error}`);
+      }
+      onAction();
+    } finally {
+      setActing(false);
+    }
+  };
+
   const handleDelete = async (e: any) => {
     e.stopPropagation();
     if (!confirm(`¿Borrar el lead ${item.companyName}? Esta acción no se puede deshacer.`)) return;
@@ -516,42 +543,89 @@ function PipelineCard({ item, stage, onAction }: any) {
 
       {/* Acciones rápidas para LEADS */}
       {isLead && (
-        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-          {stage.key === "LEAD" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+          {stage.key === "LEAD" && item.contactEmail && (
             <button
-              onClick={handleMarkContacted}
+              onClick={(e) => handleSendEmail(e, "invite")}
               disabled={acting}
               style={{
-                flex: 1,
-                padding: "6px 8px",
-                background: "rgba(14,165,233,0.15)",
-                border: "1px solid rgba(14,165,233,0.4)",
+                padding: "7px 10px",
+                background: "linear-gradient(135deg, rgba(255,94,26,0.2), rgba(255,140,74,0.2))",
+                border: "1px solid rgba(255,94,26,0.4)",
                 borderRadius: 6,
-                color: "#0EA5E9",
-                fontSize: 10.5,
+                color: "#FF8C4A",
+                fontSize: 11,
                 fontWeight: 600,
                 cursor: acting ? "wait" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 5,
               }}
             >
-              ✓ Marcar contactado
+              <Send size={11} /> Enviar invitación
             </button>
           )}
-          <button
-            onClick={handleDelete}
-            disabled={acting}
-            style={{
-              padding: "6px 8px",
-              background: "transparent",
-              border: "1px solid #3F3F46",
-              borderRadius: 6,
-              color: "#71717A",
-              cursor: acting ? "wait" : "pointer",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            <Trash2 size={11} />
-          </button>
+          {stage.key === "CONTACTADO" && item.contactEmail && (
+            <button
+              onClick={(e) => handleSendEmail(e, "followup")}
+              disabled={acting}
+              style={{
+                padding: "7px 10px",
+                background: "rgba(168,85,247,0.15)",
+                border: "1px solid rgba(168,85,247,0.4)",
+                borderRadius: 6,
+                color: "#C084FC",
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: acting ? "wait" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 5,
+              }}
+            >
+              <Send size={11} /> Reenviar follow-up
+            </button>
+          )}
+          <div style={{ display: "flex", gap: 6 }}>
+            {stage.key === "LEAD" && (
+              <button
+                onClick={handleMarkContacted}
+                disabled={acting}
+                style={{
+                  flex: 1,
+                  padding: "6px 8px",
+                  background: "transparent",
+                  border: "1px solid rgba(14,165,233,0.3)",
+                  borderRadius: 6,
+                  color: "#0EA5E9",
+                  fontSize: 10.5,
+                  fontWeight: 500,
+                  cursor: acting ? "wait" : "pointer",
+                }}
+              >
+                Marcar contactado
+              </button>
+            )}
+            <button
+              onClick={handleDelete}
+              disabled={acting}
+              style={{
+                padding: "6px 8px",
+                background: "transparent",
+                border: "1px solid #3F3F46",
+                borderRadius: 6,
+                color: "#71717A",
+                cursor: acting ? "wait" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                marginLeft: stage.key === "CONTACTADO" ? "auto" : 0,
+              }}
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -559,13 +633,17 @@ function PipelineCard({ item, stage, onAction }: any) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Modal: agregar lead manual
+// Modal: agregar lead manual (simplificado - solo email + auto-send)
 // ═══════════════════════════════════════════════════════════════
 function AddLeadModal({ onClose, onCreated }: any) {
   const [form, setForm] = useState({
-    companyName: "",
-    contactName: "",
     contactEmail: "",
+    contactName: "",
+    companyName: "",
+    sendInvite: true, // default ON: el mail sale automáticamente
+  });
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [advanced, setAdvanced] = useState({
     contactPhone: "",
     industry: "",
     estimatedMonthlyOrders: "",
@@ -574,11 +652,21 @@ function AddLeadModal({ onClose, onCreated }: any) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successInfo, setSuccessInfo] = useState<any>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.companyName.trim()) {
-      setError("El nombre de la empresa es obligatorio");
+    const email = form.contactEmail.trim().toLowerCase();
+    if (form.sendInvite && !email) {
+      setError("Para mandar la invitación necesito el email del lead");
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("El email no parece válido");
+      return;
+    }
+    if (!form.sendInvite && !email && !form.companyName.trim() && !form.contactName.trim()) {
+      setError("Cargá al menos email, nombre del contacto o empresa");
       return;
     }
     setSubmitting(true);
@@ -587,7 +675,7 @@ function AddLeadModal({ onClose, onCreated }: any) {
       const res = await fetch("/api/admin/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ...advanced, contactEmail: email }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -595,43 +683,169 @@ function AddLeadModal({ onClose, onCreated }: any) {
         setSubmitting(false);
         return;
       }
-      onCreated();
+      // Si envió email, mostrar success state breve
+      if (form.sendInvite && json.emailResult?.ok) {
+        setSuccessInfo({ email, status: "sent" });
+        setTimeout(() => onCreated(), 1500);
+      } else if (form.sendInvite && !json.emailResult?.ok) {
+        setError(`Lead creado pero email falló: ${json.emailResult?.error || "?"}`);
+        setTimeout(() => onCreated(), 2500);
+      } else {
+        onCreated();
+      }
     } catch (err: any) {
       setError(err.message);
       setSubmitting(false);
     }
   };
 
+  if (successInfo) {
+    return (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div style={{ background: "#0F0F11", border: "1px solid rgba(34,197,94,0.4)", borderRadius: 14, padding: 32, maxWidth: 420, textAlign: "center", animation: "slideUp 280ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(34,197,94,0.15)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            <Check size={28} color="#22C55E" />
+          </div>
+          <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#fff", fontWeight: 600 }}>Email enviado</h3>
+          <p style={{ color: "#A1A1AA", fontSize: 13, margin: 0 }}>
+            Le mandamos la invitación a <strong style={{ color: "#fff" }}>{successInfo.email}</strong>. Va a aparecer en la columna "Contactado".
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <form onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit} style={{ background: "#0F0F11", border: "1px solid #1F1F23", borderRadius: 14, padding: 28, maxWidth: 520, width: "100%", maxHeight: "92vh", overflowY: "auto", animation: "slideUp 280ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+      <form onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit} style={{ background: "#0F0F11", border: "1px solid #1F1F23", borderRadius: 14, padding: 28, maxWidth: 480, width: "100%", maxHeight: "92vh", overflowY: "auto", animation: "slideUp 280ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <h3 style={{ margin: 0, fontSize: 18, color: "#fff", fontWeight: 600 }}>Agregar lead</h3>
           <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", color: "#71717A", cursor: "pointer", padding: 4 }}><X size={18} /></button>
         </div>
-        <p style={{ color: "#71717A", fontSize: 12, margin: "0 0 20px" }}>
-          Cargá un prospect manualmente. Después podés marcarlo como contactado y trackearlo hasta que se postule.
+        <p style={{ color: "#71717A", fontSize: 12, margin: "0 0 22px", lineHeight: 1.5 }}>
+          Por defecto se manda automáticamente el email con el link al form. Cuando el lead lo complete, va a aparecer en la columna "Postulado" para que apruebes la cuenta.
         </p>
 
-        <Field label="Nombre empresa *" value={form.companyName} onChange={(v) => setForm({ ...form, companyName: v })} placeholder="Mi Empresa SA" />
-        <Field label="Nombre de contacto" value={form.contactName} onChange={(v) => setForm({ ...form, contactName: v })} placeholder="Juan Pérez" />
+        <Field
+          label="Email *"
+          value={form.contactEmail}
+          onChange={(v: string) => setForm({ ...form, contactEmail: v })}
+          placeholder="juan@miempresa.com"
+          type="email"
+          autoFocus
+        />
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label="Email" value={form.contactEmail} onChange={(v) => setForm({ ...form, contactEmail: v })} placeholder="juan@miempresa.com" type="email" />
-          <Field label="Teléfono" value={form.contactPhone} onChange={(v) => setForm({ ...form, contactPhone: v })} placeholder="+54 9 11 5555-1234" />
+          <Field
+            label="Nombre"
+            value={form.contactName}
+            onChange={(v: string) => setForm({ ...form, contactName: v })}
+            placeholder="Juan"
+          />
+          <Field
+            label="Empresa"
+            value={form.companyName}
+            onChange={(v: string) => setForm({ ...form, companyName: v })}
+            placeholder="Mi Empresa"
+          />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label="Industria" value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} placeholder="Indumentaria, Hogar, etc" />
-          <Field label="Órdenes/mes (estim)" value={form.estimatedMonthlyOrders} onChange={(v) => setForm({ ...form, estimatedMonthlyOrders: v })} placeholder="500" type="number" />
-        </div>
-        <Field label="Source / Origen" value={form.source} onChange={(v) => setForm({ ...form, source: v })} placeholder="Referido por X / LinkedIn / Conferencia" />
-        <Field label="Notas" value={form.notes} onChange={(v) => setForm({ ...form, notes: v })} placeholder="Cualquier nota relevante" textarea />
+
+        {/* Toggle "Enviar email automaticamente" */}
+        <label style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 10,
+          padding: "12px 14px",
+          background: form.sendInvite ? "rgba(255,94,26,0.08)" : "rgba(255,255,255,0.02)",
+          border: `1px solid ${form.sendInvite ? "rgba(255,94,26,0.3)" : "#27272A"}`,
+          borderRadius: 9,
+          cursor: "pointer",
+          marginTop: 6,
+          marginBottom: 6,
+          transition: "all 0.15s ease",
+        }}>
+          <input
+            type="checkbox"
+            checked={form.sendInvite}
+            onChange={(e) => setForm({ ...form, sendInvite: e.target.checked })}
+            style={{ marginTop: 2, accentColor: "#FF5E1A" }}
+          />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: form.sendInvite ? "#FF5E1A" : "#D4D4D8", marginBottom: 2 }}>
+              Enviar email de invitación ahora
+            </div>
+            <div style={{ fontSize: 11, color: "#71717A", lineHeight: 1.5 }}>
+              Le llega al instante un email con el link al form de onboarding. Lo marca como "Contactado" automáticamente.
+            </div>
+          </div>
+        </label>
+
+        {/* Toggle avanzado */}
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            background: "transparent",
+            border: "none",
+            color: "#71717A",
+            fontSize: 11.5,
+            cursor: "pointer",
+            padding: "8px 0",
+            marginTop: 4,
+          }}
+        >
+          <ChevronDown size={12} style={{ transform: showAdvanced ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
+          {showAdvanced ? "Ocultar" : "Más datos (opcional)"}
+        </button>
+
+        {showAdvanced && (
+          <div style={{ animation: "slideUp 200ms ease-out" }}>
+            <Field
+              label="Teléfono"
+              value={advanced.contactPhone}
+              onChange={(v: string) => setAdvanced({ ...advanced, contactPhone: v })}
+              placeholder="+54 9 11 5555-1234"
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Field
+                label="Industria"
+                value={advanced.industry}
+                onChange={(v: string) => setAdvanced({ ...advanced, industry: v })}
+                placeholder="Indumentaria, Hogar, etc"
+              />
+              <Field
+                label="Órdenes/mes"
+                value={advanced.estimatedMonthlyOrders}
+                onChange={(v: string) => setAdvanced({ ...advanced, estimatedMonthlyOrders: v })}
+                placeholder="500"
+                type="number"
+              />
+            </div>
+            <Field
+              label="Source"
+              value={advanced.source}
+              onChange={(v: string) => setAdvanced({ ...advanced, source: v })}
+              placeholder="Referido / LinkedIn / Conferencia"
+            />
+            <Field
+              label="Notas"
+              value={advanced.notes}
+              onChange={(v: string) => setAdvanced({ ...advanced, notes: v })}
+              placeholder="Cualquier nota relevante"
+              textarea
+            />
+          </div>
+        )}
 
         {error && <div style={{ padding: 10, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#FCA5A5", fontSize: 11.5, marginTop: 12 }}>{error}</div>}
 
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button type="button" onClick={onClose} style={{ flex: 1, padding: "10px 16px", background: "transparent", border: "1px solid #3F3F46", borderRadius: 8, color: "#A1A1AA", cursor: "pointer", fontSize: 13 }}>Cancelar</button>
-          <button type="submit" disabled={submitting} style={{ flex: 2, padding: "10px 16px", background: submitting ? "#27272A" : "linear-gradient(135deg, #FF5E1A, #FF8C4A)", border: "none", borderRadius: 8, color: "#fff", cursor: submitting ? "wait" : "pointer", fontSize: 13, fontWeight: 600 }}>
-            {submitting ? "Guardando…" : "Agregar lead"}
+          <button type="submit" disabled={submitting} style={{ flex: 2, padding: "10px 16px", background: submitting ? "#27272A" : "linear-gradient(135deg, #FF5E1A, #FF8C4A)", border: "none", borderRadius: 8, color: "#fff", cursor: submitting ? "wait" : "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            {submitting ? "Procesando…" : form.sendInvite ? <><Send size={13} /> Crear y enviar email</> : "Crear lead"}
           </button>
         </div>
       </form>
