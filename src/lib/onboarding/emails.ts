@@ -477,7 +477,12 @@ function inviteHero(opts: {
 const INVITE_SUBJECT = "Tu acceso a NitroSales";
 
 // ──────────────────────────────────────────────────────────────
-// Variante A — "Dejá de perder plata"
+// Variante A — "Pierde dinero" (custom: rojo chillón + glow)
+// ──────────────────────────────────────────────────────────────
+// No usa inviteHero(): tiene un hero a medida donde "pierde dinero"
+// va en un rojo vibrante con text-shadow multicapa (glow premium).
+// Soportado en Gmail / Apple Mail / Outlook moderno. En clientes
+// viejos degradan al color sólido, que igual se lee bien.
 // ──────────────────────────────────────────────────────────────
 
 export function leadInviteVariantA(opts: {
@@ -489,15 +494,47 @@ export function leadInviteVariantA(opts: {
   const subject = INVITE_SUBJECT;
   const preheader = `Tu ecommerce pierde dinero todos los meses y no lo sabés.`;
 
-  const content = inviteHero({
-    contactName,
-    companyName,
-    heroTop: "Tu ecommerce pierde dinero",
-    heroAccent: "todos los meses.",
-    sub: "Y hoy no tenés forma de saberlo. NitroSales te muestra dónde, por qué, y cómo frenarlo — en tiempo real.",
-    ctaLabel: `Activar ${companyName}`,
-    onboardingUrl,
-  });
+  const RED_HOT = "#FF3B4C";
+  const glow = [
+    `0 0 24px rgba(255,59,76,0.55)`,
+    `0 0 48px rgba(255,59,76,0.35)`,
+    `0 0 8px rgba(255,59,76,0.85)`,
+  ].join(",");
+
+  const content = `
+    <div style="padding:36px 0 20px;text-align:left;">
+      <!-- Eyebrow -->
+      <div style="font-size:11px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.22em;margin-bottom:36px;">
+        ⚡ Implementá AI commerce
+      </div>
+
+      <!-- Greeting sutil -->
+      <div style="font-size:13px;color:${TEXT_SECONDARY};margin-bottom:18px;letter-spacing:0.02em;">
+        ${greeting(contactName)},
+      </div>
+
+      <!-- HERO: 2 líneas, "pierde dinero" en rojo con glow -->
+      <h1 style="margin:0 0 24px;font-size:46px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.05;letter-spacing:-0.04em;">
+        Tu ecommerce<br/>
+        <span style="color:${RED_HOT};text-shadow:${glow};font-weight:900;">pierde dinero</span> todos los meses.
+      </h1>
+
+      <!-- Subtítulo -->
+      <p style="margin:0 0 44px;color:${TEXT_SECONDARY};font-size:17px;line-height:1.5;font-weight:400;max-width:440px;">
+        Y hoy no tenés forma de saberlo. NitroSales te muestra dónde, por qué, y cómo frenarlo — en tiempo real.
+      </p>
+
+      <!-- CTA blanco sobre dark -->
+      <a href="${onboardingUrl}" style="display:inline-block;padding:16px 36px;background:${TEXT_PRIMARY};color:${BRAND_BG};text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.01em;">
+        Activar ${companyName} →
+      </a>
+
+      <!-- Fine print -->
+      <p style="margin:40px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;opacity:0.6;">
+        Un formulario corto. Acceso inmediato al producto.
+      </p>
+    </div>
+  `;
 
   return { subject, html: baseLayout(subject, preheader, content) };
 }
