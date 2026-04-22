@@ -114,6 +114,28 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
   let currentPage = startPage;
   let totalEstimate: number | undefined = job.totalEstimate ? Number(job.totalEstimate) : undefined;
 
+  // Si es la primera vez (sin totalEstimate), pedir 1 query liviana al rango FULL
+  // para obtener el total real del job (sirve para mostrar % de progreso correcto).
+  // Es una sola request adicional al inicio. VTEX devuelve paging.total aunque solo
+  // permita acceder a las primeras 30 paginas.
+  if (!totalEstimate) {
+    try {
+      const totalUrl =
+        `${baseUrl}?per_page=1&page=1` +
+        `&f_creationDate=creationDate:[${fromDate.toISOString()}%20TO%20${toDate.toISOString()}]`;
+      const totalRes = await fetch(totalUrl, { headers });
+      if (totalRes.ok) {
+        const totalData = await totalRes.json();
+        const t = totalData?.paging?.total;
+        if (typeof t === "number" && t > 0) {
+          totalEstimate = t;
+        }
+      }
+    } catch {
+      // Ignorar errores aca — el backfill funciona igual sin totalEstimate
+    }
+  }
+
   // Loop principal: procesar paginas. Cuando una ventana se agota, mover a la anterior.
   for (let i = 0; i < PAGES_PER_CHUNK; i++) {
     // Si llegamos al limite de paginas de VTEX en esta ventana, mover a ventana anterior.
