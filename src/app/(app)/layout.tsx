@@ -10,7 +10,7 @@ import { AurumOrb } from "@/components/aurum/AurumOrb";
 import { PermissionsProvider, NavItemGate, NavGroupGate, PathnameGuard } from "@/hooks/usePermissions";
 import AlertsBadge from "@/components/alerts/AlertsBadge";
 import { PixelInstallBanner } from "@/components/PixelInstallBanner";
-import OnboardingOverlay from "@/components/OnboardingOverlay";
+import OnboardingGate from "@/components/OnboardingGate";
 
 type NavItem = {
   href: string;
@@ -278,10 +278,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <OnboardingGate>
     <PermissionsProvider>
     <AurumProvider>
     <div className="h-screen bg-nitro-bg flex overflow-hidden">
-      <OnboardingOverlay />
       <FloatingAurum />
       {/* Aurum global animations */}
       <style jsx global>{`
@@ -1401,5 +1401,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </div>
     </AurumProvider>
     </PermissionsProvider>
+    </OnboardingGate>
   );
 }
