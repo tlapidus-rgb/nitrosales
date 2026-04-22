@@ -258,7 +258,8 @@ interface Platform {
   hasHistory: boolean;
   missFeatures: string[];
   essential?: boolean;
-  isEcommerce?: boolean; // VTEX es ecommerce, tiene dropdown de selección
+  isEcommerce?: boolean;
+  logoKey?: BrandKey; // Si se define, usa este logo en vez del key (ej: ECOMMERCE mosaico)
 }
 
 const ALL_PLATFORMS: Platform[] = [
@@ -268,6 +269,7 @@ const ALL_PLATFORMS: Platform[] = [
     requiredFields: ["provider", "accountName", "appKey", "appToken"],
     hasHistory: true,
     isEcommerce: true,
+    logoKey: "ECOMMERCE" as BrandKey, // Mosaico generico en vez del logo VTEX
     missFeatures: [
       "Sincronización de pedidos en tiempo real",
       "Análisis de ventas, AOV, conversión",
@@ -346,13 +348,13 @@ const ALL_PLATFORMS: Platform[] = [
   },
 ];
 
-// Proveedores ecommerce soportados
-const ECOMMERCE_PROVIDERS = [
-  { key: "vtex", name: "VTEX", active: true },
-  { key: "tiendanube", name: "Tiendanube", active: false },
-  { key: "shopify", name: "Shopify", active: false },
-  { key: "woocommerce", name: "WooCommerce", active: false },
-  { key: "magento", name: "Magento", active: false },
+// Proveedores ecommerce soportados (con logo oficial de cada uno)
+const ECOMMERCE_PROVIDERS: Array<{ key: string; name: string; active: boolean; brand: BrandKey; accentColor: string }> = [
+  { key: "vtex", name: "VTEX", active: true, brand: "VTEX", accentColor: "#FF3366" },
+  { key: "tiendanube", name: "Tiendanube", active: false, brand: "TIENDANUBE", accentColor: "#0099E0" },
+  { key: "shopify", name: "Shopify", active: false, brand: "SHOPIFY", accentColor: "#95BF47" },
+  { key: "woocommerce", name: "WooCommerce", active: false, brand: "WOOCOMMERCE", accentColor: "#7F54B3" },
+  { key: "magento", name: "Magento", active: false, brand: "MAGENTO", accentColor: "#EE672F" },
 ];
 
 function calcCompletion(platformKey: BrandKey, creds: any): number {
@@ -560,7 +562,7 @@ function WizardFullscreen({ orgId, onSubmitted }: { orgId: string | null; onSubm
                 </div>
                 {/* Logo */}
                 <div style={{ flexShrink: 0, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", filter: isSkip ? "grayscale(100%)" : "none" }}>
-                  <BrandLogo brand={p.key} size={24} />
+                  <BrandLogo brand={p.logoKey || p.key} size={24} />
                 </div>
                 {/* Nombre + progress */}
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -735,7 +737,7 @@ function PlatformCenterPanel({ platformKey, creds, onChange, orgId, history, onH
     <div style={{ maxWidth: 640 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
-        <BrandLogo brand={platformKey} size={40} />
+        <BrandLogo brand={p.logoKey || platformKey} size={40} />
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", margin: 0, color: "#fff" }}>
             {p.name}
@@ -801,65 +803,143 @@ function EcommerceInputs({ creds, onChange }: any) {
   const provider = creds.provider || "";
   return (
     <>
-      <Field label="¿Qué plataforma ecommerce usás?" hint="Seleccioná la plataforma donde operás tu tienda online.">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
-          {ECOMMERCE_PROVIDERS.map((pv) => {
-            const selected = provider === pv.key;
-            return (
-              <button
-                key={pv.key}
-                onClick={() => pv.active && onChange("provider", pv.key)}
-                disabled={!pv.active}
-                style={{
-                  padding: "10px 12px",
-                  background: selected ? "rgba(255,94,26,0.12)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${selected ? BRAND_ORANGE : BORDER}`,
-                  borderRadius: 9,
-                  color: !pv.active ? TEXT_MUTED : selected ? "#fff" : TEXT_PRIMARY,
-                  cursor: pv.active ? "pointer" : "not-allowed",
-                  fontSize: 12,
-                  fontWeight: selected ? 700 : 500,
-                  opacity: pv.active ? 1 : 0.5,
-                  textAlign: "center",
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-                }}
-              >
-                {pv.name}
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 13, fontWeight: 700, color: TEXT_PRIMARY, display: "block", marginBottom: 4 }}>
+          ¿Qué plataforma ecommerce usás?
+        </label>
+        <p style={{ fontSize: 12, color: TEXT_SECONDARY, margin: 0, lineHeight: 1.5 }}>
+          Seleccioná la plataforma donde operás tu tienda online. Las que están "en desarrollo"
+          podés marcarlas para que te prioricemos cuando las integremos.
+        </p>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, marginBottom: 18 }}>
+        {ECOMMERCE_PROVIDERS.map((pv) => {
+          const selected = provider === pv.key;
+          return (
+            <button
+              key={pv.key}
+              onClick={() => onChange("provider", pv.key)}
+              style={{
+                position: "relative",
+                padding: "16px 12px 14px",
+                background: selected
+                  ? `linear-gradient(135deg, ${pv.accentColor}20, ${pv.accentColor}08)`
+                  : "rgba(255,255,255,0.03)",
+                border: `2px solid ${selected ? pv.accentColor : BORDER}`,
+                borderRadius: 12,
+                color: TEXT_PRIMARY,
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 10,
+                transition: "all 160ms",
+                boxShadow: selected ? `0 6px 20px ${pv.accentColor}25` : "0 1px 2px rgba(0,0,0,0.2)",
+              }}
+              onMouseEnter={(e) => {
+                if (!selected) (e.currentTarget as HTMLButtonElement).style.borderColor = `${pv.accentColor}80`;
+              }}
+              onMouseLeave={(e) => {
+                if (!selected) (e.currentTarget as HTMLButtonElement).style.borderColor = BORDER;
+              }}
+            >
+              {/* Check icon cuando seleccionado */}
+              {selected && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    background: pv.accentColor,
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Check size={11} />
+                </div>
+              )}
+
+              <BrandLogo brand={pv.brand} size={40} />
+
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: selected ? "#fff" : TEXT_PRIMARY, lineHeight: 1.2 }}>
+                  {pv.name}
+                </div>
                 {!pv.active && (
-                  <span style={{ fontSize: 9, color: TEXT_MUTED, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                  <div style={{
+                    marginTop: 4,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 3,
+                    fontSize: 9,
+                    fontWeight: 600,
+                    color: selected ? pv.accentColor : TEXT_MUTED,
+                    padding: "2px 7px",
+                    background: selected ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
+                    borderRadius: 99,
+                  }}>
                     <Lock size={8} /> En desarrollo
-                  </span>
+                  </div>
                 )}
-              </button>
-            );
-          })}
-        </div>
-      </Field>
+                {pv.active && (
+                  <div style={{
+                    marginTop: 4,
+                    fontSize: 9,
+                    fontWeight: 600,
+                    color: selected ? pv.accentColor : "#22C55E",
+                    padding: "2px 7px",
+                    background: selected ? "rgba(255,255,255,0.08)" : "rgba(34,197,94,0.08)",
+                    borderRadius: 99,
+                    display: "inline-block",
+                  }}>
+                    Disponible
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       {provider === "vtex" && (
-        <>
-          <div style={{ marginTop: 16 }}>
-            <Field label="Account Name" hint="Es el subdomain de tu tienda VTEX.">
-              <Input value={creds.accountName || ""} onChange={(v) => onChange("accountName", v)} placeholder="arredo" maxLength={60} />
-            </Field>
-            <Field label="App Key" hint="Empieza con 'vtexappkey-'.">
-              <Input value={creds.appKey || ""} onChange={(v) => onChange("appKey", v)} placeholder="vtexappkey-xxxxx-XXXXXX" mono />
-            </Field>
-            <Field label="App Token">
-              <Input value={creds.appToken || ""} onChange={(v) => onChange("appToken", v)} placeholder="ABCD1234..." mono />
-            </Field>
+        <div style={{ marginTop: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, paddingTop: 16, borderTop: `1px dashed ${BORDER}` }}>
+            Credenciales de VTEX
           </div>
-        </>
+          <Field label="Account Name" hint="Es el subdomain de tu tienda VTEX.">
+            <Input value={creds.accountName || ""} onChange={(v) => onChange("accountName", v)} placeholder="arredo" maxLength={60} />
+          </Field>
+          <Field label="App Key" hint="Empieza con 'vtexappkey-'.">
+            <Input value={creds.appKey || ""} onChange={(v) => onChange("appKey", v)} placeholder="vtexappkey-xxxxx-XXXXXX" mono />
+          </Field>
+          <Field label="App Token">
+            <Input value={creds.appToken || ""} onChange={(v) => onChange("appToken", v)} placeholder="ABCD1234..." mono />
+          </Field>
+        </div>
       )}
 
       {provider && provider !== "vtex" && (
-        <div style={{ marginTop: 18, padding: "14px 16px", background: "rgba(255,94,26,0.08)", border: "1px solid rgba(255,94,26,0.25)", borderRadius: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: BRAND_ORANGE, marginBottom: 6 }}>
-            Integración en desarrollo
+        <div style={{ marginTop: 4, padding: "16px 18px", background: "rgba(255,94,26,0.08)", border: "1px solid rgba(255,94,26,0.25)", borderRadius: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <BrandLogo brand={ECOMMERCE_PROVIDERS.find((pv) => pv.key === provider)!.brand} size={28} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
+                {ECOMMERCE_PROVIDERS.find((pv) => pv.key === provider)?.name}
+              </div>
+              <div style={{ fontSize: 10, color: BRAND_ORANGE, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Integración en desarrollo
+              </div>
+            </div>
           </div>
           <div style={{ fontSize: 12, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
-            Estamos desarrollando la integración con {ECOMMERCE_PROVIDERS.find((pv) => pv.key === provider)?.name}.
-            Si confirmás tu interés ahora, te priorizamos y te avisamos en cuanto esté lista.
+            Marcaste interés en <strong style={{ color: "#fff" }}>{ECOMMERCE_PROVIDERS.find((pv) => pv.key === provider)?.name}</strong>.
+            Te vamos a priorizar y avisamos por email apenas esté lista la integración.
+            Mientras tanto podés dejar esta plataforma marcada y completar las otras.
           </div>
         </div>
       )}

@@ -168,7 +168,82 @@ export function VisualTutorial({ platformKey }: { platformKey: BrandKey }) {
         {current.mockup}
       </div>
 
-      {current.explanation && (
+      {/* Instrucciones detalladas — jerarquia simple y clara */}
+      {current.instructions && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#A5B4FC",
+            textTransform: "uppercase",
+            letterSpacing: "0.1em",
+            marginBottom: 8,
+          }}>
+            {current.instructions.heading}
+          </div>
+          <ol style={{
+            margin: 0,
+            paddingLeft: 0,
+            listStyle: "none",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}>
+            {current.instructions.steps.map((s, i) => (
+              <li key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <div style={{
+                  flexShrink: 0,
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  background: "rgba(129,140,248,0.15)",
+                  border: "1px solid rgba(129,140,248,0.35)",
+                  color: "#A5B4FC",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginTop: 1,
+                }}>
+                  {i + 1}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: TEXT_PRIMARY, lineHeight: 1.55, fontWeight: 500 }}>
+                    {typeof s === "string" ? s : s.text}
+                  </div>
+                  {typeof s !== "string" && s.hint && (
+                    <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.55, marginTop: 3 }}>
+                      {s.hint}
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+          {current.instructions.tip && (
+            <div style={{
+              marginTop: 10,
+              padding: "8px 10px",
+              background: "rgba(34,197,94,0.06)",
+              border: "1px solid rgba(34,197,94,0.2)",
+              borderRadius: 7,
+              fontSize: 11,
+              color: TEXT_SECONDARY,
+              lineHeight: 1.55,
+              display: "flex",
+              gap: 6,
+              alignItems: "flex-start",
+            }}>
+              <span style={{ color: "#22C55E", fontWeight: 700 }}>💡</span>
+              <span>{current.instructions.tip}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fallback si no hay instructions pero hay explanation viejo */}
+      {!current.instructions && current.explanation && (
         <div style={{
           padding: "10px 12px",
           background: "rgba(129,140,248,0.06)",
@@ -265,7 +340,12 @@ interface TutorialStep {
   title: string;
   subtitle?: string;
   mockup: React.ReactNode;
-  explanation?: string;
+  explanation?: string; // legacy — usar instructions
+  instructions?: {
+    heading: string;
+    steps: Array<string | { text: string; hint?: string }>;
+    tip?: string;
+  };
   docUrl?: string;
 }
 
@@ -306,7 +386,15 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "En el menú lateral izquierdo, buscá la sección 'Account' (Cuenta). Ahí vas a encontrar 'Application Keys'.",
+      instructions: {
+        heading: "Qué hacer",
+        steps: [
+          { text: "Abrí tu admin VTEX", hint: "La URL es https://{tu-cuenta}.myvtex.com/admin — reemplazá {tu-cuenta} por tu subdomain (ej: arredo, elmundodeljuguete)." },
+          { text: "Buscá 'Account' en el menú lateral izquierdo", hint: "Puede aparecer como 'Cuenta' si tu admin está en español. Está cerca del final del menú." },
+          { text: "Dentro de Account, click en 'Application Keys'", hint: "Si no ves esa opción directamente, andá a: Cuenta → Gestión de usuarios → App Keys." },
+        ],
+        tip: "Si nunca usaste App Keys, VTEX te puede pedir habilitar la feature con un click de confirmación.",
+      },
     },
     {
       title: "Tu lista de App Keys",
@@ -319,12 +407,16 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           onError={(e) => {
             const img = e.currentTarget as HTMLImageElement;
             img.style.display = "none";
-            const fb = img.nextElementSibling as HTMLElement | null;
-            if (fb) fb.style.display = "block";
           }}
         />
       ),
-      explanation: "Esta es la pantalla oficial de 'API Keys' en VTEX. Click en 'Generate New' (arriba a la derecha) para crear una nueva.",
+      instructions: {
+        heading: "Qué hacer",
+        steps: [
+          { text: "Click en 'Manage my keys'", hint: "Botón que está arriba del listado." },
+          { text: "Click en 'Generate New'", hint: "Te abre el formulario para crear una nueva key." },
+        ],
+      },
       docUrl: "https://help.vtex.com/en/tutorial/application-keys--2iffYzlvvz4BDMr6WGUtet",
     },
     {
@@ -367,7 +459,16 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "Escribí 'NitroSales' como label. Asigná el rol 'Owner (Admin Super)'. Click 'Generate' y copiá las credenciales — el Token se muestra una sola vez.",
+      instructions: {
+        heading: "Qué hacer",
+        steps: [
+          { text: "Label: escribí 'NitroSales'", hint: "Es solo un nombre interno para identificar esta integración desde tu admin." },
+          { text: "Asignar Roles → seleccioná 'Owner (Admin Super)'", hint: "Es el rol recomendado por VTEX para integraciones analíticas como NitroSales. Podés refinarlo después con permisos más granulares si querés." },
+          { text: "Click 'Generate'", hint: "VTEX crea el par App Key + App Token." },
+          { text: "Copiá AHORA las 3 credenciales (accountName, appKey, appToken)", hint: "El Token SOLO se muestra una vez. Si se pierde, hay que regenerar la key completa." },
+        ],
+        tip: "Pegalas directamente en los inputs de la columna central. Quedan encriptadas con AES-256 en nuestra base.",
+      },
       docUrl: "https://developers.vtex.com/docs/guides/api-authentication-using-application-keys",
     },
   ],
@@ -403,7 +504,15 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "Cuando estás logueado, arriba a la derecha ves tu usuario. Copialo sin la '@' (solo el texto).",
+      instructions: {
+        heading: "Qué hacer",
+        steps: [
+          { text: "Entrá a mercadolibre.com.ar logueado con tu cuenta vendedor", hint: "Asegurate de estar en la cuenta desde donde vendés, no una personal." },
+          { text: "Click arriba a la derecha en tu nombre/usuario", hint: "Se despliega un menú con tu información." },
+          { text: "Copiá tu usuario (solo el texto, sin la @)", hint: "Si dice '@MARIA123', pegás 'MARIA123' en NitroSales." },
+        ],
+        tip: "Después del wizard te vamos a llevar a MELI para autorizar NitroSales vía OAuth oficial — no te pedimos tu contraseña.",
+      },
     },
   ],
 
@@ -452,7 +561,16 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "Copiá solo los números (sin el prefijo 'act_'). Ejemplo: si dice 'act_123456789', pegás '123456789' en NitroSales.",
+      instructions: {
+        heading: "Cómo obtener el Ad Account ID",
+        steps: [
+          { text: "Abrí business.facebook.com logueado", hint: "Con la cuenta que tiene tu Business Manager." },
+          { text: "Click en el engranaje ⚙ arriba izquierda", hint: "Se abre 'Configuración del negocio'." },
+          { text: "Menú izquierdo: Cuentas → Cuentas publicitarias", hint: "Ves el listado de todas tus Ad Accounts." },
+          { text: "Copiá el ID de la cuenta que querés conectar", hint: "Formato: 'act_123456789'. Copiá SOLO los números (sin 'act_'). En NitroSales pegás '123456789'." },
+        ],
+        tip: "Si tenés varias Ad Accounts, elegí la que realmente usás para vender — es desde donde vamos a traer las métricas.",
+      },
     },
     {
       title: "Generar System User Token",
@@ -490,7 +608,18 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "Creá un System User 'NitroSales' con rol Admin, asignale tu Ad Account con Acceso completo, y generá el token con permisos: ads_read, ads_management, business_management.",
+      instructions: {
+        heading: "Cómo generar el Access Token",
+        steps: [
+          { text: "Configuración del negocio → Usuarios → Usuarios del sistema", hint: "Menú lateral izquierdo, sección 'Usuarios'." },
+          { text: "Click 'Agregar' → Nombre: 'NitroSales' → Rol: 'Administrador'", hint: "El nombre es solo para identificarlo. El rol 'Administrador' es necesario para generar el token." },
+          { text: "Click sobre el nuevo usuario → 'Agregar activos' → Cuentas publicitarias", hint: "Asigná tu Ad Account al System User con permiso 'Acceso completo' (full access)." },
+          { text: "Click 'Generar token'", hint: "Se abre un modal para seleccionar una app y los permisos." },
+          { text: "Seleccioná permisos: ads_read, ads_management, business_management", hint: "Marcá EXACTAMENTE esos 3. No marques otros." },
+          { text: "Copiá el token (empieza con 'EAA...')", hint: "Solo se muestra UNA vez. Si se pierde, tenés que regenerarlo." },
+        ],
+        tip: "Usamos System User (no token personal) porque dura para siempre. Los personales vencen a los 60 días y te obligarían a reconectar.",
+      },
       docUrl: "https://developers.facebook.com/docs/marketing-api/system-users",
     },
   ],
@@ -553,7 +682,17 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "Seleccioná tu pixel → copiá el ID (15-16 dígitos). Después: pestaña Configuración → Conversions API → Generar token de acceso.",
+      instructions: {
+        heading: "Cómo obtener Pixel ID + Access Token",
+        steps: [
+          { text: "Abrí business.facebook.com/events_manager logueado", hint: "Es distinto de Business Manager — es el módulo de eventos y pixeles." },
+          { text: "Seleccioná tu pixel en el sidebar", hint: "Si no tenés uno, '+ Conectar fuente de datos' → Web → Pixel de Meta." },
+          { text: "Copiá el 'ID del pixel' (15-16 dígitos)", hint: "Aparece debajo del nombre del pixel. No es el Ad Account ID — son distintos." },
+          { text: "Pestaña 'Configuración' → scrollear hasta 'Conversions API'", hint: "Click en 'Configurar manualmente' (no con partner)." },
+          { text: "Click 'Generar token de acceso'", hint: "Copialo al instante, solo se muestra una vez." },
+        ],
+        tip: "Si ya tenés el System User token de Meta Ads con permiso ads_management, podés reusar ese token. Pero Meta recomienda uno dedicado para trazabilidad.",
+      },
     },
   ],
 
@@ -598,7 +737,15 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "Arriba a la derecha de Google Ads ves el número en formato 123-456-7890. Copiá SOLO los dígitos (sin los guiones). Ejemplo: 1234567890.",
+      instructions: {
+        heading: "Cómo encontrar el Customer ID",
+        steps: [
+          { text: "Abrí ads.google.com logueado", hint: "Con la cuenta que tiene acceso a tu Google Ads." },
+          { text: "Mirá arriba a la derecha, al lado del selector de cuentas", hint: "Vas a ver un número con formato 123-456-7890 o 'CID: 1234567890'." },
+          { text: "Copiá los 10 dígitos (SIN los guiones)", hint: "Ejemplo: si ves '123-456-7890', pegás '1234567890' en NitroSales." },
+        ],
+        tip: "Después del wizard te vamos a llevar a login oficial de Google para autorizar acceso a la API — no te pedimos tu contraseña.",
+      },
       docUrl: "https://support.google.com/google-ads/answer/1704344",
     },
   ],
@@ -652,7 +799,15 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "Arriba a la izquierda, el selector de propiedades. Abrilo y copiá la URL EXACTA de tu propiedad (con https:// y barra final si corresponde).",
+      instructions: {
+        heading: "Cómo obtener la URL de tu propiedad",
+        steps: [
+          { text: "Abrí search.google.com/search-console logueado", hint: "Con la cuenta que tiene verificada tu propiedad." },
+          { text: "Click en el selector de propiedades (arriba a la izquierda)", hint: "Muestra el listado de todos tus sitios verificados." },
+          { text: "Copiá la URL EXACTA (con https:// y barra final si corresponde)", hint: "Ejemplo: 'https://www.tutienda.com/' — respetá mayúsculas, prefijo y formato completo." },
+        ],
+        tip: "Si tu propiedad es de tipo 'dominio' (sin protocolo), copiala tal cual aparece — el formato se ajusta del lado de NitroSales.",
+      },
       docUrl: "https://support.google.com/webmasters/answer/34592",
     },
   ],
@@ -711,7 +866,18 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "En GTM: Tags → Nueva tag → Custom HTML → pegá el snippet que está en la columna del centro → Trigger: All Pages → Guardar y publicar.",
+      instructions: {
+        heading: "Cómo pegar el snippet en GTM",
+        steps: [
+          { text: "Abrí Google Tag Manager (tagmanager.google.com)", hint: "Elegí el contenedor que tenés activo en tu sitio." },
+          { text: "Workspace → Tags → 'Nueva'", hint: "Se abre el editor de tag." },
+          { text: "Tipo de tag: 'Custom HTML'", hint: "Símbolo ⟨⟩. Es el tipo que permite pegar scripts directamente." },
+          { text: "Pegá el snippet que está en la columna del centro", hint: "Lleva tu orgId ya incrustado — no necesitás editarlo." },
+          { text: "Trigger: 'All Pages'", hint: "Para que el pixel se cargue en todas las páginas de tu sitio." },
+          { text: "Guardar + PUBLICAR la nueva versión", hint: "Importante: guardar no basta — hay que publicar desde el botón arriba derecha." },
+        ],
+        tip: "Si no usás GTM, pegá el snippet directamente en el <head> de tu sitio antes del </head>.",
+      },
     },
     {
       title: "Nosotros validamos en tiempo real",
@@ -753,7 +919,15 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           </div>
         </BrowserFrame>
       ),
-      explanation: "Cuando tu sitio empiece a mandar pings, nosotros los vemos en tiempo real. Apenas vemos actividad válida, aprobamos tu cuenta automáticamente.",
+      instructions: {
+        heading: "Qué pasa después",
+        steps: [
+          { text: "Entrás a nuestro dashboard interno y vemos llegar los pings", hint: "PageViews, AddToCart, Purchase, etc. según los eventos que tu sitio dispare." },
+          { text: "Validamos que el tracking sea correcto", hint: "Chequeamos que cada evento tenga los datos necesarios (producto, usuario, valor, etc.)." },
+          { text: "Te aprobamos la cuenta automáticamente", hint: "Una vez que vemos actividad válida, disparamos el backfill y te desbloqueamos el producto." },
+        ],
+        tip: "El proceso suele tardar unos minutos desde que publicás en GTM hasta que recibimos el primer ping.",
+      },
     },
   ],
 };

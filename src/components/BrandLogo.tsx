@@ -11,7 +11,10 @@
 
 import React from "react";
 
-export type BrandKey = "VTEX" | "MERCADOLIBRE" | "META_ADS" | "META_PIXEL" | "GOOGLE_ADS" | "GSC" | "NITROPIXEL";
+export type BrandKey =
+  | "VTEX" | "MERCADOLIBRE" | "META_ADS" | "META_PIXEL" | "GOOGLE_ADS" | "GSC" | "NITROPIXEL"
+  // Providers ecommerce (para el dropdown)
+  | "ECOMMERCE" | "TIENDANUBE" | "SHOPIFY" | "WOOCOMMERCE" | "MAGENTO";
 
 interface BrandLogoProps {
   brand: BrandKey;
@@ -184,6 +187,100 @@ export function BrandLogo({ brand, size = 24, className }: BrandLogoProps) {
             </g>
           </svg>
         </div>
+      );
+
+    case "ECOMMERCE":
+      // Mosaico 2x2 con los 4 logos principales de ecommerce — transmite
+      // "multiples plataformas" en lugar del logo especifico de VTEX.
+      return (
+        <div
+          style={{
+            width: size,
+            height: size,
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: Math.max(1, size * 0.04),
+            background: "linear-gradient(135deg, rgba(255,94,26,0.08), rgba(168,85,247,0.08))",
+            borderRadius: size * 0.16,
+            padding: size * 0.08,
+            boxSizing: "border-box",
+          }}
+          className={className}
+        >
+          {/* VTEX (rosa) */}
+          <div style={{ background: "#FF3366", borderRadius: size * 0.08, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontSize: size * 0.22, fontWeight: 900, color: "#fff", letterSpacing: "-0.03em" }}>V</div>
+          </div>
+          {/* Tiendanube (celeste) */}
+          <div style={{ background: "#0099E0", borderRadius: size * 0.08, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontSize: size * 0.22, fontWeight: 900, color: "#fff", letterSpacing: "-0.03em" }}>TN</div>
+          </div>
+          {/* Shopify (verde lima) */}
+          <div style={{ background: "#96BF48", borderRadius: size * 0.08, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontSize: size * 0.22, fontWeight: 900, color: "#fff", letterSpacing: "-0.03em" }}>S</div>
+          </div>
+          {/* WooCommerce (morado) */}
+          <div style={{ background: "#7F54B3", borderRadius: size * 0.08, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontSize: size * 0.22, fontWeight: 900, color: "#fff", letterSpacing: "-0.03em" }}>W</div>
+          </div>
+        </div>
+      );
+
+    case "TIENDANUBE":
+      // Tiendanube no tiene SVG en simple-icons. Uso su color oficial con
+      // monograma "TN".
+      return (
+        <div
+          style={{
+            width: size,
+            height: size,
+            background: "linear-gradient(135deg, #0099E0, #007BBA)",
+            borderRadius: size * 0.18,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            fontSize: size * 0.42,
+            fontWeight: 900,
+            letterSpacing: "-0.04em",
+          }}
+          className={className}
+        >
+          TN
+        </div>
+      );
+
+    case "SHOPIFY":
+      // SVG oficial Shopify (simple-icons, CC0)
+      return (
+        <svg {...commonProps}>
+          <path
+            fill="#95BF47"
+            d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"
+          />
+        </svg>
+      );
+
+    case "WOOCOMMERCE":
+      // SVG oficial WooCommerce (simple-icons, CC0) — color morado
+      return (
+        <svg {...commonProps}>
+          <path
+            fill="#7F54B3"
+            d="M.754 9.58a.754.754 0 00-.754.758v2.525c0 .42.339.758.758.758h3.135l1.431.799-.326-.799h2.373a.757.757 0 00.758-.758v-2.525a.757.757 0 00-.758-.758H.754zm2.709.445h.03c.065.001.124.023.179.067a.26.26 0 01.103.19.29.29 0 01-.033.16c-.13.239-.236.64-.322 1.199-.083.541-.114.965-.094 1.267a.392.392 0 01-.039.219.213.213 0 01-.176.12c-.086.006-.177-.034-.263-.124-.31-.316-.555-.788-.735-1.416-.216.425-.375.744-.478.957-.196.376-.363.568-.502.578-.09.007-.166-.069-.233-.228-.17-.436-.352-1.277-.548-2.524a.297.297 0 01.054-.222c.047-.064.116-.095.21-.102.169-.013.265.065.288.238.103.695.217 1.284.336 1.766l.727-1.387c.066-.126.15-.192.25-.199.146-.01.237.083.273.28.083.441.188.817.315 1.136.086-.844.233-1.453.44-1.828a.255.255 0 01.218-.147z"
+          />
+        </svg>
+      );
+
+    case "MAGENTO":
+      // Magento — custom con su forma romboidal naranja (oficial).
+      return (
+        <svg {...commonProps}>
+          <path
+            fill="#EE672F"
+            d="M12 0L1.607 6v12L12 24V6l-6.464 3.732V17.2L12 20.934l6.464-3.732V9.732L12 6V0z"
+          />
+        </svg>
       );
 
     default:
