@@ -25,6 +25,7 @@ import {
   completeJob,
   failJob,
   areAllJobsComplete,
+  getJob,
 } from "@/lib/backfill/job-manager";
 import { processChunk } from "@/lib/backfill/dispatcher";
 import { sendEmail } from "@/lib/email/send";
@@ -55,7 +56,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Loop: procesar chunks hasta agotar tiempo o no quedar jobs
+    // Loop: procesar chunks hasta agotar tiempo o no quedar jobs.
+    //
+    // FIX (post-deploy inicial): el loop reusa el MISMO job mientras no complete,
+    // en vez de re-pickear cada iteracion. pickNextJob tiene cooldown de 2 min
+    // (proteccion anti race conditions entre cron + waitUntil) que bloqueaba
+    // que el loop interno avance — el job recien procesado quedaba "bloqueado"
+    // por su propio lastChunkAt fresco.
+    //
+    // Ahora: pickeamos un job al inicio (o cuando uno completa) y lo reusamos
+    // hasta complete/error. La proteccion contra workers concurrentes sigue
+    // intacta porque la reusa es DENTRO del mismo invoke (mismo worker que
+    // ya tiene "lock" via lastChunkAt fresco).
+    let currentJob: any = null;
+
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const elapsed = Date.now() - startTime;
       if (elapsed >= LOOP_BUDGET_MS) {
@@ -63,23 +77,31 @@ export async function GET(req: NextRequest) {
         break;
       }
 
-      const job = await pickNextJob();
-      if (!job) {
-        // No hay mas jobs en QUEUED/RUNNING activos
-        break;
+      // Pickear nuevo job solo si no tenemos uno activo
+      if (!currentJob) {
+        currentJob = await pickNextJob();
+        if (!currentJob) {
+          // No hay mas jobs en QUEUED/RUNNING activos
+          break;
+        }
+        await markJobRunning(currentJob.id);
+      } else {
+        // Refrescar el job desde DB para tener cursor/processedCount actualizados
+        // (los acabamos de updatear nosotros mismos en la iter anterior).
+        const fresh = await getJob(currentJob.id);
+        if (!fresh) break; // safety — no deberia pasar
+        currentJob = fresh;
       }
 
-      await markJobRunning(job.id);
-
-      const result = await processChunk(job);
-      const newProcessed = (Number(job.processedCount) || 0) + result.itemsProcessed;
-      const total = result.totalEstimate || job.totalEstimate || 0;
+      const result = await processChunk(currentJob);
+      const newProcessed = (Number(currentJob.processedCount) || 0) + result.itemsProcessed;
+      const total = result.totalEstimate || currentJob.totalEstimate || 0;
       const pct = total > 0 ? Math.round((newProcessed / total) * 100) : (result.isComplete ? 100 : 0);
 
-      await updateJobProgress(job.id, {
+      await updateJobProgress(currentJob.id, {
         cursor: result.newCursor,
         processedCount: newProcessed,
-        totalEstimate: result.totalEstimate || Number(job.totalEstimate) || undefined,
+        totalEstimate: result.totalEstimate || Number(currentJob.totalEstimate) || undefined,
         progressPct: pct,
       });
 
@@ -88,34 +110,38 @@ export async function GET(req: NextRequest) {
         // El job queda RUNNING con el cursor donde fallo; el proximo tick retoma.
         await prisma.$executeRawUnsafe(
           `UPDATE "backfill_jobs" SET "lastError" = $2, "updatedAt" = NOW() WHERE "id" = $1`,
-          job.id,
+          currentJob.id,
           result.error.slice(0, 2000)
         );
-        iterations.push({ jobId: job.id, platform: job.platform, items: result.itemsProcessed, error: result.error });
-        // En caso de error, salir del loop para no machacar al provider
-        // (el cursor quedo guardado, proxima invocacion retoma)
+        iterations.push({ jobId: currentJob.id, platform: currentJob.platform, items: result.itemsProcessed, error: result.error });
+        // En caso de error, soltar el job y salir del loop (no machacar al provider).
+        // El cursor quedo guardado, proxima invocacion retoma despues del cooldown.
+        currentJob = null;
         break;
       }
 
-      if (result.isComplete) {
-        await completeJob(job.id);
-
-        // Si era parte de un onboarding y ya terminaron todos → activar
-        if (job.onboardingRequestId) {
-          const allDone = await areAllJobsComplete(job.onboardingRequestId);
-          if (allDone) {
-            await finalizeOnboarding(job.onboardingRequestId);
-          }
-        }
-      }
-
       iterations.push({
-        jobId: job.id,
-        platform: job.platform,
+        jobId: currentJob.id,
+        platform: currentJob.platform,
         items: result.itemsProcessed,
         complete: result.isComplete,
         pct,
       });
+
+      if (result.isComplete) {
+        await completeJob(currentJob.id);
+
+        // Si era parte de un onboarding y ya terminaron todos → activar
+        if (currentJob.onboardingRequestId) {
+          const allDone = await areAllJobsComplete(currentJob.onboardingRequestId);
+          if (allDone) {
+            await finalizeOnboarding(currentJob.onboardingRequestId);
+          }
+        }
+        // Soltamos este job para que la proxima iter pickee otro (otra plataforma)
+        currentJob = null;
+      }
+      // Si no completo, currentJob queda y la proxima iter lo refresca desde DB
     }
 
     const totalProcessed = iterations.reduce((a, it) => a + (Number(it.items) || 0), 0);
