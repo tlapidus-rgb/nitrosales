@@ -132,6 +132,8 @@ export async function GET() {
       locked,
       phase,
       onboardingRequestId: ob.id,
+      orgId: user.organizationId, // Necesario para incrustar en el snippet de NitroPixel
+      organizationId: user.organizationId, // Alias para compat
       backfillProgress,
       // Diagnostico para debug
       signals: {

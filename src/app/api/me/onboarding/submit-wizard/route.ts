@@ -175,9 +175,18 @@ function validatePlatformCreds(platform: string, creds: any): string | null {
   if (!creds || typeof creds !== "object") return "credentials requerido";
   switch (platform) {
     case "VTEX":
-      if (!creds.accountName || typeof creds.accountName !== "string") return "accountName requerido";
-      if (!creds.appKey || typeof creds.appKey !== "string") return "appKey requerido";
-      if (!creds.appToken || typeof creds.appToken !== "string") return "appToken requerido";
+      // 'provider' viene del dropdown de plataforma ecommerce (vtex/tiendanube/...)
+      // Si NO es vtex, el cliente eligió una plataforma en desarrollo — lo aceptamos
+      // como interes capturado pero sin credenciales.
+      if (!creds.provider || typeof creds.provider !== "string") {
+        return "Seleccioná tu plataforma ecommerce";
+      }
+      if (creds.provider === "vtex") {
+        if (!creds.accountName || typeof creds.accountName !== "string") return "accountName requerido";
+        if (!creds.appKey || typeof creds.appKey !== "string") return "appKey requerido";
+        if (!creds.appToken || typeof creds.appToken !== "string") return "appToken requerido";
+      }
+      // Para providers no-vtex (tiendanube/shopify/etc), solo capturamos interes.
       break;
     case "MERCADOLIBRE":
       if (!creds.username || typeof creds.username !== "string") return "username requerido";

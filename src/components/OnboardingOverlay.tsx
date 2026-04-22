@@ -2,17 +2,21 @@
 "use client";
 
 // ══════════════════════════════════════════════════════════════
-// OnboardingOverlay v5 — fondo aurora animado + tri-state + NitroPixel
+// OnboardingOverlay v6 — pantalla entera, 3 columnas
 // ══════════════════════════════════════════════════════════════
-// Mejoras:
-//  - Fondo con blobs naranja/violeta animados (reemplaza al producto real
-//    atras para que no pese ni se vea lo que hay detras)
-//  - Progress general con denominador FIJO: 100% solo si todas las 7
-//    plataformas fueron DECIDIDAS (usa o no usa)
-//  - Tri-state por plataforma: pending / use / skip. "Skip" requiere
-//    modal de confirmacion con lista de features que pierde
-//  - NitroPixel como 7ma plataforma, con snippet + toggle "lo pegué"
-//  - Logo oficial Google Search Console (multi-color, del SVG real)
+// Layout nuevo:
+//   - Full viewport (100vw x 100vh) — no modal
+//   - Columna izquierda: sidebar plataformas con tri-state (pending/use/skip)
+//   - Columna centro: tutorial de texto + inputs de credenciales
+//   - Columna derecha: tutorial VISUAL con screenshots (placeholder por ahora)
+//
+// Cambios vs v5:
+//   - Full screen en vez de modal centrado
+//   - 3 columnas en vez de 2
+//   - "VTEX" ahora es "Plataforma Ecommerce" con dropdown aspiracional
+//     (VTEX activo, Tiendanube/Shopify/WooCommerce/Magento "en desarrollo")
+//   - NitroPixel lee orgId del endpoint state (ahora lo devuelve)
+//   - Columna derecha con placeholder para screenshots (Parte 2)
 // ══════════════════════════════════════════════════════════════
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -25,21 +29,20 @@ import {
   Info,
   ShieldCheck,
   Sparkles,
-  X,
   Copy,
   Check,
   Ban,
+  Image as ImageIcon,
+  Lock,
 } from "lucide-react";
 import { BrandLogo, type BrandKey } from "./BrandLogo";
 
 const BRAND_ORANGE = "#FF5E1A";
-const CARD_BG = "rgba(20,20,25,0.92)";
 const BORDER = "rgba(255,255,255,0.08)";
 const TEXT_PRIMARY = "#FFFFFF";
 const TEXT_SECONDARY = "#9CA3AF";
 const TEXT_MUTED = "#6B7280";
 const ACCENT_GREEN = "#22C55E";
-const ACCENT_VIOLET = "#A855F7";
 const ACCENT_RED = "#EF4444";
 
 // ═══════════════════════════════════════════════════════════════
@@ -82,54 +85,51 @@ export default function OnboardingOverlay() {
         position: "fixed",
         inset: 0,
         zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-        overflow: "hidden",
-        // Fondo base OPACO (nunca transparente, no muestra el producto detras)
         background: "#0A0A0F",
+        overflow: "hidden",
       }}
     >
-      {/* Aurora animada (blobs de color moviendose) */}
+      {/* Aurora de fondo */}
       <AuroraBackground />
 
+      {/* Contenido */}
       <div
         style={{
           position: "relative",
           zIndex: 2,
-          width: "100%",
-          maxWidth: isWizard ? 1080 : 680,
-          height: isWizard ? "92vh" : "auto",
-          maxHeight: "92vh",
-          background: CARD_BG,
-          border: `1px solid ${BORDER}`,
-          borderRadius: 20,
-          boxShadow: "0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset",
+          width: "100vw",
+          height: "100vh",
           color: TEXT_PRIMARY,
           overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          backdropFilter: "blur(40px)",
-          WebkitBackdropFilter: "blur(40px)",
         }}
       >
-        {state.phase === "wizard" && <WizardScroll onSubmitted={fetchState} />}
-        {state.phase === "validating" && (
-          <div style={{ padding: 36, overflow: "auto" }}>
-            <ValidatingPhase />
-          </div>
-        )}
-        {state.phase === "backfilling" && (
-          <div style={{ padding: 36, overflow: "auto" }}>
-            <BackfillingPhase progress={state.backfillProgress} />
+        {isWizard && <WizardFullscreen orgId={state.orgId} onSubmitted={fetchState} />}
+        {!isWizard && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: 24 }}>
+            <div
+              style={{
+                width: "100%",
+                maxWidth: 680,
+                maxHeight: "92vh",
+                background: "rgba(20,20,25,0.92)",
+                border: `1px solid ${BORDER}`,
+                borderRadius: 20,
+                boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
+                padding: 36,
+                overflow: "auto",
+                backdropFilter: "blur(40px)",
+                WebkitBackdropFilter: "blur(40px)",
+              }}
+            >
+              {state.phase === "validating" && <ValidatingPhase />}
+              {state.phase === "backfilling" && <BackfillingPhase progress={state.backfillProgress} />}
+            </div>
           </div>
         )}
       </div>
 
       <style jsx global>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-
         @keyframes auroraBlob1 {
           0%, 100% { transform: translate(0, 0) scale(1); }
           33% { transform: translate(20vw, 15vh) scale(1.2); }
@@ -144,88 +144,51 @@ export default function OnboardingOverlay() {
           0%, 100% { transform: translate(0, 0) scale(1); }
           50% { transform: translate(-15vw, 20vh) scale(1.15); }
         }
-
         @keyframes pixelBreath {
           0%, 100% { transform: scale(1); opacity: 0.9; filter: brightness(1); }
           50% { transform: scale(1.05); opacity: 1; filter: brightness(1.15); }
         }
-        @keyframes pixelOrbit {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes pixelOrbitReverse {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
-        }
+        @keyframes pixelOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pixelOrbitReverse { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
       `}</style>
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Aurora Background (blobs naranja/violeta animados)
-// ═══════════════════════════════════════════════════════════════
-
 function AuroraBackground() {
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 1 }}>
-      {/* Blob naranja */}
-      <div
-        style={{
-          position: "absolute",
-          top: "20%",
-          left: "15%",
-          width: "50vw",
-          height: "50vw",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(255,94,26,0.35) 0%, transparent 60%)",
-          filter: "blur(80px)",
-          animation: "auroraBlob1 22s ease-in-out infinite",
-        }}
-      />
-      {/* Blob violeta */}
-      <div
-        style={{
-          position: "absolute",
-          top: "30%",
-          right: "10%",
-          width: "55vw",
-          height: "55vw",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(168,85,247,0.30) 0%, transparent 60%)",
-          filter: "blur(90px)",
-          animation: "auroraBlob2 28s ease-in-out infinite",
-        }}
-      />
-      {/* Blob magenta-rosado (transicion) */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: "10%",
-          left: "30%",
-          width: "45vw",
-          height: "45vw",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(236,72,153,0.20) 0%, transparent 60%)",
-          filter: "blur(100px)",
-          animation: "auroraBlob3 30s ease-in-out infinite",
-        }}
-      />
-      {/* Grain/noise sutil para textura */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: "radial-gradient(circle at 50% 50%, transparent 0%, rgba(0,0,0,0.4) 100%)",
-          opacity: 0.5,
-        }}
-      />
+      <div style={{
+        position: "absolute", top: "20%", left: "15%",
+        width: "50vw", height: "50vw", borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(255,94,26,0.30) 0%, transparent 60%)",
+        filter: "blur(100px)",
+        animation: "auroraBlob1 22s ease-in-out infinite",
+      }} />
+      <div style={{
+        position: "absolute", top: "30%", right: "10%",
+        width: "55vw", height: "55vw", borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(168,85,247,0.25) 0%, transparent 60%)",
+        filter: "blur(110px)",
+        animation: "auroraBlob2 28s ease-in-out infinite",
+      }} />
+      <div style={{
+        position: "absolute", bottom: "10%", left: "30%",
+        width: "45vw", height: "45vw", borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(236,72,153,0.18) 0%, transparent 60%)",
+        filter: "blur(120px)",
+        animation: "auroraBlob3 30s ease-in-out infinite",
+      }} />
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "radial-gradient(circle at 50% 50%, transparent 0%, rgba(0,0,0,0.5) 100%)",
+      }} />
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Validating + Backfilling (sin cambios mayores, solo bg opaco)
+// Validating + Backfilling
 // ═══════════════════════════════════════════════════════════════
 
 function ValidatingPhase() {
@@ -240,8 +203,7 @@ function ValidatingPhase() {
       <Title>Estamos revisando tu configuración</Title>
       <p style={{ color: TEXT_SECONDARY, fontSize: 14, lineHeight: 1.7, margin: "0 0 20px", maxWidth: 480, marginInline: "auto" }}>
         Nuestro equipo está validando las credenciales que cargaste. Te avisamos por email apenas
-        aprobemos el backfill de tu data histórica.{" "}
-        <strong style={{ color: TEXT_PRIMARY }}>Esto suele tomar entre 2 y 24 hs hábiles.</strong>
+        aprobemos el backfill de tu data histórica.
       </p>
     </div>
   );
@@ -260,9 +222,6 @@ function BackfillingPhase({ progress }: { progress: any }) {
         </div>
         <Pretitle tone={BRAND_ORANGE}>Procesando data histórica · {overallPct}%</Pretitle>
         <Title>Estamos trayendo tu historia</Title>
-        <p style={{ color: TEXT_SECONDARY, fontSize: 14, lineHeight: 1.7, margin: 0, maxWidth: 480, marginInline: "auto" }}>
-          Cuando termine, todo el producto se desbloquea automáticamente.
-        </p>
       </div>
       <div style={{ height: 8, background: "rgba(255,255,255,0.05)", borderRadius: 99, overflow: "hidden", marginBottom: 18 }}>
         <div style={{ width: `${overallPct}%`, height: "100%", background: `linear-gradient(90deg, ${BRAND_ORANGE}, #FF8C4A)`, transition: "width 600ms ease" }} />
@@ -285,7 +244,7 @@ function BackfillingPhase({ progress }: { progress: any }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Wizard Scroll (nuevo)
+// Wizard Fullscreen — 3 columnas
 // ═══════════════════════════════════════════════════════════════
 
 type Decision = "pending" | "use" | "skip";
@@ -296,18 +255,20 @@ interface Platform {
   subtitle: string;
   requiredFields: string[];
   hasHistory: boolean;
-  missFeatures: string[]; // que pierde si SKIP
-  essential?: boolean; // si essential=true no se puede SKIP
+  missFeatures: string[];
+  essential?: boolean;
+  isEcommerce?: boolean; // VTEX es ecommerce, tiene dropdown de selección
 }
 
 const ALL_PLATFORMS: Platform[] = [
   {
-    key: "VTEX", name: "VTEX",
-    subtitle: "Ecommerce — pedidos, productos, stock",
-    requiredFields: ["accountName", "appKey", "appToken"],
+    key: "VTEX", name: "Plataforma Ecommerce",
+    subtitle: "VTEX · Tiendanube · Shopify · …",
+    requiredFields: ["provider", "accountName", "appKey", "appToken"],
     hasHistory: true,
+    isEcommerce: true,
     missFeatures: [
-      "Sincronización automática de pedidos en tiempo real",
+      "Sincronización de pedidos en tiempo real",
       "Análisis de ventas, AOV, conversión",
       "Gestión de stock y productos",
       "Atribución a campañas de marketing",
@@ -344,7 +305,7 @@ const ALL_PLATFORMS: Platform[] = [
     hasHistory: false,
     missFeatures: [
       "Match quality mejorado hacia Meta",
-      "Tracking de conversiones sin depender del navegador",
+      "Tracking sin depender del navegador",
       "Recuperación de eventos bloqueados por iOS14+",
     ],
   },
@@ -357,7 +318,6 @@ const ALL_PLATFORMS: Platform[] = [
       "ROAS y CPA de Google Ads",
       "Análisis Search + Shopping + PMax",
       "Detección de keywords perdidas",
-      "Optimización cross-campaign",
     ],
   },
   {
@@ -369,76 +329,63 @@ const ALL_PLATFORMS: Platform[] = [
       "Tráfico orgánico desde Google",
       "Keywords ranking y CTR",
       "Detección de problemas de indexación",
-      "Análisis de Core Web Vitals",
     ],
   },
   {
     key: "NITROPIXEL", name: "NitroPixel",
-    subtitle: "Tracking first-party — recomendado",
+    subtitle: "Tracking first-party — requerido",
     requiredFields: ["confirmedInstalled"],
     hasHistory: false,
-    essential: true, // NitroPixel es el core del producto, no se puede skippear
+    essential: true,
     missFeatures: [
-      "Analytics propias de NitroSales (no dependen de GA4)",
+      "Analytics propias de NitroSales",
       "NitroScore de calidad de tracking",
-      "Atribución multi-touch (first/last/middle)",
-      "Data de sesiones, funnel, bounce",
+      "Atribución multi-touch",
     ],
   },
+];
+
+// Proveedores ecommerce soportados
+const ECOMMERCE_PROVIDERS = [
+  { key: "vtex", name: "VTEX", active: true },
+  { key: "tiendanube", name: "Tiendanube", active: false },
+  { key: "shopify", name: "Shopify", active: false },
+  { key: "woocommerce", name: "WooCommerce", active: false },
+  { key: "magento", name: "Magento", active: false },
 ];
 
 function calcCompletion(platformKey: BrandKey, creds: any): number {
   const p = ALL_PLATFORMS.find((pl) => pl.key === platformKey);
   if (!p) return 0;
-  const total = p.requiredFields.length;
-  const filled = p.requiredFields.filter((f) => !!(creds?.[f] || "").toString().trim()).length;
+  let fields = p.requiredFields;
+  // Para ecommerce: si no seleccionó provider o no es "vtex", solo cuenta "provider"
+  if (p.isEcommerce && creds?.provider !== "vtex") {
+    fields = ["provider"];
+  }
+  const total = fields.length;
+  const filled = fields.filter((f) => {
+    const v = creds?.[f];
+    return typeof v === "boolean" ? v === true : !!(v || "").toString().trim();
+  }).length;
   return total === 0 ? 0 : Math.round((filled / total) * 100);
 }
 
-function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
+function WizardFullscreen({ orgId, onSubmitted }: { orgId: string | null; onSubmitted: () => void }) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [creds, setCreds] = useState<Record<string, any>>({});
   const [history, setHistory] = useState<Record<string, number>>({
-    VTEX: 12,
-    MERCADOLIBRE: 12,
-    META_ADS: 6,
-    GOOGLE_ADS: 6,
+    VTEX: 12, MERCADOLIBRE: 12, META_ADS: 6, GOOGLE_ADS: 6,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [skipModalFor, setSkipModalFor] = useState<BrandKey | null>(null);
-  const [orgId, setOrgId] = useState<string | null>(null);
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  // Obtener orgId para incrustar en el snippet del pixel
-  useEffect(() => {
-    fetch("/api/me/onboarding/state", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((j) => setOrgId(j?.orgId || j?.organizationId || null))
-      .catch(() => {});
-  }, []);
+  const [focusedPlatform, setFocusedPlatform] = useState<BrandKey | null>(null);
 
   const setDecision = (k: string, d: Decision) => {
     setDecisions((s) => ({ ...s, [k]: d }));
     setError(null);
     if (d === "use" && !creds[k]) setCreds((c) => ({ ...c, [k]: {} }));
-    if (d === "use") {
-      setTimeout(() => scrollToSection(k), 60);
-    }
-  };
-
-  const scrollToSection = (key: string) => {
-    const el = sectionRefs.current[key];
-    if (el && scrollRef.current) {
-      const containerTop = scrollRef.current.getBoundingClientRect().top;
-      const elTop = el.getBoundingClientRect().top;
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollTop + (elTop - containerTop) - 20,
-        behavior: "smooth",
-      });
-    }
+    if (d === "use") setFocusedPlatform(k as BrandKey);
   };
 
   const updateCred = (p: string, field: string, value: string | boolean) =>
@@ -446,8 +393,9 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
 
   const usePlatforms = ALL_PLATFORMS.filter((p) => decisions[p.key] === "use");
 
-  // Progress general: decididas / total (sin importar si es use o skip)
-  // Una "use" cuenta como decidida solo si está al 100%. Una "skip" siempre decidida.
+  // La plataforma que se muestra en centro + derecha
+  const displayed = focusedPlatform || (usePlatforms[0]?.key ?? null);
+
   const globalCompletion = useMemo(() => {
     const total = ALL_PLATFORMS.length;
     let decided = 0;
@@ -460,23 +408,18 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
   }, [decisions, creds]);
 
   const submit = async () => {
-    // Todas las plataformas tienen que estar DECIDIDAS
     for (const p of ALL_PLATFORMS) {
       const d = decisions[p.key] || "pending";
       if (d === "pending") {
-        setError(`Falta decidir si usás "${p.name}" (marcá "la uso" o "no la uso")`);
+        setError(`Falta decidir sobre "${p.name}"`);
         return;
       }
       if (d === "use") {
-        const c = creds[p.key] || {};
-        for (const field of p.requiredFields) {
-          const val = c[field];
-          const ok = typeof val === "boolean" ? val === true : !!(val || "").toString().trim();
-          if (!ok) {
-            setError(`Falta completar "${field}" en ${p.name}`);
-            scrollToSection(p.key);
-            return;
-          }
+        const completion = calcCompletion(p.key, creds[p.key]);
+        if (completion < 100) {
+          setError(`Completá todos los campos de "${p.name}"`);
+          setFocusedPlatform(p.key);
+          return;
         }
       }
     }
@@ -484,18 +427,17 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
     setSubmitting(true);
     setError(null);
     try {
-      const platformsArr = usePlatforms.map((p) => ({
-        platform: p.key,
-        credentials: creds[p.key] || {},
-      }));
-      // NitroPixel no se manda al backend como conexion tradicional (no hay
-      // Connection record). Lo filtramos.
-      const platformsForApi = platformsArr.filter((x) => x.platform !== "NITROPIXEL");
+      const platformsArr = usePlatforms
+        .filter((p) => p.key !== "NITROPIXEL")
+        .map((p) => ({
+          platform: p.key,
+          credentials: creds[p.key] || {},
+        }));
       const res = await fetch("/api/me/onboarding/submit-wizard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          platforms: platformsForApi,
+          platforms: platformsArr,
           historyMonths: history,
           skipped: ALL_PLATFORMS.filter((p) => decisions[p.key] === "skip").map((p) => p.key),
           pixelInstalled: !!creds.NITROPIXEL?.confirmedInstalled,
@@ -515,16 +457,18 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
   };
 
   return (
-    <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-      {/* ─── Sidebar izquierdo ─── */}
-      <div
+    <div style={{ display: "flex", width: "100vw", height: "100vh" }}>
+      {/* ─── COLUMNA IZQUIERDA: plataformas ─── */}
+      <aside
         style={{
           width: 340,
           flexShrink: 0,
-          background: "rgba(0,0,0,0.25)",
+          background: "rgba(8,8,12,0.7)",
           borderRight: `1px solid ${BORDER}`,
           overflowY: "auto",
-          padding: "28px 20px 24px",
+          padding: "28px 20px 28px",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
         }}
       >
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "rgba(255,94,26,0.1)", border: "1px solid rgba(255,94,26,0.25)", borderRadius: 99, marginBottom: 14 }}>
@@ -535,7 +479,7 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
           Tu stack
         </h2>
         <p style={{ fontSize: 12, color: TEXT_SECONDARY, margin: "0 0 18px", lineHeight: 1.5 }}>
-          Decidí para cada plataforma: "la uso" (completás credenciales) o "no la uso" (tachada, cuenta como decidida).
+          Decidí cada plataforma: "la uso" o "no la uso".
         </p>
 
         {/* Progress global */}
@@ -546,8 +490,7 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ flex: 1, height: 5, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
               <div style={{
-                width: `${globalCompletion}%`,
-                height: "100%",
+                width: `${globalCompletion}%`, height: "100%",
                 background: globalCompletion === 100 ? ACCENT_GREEN : `linear-gradient(90deg, ${BRAND_ORANGE}, #FF8C4A)`,
                 transition: "width 300ms ease",
               }} />
@@ -564,26 +507,27 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
             const d = decisions[p.key] || "pending";
             const isUse = d === "use";
             const isSkip = d === "skip";
+            const isFocused = displayed === p.key && isUse;
             const completion = isUse ? calcCompletion(p.key, creds[p.key]) : (isSkip ? 100 : 0);
 
             return (
               <div
                 key={p.key}
+                onClick={() => {
+                  if (d === "pending") setDecision(p.key, "use");
+                  else if (isUse) setFocusedPlatform(p.key);
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
                   padding: "10px 11px",
-                  background: isUse ? "rgba(255,94,26,0.06)" : isSkip ? "rgba(255,255,255,0.02)" : "transparent",
-                  border: `1px solid ${isUse ? "rgba(255,94,26,0.2)" : isSkip ? "rgba(255,255,255,0.04)" : "transparent"}`,
+                  background: isFocused ? "rgba(255,94,26,0.10)" : isUse ? "rgba(255,94,26,0.04)" : isSkip ? "rgba(255,255,255,0.02)" : "transparent",
+                  border: `1px solid ${isFocused ? "rgba(255,94,26,0.4)" : isUse ? "rgba(255,94,26,0.15)" : "transparent"}`,
                   borderRadius: 10,
                   cursor: "pointer",
                   transition: "all 160ms",
                   opacity: isSkip ? 0.55 : 1,
-                }}
-                onClick={() => {
-                  if (d === "pending") setDecision(p.key, "use");
-                  else if (isUse) scrollToSection(p.key);
                 }}
               >
                 {/* Checkbox */}
@@ -591,22 +535,14 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
                   onClick={(e) => {
                     e.stopPropagation();
                     if (d === "pending") setDecision(p.key, "use");
-                    else if (isUse) {
-                      // toggle off → pending (no skip directo)
-                      setDecision(p.key, "pending");
-                    }
+                    else if (isUse) setDecision(p.key, "pending");
                   }}
                   style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: 5,
-                    border: `2px solid ${isUse ? BRAND_ORANGE : isSkip ? "#3F3F46" : "#3F3F46"}`,
+                    width: 18, height: 18, borderRadius: 5,
+                    border: `2px solid ${isUse ? BRAND_ORANGE : "#3F3F46"}`,
                     background: isUse ? BRAND_ORANGE : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    display: "flex", alignItems: "center", justifyContent: "center",
                     flexShrink: 0,
-                    position: "relative",
                   }}
                 >
                   {isUse && (
@@ -628,8 +564,7 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
                 {/* Nombre + progress */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 12,
-                    fontWeight: 600,
+                    fontSize: 12, fontWeight: 600,
                     color: isUse ? "#fff" : isSkip ? TEXT_MUTED : TEXT_PRIMARY,
                     marginBottom: isUse ? 4 : 0,
                     textDecoration: isSkip ? "line-through" : "none",
@@ -640,8 +575,7 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       <div style={{ flex: 1, height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
                         <div style={{
-                          width: `${completion}%`,
-                          height: "100%",
+                          width: `${completion}%`, height: "100%",
                           background: completion === 100 ? ACCENT_GREEN : BRAND_ORANGE,
                           transition: "width 300ms ease",
                         }} />
@@ -651,10 +585,7 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
                       </div>
                     </div>
                   )}
-                  {isSkip && (
-                    <div style={{ fontSize: 9, color: TEXT_MUTED, fontWeight: 500 }}>No la uso</div>
-                  )}
-                  {/* Link "no la uso" solo si está en pending O en use Y no es essential */}
+                  {isSkip && <div style={{ fontSize: 9, color: TEXT_MUTED, fontWeight: 500 }}>No la uso</div>}
                   {d !== "skip" && !p.essential && (
                     <button
                       onClick={(e) => {
@@ -662,13 +593,9 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
                         setSkipModalFor(p.key);
                       }}
                       style={{
-                        fontSize: 9,
-                        color: TEXT_MUTED,
-                        background: "transparent",
-                        border: "none",
-                        padding: 0,
-                        cursor: "pointer",
-                        textDecoration: "underline",
+                        fontSize: 9, color: TEXT_MUTED,
+                        background: "transparent", border: "none", padding: 0,
+                        cursor: "pointer", textDecoration: "underline",
                         marginTop: 2,
                       }}
                     >
@@ -681,114 +608,90 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
           })}
         </div>
 
-        {usePlatforms.length > 0 && (
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px dashed ${BORDER}` }}>
-            <button onClick={() => scrollToSection("__history__")} style={sidebarLinkStyle}>
-              <span style={{ marginRight: 10 }}>📅</span> Rango histórico
-            </button>
-            <button onClick={() => scrollToSection("__confirm__")} style={sidebarLinkStyle}>
-              <span style={{ marginRight: 10 }}>✓</span> Confirmar y enviar
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ─── Panel derecho scrolleable ─── */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "32px 36px 100px" }}>
-        {usePlatforms.length === 0 && !Object.values(decisions).some((d) => d === "skip") ? (
-          <EmptyHero />
-        ) : (
-          <>
-            <div style={{ marginBottom: 24 }}>
-              <Pretitle tone={BRAND_ORANGE}>Onboarding · Conectá tu stack</Pretitle>
-              <Title>Bienvenido a NitroSales</Title>
-              <p style={{ color: TEXT_SECONDARY, fontSize: 13, lineHeight: 1.7, margin: 0 }}>
-                A la izquierda decidís qué plataformas usás. Abajo aparece una sección por cada una
-                marcada, con tutorial y credenciales. Al final, rango histórico y botón para enviar.
-              </p>
+        {/* Send button al final del sidebar */}
+        <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px dashed ${BORDER}` }}>
+          {error && (
+            <div style={{
+              marginBottom: 10, padding: "8px 10px",
+              background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: 6, color: "#F87171", fontSize: 11,
+            }}>
+              {error}
             </div>
-
-            {usePlatforms.map((p) => (
-              <div
-                key={p.key}
-                ref={(el) => { sectionRefs.current[p.key] = el; }}
-                style={{ marginBottom: 32, paddingBottom: 32, borderBottom: `1px solid ${BORDER}` }}
-              >
-                <PlatformSection
-                  platformKey={p.key}
-                  creds={creds[p.key] || {}}
-                  onChange={(field, value) => updateCred(p.key, field, value)}
-                  orgId={orgId}
-                />
-              </div>
-            ))}
-
-            {usePlatforms.some((p) => p.hasHistory) && (
-              <div
-                ref={(el) => { sectionRefs.current["__history__"] = el; }}
-                style={{ marginBottom: 32, paddingBottom: 32, borderBottom: `1px solid ${BORDER}` }}
-              >
-                <HistorySection
-                  active={usePlatforms.filter((p) => p.hasHistory).map((p) => p.key)}
-                  history={history}
-                  onChange={(k, v) => setHistory((h) => ({ ...h, [k]: v }))}
-                />
-              </div>
+          )}
+          <button
+            onClick={submit}
+            disabled={submitting || globalCompletion < 100}
+            style={{
+              width: "100%", padding: "11px 16px",
+              background: submitting || globalCompletion < 100 ? "#27272A" : `linear-gradient(135deg, ${BRAND_ORANGE}, #FF8C4A)`,
+              color: "#fff", border: "none", borderRadius: 9,
+              fontSize: 13, fontWeight: 600,
+              cursor: submitting ? "wait" : globalCompletion < 100 ? "not-allowed" : "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+              opacity: globalCompletion < 100 ? 0.5 : 1,
+            }}
+          >
+            {submitting ? (
+              <><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> Enviando…</>
+            ) : (
+              <>Enviar para validación <ArrowRight size={13} /></>
             )}
-
-            <div ref={(el) => { sectionRefs.current["__confirm__"] = el; }}>
-              <ConfirmSection usePlatforms={usePlatforms} decisions={decisions} history={history} creds={creds} />
-
-              {error && (
-                <div style={{
-                  marginTop: 16, padding: "10px 14px",
-                  background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
-                  borderRadius: 8, color: "#F87171", fontSize: 12,
-                }}>
-                  {error}
-                </div>
-              )}
-
-              <button
-                onClick={submit}
-                disabled={submitting || globalCompletion < 100}
-                title={globalCompletion < 100 ? "Completá o declará 'no la uso' en todas las plataformas" : ""}
-                style={{
-                  marginTop: 20,
-                  width: "100%",
-                  padding: "14px 24px",
-                  background: submitting || globalCompletion < 100 ? "#27272A" : `linear-gradient(135deg, ${BRAND_ORANGE}, #FF8C4A)`,
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 10,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: submitting ? "wait" : globalCompletion < 100 ? "not-allowed" : "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  boxShadow: submitting || globalCompletion < 100 ? "none" : "0 4px 16px rgba(255,94,26,0.3)",
-                  opacity: globalCompletion < 100 ? 0.5 : 1,
-                }}
-              >
-                {submitting ? (
-                  <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Enviando…</>
-                ) : (
-                  <>Enviar para validación <ArrowRight size={14} /></>
-                )}
-              </button>
-              {globalCompletion < 100 && (
-                <div style={{ fontSize: 10, color: TEXT_MUTED, textAlign: "center", marginTop: 8 }}>
-                  El botón se habilita cuando todas las plataformas estén decididas (100%).
-                </div>
-              )}
+          </button>
+          {globalCompletion < 100 && (
+            <div style={{ fontSize: 10, color: TEXT_MUTED, textAlign: "center", marginTop: 6 }}>
+              {100 - globalCompletion}% faltante
             </div>
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      </aside>
 
-      {/* Modal "No la uso" */}
+      {/* ─── COLUMNA CENTRAL: tutorial texto + inputs ─── */}
+      <main
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "36px 40px 60px",
+          background: "rgba(10,10,15,0.55)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          maxWidth: "calc(100vw - 340px - 480px)",
+        }}
+      >
+        {!displayed ? (
+          <EmptyCenter />
+        ) : (
+          <PlatformCenterPanel
+            platformKey={displayed}
+            creds={creds[displayed] || {}}
+            onChange={(field, value) => updateCred(displayed, field, value)}
+            orgId={orgId}
+            history={history[displayed]}
+            onHistoryChange={(v) => setHistory((h) => ({ ...h, [displayed]: v }))}
+          />
+        )}
+      </main>
+
+      {/* ─── COLUMNA DERECHA: tutorial visual ─── */}
+      <aside
+        style={{
+          width: 480,
+          flexShrink: 0,
+          background: "rgba(8,8,12,0.5)",
+          borderLeft: `1px solid ${BORDER}`,
+          overflowY: "auto",
+          padding: "36px 28px",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+        }}
+      >
+        {displayed ? (
+          <VisualTutorialPanel platformKey={displayed} />
+        ) : (
+          <EmptyRightPanel />
+        )}
+      </aside>
+
       {skipModalFor && (
         <SkipModal
           platform={ALL_PLATFORMS.find((p) => p.key === skipModalFor)!}
@@ -796,10 +699,580 @@ function WizardScroll({ onSubmitted }: { onSubmitted: () => void }) {
           onConfirm={() => {
             setDecision(skipModalFor, "skip");
             setSkipModalFor(null);
+            if (focusedPlatform === skipModalFor) setFocusedPlatform(null);
           }}
         />
       )}
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Center panel (inputs + tutorial texto)
+// ═══════════════════════════════════════════════════════════════
+
+function EmptyCenter() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100%", textAlign: "center", padding: "40px 20px" }}>
+      <div style={iconCircle(BRAND_ORANGE)}>
+        <Sparkles size={28} color={BRAND_ORANGE} />
+      </div>
+      <div style={{ height: 18 }} />
+      <Pretitle tone={BRAND_ORANGE}>Bienvenido</Pretitle>
+      <Title>Empezá decidiendo tu stack</Title>
+      <p style={{ color: TEXT_SECONDARY, fontSize: 14, lineHeight: 1.7, margin: "0 auto", maxWidth: 460 }}>
+        A la izquierda decidís cada plataforma. Acá en el centro vas a ver los campos a completar,
+        y a la derecha el tutorial visual con capturas de las plataformas reales.
+      </p>
+    </div>
+  );
+}
+
+function PlatformCenterPanel({ platformKey, creds, onChange, orgId, history, onHistoryChange }: any) {
+  const p = ALL_PLATFORMS.find((pl) => pl.key === platformKey)!;
+  return (
+    <div style={{ maxWidth: 640 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
+        <BrandLogo brand={platformKey} size={40} />
+        <div>
+          <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", margin: 0, color: "#fff" }}>
+            {p.name}
+          </h2>
+          <div style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 3 }}>{p.subtitle}</div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        {platformKey === "VTEX" && <EcommerceInputs creds={creds} onChange={onChange} />}
+        {platformKey === "MERCADOLIBRE" && <MlInputs creds={creds} onChange={onChange} />}
+        {platformKey === "META_ADS" && <MetaAdsInputs creds={creds} onChange={onChange} />}
+        {platformKey === "META_PIXEL" && <MetaPixelInputs creds={creds} onChange={onChange} />}
+        {platformKey === "GOOGLE_ADS" && <GoogleAdsInputs creds={creds} onChange={onChange} />}
+        {platformKey === "GSC" && <GscInputs creds={creds} onChange={onChange} />}
+        {platformKey === "NITROPIXEL" && <NitroPixelInputs creds={creds} onChange={onChange} orgId={orgId} />}
+      </div>
+
+      {/* Rango histórico inline si aplica */}
+      {p.hasHistory && (
+        <div style={{ marginTop: 26, paddingTop: 20, borderTop: `1px dashed ${BORDER}` }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            Rango histórico
+          </div>
+          <p style={{ fontSize: 12, color: TEXT_SECONDARY, margin: "0 0 10px", lineHeight: 1.6 }}>
+            Cuánta historia querés traer de esta plataforma. Más tiempo = más data pero activación más lenta.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+            {[
+              { months: 3, label: "3 meses", eta: "min" },
+              { months: 6, label: "6 meses", eta: "~30 min" },
+              { months: 12, label: "1 año", eta: "1-2 hs" },
+              { months: 24, label: "2 años", eta: "3-6 hs" },
+              { months: -1, label: "Todo", eta: "~1 día" },
+            ].map((opt) => {
+              const isActive = history === opt.months;
+              return (
+                <button key={opt.months} onClick={() => onHistoryChange(opt.months)} style={{
+                  padding: "8px 4px",
+                  background: isActive ? "rgba(255,94,26,0.12)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${isActive ? BRAND_ORANGE : BORDER}`,
+                  borderRadius: 7,
+                  color: isActive ? "#fff" : TEXT_SECONDARY,
+                  cursor: "pointer", textAlign: "center", fontSize: 11,
+                }}>
+                  <div style={{ fontWeight: isActive ? 700 : 500 }}>{opt.label}</div>
+                  <div style={{ fontSize: 9, color: isActive ? BRAND_ORANGE : TEXT_MUTED, marginTop: 2 }}>{opt.eta}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Inputs per platform
+// ═══════════════════════════════════════════════════════════════
+
+function EcommerceInputs({ creds, onChange }: any) {
+  const provider = creds.provider || "";
+  return (
+    <>
+      <Field label="¿Qué plataforma ecommerce usás?" hint="Seleccioná la plataforma donde operás tu tienda online.">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+          {ECOMMERCE_PROVIDERS.map((pv) => {
+            const selected = provider === pv.key;
+            return (
+              <button
+                key={pv.key}
+                onClick={() => pv.active && onChange("provider", pv.key)}
+                disabled={!pv.active}
+                style={{
+                  padding: "10px 12px",
+                  background: selected ? "rgba(255,94,26,0.12)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${selected ? BRAND_ORANGE : BORDER}`,
+                  borderRadius: 9,
+                  color: !pv.active ? TEXT_MUTED : selected ? "#fff" : TEXT_PRIMARY,
+                  cursor: pv.active ? "pointer" : "not-allowed",
+                  fontSize: 12,
+                  fontWeight: selected ? 700 : 500,
+                  opacity: pv.active ? 1 : 0.5,
+                  textAlign: "center",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                }}
+              >
+                {pv.name}
+                {!pv.active && (
+                  <span style={{ fontSize: 9, color: TEXT_MUTED, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    <Lock size={8} /> En desarrollo
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+
+      {provider === "vtex" && (
+        <>
+          <div style={{ marginTop: 16 }}>
+            <Field label="Account Name" hint="Es el subdomain de tu tienda VTEX.">
+              <Input value={creds.accountName || ""} onChange={(v) => onChange("accountName", v)} placeholder="arredo" maxLength={60} />
+            </Field>
+            <Field label="App Key" hint="Empieza con 'vtexappkey-'.">
+              <Input value={creds.appKey || ""} onChange={(v) => onChange("appKey", v)} placeholder="vtexappkey-xxxxx-XXXXXX" mono />
+            </Field>
+            <Field label="App Token">
+              <Input value={creds.appToken || ""} onChange={(v) => onChange("appToken", v)} placeholder="ABCD1234..." mono />
+            </Field>
+          </div>
+        </>
+      )}
+
+      {provider && provider !== "vtex" && (
+        <div style={{ marginTop: 18, padding: "14px 16px", background: "rgba(255,94,26,0.08)", border: "1px solid rgba(255,94,26,0.25)", borderRadius: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: BRAND_ORANGE, marginBottom: 6 }}>
+            Integración en desarrollo
+          </div>
+          <div style={{ fontSize: 12, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+            Estamos desarrollando la integración con {ECOMMERCE_PROVIDERS.find((pv) => pv.key === provider)?.name}.
+            Si confirmás tu interés ahora, te priorizamos y te avisamos en cuanto esté lista.
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function MlInputs({ creds, onChange }: any) {
+  return (
+    <>
+      <Field label="Usuario MercadoLibre" hint="Tu usuario de vendedor, sin la '@'.">
+        <Input value={creds.username || ""} onChange={(v) => onChange("username", v)} placeholder="tuusuario" maxLength={60} />
+      </Field>
+      <InfoBox>
+        <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te vamos a pedir que autorices NitroSales desde MELI vía login oficial.
+      </InfoBox>
+    </>
+  );
+}
+
+function MetaAdsInputs({ creds, onChange }: any) {
+  return (
+    <>
+      <Field label="Ad Account ID" hint="Solo los números, sin 'act_'.">
+        <Input value={creds.adAccountId || ""} onChange={(v) => onChange("adAccountId", v.replace(/[^0-9]/g, ""))} placeholder="123456789" mono maxLength={30} />
+      </Field>
+      <Field label="Access Token (System User)">
+        <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
+      </Field>
+    </>
+  );
+}
+
+function MetaPixelInputs({ creds, onChange }: any) {
+  return (
+    <>
+      <Field label="Pixel ID" hint="15-16 dígitos.">
+        <Input value={creds.pixelId || ""} onChange={(v) => onChange("pixelId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890123456" mono maxLength={20} />
+      </Field>
+      <Field label="Access Token CAPI">
+        <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
+      </Field>
+    </>
+  );
+}
+
+function GoogleAdsInputs({ creds, onChange }: any) {
+  return (
+    <>
+      <Field label="Customer ID" hint="10 dígitos sin guiones.">
+        <Input value={creds.customerId || ""} onChange={(v) => onChange("customerId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890" mono maxLength={10} />
+      </Field>
+      <InfoBox>
+        <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te llevamos a login oficial de Google para autorizar.
+      </InfoBox>
+    </>
+  );
+}
+
+function GscInputs({ creds, onChange }: any) {
+  return (
+    <>
+      <Field label="URL de tu propiedad" hint="La URL exacta como aparece en Search Console.">
+        <Input value={creds.propertyUrl || ""} onChange={(v) => onChange("propertyUrl", v)} placeholder="https://www.tutienda.com/" mono />
+      </Field>
+      <InfoBox>
+        <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te llevamos a login oficial de Google.
+      </InfoBox>
+    </>
+  );
+}
+
+function NitroPixelInputs({ creds, onChange, orgId }: any) {
+  const [copied, setCopied] = useState(false);
+  const appUrl = typeof window !== "undefined" ? window.location.origin : "https://nitrosales.vercel.app";
+  const snippet = orgId
+    ? `<!-- NitroPixel -->\n<script src="${appUrl}/api/pixel/script?org=${orgId}" async></script>`
+    : `<!-- Cargando ID de tu organización... -->`;
+
+  const copy = () => {
+    if (!orgId) return;
+    navigator.clipboard.writeText(snippet);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <>
+      <div style={{
+        padding: "14px 16px",
+        background: "linear-gradient(135deg, rgba(6,182,212,0.08), rgba(139,92,246,0.06))",
+        border: "1px solid rgba(6,182,212,0.25)",
+        borderRadius: 10,
+        marginBottom: 18,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#a5f3fc", marginBottom: 4 }}>
+          Por qué es importante
+        </div>
+        <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+          NitroPixel es nuestra fuente de verdad para analytics. Captura sesiones, visitas,
+          conversiones y atribución multi-touch sin depender de GA4.
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: TEXT_PRIMARY, marginBottom: 6 }}>
+          Tu snippet personalizado
+        </div>
+        <div style={{
+          position: "relative",
+          background: "rgba(0,0,0,0.45)",
+          border: `1px solid ${BORDER}`,
+          borderRadius: 10,
+          padding: "12px 14px",
+          fontFamily: "'SF Mono', Menlo, Consolas, monospace",
+          fontSize: 11,
+          color: "#a5f3fc",
+          lineHeight: 1.6,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+        }}>
+          {snippet}
+          {orgId && (
+            <button
+              onClick={copy}
+              style={{
+                position: "absolute", top: 10, right: 10,
+                padding: "5px 10px",
+                background: copied ? `${ACCENT_GREEN}20` : "rgba(255,255,255,0.08)",
+                border: `1px solid ${copied ? ACCENT_GREEN : BORDER}`,
+                borderRadius: 6,
+                color: copied ? ACCENT_GREEN : TEXT_SECONDARY,
+                fontSize: 10, fontWeight: 600, cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: 4,
+              }}
+            >
+              {copied ? <><Check size={10} /> Copiado</> : <><Copy size={10} /> Copiar</>}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <label style={{
+        display: "flex", alignItems: "flex-start", gap: 10,
+        padding: "12px 14px",
+        background: creds.confirmedInstalled ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.02)",
+        border: `1px solid ${creds.confirmedInstalled ? "rgba(34,197,94,0.3)" : BORDER}`,
+        borderRadius: 10, cursor: "pointer",
+      }}>
+        <div
+          style={{
+            width: 18, height: 18, borderRadius: 5,
+            border: `2px solid ${creds.confirmedInstalled ? ACCENT_GREEN : "#3F3F46"}`,
+            background: creds.confirmedInstalled ? ACCENT_GREEN : "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2,
+          }}
+          onClick={() => onChange("confirmedInstalled", !creds.confirmedInstalled)}
+        >
+          {creds.confirmedInstalled && (
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </div>
+        <input type="checkbox" checked={!!creds.confirmedInstalled}
+          onChange={(e) => onChange("confirmedInstalled", e.target.checked)}
+          style={{ display: "none" }} />
+        <div style={{ flex: 1, fontSize: 13, color: "#fff", fontWeight: 500 }}>
+          Ya pegué el snippet en mi sitio (head o GTM)
+          <div style={{ fontSize: 11, color: TEXT_SECONDARY, fontWeight: 400, marginTop: 2 }}>
+            NitroSales validará que recibimos pings antes de aprobar tu cuenta.
+          </div>
+        </div>
+      </label>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Right column — tutorial visual (Parte 2, placeholder por ahora)
+// ═══════════════════════════════════════════════════════════════
+
+function EmptyRightPanel() {
+  return (
+    <div style={{ textAlign: "center", paddingTop: 60 }}>
+      <div style={{ display: "inline-flex", marginBottom: 18, opacity: 0.5 }}>
+        <div style={iconCircle("#6366F1")}>
+          <ImageIcon size={28} color="#818CF8" />
+        </div>
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#818CF8", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>
+        Tutorial visual
+      </div>
+      <div style={{ fontSize: 14, color: TEXT_PRIMARY, fontWeight: 600, marginBottom: 8 }}>
+        Capturas paso a paso
+      </div>
+      <p style={{ color: TEXT_SECONDARY, fontSize: 12, lineHeight: 1.7, margin: "0 20px", maxWidth: 320, marginInline: "auto" }}>
+        Cuando selecciones una plataforma en el centro, acá vas a ver el tutorial visual con
+        capturas de pantalla reales para que encuentres cada dato rápido.
+      </p>
+    </div>
+  );
+}
+
+function VisualTutorialPanel({ platformKey }: { platformKey: BrandKey }) {
+  // Placeholder por ahora — Parte 2 agrega screenshots reales.
+  const p = ALL_PLATFORMS.find((pl) => pl.key === platformKey)!;
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#818CF8", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>
+        Tutorial visual · {p.name}
+      </div>
+      <h3 style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: "0 0 14px", letterSpacing: "-0.01em" }}>
+        Cómo obtener los datos
+      </h3>
+
+      {platformKey === "VTEX" && <VtexTutorialText />}
+      {platformKey === "MERCADOLIBRE" && <MlTutorialText />}
+      {platformKey === "META_ADS" && <MetaAdsTutorialText />}
+      {platformKey === "META_PIXEL" && <MetaPixelTutorialText />}
+      {platformKey === "GOOGLE_ADS" && <GoogleAdsTutorialText />}
+      {platformKey === "GSC" && <GscTutorialText />}
+      {platformKey === "NITROPIXEL" && <NitroPixelTutorialText />}
+
+      {/* Placeholder de Parte 2 — capturas */}
+      <div style={{
+        marginTop: 20,
+        padding: "14px 16px",
+        background: "rgba(99,102,241,0.06)",
+        border: "1px dashed rgba(99,102,241,0.3)",
+        borderRadius: 10,
+        textAlign: "center",
+      }}>
+        <ImageIcon size={18} color="#818CF8" style={{ marginBottom: 6 }} />
+        <div style={{ fontSize: 11, color: "#A5B4FC", fontWeight: 600, marginBottom: 3 }}>
+          Capturas de pantalla próximas
+        </div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED, lineHeight: 1.5 }}>
+          Estamos preparando capturas paso a paso de la UI real para hacer el tutorial todavía
+          más claro. Por ahora seguí los pasos arriba.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TutorialSteps({ steps, docUrl }: { steps: Array<{ title: string; detail?: string }>; docUrl?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {steps.map((s, i) => (
+        <div key={i} style={{ display: "flex", gap: 12 }}>
+          <div style={{
+            minWidth: 24, height: 24, borderRadius: "50%",
+            background: "rgba(129,140,248,0.15)",
+            border: "1px solid rgba(129,140,248,0.4)",
+            color: "#A5B4FC",
+            fontSize: 11, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}>
+            {i + 1}
+          </div>
+          <div style={{ flex: 1, paddingTop: 2 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.5 }}>
+              {s.title}
+            </div>
+            {s.detail && (
+              <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6, marginTop: 3 }}>
+                {s.detail}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+      {docUrl && (
+        <a href={docUrl} target="_blank" rel="noopener noreferrer" style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          fontSize: 11, color: "#A5B4FC", textDecoration: "none",
+          padding: "10px 12px", background: "rgba(99,102,241,0.06)",
+          border: `1px solid rgba(99,102,241,0.2)`,
+          borderRadius: 8,
+          marginTop: 4,
+        }}>
+          Ver doc oficial <ExternalLink size={10} />
+        </a>
+      )}
+    </div>
+  );
+}
+
+function VtexTutorialText() {
+  return (
+    <TutorialSteps
+      docUrl="https://developers.vtex.com/docs/guides/api-authentication-using-application-keys"
+      steps={[
+        { title: "Abrí tu admin VTEX", detail: "{tu-cuenta}.myvtex.com/admin" },
+        { title: "Menú lateral → ícono Apps → Application Keys", detail: "Alternativamente: Cuenta → Gestión de usuarios → App Keys" },
+        { title: "Click 'Manage my keys' → 'Generate New'", detail: "" },
+        { title: "Label: 'NitroSales'", detail: "Es un nombre interno para identificar esta integración." },
+        { title: "Asignar rol 'Owner (Admin Super)'", detail: "Rol recomendado por VTEX para integraciones de lectura." },
+        { title: "Click 'Generate' y copiá las 3 credenciales", detail: "El Token solo se muestra UNA VEZ. Si se pierde hay que regenerarlo." },
+      ]}
+    />
+  );
+}
+
+function MlTutorialText() {
+  return (
+    <TutorialSteps
+      steps={[
+        { title: "Entrá a mercadolibre.com.ar logueado", detail: "Con tu cuenta de vendedor." },
+        { title: "Click arriba a la derecha en tu nombre", detail: "Se despliega un menú." },
+        { title: "Copiá tu usuario (sin '@')", detail: "Alfanumérico, empieza con letra o '@'." },
+      ]}
+    />
+  );
+}
+
+function MetaAdsTutorialText() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+        Parte 1: Ad Account ID
+      </div>
+      <TutorialSteps
+        steps={[
+          { title: "business.facebook.com logueado", detail: "" },
+          { title: "Engranaje arriba izquierda → Configuración del negocio", detail: "" },
+          { title: "Cuentas → Cuentas publicitarias", detail: "" },
+          { title: "Copiá el ID (solo números, ignorá 'act_')", detail: "" },
+        ]}
+      />
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 22, marginBottom: 10 }}>
+        Parte 2: System User + Access Token
+      </div>
+      <TutorialSteps
+        docUrl="https://developers.facebook.com/docs/marketing-api/system-users"
+        steps={[
+          { title: "Configuración → Usuarios → Usuarios del sistema", detail: "" },
+          { title: "Agregar → Nombre 'NitroSales' → rol Administrador", detail: "" },
+          { title: "Agregar activos → tu Ad Account → Acceso completo", detail: "" },
+          { title: "Generar token", detail: "Permisos: ads_read, ads_management, business_management" },
+          { title: "Copialo (empieza con EAA...)", detail: "Solo se muestra una vez." },
+        ]}
+      />
+    </div>
+  );
+}
+
+function MetaPixelTutorialText() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+        Parte 1: Pixel ID
+      </div>
+      <TutorialSteps
+        steps={[
+          { title: "business.facebook.com/events_manager", detail: "" },
+          { title: "Seleccioná tu pixel", detail: "Si no tenés, '+ Conectar fuente de datos' → Web → Pixel de Meta." },
+          { title: "Configuración → ID del pixel (15-16 dígitos)", detail: "" },
+        ]}
+      />
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 22, marginBottom: 10 }}>
+        Parte 2: Access Token CAPI
+      </div>
+      <TutorialSteps
+        steps={[
+          { title: "Mismo pixel → Configuración → Conversions API", detail: "'Configurar manualmente'" },
+          { title: "Generar token de acceso", detail: "" },
+          { title: "Copialo (solo se muestra una vez)", detail: "" },
+        ]}
+      />
+    </div>
+  );
+}
+
+function GoogleAdsTutorialText() {
+  return (
+    <TutorialSteps
+      docUrl="https://support.google.com/google-ads/answer/1704344"
+      steps={[
+        { title: "ads.google.com logueado", detail: "" },
+        { title: "Arriba a la derecha: número 123-456-7890", detail: "Puede aparecer como 'CID: 1234567890'." },
+        { title: "Copialo SIN guiones (10 dígitos)", detail: "" },
+      ]}
+    />
+  );
+}
+
+function GscTutorialText() {
+  return (
+    <TutorialSteps
+      docUrl="https://support.google.com/webmasters/answer/34592"
+      steps={[
+        { title: "search.google.com/search-console logueado", detail: "" },
+        { title: "Selector de propiedades arriba izquierda", detail: "Lista de sitios verificados en tu cuenta." },
+        { title: "Copiá la URL exacta", detail: "Con https:// y barra final si corresponde." },
+      ]}
+    />
+  );
+}
+
+function NitroPixelTutorialText() {
+  return (
+    <TutorialSteps
+      steps={[
+        { title: "Copiá el snippet del centro", detail: "Es un <script> con tu orgId específico." },
+        { title: "Pegalo en el <head> de tu sitio", detail: "O en Google Tag Manager → Tags → Nueva → Custom HTML → Trigger All Pages." },
+        { title: "Publicá los cambios", detail: "Asegurate de publicar la versión en GTM." },
+        { title: "Confirmá abajo que lo instalaste", detail: "Nosotros validamos que recibimos pings antes de aprobar." },
+      ]}
+    />
   );
 }
 
@@ -813,7 +1286,7 @@ function SkipModal({ platform, onCancel, onConfirm }: { platform: Platform; onCa
       onClick={onCancel}
       style={{
         position: "fixed", inset: 0, zIndex: 10000,
-        background: "rgba(0,0,0,0.65)",
+        background: "rgba(0,0,0,0.7)",
         backdropFilter: "blur(8px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: 20,
@@ -845,12 +1318,12 @@ function SkipModal({ platform, onCancel, onConfirm }: { platform: Platform; onCa
         </div>
 
         <p style={{ color: TEXT_SECONDARY, fontSize: 13, lineHeight: 1.6, margin: "0 0 14px" }}>
-          Si marcás que no usás esta plataforma, vas a perder estas funcionalidades dentro de NitroSales:
+          Si marcás que no usás esta plataforma, vas a perder estas funcionalidades en NitroSales:
         </p>
 
         <ul style={{ margin: 0, paddingLeft: 18, color: TEXT_PRIMARY, fontSize: 12, lineHeight: 1.9 }}>
           {platform.missFeatures.map((f, i) => (
-            <li key={i} style={{ color: TEXT_PRIMARY }}>
+            <li key={i}>
               <span style={{ color: ACCENT_RED, marginRight: 4 }}>✕</span> {f}
             </li>
           ))}
@@ -861,507 +1334,20 @@ function SkipModal({ platform, onCancel, onConfirm }: { platform: Platform; onCa
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-          <button
-            onClick={onCancel}
-            style={{
-              flex: 1,
-              padding: "11px 16px",
-              background: "transparent",
-              border: `1px solid ${BORDER}`,
-              borderRadius: 9,
-              color: TEXT_SECONDARY,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
+          <button onClick={onCancel} style={{
+            flex: 1, padding: "11px 16px",
+            background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 9,
+            color: TEXT_SECONDARY, fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>
             Volver atrás
           </button>
-          <button
-            onClick={onConfirm}
-            style={{
-              flex: 1,
-              padding: "11px 16px",
-              background: "rgba(239,68,68,0.12)",
-              border: `1px solid rgba(239,68,68,0.4)`,
-              borderRadius: 9,
-              color: "#FCA5A5",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
+          <button onClick={onConfirm} style={{
+            flex: 1, padding: "11px 16px",
+            background: "rgba(239,68,68,0.12)", border: `1px solid rgba(239,68,68,0.4)`, borderRadius: 9,
+            color: "#FCA5A5", fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>
             Confirmar, no la uso
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Empty hero
-// ═══════════════════════════════════════════════════════════════
-
-function EmptyHero() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100%", textAlign: "center", padding: "40px 20px" }}>
-      <div style={iconCircle(BRAND_ORANGE)}>
-        <Sparkles size={28} color={BRAND_ORANGE} />
-      </div>
-      <div style={{ height: 18 }} />
-      <Pretitle tone={BRAND_ORANGE}>Empezá decidiendo</Pretitle>
-      <Title>Bienvenido a NitroSales</Title>
-      <p style={{ color: TEXT_SECONDARY, fontSize: 14, lineHeight: 1.7, margin: "0 auto", maxWidth: 460 }}>
-        A la izquierda tenés todas las plataformas que NitroSales integra. Para cada una decidí
-        si la usás (completás credenciales) o si no la usás (podés marcarla como tal). Cuando
-        todas estén decididas, podés enviar.
-      </p>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Platform sections
-// ═══════════════════════════════════════════════════════════════
-
-function PlatformSection({ platformKey, creds, onChange, orgId }: any) {
-  if (platformKey === "VTEX") return <VtexSection creds={creds} onChange={onChange} />;
-  if (platformKey === "MERCADOLIBRE") return <MlSection creds={creds} onChange={onChange} />;
-  if (platformKey === "META_ADS") return <MetaAdsSection creds={creds} onChange={onChange} />;
-  if (platformKey === "META_PIXEL") return <MetaPixelSection creds={creds} onChange={onChange} />;
-  if (platformKey === "GOOGLE_ADS") return <GoogleAdsSection creds={creds} onChange={onChange} />;
-  if (platformKey === "GSC") return <GscSection creds={creds} onChange={onChange} />;
-  if (platformKey === "NITROPIXEL") return <NitroPixelSection creds={creds} onChange={onChange} orgId={orgId} />;
-  return null;
-}
-
-function SectionHeader({ brand, name, description }: any) {
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
-        <BrandLogo brand={brand} size={36} />
-        <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", margin: 0, color: "#fff" }}>{name}</h2>
-      </div>
-      <p style={{ color: TEXT_SECONDARY, fontSize: 13, lineHeight: 1.7, margin: "0 0 18px" }}>{description}</p>
-    </div>
-  );
-}
-
-function VtexSection({ creds, onChange }: any) {
-  return (
-    <>
-      <SectionHeader brand="VTEX" name="VTEX" description="Vamos a crear una App Key con permisos de lectura para que NitroSales pueda traer tus pedidos, productos y stock." />
-      <Tutorial
-        title="Cómo crear la App Key en VTEX"
-        steps={[
-          { text: "Abrí tu admin VTEX", detail: "https://{tu-cuenta}.myvtex.com/admin" },
-          { text: "Menú lateral → ícono de Apps → Application Keys", detail: "Si no lo ves: Cuenta → Gestión de usuarios → App Keys." },
-          { text: "'Manage my keys' → 'Generate New'", detail: "" },
-          { text: "Label: 'NitroSales'", detail: "" },
-          { text: "Roles: 'Owner (Admin Super)'", detail: "Rol recomendado por VTEX para integraciones." },
-          { text: "Generate → copiá App Key y App Token", detail: "El Token solo se muestra UNA VEZ." },
-        ]}
-        docUrl="https://developers.vtex.com/docs/guides/api-authentication-using-application-keys"
-      />
-      <Field label="Account Name" hint="Es el subdomain de tu tienda VTEX.">
-        <Input value={creds.accountName || ""} onChange={(v) => onChange("accountName", v)} placeholder="arredo" maxLength={60} />
-      </Field>
-      <Field label="App Key" hint="Empieza con 'vtexappkey-'.">
-        <Input value={creds.appKey || ""} onChange={(v) => onChange("appKey", v)} placeholder="vtexappkey-xxxxx-XXXXXX" mono />
-      </Field>
-      <Field label="App Token">
-        <Input value={creds.appToken || ""} onChange={(v) => onChange("appToken", v)} placeholder="ABCD1234..." mono />
-      </Field>
-    </>
-  );
-}
-
-function MlSection({ creds, onChange }: any) {
-  return (
-    <>
-      <SectionHeader brand="MERCADOLIBRE" name="MercadoLibre" description="Usamos OAuth oficial. Acá solo tu usuario de vendedor para identificar la cuenta." />
-      <Tutorial
-        title="Dónde ves tu usuario de MercadoLibre"
-        steps={[
-          { text: "Entrá a mercadolibre.com.ar logueado con tu cuenta vendedor", detail: "" },
-          { text: "Arriba a la derecha, click en tu nombre", detail: "" },
-          { text: "Tu usuario aparece en el menú", detail: "" },
-          { text: "Pegalo acá sin '@'", detail: "" },
-        ]}
-      />
-      <InfoBox>
-        <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te vamos a pedir que autorices NitroSales desde MELI vía login oficial.
-      </InfoBox>
-      <Field label="Usuario MercadoLibre">
-        <Input value={creds.username || ""} onChange={(v) => onChange("username", v)} placeholder="tuusuario (sin @)" maxLength={60} />
-      </Field>
-    </>
-  );
-}
-
-function MetaAdsSection({ creds, onChange }: any) {
-  return (
-    <>
-      <SectionHeader brand="META_ADS" name="Meta Ads" description="Necesitamos un System User token de tu Business Manager (dura para siempre)." />
-      <Tutorial
-        title="Parte 1: Ad Account ID"
-        steps={[
-          { text: "business.facebook.com logueado", detail: "" },
-          { text: "Engranaje arriba izquierda → Configuración del negocio", detail: "" },
-          { text: "Cuentas → Cuentas publicitarias", detail: "" },
-          { text: "Copiá el ID (solo números, ignorá 'act_')", detail: "" },
-        ]}
-      />
-      <Tutorial
-        title="Parte 2: System User + Access Token"
-        steps={[
-          { text: "Configuración → Usuarios → Usuarios del sistema", detail: "" },
-          { text: "Agregar → Nombre 'NitroSales' → rol Administrador", detail: "" },
-          { text: "Agregar activos → Cuentas publicitarias → tu cuenta → Acceso completo", detail: "" },
-          { text: "Generar token → permisos: ads_read, ads_management, business_management", detail: "" },
-          { text: "Copialo (empieza con 'EAA...')", detail: "Solo se muestra una vez." },
-        ]}
-        docUrl="https://developers.facebook.com/docs/marketing-api/system-users"
-      />
-      <Field label="Ad Account ID" hint="Solo números, sin 'act_'.">
-        <Input value={creds.adAccountId || ""} onChange={(v) => onChange("adAccountId", v.replace(/[^0-9]/g, ""))} placeholder="123456789" mono maxLength={30} />
-      </Field>
-      <Field label="Access Token (System User)">
-        <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
-      </Field>
-    </>
-  );
-}
-
-function MetaPixelSection({ creds, onChange }: any) {
-  return (
-    <>
-      <SectionHeader brand="META_PIXEL" name="Meta Pixel (CAPI)" description="El Pixel maneja tracking server-side de conversiones hacia Meta." />
-      <Tutorial
-        title="Parte 1: Pixel ID"
-        steps={[
-          { text: "business.facebook.com/events_manager", detail: "" },
-          { text: "Seleccioná tu pixel", detail: "" },
-          { text: "Configuración → 'ID del pixel' (15-16 dígitos)", detail: "" },
-        ]}
-      />
-      <Tutorial
-        title="Parte 2: Access Token CAPI"
-        steps={[
-          { text: "Mismo pixel → Configuración → Conversions API → Configurar manualmente", detail: "" },
-          { text: "Generar token de acceso", detail: "" },
-          { text: "Copialo (solo se muestra una vez)", detail: "" },
-        ]}
-      />
-      <Field label="Pixel ID" hint="15-16 dígitos.">
-        <Input value={creds.pixelId || ""} onChange={(v) => onChange("pixelId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890123456" mono maxLength={20} />
-      </Field>
-      <Field label="Access Token CAPI">
-        <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
-      </Field>
-    </>
-  );
-}
-
-function GoogleAdsSection({ creds, onChange }: any) {
-  return (
-    <>
-      <SectionHeader brand="GOOGLE_ADS" name="Google Ads" description="OAuth oficial. Acá solo tu Customer ID." />
-      <Tutorial
-        title="Dónde está el Customer ID"
-        steps={[
-          { text: "ads.google.com logueado", detail: "" },
-          { text: "Arriba a la derecha ves 123-456-7890", detail: "" },
-          { text: "Copialo SIN guiones (10 dígitos)", detail: "" },
-        ]}
-      />
-      <InfoBox>
-        <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te llevamos a login oficial de Google.
-      </InfoBox>
-      <Field label="Customer ID" hint="10 dígitos sin guiones.">
-        <Input value={creds.customerId || ""} onChange={(v) => onChange("customerId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890" mono maxLength={10} />
-      </Field>
-    </>
-  );
-}
-
-function GscSection({ creds, onChange }: any) {
-  return (
-    <>
-      <SectionHeader brand="GSC" name="Google Search Console" description="OAuth oficial. Acá solo la URL de tu propiedad." />
-      <Tutorial
-        title="Dónde está la URL de tu propiedad"
-        steps={[
-          { text: "search.google.com/search-console logueado", detail: "" },
-          { text: "Selector de propiedades arriba izquierda", detail: "" },
-          { text: "Copiá la URL exacta (con https y barra final si corresponde)", detail: "" },
-        ]}
-      />
-      <InfoBox>
-        <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te llevamos a login oficial de Google.
-      </InfoBox>
-      <Field label="URL de tu propiedad">
-        <Input value={creds.propertyUrl || ""} onChange={(v) => onChange("propertyUrl", v)} placeholder="https://www.tutienda.com/" mono />
-      </Field>
-    </>
-  );
-}
-
-function NitroPixelSection({ creds, onChange, orgId }: any) {
-  const [copied, setCopied] = useState(false);
-  const appUrl = typeof window !== "undefined" ? window.location.origin : "https://nitrosales.vercel.app";
-  const snippet = orgId
-    ? `<!-- NitroPixel - pegá esto en el <head> de tu sitio (o como custom HTML tag en GTM) -->
-<script src="${appUrl}/api/pixel/script?org=${orgId}" async></script>`
-    : `<!-- Esperando ID de organización... -->`;
-
-  const copy = () => {
-    navigator.clipboard.writeText(snippet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  return (
-    <>
-      <SectionHeader
-        brand="NITROPIXEL"
-        name="NitroPixel"
-        description="Es nuestro pixel propio de tracking. Es la fuente de verdad de NitroSales para analytics (no dependemos de GA4). Requerido para activar la cuenta."
-      />
-
-      <div style={{
-        marginBottom: 14, padding: "14px 16px",
-        background: "linear-gradient(135deg, rgba(6,182,212,0.08), rgba(139,92,246,0.06))",
-        border: "1px solid rgba(6,182,212,0.25)",
-        borderRadius: 10,
-        display: "flex", gap: 12, alignItems: "flex-start",
-      }}>
-        <BrandLogo brand="NITROPIXEL" size={32} />
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#a5f3fc", marginBottom: 4 }}>
-            Por qué es importante
-          </div>
-          <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
-            NitroPixel captura sesiones, visitas, conversiones y atribución multi-touch directamente
-            first-party. Sin él, perdés analytics propias, NitroScore, y atribución detallada.
-          </div>
-        </div>
-      </div>
-
-      <Tutorial
-        title="Cómo instalarlo (5 min)"
-        steps={[
-          { text: "Copiá el snippet de abajo", detail: "Es un <script> que apunta a tu organización específica." },
-          { text: "Pegalo en el <head> de tu sitio", detail: "O si usás Google Tag Manager (recomendado): Tags → Nueva tag → Custom HTML → pegá el snippet → Trigger: All Pages → Guardar y publicar." },
-          { text: "Confirmá acá abajo que lo instalaste", detail: "Nosotros vamos a validar que recibimos pings antes de aprobar tu cuenta." },
-        ]}
-      />
-
-      {/* Snippet box */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: TEXT_PRIMARY, marginBottom: 6 }}>
-          Tu snippet personalizado
-        </div>
-        <div style={{
-          position: "relative",
-          background: "rgba(0,0,0,0.35)",
-          border: `1px solid ${BORDER}`,
-          borderRadius: 10,
-          padding: "12px 14px",
-          fontFamily: "'SF Mono', Menlo, Consolas, monospace",
-          fontSize: 11,
-          color: "#a5f3fc",
-          lineHeight: 1.6,
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-all",
-        }}>
-          {snippet}
-          <button
-            onClick={copy}
-            style={{
-              position: "absolute",
-              top: 10, right: 10,
-              padding: "5px 10px",
-              background: copied ? `${ACCENT_GREEN}20` : "rgba(255,255,255,0.08)",
-              border: `1px solid ${copied ? ACCENT_GREEN : BORDER}`,
-              borderRadius: 6,
-              color: copied ? ACCENT_GREEN : TEXT_SECONDARY,
-              fontSize: 10,
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            {copied ? <><Check size={10} /> Copiado</> : <><Copy size={10} /> Copiar</>}
-          </button>
-        </div>
-      </div>
-
-      {/* Confirm checkbox */}
-      <label style={{
-        display: "flex", alignItems: "center", gap: 10,
-        padding: "12px 14px",
-        background: creds.confirmedInstalled ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.02)",
-        border: `1px solid ${creds.confirmedInstalled ? "rgba(34,197,94,0.3)" : BORDER}`,
-        borderRadius: 10,
-        cursor: "pointer",
-        transition: "all 160ms",
-      }}>
-        <div
-          style={{
-            width: 18, height: 18, borderRadius: 5,
-            border: `2px solid ${creds.confirmedInstalled ? ACCENT_GREEN : "#3F3F46"}`,
-            background: creds.confirmedInstalled ? ACCENT_GREEN : "transparent",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}
-          onClick={() => onChange("confirmedInstalled", !creds.confirmedInstalled)}
-        >
-          {creds.confirmedInstalled && (
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          )}
-        </div>
-        <input
-          type="checkbox"
-          checked={!!creds.confirmedInstalled}
-          onChange={(e) => onChange("confirmedInstalled", e.target.checked)}
-          style={{ display: "none" }}
-        />
-        <div style={{ flex: 1, fontSize: 13, color: "#fff", fontWeight: 500 }}>
-          Ya pegué el snippet en mi sitio (head o GTM)
-          <div style={{ fontSize: 11, color: TEXT_SECONDARY, fontWeight: 400, marginTop: 2 }}>
-            NitroSales validará que recibimos pings antes de aprobar tu cuenta.
-          </div>
-        </div>
-      </label>
-    </>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// History + Confirm
-// ═══════════════════════════════════════════════════════════════
-
-function HistorySection({ active, history, onChange }: any) {
-  const OPTIONS = [
-    { months: 3, label: "3 meses", eta: "minutos" },
-    { months: 6, label: "6 meses", eta: "~30 min" },
-    { months: 12, label: "1 año", eta: "1-2 hs" },
-    { months: 24, label: "2 años", eta: "3-6 hs" },
-    { months: -1, label: "Todo", eta: "~1 día" },
-  ];
-
-  return (
-    <div>
-      <Title>Cuánta historia querés traer</Title>
-      <p style={{ color: TEXT_SECONDARY, fontSize: 13, lineHeight: 1.7, margin: "0 0 20px" }}>
-        Más tiempo = más data histórica desde día 1, pero la activación tarda más.
-      </p>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {active.map((k: BrandKey) => {
-          const p = ALL_PLATFORMS.find((pl) => pl.key === k);
-          if (!p) return null;
-          const value = history[k] ?? 12;
-          return (
-            <div key={k} style={{ padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}`, borderRadius: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <BrandLogo brand={k} size={20} />
-                <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_PRIMARY }}>{p.name}</div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
-                {OPTIONS.map((opt) => {
-                  const isActive = value === opt.months;
-                  return (
-                    <button key={opt.months} onClick={() => onChange(k, opt.months)} style={{
-                      padding: "8px 4px",
-                      background: isActive ? "rgba(255,94,26,0.12)" : "rgba(255,255,255,0.03)",
-                      border: `1px solid ${isActive ? BRAND_ORANGE : BORDER}`,
-                      borderRadius: 7,
-                      color: isActive ? "#fff" : TEXT_SECONDARY,
-                      cursor: "pointer",
-                      textAlign: "center",
-                      fontSize: 11,
-                    }}>
-                      <div style={{ fontWeight: isActive ? 700 : 500 }}>{opt.label}</div>
-                      <div style={{ fontSize: 9, color: isActive ? BRAND_ORANGE : TEXT_MUTED, marginTop: 2 }}>{opt.eta}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ConfirmSection({ usePlatforms, decisions, history, creds }: any) {
-  const HIST_LABEL = (m: number) => (m === -1 ? "Todo" : `${m} meses`);
-  const skippedPlatforms = ALL_PLATFORMS.filter((p) => decisions[p.key] === "skip");
-
-  return (
-    <div>
-      <Title>Revisá antes de enviar</Title>
-      <p style={{ color: TEXT_SECONDARY, fontSize: 13, lineHeight: 1.7, margin: "0 0 20px" }}>
-        Cuando envíes, NitroSales valida los datos y aprueba el backfill (2-24 hs). Recibís email cuando esté listo.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {usePlatforms.map((p: any) => {
-          const completion = calcCompletion(p.key, creds[p.key]);
-          return (
-            <div key={p.key} style={{ padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}`, borderRadius: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <BrandLogo brand={p.key} size={24} />
-                <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#fff" }}>{p.name}</div>
-                {completion === 100 ? (
-                  <CheckCircle2 size={16} color={ACCENT_GREEN} />
-                ) : (
-                  <span style={{ fontSize: 10, color: "#FCA5A5", fontWeight: 600 }}>{completion}%</span>
-                )}
-              </div>
-              {p.hasHistory && (
-                <div style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 6, paddingLeft: 36 }}>
-                  Historia: <strong style={{ color: TEXT_PRIMARY }}>{HIST_LABEL(history[p.key] ?? 12)}</strong>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {skippedPlatforms.length > 0 && (
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${BORDER}` }}>
-            <div style={{ fontSize: 10, color: TEXT_MUTED, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
-              No las uso ({skippedPlatforms.length})
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {skippedPlatforms.map((p) => (
-                <div key={p.key} style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  padding: "4px 8px",
-                  background: "rgba(255,255,255,0.03)",
-                  border: `1px solid ${BORDER}`,
-                  borderRadius: 6,
-                  fontSize: 10,
-                  color: TEXT_MUTED,
-                  textDecoration: "line-through",
-                }}>
-                  <BrandLogo brand={p.key} size={12} />
-                  {p.name}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-      <div style={{ marginTop: 16, padding: "12px 14px", background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 8, display: "flex", gap: 8 }}>
-        <ShieldCheck size={14} color={ACCENT_GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
-        <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
-          Tus credenciales viajan encriptadas con TLS y se guardan cifradas con AES-256.
         </div>
       </div>
     </div>
@@ -1372,57 +1358,9 @@ function ConfirmSection({ usePlatforms, decisions, history, creds }: any) {
 // Shared
 // ═══════════════════════════════════════════════════════════════
 
-function Tutorial({ title, steps, docUrl }: { title: string; steps: Array<{ text: string; detail?: string }>; docUrl?: string }) {
-  return (
-    <div style={{
-      padding: "14px 16px",
-      background: "rgba(255,94,26,0.04)",
-      border: "1px solid rgba(255,94,26,0.18)",
-      borderRadius: 10,
-      marginBottom: 12,
-    }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-        {title}
-      </div>
-      <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
-        {steps.map((s, i) => (
-          <li key={i} style={{ display: "flex", gap: 10, marginBottom: i === steps.length - 1 ? 0 : 10 }}>
-            <div style={{
-              minWidth: 18, height: 18, borderRadius: "50%",
-              background: "rgba(255,94,26,0.15)",
-              border: "1px solid rgba(255,94,26,0.35)",
-              color: BRAND_ORANGE,
-              fontSize: 10, fontWeight: 700,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0, marginTop: 1,
-            }}>
-              {i + 1}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, color: TEXT_PRIMARY, lineHeight: 1.6 }}>{s.text}</div>
-              {s.detail && (
-                <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6, marginTop: 3 }}>{s.detail}</div>
-              )}
-            </div>
-          </li>
-        ))}
-      </ol>
-      {docUrl && (
-        <a href={docUrl} target="_blank" rel="noopener noreferrer" style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          marginTop: 12, fontSize: 11, color: BRAND_ORANGE, textDecoration: "none",
-          paddingTop: 8, borderTop: "1px dashed rgba(255,94,26,0.2)",
-        }}>
-          Ver doc oficial <ExternalLink size={10} />
-        </a>
-      )}
-    </div>
-  );
-}
-
 function InfoBox({ children }: any) {
   return (
-    <div style={{ marginBottom: 14, padding: "10px 12px", background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8 }}>
+    <div style={{ marginTop: 14, padding: "10px 12px", background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8 }}>
       <div style={{ display: "flex", gap: 8 }}>
         <Info size={14} color="#60A5FA" style={{ flexShrink: 0, marginTop: 2 }} />
         <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>{children}</div>
@@ -1446,22 +1384,15 @@ function Field({ label, hint, children }: any) {
 function Input({ value, onChange, placeholder, mono, maxLength }: any) {
   return (
     <input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      maxLength={maxLength}
+      value={value} onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder} maxLength={maxLength}
       style={{
-        width: "100%",
-        padding: "10px 12px",
+        width: "100%", padding: "10px 12px",
         background: "rgba(255,255,255,0.03)",
-        border: `1px solid ${BORDER}`,
-        borderRadius: 8,
-        color: "#fff",
-        fontSize: 12,
-        outline: "none",
+        border: `1px solid ${BORDER}`, borderRadius: 8,
+        color: "#fff", fontSize: 12, outline: "none",
         fontFamily: mono ? "'SF Mono', Menlo, Consolas, monospace" : undefined,
-        boxSizing: "border-box",
-        transition: "border-color 120ms",
+        boxSizing: "border-box", transition: "border-color 120ms",
       }}
       onFocus={(e) => (e.currentTarget.style.borderColor = BRAND_ORANGE)}
       onBlur={(e) => (e.currentTarget.style.borderColor = BORDER)}
@@ -1472,13 +1403,10 @@ function Input({ value, onChange, placeholder, mono, maxLength }: any) {
 function Title({ children }: any) {
   return (
     <h1 style={{
-      fontSize: 26,
-      fontWeight: 700,
-      letterSpacing: "-0.02em",
-      margin: "0 0 14px",
+      fontSize: 26, fontWeight: 700,
+      letterSpacing: "-0.02em", margin: "0 0 14px",
       background: "linear-gradient(135deg, #fff 0%, #9CA3AF 100%)",
-      WebkitBackgroundClip: "text",
-      WebkitTextFillColor: "transparent",
+      WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
     }}>
       {children}
     </h1>
@@ -1488,11 +1416,8 @@ function Title({ children }: any) {
 function Pretitle({ children, tone }: any) {
   return (
     <div style={{
-      fontSize: 11,
-      fontWeight: 700,
-      color: tone,
-      textTransform: "uppercase",
-      letterSpacing: "0.12em",
+      fontSize: 11, fontWeight: 700, color: tone,
+      textTransform: "uppercase", letterSpacing: "0.12em",
       marginBottom: 12,
     }}>
       {children}
@@ -1502,26 +1427,8 @@ function Pretitle({ children, tone }: any) {
 
 function iconCircle(color: string) {
   return {
-    width: 64,
-    height: 64,
-    borderRadius: "50%",
-    background: `${color}1A`,
-    border: `1px solid ${color}4D`,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 64, height: 64, borderRadius: "50%",
+    background: `${color}1A`, border: `1px solid ${color}4D`,
+    display: "flex", alignItems: "center", justifyContent: "center",
   } as React.CSSProperties;
 }
-
-const sidebarLinkStyle: React.CSSProperties = {
-  display: "flex",
-  width: "100%",
-  padding: "9px 12px",
-  background: "transparent",
-  border: "none",
-  color: TEXT_SECONDARY,
-  fontSize: 12,
-  cursor: "pointer",
-  textAlign: "left",
-  borderRadius: 8,
-};
