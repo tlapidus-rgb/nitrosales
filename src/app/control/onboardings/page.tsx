@@ -1573,6 +1573,30 @@ function EmailFlowDebug() {
   const [state, setState] = useState<"idle" | "running" | "done">("idle");
   const [result, setResult] = useState<any>(null);
   const [which, setWhich] = useState<"invite" | "confirmation" | "activation" | "backfill_started" | "data_ready">("activation");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetState, setResetState] = useState<"idle" | "running" | "done">("idle");
+  const [resetResult, setResetResult] = useState<any>(null);
+
+  async function doReset() {
+    const email = resetEmail.trim().toLowerCase();
+    if (!email) { alert("Ingresá un email"); return; }
+    if (!confirm(`⚠ Esto va a BORRAR TODO lo asociado a ${email} (lead, onboarding, user, org, connections, orders, etc).\n\nNo se puede deshacer. ¿Continuar?`)) return;
+    setResetState("running");
+    setResetResult(null);
+    try {
+      const r = await fetch("/api/admin/reset-test-env", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const j = await r.json();
+      setResetResult(j);
+    } catch (err: any) {
+      setResetResult({ ok: false, error: err.message });
+    } finally {
+      setResetState("done");
+    }
+  }
 
   async function run(dryRun: boolean) {
     setState("running");
@@ -1737,6 +1761,49 @@ function EmailFlowDebug() {
           </div>
         </div>
       )}
+
+      {/* ── Reset test env ──────────────────────────────────────── */}
+      <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid rgba(168,85,247,0.15)" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#EF4444", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
+          🧹 Reset test environment
+        </div>
+        <div style={{ fontSize: 12, color: "#A1A1AA", lineHeight: 1.5, marginBottom: 10 }}>
+          Borra <strong style={{ color: "#fff" }}>todo</strong> lo asociado a un email: lead + onboarding + user + org + connections + orders + backfill jobs + webhook events. Perfecto para re-testear desde cero.
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <input
+            type="email"
+            placeholder="email del test a borrar"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            style={{ flex: 1, padding: "7px 12px", background: "#0A0A0F", border: "1px solid #27272A", borderRadius: 7, color: "#fff", fontSize: 12 }}
+          />
+          <button
+            onClick={doReset}
+            disabled={resetState === "running"}
+            style={{
+              padding: "7px 14px", background: "#EF4444", color: "#fff",
+              border: 0, borderRadius: 7, fontSize: 12, fontWeight: 600,
+              cursor: resetState === "running" ? "wait" : "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {resetState === "running" ? "Borrando..." : "Borrar todo"}
+          </button>
+        </div>
+        {resetResult && (
+          <div style={{
+            padding: "10px 12px",
+            background: resetResult.ok ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.08)",
+            border: `1px solid ${resetResult.ok ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.3)"}`,
+            borderRadius: 7, fontSize: 11, color: "#D4D4D8", fontFamily: "'SF Mono', Menlo, monospace", whiteSpace: "pre-wrap",
+          }}>
+            {resetResult.ok
+              ? `✓ Eliminados ${resetResult.totalDeleted} registros:\n${JSON.stringify(resetResult.deleted, null, 2)}`
+              : `✗ Error: ${resetResult.error}`}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
