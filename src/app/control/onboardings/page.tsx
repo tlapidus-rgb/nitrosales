@@ -685,57 +685,8 @@ function DetailDrawer({
                 {detail.contactWhatsapp && <DRow label="WhatsApp" value={detail.contactWhatsapp} copyable onCopy={copy} field="wa" copied={copiedField === "wa"} />}
               </DSection>
 
-              {/* VTEX */}
-              <PlatformBlock name="VTEX" color="#FF0080" configured={detail.hasVtexCredentials}>
-                {detail.vtexAccountName && (
-                  <DRow label="Account" value={detail.vtexAccountName} copyable onCopy={copy} field="vtexAcc" copied={copiedField === "vtexAcc"} />
-                )}
-                {detail.vtexAppKey && <DSecret label="App Key" value={detail.vtexAppKey} field="vtexKey" onCopy={copy} copiedField={copiedField} />}
-                {detail.vtexAppToken && <DSecret label="App Token" value={detail.vtexAppToken} field="vtexTok" onCopy={copy} copiedField={copiedField} />}
-                {!detail.hasVtexCredentials && !detail.vtexAccountName && (
-                  <EmptyLabel label="No configurado" />
-                )}
-              </PlatformBlock>
-
-              {/* MercadoLibre */}
-              <PlatformBlock name="MercadoLibre" color="#FFE600" configured={!!detail.mlUsername}>
-                {detail.mlUsername ? (
-                  <DRow label="Usuario" value={detail.mlUsername} copyable onCopy={copy} field="mlUser" copied={copiedField === "mlUser"} />
-                ) : (
-                  <EmptyLabel label="No configurado" />
-                )}
-              </PlatformBlock>
-
-              {/* Meta Ads */}
-              <PlatformBlock name="Meta Ads" color="#1877F2" configured={detail.hasMetaCredentials}>
-                {detail.metaAdAccountId && (
-                  <DRow label="Ad Account" value={detail.metaAdAccountId} copyable onCopy={copy} field="metaAdAcc" copied={copiedField === "metaAdAcc"} />
-                )}
-                {detail.metaAccessToken && <DSecret label="Access Token" value={detail.metaAccessToken} field="metaTok" onCopy={copy} copiedField={copiedField} />}
-                {!detail.hasMetaCredentials && !detail.metaAdAccountId && (
-                  <EmptyLabel label="No configurado" />
-                )}
-              </PlatformBlock>
-
-              {/* Meta Pixel */}
-              <PlatformBlock name="Meta Pixel" color="#1877F2" configured={detail.hasMetaPixelCredentials}>
-                {detail.metaPixelId && (
-                  <DRow label="Pixel ID" value={detail.metaPixelId} copyable onCopy={copy} field="pxId" copied={copiedField === "pxId"} />
-                )}
-                {detail.metaPixelToken && <DSecret label="Access Token" value={detail.metaPixelToken} field="pxTok" onCopy={copy} copiedField={copiedField} />}
-                {!detail.hasMetaPixelCredentials && !detail.metaPixelId && (
-                  <EmptyLabel label="No configurado" />
-                )}
-              </PlatformBlock>
-
-              {/* Google Ads */}
-              <PlatformBlock name="Google Ads" color="#4285F4" configured={!!detail.googleAdsCustomerId}>
-                {detail.googleAdsCustomerId ? (
-                  <DRow label="Customer ID" value={detail.googleAdsCustomerId} copyable onCopy={copy} field="gAdsId" copied={copiedField === "gAdsId"} />
-                ) : (
-                  <EmptyLabel label="No configurado" />
-                )}
-              </PlatformBlock>
+              {/* Conexiones reales que cargo el cliente en el wizard */}
+              <ConnectionsList connections={detail.connections || []} />
 
               {detail.adminNotes && (
                 <DSection title="Notas">
@@ -825,6 +776,7 @@ function DetailDrawer({
                     onTest={testAllCredentials}
                     testing={testingCreds}
                     result={credTestResult}
+                    connections={detail.connections}
                   />
 
                   <button
@@ -893,20 +845,118 @@ function DetailDrawer({
 
 // ─── dark variants ───
 // ═══════════════════════════════════════════════════════════════
+// ConnectionsList — Conexiones reales que cargo el cliente
+// (lee Connections de la org, NO los campos legacy del onboarding_request)
+// ═══════════════════════════════════════════════════════════════
+const PLATFORM_META: Record<string, { name: string; color: string }> = {
+  VTEX: { name: "VTEX", color: "#FF0080" },
+  MERCADOLIBRE: { name: "MercadoLibre", color: "#FFE600" },
+  META_ADS: { name: "Meta Ads", color: "#1877F2" },
+  META_PIXEL: { name: "Meta Pixel", color: "#1877F2" },
+  GOOGLE_ADS: { name: "Google Ads", color: "#4285F4" },
+  GOOGLE_SEARCH_CONSOLE: { name: "Google Search Console", color: "#34A853" },
+  GA4: { name: "Google Analytics 4", color: "#F9AB00" },
+  TIENDANUBE: { name: "Tiendanube", color: "#00C2C7" },
+  SHOPIFY: { name: "Shopify", color: "#95BF47" },
+  WOOCOMMERCE: { name: "WooCommerce", color: "#7F54B3" },
+  TIKTOK_ADS: { name: "TikTok Ads", color: "#FE2C55" },
+};
+
+function ConnectionsList({ connections }: { connections: any[] }) {
+  if (!connections || connections.length === 0) {
+    return (
+      <DSection title="Conexiones cargadas por el cliente">
+        <div style={{ padding: "14px 16px", background: "#0F0F11", border: "1px dashed #27272A", borderRadius: 8, fontSize: 12, color: "#71717A", textAlign: "center" }}>
+          El cliente todavía no completó el wizard.
+        </div>
+      </DSection>
+    );
+  }
+
+  return (
+    <DSection title={`Conexiones del wizard · ${connections.length}`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {connections.map((c) => {
+          const meta = PLATFORM_META[c.platform] || { name: c.platform, color: "#71717A" };
+          const statusColor = c.status === "ACTIVE" ? "#22C55E" : c.status === "ERROR" ? "#EF4444" : c.status === "PENDING" ? "#F59E0B" : "#71717A";
+          return (
+            <div
+              key={c.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 12px",
+                background: "#0F0F11",
+                border: "1px solid #1F1F23",
+                borderLeft: `3px solid ${meta.color}`,
+                borderRadius: 8,
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#fff", marginBottom: 2 }}>
+                  {meta.name}
+                </div>
+                <div style={{ fontSize: 10.5, color: "#71717A" }}>
+                  Cargada {formatRelative(c.createdAt)}
+                  {c.lastSyncAt && <> · último sync {formatRelative(c.lastSyncAt)}</>}
+                </div>
+                {c.lastSyncError && (
+                  <div style={{ fontSize: 10.5, color: "#FCA5A5", marginTop: 3, lineHeight: 1.4 }}>
+                    Último error: {c.lastSyncError.slice(0, 100)}
+                  </div>
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  background: statusColor + "22",
+                  color: statusColor,
+                  border: `1px solid ${statusColor}55`,
+                  borderRadius: 99,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {c.status}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </DSection>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // CredentialsTestBlock — F1.3: probar credenciales antes de aprobar
 // ═══════════════════════════════════════════════════════════════
 function CredentialsTestBlock({
   onTest,
   testing,
   result,
+  connections,
 }: {
   onTest: () => void;
   testing: boolean;
   result: any;
+  connections?: any[];
 }) {
   const summary = result?.summary;
   const allOk = summary && summary.failed === 0 && summary.passed > 0;
   const someFailed = summary && summary.failed > 0;
+
+  // Listar plataformas que se van a testear (de las connections + NitroPixel)
+  const platformsToTest = (connections || []).map((c: any) => {
+    const meta = PLATFORM_META[c.platform];
+    return meta?.name || c.platform;
+  });
+  // NitroPixel siempre se chequea adicionalmente
+  if (!platformsToTest.includes("NitroPixel")) {
+    platformsToTest.push("NitroPixel");
+  }
 
   return (
     <div
@@ -917,24 +967,44 @@ function CredentialsTestBlock({
           ? "rgba(34,197,94,0.06)"
           : someFailed
           ? "rgba(239,68,68,0.06)"
-          : "rgba(255,255,255,0.02)",
-        border: `1px solid ${allOk ? "rgba(34,197,94,0.25)" : someFailed ? "rgba(239,68,68,0.25)" : "#27272A"}`,
+          : "rgba(255,94,26,0.04)",
+        border: `1px solid ${allOk ? "rgba(34,197,94,0.25)" : someFailed ? "rgba(239,68,68,0.25)" : "rgba(255,94,26,0.25)"}`,
         borderRadius: 10,
         transition: "all 0.25s ease",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: result ? 12 : 0 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: allOk ? "#86EFAC" : someFailed ? "#FCA5A5" : "#A1A1AA", marginBottom: 2 }}>
-            {testing ? "Probando…" : allOk ? "Todas las credenciales OK" : someFailed ? `${summary.failed} de ${summary.total} fallaron` : "Probá las credenciales"}
+          <div style={{ fontSize: 12, fontWeight: 700, color: allOk ? "#86EFAC" : someFailed ? "#FCA5A5" : "#FFB088", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            {testing ? "Probando…" : allOk ? "Todas las credenciales OK" : someFailed ? `${summary.failed} de ${summary.total} fallaron` : "Probar credenciales"}
           </div>
-          <div style={{ fontSize: 11, color: "#71717A", lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: "#D4D4D8", lineHeight: 1.5, marginBottom: result ? 0 : 6 }}>
             {testing
               ? "Cada plataforma puede tardar 2-5 segundos."
               : result
               ? `${summary.total} plataforma${summary.total === 1 ? "" : "s"} testeada${summary.total === 1 ? "" : "s"}.`
-              : "Hace 1 request real a cada API para confirmar que las credenciales funcionan."}
+              : "Vamos a probar:"}
           </div>
+          {!result && !testing && platformsToTest.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 4 }}>
+              {platformsToTest.map((name: string) => (
+                <span
+                  key={name}
+                  style={{
+                    fontSize: 10.5,
+                    padding: "3px 8px",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid #27272A",
+                    borderRadius: 99,
+                    color: "#A1A1AA",
+                    fontWeight: 500,
+                  }}
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <button
           onClick={onTest}

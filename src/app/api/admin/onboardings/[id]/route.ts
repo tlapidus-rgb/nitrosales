@@ -97,6 +97,9 @@ export async function GET(
         activatedAt: r.activatedAt ? new Date(r.activatedAt).toISOString() : null,
         createdAt: new Date(r.createdAt).toISOString(),
         updatedAt: new Date(r.updatedAt).toISOString(),
+        // Connections reales de la org (cargadas por el cliente en el wizard
+        // adentro del producto). Estas son las que vamos a testear.
+        connections: r.createdOrgId ? await loadConnectionsForOrg(r.createdOrgId) : [],
       },
     });
   } catch (error: any) {
@@ -106,6 +109,29 @@ export async function GET(
       { status: 500 }
     );
   }
+}
+
+async function loadConnectionsForOrg(orgId: string) {
+  const conns = await prisma.connection.findMany({
+    where: { organizationId: orgId },
+    select: {
+      id: true,
+      platform: true,
+      status: true,
+      lastSyncAt: true,
+      lastSyncError: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return conns.map((c) => ({
+    id: c.id,
+    platform: c.platform,
+    status: c.status,
+    lastSyncAt: c.lastSyncAt ? c.lastSyncAt.toISOString() : null,
+    lastSyncError: c.lastSyncError,
+    createdAt: c.createdAt.toISOString(),
+  }));
 }
 
 export async function PATCH(
