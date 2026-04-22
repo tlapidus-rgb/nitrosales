@@ -80,6 +80,10 @@ export default function ControlOnboardingsPage() {
         </p>
       </div>
 
+      {/* Migration banner — MercadoLibre sync v2 */}
+      <MigrationBanner />
+
+
       {/* Filter tabs */}
       <div
         style={{
@@ -1551,6 +1555,150 @@ function BackfillJobRow({ job }: { job: any }) {
           {job.lastError.slice(0, 200)}
         </div>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// MigrationBanner — botón idempotente para ejecutar migración ML sync v2
+// ══════════════════════════════════════════════════════════════
+// Creada en S55 BIS+2 junto con el refactor de 4 capas de ML.
+// Usa localStorage para "ocultar" el banner una vez que se ejecutó OK.
+// La migración en sí es idempotente (CREATE IF NOT EXISTS).
+// ══════════════════════════════════════════════════════════════
+
+function MigrationBanner() {
+  const [state, setState] = useState<"idle" | "running" | "ok" | "error">("idle");
+  const [log, setLog] = useState<string[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    // Si ya corrió OK antes, esconder el banner (localStorage flag)
+    try {
+      if (typeof window !== "undefined" && localStorage.getItem("ml-sync-migration-ok") === "1") {
+        setHidden(true);
+      }
+    } catch {}
+  }, []);
+
+  async function run() {
+    setState("running");
+    setErrorMsg(null);
+    try {
+      const res = await fetch("/api/admin/migrate-ml-sync-infra", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setErrorMsg(json.error || `HTTP ${res.status}`);
+        setState("error");
+        return;
+      }
+      setLog(json.log || []);
+      setState("ok");
+      try { localStorage.setItem("ml-sync-migration-ok", "1"); } catch {}
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Error de red");
+      setState("error");
+    }
+  }
+
+  if (hidden) return null;
+
+  return (
+    <div
+      style={{
+        marginBottom: 24,
+        padding: "16px 20px",
+        background: "linear-gradient(135deg, rgba(255,94,26,0.08), rgba(168,85,247,0.06))",
+        border: "1px solid rgba(255,94,26,0.25)",
+        borderRadius: 12,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#FF5E1A", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
+            ⚙️ Infraestructura nueva
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 4, letterSpacing: "-0.01em" }}>
+            Migración MercadoLibre sync v2
+          </div>
+          <div style={{ fontSize: 13, color: "#A1A1AA", lineHeight: 1.5 }}>
+            Crea las tablas <code style={{ color: "#fff" }}>sync_watermarks</code> + <code style={{ color: "#fff" }}>meli_webhook_events</code> y la columna <code style={{ color: "#fff" }}>externalUpdatedAt</code> en orders. Ejecutá una sola vez. Idempotente.
+          </div>
+          {state === "ok" && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "10px 12px",
+                background: "rgba(34,197,94,0.08)",
+                border: "1px solid rgba(34,197,94,0.3)",
+                borderRadius: 8,
+                fontSize: 12,
+                color: "#4ADE80",
+                fontFamily: "'SF Mono', Menlo, monospace",
+                whiteSpace: "pre-line",
+              }}
+            >
+              {log.join("\n")}
+            </div>
+          )}
+          {state === "error" && errorMsg && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "10px 12px",
+                background: "rgba(239,68,68,0.08)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                borderRadius: 8,
+                fontSize: 12,
+                color: "#FCA5A5",
+                fontFamily: "'SF Mono', Menlo, monospace",
+              }}
+            >
+              ✗ {errorMsg}
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          {state !== "ok" && (
+            <button
+              onClick={run}
+              disabled={state === "running"}
+              style={{
+                padding: "9px 18px",
+                background: state === "running" ? "#27272A" : "#FF5E1A",
+                color: "#fff",
+                border: 0,
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: state === "running" ? "wait" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {state === "running" ? "Ejecutando..." : state === "error" ? "Reintentar" : "Ejecutar migración"}
+            </button>
+          )}
+          <button
+            onClick={() => {
+              try { localStorage.setItem("ml-sync-migration-ok", "1"); } catch {}
+              setHidden(true);
+            }}
+            title="Ocultar (ya la ejecuté)"
+            style={{
+              padding: "9px 12px",
+              background: "transparent",
+              color: "#71717A",
+              border: "1px solid #27272A",
+              borderRadius: 8,
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
