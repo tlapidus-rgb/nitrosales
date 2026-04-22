@@ -16,6 +16,7 @@ import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { createBackfillJob } from "@/lib/backfill/job-manager";
 import { sendEmail } from "@/lib/email/send";
+import { backfillStartedEmail } from "@/lib/onboarding/emails";
 import { waitUntil } from "@vercel/functions";
 
 export const dynamic = "force-dynamic";
@@ -135,23 +136,14 @@ export async function POST(
     );
 
     // Email al cliente
-    const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const tpl = backfillStartedEmail({
+      contactName: ob.contactName,
+      companyName: ob.companyName,
+    });
     sendEmail({
       to: ob.contactEmail,
-      subject: `🚀 Arrancó tu backfill — ${ob.companyName}`,
-      html: `<!DOCTYPE html><html><body style="background:#0A0A0F;color:#fff;font-family:-apple-system,sans-serif;padding:40px 20px;">
-<div style="max-width:520px;margin:0 auto;background:#141419;border-radius:16px;padding:32px;border:1px solid #1F1F2E;">
-  <div style="font-size:11px;color:#FF5E1A;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">NitroSales</div>
-  <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Estamos trayendo tu data histórica</h1>
-  <p style="color:#9CA3AF;font-size:14px;line-height:1.6;margin:0 0 16px;">
-    Hola ${ob.contactName}, validamos tus credenciales y arrancamos el backfill de tu data histórica. Esto puede tardar entre 1 y 24 horas dependiendo del volumen.
-  </p>
-  <p style="color:#9CA3AF;font-size:13px;line-height:1.6;margin:0 0 24px;">
-    Podés entrar al producto cuando quieras — vas a ver el progreso en vivo. El producto se desbloquea automáticamente al terminar.
-  </p>
-  <a href="${appUrl}" style="display:inline-block;background:linear-gradient(135deg,#FF5E1A,#FF8C4A);color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">Abrir NitroSales →</a>
-</div>
-</body></html>`,
+      subject: tpl.subject,
+      html: tpl.html,
     }).catch((err) => console.error("[approve-backfill] client email failed:", err?.message));
 
     // Trigger inmediato del runner: no esperar al proximo tick del cron (1 min).

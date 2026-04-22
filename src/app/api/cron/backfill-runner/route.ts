@@ -29,6 +29,7 @@ import {
 } from "@/lib/backfill/job-manager";
 import { processChunk } from "@/lib/backfill/dispatcher";
 import { sendEmail } from "@/lib/email/send";
+import { dataReadyEmail } from "@/lib/onboarding/emails";
 // (onboardingActivationEmail ya no se usa aca — se manda en /activate)
 
 export const dynamic = "force-dynamic";
@@ -188,20 +189,14 @@ async function finalizeOnboarding(onboardingRequestId: string) {
   // Email "tu data esta lista"
   if (r.contactEmail) {
     try {
-      const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+      const tpl = dataReadyEmail({
+        contactName: r.contactName,
+        companyName: r.companyName,
+      });
       await sendEmail({
         to: r.contactEmail,
-        subject: `✨ Tu data está lista — ${r.companyName}`,
-        html: `<!DOCTYPE html><html><body style="background:#0A0A0F;color:#fff;font-family:-apple-system,sans-serif;padding:40px 20px;">
-<div style="max-width:520px;margin:0 auto;background:#141419;border-radius:16px;padding:32px;border:1px solid #1F1F2E;">
-  <div style="font-size:11px;color:#22C55E;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">NitroSales · Listo</div>
-  <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Tu plataforma está completamente desbloqueada</h1>
-  <p style="color:#9CA3AF;font-size:14px;line-height:1.6;margin:0 0 24px;">
-    Hola ${r.contactName}, terminamos de procesar toda tu data histórica. Cuando entres a NitroSales vas a tener acceso completo a todos los productos.
-  </p>
-  <a href="${appUrl}" style="display:inline-block;background:linear-gradient(135deg,#FF5E1A,#FF8C4A);color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">Abrir NitroSales →</a>
-</div>
-</body></html>`,
+        subject: tpl.subject,
+        html: tpl.html,
       });
       console.log(`[backfill-runner] Email 'data lista' enviado a ${r.contactEmail}`);
     } catch (err) {
