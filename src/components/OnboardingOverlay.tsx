@@ -37,6 +37,8 @@ import {
 } from "lucide-react";
 import { BrandLogo, type BrandKey } from "./BrandLogo";
 import { VisualTutorial } from "./VisualTutorials";
+import OnboardingAurumChat from "./OnboardingAurumChat";
+import { AurumOrb } from "./aurum/AurumOrb";
 
 const BRAND_ORANGE = "#FF5E1A";
 const BORDER = "rgba(255,255,255,0.08)";
@@ -53,6 +55,8 @@ const ACCENT_RED = "#EF4444";
 export default function OnboardingOverlay() {
   const [state, setState] = useState<any>(null);
   const [loaded, setLoaded] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [currentStep, setCurrentStep] = useState<string | null>(null);
 
   const fetchState = async () => {
     try {
@@ -104,9 +108,9 @@ export default function OnboardingOverlay() {
           overflow: "hidden",
         }}
       >
-        {isWizard && <WizardFullscreen orgId={state.orgId} onSubmitted={fetchState} />}
+        {isWizard && <WizardFullscreen orgId={state.orgId} onSubmitted={fetchState} onStepChange={setCurrentStep} />}
         {!isWizard && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "24px 24px 96px" }}>
             <div
               style={{
                 width: "100%",
@@ -127,7 +131,18 @@ export default function OnboardingOverlay() {
             </div>
           </div>
         )}
+
+        {/* Botón horizontal "Hablá con Aurum" — Fase 0 del roadmap */}
+        <AurumChatButton onClick={() => setChatOpen(true)} />
       </div>
+
+      {/* Drawer del chat */}
+      <OnboardingAurumChat
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        currentPhase={state.phase}
+        currentStep={currentStep}
+      />
 
       <style jsx global>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -373,7 +388,7 @@ function calcCompletion(platformKey: BrandKey, creds: any): number {
   return total === 0 ? 0 : Math.round((filled / total) * 100);
 }
 
-function WizardFullscreen({ orgId, onSubmitted }: { orgId: string | null; onSubmitted: () => void }) {
+function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string | null; onSubmitted: () => void; onStepChange?: (step: string | null) => void }) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [creds, setCreds] = useState<Record<string, any>>({});
   const [history, setHistory] = useState<Record<string, number>>({
@@ -383,6 +398,11 @@ function WizardFullscreen({ orgId, onSubmitted }: { orgId: string | null; onSubm
   const [error, setError] = useState<string | null>(null);
   const [skipModalFor, setSkipModalFor] = useState<BrandKey | null>(null);
   const [focusedPlatform, setFocusedPlatform] = useState<BrandKey | null>(null);
+
+  // Comunicar el paso actual al overlay (para que Aurum tenga contexto)
+  useEffect(() => {
+    if (onStepChange) onStepChange(focusedPlatform);
+  }, [focusedPlatform, onStepChange]);
 
   const setDecision = (k: string, d: Decision) => {
     setDecisions((s) => ({ ...s, [k]: d }));
@@ -469,7 +489,7 @@ function WizardFullscreen({ orgId, onSubmitted }: { orgId: string | null; onSubm
           background: "rgba(8,8,12,0.7)",
           borderRight: `1px solid ${BORDER}`,
           overflowY: "auto",
-          padding: "28px 20px 28px",
+          padding: "28px 20px 110px",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
         }}
@@ -654,7 +674,7 @@ function WizardFullscreen({ orgId, onSubmitted }: { orgId: string | null; onSubm
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: "36px 40px 60px",
+          padding: "36px 40px 120px",
           background: "rgba(10,10,15,0.55)",
           backdropFilter: "blur(10px)",
           WebkitBackdropFilter: "blur(10px)",
@@ -683,7 +703,7 @@ function WizardFullscreen({ orgId, onSubmitted }: { orgId: string | null; onSubm
           background: "rgba(8,8,12,0.5)",
           borderLeft: `1px solid ${BORDER}`,
           overflowY: "auto",
-          padding: "36px 28px",
+          padding: "36px 28px 110px",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
         }}
@@ -1304,4 +1324,59 @@ function iconCircle(color: string) {
     background: `${color}1A`, border: `1px solid ${color}4D`,
     display: "flex", alignItems: "center", justifyContent: "center",
   } as React.CSSProperties;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AurumChatButton — barra horizontal pegada abajo del overlay
+// Fase 0 del onboarding roadmap. Abre el drawer con Aurum.
+// ═══════════════════════════════════════════════════════════════
+function AurumChatButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        position: "fixed",
+        bottom: 18,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 50,
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "12px 22px 12px 14px",
+        borderRadius: 999,
+        border: "1px solid rgba(168,85,247,0.35)",
+        background: "linear-gradient(135deg, rgba(255,0,128,0.18) 0%, rgba(168,85,247,0.22) 50%, rgba(0,212,255,0.18) 100%)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+        boxShadow: "0 10px 40px rgba(168,85,247,0.25), 0 2px 8px rgba(0,0,0,0.3)",
+        transition: "transform 0.18s ease, box-shadow 0.18s ease",
+        animation: "aurumBtnPulse 3.5s ease-in-out infinite",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateX(-50%) translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 16px 52px rgba(168,85,247,0.38), 0 3px 12px rgba(0,0,0,0.35)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateX(-50%)";
+        e.currentTarget.style.boxShadow = "0 10px 40px rgba(168,85,247,0.25), 0 2px 8px rgba(0,0,0,0.3)";
+      }}
+    >
+      <AurumOrb size={26} />
+      <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.2 }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Hablá con Aurum</span>
+        <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.65)", fontWeight: 400 }}>Te ayudo con dudas del onboarding</span>
+      </span>
+      <style jsx>{`
+        @keyframes aurumBtnPulse {
+          0%, 100% { box-shadow: 0 10px 40px rgba(168,85,247,0.25), 0 2px 8px rgba(0,0,0,0.3); }
+          50% { box-shadow: 0 12px 48px rgba(168,85,247,0.4), 0 2px 8px rgba(0,0,0,0.3); }
+        }
+      `}</style>
+    </button>
+  );
 }
