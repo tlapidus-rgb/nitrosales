@@ -4,7 +4,74 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-22 — Sesión 55 (3 errores criticos nuevos: limite de paginacion no documentado de VTEX, validacion solo con tsc/build sin trace runtime, cooldown anti-race compitiendo con loop interno propio).**
+> **Última actualización: 2026-04-22 — Sesión 55 BIS+3 (3 errores nuevos: FROM=no-reply@ dispara spam en dominio nuevo, ofrecer parche manual antes de diagnosticar bug raíz, wrappers de servicios externos sin persistencia de intentos).**
+
+---
+
+## Error #S55BIS3-NO-REPLY-SPAM — Usar `no-reply@` como FROM de emails transaccionales en dominio nuevo
+
+**Cuándo pasó**: Sesión 55 BIS+3. Los emails automáticos del onboarding (invitación, confirmación, activación) caían a spam aunque el envío manual por debug endpoint llegaba al inbox. Contradictorio. Tomy cambió `no-reply@nitrosales.ai` → address humano (ej `hola@nitrosales.ai`) y empezaron a llegar.
+
+### Causa raíz
+- `RESEND_FROM` env var en Vercel estaba en `no-reply@nitrosales.ai`.
+- Filtros anti-spam (Gmail especialmente) son extremadamente agresivos con `no-reply@` + dominio nuevo (<6 meses). Heurística automática clasifica como probable spam transaccional.
+- SPF/DKIM/DMARC estaban OK — no era problema de auth.
+- Default del código tenía `team@nitrosales.ai` pero env var global lo sobreescribía.
+
+### Regla
+**Para emails transaccionales en dominio nuevo (< 6 meses), usar SIEMPRE un FROM humano:**
+- ✅ `hola@dominio.com` / `team@dominio.com` / `nombre@dominio.com`
+- ❌ `no-reply@dominio.com` / `noreply@dominio.com`
+
+**Anti-pattern sutil**: default del wrapper correcto pero env var global mal. Siempre chequear env vars efectivas en producción (con un endpoint debug que las devuelva), no solo defaults en código.
+
+**Cómo detectar**: si emails manuales llegan OK pero automáticos van a spam, sospechar del FROM. Si ambos fallan, sospechar auth o reputación del dominio.
+
+---
+
+## Error #S55BIS3-PARCHE-VS-DIAGNOSTICO — Reenviar manualmente un email cuando el flow automático falla
+
+**Cuándo pasó**: Sesión 55 BIS+3. Tomy reportó emails automáticos no llegando. Mi primer instinto: "te armo botón para reenviar manual". Tomy respondió: *"me da miedo que sea un parche y el proceso automático siga roto"*. Tenía razón.
+
+### Causa raíz
+- Reflejo de "arreglar síntoma" en vez de diagnosticar causa.
+- Reenvío manual oculta el bug: el flujo automático sigue roto, el admin lo "parcha" cada vez.
+- En producción con 2+ clientes/semana, esto escala a trabajo manual recurrente.
+
+### Regla
+**Cuando un flow automático falla, NUNCA ofrecer reenvío manual como primera opción.** Orden correcto:
+1. **Diagnóstico sin modificar producción** — endpoint que ejecute el flow paso a paso con reporte de dónde falla.
+2. **Fix del bug raíz**.
+3. **Validación creando caso nuevo** (NO reenviando el roto).
+4. **Observability** si el problema fue difícil de detectar (agregar tabla de log al wrapper, panel admin, etc).
+
+**Reenvío manual solo acceptable en**: cliente urgente + raíz ya diagnosticada + fix en vuelo. Siempre documentar que es parche.
+
+---
+
+## Error #S55BIS3-OBSERVABILITY-MISSING — Wrappers de servicios externos sin persistencia de intentos
+
+**Cuándo pasó**: Sesión 55 BIS+3. Sin tabla `email_log`, debuggear "no llegó el email" requería: mirar logs de Vercel + dashboard de Resend + adivinar. Cada debug tardaba 10-15 min vs 30 seg con panel admin.
+
+### Causa raíz
+- Wrappers de servicios externos (`sendEmail`, futuros `stripe`, `twilio`, etc) hacían fire-and-forget con `.catch()` silencioso.
+- Ningún registro persistente de intentos → no había forma de reconstruir qué pasó con un envío específico.
+
+### Regla
+**Cada wrapper de servicio externo DEBE persistir automáticamente cada intento en una tabla de log.**
+
+Estructura mínima:
+- `timestamp`, `service`, `operation`
+- `input_summary` (to, subject, size — no content completo)
+- `ok`, `external_id` (resendId/stripeId/etc), `error_message`, `http_status`
+- `duration_ms`, `context`
+
+Requisitos:
+- **Insert try/catch silencioso**: si falla, NO romper el envío real.
+- **Panel admin visible** con filtros (only=failed, by destinatario, by context).
+- **Retención mínima 30 días**.
+
+**Pattern aplicado en S55 BIS+3 a email con `email_log`**. Replicar cuando integremos: Stripe, Twilio, webhooks outgoing, S3. El `meli_webhook_events` es el mismo pattern aplicado a webhooks incoming.
 
 ---
 

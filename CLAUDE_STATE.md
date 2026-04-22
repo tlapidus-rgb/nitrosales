@@ -3,7 +3,80 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-22 (Sesion 55 BIS+2 — Variante A final en tono PROFESIONAL/SOBRIO + editor admin de templates de email `/control/email-templates` con DB + onboarding form redesign split premium (form first-fold) + pipeline modal fix empresa requerida. Arrancando Tarea A: auditoria de paginacion en todas las plataformas.)
+## Ultima actualizacion: 2026-04-22 (Sesion 55 BIS+3 — ML sync v2 (4 capas) + Email log (observability) + Debug flow tools + Reset test env + Fix deliverability no-reply@. Tomy probo flow parcialmente: emails llegan al inbox despues de cambiar RESEND_FROM. Pendiente: ejecutar 2 migraciones DB + completar test E2E con credenciales ML.)
+
+### Sesion 55 BIS+3 (22-04 tarde/noche) — ML sync robusto + Observability + Deliverability fix
+
+**Contexto**: despues de cerrar BIS+2, arrancamos la Tarea A (auditoria de paginacion). Derivo en refactor grande del sync de ML con 4 capas siguiendo patrones de Stripe/Shopify/Airbyte. Durante el test E2E aparecio un bug de deliverability (FROM=no-reply@ disparaba spam) que resolvimos agregando observability pattern (email_log).
+
+#### Commits clave (17)
+
+**Auditoria + ML sync v2 (arquitectura 4 capas)**:
+- `c081230` ML sync robusto: schema (sync_watermarks, meli_webhook_events, Order.externalUpdatedAt) + utils (concurrency/jitter/retry) + ML processor (date-window + pre-query + upsert guard) + webhook outbox + 3 crons (missed_feeds 30min, reconcile 2h, deep 1x/dia) + dispatcher integrado.
+- `8400ceb` banner migration in-UI con 1 click (evita curl).
+
+**Debug & Observability**:
+- `d27cbbe` endpoint `/api/admin/debug-email-flow` + boton admin para diagnosticar sin parchar. 6 pasos: fetch onboarding, template-table check, render active, render hardcoded, env check, send real.
+- `009227a` extension del debug a los 5 emails del flow (invite, confirmation, activation, backfill_started, data_ready) con selector pills.
+- `5debbde` **Email log** (observability core): tabla email_log con to/from/subject/ok/resendId/error/httpStatus/duration/context. Wrapper sendEmail persiste automaticamente (try/catch silencioso). Panel `/control/emails` con stats 7d + filtros.
+- `3708512` endpoint + boton **Reset test environment** que borra atomicamente lead+onboarding+user+org+connections+orders+backfill_jobs+webhook_events+watermarks. NO borra email_log (mantiene historial para debug).
+
+#### Bug critico resuelto: no-reply@ dispara spam
+
+**Sintoma**: emails automaticos (invitacion + confirmacion + activacion) caian en spam aunque el debug manual (Test real) llegaba al inbox sin problemas. Contradictorio. Diagnostico tradicional diria "es deliverability, hay que warm-up dominio".
+
+**Causa raiz encontrada**: `RESEND_FROM` env var estaba seteado a `no-reply@nitrosales.ai`. Filtros anti-spam (Gmail especialmente) son extremadamente agresivos con combinacion de `no-reply@` + dominio nuevo (`nitrosales.ai` < 6 meses). Triggerea heuristic de spam automatico aunque SPF/DKIM/DMARC esten OK.
+
+**Fix**: Tomy cambio env var `RESEND_FROM` a `hola@nitrosales.ai` (o similar humano) en Vercel Settings + redeploy. Resultado: emails del flow comenzaron a llegar al inbox sin mas intervencion.
+
+**Leccion documentada en ERRORES**: validar que el FROM address NO sea `no-reply@`, especialmente en dominios nuevos. Default de wrapper tenia `team@nitrosales.ai` pero env var global lo sobreescribia.
+
+#### Arquitectura ML sync v2 (detalle)
+
+**Tablas nuevas**:
+- `sync_watermarks` — cursor por `(organizationId, platform, syncLayer)`. syncLayer: "incremental" | "deep" | "missed_feeds"
+- `meli_webhook_events` — outbox con `UNIQUE(organizationId, externalId)` para dedup
+- `Order.externalUpdatedAt` (columna nueva, nullable) — guard de idempotencia upsert
+
+**4 capas de sync**:
+1. **Webhook real-time** (`/api/webhooks/mercadolibre`) — handler con outbox pattern. Respuesta 200 <500ms preservada. `waitUntil(processWithOutbox())` hace dedup + process + marca processed=true.
+2. **Missed feeds rescue** (`/api/cron/ml-missed-feeds` cada 30min) — consume endpoint oficial `/missed_feeds` de MELI (retencion 2 dias). `withConcurrency(5)` + `orgJitter` scatter 5min.
+3. **Incremental reconcile** (`/api/cron/ml-reconcile` cada 2hs) — query por `date_last_updated` con watermark overlap 5min. Pre-query de IDs + filtrado + upsert con guard.
+4. **Deep reconcile** (`?mode=deep` 1x/dia 3am) — ventana 30 dias para mutaciones tardias (refunds, cambios de estado de ordenes viejas).
+
+**ML Backfill processor** (`src/lib/backfill/processors/ml-processor.ts`) — REEMPLAZA el stub previo. Date-window 7 dias (esquiva offset max 1000 de MELI). Pre-query IDs (ahorra 80%+ writes). Upsert con `ON CONFLICT DO UPDATE SET ... WHERE externalUpdatedAt <`.
+
+**Utils compartidos** (`src/lib/sync/`):
+- `concurrency.ts` — `withConcurrency(limit, tasks)` sin deps
+- `jitter.ts` — `orgJitter(orgId, windowMs)` deterministico (hash simple)
+- `retry.ts` — `retryWithBackoff` con full jitter (AWS pattern)
+
+#### Estado al cierre del BIS+3
+
+**Hecho**:
+- ✅ ML sync v2 deployado (17 commits)
+- ✅ email_log persistiendo envios automaticamente
+- ✅ RESEND_FROM cambiado a address humano. Deliverability resuelta.
+- ✅ Reset test env operativo
+- ✅ Test parcial del flow: invite + confirmation + activation emails llegan al inbox post-cambio de FROM
+
+**Pendiente critico**:
+- ⚠️ **Tomy tiene que ejecutar 2 migraciones** (1 click cada una, banners visibles):
+  1. `/control/onboardings` → banner naranja "Migracion ML sync v2"
+  2. `/control/emails` → banner amarillo "Ejecutar migracion" (email_log)
+- ⚠️ **Test E2E de ML incompleto**: Tomy activo cuenta "Tengo Todo", llega hasta conectar credenciales ML en wizard. Se fue a un evento. Retoma a la noche.
+
+**Proxima sesion**:
+1. Ejecutar migraciones pendientes si no se hicieron
+2. Conectar ML en wizard (OAuth con cuenta alternativa de Tomy)
+3. Definir meses a sincronizar (3 meses sugerido)
+4. Aprobar backfill + monitorear processor via /control/emails + logs Vercel
+5. Validar backfill_started y data_ready llegan al inbox
+6. Seguir auditoria: GA4/GSC multi-tenant + Google Ads batch upserts
+
+---
+
+## Ultima actualizacion anterior: 2026-04-22 (Sesion 55 BIS+2 — Variante A profesional + editor emails + onboarding redesign + modal fix)
 
 ### Sesion 55 BIS+2 (continuacion misma jornada, de dia) — Editor emails + onboarding redesign + modal fix
 

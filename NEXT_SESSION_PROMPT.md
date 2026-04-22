@@ -1,18 +1,92 @@
-# NEXT_SESSION_PROMPT.md — Tarea A (auditoría paginación) · B (limpieza) · C (activity log)
+# NEXT_SESSION_PROMPT.md — Retomar Test E2E MercadoLibre (S55 BIS+3 interrumpido)
 
-> **Actualizado S55 BIS+2 (2026-04-22 tarde)**: editor emails + onboarding redesign + pipeline fix ya listos. Este archivo refleja el estado real.
+> **Actualizado S55 BIS+3 (2026-04-22 tarde)**: Tomy se fue a evento en medio del test E2E de ML. Retoma de noche. Este archivo refleja el estado real para retomar exactamente donde quedó.
 
-## ✅ Ya resueltos esta jornada
+## 🎯 CONTEXTO ACTUAL (críticísimo para entender el estado)
 
-- Editor admin `/control/email-templates` (commit `df05718`) — pendiente que Tomy ejecute la migración (botón in-UI)
-- Onboarding form split + first-fold + personalización query params (`e07e8f4`)
-- Modal pipeline: empresa requerida cuando sendInvite (`e07e8f4`)
-- Variante A (profesional sobrio) activa como default en `leadInviteEmail`
+**Lo que SÍ pasó hoy**:
+- ML sync v2 de 4 capas (webhooks + missed_feeds + reconcile + deep) deployado (commit `c081230`)
+- Email log (observability) deployado (commit `5debbde`)
+- Reset test env deployado (commit `3708512`)
+- Debug email flow con 5 emails del flow (commits `d27cbbe`, `009227a`)
+- **Fix deliverability**: Tomy cambió `RESEND_FROM` de `no-reply@nitrosales.ai` a address humano. Emails empezaron a llegar al inbox.
+- Test E2E parcialmente completado: lead creado, form completado, cuenta activada, emails llegando OK.
 
-## 🧹 Tarea B — Limpieza express (10 min)
+**Donde se detuvo**:
+- En el paso de conectar credenciales ML en el wizard (dentro del producto).
+- Tenía que autorizar MercadoLibre OAuth con su cuenta alternativa + elegir meses de historia + aprobar backfill.
 
-1. `rm "src/components/VisualTutorials 2.tsx"` (duplicado macOS) + commit
-2. Ejecutar migración editor emails: ir a `/control/email-templates` → botón "Ejecutar migración" (seedea 9 templates)
+**Pendiente crítico**:
+- ⚠️ Tomy tiene que ejecutar 2 migraciones (1 click cada una, banners visibles):
+  1. `/control/onboardings` → banner naranja "Migración ML sync v2"
+  2. `/control/emails` → banner amarillo "Ejecutar migración" (email_log)
+- Si estas 2 migraciones NO se corrieron, todo el sistema sigue funcionando por fallback hardcoded PERO los nuevos features (logs, reconciliación, etc) quedan inactivos.
+
+## 🚀 Cómo retomar la próxima sesión
+
+### Paso 1 — Validar migraciones (5 min)
+
+Chequeá que las 2 tablas nuevas existan:
+- `sync_watermarks` (ML sync v2)
+- `meli_webhook_events` (webhook outbox)
+- `email_log` (email observability)
+- Columna `Order.externalUpdatedAt`
+
+Cualquier consulta rápida a DB confirma. Si faltan → Tomy ejecuta banners in-UI.
+
+### Paso 2 — Resetear entorno de test (1 click, 10 seg)
+
+`/control/onboardings` → botón "🔧 Debug" → sección roja "Reset test environment":
+- Email: `tomylapidus@elmundodeljuguete.com.ar` (o el que haya usado)
+- Click "Borrar todo" → confirma
+- Borra lead + onboarding + user + org + connections + orders + backfill_jobs + webhook_events + watermarks atómicamente
+- NO borra email_log (mantiene historial para debug)
+
+### Paso 3 — Re-hacer flow de onboarding completo
+
+1. `/control/pipeline` → + Agregar lead (mismo email, empresa "Test ML")
+2. Llega email "Tu acceso a NitroSales" al inbox
+3. Completar form de `/onboarding` (pre-llenado por query params)
+4. Admin: aprobar cuenta (email de activación con credenciales llega al inbox)
+5. Loguear con las credenciales al producto
+6. Wizard: **conectar MercadoLibre** (OAuth con cuenta alternativa de Tomy)
+7. Elegir 3 meses de historia
+8. Admin: aprobar backfill
+
+### Paso 4 — Monitorear backfill ML en tiempo real
+
+- **`/control/emails`**: cada intento de email queda registrado
+- **Logs Vercel**: buscar `[ml-processor] chunk done:`
+- **`/control/onboardings/[id]`**: progreso del backfill_job
+
+Si todo anda: eventualmente llega email "Data lista".
+
+### Paso 5 — Validación end-to-end
+
+- [ ] Backfill completa N órdenes sin errores
+- [ ] email_log muestra todos los envíos con `ok=true`
+- [ ] Email "Data lista" llega al inbox
+- [ ] Revisar data en el producto: ordenes de ML aparecen
+
+## 🔧 Tools nuevas disponibles para debug
+
+- **Debug email flow** (`/control/onboardings` → 🔧 Debug): elige 1 de los 5 emails del flow, haz dry-run o test real. Devuelve diagnóstico granular.
+- **Email log** (`/control/emails`): historial completo de envíos con filtros. Stats 7d.
+- **Reset test env** (botón en panel debug): borra todo lo asociado a un email. Ideal para re-testear.
+
+## 📋 Si el test E2E falla
+
+1. Revisar `/control/emails` → ¿qué envió y cuál falló?
+2. Revisar logs Vercel → buscar `[ml-processor]` o `[backfill-runner]`
+3. Si es error de credenciales ML → validar con `/api/admin/onboardings/[id]/test-credentials`
+4. Si es error de backfill → revisar `backfill_jobs` en DB, campo `lastError`
+5. Si es error de rate limit → ajustar `concurrency` en `ml-processor.ts`
+
+## 📌 Lo que queda DESPUÉS del test E2E exitoso
+
+1. Auditoría pendiente de otras plataformas (GA4 multi-tenant, GSC multi-tenant, Google Ads batch upserts, Meta cron backup)
+2. Activity log / Run history en Centro de Control (BP-S55-002)
+3. Onboardear Arredo con confianza
 
 ---
 

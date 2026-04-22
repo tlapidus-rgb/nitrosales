@@ -8,7 +8,33 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-22 — Sesión 55 CIERRE EXITOSO. Test end-to-end del backfill con credenciales reales: **12.437 órdenes en 4 min 9 seg** (vs 3.000 en 1 hora del motor viejo, ~64x más rápido). Onboarding listo para Arredo.
+> **Última actualización**: 2026-04-22 — Sesión 55 BIS+3. ML sync v2 (4 capas) implementado. Email log + debug flow tools + reset test env. Fix deliverability no-reply@. Test E2E de ML pendiente de completarse (Tomy se fue a evento, retoma de noche).
+
+---
+
+## 🔴 PENDIENTE INMEDIATO — Retomar E2E de ML (al volver del evento)
+
+### BP-S55BIS3-001 — Completar test E2E del sync de ML
+
+**Entró**: 2026-04-22 (S55 BIS+3 interrumpido por evento)
+**Estado**: 🟠 en progreso, mitad completada
+**Contexto**: Tomy arrancó el test E2E del flow de onboarding para validar ML sync v2. Activó la cuenta "Tengo Todo" con su email. Emails llegaron al inbox (fix del no-reply). Se detuvo en el paso de conectar credenciales ML en el wizard porque tuvo que irse a un evento.
+
+**Qué falta hacer al retomar**:
+1. Ejecutar 2 migraciones pendientes (si no se hicieron):
+   - POST `/api/admin/migrate-ml-sync-infra` (banner in-UI en `/control/onboardings`)
+   - POST `/api/admin/migrate-email-log` (banner in-UI en `/control/emails`)
+2. Si queda residuo del test anterior → usar "Reset test environment" en panel debug violeta (borra todo lo asociado a un email)
+3. Conectar MercadoLibre en el wizard (cuenta alternativa de Tomy, no elmundodeljuguete)
+4. Definir 3 meses de historia para el backfill
+5. Aprobar backfill desde admin
+6. Monitorear:
+   - `/control/emails` para ver emails "backfill_started" y "data_ready"
+   - Logs de Vercel (`[ml-processor] chunk done: X processed...`)
+   - `/control/onboardings/[id]` para progreso
+7. Validar que llega email "data_ready" al inbox cuando termine
+
+**Criterio de éxito**: backfill completa 3 meses sin errores, emails llegan automáticamente al inbox, `/control/emails` muestra todos los envíos con ok=true.
 
 ---
 
