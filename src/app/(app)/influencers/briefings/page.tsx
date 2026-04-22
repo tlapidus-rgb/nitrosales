@@ -218,7 +218,7 @@ export default function BriefingsPage() {
               <input
                 value={form.mentions}
                 onChange={(e) => setForm({ ...form, mentions: e.target.value })}
-                placeholder="@elmundodeljuguete"
+                placeholder="@tumarca"
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
                 style={inputStyle}
               />

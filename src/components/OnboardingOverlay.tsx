@@ -912,7 +912,7 @@ function EcommerceInputs({ creds, onChange }: any) {
             Credenciales de VTEX
           </div>
           <Field label="Account Name" hint="Es el subdomain de tu tienda VTEX.">
-            <Input value={creds.accountName || ""} onChange={(v) => onChange("accountName", v)} placeholder="arredo" maxLength={60} />
+            <Input value={creds.accountName || ""} onChange={(v) => onChange("accountName", v)} placeholder="miempresa" maxLength={60} />
           </Field>
           <Field label="App Key" hint="Empieza con 'vtexappkey-'.">
             <Input value={creds.appKey || ""} onChange={(v) => onChange("appKey", v)} placeholder="vtexappkey-xxxxx-XXXXXX" mono />

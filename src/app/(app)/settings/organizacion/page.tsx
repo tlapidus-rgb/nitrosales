@@ -245,7 +245,7 @@ export default function OrganizacionPage() {
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-              placeholder="Ej: Arredo"
+              placeholder="Ej: Mi Empresa"
             />
           </FormField>
           <FormField
@@ -260,7 +260,7 @@ export default function OrganizacionPage() {
                 onChange={(e) => setSlug(e.target.value)}
                 maxLength={60}
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-                placeholder="arredo"
+                placeholder="miempresa"
               />
             </div>
           </FormField>
@@ -490,7 +490,7 @@ export default function OrganizacionPage() {
               onChange={(e) => setDomain(e.target.value)}
               maxLength={80}
               className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
-              placeholder="app.arredo.com"
+              placeholder="app.miempresa.com"
             />
           </FormField>
         </div>

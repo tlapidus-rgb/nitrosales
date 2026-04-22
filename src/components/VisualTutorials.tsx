@@ -389,7 +389,7 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
       instructions: {
         heading: "Qué hacer",
         steps: [
-          { text: "Abrí tu admin VTEX", hint: "La URL es https://{tu-cuenta}.myvtex.com/admin — reemplazá {tu-cuenta} por tu subdomain (ej: arredo, elmundodeljuguete)." },
+          { text: "Abrí tu admin VTEX", hint: "La URL es https://{tu-cuenta}.myvtex.com/admin — reemplazá {tu-cuenta} por tu subdomain (ej: miempresa, tu-tienda)." },
           { text: "Buscá 'Account' en el menú lateral izquierdo", hint: "Puede aparecer como 'Cuenta' si tu admin está en español. Está cerca del final del menú." },
           { text: "Dentro de Account, click en 'Application Keys'", hint: "Si no ves esa opción directamente, andá a: Cuenta → Gestión de usuarios → App Keys." },
         ],
