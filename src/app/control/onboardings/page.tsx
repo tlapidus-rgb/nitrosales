@@ -1037,6 +1037,10 @@ function CredentialsTestBlock({
       )}
 
       {result?.results && result.results.length > 0 && (
+        <>
+        <div style={{ fontSize: 10.5, color: "#71717A", marginBottom: 6, lineHeight: 1.5 }}>
+          Los números son <strong>histórico total</strong> de cada cuenta. El backfill solo procesa el rango pedido por el cliente.
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
           {result.results.map((r: any, i: number) => (
             <div
@@ -1072,6 +1076,7 @@ function CredentialsTestBlock({
             </div>
           ))}
         </div>
+        </>
       )}
     </div>
   );

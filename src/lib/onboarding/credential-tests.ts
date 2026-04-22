@@ -57,7 +57,7 @@ export async function testVtex(creds: any): Promise<TestResult> {
     const data = await resp.json();
     const totalOrders = data?.paging?.total;
     if (typeof totalOrders === "number") {
-      return { ok: true, detail: `${totalOrders.toLocaleString("es-AR")} órdenes detectadas` };
+      return { ok: true, detail: `Conexión OK · ${totalOrders.toLocaleString("es-AR")} órdenes en histórico` };
     }
     return { ok: true, detail: "Conexión OK" };
   } catch (err: any) {
