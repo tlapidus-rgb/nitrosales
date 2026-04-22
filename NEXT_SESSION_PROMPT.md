@@ -1,15 +1,23 @@
 # NEXT_SESSION_PROMPT.md — Sesión 56: (a) Elegir variante de invite email + (b) Auditoría completa de paginación + eficiencia en sync de TODAS las plataformas
 
+## 🧹 Limpieza rápida al arrancar (30 seg)
+
+Hay un archivo duplicado generado por macOS en el commit `e73451a`:
+```
+src/components/VisualTutorials 2.tsx
+```
+No está importado en ningún lado (el nombre con espacio no se puede importar en JS). Confirmar con Tomy y borrarlo: `rm "src/components/VisualTutorials 2.tsx"` + commit.
+
 ## 🎯 Quick task al arrancar — Elegir variante de invite email (5 min)
 
-**Antes de meterte con la auditoría, pasar por `/control/preview-invite-emails`** y decidir con Tomy cuál variante del email de invitación queda como default. Variantes disponibles (hero minimal tipo Vercel/Linear):
+**Antes de meterte con la auditoría, pasar por `/control/preview-invite-emails`** y decidir con Tomy cuál variante del email de invitación queda como default. Variantes disponibles:
 
-- **A — Dinero perdido** (perfilada iterativamente): *"Tu ecommerce / pierde dinero todos los meses."* — "pierde dinero" en rojo `#DC2626` con glow sutil. Subtítulo con IA + píxel + rentabilidad. **Esta es la que más le gustó a Tomy en S55 BIS.**
-- **B — Vuela a ciegas**: *"Tu ecommerce / vuela a ciegas."* — naranja brand.
+- **A — Invite profesional** *(recomendada al cierre de S55 BIS)*: *"Tu acceso a NitroSales está listo."* — tono sobrio Linear/Notion/Stripe. Eyebrow gris "INVITACIÓN · NITROSALES". CTA "Comenzar configuración →". **Sin agresividad comercial** — Tomy explicitó que prefiere tono profesional porque al lead ya se le habló antes.
+- **B — Vuela a ciegas**: *"Tu ecommerce / vuela a ciegas."* — naranja brand, agresiva. Backup si algún segmento pide tono pain.
 - **C — Dejá de decidir a ojo**: *"Dejá de decidir / a ojo."* — naranja brand.
 - **D — Operado por IA**: *"Tu ecommerce, / operado por IA."* — naranja brand.
 
-Todas comparten subject: **"Tu acceso a NitroSales"**, eyebrow *"⚡ IMPLEMENTÁ AI COMMERCE"*, y CTA *"Activar {empresa} →"*.
+Todas comparten subject: **"Tu acceso a NitroSales"**.
 
 **Cuando Tomy elija**, cambiar el import en 2 archivos:
 ```ts
