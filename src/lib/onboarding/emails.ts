@@ -513,38 +513,41 @@ export function leadInviteVariantA(opts: {
   const preheader = `El equipo habilitó el acceso para ${companyName}. Un formulario breve para activarlo.`;
 
   const content = `
-    <div style="padding:36px 0 20px;text-align:left;">
-      <!-- Eyebrow sobrio -->
-      <div style="font-size:11px;font-weight:700;color:${TEXT_SECONDARY};text-transform:uppercase;letter-spacing:0.22em;margin-bottom:36px;">
-        Invitación · NitroSales
+    <div style="padding:40px 0 24px;text-align:left;">
+      <!-- Eyebrow sobrio: sin redundancia (el logo ya dice NitroSales) -->
+      <div style="font-size:10px;font-weight:700;color:${TEXT_SECONDARY};text-transform:uppercase;letter-spacing:0.26em;margin-bottom:40px;opacity:0.85;">
+        Invitación
       </div>
 
       <!-- Greeting -->
-      <div style="font-size:13px;color:${TEXT_SECONDARY};margin-bottom:20px;letter-spacing:0.02em;">
+      <div style="font-size:14px;color:${TEXT_SECONDARY};margin-bottom:22px;letter-spacing:0.005em;">
         ${greeting(contactName)},
       </div>
 
-      <!-- HERO declarativo, sin apelar al dolor -->
-      <h1 class="ns-hero" style="margin:0 0 24px;font-size:42px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.1;letter-spacing:-0.035em;">
-        Tu acceso a <span style="color:${BRAND_ORANGE};">NitroSales</span> está listo.
+      <!-- HERO: acento en el verbo de confirmación ("listo") -->
+      <h1 class="ns-hero" style="margin:0 0 28px;font-size:42px;font-weight:800;color:${TEXT_PRIMARY};line-height:1.1;letter-spacing:-0.035em;">
+        Tu acceso a NitroSales<br/>
+        está <span style="color:${BRAND_ORANGE};">listo</span>.
       </h1>
 
-      <!-- Subtítulo profesional: qué es + próximo paso -->
-      <p class="ns-sub" style="margin:0 0 16px;color:${TEXT_SECONDARY};font-size:16px;line-height:1.6;font-weight:400;max-width:480px;">
-        El equipo habilitó el ingreso para <strong style="color:${TEXT_PRIMARY};font-weight:600;">${companyName}</strong>. NitroSales es la plataforma de inteligencia comercial para ecommerce LATAM — atribución propia, P&L en tiempo real y un agente de IA que opera con vos.
+      <!-- Subtítulo: qué es + contexto -->
+      <p class="ns-sub" style="margin:0 0 18px;color:${TEXT_SECONDARY};font-size:16px;line-height:1.65;font-weight:400;max-width:480px;">
+        El equipo habilitó el ingreso para <strong style="color:${TEXT_PRIMARY};font-weight:600;">${companyName}</strong>. NitroSales es la plataforma de inteligencia comercial para ecommerce LATAM — atribución propia, P&amp;L en tiempo real y un agente de IA que opera con vos.
       </p>
-      <p class="ns-sub" style="margin:0 0 40px;color:${TEXT_SECONDARY};font-size:16px;line-height:1.6;font-weight:400;max-width:480px;">
+      <p class="ns-sub" style="margin:0 0 36px;color:${TEXT_SECONDARY};font-size:16px;line-height:1.65;font-weight:400;max-width:480px;">
         Para activar la cuenta, completá un formulario breve con los datos del negocio.
       </p>
 
-      <!-- CTA -->
-      <a href="${onboardingUrl}" style="display:inline-block;padding:15px 32px;background:${TEXT_PRIMARY};color:${BRAND_BG};text-decoration:none;border-radius:11px;font-size:15px;font-weight:700;letter-spacing:0.01em;">
+      <!-- CTA con sombra sutil para presencia premium sobre dark -->
+      <a href="${onboardingUrl}" style="display:inline-block;padding:15px 34px;background:${TEXT_PRIMARY};color:${BRAND_BG};text-decoration:none;border-radius:11px;font-size:15px;font-weight:700;letter-spacing:0.005em;box-shadow:0 1px 0 rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3);">
         Comenzar configuración →
       </a>
 
-      <!-- Fine print de confianza -->
-      <p style="margin:44px 0 0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.6;opacity:0.65;">
-        Este enlace es personal y está asociado a ${companyName}. Si no esperabas este email, podés ignorarlo.
+      <!-- Divider sutil + fine print -->
+      <div style="height:1px;background:${BORDER};margin:48px 0 20px;max-width:480px;opacity:0.7;"></div>
+
+      <p style="margin:0;color:${TEXT_SECONDARY};font-size:12px;line-height:1.65;opacity:0.65;max-width:480px;">
+        Este enlace es personal y está asociado a <strong style="color:${TEXT_SECONDARY};font-weight:500;">${companyName}</strong>. Si no esperabas este email, podés ignorarlo — no se tomará ninguna acción.
       </p>
     </div>
   `;
