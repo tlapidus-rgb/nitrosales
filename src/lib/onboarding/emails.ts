@@ -510,7 +510,7 @@ export function leadInviteVariantA(opts: {
   const { contactName, companyName } = opts;
   const onboardingUrl = `${appUrl()}/onboarding`;
   const subject = INVITE_SUBJECT;
-  const preheader = `Tu ecommerce pierde dinero todos los meses y no lo sabés.`;
+  const preheader = `IA + píxel propio. Más visibilidad, más performance, más rentabilidad.`;
 
   // Rojo profundo sobrio (Tailwind red-600 style) + glow MUY sutil de 1 capa.
   // El peso visual viene del font-weight 900 y el color denso, no del halo.
@@ -536,8 +536,8 @@ export function leadInviteVariantA(opts: {
       </h1>
 
       <!-- Subtítulo -->
-      <p style="margin:0 0 44px;color:${TEXT_SECONDARY};font-size:17px;line-height:1.5;font-weight:400;max-width:440px;">
-        Y hoy no tenés forma de saberlo. NitroSales te muestra dónde, por qué, y cómo frenarlo — en tiempo real.
+      <p class="ns-sub" style="margin:0 0 44px;color:${TEXT_SECONDARY};font-size:17px;line-height:1.5;font-weight:400;max-width:460px;">
+        Con <strong style="color:${TEXT_PRIMARY};font-weight:600;">inteligencia artificial</strong> y un <strong style="color:${TEXT_PRIMARY};font-weight:600;">píxel propio</strong>, NitroSales ve todo lo que pasa en tu negocio, potencia lo que funciona y te hace ganar más plata — rápido, sustentable y rentable.
       </p>
 
       <!-- CTA blanco sobre dark -->
