@@ -144,16 +144,23 @@ export async function GET(req: NextRequest) {
       // Silent fail — el check es informativo
     }
 
-    // Redirect to competitors page with success (and clean up PKCE cookie)
-    const successRedirect = NextResponse.redirect(
-      new URL(`/competitors?ml_connected=true`, req.url)
-    );
+    // Redirect al returnTo si se seteó (ej: wizard del onboarding).
+    // Fallback a /competitors si no hay cookie.
+    const returnTo = req.cookies.get("ml_oauth_return_to")?.value || "/competitors";
+    // Agregamos ?ml_connected=true como flag para que el wizard sepa refrescar creds
+    const sep = returnTo.includes("?") ? "&" : "?";
+    const target = `${returnTo}${sep}ml_connected=true`;
+
+    const successRedirect = NextResponse.redirect(new URL(target, req.url));
     successRedirect.cookies.delete("ml_pkce_verifier");
+    successRedirect.cookies.delete("ml_oauth_return_to");
     return successRedirect;
   } catch (err: any) {
     console.error("[ML OAuth] Error:", err);
+    const returnTo = req.cookies.get("ml_oauth_return_to")?.value || "/competitors";
+    const sep = returnTo.includes("?") ? "&" : "?";
     return NextResponse.redirect(
-      new URL(`/competitors?ml_error=${encodeURIComponent(err.message)}`, req.url)
+      new URL(`${returnTo}${sep}ml_error=${encodeURIComponent(err.message)}`, req.url)
     );
   }
 }

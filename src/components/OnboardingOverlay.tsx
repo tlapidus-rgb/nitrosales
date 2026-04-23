@@ -375,6 +375,13 @@ const ECOMMERCE_PROVIDERS: Array<{ key: string; name: string; active: boolean; b
 function calcCompletion(platformKey: BrandKey, creds: any): number {
   const p = ALL_PLATFORMS.find((pl) => pl.key === platformKey);
   if (!p) return 0;
+  // MERCADOLIBRE usa OAuth: si tiene tokens/mlUserId o _connected=true, 100%.
+  // No importa si no están los requiredFields viejos (username, etc) porque
+  // ya no se piden — se obtienen vía OAuth.
+  if (platformKey === "MERCADOLIBRE") {
+    if (creds?._connected || creds?.mlUserId || creds?.accessToken) return 100;
+    return 0;
+  }
   let fields = p.requiredFields;
   // Para ecommerce: si no seleccionó provider o no es "vtex", solo cuenta "provider"
   if (p.isEcommerce && creds?.provider !== "vtex") {
@@ -970,13 +977,119 @@ function EcommerceInputs({ creds, onChange }: any) {
 }
 
 function MlInputs({ creds, onChange }: any) {
+  // El status real de la conexión viene de DB (tokens guardados después del OAuth).
+  // Consultamos /api/me/connections/ml al montar y cada vez que ?ml_connected=true.
+  const [serverStatus, setServerStatus] = useState<{ connected: boolean; mlUserId?: string | null } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/me/connections/ml", { cache: "no-store" });
+        const json = await res.json();
+        if (!cancelled && json.ok) {
+          setServerStatus({ connected: !!json.connected, mlUserId: json.mlUserId });
+          // Sincronizar con el state del wizard para que "calcCompletion" lo detecte
+          if (json.connected && onChange) {
+            onChange("mlUserId", String(json.mlUserId));
+            onChange("_connected", true);
+          }
+        }
+      } catch {}
+    };
+    load();
+    // Si acabamos de volver del OAuth, refrescamos
+    if (typeof window !== "undefined" && window.location.search.includes("ml_connected=true")) {
+      setTimeout(load, 500);
+    }
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const isConnected = serverStatus?.connected || !!(creds?.accessToken && creds?.mlUserId);
+  const mlUserId = serverStatus?.mlUserId || creds?.mlUserId;
+
+  const handleConnect = () => {
+    const returnTo = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/";
+    window.location.href = `/api/auth/mercadolibre/connect?returnTo=${encodeURIComponent(returnTo)}`;
+  };
+
+  if (isConnected) {
+    return (
+      <>
+        <div
+          style={{
+            padding: "14px 16px",
+            background: "rgba(34,197,94,0.08)",
+            border: "1px solid rgba(34,197,94,0.3)",
+            borderRadius: 10,
+            marginBottom: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(34,197,94,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+            ✓
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#4ADE80" }}>
+              MercadoLibre conectado
+            </div>
+            <div style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 2 }}>
+              ID de vendedor: {mlUserId}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleConnect}
+            style={{
+              padding: "7px 13px",
+              background: "transparent",
+              color: TEXT_SECONDARY,
+              border: `1px solid ${BORDER}`,
+              borderRadius: 7,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Reconectar
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
-      <Field label="Usuario MercadoLibre" hint="Tu usuario de vendedor, sin la '@'.">
-        <Input value={creds.username || ""} onChange={(v) => onChange("username", v)} placeholder="tuusuario" maxLength={60} />
-      </Field>
+      <div style={{ marginBottom: 12 }}>
+        <button
+          type="button"
+          onClick={handleConnect}
+          style={{
+            width: "100%",
+            padding: "14px 20px",
+            background: "linear-gradient(135deg, #FFE600 0%, #FFC400 100%)",
+            color: "#1A1A1A",
+            border: 0,
+            borderRadius: 10,
+            fontSize: 15,
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            boxShadow: "0 4px 16px rgba(255,230,0,0.25)",
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+          Conectar con MercadoLibre
+        </button>
+      </div>
       <InfoBox>
-        <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te vamos a pedir que autorices NitroSales desde MELI vía login oficial.
+        Vas a entrar al login oficial de MercadoLibre para autorizar a <strong style={{ color: TEXT_PRIMARY }}>NitroSales</strong> a leer tus órdenes, productos y métricas. <strong style={{ color: TEXT_PRIMARY }}>Solo lectura</strong>, nunca modificamos nada en tu cuenta ML.
       </InfoBox>
     </>
   );

@@ -28,17 +28,28 @@ export async function GET(req: NextRequest) {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
 
+  // Capturar returnTo (ej: "/onboarding-wizard") para que el callback
+  // vuelva exactamente a donde el cliente hizo click "Conectar".
+  const returnTo = new URL(req.url).searchParams.get("returnTo") || "/competitors";
+
   // offline_access scope ensures ML returns a refresh_token for long-lived access
   const authUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&scope=offline_access&code_challenge=${codeChallenge}&code_challenge_method=S256`;
 
-  // Store code_verifier in a secure httpOnly cookie for the callback to use
+  // Store code_verifier + returnTo in secure cookies for the callback
   const response = NextResponse.redirect(authUrl);
   response.cookies.set("ml_pkce_verifier", codeVerifier, {
     httpOnly: true,
     secure: true,
     sameSite: "lax",
     path: "/api/auth/mercadolibre",
-    maxAge: 600, // 10 minutes — more than enough for the OAuth flow
+    maxAge: 600,
+  });
+  response.cookies.set("ml_oauth_return_to", returnTo, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/api/auth/mercadolibre",
+    maxAge: 600,
   });
 
   return response;
