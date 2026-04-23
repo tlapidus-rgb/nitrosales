@@ -423,15 +423,15 @@ function IntegrationChip({ label }: { label: string }) {
 // SuccessCard
 // ══════════════════════════════════════════════════════════════
 
-function SuccessCard({ companyName, onBack }: { companyName: string; onBack: () => void }) {
+function SuccessCard({ companyName, onBack: _onBack }: { companyName: string; onBack: () => void }) {
   return (
-    <div style={{ maxWidth: 520, margin: "40px auto 80px", padding: "0 24px" }}>
+    <div style={{ maxWidth: 540, margin: "40px auto 80px", padding: "0 24px" }}>
       <div
         style={{
           background: CARD_BG,
           border: `1px solid ${BORDER}`,
           borderRadius: 20,
-          padding: 40,
+          padding: 44,
           textAlign: "center",
           boxShadow: "0 30px 80px rgba(0,0,0,0.4)",
         }}
@@ -439,39 +439,45 @@ function SuccessCard({ companyName, onBack }: { companyName: string; onBack: () 
         <div
           style={{
             display: "inline-flex",
-            width: 60, height: 60,
+            width: 64, height: 64,
             borderRadius: "50%",
             background: "rgba(34,197,94,0.1)",
             border: "1px solid rgba(34,197,94,0.3)",
             alignItems: "center", justifyContent: "center",
-            marginBottom: 20,
+            marginBottom: 22,
           }}
         >
-          <CheckCircle2 size={26} color="#22C55E" />
+          <CheckCircle2 size={28} color="#22C55E" />
         </div>
-        <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 12px", color: "#fff" }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 14px", color: "#fff" }}>
           Recibimos tus datos
         </h1>
-        <p style={{ color: TEXT_SECONDARY, fontSize: 14.5, lineHeight: 1.7, margin: "0 0 24px" }}>
+        <p style={{ color: TEXT_SECONDARY, fontSize: 15, lineHeight: 1.7, margin: "0 0 24px" }}>
           El equipo de NitroSales está revisando la activación de{" "}
           <strong style={{ color: "#fff" }}>{companyName || "tu cuenta"}</strong>.
-          Vas a recibir un email con las credenciales para entrar al producto.
         </p>
-        <button
-          onClick={onBack}
+
+        {/* Next step clarísimo */}
+        <div
           style={{
-            padding: "10px 20px",
-            background: "transparent",
-            border: `1px solid ${BORDER}`,
-            borderRadius: 8,
-            color: TEXT_SECONDARY,
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: "pointer",
+            padding: "18px 20px",
+            background: "rgba(255,94,26,0.06)",
+            border: "1px solid rgba(255,94,26,0.2)",
+            borderRadius: 12,
+            textAlign: "left",
+            marginBottom: 8,
           }}
         >
-          Volver al inicio
-        </button>
+          <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>
+            📧 Qué sigue ahora
+          </div>
+          <div style={{ fontSize: 14, color: TEXT_PRIMARY, lineHeight: 1.6, marginBottom: 6 }}>
+            Vas a recibir un email con las credenciales para entrar al producto.
+          </div>
+          <div style={{ fontSize: 13, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+            Cerrá esta ventana y esperá el correo. Si no lo ves en unos minutos, revisá spam.
+          </div>
+        </div>
       </div>
     </div>
   );
