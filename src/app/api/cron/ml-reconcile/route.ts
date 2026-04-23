@@ -69,12 +69,18 @@ async function mlGet(path: string, token: string): Promise<any> {
   );
 }
 
-function mapMlStatus(mlStatus: string): string {
+function mapMlStatus(mlStatus: string, tags?: string[]): string {
+  // Enum OrderStatus en Prisma: PENDING, APPROVED, INVOICED, SHIPPED, DELIVERED, CANCELLED, RETURNED
+  // (NO existe "PAID")
+  if (Array.isArray(tags) && tags.includes("delivered")) return "DELIVERED";
   switch (mlStatus) {
-    case "paid": return "PAID";
+    case "paid": return "APPROVED";
+    case "shipped": return "SHIPPED";
+    case "delivered": return "DELIVERED";
     case "confirmed":
     case "payment_required":
-    case "payment_in_process": return "PENDING";
+    case "payment_in_process":
+    case "partially_paid": return "PENDING";
     case "cancelled":
     case "invalid": return "CANCELLED";
     default: return "PENDING";
@@ -83,7 +89,7 @@ function mapMlStatus(mlStatus: string): string {
 
 async function upsertOrderWithGuard(orgId: string, order: any): Promise<"inserted" | "updated" | "skipped"> {
   const externalId = String(order.id);
-  const status = mapMlStatus(order.status);
+  const status = mapMlStatus(order.status, order.tags);
   const total = Number(order.total_amount) || 0;
   const currency = order.currency_id || "ARS";
   const itemCount = Array.isArray(order.order_items)

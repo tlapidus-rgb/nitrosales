@@ -70,7 +70,7 @@ async function mlGetWithRetry(path: string, token: string): Promise<any> {
  */
 async function upsertMlOrder(orgId: string, order: any): Promise<"inserted" | "updated" | "skipped"> {
   const externalId = String(order.id);
-  const status = mapMlStatus(order.status);
+  const status = mapMlStatus(order.status, order.tags);
   const total = Number(order.total_amount) || 0;
   const currency = order.currency_id || "ARS";
   const itemCount = Array.isArray(order.order_items)
@@ -150,14 +150,23 @@ async function getExistingOrderMap(
 /**
  * Mapea el status de MELI al enum interno OrderStatus.
  * ML: "confirmed" | "payment_required" | "payment_in_process" | "paid" |
- *     "cancelled" | "invalid"
+ *     "partially_paid" | "shipped" | "delivered" | "cancelled" | "invalid"
+ *
+ * Valores válidos del enum OrderStatus en Prisma:
+ *   PENDING, APPROVED, INVOICED, SHIPPED, DELIVERED, CANCELLED, RETURNED
+ * (NO existe "PAID" — usar APPROVED o DELIVERED según tags.)
  */
-function mapMlStatus(mlStatus: string): string {
+function mapMlStatus(mlStatus: string, tags?: string[]): string {
+  // Si el tag 'delivered' está presente, priorizar DELIVERED
+  if (Array.isArray(tags) && tags.includes("delivered")) return "DELIVERED";
   switch (mlStatus) {
-    case "paid": return "PAID";
+    case "paid": return "APPROVED";
+    case "shipped": return "SHIPPED";
+    case "delivered": return "DELIVERED";
     case "confirmed":
     case "payment_required":
-    case "payment_in_process": return "PENDING";
+    case "payment_in_process":
+    case "partially_paid": return "PENDING";
     case "cancelled":
     case "invalid": return "CANCELLED";
     default: return "PENDING";
@@ -276,6 +285,8 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
     // 5. Upsert secuencial (concurrency 1 para evitar saturar pool de 8)
     // Podríamos paralelizar con withConcurrency pero para 50 órdenes/page
     // el beneficio es marginal y complica el manejo de errores.
+    let failedInPage = 0;
+    const firstErrors: string[] = [];
     for (const order of toUpsert) {
       try {
         const action = await upsertMlOrder(orgId, order);
@@ -284,9 +295,21 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
         else totalSkipped++;
         totalProcessed++;
       } catch (err: any) {
-        console.error(`[ml-processor] upsert failed for order ${order.id}:`, err.message);
+        failedInPage++;
+        if (firstErrors.length < 3) firstErrors.push(`${order.id}(${order.status}): ${err.message}`);
+        console.error(`[ml-processor] upsert failed for order ${order.id} status=${order.status}:`, err.message);
         // Continue con los otros, no fallar todo el chunk
       }
+    }
+    // Si >50% de la página falló, abortar chunk con error para que quede trazado
+    // en lastError del job (en vez de silenciar el problema).
+    if (failedInPage > 0 && failedInPage >= Math.ceil(toUpsert.length / 2)) {
+      return {
+        itemsProcessed: totalProcessed,
+        newCursor: cursor,
+        isComplete: false,
+        error: `${failedInPage}/${toUpsert.length} upserts fallaron. Primeros: ${firstErrors.join(" | ")}`,
+      };
     }
 
     // 6. Avanzar cursor
