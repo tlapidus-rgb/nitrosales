@@ -4,7 +4,101 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-22 — Sesión 55 BIS+3 (3 errores nuevos: FROM=no-reply@ dispara spam en dominio nuevo, ofrecer parche manual antes de diagnosticar bug raíz, wrappers de servicios externos sin persistencia de intentos).**
+> **Última actualización: 2026-04-23 — Sesión 56 (3 errores nuevos: mapping priorizaba tag histórico sobre status terminal, status de API externa sin mapear caen a default silencioso, iterar fixes sin BUSCARV directo contra fuente de verdad).**
+
+---
+
+## Error #S56-TAG-OVERRIDES-STATUS — Priorizar tag histórico sobre status terminal al mapear desde API externa
+
+**Cuándo pasó**: Sesión 56. Al clasificar órdenes de MELI en nuestro enum interno, `mapMlStatus` revisaba primero `tags.includes("delivered")` y solo después el `status`. MELI mantiene el tag `"delivered"` históricamente incluso cuando después cancela el pack (el item se entregó, después lo devolvieron y cancelaron la venta). Resultado: 48 packs cancelados quedaron marcados como DELIVERED en nuestra DB → KPIs de ventas inflados (/orders mostraba 1246 vs MELI UI 1196 — diff del 4%).
+
+### Causa raíz
+- Mapping priorizaba tag (dato histórico/derivado) sobre status (fuente de verdad actual).
+- Los tags en APIs externas suelen ser acumulativos — se agregan pero no se quitan cuando el estado evoluciona.
+- El bug solo se manifestaba con data real de >6 meses: recién cuando suficientes packs sufrían ciclo "entregado → devuelto → cancelado" la discrepancia se hacía visible.
+
+### Regla
+**Al mapear status desde una API externa, SIEMPRE priorizar terminal states (cancelled, invalid, refunded) sobre cualquier tag/flag derivado.**
+
+Orden correcto en switch/if:
+1. **Primero: terminal/negative states** (cancelled, invalid, failed, refunded) → resultado final correcto.
+2. **Después: tags/flags derivados** (delivered, shipped) → solo si el status base no es terminal.
+3. **Final: switch sobre status regular**.
+
+Ejemplo correcto:
+```ts
+function mapStatus(status: string, tags?: string[]): string {
+  if (status === "cancelled" || status === "invalid") return "CANCELLED"; // terminal gana
+  if (tags?.includes("delivered")) return "DELIVERED"; // tag override para no-terminales
+  switch (status) { ... }
+}
+```
+
+### Prevención
+- Preguntar al integrar una API: ¿qué estados son terminales e irreversibles? Esos SIEMPRE ganan.
+- Test mental: ¿qué pasa si un pack pasa por paid → shipped → delivered → (cliente reclama) → cancelled? El mapping debe devolver CANCELLED, no DELIVERED.
+
+---
+
+## Error #S56-UNMAPPED-STATUS-SILENT-FALLBACK — Status de API externa sin mapear caen a default engañoso
+
+**Cuándo pasó**: Sesión 56. MELI devolvía status `partially_refunded` (7 packs = reembolso parcial, venta válida con reembolso de parte del monto) que no estaba en nuestro `switch` de `mapMlStatus`. Caía al `default: return "PENDING"`. Pero como esos packs además tenían tag=delivered, el tag-override (también buggeado, ver #S56-TAG-OVERRIDES-STATUS) los clasificaba como DELIVERED. Comportamiento inconsistente y KPIs erróneos.
+
+### Causa raíz
+- Implementé el mapping solo con los statuses "comunes" que vi en docs de MELI: paid, confirmed, cancelled, invalid, shipped, delivered.
+- No cubrí los menos comunes: partially_refunded, partially_paid, fraud_risk_detected, returned, etc.
+- `default: return "PENDING"` silenciaba el problema — todas las órdenes entraban a la DB, pero con status incorrecto.
+- Sin observability: ningún log avisaba "status X no mapeado".
+
+### Regla
+**Al mapear enums desde APIs externas, NUNCA usar un default silencioso que enmascare statuses desconocidos.**
+
+Opciones aceptables:
+- **A)** `default: throw new Error('Unknown status: ${status}')` — forzar a conocer cada status. Agresivo pero correcto.
+- **B)** `default: console.warn(...) && return "PENDING"` — fallback pero con log.
+- **C)** Tabla de mapeo exhaustiva con TODOS los statuses posibles de la API, revisada al integrar y al upgradear versiones.
+
+Para APIs con muchos statuses (MELI, Shopify, Stripe), opción C es la más defensiva.
+
+### Prevención
+- Al integrar nueva API, buscar en docs la LISTA COMPLETA de statuses posibles (incluyendo los raros/edge).
+- Mapear explícitamente CADA UNO. Venta válida → APPROVED/DELIVERED. Inválida → CANCELLED. Transitorio → PENDING.
+- No mapear un status == olvidarlo == bug futuro.
+
+---
+
+## Error #S56-ITERATE-WITHOUT-VLOOKUP — Iterar fixes sin BUSCARV directo contra la fuente de verdad
+
+**Cuándo pasó**: Sesión 56. Tomy reportó que /orders mostraba 1246 pedidos pero MELI UI mostraba 1196. En vez de hacer un BUSCARV directo (comparar los 1246 packs nuestros vs los 1196 de MELI y ver los 50 de diferencia), hice 3 hipótesis consecutivas sin validar:
+1. "son packs PENDING" → pushé filtro, 0 cambios porque no había PENDING.
+2. "son packs mixtos" → pushé anti-join, 0 cambios porque no había mixtos.
+3. "MELI UI debe usar lógica interna distinta" → propuse aceptar la diferencia.
+
+Tomy me reclamó correctamente: *"Si yo tuviese un Excel, haría un BUSCARV, así de fácil. No entiendo por qué vos con más herramientas no podés resolver algo tan simple."*
+
+Cuando finalmente hice el BUSCARV (endpoint `ml-diff-detail`), en 1 consulta encontramos que 48 packs tenían status=cancelled en MELI pero DELIVERED en nuestra DB — causa raíz identificada en 30 segundos.
+
+### Causa raíz
+- Reflejo "hipótesis → fix → ver si cambió" en vez de "medir directamente → identificar → fix".
+- Inferí la naturaleza de la diferencia desde estadísticas globales en lugar de mirar los registros específicos.
+- Me ahorré 5 minutos de construir el endpoint de diagnóstico y me costaron 60 minutos de iterar a ciegas + frustración del usuario.
+
+### Regla
+**Cuando hay una diferencia numérica entre nuestra DB y una fuente externa (MELI, VTEX, Stripe, etc), el PRIMER paso SIEMPRE es el BUSCARV literal:**
+
+1. Query: "dame los IDs en nuestra DB del set A" (ej. 1246 packs non-cancelled)
+2. Query: "dame los IDs en la API externa del set B" (ej. 1196 packs concretadas)
+3. Set theory: A\B = lo que tenemos de más, B\A = lo que perdimos, A∩B = match.
+4. Para cada subset, sample de 5-10 registros con su status en ambos lados.
+5. **RECIÉN ahí** formular hipótesis, validar con el sample, y fix.
+
+**NUNCA iterar fixes declarativos sin haber hecho primero el BUSCARV.**
+
+### Prevención
+- Al escuchar "nuestro número X no matchea con su número Y", **reflexivamente** construir el endpoint de diff antes de tocar una línea de código.
+- El endpoint de diff es barato (5-10 min de código) y evita 60+ min de iteraciones a ciegas.
+- Pattern reutilizable: `src/app/api/admin/ml-diff-detail/route.ts` (S56) y `ml-audit-packs/route.ts` (S56).
+- Al reconocer patterns de "pack_id", "order.id", "externalId" que dividen 1 entidad lógica en N rows, SIEMPRE armar el BUSCARV por el ID lógico (pack_id), no por el row (externalId).
 
 ---
 
