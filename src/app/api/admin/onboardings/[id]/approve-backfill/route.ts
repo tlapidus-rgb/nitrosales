@@ -69,12 +69,21 @@ export async function POST(
       );
     }
 
-    // Marcar connections sin needsOAuth como ACTIVE
+    // Marcar connections como ACTIVE si están listas para sincronizar.
+    // Para OAuth (ML/Google Ads): ACTIVE solo si ya hay tokens (accessToken/mlUserId).
+    // Para el resto: ACTIVE directo.
     for (const c of connections) {
       const creds = (c.credentials as any) || {};
-      if (creds.needsSetup) continue; // saltear las que no se configuraron
-      const isOAuth = c.platform === "MERCADOLIBRE" || c.platform === "GOOGLE_ADS";
-      const newStatus = isOAuth ? "PENDING" : "ACTIVE"; // OAuth queda PENDING hasta que hagan login externo
+      if (creds.needsSetup) continue;
+
+      let newStatus: "ACTIVE" | "PENDING" = "ACTIVE";
+      if (c.platform === "MERCADOLIBRE") {
+        // Tiene tokens del OAuth callback? Entonces ACTIVE. Si no, queda PENDING.
+        newStatus = creds.accessToken && creds.mlUserId ? "ACTIVE" : "PENDING";
+      } else if (c.platform === "GOOGLE_ADS") {
+        newStatus = creds.accessToken ? "ACTIVE" : "PENDING";
+      }
+
       await prisma.connection.update({
         where: { id: c.id },
         data: { status: newStatus as any, lastSyncError: null },
