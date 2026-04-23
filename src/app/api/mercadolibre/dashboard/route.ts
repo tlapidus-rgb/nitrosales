@@ -37,6 +37,8 @@ export async function GET(req: NextRequest) {
     // (ej: 1 carrito con 3 items = 1 venta en UI de MELI, no 3).
     // Revenue y itemCount se suman sin distinct (cada suborder tiene su partial).
     const kpiRow: any[] = await prisma.$queryRawUnsafe(
+      // Ventas: packs completamente activos. Excluye packs con AL MENOS una cancelacion
+      // (matchea MELI UI "concretadas + en camino").
       `SELECT
          COUNT(DISTINCT COALESCE("packId", "externalId"))::int AS "orders",
          COALESCE(SUM("totalValue"), 0)::float AS "revenue",
@@ -45,22 +47,24 @@ export async function GET(req: NextRequest) {
        WHERE "organizationId" = $1
          AND "source" = 'MELI'
          AND "orderDate" >= $2 AND "orderDate" <= $3
-         AND "status" NOT IN ('CANCELLED','RETURNED','PENDING')`,
+         AND "status" NOT IN ('CANCELLED','RETURNED','PENDING')
+         AND COALESCE("packId", "externalId") NOT IN (
+           SELECT COALESCE("packId", "externalId") FROM "orders"
+           WHERE "organizationId" = $1
+             AND "source" = 'MELI'
+             AND "orderDate" >= $2 AND "orderDate" <= $3
+             AND "status" IN ('CANCELLED','RETURNED')
+         )`,
       orgId, dateFrom, dateTo
     );
-    // Canceladas: solo packs 100% cancelados (los mixed se cuentan como venta arriba)
+    // Canceladas: packs con AL MENOS un item cancelado (incluye mixtos, matchea MELI UI)
     const cancelledRow: any[] = await prisma.$queryRawUnsafe(
-      `WITH pack_status AS (
-         SELECT
-           COALESCE("packId", "externalId") AS pack_key,
-           BOOL_OR("status" NOT IN ('CANCELLED','RETURNED')) AS has_active
-         FROM "orders"
-         WHERE "organizationId" = $1
-           AND "source" = 'MELI'
-           AND "orderDate" >= $2 AND "orderDate" <= $3
-         GROUP BY COALESCE("packId", "externalId")
-       )
-       SELECT COUNT(*)::int AS "orders" FROM pack_status WHERE NOT has_active`,
+      `SELECT COUNT(DISTINCT COALESCE("packId", "externalId"))::int AS "orders"
+       FROM "orders"
+       WHERE "organizationId" = $1
+         AND "source" = 'MELI'
+         AND "orderDate" >= $2 AND "orderDate" <= $3
+         AND "status" IN ('CANCELLED','RETURNED')`,
       orgId, dateFrom, dateTo
     );
     const totalOrders = Number(kpiRow[0]?.orders || 0);
@@ -91,7 +95,7 @@ export async function GET(req: NextRequest) {
       where: { organizationId: orgId, status: "UNANSWERED" },
     });
 
-    // Daily sales: DISTINCT COALESCE(packId, externalId) por dia para no inflar.
+    // Daily sales: solo packs 100% activos (excluye packs con cualquier cancelacion)
     const dailyRows: any[] = await prisma.$queryRawUnsafe(
       `SELECT
          DATE_TRUNC('day', "orderDate")::date AS "day",
@@ -102,6 +106,13 @@ export async function GET(req: NextRequest) {
          AND "source" = 'MELI'
          AND "orderDate" >= $2 AND "orderDate" <= $3
          AND "status" NOT IN ('CANCELLED','RETURNED','PENDING')
+         AND COALESCE("packId", "externalId") NOT IN (
+           SELECT COALESCE("packId", "externalId") FROM "orders"
+           WHERE "organizationId" = $1
+             AND "source" = 'MELI'
+             AND "orderDate" >= $2 AND "orderDate" <= $3
+             AND "status" IN ('CANCELLED','RETURNED')
+         )
        GROUP BY DATE_TRUNC('day', "orderDate")
        ORDER BY "day" ASC`,
       orgId, dateFrom, dateTo
