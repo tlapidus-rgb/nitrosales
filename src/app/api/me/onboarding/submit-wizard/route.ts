@@ -18,6 +18,7 @@ import { prisma } from "@/lib/db/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sendEmail } from "@/lib/email/send";
+import { waitUntil } from "@vercel/functions";
 
 export const dynamic = "force-dynamic";
 
@@ -132,10 +133,12 @@ export async function POST(req: NextRequest) {
       select: { name: true },
     });
     const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
-    sendEmail({
-      to: adminEmail,
-      subject: `🎯 ${orgName?.name || "Cliente"} completó el wizard — listo para aprobar backfill`,
-      html: `<!DOCTYPE html><html><body style="background:#0A0A0F;color:#fff;font-family:-apple-system,sans-serif;padding:40px 20px;">
+    waitUntil(
+      sendEmail({
+        to: adminEmail,
+        subject: `🎯 ${orgName?.name || "Cliente"} completó el wizard — listo para aprobar backfill`,
+        context: "wizard.submitted.admin-notify",
+        html: `<!DOCTYPE html><html><body style="background:#0A0A0F;color:#fff;font-family:-apple-system,sans-serif;padding:40px 20px;">
 <div style="max-width:520px;margin:0 auto;background:#141419;border-radius:16px;padding:32px;border:1px solid #1F1F2E;">
   <div style="font-size:11px;color:#FF5E1A;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">NitroSales · Centro de Control</div>
   <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Cliente listo para backfill</h1>
@@ -149,7 +152,8 @@ export async function POST(req: NextRequest) {
   <a href="${appUrl}/control/onboardings" style="display:inline-block;background:linear-gradient(135deg,#FF5E1A,#FF8C4A);color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">Revisar y aprobar →</a>
 </div>
 </body></html>`,
-    }).catch((err) => console.error("[submit-wizard] admin email failed:", err?.message));
+      }).catch((err) => console.error("[submit-wizard] admin email failed:", err?.message))
+    );
 
     return NextResponse.json({
       ok: true,
