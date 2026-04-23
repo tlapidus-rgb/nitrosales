@@ -48,13 +48,19 @@ export async function GET(req: NextRequest) {
          AND "status" NOT IN ('CANCELLED','RETURNED')`,
       orgId, dateFrom, dateTo
     );
+    // Canceladas: solo packs 100% cancelados (los mixed se cuentan como venta arriba)
     const cancelledRow: any[] = await prisma.$queryRawUnsafe(
-      `SELECT COUNT(DISTINCT COALESCE("packId", "externalId"))::int AS "orders"
-       FROM "orders"
-       WHERE "organizationId" = $1
-         AND "source" = 'MELI'
-         AND "orderDate" >= $2 AND "orderDate" <= $3
-         AND "status" = 'CANCELLED'`,
+      `WITH pack_status AS (
+         SELECT
+           COALESCE("packId", "externalId") AS pack_key,
+           BOOL_OR("status" NOT IN ('CANCELLED','RETURNED')) AS has_active
+         FROM "orders"
+         WHERE "organizationId" = $1
+           AND "source" = 'MELI'
+           AND "orderDate" >= $2 AND "orderDate" <= $3
+         GROUP BY COALESCE("packId", "externalId")
+       )
+       SELECT COUNT(*)::int AS "orders" FROM pack_status WHERE NOT has_active`,
       orgId, dateFrom, dateTo
     );
     const totalOrders = Number(kpiRow[0]?.orders || 0);

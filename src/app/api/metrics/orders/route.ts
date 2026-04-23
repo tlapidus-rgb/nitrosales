@@ -562,13 +562,22 @@ export async function GET(request: NextRequest) {
       prevDailySales,
     ] = await Promise.all([
 
-      /* 11) Cancelled count */
+      /* 11) Cancelled count — packs 100% cancelados (ningun item vendido).
+         Los packs con estado mixto (algo vendido + algo cancelado) se cuentan
+         como venta (en total_orders arriba), NO como cancelado. Asi los 2
+         KPIs suman exactamente al total de packs, igual que MELI UI. */
       prisma.$queryRawUnsafe<[{ cnt: string }]>(`
-        SELECT COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS cnt FROM orders
-        WHERE "organizationId" = '${ORG_ID}'
-          AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status IN ('CANCELLED', 'RETURNED')
-          ${srcWhereSimple}
+        WITH pack_status AS (
+          SELECT
+            COALESCE("packId", "externalId") AS pack_key,
+            BOOL_OR(status NOT IN ('CANCELLED', 'RETURNED')) AS has_active
+          FROM orders
+          WHERE "organizationId" = '${ORG_ID}'
+            AND "orderDate" >= $1 AND "orderDate" <= $2
+            ${srcWhereSimple}
+          GROUP BY COALESCE("packId", "externalId")
+        )
+        SELECT COUNT(*)::text AS cnt FROM pack_status WHERE NOT has_active
       `, dateFrom, dateTo),
 
       /* 12) Previous period daily sales — was sequential, now parallel */
