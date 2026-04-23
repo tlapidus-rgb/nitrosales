@@ -78,14 +78,29 @@ export async function GET(req: NextRequest) {
       orgId
     );
 
-    // Simular exactamente la query del dashboard
+    // Simular la query REAL del dashboard (con DISTINCT pack)
     const dashboardQuery: any[] = await prisma.$queryRawUnsafe(
-      `SELECT COUNT(*)::int AS count, COALESCE(SUM("totalValue"), 0)::float AS revenue
+      `SELECT
+         COUNT(DISTINCT COALESCE("packId", "externalId"))::int AS "count",
+         COUNT(*)::int AS "rawRows",
+         COALESCE(SUM("totalValue"), 0)::float AS revenue
        FROM "orders"
        WHERE "organizationId" = $1
          AND "source" = 'MELI'
          AND "orderDate" >= NOW() - INTERVAL '30 days'
          AND "status" NOT IN ('CANCELLED', 'RETURNED')`,
+      orgId
+    );
+
+    // Pack stats globales
+    const packStats: any[] = await prisma.$queryRawUnsafe(
+      `SELECT
+         COUNT(*)::int AS "totalRows",
+         COUNT("packId")::int AS "rowsWithPackId",
+         COUNT(DISTINCT "packId")::int AS "distinctPacks",
+         COUNT(DISTINCT COALESCE("packId", "externalId"))::int AS "distinctCountAll"
+       FROM "orders"
+       WHERE "organizationId" = $1 AND "source" = 'MELI'`,
       orgId
     );
 
@@ -150,6 +165,7 @@ export async function GET(req: NextRequest) {
       })),
       ordersStats: ordersCount[0] || null,
       statusBreakdown,
+      packStats: packStats[0] || null,
       dashboardQuery30d: dashboardQuery[0] || null,
       sampleOrders,
       webhookEvents,
