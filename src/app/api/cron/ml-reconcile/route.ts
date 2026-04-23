@@ -70,19 +70,19 @@ async function mlGet(path: string, token: string): Promise<any> {
 }
 
 function mapMlStatus(mlStatus: string, tags?: string[]): string {
-  // Enum OrderStatus en Prisma: PENDING, APPROVED, INVOICED, SHIPPED, DELIVERED, CANCELLED, RETURNED
-  // (NO existe "PAID")
+  // CRITICAL: cancelled/invalid SIEMPRE gana sobre el tag 'delivered'.
+  // MELI mantiene el tag historico tras cancelar un pack.
+  if (mlStatus === "cancelled" || mlStatus === "invalid") return "CANCELLED";
   if (Array.isArray(tags) && tags.includes("delivered")) return "DELIVERED";
   switch (mlStatus) {
     case "paid": return "APPROVED";
     case "shipped": return "SHIPPED";
     case "delivered": return "DELIVERED";
+    case "partially_refunded": return "APPROVED"; // Venta valida en MELI UI
     case "confirmed":
     case "payment_required":
     case "payment_in_process":
     case "partially_paid": return "PENDING";
-    case "cancelled":
-    case "invalid": return "CANCELLED";
     default: return "PENDING";
   }
 }

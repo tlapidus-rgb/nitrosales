@@ -159,18 +159,22 @@ async function getExistingOrderMap(
  * (NO existe "PAID" — usar APPROVED o DELIVERED según tags.)
  */
 function mapMlStatus(mlStatus: string, tags?: string[]): string {
-  // Si el tag 'delivered' está presente, priorizar DELIVERED
+  // CRITICAL: cancelled/invalid SIEMPRE gana. MELI mantiene el tag 'delivered'
+  // historico incluso tras cancelar el pack, asi que NO debemos priorizar el tag.
+  if (mlStatus === "cancelled" || mlStatus === "invalid") return "CANCELLED";
+  // Tag 'delivered' override para los casos restantes
   if (Array.isArray(tags) && tags.includes("delivered")) return "DELIVERED";
   switch (mlStatus) {
     case "paid": return "APPROVED";
     case "shipped": return "SHIPPED";
     case "delivered": return "DELIVERED";
+    // partially_refunded = MELI reembolso parcial. Venta sigue siendo valida
+    // (MELI UI lo cuenta en 'concretadas+en camino').
+    case "partially_refunded": return "APPROVED";
     case "confirmed":
     case "payment_required":
     case "payment_in_process":
     case "partially_paid": return "PENDING";
-    case "cancelled":
-    case "invalid": return "CANCELLED";
     default: return "PENDING";
   }
 }
