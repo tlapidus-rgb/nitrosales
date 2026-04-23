@@ -191,6 +191,7 @@ export async function GET(request: NextRequest) {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           ${srcWhereSimple}
       `, dateFrom, dateTo),
 
@@ -209,6 +210,7 @@ export async function GET(request: NextRequest) {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           ${srcWhereSimple}
       `, prevFrom, prevTo),
     ]);
@@ -232,6 +234,7 @@ export async function GET(request: NextRequest) {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           ${srcWhereSimple}
         GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')
         ORDER BY day ASC
@@ -253,6 +256,7 @@ export async function GET(request: NextRequest) {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
         GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD'), COALESCE("source", 'VTEX')
         ORDER BY day ASC
       `, dateFrom, dateTo), [] as any[], "daily-by-source"
@@ -283,6 +287,8 @@ export async function GET(request: NextRequest) {
             AND "orderDate" >= $1
             AND "orderDate" <= $2
             AND status NOT IN ('CANCELLED', 'RETURNED')
+            AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
             ${srcWhereSimple}
           GROUP BY day, dow
         )
@@ -318,6 +324,8 @@ export async function GET(request: NextRequest) {
             AND "orderDate" >= $1
             AND "orderDate" <= $2
             AND status NOT IN ('CANCELLED', 'RETURNED')
+            AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
             ${srcWhereSimple}
           GROUP BY day, hr
         )
@@ -355,6 +363,7 @@ export async function GET(request: NextRequest) {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           ${srcWhereSimple}
         GROUP BY "paymentMethod", COALESCE("source", 'VTEX')
         ORDER BY SUM("totalValue") DESC
@@ -409,6 +418,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
           ${srcWhere}
         GROUP BY p.id, p.name, p.brand, p.category, p."imageUrl", ml."thumbnailUrl"
         ORDER BY SUM(oi."totalPrice") DESC
@@ -442,6 +452,7 @@ export async function GET(request: NextRequest) {
           AND o."orderDate" >= $1
           AND o."orderDate" <= $2
           AND o.status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
           ${srcWhere}
         GROUP BY c.id, c."firstName", c."lastName", c.email
         ORDER BY SUM(o."totalValue") DESC
@@ -593,6 +604,7 @@ export async function GET(request: NextRequest) {
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           ${srcWhereSimple}
         GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')
         ORDER BY day ASC
@@ -617,6 +629,7 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           ${srcWhereSimple}
         GROUP BY COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo'), COALESCE("source", 'VTEX')
         ORDER BY SUM("totalValue") DESC
@@ -651,6 +664,7 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
         GROUP BY COALESCE("source", 'VTEX')
       `, dateFrom, dateTo),
     ]);
@@ -683,6 +697,8 @@ export async function GET(request: NextRequest) {
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
             ${srcWhereSimple}
           GROUP BY o."customerId", o."source", first_order.first_date
         ),
@@ -727,6 +743,8 @@ export async function GET(request: NextRequest) {
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
             ${srcWhere}
         )
         SELECT
@@ -756,6 +774,7 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           ${srcWhereSimple}
         GROUP BY "deliveryType"
         ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
@@ -782,6 +801,7 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           ${srcWhereSimple}
         GROUP BY "shippingCarrier"
         ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
@@ -807,6 +827,8 @@ export async function GET(request: NextRequest) {
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
             ${srcWhere}
           ORDER BY o.id, pa."createdAt" DESC NULLS LAST
         )
@@ -834,6 +856,7 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           ${srcWhereSimple}
         GROUP BY "channel"
         ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
@@ -864,6 +887,8 @@ export async function GET(request: NextRequest) {
           WHERE o."organizationId" = '${ORG_ID}'
             AND o."orderDate" >= $1 AND o."orderDate" <= $2
             AND o.status NOT IN ('CANCELLED', 'RETURNED')
+            AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
+          AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
             ${srcWhere}
           ORDER BY o.id, pa."createdAt" DESC NULLS LAST
         )
@@ -889,6 +914,7 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND "couponCode" IS NOT NULL AND "couponCode" != ''
           ${srcWhereSimple}
         GROUP BY "couponCode"
@@ -915,6 +941,7 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND "postalCode" IS NOT NULL AND "postalCode" != ''
           ${srcWhereSimple}
         GROUP BY "postalCode"
@@ -934,6 +961,7 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status NOT IN ('CANCELLED', 'RETURNED')
+          AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND "postalCode" IS NOT NULL AND "postalCode" != ''
           ${srcWhereSimple}
         GROUP BY "postalCode"

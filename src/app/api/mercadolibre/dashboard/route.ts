@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
        WHERE "organizationId" = $1
          AND "source" = 'MELI'
          AND "orderDate" >= $2 AND "orderDate" <= $3
-         AND "status" NOT IN ('CANCELLED','RETURNED')`,
+         AND "status" NOT IN ('CANCELLED','RETURNED','PENDING')`,
       orgId, dateFrom, dateTo
     );
     // Canceladas: solo packs 100% cancelados (los mixed se cuentan como venta arriba)
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
        WHERE "organizationId" = $1
          AND "source" = 'MELI'
          AND "orderDate" >= $2 AND "orderDate" <= $3
-         AND "status" NOT IN ('CANCELLED','RETURNED')
+         AND "status" NOT IN ('CANCELLED','RETURNED','PENDING')
        GROUP BY DATE_TRUNC('day', "orderDate")
        ORDER BY "day" ASC`,
       orgId, dateFrom, dateTo
