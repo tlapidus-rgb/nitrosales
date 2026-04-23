@@ -178,14 +178,14 @@ export async function GET(request: NextRequest) {
         total_discounts: string;
       }]>(`
         SELECT
-          COUNT(*)::text AS total_orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS total_orders,
           COALESCE(SUM("totalValue"), 0)::text AS total_revenue,
           COALESCE(AVG("totalValue"), 0)::text AS avg_ticket,
           COALESCE(SUM("itemCount"), 0)::text AS total_items,
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS total_shipping,
           COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS total_discounts,
           COALESCE(SUM(COALESCE("marketplaceFee", 0)), 0)::text AS total_marketplace_fee,
-          COUNT(CASE WHEN "marketplaceFee" IS NOT NULL AND "marketplaceFee" > 0 THEN 1 END)::text AS orders_with_fee
+          COUNT(DISTINCT CASE WHEN "marketplaceFee" IS NOT NULL AND "marketplaceFee" > 0 THEN COALESCE("packId", "externalId") END)::text AS orders_with_fee
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
         avg_ticket: string;
       }]>(`
         SELECT
-          COUNT(*)::text AS total_orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS total_orders,
           COALESCE(SUM("totalValue"), 0)::text AS total_revenue,
           COALESCE(AVG("totalValue"), 0)::text AS avg_ticket
         FROM orders
@@ -224,7 +224,7 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue,
           COALESCE(SUM("itemCount"), 0)::text AS items
         FROM orders
@@ -246,7 +246,7 @@ export async function GET(request: NextRequest) {
         SELECT
           TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
           COALESCE("source", 'VTEX') AS source,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -276,7 +276,7 @@ export async function GET(request: NextRequest) {
           SELECT
             TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
             EXTRACT(DOW FROM "orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')::int AS dow,
-            COUNT(*) AS orders,
+            COUNT(DISTINCT COALESCE("packId", "externalId")) AS orders,
             COALESCE(SUM("totalValue"), 0) AS revenue
           FROM orders
           WHERE "organizationId" = '${ORG_ID}'
@@ -311,7 +311,7 @@ export async function GET(request: NextRequest) {
           SELECT
             TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
             EXTRACT(HOUR FROM "orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires')::int AS hr,
-            COUNT(*) AS orders,
+            COUNT(DISTINCT COALESCE("packId", "externalId")) AS orders,
             COALESCE(SUM("totalValue"), 0) AS revenue
           FROM orders
           WHERE "organizationId" = '${ORG_ID}'
@@ -348,7 +348,7 @@ export async function GET(request: NextRequest) {
         SELECT
           COALESCE("paymentMethod", 'Sin dato') AS payment_method,
           COALESCE("source", 'VTEX') AS source,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -368,14 +368,14 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           status::text AS status,
-          COUNT(*)::text AS count
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS count
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
           AND "orderDate" <= $2
           ${srcWhereSimple}
         GROUP BY status
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
       `, dateFrom, dateTo),
     ]);
 
@@ -400,7 +400,7 @@ export async function GET(request: NextRequest) {
           COALESCE(p."imageUrl", ml."thumbnailUrl") AS image_url,
           SUM(oi.quantity)::text AS units_sold,
           SUM(oi."totalPrice")::text AS revenue,
-          COUNT(DISTINCT o.id)::text AS order_count
+          COUNT(DISTINCT COALESCE(o."packId", o."externalId"))::text AS order_count
         FROM order_items oi
         JOIN orders o ON o.id = oi."orderId"
         JOIN products p ON p.id = oi."productId"
@@ -434,7 +434,7 @@ export async function GET(request: NextRequest) {
           c.id AS customer_id,
           TRIM(CONCAT(COALESCE(c."firstName", ''), ' ', COALESCE(c."lastName", ''))) AS customer_name,
           COALESCE(c.email, 'Sin email') AS email,
-          COUNT(o.id)::text AS total_orders,
+          COUNT(DISTINCT COALESCE(o."packId", o."externalId"))::text AS total_orders,
           SUM(o."totalValue")::text AS total_spent
         FROM orders o
         JOIN customers c ON c.id = o."customerId"
@@ -564,7 +564,7 @@ export async function GET(request: NextRequest) {
 
       /* 11) Cancelled count */
       prisma.$queryRawUnsafe<[{ cnt: string }]>(`
-        SELECT COUNT(*)::text AS cnt FROM orders
+        SELECT COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS cnt FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           AND status IN ('CANCELLED', 'RETURNED')
@@ -577,7 +577,7 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') AS day,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -602,7 +602,7 @@ export async function GET(request: NextRequest) {
         SELECT
           COALESCE(NULLIF(TRIM("promotionNames"), ''), 'Sin promo') AS promo,
           COALESCE("source", 'VTEX') AS source,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -623,7 +623,7 @@ export async function GET(request: NextRequest) {
 
       /* 14) Total count for pagination */
       prisma.$queryRawUnsafe<[{ cnt: string }]>(`
-        SELECT COUNT(*)::text AS cnt FROM orders
+        SELECT COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS cnt FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
           ${srcWhereSimple}
@@ -635,7 +635,7 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           COALESCE("source", 'VTEX') AS source,
-          COUNT(*)::text AS cnt,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS cnt,
           COALESCE(SUM("totalValue"), 0)::text AS revenue,
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS shipping
         FROM orders
@@ -660,7 +660,7 @@ export async function GET(request: NextRequest) {
           SELECT
             o."customerId",
             COALESCE(o."source", 'VTEX') AS src,
-            COUNT(*)::int AS period_orders,
+            COUNT(DISTINCT COALESCE(o."packId", o."externalId"))::int AS period_orders,
             SUM(o."totalValue") AS period_revenue,
             MIN(first_order.first_date) AS first_order_date
           FROM orders o
@@ -703,6 +703,7 @@ export async function GET(request: NextRequest) {
       }]>(`
         WITH item_costs AS (
           SELECT oi."orderId", oi."totalPrice", oi.quantity,
+            COALESCE(o."packId", o."externalId") AS pack_key,
             COALESCE(oi."costPrice", p."costPrice",
               (SELECT p2."costPrice" FROM products p2
                WHERE p2."organizationId" = o."organizationId"
@@ -724,8 +725,8 @@ export async function GET(request: NextRequest) {
           COALESCE(SUM(CASE WHEN effective_cost IS NOT NULL AND effective_cost > 0 THEN "totalPrice" ELSE 0 END), 0)::text AS gross_with_cost,
           COALESCE(SUM(CASE WHEN effective_cost IS NULL OR effective_cost = 0 THEN "totalPrice" ELSE 0 END), 0)::text AS gross_without_cost,
           COALESCE(SUM(CASE WHEN effective_cost IS NOT NULL AND effective_cost > 0 THEN quantity * effective_cost ELSE 0 END), 0)::text AS total_cogs,
-          COUNT(DISTINCT CASE WHEN effective_cost IS NOT NULL AND effective_cost > 0 THEN "orderId" END)::text AS orders_with_cost,
-          COUNT(DISTINCT "orderId")::text AS orders_total
+          COUNT(DISTINCT CASE WHEN effective_cost IS NOT NULL AND effective_cost > 0 THEN pack_key END)::text AS orders_with_cost,
+          COUNT(DISTINCT pack_key)::text AS orders_total
         FROM item_costs
       `, dateFrom, dateTo), [{ gross_revenue: "0", gross_with_cost: "0", gross_without_cost: "0", total_cogs: "0", orders_with_cost: "0", orders_total: "0" }] as any, "profitability"),
     ]);
@@ -738,7 +739,7 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           COALESCE("deliveryType", 'Sin dato') AS bucket,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue,
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS shipping_charged,
           COALESCE(SUM(COALESCE("realShippingCost", 0)), 0)::text AS shipping_real
@@ -748,7 +749,7 @@ export async function GET(request: NextRequest) {
           AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
         GROUP BY "deliveryType"
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
       `, dateFrom, dateTo), [] as any[], "logistics-delivery"),
     ]);
 
@@ -764,7 +765,7 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           COALESCE("shippingCarrier", 'Sin dato') AS bucket,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue,
           COALESCE(SUM(COALESCE("shippingCost", 0)), 0)::text AS shipping_charged,
           COALESCE(SUM(COALESCE("realShippingCost", 0)), 0)::text AS shipping_real
@@ -774,7 +775,7 @@ export async function GET(request: NextRequest) {
           AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
         GROUP BY "shippingCarrier"
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
         LIMIT 10
       `, dateFrom, dateTo), [] as any[], "logistics-carrier"),
 
@@ -785,6 +786,7 @@ export async function GET(request: NextRequest) {
         WITH order_device AS (
           SELECT DISTINCT ON (o.id)
             o.id,
+            COALESCE(o."packId", o."externalId") AS pack_key,
             o."totalValue",
             COALESCE(
               o."deviceType",
@@ -801,11 +803,11 @@ export async function GET(request: NextRequest) {
         )
         SELECT
           COALESCE(device, 'Sin dato') AS bucket,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT pack_key)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM order_device
         GROUP BY device
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(DISTINCT pack_key) DESC
       `, dateFrom, dateTo), [] as any[], "seg-device"),
     ]);
 
@@ -817,7 +819,7 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           COALESCE("channel", 'Sin dato') AS bucket,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -825,7 +827,7 @@ export async function GET(request: NextRequest) {
           AND status NOT IN ('CANCELLED', 'RETURNED')
           ${srcWhereSimple}
         GROUP BY "channel"
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
       `, dateFrom, dateTo), [] as any[], "seg-channel"),
     ]);
 
@@ -842,6 +844,7 @@ export async function GET(request: NextRequest) {
         WITH order_traffic AS (
           SELECT DISTINCT ON (o.id)
             o.id,
+            COALESCE(o."packId", o."externalId") AS pack_key,
             o."totalValue",
             COALESCE(
               o."trafficSource",
@@ -857,11 +860,11 @@ export async function GET(request: NextRequest) {
         )
         SELECT
           COALESCE(traffic_src, 'Sin dato') AS bucket,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT pack_key)::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM order_traffic
         GROUP BY traffic_src
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(DISTINCT pack_key) DESC
       `, dateFrom, dateTo), [] as any[], "seg-traffic"),
 
       /* 23) Coupons — top coupon codes */
@@ -870,7 +873,7 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           COALESCE("couponCode", 'Sin cupon') AS code,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue,
           COALESCE(SUM(COALESCE("discountValue", 0)), 0)::text AS discount
         FROM orders
@@ -880,7 +883,7 @@ export async function GET(request: NextRequest) {
           AND "couponCode" IS NOT NULL AND "couponCode" != ''
           ${srcWhereSimple}
         GROUP BY "couponCode"
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
         LIMIT 15
       `, dateFrom, dateTo), [] as any[], "coupons"),
     ]);
@@ -897,7 +900,7 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           COALESCE("postalCode", 'Sin dato') AS value,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -906,7 +909,7 @@ export async function GET(request: NextRequest) {
           AND "postalCode" IS NOT NULL AND "postalCode" != ''
           ${srcWhereSimple}
         GROUP BY "postalCode"
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
         LIMIT 20
       `, dateFrom, dateTo), [] as any[], "geo-provinces"),
 
@@ -916,7 +919,7 @@ export async function GET(request: NextRequest) {
       }>>(`
         SELECT
           COALESCE("postalCode", 'Sin dato') AS value,
-          COUNT(*)::text AS orders,
+          COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS orders,
           COALESCE(SUM("totalValue"), 0)::text AS revenue
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
@@ -925,7 +928,7 @@ export async function GET(request: NextRequest) {
           AND "postalCode" IS NOT NULL AND "postalCode" != ''
           ${srcWhereSimple}
         GROUP BY "postalCode"
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(DISTINCT COALESCE("packId", "externalId")) DESC
         LIMIT 20
       `, dateFrom, dateTo), [] as any[], "geo-postal"),
     ]);
@@ -936,7 +939,7 @@ export async function GET(request: NextRequest) {
     }>>(`
       SELECT
         CASE WHEN ml."catalogListing" = true THEN 'Catálogo' ELSE 'Fuera de catálogo' END AS catalog_type,
-        COUNT(DISTINCT o.id)::text AS orders,
+        COUNT(DISTINCT COALESCE(o."packId", o."externalId"))::text AS orders,
         COALESCE(SUM(oi."totalPrice"), 0)::text AS revenue,
         SUM(oi.quantity)::text AS units
       FROM order_items oi
@@ -958,7 +961,9 @@ export async function GET(request: NextRequest) {
 
     const totalOrders = Number(curr.total_orders);
     const totalRevenue = Number(curr.total_revenue);
-    const avgTicket = Number(curr.avg_ticket);
+    // avgTicket = revenue / pedidos distinct-pack (NO AVG SQL — ese promedia
+    // row-partial, lo cual para carritos MELI da un numero incorrectamente bajo).
+    const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const totalMarketplaceFee = Number((curr as any).total_marketplace_fee || 0);
     const ordersWithFee = Number((curr as any).orders_with_fee || 0);
     const cancellationRate = totalOrders + cancelledOrders > 0
@@ -967,7 +972,7 @@ export async function GET(request: NextRequest) {
 
     const prevTotalOrders = Number(prev.total_orders);
     const prevTotalRevenue = Number(prev.total_revenue);
-    const prevAvgTicket = Number(prev.avg_ticket);
+    const prevAvgTicket = prevTotalOrders > 0 ? prevTotalRevenue / prevTotalOrders : 0;
 
     const pctChange = (c: number, p: number) =>
       p > 0 ? ((c - p) / p) * 100 : c > 0 ? 100 : 0;
