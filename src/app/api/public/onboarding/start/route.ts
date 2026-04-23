@@ -21,6 +21,7 @@ import { prisma } from "@/lib/db/client";
 import { randomUUID, randomBytes } from "crypto";
 import { sendEmail } from "@/lib/email/send";
 import { onboardingConfirmationEmailActive } from "@/lib/onboarding/emails";
+import { waitUntil } from "@vercel/functions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -163,9 +164,12 @@ export async function POST(req: NextRequest) {
       companyName,
       statusToken: token,
     });
-    sendEmail({ to: contactEmail, subject, html, context: "onboarding.confirmation" }).catch((err) => {
-      console.error("[onboarding/start] email send failed:", err?.message);
-    });
+    // waitUntil: garantizar que Resend reciba el email antes de que Vercel mate el proceso
+    waitUntil(
+      sendEmail({ to: contactEmail, subject, html, context: "onboarding.confirmation" }).catch((err) => {
+        console.error("[onboarding/start] email send failed:", err?.message);
+      })
+    );
 
     return NextResponse.json({
       ok: true,

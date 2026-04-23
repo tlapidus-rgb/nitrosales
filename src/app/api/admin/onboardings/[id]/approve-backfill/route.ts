@@ -140,11 +140,16 @@ export async function POST(
       contactName: ob.contactName,
       companyName: ob.companyName,
     });
-    sendEmail({
-      to: ob.contactEmail,
-      subject: tpl.subject,
-      html: tpl.html,
-    }).catch((err) => console.error("[approve-backfill] client email failed:", err?.message));
+    // CRÍTICO: waitUntil para que Vercel no mate la función antes de que
+    // el email llegue a Resend.
+    waitUntil(
+      sendEmail({
+        to: ob.contactEmail,
+        subject: tpl.subject,
+        html: tpl.html,
+        context: "backfill.started",
+      }).catch((err) => console.error("[approve-backfill] client email failed:", err?.message))
+    );
 
     // Trigger inmediato del runner: no esperar al proximo tick del cron (1 min).
     // Disparamos el runner en background para que arranque a procesar AHORA.

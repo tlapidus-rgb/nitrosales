@@ -18,6 +18,7 @@ import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { sendEmail } from "@/lib/email/send";
 import { onboardingActivationEmail } from "@/lib/onboarding/emails";
+import { waitUntil } from "@vercel/functions";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
 
@@ -169,9 +170,14 @@ export async function POST(
       temporaryPassword: tempPassword,
       orgId: result.org.id,
     });
-    sendEmail({ to: request.contactEmail, subject, html, context: "onboarding.activate" }).catch((err) => {
-      console.error("[activate] email send failed:", err?.message);
-    });
+    // CRÍTICO: waitUntil garantiza que Vercel no mate la función antes de que
+    // sendEmail termine de hablar con Resend. Sin esto, la response se manda
+    // y el proceso termina → el email se pierde silenciosamente.
+    waitUntil(
+      sendEmail({ to: request.contactEmail, subject, html, context: "onboarding.activate" }).catch((err) => {
+        console.error("[activate] email send failed:", err?.message);
+      })
+    );
 
     return NextResponse.json({
       ok: true,
