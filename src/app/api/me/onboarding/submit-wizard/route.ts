@@ -68,15 +68,28 @@ export async function POST(req: NextRequest) {
       // Upsert connection (PENDING hasta aprobacion de Tomy)
       const existing = await prisma.connection.findFirst({
         where: { organizationId: user.organizationId, platform: p.platform as any },
-        select: { id: true },
+        select: { id: true, credentials: true },
       });
+
+      // CRITICO para MERCADOLIBRE (OAuth): NO pisar las credentials existentes
+      // con lo que manda el frontend, porque el frontend solo tiene { mlUserId, _connected }
+      // pero la DB tiene los tokens OAuth reales (accessToken, refreshToken).
+      // Si pisamos, perdemos los tokens y el sync falla.
+      let credsToSave: any = p.credentials;
+      if (p.platform === "MERCADOLIBRE" && existing?.credentials) {
+        const existingCreds = existing.credentials as any;
+        // Si ya hay tokens en DB (del OAuth callback), preservarlos.
+        if (existingCreds?.accessToken && existingCreds?.mlUserId) {
+          credsToSave = existingCreds; // ignoramos lo que mandó el frontend
+        }
+      }
 
       if (existing) {
         await prisma.connection.update({
           where: { id: existing.id },
           data: {
             status: "PENDING",
-            credentials: p.credentials,
+            credentials: credsToSave,
             lastSyncError: null,
           },
         });
@@ -86,7 +99,7 @@ export async function POST(req: NextRequest) {
             organizationId: user.organizationId,
             platform: p.platform as any,
             status: "PENDING",
-            credentials: p.credentials,
+            credentials: credsToSave,
           },
         });
       }
