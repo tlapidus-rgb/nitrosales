@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const email = url.searchParams.get("email");
+    const probeOrderId = url.searchParams.get("probeOrder"); // opcional: consulta directo a ML
     if (!email) return NextResponse.json({ error: "email required" }, { status: 400 });
 
     // Find user + org
@@ -153,8 +154,52 @@ export async function GET(req: NextRequest) {
       sampleOrders,
       webhookEvents,
       watermarks,
+      probe: await probeOrderFromMl(connection, probeOrderId),
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message, stack: error.stack?.slice(0, 500) }, { status: 500 });
+  }
+}
+
+// Consulta directa a MELI por un orderId con el access_token de la Connection.
+// Devuelve el raw payload para ver qué campos tiene y cómo están los status.
+async function probeOrderFromMl(connection: any, orderId: string | null) {
+  if (!orderId || !connection) return null;
+  const creds = connection.credentials as any;
+  const token = creds?.accessToken;
+  if (!token) return { error: "No access token" };
+
+  try {
+    const res = await fetch(`https://api.mercadolibre.com/orders/${orderId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      return { error: `ML ${res.status}: ${body.slice(0, 300)}` };
+    }
+    const data = await res.json();
+    // Solo devolvemos los campos más importantes (no dumpear todo el payload)
+    return {
+      orderId,
+      status: data.status,
+      status_detail: data.status_detail,
+      tags: data.tags,
+      date_created: data.date_created,
+      date_closed: data.date_closed,
+      last_updated: data.last_updated,
+      total_amount: data.total_amount,
+      currency_id: data.currency_id,
+      payments: (data.payments || []).map((p: any) => ({
+        id: p.id,
+        status: p.status,
+        status_detail: p.status_detail,
+        date_approved: p.date_approved,
+        transaction_amount: p.transaction_amount,
+      })),
+      shipping_status: data.shipping?.status || null,
+      order_items_count: data.order_items?.length || 0,
+    };
+  } catch (err: any) {
+    return { error: err.message };
   }
 }
