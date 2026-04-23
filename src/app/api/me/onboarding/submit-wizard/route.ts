@@ -189,7 +189,11 @@ function validatePlatformCreds(platform: string, creds: any): string | null {
       // Para providers no-vtex (tiendanube/shopify/etc), solo capturamos interes.
       break;
     case "MERCADOLIBRE":
-      if (!creds.username || typeof creds.username !== "string") return "username requerido";
+      // OAuth flow: aceptar si hay mlUserId o accessToken (viene del callback OAuth).
+      // El username ya no se pide en el wizard — MELI lo completa automaticamente.
+      if (!creds.mlUserId && !creds.accessToken && !creds._connected && !creds.username) {
+        return "MercadoLibre no está conectado. Hacé click en 'Conectar con MercadoLibre' para autorizar.";
+      }
       break;
     case "META_ADS":
       if (!creds.adAccountId || typeof creds.adAccountId !== "string") return "adAccountId requerido";

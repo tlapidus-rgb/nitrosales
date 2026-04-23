@@ -294,8 +294,8 @@ const ALL_PLATFORMS: Platform[] = [
   },
   {
     key: "MERCADOLIBRE", name: "MercadoLibre",
-    subtitle: "Marketplace — OAuth después",
-    requiredFields: ["username"],
+    subtitle: "Marketplace — OAuth directo",
+    requiredFields: ["mlUserId"],
     hasHistory: true,
     missFeatures: [
       "Ventas de marketplace integradas",
