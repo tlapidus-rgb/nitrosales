@@ -155,6 +155,7 @@ export async function GET(req: NextRequest) {
       webhookEvents,
       watermarks,
       probe: await probeOrderFromMl(connection, probeOrderId),
+      searchProbe: await probeOrdersSearch(connection),
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message, stack: error.stack?.slice(0, 500) }, { status: 500 });
@@ -163,6 +164,62 @@ export async function GET(req: NextRequest) {
 
 // Consulta directa a MELI por un orderId con el access_token de la Connection.
 // Devuelve el raw payload para ver qué campos tiene y cómo están los status.
+// Consulta /orders/search con 4 variantes distintas para comparar resultados.
+// Objetivo: descubrir por qué /orders/search no nos devuelve las paid.
+async function probeOrdersSearch(connection: any) {
+  if (!connection) return null;
+  const creds = connection.credentials as any;
+  const token = creds?.accessToken;
+  const mlUserId = creds?.mlUserId;
+  if (!token || !mlUserId) return { error: "No token/mlUserId" };
+
+  const from = "2026-04-19T00:00:00.000-00:00";
+  const to = "2026-04-22T23:59:59.000-00:00";
+
+  async function fetchSearch(queryDesc: string, path: string) {
+    try {
+      const res = await fetch(`https://api.mercadolibre.com${path}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return { queryDesc, error: `${res.status}: ${(await res.text()).slice(0, 200)}` };
+      const data = await res.json();
+      return {
+        queryDesc,
+        totalPaging: data.paging?.total || 0,
+        returned: data.results?.length || 0,
+        firstIds: (data.results || []).slice(0, 10).map((o: any) => ({
+          id: o.id,
+          status: o.status,
+          tags: o.tags?.slice(0, 5),
+          date_created: o.date_created,
+          total_amount: o.total_amount,
+        })),
+      };
+    } catch (err: any) {
+      return { queryDesc, error: err.message };
+    }
+  }
+
+  return {
+    "1_seller_default": await fetchSearch(
+      "seller=X sin filtros (actual del processor)",
+      `/orders/search?seller=${mlUserId}&order.date_created.from=${encodeURIComponent(from)}&order.date_created.to=${encodeURIComponent(to)}&limit=50&sort=date_desc`
+    ),
+    "2_seller_paid": await fetchSearch(
+      "seller=X con order.status=paid explicito",
+      `/orders/search?seller=${mlUserId}&order.date_created.from=${encodeURIComponent(from)}&order.date_created.to=${encodeURIComponent(to)}&order.status=paid&limit=50&sort=date_desc`
+    ),
+    "3_seller_cancelled": await fetchSearch(
+      "seller=X con order.status=cancelled",
+      `/orders/search?seller=${mlUserId}&order.date_created.from=${encodeURIComponent(from)}&order.date_created.to=${encodeURIComponent(to)}&order.status=cancelled&limit=50&sort=date_desc`
+    ),
+    "4_recent_archived": await fetchSearch(
+      "archived endpoint (por si las paid estan ahi)",
+      `/orders/search/archived?seller=${mlUserId}&order.date_created.from=${encodeURIComponent(from)}&order.date_created.to=${encodeURIComponent(to)}&limit=50&sort=date_desc`
+    ),
+  };
+}
+
 async function probeOrderFromMl(connection: any, orderId: string | null) {
   if (!orderId || !connection) return null;
   const creds = connection.credentials as any;
