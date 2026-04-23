@@ -130,6 +130,8 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
   const deliveryType = order.shipping?.shipment_type === "pickup"
     ? "pickup" : order.shipping ? "shipping" : null;
 
+  const packId = order.pack_id ? String(order.pack_id) : null; // dedup carritos MELI
+
   const dbOrder = await prisma.order.upsert({
     where: {
       organizationId_externalId: { organizationId: orgId, externalId: String(order.id) },
@@ -138,6 +140,7 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
       status,
       totalValue,
       itemCount,
+      packId,
       paymentMethod: order.payments?.[0]?.payment_type || null,
       ...(marketplaceFee > 0 ? { marketplaceFee } : {}),
       ...(shippingCost != null ? { shippingCost } : {}),
@@ -146,6 +149,7 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
     create: {
       organizationId: orgId,
       externalId: String(order.id),
+      packId,
       status,
       totalValue,
       currency: order.currency_id || "ARS",

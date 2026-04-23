@@ -32,18 +32,35 @@ export async function GET(req: NextRequest) {
       : new Date();
 
     // KPIs from orders (source=MELI)
-    const ordersAgg = await prisma.order.aggregate({
-      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo }, status: { notIn: ["CANCELLED", "RETURNED"] } },
-      _sum: { totalValue: true, itemCount: true },
-      _count: { id: true },
-    });
-    const cancelledCount = await prisma.order.count({
-      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo }, status: "CANCELLED" },
-    });
-
-    const totalOrders = ordersAgg._count.id || 0;
-    const totalRevenue = Number(ordersAgg._sum.totalValue || 0);
-    const totalItems = Number(ordersAgg._sum.itemCount || 0);
+    // IMPORTANTE: MELI divide 1 carrito en N ordenes con el mismo pack_id.
+    // Contamos DISTINCT COALESCE(packId, externalId) para no inflar
+    // (ej: 1 carrito con 3 items = 1 venta en UI de MELI, no 3).
+    // Revenue y itemCount se suman sin distinct (cada suborder tiene su partial).
+    const kpiRow: any[] = await prisma.$queryRawUnsafe(
+      `SELECT
+         COUNT(DISTINCT COALESCE("packId", "externalId"))::int AS "orders",
+         COALESCE(SUM("totalValue"), 0)::float AS "revenue",
+         COALESCE(SUM("itemCount"), 0)::int AS "items"
+       FROM "orders"
+       WHERE "organizationId" = $1
+         AND "source" = 'MELI'
+         AND "orderDate" >= $2 AND "orderDate" <= $3
+         AND "status" NOT IN ('CANCELLED','RETURNED')`,
+      orgId, dateFrom, dateTo
+    );
+    const cancelledRow: any[] = await prisma.$queryRawUnsafe(
+      `SELECT COUNT(DISTINCT COALESCE("packId", "externalId"))::int AS "orders"
+       FROM "orders"
+       WHERE "organizationId" = $1
+         AND "source" = 'MELI'
+         AND "orderDate" >= $2 AND "orderDate" <= $3
+         AND "status" = 'CANCELLED'`,
+      orgId, dateFrom, dateTo
+    );
+    const totalOrders = Number(kpiRow[0]?.orders || 0);
+    const totalRevenue = Number(kpiRow[0]?.revenue || 0);
+    const totalItems = Number(kpiRow[0]?.items || 0);
+    const cancelledCount = Number(cancelledRow[0]?.orders || 0);
     const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
     // Listings stats
@@ -68,27 +85,26 @@ export async function GET(req: NextRequest) {
       where: { organizationId: orgId, status: "UNANSWERED" },
     });
 
-    // Daily sales (MELI orders grouped by day)
-    const dailySalesRaw = await prisma.order.groupBy({
-      by: ["orderDate"],
-      where: { organizationId: orgId, source: "MELI", orderDate: { gte: dateFrom, lte: dateTo }, status: { notIn: ["CANCELLED", "RETURNED"] } },
-      _sum: { totalValue: true },
-      _count: { id: true },
-      orderBy: { orderDate: "asc" },
-    });
-
-    // Aggregate by day string
-    const dailyMap = new Map<string, { revenue: number; orders: number }>();
-    for (const row of dailySalesRaw) {
-      const day = new Date(row.orderDate).toISOString().split("T")[0];
-      const existing = dailyMap.get(day) || { revenue: 0, orders: 0 };
-      existing.revenue += Number(row._sum.totalValue || 0);
-      existing.orders += row._count.id;
-      dailyMap.set(day, existing);
-    }
-    const dailySales = Array.from(dailyMap.entries())
-      .map(([day, data]) => ({ day, ...data }))
-      .sort((a, b) => a.day.localeCompare(b.day));
+    // Daily sales: DISTINCT COALESCE(packId, externalId) por dia para no inflar.
+    const dailyRows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT
+         DATE_TRUNC('day', "orderDate")::date AS "day",
+         COUNT(DISTINCT COALESCE("packId", "externalId"))::int AS "orders",
+         COALESCE(SUM("totalValue"), 0)::float AS "revenue"
+       FROM "orders"
+       WHERE "organizationId" = $1
+         AND "source" = 'MELI'
+         AND "orderDate" >= $2 AND "orderDate" <= $3
+         AND "status" NOT IN ('CANCELLED','RETURNED')
+       GROUP BY DATE_TRUNC('day', "orderDate")
+       ORDER BY "day" ASC`,
+      orgId, dateFrom, dateTo
+    );
+    const dailySales = dailyRows.map((r: any) => ({
+      day: new Date(r.day).toISOString().split("T")[0],
+      revenue: Number(r.revenue) || 0,
+      orders: Number(r.orders) || 0,
+    }));
 
     // Orders by status
     const statusBreakdown = await prisma.order.groupBy({

@@ -70,6 +70,7 @@ async function mlGetWithRetry(path: string, token: string): Promise<any> {
  */
 async function upsertMlOrder(orgId: string, order: any): Promise<"inserted" | "updated" | "skipped"> {
   const externalId = String(order.id);
+  const packId = order.pack_id ? String(order.pack_id) : null; // dedup de carritos
   const status = mapMlStatus(order.status, order.tags);
   const total = Number(order.total_amount) || 0;
   const currency = order.currency_id || "ARS";
@@ -87,17 +88,18 @@ async function upsertMlOrder(orgId: string, order: any): Promise<"inserted" | "u
   const rows: any[] = await prisma.$queryRawUnsafe(
     `
     INSERT INTO "orders" (
-      "id", "externalId", "status", "totalValue", "currency", "itemCount",
+      "id", "externalId", "packId", "status", "totalValue", "currency", "itemCount",
       "source", "paymentMethod", "marketplaceFee",
       "orderDate", "externalUpdatedAt", "organizationId", "createdAt", "updatedAt"
     )
     VALUES (
-      gen_random_uuid()::text, $1, $2::"OrderStatus", $3, $4, $5,
-      'MELI', $6, $7,
-      $8, $9, $10, NOW(), NOW()
+      gen_random_uuid()::text, $1, $2, $3::"OrderStatus", $4, $5, $6,
+      'MELI', $7, $8,
+      $9, $10, $11, NOW(), NOW()
     )
     ON CONFLICT ("organizationId", "externalId")
     DO UPDATE SET
+      "packId" = EXCLUDED."packId",
       "status" = EXCLUDED."status",
       "totalValue" = EXCLUDED."totalValue",
       "currency" = EXCLUDED."currency",
@@ -111,7 +113,7 @@ async function upsertMlOrder(orgId: string, order: any): Promise<"inserted" | "u
       OR "orders"."externalUpdatedAt" < EXCLUDED."externalUpdatedAt"
     RETURNING xmax = 0 AS "inserted"
     `,
-    externalId, status, total, currency, itemCount,
+    externalId, packId, status, total, currency, itemCount,
     paymentMethod, marketplaceFee,
     orderDate, externalUpdatedAt, orgId
   );

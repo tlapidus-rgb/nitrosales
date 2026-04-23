@@ -177,7 +177,8 @@ enum ConnectionStatus {
 // Cada orden/pedido
 model Order {
   id              String      @id @default(cuid())
-  externalId      String                          // ID en VTEX/Shopify
+  externalId      String                          // ID en VTEX/Shopify/MELI
+  packId          String?                         // MELI pack_id: varias ordenes de 1 carrito comparten packId. COUNT DISTINCT para no inflar.
   status          OrderStatus
   totalValue      Decimal     @db.Decimal(12, 2)  // Valor total en la moneda del ecommerce
   currency        String      @default("ARS")
