@@ -169,7 +169,18 @@ export async function fetchSellerListings(
 }
 
 /**
- * Fetch item IDs for a specific status using scroll_id for large sets.
+ * Fetch item IDs for a specific status.
+ *
+ * MELI tiene 2 modos:
+ *   1. offset-based: funciona si seller tiene <=1000 items (hard limit).
+ *   2. search_type=scan con scroll_id: para cualquier tamaño.
+ *
+ * Estrategia: arranca con offset hasta ~950. Si el total reportado
+ * por paging.total >= 1000 o llegamos al limite, switch a scroll
+ * desde cero SIN perder los que ya tenemos (deduplicamos con Set).
+ *
+ * Bug historico (S56): la version vieja hacia allIds.length=0 y no
+ * re-asignaba scroll_id → traia exactamente 100 items y cortaba.
  */
 async function fetchItemIdsByStatus(
   token: string,
@@ -177,47 +188,57 @@ async function fetchItemIdsByStatus(
   status: string,
   maxItems: number
 ): Promise<string[]> {
-  const allIds: string[] = [];
-  const batchSize = 50;
+  const ids = new Set<string>();
+  const batchSize = 100;
 
-  // First try offset-based (works for < 1000 items)
+  // Intento 1: scroll desde el inicio (funciona para chicos y grandes).
+  // Solo si scroll no devuelve nada, caemos a offset-based como fallback.
+  try {
+    let scrollId: string | null = null;
+    let safetyCounter = 0;
+    const maxIterations = Math.ceil(maxItems / batchSize) + 10;
+
+    while (ids.size < maxItems && safetyCounter < maxIterations) {
+      safetyCounter++;
+      const url = scrollId
+        ? `/users/${mlUserId}/items/search?search_type=scan&scroll_id=${encodeURIComponent(scrollId)}&limit=${batchSize}`
+        : `/users/${mlUserId}/items/search?search_type=scan&status=${status}&limit=${batchSize}`;
+      const data = await mlGet(url, token);
+      const batch: string[] = data.results || [];
+      if (batch.length === 0) break; // scroll agotado
+      for (const id of batch) ids.add(id);
+      // MELI devuelve el mismo scroll_id en cada llamada del scan, pero por si
+      // acaso lo reasignamos en cada iteracion.
+      const newScroll: string | null = (data.scroll_id as string) || scrollId;
+      if (!newScroll) break;
+      scrollId = newScroll;
+    }
+
+    if (ids.size > 0) {
+      console.log(`[ML Listings] status=${status} scroll trajo ${ids.size} ids`);
+      return Array.from(ids).slice(0, maxItems);
+    }
+  } catch (err: any) {
+    console.warn(`[ML Listings] scroll fallo para status=${status}: ${err.message}. Fallback a offset.`);
+  }
+
+  // Fallback: offset-based (limitado a 1000 items por MELI).
   let offset = 0;
-  while (allIds.length < maxItems && offset + batchSize <= 1000) {
+  while (ids.size < maxItems && offset + batchSize <= 1000) {
     const data = await mlGet(
       `/users/${mlUserId}/items/search?status=${status}&limit=${batchSize}&offset=${offset}`,
       token
     );
-    const ids: string[] = data.results || [];
-    if (ids.length === 0) break;
-    allIds.push(...ids);
+    const batch: string[] = data.results || [];
+    if (batch.length === 0) break;
+    for (const id of batch) ids.add(id);
     offset += batchSize;
     const total = data.paging?.total || 0;
-    if (offset >= total) return allIds; // Got everything
+    if (offset >= total) break;
   }
 
-  // If more than 1000 items, switch to scroll_id
-  if (allIds.length >= 950) {
-    // Reset and use scroll
-    allIds.length = 0;
-    const scrollData = await mlGet(
-      `/users/${mlUserId}/items/search?status=${status}&search_type=scan&limit=${batchSize}`,
-      token
-    );
-    const scrollId = scrollData.scroll_id;
-    allIds.push(...(scrollData.results || []));
-
-    while (allIds.length < maxItems && scrollId) {
-      const nextData = await mlGet(
-        `/users/${mlUserId}/items/search?status=${status}&search_type=scan&scroll_id=${scrollId}&limit=${batchSize}`,
-        token
-      );
-      const ids = nextData.results || [];
-      if (ids.length === 0) break;
-      allIds.push(...ids);
-    }
-  }
-
-  return allIds;
+  console.log(`[ML Listings] status=${status} offset trajo ${ids.size} ids`);
+  return Array.from(ids).slice(0, maxItems);
 }
 
 // ── Orders ───────────────────────────────────────────────────
