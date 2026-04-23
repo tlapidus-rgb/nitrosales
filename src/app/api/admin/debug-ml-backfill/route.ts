@@ -67,6 +67,36 @@ export async function GET(req: NextRequest) {
       orgId
     );
 
+    // Breakdown por status (para detectar si todas están en CANCELLED o algo)
+    const statusBreakdown: any[] = await prisma.$queryRawUnsafe(
+      `SELECT "status"::text AS status, COUNT(*)::int AS count
+       FROM "orders"
+       WHERE "organizationId" = $1 AND "source" = 'MELI'
+       GROUP BY "status"
+       ORDER BY count DESC`,
+      orgId
+    );
+
+    // Simular exactamente la query del dashboard
+    const dashboardQuery: any[] = await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*)::int AS count, COALESCE(SUM("totalValue"), 0)::float AS revenue
+       FROM "orders"
+       WHERE "organizationId" = $1
+         AND "source" = 'MELI'
+         AND "orderDate" >= NOW() - INTERVAL '30 days'
+         AND "status" NOT IN ('CANCELLED', 'RETURNED')`,
+      orgId
+    );
+
+    // 5 ejemplos de órdenes para ver su shape
+    const sampleOrders: any[] = await prisma.$queryRawUnsafe(
+      `SELECT "externalId","status"::text,"totalValue","orderDate","source"
+       FROM "orders"
+       WHERE "organizationId" = $1 AND "source" = 'MELI'
+       ORDER BY "orderDate" DESC LIMIT 5`,
+      orgId
+    );
+
     // ML webhook events
     let webhookEvents: any = null;
     try {
@@ -118,6 +148,9 @@ export async function GET(req: NextRequest) {
         cursor: j.cursor,
       })),
       ordersStats: ordersCount[0] || null,
+      statusBreakdown,
+      dashboardQuery30d: dashboardQuery[0] || null,
+      sampleOrders,
       webhookEvents,
       watermarks,
     });
