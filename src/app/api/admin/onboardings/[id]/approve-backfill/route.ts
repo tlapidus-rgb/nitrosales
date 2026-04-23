@@ -163,13 +163,26 @@ export async function POST(
     // Trigger inmediato del runner: no esperar al proximo tick del cron (1 min).
     // Disparamos el runner en background para que arranque a procesar AHORA.
     // waitUntil mantiene la funcion alive despues de responder 200 al admin.
+    const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
     if (createdJobs.length > 0) {
-      const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
       const runnerUrl = `${baseUrl}/api/cron/backfill-runner?key=${encodeURIComponent(BACKFILL_RUNNER_KEY)}`;
       waitUntil(
         fetch(runnerUrl, { method: "GET" })
           .then((r) => console.log(`[approve-backfill] runner triggered: HTTP ${r.status}`))
           .catch((err) => console.error(`[approve-backfill] runner trigger failed: ${err.message}`))
+      );
+    }
+
+    // Bootstrap de ML: listings + reputation + questions (multi-tenant safe).
+    // Orders NO acá, las trae el backfill v2. Corre en paralelo al runner.
+    if (mlConn && (mlConn.credentials as any)?.accessToken) {
+      const bootUrl =
+        `${baseUrl}/api/sync/mercadolibre/bootstrap` +
+        `?orgId=${encodeURIComponent(ob.createdOrgId)}&key=${encodeURIComponent(BACKFILL_RUNNER_KEY)}`;
+      waitUntil(
+        fetch(bootUrl, { method: "GET" })
+          .then((r) => console.log(`[approve-backfill] ml-bootstrap triggered: HTTP ${r.status}`))
+          .catch((err) => console.error(`[approve-backfill] ml-bootstrap failed: ${err.message}`))
       );
     }
 
