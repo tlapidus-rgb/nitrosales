@@ -12,6 +12,47 @@
 
 ---
 
+## 🟡 BP-S58-001 — Cleanup GA4 del codigo (fin de semana)
+
+**Entró**: 2026-04-24 (S58)
+**Estado**: 📝 pendiente
+**Contexto**: El wizard NO pide GA4 (confirmado: GA4 no está en `ALL_PLATFORMS`). Analytics vienen de NitroPixel. GA4 es codigo muerto.
+
+**Qué hay que limpiar**:
+- `src/app/api/sync/ga4/route.ts` — eliminar
+- Página `/analytics` (si es solo GA4) — verificar qué muestra; si es GA4 puro, redirigir a `/pixel/analytics`
+- Variables de entorno `GA4_SERVICE_ACCOUNT_KEY` y `GA4_PROPERTY_ID` en Vercel — Tomy las borra manual
+- Cron GA4 en vercel.json — verificar si existe (al parecer no)
+- Cualquier referencia en dashboard/widgets
+
+**Cuándo**: fin de semana, no bloquea nada.
+
+**Por qué queda pendiente**: código muerto no interfiere con el primer cliente. Mejor hacer cleanup con calma que rompiendo algo por apuro.
+
+---
+
+## 🔴 BP-S58-002 — Fixes post-auditoria del wizard (esta semana + proxima)
+
+**Entró**: 2026-04-24 (S58)
+**Estado**: 📝 pendiente
+**Contexto**: Auditoria exhaustiva de 8 gaps identificados en S58. El wizard YA captura toda la data del cliente (campos nuevos agregados), ahora falta procesar esa data en sync/enrichment.
+
+**Fixes de esta semana (~4-5h)**:
+- **#2 Token Meta en wizard**: llamar testConnection al completar. Si falla, advertir al cliente antes de submit.
+- **#3 CAPI desacoplado de Meta Pixel**: permitir que CAPI funcione con business_id + CAPI token sin requerir Pixel ID conectado.
+- **#5 VTEX guardar 8 campos faltantes**: `channel`, `trafficSource`, `paymentMethod`, `deliveryType`, `shippingCarrier`, `postalCode`, `deviceType`, `promotionIds`. En `vtex-enrichment.ts`.
+- **#7 ML shipping address completa**: ZIP + calle + nombre receptor desde `/shipments/{id}`.
+- **#10 Cron Google Ads diario**: agregar a vercel.json.
+
+**Fixes proxima semana (~8-10h)**:
+- **#6 ML shipments históricos + claims**: nuevo step backfill. Requiere modelo DB.
+- **#8 Meta breakdowns demograficos**: breakdowns=age,gender,region en insights.
+- **#9 Thumbnails Meta permanentes**: copy a R2/S3 storage, proxy layer.
+
+**Por qué queda pendiente**: tiempo de implementacion es grande. Priorizamos capturar la data del cliente AHORA (wizard) para que fixes futuros no requieran volver a molestarlo.
+
+---
+
 ## 🔴 PENDIENTE INMEDIATO — Retomar E2E de ML (al volver del evento)
 
 ### BP-S55BIS3-001 — Completar test E2E del sync de ML
