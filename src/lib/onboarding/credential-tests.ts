@@ -30,7 +30,7 @@ export type TestResult = {
   hasWarnings?: boolean; // nuevo: true si alguna area tiene warnings (UI naranja)
 };
 
-export async function testVtex(creds: any): Promise<TestResult> {
+export async function testVtex(creds: any, options?: { testSku?: string }): Promise<TestResult> {
   const accountName = (creds?.accountName || "").trim();
   const appKey = (creds?.appKey || "").trim();
   const appToken = (creds?.appToken || "").trim();
@@ -110,7 +110,11 @@ export async function testVtex(creds: any): Promise<TestResult> {
   }
 
   async function testCatalog(): Promise<AreaResult> {
-    const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=0");
+    // Si el admin proveyo un SKU de muestra, buscar ese producto. Si no, el primero del catalogo.
+    const searchPath = options?.testSku
+      ? `/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(options.testSku)}`
+      : "/api/catalog_system/pub/products/search?_from=0&_to=0";
+    const search = await vtexFetch(searchPath);
     if (search.status === 401 || search.status === 403) {
       return { area: "Catálogo", ok: false, detail: `sin permiso (${search.status})`, hint: "App Key necesita permiso Catalog - Read" };
     }
@@ -138,8 +142,12 @@ export async function testVtex(creds: any): Promise<TestResult> {
   }
 
   async function testPricing(): Promise<AreaResult> {
-    const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=0");
-    const skuId = search.data?.[0]?.items?.[0]?.itemId;
+    // Usar el SKU provisto si hay, sino el primero del catalogo
+    let skuId: string | null = options?.testSku || null;
+    if (!skuId) {
+      const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=0");
+      skuId = search.data?.[0]?.items?.[0]?.itemId || null;
+    }
     if (!skuId) {
       return { area: "Precios", ok: true, detail: "sin SKU disponible para validar" };
     }
@@ -826,10 +834,10 @@ export async function testNitroPixel(orgId: string, prismaClient: any): Promise<
   }
 }
 
-export async function testCredentialsByPlatform(platform: string, credentials: any): Promise<TestResult> {
+export async function testCredentialsByPlatform(platform: string, credentials: any, options?: { vtexTestSku?: string }): Promise<TestResult> {
   switch (platform.toUpperCase()) {
     case "VTEX":
-      return testVtex(credentials);
+      return testVtex(credentials, options?.vtexTestSku ? { testSku: options.vtexTestSku } : undefined);
     case "META_ADS":
       return testMetaAds(credentials);
     case "META_PIXEL":

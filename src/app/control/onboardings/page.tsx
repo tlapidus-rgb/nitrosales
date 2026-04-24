@@ -476,12 +476,15 @@ function DetailDrawer({
     }
   };
 
-  const testAllCredentials = async () => {
+  const testAllCredentials = async (opts?: { vtexTestSku?: string }) => {
     setTestingCreds(true);
     setCredTestResult(null);
     setErrorMsg(null);
     try {
-      const res = await fetch(`/api/admin/onboardings/${id}/test-credentials`, { method: "POST" });
+      const url = opts?.vtexTestSku
+        ? `/api/admin/onboardings/${id}/test-credentials?sku=${encodeURIComponent(opts.vtexTestSku)}`
+        : `/api/admin/onboardings/${id}/test-credentials`;
+      const res = await fetch(url, { method: "POST" });
       const json = await res.json();
       if (!res.ok) {
         setErrorMsg(json.error || "Error al probar credenciales");
@@ -945,11 +948,13 @@ function CredentialsTestBlock({
   result,
   connections,
 }: {
-  onTest: () => void;
+  onTest: (opts?: { vtexTestSku?: string }) => void;
   testing: boolean;
   result: any;
   connections?: any[];
 }) {
+  const [vtexSku, setVtexSku] = React.useState("");
+  const hasVtex = (connections || []).some((c: any) => c.platform === "VTEX");
   const summary = result?.summary;
   const allOk = summary && summary.failed === 0 && summary.passed > 0;
   const someFailed = summary && summary.failed > 0;
@@ -1012,8 +1017,28 @@ function CredentialsTestBlock({
             </div>
           )}
         </div>
+        {hasVtex && (
+          <input
+            type="text"
+            placeholder="SKU VTEX de muestra (opcional)"
+            value={vtexSku}
+            onChange={(e) => setVtexSku(e.target.value.trim())}
+            disabled={testing}
+            style={{
+              padding: "6px 10px",
+              background: "rgba(0,0,0,0.35)",
+              border: "1px solid #27272A",
+              borderRadius: 6,
+              color: "#E4E4E7",
+              fontSize: 11,
+              width: 220,
+              outline: "none",
+            }}
+            title="Ingresá un SKU VTEX que sabes que tiene precio, costo e imagen cargados — para validar los campos con ese producto puntual."
+          />
+        )}
         <button
-          onClick={onTest}
+          onClick={() => onTest(vtexSku ? { vtexTestSku: vtexSku } : undefined)}
           disabled={testing}
           style={{
             padding: "7px 14px",

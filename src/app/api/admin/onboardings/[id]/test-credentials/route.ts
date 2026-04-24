@@ -35,7 +35,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -43,6 +43,8 @@ export async function POST(
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id } = await params;
+    const { searchParams } = new URL(req.url);
+    const vtexTestSku = searchParams.get("sku")?.trim() || undefined;
 
     // Buscar el onboarding y su org
     const obRows = await prisma.$queryRawUnsafe<Array<any>>(
@@ -101,7 +103,7 @@ export async function POST(
         continue;
       }
 
-      const r = await testCredentialsByPlatform(conn.platform, creds);
+      const r = await testCredentialsByPlatform(conn.platform, creds, { vtexTestSku });
       results.push({
         platform: conn.platform,
         connectionStatus: conn.status,
