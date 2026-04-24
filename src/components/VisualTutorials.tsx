@@ -471,6 +471,43 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
       },
       docUrl: "https://developers.vtex.com/docs/guides/api-authentication-using-application-keys",
     },
+    {
+      title: "Datos opcionales: Sales Channel + URL pública",
+      subtitle: "Solo si querés que los reportes salgan más afinados",
+      mockup: (
+        <BrowserFrame url="{tu-cuenta}.myvtex.com/admin/catalog/sales-channel">
+          <div style={{ padding: 18, background: "#fff" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a", marginBottom: 12 }}>
+              Canales de venta
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <HighlightTarget label="Este número es el ID">
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#F5F5F7", borderRadius: 6, border: "1px solid #E4E4E7" }}>
+                  <span style={{ fontFamily: "'SF Mono', Menlo, monospace", fontSize: 13, color: "#FF3366", fontWeight: 700, minWidth: 20 }}>1</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "#1a1a1a" }}>Default — Tienda principal</div>
+                    <div style={{ fontSize: 9, color: "#888" }}>Argentina · ARS</div>
+                  </div>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#22C55E", padding: "2px 6px", background: "rgba(34,197,94,0.1)", borderRadius: 99 }}>ACTIVO</span>
+                </div>
+              </HighlightTarget>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#FAFAFA", borderRadius: 6, opacity: 0.6 }}>
+                <span style={{ fontFamily: "'SF Mono', Menlo, monospace", fontSize: 13, color: "#888", fontWeight: 700, minWidth: 20 }}>2</span>
+                <div style={{ flex: 1, fontSize: 11, color: "#666" }}>B2B — Mayoristas</div>
+              </div>
+            </div>
+          </div>
+        </BrowserFrame>
+      ),
+      instructions: {
+        heading: "Los dos son OPCIONALES — si no sabés, dejalos vacíos",
+        steps: [
+          { text: "Sales Channel ID (1, 2, 3...)", hint: "Solo si operás multi-canal (B2B + B2C, marketplace, retail). Lo ves en tu admin VTEX → Catálogo → Canales de venta. El canal principal casi siempre es el ID '1'." },
+          { text: "URL de tu tienda (opcional)", hint: "Ej: https://www.tutienda.com.ar. Es la URL pública donde venden. Si la dejás, podemos cruzar visitas del NitroPixel con ventas para ROI más preciso." },
+        ],
+        tip: "Estos dos campos NO bloquean el wizard. Si no los ponés, NitroSales asume el canal default y todo funciona igual — solo que algunas segmentaciones quedan menos precisas.",
+      },
+    },
   ],
 
   // ─────────── MERCADOLIBRE ───────────
@@ -622,6 +659,51 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
       },
       docUrl: "https://developers.facebook.com/docs/marketing-api/system-users",
     },
+    {
+      title: "Dato opcional: Business ID",
+      subtitle: "Solo si querés habilitar audiencias custom y conversiones avanzadas",
+      mockup: (
+        <BrowserFrame url="business.facebook.com/settings/info">
+          <div style={{ padding: 12, background: "#1877F2", color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>Meta Business</div>
+          </div>
+          <div style={{ padding: 18, background: "#F0F2F5" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1a1a", marginBottom: 12 }}>
+              Información del negocio
+            </div>
+            <div style={{ padding: 14, background: "#fff", borderRadius: 6, border: "1px solid #E4E6EB" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#1a1a1a", marginBottom: 8 }}>Mi Ecommerce SRL</div>
+              <div style={{ fontSize: 10, color: "#65676B", marginBottom: 4 }}>ID de la empresa:</div>
+              <HighlightTarget label="Copiá este número">
+                <span style={{
+                  display: "inline-block",
+                  padding: "4px 10px",
+                  background: "#F0F2F5",
+                  borderRadius: 4,
+                  fontFamily: "'SF Mono', Menlo, monospace",
+                  fontSize: 11,
+                  color: "#1877F2",
+                  fontWeight: 700,
+                }}>
+                  1234567890123456
+                </span>
+              </HighlightTarget>
+              <div style={{ marginTop: 12, fontSize: 10, color: "#65676B" }}>Propietario de la empresa:</div>
+              <div style={{ fontSize: 11, color: "#1a1a1a", fontWeight: 500 }}>tu-email@empresa.com</div>
+            </div>
+          </div>
+        </BrowserFrame>
+      ),
+      instructions: {
+        heading: "Dónde encontrar el Business ID (opcional)",
+        steps: [
+          { text: "Abrí business.facebook.com/settings/info", hint: "Con la misma cuenta que usaste para obtener el Ad Account ID." },
+          { text: "Mirá 'ID de la empresa' o 'Business ID'", hint: "Es un número de 15-16 dígitos (no confundir con el Ad Account ID)." },
+          { text: "Copialo y pegalo en NitroSales", hint: "Si no ves Business Manager (solo tenés una cuenta publicitaria sola), dejá el campo vacío — no es obligatorio." },
+        ],
+        tip: "Sirve para habilitar en el futuro: Custom Audiences (audiencias propias), Custom Conversions (eventos de conversión personalizados), y Conversions API en modo 'avanzado'. Si lo dejás vacío, todo funciona igual — solo que esas features quedan bloqueadas hasta que lo cargues.",
+      },
+    },
   ],
 
   // ─────────── META PIXEL ───────────
@@ -747,6 +829,51 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
         tip: "Después del wizard te vamos a llevar a login oficial de Google para autorizar acceso a la API — no te pedimos tu contraseña.",
       },
       docUrl: "https://support.google.com/google-ads/answer/1704344",
+    },
+    {
+      title: "Dato opcional: Login Customer ID",
+      subtitle: "Solo si tu agencia usa cuenta administradora (MCC)",
+      mockup: (
+        <BrowserFrame url="ads.google.com">
+          <div style={{ padding: 10, background: "#fff", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid #E0E0E0" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M3.9998 22.9291C1.7908 22.9291 0 21.1383 0 18.9293s1.7908-3.9998 3.9998-3.9998 3.9998 1.7908 3.9998 3.9998-1.7908 3.9998-3.9998 3.9998z" />
+              <path fill="#FBBC04" d="M23.4641 16.9287L15.4632 3.072C14.3586 1.1587 11.9121.5028 9.9988 1.6074S7.4295 5.1585 8.5341 7.0718l8.0009 13.8567c1.1046 1.9133 3.5511 2.5679 5.4644 1.4646 1.9134-1.1046 2.568-3.5511 1.4647-5.4644z" />
+              <path fill="#34A853" d="M7.5137 4.8438L1.5645 15.1484A4.5 4.5 0 0 1 4 14.4297c2.5597-.0075 4.6248 2.1585 4.4941 4.7148l3.2168-5.5723-3.6094-6.25c-.4499-.7793-.6322-1.6394-.5878-2.4784z" />
+            </svg>
+            <div style={{ fontSize: 12, fontWeight: 500, color: "#3c4043", flex: 1 }}>Google Ads · MCC</div>
+          </div>
+          <div style={{ padding: 16, background: "#F8F9FA" }}>
+            {/* MCC (manager) */}
+            <HighlightTarget label="Este es el Login Customer ID">
+              <div style={{ padding: 12, background: "#fff", borderRadius: 6, border: "2px solid #4285F4", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#4285F4", padding: "2px 6px", background: "rgba(66,133,244,0.1)", borderRadius: 4 }}>MCC</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "#1a1a1a" }}>Mi Agencia</div>
+                    <div style={{ fontSize: 10, color: "#5f6368", fontFamily: "monospace" }}>999-888-7777</div>
+                  </div>
+                </div>
+              </div>
+            </HighlightTarget>
+            {/* Cuentas administradas */}
+            <div style={{ fontSize: 9, color: "#5f6368", marginBottom: 6, paddingLeft: 8 }}>Cuentas administradas:</div>
+            <div style={{ padding: 10, background: "#fff", borderRadius: 6, marginLeft: 16, marginBottom: 6 }}>
+              <div style={{ fontSize: 10, color: "#1a1a1a" }}>Cliente A</div>
+              <div style={{ fontSize: 9, color: "#5f6368", fontFamily: "monospace" }}>123-456-7890 ← tu Customer ID</div>
+            </div>
+          </div>
+        </BrowserFrame>
+      ),
+      instructions: {
+        heading: "¿Tu cuenta está administrada por un MCC?",
+        steps: [
+          { text: "Fijate si al entrar a ads.google.com ves dos niveles de cuenta", hint: "MCC (administradora) → tu cuenta. Si solo ves TU cuenta sola, NO tenés MCC — dejá este campo vacío y listo." },
+          { text: "Si tenés MCC: Copiá los 10 dígitos del MCC (sin guiones)", hint: "Está arriba a la derecha cuando estás viendo la cuenta del MCC (no la tuya). Típicamente son agencias que manejan varias cuentas de distintos clientes." },
+          { text: "Pegá ese número en 'Login Customer ID'", hint: "Ejemplo: '9988887777'. El Customer ID normal sigue siendo el tuyo (el de la cuenta donde están tus campañas)." },
+        ],
+        tip: "Si no sabés si tenés MCC, no tenés. El 90% de los negocios directos no usan MCC — es más típico de agencias. Dejalo vacío y seguí.",
+      },
     },
   ],
 
