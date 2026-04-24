@@ -275,7 +275,9 @@ export async function testMercadoLibre(creds: any): Promise<TestResult> {
     }
   }
 
-  // Test: GET /users/me
+  // Test auth basica primero
+  let nickname = "?";
+  let userId: number | null = null;
   try {
     const resp = await fetch("https://api.mercadolibre.com/users/me", {
       headers: { Authorization: `Bearer ${tokenToUse}` },
@@ -288,15 +290,90 @@ export async function testMercadoLibre(creds: any): Promise<TestResult> {
       return { ok: false, detail: `Error HTTP ${resp.status}` };
     }
     const data = await resp.json();
-    const nickname = data?.nickname || "?";
-    const userId = data?.id;
-    return { ok: true, detail: `Conectado como "${nickname}" (ID ${userId})` };
+    nickname = data?.nickname || "?";
+    userId = data?.id;
   } catch (err: any) {
     if (err?.name === "TimeoutError" || err?.name === "AbortError") {
-      return { ok: false, detail: "Timeout (10s)" };
+      return { ok: false, detail: "Timeout en auth (10s)" };
     }
-    return { ok: false, detail: err?.message || "Error de red" };
+    return { ok: false, detail: err?.message || "Error de red en auth" };
   }
+
+  if (!userId) {
+    return { ok: false, detail: "No se pudo obtener userId", hint: "Re-autorizar MercadoLibre." };
+  }
+
+  // Helper para probar endpoints con interpretacion de status
+  async function probe(path: string, friendlyName: string, permHint: string): Promise<{ ok: boolean; detail: string; hint?: string }> {
+    try {
+      const r = await fetch(`https://api.mercadolibre.com${path}`, {
+        headers: { Authorization: `Bearer ${tokenToUse}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (r.status === 401 || r.status === 403) {
+        return { ok: false, detail: `${friendlyName}: sin permiso (${r.status})`, hint: permHint };
+      }
+      if (!r.ok) {
+        return { ok: false, detail: `${friendlyName}: error ${r.status}` };
+      }
+      return { ok: true, detail: `${friendlyName}: OK` };
+    } catch (err: any) {
+      if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+        return { ok: false, detail: `${friendlyName}: timeout` };
+      }
+      return { ok: false, detail: `${friendlyName}: ${err?.message || "error de red"}` };
+    }
+  }
+
+  // Probar 4 áreas de MELI en paralelo
+  const [ordersArea, listingsArea, questionsArea, reputationArea] = await Promise.all([
+    probe(
+      `/orders/search?seller=${userId}&limit=1`,
+      "Ventas",
+      "La app de MELI necesita el scope 'read'. Re-autorizar con todos los permisos.",
+    ),
+    probe(
+      `/users/${userId}/items/search?limit=1`,
+      "Publicaciones",
+      "La app de MELI necesita el scope 'read'. Re-autorizar con todos los permisos.",
+    ),
+    probe(
+      `/my/received_questions/search?limit=1`,
+      "Preguntas de compradores",
+      "La app de MELI necesita scope 'read_questions' o permisos de respuesta a preguntas.",
+    ),
+    probe(
+      `/users/${userId}`,
+      "Reputación",
+      "El scope 'read' lo cubre. Re-autorizar si falta.",
+    ),
+  ]);
+
+  const areas = {
+    orders: ordersArea,
+    listings: listingsArea,
+    questions: questionsArea,
+    reputation: reputationArea,
+  };
+
+  const failing = Object.entries(areas).filter(([, r]) => !r.ok);
+  const passing = Object.entries(areas).filter(([, r]) => r.ok);
+
+  if (failing.length === 0) {
+    return {
+      ok: true,
+      detail: `✅ Conectado como "${nickname}" (ID ${userId}) · 4 áreas OK (ventas, publicaciones, preguntas, reputación)`,
+    };
+  }
+
+  // Alguna falla
+  const failedNames = failing.map(([, r]) => r.detail).join(" · ");
+  const firstHint = failing.find(([, r]) => r.hint)?.[1]?.hint;
+  return {
+    ok: false,
+    detail: `⚠️ Conectado como "${nickname}" pero ${passing.length}/4 áreas OK. Faltan: ${failedNames}`,
+    hint: firstHint || "El cliente debe re-autorizar MercadoLibre con todos los permisos desde el wizard.",
+  };
 }
 
 // ── GOOGLE ADS ──────────────────────────────────────
