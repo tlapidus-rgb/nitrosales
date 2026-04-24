@@ -401,6 +401,13 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
   const [history, setHistory] = useState<Record<string, number>>({
     VTEX: 12, MERCADOLIBRE: 12, META_ADS: 6, GOOGLE_ADS: 6,
   });
+  // Info general del negocio — necesaria para reportes, Meta CAPI country code,
+  // correcta atribucion timezone-aware y moneda en P&L. Defaults a Argentina.
+  const [orgInfo, setOrgInfo] = useState<{ country: string; timezone: string; defaultCurrency: string }>({
+    country: "AR",
+    timezone: "America/Argentina/Buenos_Aires",
+    defaultCurrency: "ARS",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [skipModalFor, setSkipModalFor] = useState<BrandKey | null>(null);
@@ -421,6 +428,7 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
         if (parsed?.decisions && typeof parsed.decisions === "object") setDecisions(parsed.decisions);
         if (parsed?.creds && typeof parsed.creds === "object") setCreds(parsed.creds);
         if (parsed?.history && typeof parsed.history === "object") setHistory((h) => ({ ...h, ...parsed.history }));
+        if (parsed?.orgInfo && typeof parsed.orgInfo === "object") setOrgInfo((o) => ({ ...o, ...parsed.orgInfo }));
         if (typeof parsed?.focusedPlatform === "string") setFocusedPlatform(parsed.focusedPlatform as BrandKey);
       }
     } catch {}
@@ -435,10 +443,10 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
     try {
       sessionStorage.setItem(
         "nitro_wizard_state",
-        JSON.stringify({ decisions, creds, history, focusedPlatform }),
+        JSON.stringify({ decisions, creds, history, orgInfo, focusedPlatform }),
       );
     } catch {}
-  }, [decisions, creds, history, focusedPlatform, hydrated]);
+  }, [decisions, creds, history, orgInfo, focusedPlatform, hydrated]);
 
   // Comunicar el paso actual al overlay (para que Aurum tenga contexto)
   useEffect(() => {
@@ -504,6 +512,7 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
         body: JSON.stringify({
           platforms: platformsArr,
           historyMonths: history,
+          orgInfo,
           skipped: ALL_PLATFORMS.filter((p) => decisions[p.key] === "skip").map((p) => p.key),
           pixelInstalled: !!creds.NITROPIXEL?.confirmedInstalled,
         }),
@@ -567,6 +576,9 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
             </div>
           </div>
         </div>
+
+        {/* Datos del negocio */}
+        <BusinessInfoCard orgInfo={orgInfo} setOrgInfo={setOrgInfo} />
 
         {/* Lista de plataformas */}
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -985,6 +997,12 @@ function EcommerceInputs({ creds, onChange }: any) {
           <Field label="App Token">
             <Input value={creds.appToken || ""} onChange={(v) => onChange("appToken", v)} placeholder="ABCD1234..." mono />
           </Field>
+          <Field label="Sales Channel ID (opcional)" hint="Si operás multi-canal (ej: retail, wholesale, marketplace), poné el ID principal. Si no sabés, dejalo vacío.">
+            <Input value={creds.salesChannelId || ""} onChange={(v) => onChange("salesChannelId", v.replace(/[^0-9]/g, ""))} placeholder="1" maxLength={6} />
+          </Field>
+          <Field label="URL de tu tienda (opcional)" hint="Ej: https://www.tutienda.com.ar. Sirve para cruzar visitas del pixel con las ventas.">
+            <Input value={creds.storeUrl || ""} onChange={(v) => onChange("storeUrl", v)} placeholder="https://www.tutienda.com.ar" maxLength={200} />
+          </Field>
         </div>
       )}
 
@@ -1172,6 +1190,9 @@ function MetaAdsInputs({ creds, onChange }: any) {
       <Field label="Access Token (System User)">
         <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
       </Field>
+      <Field label="Business ID (opcional)" hint="ID de tu Business Manager. Sirve para audiencias custom y conversiones avanzadas. Si no sabés, dejalo vacío.">
+        <Input value={creds.businessId || ""} onChange={(v) => onChange("businessId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890123456" mono maxLength={20} />
+      </Field>
     </>
   );
 }
@@ -1194,6 +1215,9 @@ function GoogleAdsInputs({ creds, onChange }: any) {
     <>
       <Field label="Customer ID" hint="10 dígitos sin guiones.">
         <Input value={creds.customerId || ""} onChange={(v) => onChange("customerId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890" mono maxLength={10} />
+      </Field>
+      <Field label="Login Customer ID (opcional)" hint="Si tu cuenta está administrada por un MCC (manager), poné el ID del MCC. Si la cuenta es solo tuya, dejalo vacío.">
+        <Input value={creds.loginCustomerId || ""} onChange={(v) => onChange("loginCustomerId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890" mono maxLength={10} />
       </Field>
       <InfoBox>
         <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te llevamos a login oficial de Google para autorizar.
@@ -1441,6 +1465,161 @@ function InfoBox({ children }: any) {
         <Info size={14} color="#60A5FA" style={{ flexShrink: 0, marginTop: 2 }} />
         <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>{children}</div>
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BusinessInfoCard — captura pais / timezone / moneda del negocio.
+// Se renderiza arriba de "Tu stack" en la sidebar del wizard. Los
+// valores se usan para: Meta CAPI (country code), reportes
+// timezone-aware, conversiones y visualizacion de moneda en P&L.
+// Defaults: Argentina. Usuario puede cambiarlos si opera en otro pais.
+// ═══════════════════════════════════════════════════════════════
+const COUNTRY_OPTIONS: Array<{ code: string; name: string; tz: string; currency: string }> = [
+  { code: "AR", name: "Argentina", tz: "America/Argentina/Buenos_Aires", currency: "ARS" },
+  { code: "UY", name: "Uruguay", tz: "America/Montevideo", currency: "UYU" },
+  { code: "CL", name: "Chile", tz: "America/Santiago", currency: "CLP" },
+  { code: "PE", name: "Perú", tz: "America/Lima", currency: "PEN" },
+  { code: "CO", name: "Colombia", tz: "America/Bogota", currency: "COP" },
+  { code: "MX", name: "México", tz: "America/Mexico_City", currency: "MXN" },
+  { code: "BR", name: "Brasil", tz: "America/Sao_Paulo", currency: "BRL" },
+  { code: "US", name: "Estados Unidos", tz: "America/New_York", currency: "USD" },
+  { code: "ES", name: "España", tz: "Europe/Madrid", currency: "EUR" },
+];
+
+const CURRENCY_OPTIONS = ["ARS", "UYU", "CLP", "PEN", "COP", "MXN", "BRL", "USD", "EUR", "BOB", "PYG"];
+
+function BusinessInfoCard({ orgInfo, setOrgInfo }: { orgInfo: any; setOrgInfo: (o: any) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const selectedCountry = COUNTRY_OPTIONS.find((c) => c.code === orgInfo.country);
+
+  const onCountryChange = (code: string) => {
+    const c = COUNTRY_OPTIONS.find((o) => o.code === code);
+    if (!c) return;
+    // Al cambiar pais, sugerir timezone + moneda del pais (pero mantener
+    // lo que eligio el user si ya lo cambio manual).
+    setOrgInfo({
+      country: c.code,
+      timezone: c.tz,
+      defaultCurrency: c.currency,
+    });
+  };
+
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        paddingBottom: 14,
+        borderBottom: `1px dashed ${BORDER}`,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "transparent",
+          border: 0,
+          padding: 0,
+          cursor: "pointer",
+          color: "inherit",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_MUTED, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Datos del negocio
+          </div>
+          <div
+            style={{
+              fontSize: 10,
+              padding: "1px 7px",
+              borderRadius: 99,
+              background: "rgba(34,197,94,0.10)",
+              color: "#4ADE80",
+              fontWeight: 600,
+            }}
+          >
+            ✓ {selectedCountry?.name || orgInfo.country} · {orgInfo.defaultCurrency}
+          </div>
+        </div>
+        <span style={{ fontSize: 12, color: TEXT_MUTED }}>{expanded ? "−" : "+"}</span>
+      </button>
+
+      {expanded && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* País */}
+          <div>
+            <label style={{ fontSize: 10, color: TEXT_MUTED, fontWeight: 600, display: "block", marginBottom: 3 }}>
+              País de operación
+            </label>
+            <select
+              value={orgInfo.country}
+              onChange={(e) => onCountryChange(e.target.value)}
+              style={{
+                width: "100%", padding: "7px 9px",
+                background: "rgba(255,255,255,0.03)", color: "#fff",
+                border: `1px solid ${BORDER}`, borderRadius: 7,
+                fontSize: 11, outline: "none",
+              }}
+            >
+              {COUNTRY_OPTIONS.map((c) => (
+                <option key={c.code} value={c.code} style={{ background: "#141419" }}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Timezone */}
+          <div>
+            <label style={{ fontSize: 10, color: TEXT_MUTED, fontWeight: 600, display: "block", marginBottom: 3 }}>
+              Zona horaria
+            </label>
+            <input
+              value={orgInfo.timezone}
+              onChange={(e) => setOrgInfo({ ...orgInfo, timezone: e.target.value })}
+              style={{
+                width: "100%", padding: "7px 9px",
+                background: "rgba(255,255,255,0.03)", color: "#fff",
+                border: `1px solid ${BORDER}`, borderRadius: 7,
+                fontSize: 11, outline: "none",
+                fontFamily: "'SF Mono', Menlo, monospace",
+              }}
+            />
+          </div>
+
+          {/* Currency */}
+          <div>
+            <label style={{ fontSize: 10, color: TEXT_MUTED, fontWeight: 600, display: "block", marginBottom: 3 }}>
+              Moneda principal
+            </label>
+            <select
+              value={orgInfo.defaultCurrency}
+              onChange={(e) => setOrgInfo({ ...orgInfo, defaultCurrency: e.target.value })}
+              style={{
+                width: "100%", padding: "7px 9px",
+                background: "rgba(255,255,255,0.03)", color: "#fff",
+                border: `1px solid ${BORDER}`, borderRadius: 7,
+                fontSize: 11, outline: "none",
+              }}
+            >
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c} value={c} style={{ background: "#141419" }}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ fontSize: 10, color: TEXT_MUTED, lineHeight: 1.5, marginTop: 4 }}>
+            Se usa para reportes timezone-aware, conversiones de moneda en P&L, y Meta CAPI.
+          </div>
+        </div>
+      )}
     </div>
   );
 }

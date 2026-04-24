@@ -71,9 +71,33 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const platforms: PlatformInput[] = Array.isArray(body.platforms) ? body.platforms : [];
     const historyMonths: Record<string, number> = body.historyMonths || {};
+    // Info del negocio: country / timezone / defaultCurrency. Viene del
+    // form "Datos del negocio" del wizard. Se persiste en Organization.settings.
+    const orgInfo = body.orgInfo && typeof body.orgInfo === "object" ? body.orgInfo : {};
 
     if (platforms.length === 0) {
       return NextResponse.json({ error: "Tenés que conectar al menos una plataforma" }, { status: 400 });
+    }
+
+    // Guardar orgInfo en Organization.settings (merge con lo existente).
+    // Keys: country, timezone, defaultCurrency. Solo se persisten los strings validos.
+    const cleanOrgInfo: Record<string, string> = {};
+    if (typeof orgInfo.country === "string" && orgInfo.country.length <= 4) cleanOrgInfo.country = orgInfo.country.toUpperCase();
+    if (typeof orgInfo.timezone === "string" && orgInfo.timezone.length <= 60) cleanOrgInfo.timezone = orgInfo.timezone;
+    if (typeof orgInfo.defaultCurrency === "string" && orgInfo.defaultCurrency.length <= 4) cleanOrgInfo.defaultCurrency = orgInfo.defaultCurrency.toUpperCase();
+
+    if (Object.keys(cleanOrgInfo).length > 0) {
+      const existingOrg = await prisma.organization.findUnique({
+        where: { id: user.organizationId },
+        select: { settings: true },
+      });
+      const existingSettings = (existingOrg?.settings as any) || {};
+      await prisma.organization.update({
+        where: { id: user.organizationId },
+        data: {
+          settings: { ...existingSettings, ...cleanOrgInfo },
+        },
+      });
     }
 
     // Validar y crear/actualizar connections
