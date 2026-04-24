@@ -132,15 +132,23 @@ export async function GET(req: NextRequest) {
       if (result.isComplete) {
         await completeJob(currentJob.id);
 
-        // Si fue VTEX: disparar catalog refresh para tener precios canónicos
-        // (precio real al cliente + precio tachado + costo) en los Products creados.
+        // Catalog refresh post-backfill (parte del backfill desde la vista del cliente).
+        //  - VTEX: trae precios canonicos (precio real al cliente + tachado + costo).
+        //  - ML: trae imagenes (pictures/thumbnail), stock y status del item.
+        // Fire-and-forget: no bloquea el runner. Si falla, no rompe el onboarding.
+        const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+        const REFRESH_KEY = "nitrosales-secret-key-2024-production";
         if (currentJob.platform === "VTEX") {
-          const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
-          const refreshUrl = `${baseUrl}/api/sync/vtex/catalog-refresh?orgId=${encodeURIComponent(currentJob.organizationId)}&key=nitrosales-secret-key-2024-production`;
-          // Fire-and-forget: no bloquear el runner
+          const refreshUrl = `${baseUrl}/api/sync/vtex/catalog-refresh?orgId=${encodeURIComponent(currentJob.organizationId)}&key=${REFRESH_KEY}`;
           fetch(refreshUrl, { method: "GET" })
             .then((r) => console.log(`[backfill-runner] vtex catalog-refresh triggered: HTTP ${r.status}`))
             .catch((err) => console.error(`[backfill-runner] vtex catalog-refresh failed: ${err.message}`));
+        }
+        if (currentJob.platform === "MERCADOLIBRE") {
+          const refreshUrl = `${baseUrl}/api/sync/mercadolibre/catalog-refresh?orgId=${encodeURIComponent(currentJob.organizationId)}&key=${REFRESH_KEY}`;
+          fetch(refreshUrl, { method: "GET" })
+            .then((r) => console.log(`[backfill-runner] ml catalog-refresh triggered: HTTP ${r.status}`))
+            .catch((err) => console.error(`[backfill-runner] ml catalog-refresh failed: ${err.message}`));
         }
 
         // Si era parte de un onboarding y ya terminaron todos → activar
