@@ -110,10 +110,10 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
   }
 
   async function testCatalog(): Promise<AreaResult> {
-    // Si el admin proveyo un SKU de muestra, buscar ese producto. Si no, el primero del catalogo.
+    // Si admin provee SKU, buscar ese solo. Sino: 5 productos para muestra estadistica.
     const searchPath = options?.testSku
       ? `/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(options.testSku)}`
-      : "/api/catalog_system/pub/products/search?_from=0&_to=0";
+      : "/api/catalog_system/pub/products/search?_from=0&_to=4";
     const search = await vtexFetch(searchPath);
     if (search.status === 401 || search.status === 403) {
       return { area: "Catálogo", ok: false, detail: `sin permiso (${search.status})`, hint: "App Key necesita permiso Catalog - Read" };
@@ -121,81 +121,133 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
     if (!Array.isArray(search.data) || search.data.length === 0) {
       return { area: "Catálogo", ok: true, detail: "sin productos cargados todavía" };
     }
-    const prod = search.data[0];
-    const firstSku = prod.items?.[0] || {};
+    const prods = search.data;
+    const N = prods.length;
+    // Contar cuantos tienen cada campo
+    let countName = 0, countBrand = 0, countCategory = 0, countSku = 0, countImage = 0, countEan = 0, countRef = 0;
+    for (const prod of prods) {
+      const sku = prod.items?.[0] || {};
+      if (prod.productName || prod.productTitle) countName++;
+      if (prod.brand) countBrand++;
+      if (prod.categoryId || prod.categories?.length) countCategory++;
+      if (sku.itemId) countSku++;
+      if (Array.isArray(sku.images) && sku.images.length > 0) countImage++;
+      if (sku.ean) countEan++;
+      if (sku.referenceId?.[0]?.Value) countRef++;
+    }
     const checks: SubCheck[] = [
-      { label: "Nombre de producto", ok: !!(prod.productName || prod.productTitle) },
-      { label: "Marca", ok: !!prod.brand, value: prod.brand || "faltante" },
-      { label: "Categoría", ok: !!prod.categoryId || !!prod.categories?.length },
-      { label: "SKU variante", ok: !!firstSku.itemId },
-      { label: "Imagen", ok: Array.isArray(firstSku.images) && firstSku.images.length > 0 },
-      { label: "EAN / código de barras", ok: !!firstSku.ean, value: firstSku.ean ? "presente" : "faltante (opcional)" },
-      { label: "Referencia / SKU real", ok: !!firstSku.referenceId?.[0]?.Value },
+      { label: "Nombre de producto", ok: countName === N, value: `${countName}/${N}` },
+      { label: "Marca", ok: countBrand === N, value: `${countBrand}/${N}` },
+      { label: "Categoría", ok: countCategory === N, value: `${countCategory}/${N}` },
+      { label: "SKU variante", ok: countSku === N, value: `${countSku}/${N}` },
+      { label: "Imagen", ok: countImage === N, value: `${countImage}/${N}` },
+      { label: "EAN / código de barras", ok: countEan === N, value: `${countEan}/${N}`, optional: true },
+      { label: "Referencia / SKU real", ok: countRef === N, value: `${countRef}/${N}` },
     ];
-    const failed = checks.filter((c) => !c.ok);
+    const failed = checks.filter((c) => !c.ok && !c.optional);
+    const hasWarnings = checks.some((c) => (c.optional && !c.ok));
     return {
       area: "Catálogo",
       ok: failed.length === 0,
-      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length}/${checks.length} faltan`,
+      detail: failed.length === 0 ? `${N} SKUs validados · ${checks.length} checks OK` : `${N} SKUs validados · ${failed.length} campos fallaron`,
       subChecks: checks,
+      hasWarnings,
     };
   }
 
   async function testPricing(): Promise<AreaResult> {
-    // Usar el SKU provisto si hay, sino el primero del catalogo
-    let skuId: string | null = options?.testSku || null;
-    if (!skuId) {
-      const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=0");
-      skuId = search.data?.[0]?.items?.[0]?.itemId || null;
+    // Si admin provee SKU, usa ese solo. Sino: saca 5 SKUs del catalogo para
+    // estadistica agregada (evita falso positivo por 1 SKU con datos raros).
+    let skusToCheck: string[] = [];
+    if (options?.testSku) {
+      skusToCheck = [options.testSku];
+    } else {
+      const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=4");
+      const prods: any[] = Array.isArray(search.data) ? search.data : [];
+      skusToCheck = prods
+        .map((p) => p.items?.[0]?.itemId)
+        .filter((id): id is string => !!id)
+        .slice(0, 5);
     }
-    if (!skuId) {
-      return { area: "Precios", ok: true, detail: "sin SKU disponible para validar" };
+    if (skusToCheck.length === 0) {
+      return { area: "Precios", ok: true, detail: "sin SKUs disponibles para validar" };
     }
-    const priceRes = await vtexFetch(`/api/pricing/prices/${skuId}?_forceGet=true`);
-    if (priceRes.status === 401 || priceRes.status === 403) {
-      return { area: "Precios", ok: false, detail: `sin permiso (${priceRes.status})`, hint: "App Key necesita permiso Pricing - Read" };
+
+    // Fetch de precios en paralelo
+    const priceResults = await Promise.all(
+      skusToCheck.map((sku) => vtexFetch(`/api/pricing/prices/${sku}?_forceGet=true`)),
+    );
+
+    // Chequear permisos: si TODOS dan 401/403 es problema de permiso
+    const forbidden = priceResults.filter((r) => r.status === 401 || r.status === 403).length;
+    if (forbidden === priceResults.length) {
+      return { area: "Precios", ok: false, detail: `sin permiso (${priceResults[0].status})`, hint: "App Key necesita permiso Pricing - Read" };
     }
-    if (priceRes.status === 404) {
-      return {
-        area: "Precios",
-        ok: true,
-        detail: "SKU sin precio en Pricing (VTEX usa Catalog como fallback)",
-        subChecks: [
-          { label: "Pricing API accesible", ok: true },
-          { label: "Precio base del SKU", ok: false, value: "no cargado en Pricing" },
-          { label: "Costo (costPrice)", ok: false, value: "no cargado" },
-        ],
-      };
+
+    const N = skusToCheck.length;
+    let countWithPrice = 0;      // tiene basePrice
+    let countWithListPrice = 0;   // tiene listPrice
+    let countWithRealCost = 0;    // costPrice presente Y distinto de basePrice
+    let countCostEqualsPrice = 0; // costo == precio (fallback VTEX, sospechoso)
+    let countNoPricingEntry = 0;  // 404: SKU sin precio en Pricing
+
+    for (const pr of priceResults) {
+      if (pr.status === 404) { countNoPricingEntry++; continue; }
+      if (pr.error || !pr.data) continue;
+      const p = pr.data;
+      if (p.basePrice != null) countWithPrice++;
+      if (p.listPrice != null) countWithListPrice++;
+      if (p.costPrice != null && p.costPrice > 0) {
+        if (p.costPrice === p.basePrice) countCostEqualsPrice++;
+        else countWithRealCost++;
+      }
     }
-    if (priceRes.error || !priceRes.data) return { area: "Precios", ok: false, detail: priceRes.error || "sin data" };
-    const p = priceRes.data;
-    // Detectar costo falso: si costPrice == basePrice, VTEX lo devuelve como
-    // fallback cuando no hay COGS real cargado. No es un costo verdadero.
-    const hasRealCost = p.costPrice != null && p.costPrice > 0 && p.costPrice !== p.basePrice;
+
+    const pricePct = countWithPrice / N;
+    const costHealthy = countWithRealCost;
+    const costSuspicious = countCostEqualsPrice;
+
     const checks: SubCheck[] = [
-      { label: "Precio base", ok: p.basePrice != null, value: p.basePrice != null ? String(p.basePrice) : "faltante" },
-      { label: "Precio de lista", ok: p.listPrice != null, value: p.listPrice != null ? String(p.listPrice) : "no cargado", optional: true },
       {
-        label: "Costo (costPrice)",
-        ok: hasRealCost,
-        value: hasRealCost
-          ? String(p.costPrice)
-          : p.costPrice === p.basePrice
-            ? "igual al precio (VTEX devuelve fallback, cargá costo real en VTEX)"
-            : "no cargado",
-        warning: !hasRealCost,
+        label: "Precio base cargado",
+        ok: pricePct >= 0.6,
+        value: `${countWithPrice}/${N}`,
       },
-      { label: "Markup", ok: p.markup != null && p.markup > 0, value: p.markup != null ? String(p.markup) : "sin markup", optional: true },
+      {
+        label: "Precio de lista",
+        ok: countWithListPrice === N,
+        value: `${countWithListPrice}/${N}`,
+        optional: true,
+      },
+      {
+        label: "Costo real (≠ precio)",
+        ok: costHealthy >= Math.ceil(N / 2),
+        value: `${costHealthy}/${N}`,
+        warning: costHealthy < Math.ceil(N / 2),
+      },
+      {
+        label: "Costo igual al precio (sospechoso)",
+        ok: costSuspicious === 0,
+        value: `${costSuspicious}/${N}${costSuspicious > 0 ? " (revisar)" : ""}`,
+        warning: costSuspicious > 0 && costSuspicious < N,
+        optional: costSuspicious === 0,
+      },
+      {
+        label: "SKUs sin entrada en Pricing",
+        ok: countNoPricingEntry === 0,
+        value: `${countNoPricingEntry}/${N}${countNoPricingEntry > 0 ? " usan precio del Catalog" : ""}`,
+        optional: true,
+      },
     ];
-    // Solo cuentan como falla los checks NO opcionales que estan en ok: false
+
     const failed = checks.filter((c) => !c.ok && !c.optional);
     const hasWarnings = checks.some((c) => c.warning || (c.optional && !c.ok));
     return {
       area: "Precios",
       ok: failed.length === 0,
       detail: failed.length === 0
-        ? (hasRealCost ? `${checks.length} checks OK (con costo real)` : `checks OK pero sin costo real cargado`)
-        : `${failed.length} campos críticos faltan`,
+        ? (costHealthy >= Math.ceil(N / 2) ? `${N} SKUs validados · costos reales OK` : `${N} SKUs validados · costos con warnings`)
+        : `${N} SKUs validados · ${failed.length} campos críticos fallan`,
       subChecks: checks,
       hasWarnings,
     };
