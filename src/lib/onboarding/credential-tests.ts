@@ -9,21 +9,25 @@ export type SubCheck = {
   label: string;       // ej: "Email del cliente"
   ok: boolean;
   value?: string;      // ej: "presente" o "faltante"
+  optional?: boolean;  // true = si falta, no se cuenta como falla (se muestra gris "–")
+  warning?: boolean;   // true = pasa pero con alerta (ej: costo igual a precio = sospechoso)
 };
 
 export type AreaCheck = {
   area: string;        // ej: "Ventas"
-  ok: boolean;
+  ok: boolean;         // true si NO hay fallas criticas (opcionales/warnings no cuentan)
   detail: string;      // resumen corto
   hint?: string;
-  subChecks?: SubCheck[];  // checks granulares
+  subChecks?: SubCheck[];
+  hasWarnings?: boolean; // true si algun subCheck tiene warning u opcional faltante
 };
 
 export type TestResult = {
   ok: boolean;
   detail: string;
   hint?: string;
-  areas?: AreaCheck[];  // nuevo: desglose profundo por area para la UI
+  areas?: AreaCheck[];
+  hasWarnings?: boolean; // nuevo: true si alguna area tiene warnings (UI naranja)
 };
 
 export async function testVtex(creds: any): Promise<TestResult> {
@@ -157,18 +161,35 @@ export async function testVtex(creds: any): Promise<TestResult> {
     }
     if (priceRes.error || !priceRes.data) return { area: "Precios", ok: false, detail: priceRes.error || "sin data" };
     const p = priceRes.data;
+    // Detectar costo falso: si costPrice == basePrice, VTEX lo devuelve como
+    // fallback cuando no hay COGS real cargado. No es un costo verdadero.
+    const hasRealCost = p.costPrice != null && p.costPrice > 0 && p.costPrice !== p.basePrice;
     const checks: SubCheck[] = [
-      { label: "Precio base", ok: p.basePrice != null || p.listPrice != null, value: String(p.basePrice ?? p.listPrice ?? "faltante") },
-      { label: "Precio de lista", ok: p.listPrice != null, value: p.listPrice != null ? String(p.listPrice) : "opcional" },
-      { label: "Costo (costPrice)", ok: p.costPrice != null && p.costPrice > 0, value: p.costPrice != null ? String(p.costPrice) : "no cargado" },
-      { label: "Markup", ok: p.markup != null, value: p.markup != null ? String(p.markup) : "opcional" },
+      { label: "Precio base", ok: p.basePrice != null, value: p.basePrice != null ? String(p.basePrice) : "faltante" },
+      { label: "Precio de lista", ok: p.listPrice != null, value: p.listPrice != null ? String(p.listPrice) : "no cargado", optional: true },
+      {
+        label: "Costo (costPrice)",
+        ok: hasRealCost,
+        value: hasRealCost
+          ? String(p.costPrice)
+          : p.costPrice === p.basePrice
+            ? "igual al precio (VTEX devuelve fallback, cargá costo real en VTEX)"
+            : "no cargado",
+        warning: !hasRealCost,
+      },
+      { label: "Markup", ok: p.markup != null && p.markup > 0, value: p.markup != null ? String(p.markup) : "sin markup", optional: true },
     ];
-    const failed = checks.filter((c) => !c.ok && c.value !== "opcional");
+    // Solo cuentan como falla los checks NO opcionales que estan en ok: false
+    const failed = checks.filter((c) => !c.ok && !c.optional);
+    const hasWarnings = checks.some((c) => c.warning || (c.optional && !c.ok));
     return {
       area: "Precios",
       ok: failed.length === 0,
-      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length} campos críticos faltan`,
+      detail: failed.length === 0
+        ? (hasRealCost ? `${checks.length} checks OK (con costo real)` : `checks OK pero sin costo real cargado`)
+        : `${failed.length} campos críticos faltan`,
       subChecks: checks,
+      hasWarnings,
     };
   }
 

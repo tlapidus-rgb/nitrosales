@@ -1057,12 +1057,14 @@ function CredentialsTestBlock({
                 gap: 8,
                 padding: "8px 10px",
                 background: "rgba(0,0,0,0.25)",
-                border: `1px solid ${r.ok ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
+                border: `1px solid ${r.ok ? ((r as any).hasWarnings || (r.areas || []).some((a: any) => a.hasWarnings || (a.subChecks || []).some((c: any) => c.warning || (c.optional && !c.ok))) ? "rgba(251,146,60,0.30)" : "rgba(34,197,94,0.2)") : "rgba(239,68,68,0.2)"}`,
                 borderRadius: 6,
               }}
             >
               {r.ok ? (
-                <CheckCircle2 size={14} color="#22C55E" style={{ flexShrink: 0, marginTop: 1 }} />
+                ((r as any).hasWarnings || (r.areas || []).some((a: any) => a.hasWarnings || (a.subChecks || []).some((c: any) => c.warning || (c.optional && !c.ok)))
+                  ? <CheckCircle2 size={14} color="#FB923C" style={{ flexShrink: 0, marginTop: 1 }} />
+                  : <CheckCircle2 size={14} color="#22C55E" style={{ flexShrink: 0, marginTop: 1 }} />)
               ) : (
                 <XCircle size={14} color="#EF4444" style={{ flexShrink: 0, marginTop: 1 }} />
               )}
@@ -1081,34 +1083,51 @@ function CredentialsTestBlock({
                 {/* Desglose profundo por area + subChecks */}
                 {Array.isArray(r.areas) && r.areas.length > 0 && (
                   <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-                    {r.areas.map((a: any, ai: number) => (
-                      <div key={ai} style={{
-                        padding: "6px 8px",
-                        background: "rgba(255,255,255,0.02)",
-                        border: `1px solid ${a.ok ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}`,
-                        borderRadius: 5,
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, color: a.ok ? "#86EFAC" : "#FCA5A5", marginBottom: 3 }}>
-                          {a.ok ? "✓" : "✕"} {a.area} <span style={{ color: "#71717A", fontWeight: 400 }}>— {a.detail}</span>
+                    {r.areas.map((a: any, ai: number) => {
+                      // Estado del area: OK / warning (pasa pero con alerta) / fail
+                      const hasWarn = a.hasWarnings || (a.subChecks || []).some((c: any) => c.warning || (c.optional && !c.ok));
+                      const state = !a.ok ? "fail" : (hasWarn ? "warn" : "ok");
+                      const borderColor = state === "ok" ? "rgba(34,197,94,0.15)" : state === "warn" ? "rgba(251,146,60,0.20)" : "rgba(239,68,68,0.15)";
+                      const titleColor = state === "ok" ? "#86EFAC" : state === "warn" ? "#FDBA74" : "#FCA5A5";
+                      const titleIcon = state === "ok" ? "✓" : state === "warn" ? "⚠" : "✕";
+                      return (
+                        <div key={ai} style={{
+                          padding: "6px 8px",
+                          background: "rgba(255,255,255,0.02)",
+                          border: `1px solid ${borderColor}`,
+                          borderRadius: 5,
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, color: titleColor, marginBottom: 3 }}>
+                            {titleIcon} {a.area} <span style={{ color: "#71717A", fontWeight: 400 }}>— {a.detail}</span>
+                          </div>
+                          {Array.isArray(a.subChecks) && a.subChecks.length > 0 && (
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px", marginTop: 4, paddingLeft: 12 }}>
+                              {a.subChecks.map((c: any, ci: number) => {
+                                let icon = "✓";
+                                let color = "#A1A1AA";
+                                if (!c.ok) {
+                                  if (c.optional) { icon = "–"; color = "#71717A"; }
+                                  else if (c.warning) { icon = "⚠"; color = "#FDBA74"; }
+                                  else { icon = "✕"; color = "#FCA5A5"; }
+                                } else if (c.warning) { icon = "⚠"; color = "#FDBA74"; }
+                                return (
+                                  <div key={ci} style={{ fontSize: 10, color, display: "flex", alignItems: "center", gap: 4 }}>
+                                    <span style={{ width: 10 }}>{icon}</span>
+                                    <span style={{ flex: 1 }}>{c.label}</span>
+                                    {c.value && <span style={{ color: "#71717A", fontSize: 9.5 }}>{c.value}</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {a.hint && (
+                            <div style={{ fontSize: 10, color: "#71717A", marginTop: 4, fontStyle: "italic", paddingLeft: 12 }}>
+                              💡 {a.hint}
+                            </div>
+                          )}
                         </div>
-                        {Array.isArray(a.subChecks) && a.subChecks.length > 0 && (
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px", marginTop: 4, paddingLeft: 12 }}>
-                            {a.subChecks.map((c: any, ci: number) => (
-                              <div key={ci} style={{ fontSize: 10, color: c.ok ? "#A1A1AA" : "#FCA5A5", display: "flex", alignItems: "center", gap: 4 }}>
-                                <span style={{ width: 10 }}>{c.ok ? "✓" : "✕"}</span>
-                                <span style={{ flex: 1 }}>{c.label}</span>
-                                {c.value && <span style={{ color: "#71717A", fontSize: 9.5 }}>{c.value}</span>}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {a.hint && (
-                          <div style={{ fontSize: 10, color: "#71717A", marginTop: 4, fontStyle: "italic", paddingLeft: 12 }}>
-                            💡 {a.hint}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
