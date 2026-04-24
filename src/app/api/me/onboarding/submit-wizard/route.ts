@@ -24,6 +24,30 @@ export const dynamic = "force-dynamic";
 
 const VALID_PLATFORMS = new Set(["VTEX", "MERCADOLIBRE", "META_ADS", "META_PIXEL", "GOOGLE_ADS"]);
 
+/**
+ * Limpia caracteres invisibles/no-ASCII de strings dentro de credentials.
+ * MOTIVO: al copiar credentials de VTEX desde Notion/Google Docs/PDF, se
+ * cuelan chars como U+2028 (LINE SEPARATOR) o U+00A0 (NBSP) invisibles al
+ * ojo pero que rompen fetch() con "Cannot convert argument to a ByteString".
+ * HTTP headers solo aceptan ASCII (< 256).
+ */
+function sanitizeCreds(creds: any): any {
+  if (!creds || typeof creds !== "object") return creds;
+  const cleaned: any = {};
+  for (const [k, v] of Object.entries(creds)) {
+    if (typeof v === "string") {
+      // Remove caracteres Unicode invisibles comunes + trim.
+      cleaned[k] = v
+        .replace(/[\u2028\u2029\u200B\u200C\u200D\uFEFF\u00A0]/g, "") // invisibles
+        .replace(/[^\x20-\x7E]/g, "") // solo ASCII printable (para headers HTTP)
+        .trim();
+    } else {
+      cleaned[k] = v; // dejar booleans/numbers/nested objects como están
+    }
+  }
+  return cleaned;
+}
+
 interface PlatformInput {
   platform: string;
   credentials: any;
@@ -71,11 +95,11 @@ export async function POST(req: NextRequest) {
         select: { id: true, credentials: true },
       });
 
-      // CRITICO para MERCADOLIBRE (OAuth): NO pisar las credentials existentes
-      // con lo que manda el frontend, porque el frontend solo tiene { mlUserId, _connected }
-      // pero la DB tiene los tokens OAuth reales (accessToken, refreshToken).
-      // Si pisamos, perdemos los tokens y el sync falla.
-      let credsToSave: any = p.credentials;
+      // Sanitize credentials: remueve caracteres invisibles Unicode (U+2028,
+      // U+2029, zero-width, etc) que se cuelan al copiar de Notion/PDF/email y
+      // rompen fetch con "Cannot convert argument to a ByteString because...".
+      // Tambien trim + filter non-printable ASCII.
+      let credsToSave: any = sanitizeCreds(p.credentials);
       if (p.platform === "MERCADOLIBRE" && existing?.credentials) {
         const existingCreds = existing.credentials as any;
         // Si ya hay tokens en DB (del OAuth callback), preservarlos.
