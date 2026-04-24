@@ -67,14 +67,19 @@ export async function GET(req: NextRequest) {
     };
     const base = `https://${creds.accountName}.vtexcommercestable.com.br`;
 
-    async function fetchWithRetry(path: string): Promise<any | null> {
+    async function fetchWithRetry(path: string, method: string = "GET", body?: any): Promise<any | null> {
       try {
         return await retryWithBackoff(
           async () => {
             const ctrl = new AbortController();
             const t = setTimeout(() => ctrl.abort(), 10_000);
             try {
-              const r = await fetch(`${base}${path}`, { headers, signal: ctrl.signal });
+              const init: RequestInit = { method, headers: { ...headers }, signal: ctrl.signal };
+              if (body) {
+                init.body = JSON.stringify(body);
+                (init.headers as any)["Content-Type"] = "application/json";
+              }
+              const r = await fetch(`${base}${path}`, init);
               if (!r.ok) {
                 const err: any = new Error(`VTEX ${r.status}`);
                 err.status = r.status;
@@ -99,25 +104,41 @@ export async function GET(req: NextRequest) {
     let withListPrice = 0;
     let withCost = 0;
 
-    // Procesar en paralelo con límite de concurrency
+    // Procesar en paralelo con límite de concurrency.
+    // Fuentes usadas (misma estrategia que el test de credenciales):
+    //  1. Simulation API → precio REAL al cliente (con política aplicada) + tachado
+    //  2. Catalog Search → fallback precio si Simulation falla
+    //  3. Pricing API → costo interno
     const tasks = products.map((prod) => async () => {
       try {
         const sku = prod.externalId;
-        const [catalogData, pricingData] = await Promise.all([
-          fetchWithRetry(`/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(sku)}`),
+        const [simData, catalogData, pricingData] = await Promise.all([
+          fetchWithRetry(
+            `/api/checkout/pub/orderForms/simulation?sc=1`,
+            "POST",
+            { items: [{ id: String(sku), quantity: 1, seller: "1" }], country: "ARG" },
+          ),
+          fetchWithRetry(`/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(sku)}&sc=1`),
           fetchWithRetry(`/api/pricing/prices/${sku}?_forceGet=true`),
         ]);
 
-        // Extraer commertialOffer (precio real + tachado)
+        // Precio real: prefiere Simulation (valores vienen en centavos)
+        const simItem = simData?.items?.[0];
+        const simPrice = typeof simItem?.price === "number" && simItem.price > 0 ? simItem.price / 100 : null;
+        const simListPrice = typeof simItem?.listPrice === "number" && simItem.listPrice > 0 ? simItem.listPrice / 100 : null;
+
+        // Fallback: Catalog Search commertialOffer
         const offer = catalogData?.[0]?.items?.find?.((it: any) => String(it.itemId) === String(sku))?.sellers?.[0]?.commertialOffer
           || catalogData?.[0]?.items?.[0]?.sellers?.[0]?.commertialOffer
           || null;
 
-        const realPrice = offer?.Price != null && offer.Price > 0 ? Number(offer.Price) : null;
-        const listPrice = offer?.ListPrice != null && offer.ListPrice > (offer.Price || 0) ? Number(offer.ListPrice) : null;
+        const realPrice = simPrice != null ? simPrice : (offer?.Price != null && offer.Price > 0 ? Number(offer.Price) : null);
+        const listPrice = simListPrice != null && simListPrice > (realPrice || 0)
+          ? simListPrice
+          : (offer?.ListPrice != null && offer.ListPrice > (realPrice || 0) ? Number(offer.ListPrice) : null);
         const costPrice = pricingData?.costPrice != null ? Number(pricingData.costPrice) : null;
 
-        // Build update payload - solo actualizar campos que vinieron
+        // Update solo campos que vinieron
         const data: any = {};
         if (realPrice != null) { data.price = realPrice; withRealPrice++; }
         if (listPrice != null) { data.compareAtPrice = listPrice; withListPrice++; }
