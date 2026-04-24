@@ -132,6 +132,12 @@ export async function enrichOrderFromMl(
           const unitPrice = Number(it.unit_price ?? it.full_unit_price ?? 0);
           const quantity = Number(it.quantity) || 1;
 
+          // ML devuelve la imagen directamente en el payload de /orders/search
+          // via mlItem.thumbnail. Ojo: puede ser http:// (http v1 de ML) — forzar https para
+          // evitar mixed-content warnings en el frontend.
+          const rawThumb = (mlItem.thumbnail || "").toString().trim();
+          const thumbnail = rawThumb ? rawThumb.replace(/^http:\/\//, "https://") : null;
+
           const product = await upsertProductBySku({
             organizationId: orgId,
             externalId: productExtId,
@@ -141,13 +147,14 @@ export async function enrichOrderFromMl(
               brand: null,
               category: mlItem.category_id || null,
               price: unitPrice,
-              imageUrl: null, // /orders/search no devuelve imagen — se completa con sync de items aparte
+              imageUrl: thumbnail,
               isActive: true,
             },
             update: {
               // No sobreescribir name/price si ya vinieron de VTEX u otra fuente con mas data
               name: mlItem.title || undefined,
               category: mlItem.category_id || undefined,
+              ...(thumbnail ? { imageUrl: thumbnail } : {}),
             },
           });
 

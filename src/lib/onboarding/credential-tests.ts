@@ -624,7 +624,11 @@ export async function testMercadoLibre(creds: any): Promise<TestResult> {
   type AreaResult = AreaCheck;
 
   async function testMLOrders(): Promise<AreaResult> {
-    const list = await mlFetch(`/orders/search?seller=${userId}&limit=1&sort=date_desc`);
+    // Traemos 5 ventas reales y validamos los MISMOS campos que el backfill
+    // va a usar al enriquecer (customer + items + thumbnail + etc).
+    // Si las 5 pasan → credenciales + logica + backfill van a funcionar.
+    const SAMPLE = 5;
+    const list = await mlFetch(`/orders/search?seller=${userId}&limit=${SAMPLE}&sort=date_desc`);
     if (list.status === 401 || list.status === 403) {
       return { area: "Ventas", ok: false, detail: `sin permiso (${list.status})`, hint: "Re-autorizar MELI con scope 'read'" };
     }
@@ -633,25 +637,67 @@ export async function testMercadoLibre(creds: any): Promise<TestResult> {
     if (!Array.isArray(results) || results.length === 0) {
       return { area: "Ventas", ok: true, detail: "cuenta sin ventas todavía" };
     }
-    const o = results[0];
-    const firstItem = o.order_items?.[0];
+
+    // Por cada campo critico, cuento en cuantas de las N ordenes vino presente.
+    // "ok" requiere que TODAS las muestras lo tengan (salvo los opcionales).
+    const n = results.length;
+    const tally = {
+      id: 0, status: 0, total: 0, items: 0, title: 0, unitPrice: 0, sku: 0,
+      buyer: 0, buyerName: 0, thumbnail: 0, category: 0, shipping: 0,
+    };
+    const firstMissing: string[] = [];
+    for (let idx = 0; idx < results.length; idx++) {
+      const o = results[idx];
+      const firstItem = o.order_items?.[0];
+      const mlItem = firstItem?.item || {};
+      const missing: string[] = [];
+
+      if (o.id) tally.id++; else missing.push("id");
+      if (o.status) tally.status++; else missing.push("status");
+      if (o.total_amount != null) tally.total++; else missing.push("total");
+      if (Array.isArray(o.order_items) && o.order_items.length > 0) tally.items++; else missing.push("items");
+      if (mlItem.title) tally.title++; else missing.push("title");
+      if (firstItem?.unit_price != null) tally.unitPrice++; else missing.push("unitPrice");
+      if (mlItem.seller_sku || mlItem.id) tally.sku++; else missing.push("sku");
+      if (o.buyer?.id || o.buyer_id) tally.buyer++; else missing.push("buyer.id");
+      if (o.buyer?.first_name || o.buyer?.nickname) tally.buyerName++;
+      if (mlItem.thumbnail) tally.thumbnail++;
+      if (mlItem.category_id) tally.category++;
+      if (o.shipping?.receiver_address) tally.shipping++;
+
+      if (missing.length > 0 && firstMissing.length < 2) {
+        firstMissing.push(`orden ${o.id || idx}: ${missing.join(",")}`);
+      }
+    }
+
+    const full = (count: number) => count === n;
+    const most = (count: number) => count >= Math.ceil(n * 0.6); // al menos 60% lo tiene
     const checks: SubCheck[] = [
-      { label: "ID de orden", ok: !!o.id },
-      { label: "Estado de orden", ok: !!o.status, value: o.status || "faltante" },
-      { label: "Monto total", ok: o.total_amount != null, value: o.total_amount != null ? `$${o.total_amount}` : "faltante" },
-      { label: "Items del pedido", ok: Array.isArray(o.order_items) && o.order_items.length > 0, value: `${o.order_items?.length || 0}` },
-      { label: "Título de producto", ok: !!firstItem?.item?.title },
-      { label: "Precio unitario", ok: firstItem?.unit_price != null },
-      { label: "SKU del producto", ok: !!(firstItem?.item?.seller_sku || firstItem?.item?.id) },
-      { label: "Datos del comprador", ok: !!(o.buyer || o.buyer_id) },
-      { label: "pack_id (si es carrito)", ok: true, value: o.pack_id ? String(o.pack_id) : "sin pack (venta individual)" },
+      { label: `ID de orden (${tally.id}/${n})`, ok: full(tally.id) },
+      { label: `Estado (${tally.status}/${n})`, ok: full(tally.status) },
+      { label: `Monto total (${tally.total}/${n})`, ok: full(tally.total) },
+      { label: `Items del pedido (${tally.items}/${n})`, ok: full(tally.items) },
+      { label: `Título de producto (${tally.title}/${n})`, ok: full(tally.title) },
+      { label: `Precio unitario (${tally.unitPrice}/${n})`, ok: full(tally.unitPrice) },
+      { label: `SKU del producto (${tally.sku}/${n})`, ok: full(tally.sku) },
+      { label: `ID del comprador (${tally.buyer}/${n})`, ok: full(tally.buyer) },
+      // Opcionales/warnings: ML enmascara algunos datos. Si faltan parcialmente,
+      // el backfill igual funciona pero con menos informacion del cliente.
+      { label: `Nombre del comprador (${tally.buyerName}/${n})`, ok: most(tally.buyerName), optional: !most(tally.buyerName), warning: !full(tally.buyerName) && most(tally.buyerName) },
+      { label: `Imagen del producto (${tally.thumbnail}/${n})`, ok: most(tally.thumbnail), warning: !full(tally.thumbnail) && most(tally.thumbnail), optional: !most(tally.thumbnail) },
+      { label: `Categoría (${tally.category}/${n})`, ok: most(tally.category), optional: !most(tally.category) },
+      { label: `Dirección de envío (${tally.shipping}/${n})`, ok: most(tally.shipping), optional: !most(tally.shipping) },
     ];
-    const failed = checks.filter((c) => !c.ok);
+    const failed = checks.filter((c) => !c.ok && !c.optional);
+    const hasWarnings = checks.some((c) => c.warning || (c.optional && !c.ok));
     return {
       area: "Ventas",
       ok: failed.length === 0,
-      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length}/${checks.length} fallaron`,
+      detail: failed.length === 0
+        ? `${n} ventas probadas, ${checks.filter(c => c.ok).length}/${checks.length} checks OK`
+        : `${failed.length}/${checks.length} campos fallaron (${firstMissing.join(" | ") || "ver subChecks"})`,
       subChecks: checks,
+      hasWarnings,
     };
   }
 
