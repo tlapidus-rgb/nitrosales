@@ -23,7 +23,9 @@
 
 import { prisma } from "@/lib/db/client";
 import { getSellerToken } from "@/lib/connectors/mercadolibre-seller";
+import { enrichOrderFromMl } from "@/lib/connectors/mercadolibre-enrichment";
 import { retryWithBackoff, isRetryableStatus } from "@/lib/sync/retry";
+import { withConcurrency } from "@/lib/sync/concurrency";
 import type { ChunkResult } from "../types";
 
 const ML_API = "https://api.mercadolibre.com";
@@ -31,6 +33,7 @@ const WINDOW_DAYS = 7;
 const PAGE_SIZE = 50;          // MELI max por page
 const ML_OFFSET_MAX = 1000;    // MELI hard limit (después de eso requiere scroll_id)
 const PAGES_PER_CHUNK = 10;    // 10 × 50 = 500 órdenes/chunk (conservador vs timeout Vercel)
+const ENRICH_CONCURRENCY = 5;  // upserts Customer + Products + Items en paralelo (pool Postgres = 8)
 
 async function mlGetWithRetry(path: string, token: string): Promise<any> {
   return retryWithBackoff(
@@ -68,7 +71,12 @@ async function mlGetWithRetry(path: string, token: string): Promise<any> {
  * Esto hace que webhooks y cron puedan correr en paralelo sin race
  * condition: siempre gana el update más reciente por externalUpdatedAt.
  */
-async function upsertMlOrder(orgId: string, order: any): Promise<"inserted" | "updated" | "skipped"> {
+type UpsertResult = {
+  action: "inserted" | "updated" | "skipped";
+  dbOrderId: string | null;
+};
+
+async function upsertMlOrder(orgId: string, order: any): Promise<UpsertResult> {
   const externalId = String(order.id);
   const packId = order.pack_id ? String(order.pack_id) : null; // dedup de carritos
   const status = mapMlStatus(order.status, order.tags);
@@ -111,15 +119,18 @@ async function upsertMlOrder(orgId: string, order: any): Promise<"inserted" | "u
     WHERE
       "orders"."externalUpdatedAt" IS NULL
       OR "orders"."externalUpdatedAt" < EXCLUDED."externalUpdatedAt"
-    RETURNING xmax = 0 AS "inserted"
+    RETURNING "id", xmax = 0 AS "inserted"
     `,
     externalId, packId, status, total, currency, itemCount,
     paymentMethod, marketplaceFee,
     orderDate, externalUpdatedAt, orgId
   );
 
-  if (rows.length === 0) return "skipped"; // guard blocked update (vino viejo)
-  return rows[0].inserted ? "inserted" : "updated";
+  if (rows.length === 0) return { action: "skipped", dbOrderId: null }; // guard blocked update (vino viejo)
+  return {
+    action: rows[0].inserted ? "inserted" : "updated",
+    dbOrderId: String(rows[0].id),
+  };
 }
 
 /**
@@ -293,19 +304,40 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
     // el beneficio es marginal y complica el manejo de errores.
     let failedInPage = 0;
     const firstErrors: string[] = [];
+    // Orders que necesitan enrichment (inserted/updated + payload original para items)
+    const toEnrich: Array<{ dbOrderId: string; mlOrder: any }> = [];
     for (const order of toUpsert) {
       try {
-        const action = await upsertMlOrder(orgId, order);
-        if (action === "inserted") totalInserted++;
-        else if (action === "updated") totalUpdated++;
+        const result = await upsertMlOrder(orgId, order);
+        if (result.action === "inserted") totalInserted++;
+        else if (result.action === "updated") totalUpdated++;
         else totalSkipped++;
         totalProcessed++;
+        // Solo enriquecer si el upsert hizo algo Y tenemos el dbOrderId
+        if (result.dbOrderId && result.action !== "skipped") {
+          toEnrich.push({ dbOrderId: result.dbOrderId, mlOrder: order });
+        }
       } catch (err: any) {
         failedInPage++;
         if (firstErrors.length < 3) firstErrors.push(`${order.id}(${order.status}): ${err.message}`);
         console.error(`[ml-processor] upsert failed for order ${order.id} status=${order.status}:`, err.message);
         // Continue con los otros, no fallar todo el chunk
       }
+    }
+
+    // 5b. Enriquecer en paralelo (customer + products + items desde el payload ML)
+    //     Failsafe: errores en enrich NO fallan el chunk. El order basico ya esta.
+    if (toEnrich.length > 0) {
+      await withConcurrency(
+        ENRICH_CONCURRENCY,
+        toEnrich.map((e) => async () => {
+          try {
+            await enrichOrderFromMl(e.dbOrderId, orgId, e.mlOrder);
+          } catch (err: any) {
+            console.warn(`[ml-processor] enrich failed ${e.mlOrder.id}: ${err.message}`);
+          }
+        }),
+      );
     }
     // Si >50% de la página falló, abortar chunk con error para que quede trazado
     // en lastError del job (en vez de silenciar el problema).
