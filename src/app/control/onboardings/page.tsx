@@ -1078,6 +1078,39 @@ function CredentialsTestBlock({
                     💡 {r.hint}
                   </div>
                 )}
+                {/* Desglose profundo por area + subChecks */}
+                {Array.isArray(r.areas) && r.areas.length > 0 && (
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {r.areas.map((a: any, ai: number) => (
+                      <div key={ai} style={{
+                        padding: "6px 8px",
+                        background: "rgba(255,255,255,0.02)",
+                        border: `1px solid ${a.ok ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}`,
+                        borderRadius: 5,
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 600, color: a.ok ? "#86EFAC" : "#FCA5A5", marginBottom: 3 }}>
+                          {a.ok ? "✓" : "✕"} {a.area} <span style={{ color: "#71717A", fontWeight: 400 }}>— {a.detail}</span>
+                        </div>
+                        {Array.isArray(a.subChecks) && a.subChecks.length > 0 && (
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px", marginTop: 4, paddingLeft: 12 }}>
+                            {a.subChecks.map((c: any, ci: number) => (
+                              <div key={ci} style={{ fontSize: 10, color: c.ok ? "#A1A1AA" : "#FCA5A5", display: "flex", alignItems: "center", gap: 4 }}>
+                                <span style={{ width: 10 }}>{c.ok ? "✓" : "✕"}</span>
+                                <span style={{ flex: 1 }}>{c.label}</span>
+                                {c.value && <span style={{ color: "#71717A", fontSize: 9.5 }}>{c.value}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {a.hint && (
+                          <div style={{ fontSize: 10, color: "#71717A", marginTop: 4, fontStyle: "italic", paddingLeft: 12 }}>
+                            💡 {a.hint}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}

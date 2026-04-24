@@ -5,10 +5,25 @@
 // y desde el panel admin (F1.3 — botones de test antes de aprobar).
 // ══════════════════════════════════════════════════════════════
 
+export type SubCheck = {
+  label: string;       // ej: "Email del cliente"
+  ok: boolean;
+  value?: string;      // ej: "presente" o "faltante"
+};
+
+export type AreaCheck = {
+  area: string;        // ej: "Ventas"
+  ok: boolean;
+  detail: string;      // resumen corto
+  hint?: string;
+  subChecks?: SubCheck[];  // checks granulares
+};
+
 export type TestResult = {
   ok: boolean;
   detail: string;
   hint?: string;
+  areas?: AreaCheck[];  // nuevo: desglose profundo por area para la UI
 };
 
 export async function testVtex(creds: any): Promise<TestResult> {
@@ -46,125 +61,190 @@ export async function testVtex(creds: any): Promise<TestResult> {
 
   // Test PROFUNDO: por cada area, trae muestra real y valida que los campos
   // que el backfill va a usar esten presentes en la respuesta.
-  type AreaResult = { ok: boolean; detail: string; hint?: string; missingFields?: string[] };
+  type AreaResult = AreaCheck;
 
   async function testOrders(): Promise<AreaResult> {
-    // Traer 1 orden reciente
     const listRes = await vtexFetch("/api/oms/pvt/orders?per_page=1&orderBy=creationDate,desc");
     if (listRes.status === 401 || listRes.status === 403) {
-      return { ok: false, detail: `Ventas: sin permiso (${listRes.status})`, hint: "App Key necesita permiso OMS - Full Access" };
+      return { area: "Ventas", ok: false, detail: `sin permiso (${listRes.status})`, hint: "App Key necesita permiso OMS - Full Access" };
     }
     if (listRes.status === 404) {
-      return { ok: false, detail: `Cuenta "${accountName}" no existe en VTEX`, hint: "Revisá el accountName." };
+      return { area: "Ventas", ok: false, detail: `Cuenta "${accountName}" no existe en VTEX`, hint: "Revisá el accountName." };
     }
-    if (listRes.error) return { ok: false, detail: `Ventas: ${listRes.error}` };
+    if (listRes.error) return { area: "Ventas", ok: false, detail: listRes.error };
     const list = listRes.data?.list;
     if (!Array.isArray(list) || list.length === 0) {
-      return { ok: true, detail: `Ventas: OK (cuenta sin ventas todavía, no se pudo validar detalle)` };
+      return { area: "Ventas", ok: true, detail: "cuenta sin ventas todavía (no se pudo validar detalle)" };
     }
     const firstOrderId = list[0]?.orderId;
-    if (!firstOrderId) return { ok: false, detail: "Ventas: lista sin orderId en respuesta" };
+    if (!firstOrderId) return { area: "Ventas", ok: false, detail: "lista sin orderId" };
 
-    // Traer detalle completo + validar campos criticos
     const detRes = await vtexFetch(`/api/oms/pvt/orders/${firstOrderId}`);
     if (detRes.error || !detRes.data) {
-      return { ok: false, detail: `Ventas: no pude traer detalle (${detRes.error})` };
+      return { area: "Ventas", ok: false, detail: `no pude traer detalle (${detRes.error})` };
     }
     const o = detRes.data;
-    const missing: string[] = [];
-    if (!o.clientProfileData?.firstName && !o.clientProfileData?.email) missing.push("datos del cliente");
-    if (!Array.isArray(o.items) || o.items.length === 0) missing.push("items del pedido");
-    else {
-      const item = o.items[0];
-      if (!item.name) missing.push("nombre de producto");
-      if (!item.sellingPrice && !item.price) missing.push("precio del producto");
-      if (!item.id && !item.productId) missing.push("ID de producto");
-    }
-    if (!o.shippingData?.address?.postalCode) missing.push("dirección de envío");
-    if (!Array.isArray(o.totals)) missing.push("totales (envío/descuento)");
-    if (missing.length > 0) {
-      return { ok: false, detail: `Ventas: detalle incompleto, faltan: ${missing.join(", ")}`, missingFields: missing };
-    }
-    return { ok: true, detail: `Ventas: OK (cliente + items + totales completos)` };
+    const checks: SubCheck[] = [
+      { label: "Email del cliente", ok: !!o.clientProfileData?.email },
+      { label: "Nombre del cliente", ok: !!(o.clientProfileData?.firstName || o.clientProfileData?.lastName) },
+      { label: "Items del pedido", ok: Array.isArray(o.items) && o.items.length > 0, value: `${o.items?.length || 0} items` },
+      { label: "Nombre de productos", ok: (o.items || []).every((it: any) => !!it.name) },
+      { label: "Precios unitarios", ok: (o.items || []).every((it: any) => (it.sellingPrice || it.price) != null) },
+      { label: "SKU / refId de productos", ok: (o.items || []).some((it: any) => it.refId || it.sellerSku || it.id) },
+      { label: "Dirección de envío", ok: !!o.shippingData?.address?.postalCode },
+      { label: "Ciudad / provincia", ok: !!(o.shippingData?.address?.city || o.shippingData?.address?.state) },
+      { label: "Totales (envío/descuento)", ok: Array.isArray(o.totals) && o.totals.length > 0 },
+      { label: "Cupón (si usado)", ok: true, value: o.marketingData?.coupon || "sin cupón en esta venta" },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return {
+      area: "Ventas",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length}/${checks.length} checks fallaron`,
+      subChecks: checks,
+    };
   }
 
   async function testCatalog(): Promise<AreaResult> {
-    // Traer 1 SKU del catalogo
     const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=0");
     if (search.status === 401 || search.status === 403) {
-      return { ok: false, detail: `Catálogo: sin permiso (${search.status})`, hint: "App Key necesita permiso Catalog - Read" };
+      return { area: "Catálogo", ok: false, detail: `sin permiso (${search.status})`, hint: "App Key necesita permiso Catalog - Read" };
     }
     if (!Array.isArray(search.data) || search.data.length === 0) {
-      return { ok: true, detail: "Catálogo: OK (sin productos todavía)" };
+      return { area: "Catálogo", ok: true, detail: "sin productos cargados todavía" };
     }
     const prod = search.data[0];
-    const missing: string[] = [];
-    if (!prod.productName && !prod.productTitle) missing.push("nombre del producto");
-    if (!prod.brand) missing.push("marca");
-    if (!Array.isArray(prod.items) || prod.items.length === 0) missing.push("SKU variantes");
-    else {
-      const sku = prod.items[0];
-      if (!sku.images || sku.images.length === 0) missing.push("imagen");
-      if (!sku.itemId) missing.push("SKU id");
-    }
-    if (missing.length > 0) {
-      return { ok: false, detail: `Catálogo: producto sin ${missing.join(", ")}`, missingFields: missing };
-    }
-    return { ok: true, detail: "Catálogo: OK (producto con nombre + marca + imagen + SKU)" };
+    const firstSku = prod.items?.[0] || {};
+    const checks: SubCheck[] = [
+      { label: "Nombre de producto", ok: !!(prod.productName || prod.productTitle) },
+      { label: "Marca", ok: !!prod.brand, value: prod.brand || "faltante" },
+      { label: "Categoría", ok: !!prod.categoryId || !!prod.categories?.length },
+      { label: "SKU variante", ok: !!firstSku.itemId },
+      { label: "Imagen", ok: Array.isArray(firstSku.images) && firstSku.images.length > 0 },
+      { label: "EAN / código de barras", ok: !!firstSku.ean, value: firstSku.ean ? "presente" : "faltante (opcional)" },
+      { label: "Referencia / SKU real", ok: !!firstSku.referenceId?.[0]?.Value },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return {
+      area: "Catálogo",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length}/${checks.length} faltan`,
+      subChecks: checks,
+    };
   }
 
   async function testPricing(): Promise<AreaResult> {
-    // Traer precio de 1 SKU del catalogo
     const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=0");
     const skuId = search.data?.[0]?.items?.[0]?.itemId;
-    if (!skuId) return { ok: true, detail: "Precios: OK (sin SKU para validar)" };
+    if (!skuId) {
+      return { area: "Precios", ok: true, detail: "sin SKU disponible para validar" };
+    }
     const priceRes = await vtexFetch(`/api/pricing/prices/${skuId}?_forceGet=true`);
     if (priceRes.status === 401 || priceRes.status === 403) {
-      return { ok: false, detail: `Precios: sin permiso (${priceRes.status})`, hint: "App Key necesita permiso Pricing - Read" };
+      return { area: "Precios", ok: false, detail: `sin permiso (${priceRes.status})`, hint: "App Key necesita permiso Pricing - Read" };
     }
     if (priceRes.status === 404) {
-      return { ok: true, detail: "Precios: OK (SKU sin precio en Pricing, VTEX usa precio del Catalog como fallback)" };
+      return {
+        area: "Precios",
+        ok: true,
+        detail: "SKU sin precio en Pricing (VTEX usa Catalog como fallback)",
+        subChecks: [
+          { label: "Pricing API accesible", ok: true },
+          { label: "Precio base del SKU", ok: false, value: "no cargado en Pricing" },
+          { label: "Costo (costPrice)", ok: false, value: "no cargado" },
+        ],
+      };
     }
-    if (priceRes.error || !priceRes.data) return { ok: false, detail: `Precios: ${priceRes.error || "sin data"}` };
+    if (priceRes.error || !priceRes.data) return { area: "Precios", ok: false, detail: priceRes.error || "sin data" };
     const p = priceRes.data;
-    const missing: string[] = [];
-    if (p.basePrice == null && p.listPrice == null) missing.push("precio base");
-    if (missing.length > 0) return { ok: false, detail: `Precios: falta ${missing.join(", ")}`, missingFields: missing };
-    const hasCost = p.costPrice != null && p.costPrice > 0;
-    return { ok: true, detail: hasCost ? "Precios: OK (con costo)" : "Precios: OK (sin costo cargado en VTEX)" };
+    const checks: SubCheck[] = [
+      { label: "Precio base", ok: p.basePrice != null || p.listPrice != null, value: String(p.basePrice ?? p.listPrice ?? "faltante") },
+      { label: "Precio de lista", ok: p.listPrice != null, value: p.listPrice != null ? String(p.listPrice) : "opcional" },
+      { label: "Costo (costPrice)", ok: p.costPrice != null && p.costPrice > 0, value: p.costPrice != null ? String(p.costPrice) : "no cargado" },
+      { label: "Markup", ok: p.markup != null, value: p.markup != null ? String(p.markup) : "opcional" },
+    ];
+    const failed = checks.filter((c) => !c.ok && c.value !== "opcional");
+    return {
+      area: "Precios",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length} campos críticos faltan`,
+      subChecks: checks,
+    };
   }
 
   async function testInventory(): Promise<AreaResult> {
-    const whRes = await vtexFetch("/api/logistics/pvt/inventory/warehouses");
+    const whRes = await vtexFetch("/api/logistics/pvt/configuration/warehouses");
     if (whRes.status === 401 || whRes.status === 403) {
-      return { ok: false, detail: `Stock: sin permiso (${whRes.status})`, hint: "App Key necesita permiso Logistics - Read" };
+      return { area: "Stock / depósitos", ok: false, detail: `sin permiso (${whRes.status})`, hint: "App Key necesita permiso Logistics - Read" };
     }
-    if (whRes.error) return { ok: false, detail: `Stock: ${whRes.error}` };
+    if (whRes.error) return { area: "Stock / depósitos", ok: false, detail: whRes.error };
     const list = Array.isArray(whRes.data) ? whRes.data : (whRes.data?.items || []);
-    if (list.length === 0) return { ok: true, detail: "Stock: OK (sin depósitos)" };
-    return { ok: true, detail: `Stock: OK (${list.length} depósitos encontrados)` };
+    if (list.length === 0) {
+      return { area: "Stock / depósitos", ok: true, detail: "cuenta sin depósitos configurados" };
+    }
+    const wh = list[0];
+    const checks: SubCheck[] = [
+      { label: "Depósitos encontrados", ok: list.length > 0, value: `${list.length}` },
+      { label: "ID de depósito", ok: !!(wh.id || wh.warehouseId) },
+      { label: "Nombre del depósito", ok: !!wh.name, value: wh.name || "faltante" },
+      { label: "Prioridad / código postal", ok: !!(wh.priority != null || wh.postalCode) },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return {
+      area: "Stock / depósitos",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${list.length} depósitos con estructura completa` : `${failed.length}/${checks.length} fallaron`,
+      subChecks: checks,
+    };
   }
 
   async function testShipping(): Promise<AreaResult> {
     const r = await vtexFetch("/api/logistics/pvt/shipping-policies");
     if (r.status === 401 || r.status === 403) {
-      return { ok: false, detail: `Tarifas: sin permiso (${r.status})`, hint: "App Key necesita permiso Logistics - Read" };
+      return { area: "Tarifas de envío", ok: false, detail: `sin permiso (${r.status})`, hint: "App Key necesita permiso Logistics - Read" };
     }
-    if (r.error) return { ok: false, detail: `Tarifas: ${r.error}` };
+    if (r.error) return { area: "Tarifas de envío", ok: false, detail: r.error };
     const list = Array.isArray(r.data) ? r.data : (r.data?.items || []);
-    if (list.length === 0) return { ok: true, detail: "Tarifas: OK (sin políticas de envío configuradas)" };
-    return { ok: true, detail: `Tarifas: OK (${list.length} políticas configuradas)` };
+    if (list.length === 0) {
+      return { area: "Tarifas de envío", ok: true, detail: "sin políticas de envío configuradas" };
+    }
+    const pol = list[0];
+    const checks: SubCheck[] = [
+      { label: "Políticas encontradas", ok: list.length > 0, value: `${list.length}` },
+      { label: "Nombre de política", ok: !!pol.name, value: pol.name || "faltante" },
+      { label: "Método de envío", ok: !!(pol.shippingMethod || pol.type) },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return {
+      area: "Tarifas de envío",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${list.length} políticas con estructura completa` : `${failed.length}/${checks.length} fallaron`,
+      subChecks: checks,
+    };
   }
 
   async function testBrands(): Promise<AreaResult> {
     const r = await vtexFetch("/api/catalog_system/pvt/brand/list");
     if (r.status === 401 || r.status === 403) {
-      return { ok: false, detail: `Marcas: sin permiso (${r.status})`, hint: "App Key necesita permiso Catalog - Read" };
+      return { area: "Marcas", ok: false, detail: `sin permiso (${r.status})`, hint: "App Key necesita permiso Catalog - Read" };
     }
-    if (r.error) return { ok: false, detail: `Marcas: ${r.error}` };
+    if (r.error) return { area: "Marcas", ok: false, detail: r.error };
     const list = Array.isArray(r.data) ? r.data : [];
-    if (list.length === 0) return { ok: true, detail: "Marcas: OK (sin marcas cargadas)" };
-    return { ok: true, detail: `Marcas: OK (${list.length} marcas)` };
+    if (list.length === 0) return { area: "Marcas", ok: true, detail: "sin marcas cargadas" };
+    const brand = list[0];
+    const checks: SubCheck[] = [
+      { label: "Marcas encontradas", ok: list.length > 0, value: `${list.length}` },
+      { label: "ID de marca", ok: !!brand.id },
+      { label: "Nombre de marca", ok: !!brand.name, value: brand.name || "faltante" },
+      { label: "Estado activo", ok: brand.isActive != null },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return {
+      area: "Marcas",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${list.length} marcas con estructura completa` : `${failed.length}/${checks.length} fallaron`,
+      subChecks: checks,
+    };
   }
 
   // Probar las 6 áreas en paralelo
@@ -177,37 +257,29 @@ export async function testVtex(creds: any): Promise<TestResult> {
     testBrands(),
   ]);
 
-  const areas = {
-    ventas: ordersArea,
-    catálogo: catalogArea,
-    precios: pricingArea,
-    stock: logisticsInvArea,
-    tarifas: logisticsShipArea,
-    marcas: brandsArea,
-  };
+  const areasList: AreaCheck[] = [ordersArea, catalogArea, pricingArea, logisticsInvArea, logisticsShipArea, brandsArea];
 
   if (!ordersArea.ok && ordersArea.detail.includes(`no existe`)) {
-    return { ok: false, detail: ordersArea.detail, hint: ordersArea.hint };
+    return { ok: false, detail: ordersArea.detail, hint: ordersArea.hint, areas: areasList };
   }
 
-  const failing = Object.entries(areas).filter(([, r]) => !r.ok);
-  const passing = Object.entries(areas).filter(([, r]) => r.ok);
+  const failing = areasList.filter((r) => !r.ok);
+  const passing = areasList.filter((r) => r.ok);
 
   if (failing.length === 0) {
-    const details = Object.values(areas).map((r) => r.detail).join(" · ");
-    return { ok: true, detail: `✅ 6 áreas profundas OK. ${details}` };
+    return { ok: true, detail: `✅ 6 áreas OK con todos los campos validados`, areas: areasList };
   }
 
   if (!ordersArea.ok) {
-    return { ok: false, detail: `❌ Ventas: ${ordersArea.detail}`, hint: ordersArea.hint };
+    return { ok: false, detail: `❌ Ventas: ${ordersArea.detail}`, hint: ordersArea.hint, areas: areasList };
   }
 
-  const failedDetail = failing.map(([, r]) => r.detail).join(" · ");
-  const firstHint = failing.find(([, r]) => r.hint)?.[1]?.hint;
+  const firstHint = failing.find((r) => r.hint)?.hint;
   return {
     ok: false,
-    detail: `⚠️ Parcial: ${passing.length}/6 áreas OK. Detalle: ${failedDetail}`,
+    detail: `⚠️ Parcial: ${passing.length}/${areasList.length} áreas OK`,
     hint: firstHint || "Revisar permisos o completar data en VTEX Admin.",
+    areas: areasList,
   };
 }
 
@@ -395,104 +467,120 @@ export async function testMercadoLibre(creds: any): Promise<TestResult> {
     }
   }
 
-  type AreaResult = { ok: boolean; detail: string; hint?: string };
+  type AreaResult = AreaCheck;
 
-  // Test PROFUNDO de ventas: trae 1 orden reciente y valida estructura
   async function testMLOrders(): Promise<AreaResult> {
     const list = await mlFetch(`/orders/search?seller=${userId}&limit=1&sort=date_desc`);
     if (list.status === 401 || list.status === 403) {
-      return { ok: false, detail: `Ventas: sin permiso (${list.status})`, hint: "Re-autorizar MELI con scope 'read'" };
+      return { area: "Ventas", ok: false, detail: `sin permiso (${list.status})`, hint: "Re-autorizar MELI con scope 'read'" };
     }
-    if (list.error) return { ok: false, detail: `Ventas: ${list.error}` };
+    if (list.error) return { area: "Ventas", ok: false, detail: list.error };
     const results = list.data?.results;
     if (!Array.isArray(results) || results.length === 0) {
-      return { ok: true, detail: "Ventas: OK (cuenta sin ventas todavía)" };
+      return { area: "Ventas", ok: true, detail: "cuenta sin ventas todavía" };
     }
     const o = results[0];
-    const missing: string[] = [];
-    if (!o.id) missing.push("orden ID");
-    if (!o.status) missing.push("estado");
-    if (o.total_amount == null) missing.push("monto total");
-    if (!Array.isArray(o.order_items) || o.order_items.length === 0) missing.push("items");
-    else {
-      const it = o.order_items[0];
-      if (!it.item?.id && !it.item?.title) missing.push("detalle de producto");
-      if (it.unit_price == null) missing.push("precio unitario");
-    }
-    if (!o.buyer && !o.buyer_id) missing.push("comprador");
-    if (missing.length > 0) {
-      return { ok: false, detail: `Ventas: estructura incompleta, faltan: ${missing.join(", ")}` };
-    }
-    return { ok: true, detail: "Ventas: OK (items + comprador + montos completos)" };
+    const firstItem = o.order_items?.[0];
+    const checks: SubCheck[] = [
+      { label: "ID de orden", ok: !!o.id },
+      { label: "Estado de orden", ok: !!o.status, value: o.status || "faltante" },
+      { label: "Monto total", ok: o.total_amount != null, value: o.total_amount != null ? `$${o.total_amount}` : "faltante" },
+      { label: "Items del pedido", ok: Array.isArray(o.order_items) && o.order_items.length > 0, value: `${o.order_items?.length || 0}` },
+      { label: "Título de producto", ok: !!firstItem?.item?.title },
+      { label: "Precio unitario", ok: firstItem?.unit_price != null },
+      { label: "SKU del producto", ok: !!(firstItem?.item?.seller_sku || firstItem?.item?.id) },
+      { label: "Datos del comprador", ok: !!(o.buyer || o.buyer_id) },
+      { label: "pack_id (si es carrito)", ok: true, value: o.pack_id ? String(o.pack_id) : "sin pack (venta individual)" },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return {
+      area: "Ventas",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length}/${checks.length} fallaron`,
+      subChecks: checks,
+    };
   }
 
-  // Test PROFUNDO de listings
   async function testMLListings(): Promise<AreaResult> {
     const list = await mlFetch(`/users/${userId}/items/search?limit=1&status=active`);
     if (list.status === 401 || list.status === 403) {
-      return { ok: false, detail: `Publicaciones: sin permiso (${list.status})`, hint: "Re-autorizar MELI con scope 'read'" };
+      return { area: "Publicaciones", ok: false, detail: `sin permiso (${list.status})`, hint: "Re-autorizar MELI con scope 'read'" };
     }
-    if (list.error) return { ok: false, detail: `Publicaciones: ${list.error}` };
+    if (list.error) return { area: "Publicaciones", ok: false, detail: list.error };
     const ids = list.data?.results || [];
     if (!Array.isArray(ids) || ids.length === 0) {
-      return { ok: true, detail: "Publicaciones: OK (sin publicaciones activas)" };
+      return { area: "Publicaciones", ok: true, detail: "sin publicaciones activas" };
     }
-    // Traer detalle de 1 publicación
     const det = await mlFetch(`/items/${ids[0]}`);
-    if (det.error) return { ok: false, detail: `Publicaciones: detalle fallo (${det.error})` };
+    if (det.error) return { area: "Publicaciones", ok: false, detail: `detalle falló (${det.error})` };
     const item = det.data;
-    const missing: string[] = [];
-    if (!item?.title) missing.push("título");
-    if (item?.price == null) missing.push("precio");
-    if (!item?.status) missing.push("estado");
-    if (item?.available_quantity == null) missing.push("stock disponible");
-    if (!item?.thumbnail && !item?.pictures?.length) missing.push("imagen");
-    if (!item?.permalink) missing.push("link");
-    if (missing.length > 0) {
-      return { ok: false, detail: `Publicaciones: estructura incompleta, faltan: ${missing.join(", ")}` };
-    }
-    return { ok: true, detail: "Publicaciones: OK (título + precio + stock + imagen)" };
+    const checks: SubCheck[] = [
+      { label: "Título", ok: !!item?.title, value: item?.title || "faltante" },
+      { label: "Precio", ok: item?.price != null, value: item?.price != null ? `$${item.price}` : "faltante" },
+      { label: "Estado", ok: !!item?.status, value: item?.status || "faltante" },
+      { label: "Stock disponible", ok: item?.available_quantity != null, value: String(item?.available_quantity ?? "faltante") },
+      { label: "Cantidad vendida", ok: item?.sold_quantity != null, value: String(item?.sold_quantity ?? "faltante") },
+      { label: "Imagen (thumbnail)", ok: !!item?.thumbnail || (item?.pictures?.length > 0) },
+      { label: "Link (permalink)", ok: !!item?.permalink },
+      { label: "Condición (nuevo/usado)", ok: !!item?.condition, value: item?.condition || "faltante" },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return {
+      area: "Publicaciones",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length}/${checks.length} fallaron`,
+      subChecks: checks,
+    };
   }
 
-  // Test PROFUNDO de preguntas
   async function testMLQuestions(): Promise<AreaResult> {
     const r = await mlFetch(`/my/received_questions/search?limit=1`);
     if (r.status === 401 || r.status === 403) {
-      return { ok: false, detail: `Preguntas: sin permiso (${r.status})`, hint: "Re-autorizar MELI (scope 'read' cubre preguntas)" };
+      return { area: "Preguntas", ok: false, detail: `sin permiso (${r.status})`, hint: "Re-autorizar MELI (scope 'read')" };
     }
-    if (r.error) return { ok: false, detail: `Preguntas: ${r.error}` };
+    if (r.error) return { area: "Preguntas", ok: false, detail: r.error };
     const qs = r.data?.questions;
     if (!Array.isArray(qs) || qs.length === 0) {
-      return { ok: true, detail: "Preguntas: OK (sin preguntas recibidas)" };
+      return { area: "Preguntas", ok: true, detail: "sin preguntas recibidas" };
     }
     const q = qs[0];
-    const missing: string[] = [];
-    if (!q.id) missing.push("ID de pregunta");
-    if (!q.text) missing.push("texto");
-    if (!q.status) missing.push("estado");
-    if (!q.item_id) missing.push("producto asociado");
-    if (missing.length > 0) {
-      return { ok: false, detail: `Preguntas: estructura incompleta, faltan: ${missing.join(", ")}` };
-    }
-    return { ok: true, detail: "Preguntas: OK (con texto + estado + producto)" };
+    const checks: SubCheck[] = [
+      { label: "ID de pregunta", ok: !!q.id },
+      { label: "Texto de la pregunta", ok: !!q.text },
+      { label: "Estado", ok: !!q.status, value: q.status || "faltante" },
+      { label: "Producto asociado", ok: !!q.item_id },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return {
+      area: "Preguntas",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length}/${checks.length} fallaron`,
+      subChecks: checks,
+    };
   }
 
-  // Test PROFUNDO de reputación
   async function testMLReputation(): Promise<AreaResult> {
     const r = await mlFetch(`/users/${userId}`);
     if (r.status === 401 || r.status === 403) {
-      return { ok: false, detail: `Reputación: sin permiso (${r.status})` };
+      return { area: "Reputación", ok: false, detail: `sin permiso (${r.status})` };
     }
-    if (r.error) return { ok: false, detail: `Reputación: ${r.error}` };
+    if (r.error) return { area: "Reputación", ok: false, detail: r.error };
     const rep = r.data?.seller_reputation;
-    if (!rep) return { ok: true, detail: "Reputación: usuario sin perfil de vendedor todavía" };
-    const missing: string[] = [];
-    if (!rep.level_id && !rep.power_seller_status) missing.push("nivel de reputación");
-    if (!rep.transactions) missing.push("total de transacciones");
-    if (missing.length > 0) {
-      return { ok: false, detail: `Reputación: estructura incompleta, faltan: ${missing.join(", ")}` };
-    }
-    return { ok: true, detail: `Reputación: OK (nivel ${rep.level_id || rep.power_seller_status})` };
+    if (!rep) return { area: "Reputación", ok: true, detail: "usuario sin perfil de vendedor" };
+    const checks: SubCheck[] = [
+      { label: "Nivel de reputación", ok: !!(rep.level_id || rep.power_seller_status), value: rep.level_id || rep.power_seller_status || "faltante" },
+      { label: "Transacciones totales", ok: !!rep.transactions, value: rep.transactions?.total != null ? String(rep.transactions.total) : "faltante" },
+      { label: "Completadas", ok: rep.transactions?.completed != null, value: String(rep.transactions?.completed ?? "n/a") },
+      { label: "Canceladas", ok: rep.transactions?.canceled != null, value: String(rep.transactions?.canceled ?? "n/a") },
+      { label: "Power seller", ok: true, value: rep.power_seller_status || "no aplicable" },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return {
+      area: "Reputación",
+      ok: failed.length === 0,
+      detail: failed.length === 0 ? `${checks.length} checks OK` : `${failed.length}/${checks.length} fallaron`,
+      subChecks: checks,
+    };
   }
 
   const [ordersArea, listingsArea, questionsArea, reputationArea] = await Promise.all([
@@ -502,30 +590,24 @@ export async function testMercadoLibre(creds: any): Promise<TestResult> {
     testMLReputation(),
   ]);
 
-  const areas = {
-    orders: ordersArea,
-    listings: listingsArea,
-    questions: questionsArea,
-    reputation: reputationArea,
-  };
-
-  const failing = Object.entries(areas).filter(([, r]) => !r.ok);
-  const passing = Object.entries(areas).filter(([, r]) => r.ok);
+  const areasList: AreaCheck[] = [ordersArea, listingsArea, questionsArea, reputationArea];
+  const failing = areasList.filter((r) => !r.ok);
+  const passing = areasList.filter((r) => r.ok);
 
   if (failing.length === 0) {
     return {
       ok: true,
-      detail: `✅ Conectado como "${nickname}" (ID ${userId}) · 4 áreas OK (ventas, publicaciones, preguntas, reputación)`,
+      detail: `✅ Conectado como "${nickname}" (ID ${userId}) · 4 áreas OK con todos los campos validados`,
+      areas: areasList,
     };
   }
 
-  // Alguna falla
-  const failedNames = failing.map(([, r]) => r.detail).join(" · ");
-  const firstHint = failing.find(([, r]) => r.hint)?.[1]?.hint;
+  const firstHint = failing.find((r) => r.hint)?.hint;
   return {
     ok: false,
-    detail: `⚠️ Conectado como "${nickname}" pero ${passing.length}/4 áreas OK. Faltan: ${failedNames}`,
+    detail: `⚠️ Conectado como "${nickname}" pero ${passing.length}/4 áreas OK`,
     hint: firstHint || "El cliente debe re-autorizar MercadoLibre con todos los permisos desde el wizard.",
+    areas: areasList,
   };
 }
 

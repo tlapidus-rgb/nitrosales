@@ -108,6 +108,7 @@ export async function POST(
         ok: r.ok,
         detail: r.detail,
         hint: r.hint,
+        areas: (r as any).areas || undefined,
         lastSyncError: conn.lastSyncError || null,
       });
     }
