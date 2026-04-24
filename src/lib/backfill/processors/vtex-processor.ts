@@ -1,16 +1,19 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
-// VTEX backfill processor
+// VTEX backfill processor (v2 — con enrichment)
 // ══════════════════════════════════════════════════════════════
 // Procesa un chunk de órdenes historicas de VTEX dentro del rango
 // {fromDate, toDate} del job, paginando con cursor {page}.
 //
-// Estrategia pragmatica: upsert MINIMO por order. Solo llenamos los
-// campos criticos para dashboards (total, fecha, status, currency).
-// Los items/customer se enriquecen despues con el sync incremental
-// normal de VTEX cuando el cliente ya usa la plataforma.
+// S56: ahora ENRIQUECE cada order en paralelo con el detail completo:
+//   - Customer (shipping address, email, nombre)
+//   - Product (SKU-first, con brand/category/imagen/precio)
+//   - OrderItem (1 por item del pedido)
+//   - Campos extra del order (shippingCost, discountValue, promos, cupon)
 //
-// Ritmo: 20 paginas × 100 ordenes = ~2000 ordenes/chunk.
+// Eficiencia: 5 paginas × 100 ordenes = 500 ordenes/chunk. Cada orden
+// hace 1 GET detail en paralelo (concurrency 8) con retry + timeout.
+// Rate limit VTEX: ~30 req/s. Nosotros: 8 × ~3 req/s por slot = ~24 req/s.
 //
 // LIMITE CRITICO DE VTEX: la API /api/oms/pvt/orders permite MAXIMO 30
 // paginas por filtro de fecha (3000 ordenes max por consulta). Si pedis
@@ -32,12 +35,15 @@
 
 import { prisma } from "@/lib/db/client";
 import { decryptCredentials } from "@/lib/crypto";
+import { fetchVtexOrderDetail, enrichOrderFromVtex } from "@/lib/connectors/vtex-enrichment";
+import { withConcurrency } from "@/lib/sync/concurrency";
 import type { ChunkResult } from "../types";
 
-const PAGES_PER_CHUNK = 20;
+const PAGES_PER_CHUNK = 5;       // 5 × 100 = 500 ordenes/chunk (con enrichment lleva ~40s)
 const PAGE_SIZE = 100;
-const WINDOW_DAYS = 7; // ventana de 7 dias por iteracion (max 30 pag × 100 = 3000 ordenes/ventana)
-const VTEX_PAGE_LIMIT = 30; // limite hardcoded de VTEX por consulta
+const WINDOW_DAYS = 7;           // ventana de 7 dias por iteracion
+const VTEX_PAGE_LIMIT = 30;      // limite hardcoded de VTEX por consulta
+const ENRICH_CONCURRENCY = 8;    // fetchs paralelos de detail (VTEX rate limit ~30 req/s)
 
 interface VtexCreds {
   accountName: string;
@@ -240,14 +246,36 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
       continue; // no incrementar pagesRunInChunk porque no procesamos data esta iter
     }
 
-    // Procesar las ordenes de esta pagina
+    // 1. Upsertar todas las ordenes de la pagina (crea/actualiza row basica)
+    const upsertedOrders: Array<{ dbOrderId: string; externalId: string }> = [];
     for (const order of list) {
       try {
-        await upsertVtexOrder(orgId, order);
+        const dbOrderId = await upsertVtexOrder(orgId, order);
+        if (dbOrderId) {
+          upsertedOrders.push({ dbOrderId, externalId: String(order.orderId) });
+        }
         totalProcessed++;
       } catch (err: any) {
-        console.warn(`[vtex-backfill] skip ${order.orderId}: ${err.message}`);
+        console.warn(`[vtex-backfill] skip upsert ${order.orderId}: ${err.message}`);
       }
+    }
+
+    // 2. Enriquecer cada orden en paralelo (GET detail → customer + items + products)
+    //    Concurrency 8 para no saturar VTEX. Fallas silenciosas — el order basico ya esta.
+    if (upsertedOrders.length > 0) {
+      await withConcurrency(
+        upsertedOrders.map((o) => async () => {
+          try {
+            const vData = await fetchVtexOrderDetail(creds, o.externalId);
+            if (vData) {
+              await enrichOrderFromVtex(o.dbOrderId, orgId, vData);
+            }
+          } catch (err: any) {
+            console.warn(`[vtex-backfill] enrich failed ${o.externalId}: ${err.message}`);
+          }
+        }),
+        ENRICH_CONCURRENCY,
+      );
     }
 
     pagesRunInChunk++;
@@ -289,9 +317,9 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
   };
 }
 
-async function upsertVtexOrder(orgId: string, vtexOrder: any) {
+async function upsertVtexOrder(orgId: string, vtexOrder: any): Promise<string | null> {
   const externalId = vtexOrder.orderId;
-  if (!externalId) return;
+  if (!externalId) return null;
 
   const orderDate = vtexOrder.creationDate ? new Date(vtexOrder.creationDate) : new Date();
   const totalValue = Number(vtexOrder.totalValue || 0) / 100;
@@ -314,7 +342,7 @@ async function upsertVtexOrder(orgId: string, vtexOrder: any) {
   };
   const status = (statusMap[String(vtexOrder.status || "").toLowerCase()] || "PENDING") as any;
 
-  await prisma.order.upsert({
+  const order = await prisma.order.upsert({
     where: {
       organizationId_externalId: {
         organizationId: orgId,
@@ -338,5 +366,7 @@ async function upsertVtexOrder(orgId: string, vtexOrder: any) {
       source: "VTEX",
       orderDate,
     },
+    select: { id: true },
   });
+  return order.id;
 }
