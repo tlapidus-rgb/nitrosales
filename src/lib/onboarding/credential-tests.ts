@@ -50,9 +50,14 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
   const base = `https://${accountName}.vtexcommercestable.com.br`;
 
   // Helper de fetch con timeout + interpretacion de status
-  async function vtexFetch(path: string): Promise<{ status: number; data: any | null; error: string | null }> {
+  async function vtexFetch(path: string, method: string = "GET", body?: any): Promise<{ status: number; data: any | null; error: string | null }> {
     try {
-      const r = await fetch(`${base}${path}`, { headers, signal: AbortSignal.timeout(10000) });
+      const init: RequestInit = { method, headers, signal: AbortSignal.timeout(10000) };
+      if (body) {
+        init.body = JSON.stringify(body);
+        (init.headers as any)["Content-Type"] = "application/json";
+      }
+      const r = await fetch(`${base}${path}`, init);
       if (r.status === 204) return { status: 204, data: null, error: null };
       let data: any = null;
       try { data = await r.json(); } catch { data = null; }
@@ -186,15 +191,21 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
       return { area: "Precios", ok: true, detail: "sin SKUs disponibles para validar" };
     }
 
-    // VTEX tiene 2 fuentes de precio:
-    //  1. Catalog Search → commertialOffer.Price = PRECIO REAL al cliente
-    //     (con políticas comerciales aplicadas). ESTE es el precio correcto
-    //     para mostrar y para calcular revenue.
-    //  2. Pricing API → basePrice/costPrice = valores de tabla base.
-    //     Sirven para costo, NO para precio al cliente si hay políticas.
-    const [priceResults, catalogResults] = await Promise.all([
+    // VTEX 3 fuentes de precio:
+    //  1. Checkout Simulation → items[0].price/listPrice = PRECIO REAL que ve
+    //     el cliente en la tienda (política comercial + promos aplicadas).
+    //     ESTE es el más confiable para "precio al cliente".
+    //  2. Catalog Search → sellers[0].commertialOffer → fallback (a veces no
+    //     trae offer si el producto está en otro sales channel).
+    //  3. Pricing API → costPrice = costo interno del producto.
+    const [priceResults, catalogResults, simulationResults] = await Promise.all([
       Promise.all(skusToCheck.map((sku) => vtexFetch(`/api/pricing/prices/${sku}?_forceGet=true`))),
-      Promise.all(skusToCheck.map((sku) => vtexFetch(`/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(sku)}`))),
+      Promise.all(skusToCheck.map((sku) => vtexFetch(`/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(sku)}&sc=1`))),
+      Promise.all(skusToCheck.map((sku) => vtexFetch(
+        `/api/checkout/pub/orderForms/simulation?sc=1`,
+        "POST",
+        { items: [{ id: String(sku), quantity: 1, seller: "1" }], country: "ARG" },
+      ))),
     ]);
 
     const forbidden = priceResults.filter((r) => r.status === 401 || r.status === 403).length;
@@ -203,25 +214,42 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
     }
 
     const N = skusToCheck.length;
-    const offers: Array<any | null> = skusToCheck.map((sku, i) => {
-      const catRes = catalogResults[i];
+
+    // Extraer precio real del simulation (fuente primaria)
+    const simOffers: Array<{ price: number | null; listPrice: number | null; simError: string | null }> = simulationResults.map((sr) => {
+      if (sr.error || !sr.data) return { price: null, listPrice: null, simError: sr.error || "sin data" };
+      const it = sr.data?.items?.[0];
+      if (!it) return { price: null, listPrice: null, simError: "simulation sin items" };
+      return {
+        price: typeof it.price === "number" ? it.price / 100 : null,
+        listPrice: typeof it.listPrice === "number" ? it.listPrice / 100 : null,
+        simError: null,
+      };
+    });
+
+    // Fallback: catalog search por si simulation falla
+    const catalogOffers: Array<any | null> = catalogResults.map((catRes, i) => {
       if (!catRes.data || !Array.isArray(catRes.data) || catRes.data.length === 0) return null;
       const prod = catRes.data[0];
+      const sku = skusToCheck[i];
       const item = (prod.items || []).find((it: any) => String(it.itemId) === String(sku)) || prod.items?.[0];
       return item?.sellers?.[0]?.commertialOffer || null;
     });
 
-    // Contadores según FUENTE correcta
-    let countWithRealPrice = 0;      // Catalog.commertialOffer.Price > 0 (precio al cliente)
-    let countWithListPrice = 0;      // Catalog.commertialOffer.ListPrice tachado
-    let countWithCost = 0;           // Pricing.costPrice
-    let countReachablePricing = 0;   // Pricing API responde
+    let countWithRealPrice = 0;
+    let countWithListPrice = 0;
+    let countWithCost = 0;
+    let countReachablePricing = 0;
 
     for (let i = 0; i < N; i++) {
-      const co = offers[i];
+      const sim = simOffers[i];
+      const co = catalogOffers[i];
       const pr = priceResults[i];
-      if (co?.Price != null && co.Price > 0) countWithRealPrice++;
-      if (co?.ListPrice != null && co.ListPrice > 0 && co.ListPrice > (co.Price || 0)) countWithListPrice++;
+      // Precio: prefiere simulation, fallback catalog
+      const price = sim.price != null ? sim.price : (co?.Price != null ? Number(co.Price) : null);
+      const listPrice = sim.listPrice != null ? sim.listPrice : (co?.ListPrice != null ? Number(co.ListPrice) : null);
+      if (price != null && price > 0) countWithRealPrice++;
+      if (listPrice != null && listPrice > 0 && listPrice > (price || 0)) countWithListPrice++;
       if (pr.status === 404 || pr.status === 200) countReachablePricing++;
       if (pr.data?.costPrice != null) countWithCost++;
     }
@@ -251,24 +279,35 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
       },
     ];
 
-    // Desglose por SKU mostrando AMBAS fuentes para diagnostico
+    // Desglose por SKU mostrando TODAS las fuentes para diagnostico
     for (let i = 0; i < skusToCheck.length; i++) {
       const sku = skusToCheck[i];
-      const co = offers[i];
+      const sim = simOffers[i];
+      const co = catalogOffers[i];
       const pr = priceResults[i];
       const parts: string[] = [];
-      if (co) {
-        parts.push(`precio=${co.Price ?? "null"}`);
-        parts.push(`tachado=${co.ListPrice ?? "null"}`);
+      // Simulation (fuente primaria)
+      if (sim.price != null) {
+        parts.push(`sim.precio=${sim.price}`);
+        if (sim.listPrice != null) parts.push(`sim.tachado=${sim.listPrice}`);
       } else {
-        parts.push(`sin offer en catalog`);
+        parts.push(`sim=falló(${sim.simError || "?"})`);
       }
-      if (pr.status === 404) parts.push(`pricing=404`);
-      else if (pr.data) parts.push(`costo=${pr.data.costPrice ?? "null"}`);
-      else parts.push(`pricing=error`);
+      // Catalog (fallback)
+      if (co) {
+        parts.push(`cat.precio=${co.Price ?? "null"}`);
+        parts.push(`cat.tachado=${co.ListPrice ?? "null"}`);
+      } else {
+        parts.push(`cat=sin offer`);
+      }
+      // Pricing (costo)
+      if (pr.status === 404) parts.push(`cost=404`);
+      else if (pr.data) parts.push(`cost=${pr.data.costPrice ?? "null"}`);
+      else parts.push(`cost=error`);
+      const hasAnyPrice = sim.price != null || co?.Price != null;
       checks.push({
         label: `SKU ${sku}`,
-        ok: !!co,
+        ok: hasAnyPrice,
         value: parts.join(" · "),
         optional: true,
       });
