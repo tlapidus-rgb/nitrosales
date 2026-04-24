@@ -30,108 +30,184 @@ export async function testVtex(creds: any): Promise<TestResult> {
   };
   const base = `https://${accountName}.vtexcommercestable.com.br`;
 
-  // Helper: test 1 endpoint con interpretacion de status
-  async function probe(path: string, friendlyName: string, permHint: string): Promise<{ ok: boolean; detail: string; hint?: string }> {
+  // Helper de fetch con timeout + interpretacion de status
+  async function vtexFetch(path: string): Promise<{ status: number; data: any | null; error: string | null }> {
     try {
       const r = await fetch(`${base}${path}`, { headers, signal: AbortSignal.timeout(10000) });
-      if (r.status === 401 || r.status === 403) {
-        return { ok: false, detail: `${friendlyName}: sin permiso (${r.status})`, hint: permHint };
-      }
-      if (r.status === 404) {
-        // 404 en endpoints como pricing/{id} es OK — el SKU id 1 puede no existir, pero la API respondió.
-        return { ok: true, detail: `${friendlyName}: OK` };
-      }
-      if (!r.ok && r.status !== 204) {
-        return { ok: false, detail: `${friendlyName}: error ${r.status}` };
-      }
-      return { ok: true, detail: `${friendlyName}: OK` };
+      if (r.status === 204) return { status: 204, data: null, error: null };
+      let data: any = null;
+      try { data = await r.json(); } catch { data = null; }
+      return { status: r.status, data, error: r.ok ? null : `HTTP ${r.status}` };
     } catch (err: any) {
-      if (err?.name === "TimeoutError" || err?.name === "AbortError") {
-        return { ok: false, detail: `${friendlyName}: timeout` };
-      }
-      return { ok: false, detail: `${friendlyName}: ${err?.message || "error de red"}` };
+      const msg = err?.name === "TimeoutError" || err?.name === "AbortError" ? "timeout" : (err?.message || "error de red");
+      return { status: 0, data: null, error: msg };
     }
+  }
+
+  // Test PROFUNDO: por cada area, trae muestra real y valida que los campos
+  // que el backfill va a usar esten presentes en la respuesta.
+  type AreaResult = { ok: boolean; detail: string; hint?: string; missingFields?: string[] };
+
+  async function testOrders(): Promise<AreaResult> {
+    // Traer 1 orden reciente
+    const listRes = await vtexFetch("/api/oms/pvt/orders?per_page=1&orderBy=creationDate,desc");
+    if (listRes.status === 401 || listRes.status === 403) {
+      return { ok: false, detail: `Ventas: sin permiso (${listRes.status})`, hint: "App Key necesita permiso OMS - Full Access" };
+    }
+    if (listRes.status === 404) {
+      return { ok: false, detail: `Cuenta "${accountName}" no existe en VTEX`, hint: "Revisá el accountName." };
+    }
+    if (listRes.error) return { ok: false, detail: `Ventas: ${listRes.error}` };
+    const list = listRes.data?.list;
+    if (!Array.isArray(list) || list.length === 0) {
+      return { ok: true, detail: `Ventas: OK (cuenta sin ventas todavía, no se pudo validar detalle)` };
+    }
+    const firstOrderId = list[0]?.orderId;
+    if (!firstOrderId) return { ok: false, detail: "Ventas: lista sin orderId en respuesta" };
+
+    // Traer detalle completo + validar campos criticos
+    const detRes = await vtexFetch(`/api/oms/pvt/orders/${firstOrderId}`);
+    if (detRes.error || !detRes.data) {
+      return { ok: false, detail: `Ventas: no pude traer detalle (${detRes.error})` };
+    }
+    const o = detRes.data;
+    const missing: string[] = [];
+    if (!o.clientProfileData?.firstName && !o.clientProfileData?.email) missing.push("datos del cliente");
+    if (!Array.isArray(o.items) || o.items.length === 0) missing.push("items del pedido");
+    else {
+      const item = o.items[0];
+      if (!item.name) missing.push("nombre de producto");
+      if (!item.sellingPrice && !item.price) missing.push("precio del producto");
+      if (!item.id && !item.productId) missing.push("ID de producto");
+    }
+    if (!o.shippingData?.address?.postalCode) missing.push("dirección de envío");
+    if (!Array.isArray(o.totals)) missing.push("totales (envío/descuento)");
+    if (missing.length > 0) {
+      return { ok: false, detail: `Ventas: detalle incompleto, faltan: ${missing.join(", ")}`, missingFields: missing };
+    }
+    return { ok: true, detail: `Ventas: OK (cliente + items + totales completos)` };
+  }
+
+  async function testCatalog(): Promise<AreaResult> {
+    // Traer 1 SKU del catalogo
+    const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=0");
+    if (search.status === 401 || search.status === 403) {
+      return { ok: false, detail: `Catálogo: sin permiso (${search.status})`, hint: "App Key necesita permiso Catalog - Read" };
+    }
+    if (!Array.isArray(search.data) || search.data.length === 0) {
+      return { ok: true, detail: "Catálogo: OK (sin productos todavía)" };
+    }
+    const prod = search.data[0];
+    const missing: string[] = [];
+    if (!prod.productName && !prod.productTitle) missing.push("nombre del producto");
+    if (!prod.brand) missing.push("marca");
+    if (!Array.isArray(prod.items) || prod.items.length === 0) missing.push("SKU variantes");
+    else {
+      const sku = prod.items[0];
+      if (!sku.images || sku.images.length === 0) missing.push("imagen");
+      if (!sku.itemId) missing.push("SKU id");
+    }
+    if (missing.length > 0) {
+      return { ok: false, detail: `Catálogo: producto sin ${missing.join(", ")}`, missingFields: missing };
+    }
+    return { ok: true, detail: "Catálogo: OK (producto con nombre + marca + imagen + SKU)" };
+  }
+
+  async function testPricing(): Promise<AreaResult> {
+    // Traer precio de 1 SKU del catalogo
+    const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=0");
+    const skuId = search.data?.[0]?.items?.[0]?.itemId;
+    if (!skuId) return { ok: true, detail: "Precios: OK (sin SKU para validar)" };
+    const priceRes = await vtexFetch(`/api/pricing/prices/${skuId}?_forceGet=true`);
+    if (priceRes.status === 401 || priceRes.status === 403) {
+      return { ok: false, detail: `Precios: sin permiso (${priceRes.status})`, hint: "App Key necesita permiso Pricing - Read" };
+    }
+    if (priceRes.status === 404) {
+      return { ok: true, detail: "Precios: OK (SKU sin precio en Pricing, VTEX usa precio del Catalog como fallback)" };
+    }
+    if (priceRes.error || !priceRes.data) return { ok: false, detail: `Precios: ${priceRes.error || "sin data"}` };
+    const p = priceRes.data;
+    const missing: string[] = [];
+    if (p.basePrice == null && p.listPrice == null) missing.push("precio base");
+    if (missing.length > 0) return { ok: false, detail: `Precios: falta ${missing.join(", ")}`, missingFields: missing };
+    const hasCost = p.costPrice != null && p.costPrice > 0;
+    return { ok: true, detail: hasCost ? "Precios: OK (con costo)" : "Precios: OK (sin costo cargado en VTEX)" };
+  }
+
+  async function testInventory(): Promise<AreaResult> {
+    const whRes = await vtexFetch("/api/logistics/pvt/inventory/warehouses");
+    if (whRes.status === 401 || whRes.status === 403) {
+      return { ok: false, detail: `Stock: sin permiso (${whRes.status})`, hint: "App Key necesita permiso Logistics - Read" };
+    }
+    if (whRes.error) return { ok: false, detail: `Stock: ${whRes.error}` };
+    const list = Array.isArray(whRes.data) ? whRes.data : (whRes.data?.items || []);
+    if (list.length === 0) return { ok: true, detail: "Stock: OK (sin depósitos)" };
+    return { ok: true, detail: `Stock: OK (${list.length} depósitos encontrados)` };
+  }
+
+  async function testShipping(): Promise<AreaResult> {
+    const r = await vtexFetch("/api/logistics/pvt/shipping-policies");
+    if (r.status === 401 || r.status === 403) {
+      return { ok: false, detail: `Tarifas: sin permiso (${r.status})`, hint: "App Key necesita permiso Logistics - Read" };
+    }
+    if (r.error) return { ok: false, detail: `Tarifas: ${r.error}` };
+    const list = Array.isArray(r.data) ? r.data : (r.data?.items || []);
+    if (list.length === 0) return { ok: true, detail: "Tarifas: OK (sin políticas de envío configuradas)" };
+    return { ok: true, detail: `Tarifas: OK (${list.length} políticas configuradas)` };
+  }
+
+  async function testBrands(): Promise<AreaResult> {
+    const r = await vtexFetch("/api/catalog_system/pvt/brand/list");
+    if (r.status === 401 || r.status === 403) {
+      return { ok: false, detail: `Marcas: sin permiso (${r.status})`, hint: "App Key necesita permiso Catalog - Read" };
+    }
+    if (r.error) return { ok: false, detail: `Marcas: ${r.error}` };
+    const list = Array.isArray(r.data) ? r.data : [];
+    if (list.length === 0) return { ok: true, detail: "Marcas: OK (sin marcas cargadas)" };
+    return { ok: true, detail: `Marcas: OK (${list.length} marcas)` };
   }
 
   // Probar las 6 áreas en paralelo
   const [ordersArea, catalogArea, pricingArea, logisticsInvArea, logisticsShipArea, brandsArea] = await Promise.all([
-    probe(
-      "/api/oms/pvt/orders?per_page=1",
-      "Ventas (OMS)",
-      "Tu App Key necesita permiso: OMS - Full access",
-    ),
-    probe(
-      "/api/catalog_system/pvt/products/GetBrandList",
-      "Catálogo de productos",
-      "Tu App Key necesita permiso: Catalog - Read (o Full)",
-    ),
-    probe(
-      "/api/pricing/prices/1?_forceGet=true",
-      "Precios",
-      "Tu App Key necesita permiso: Pricing - Read",
-    ),
-    probe(
-      "/api/logistics/pvt/inventory/warehouses",
-      "Stock / depósitos",
-      "Tu App Key necesita permiso: Logistics - Read",
-    ),
-    probe(
-      "/api/logistics/pvt/shipping-policies",
-      "Tarifas de envío",
-      "Tu App Key necesita permiso: Logistics - Read (shipping-policies)",
-    ),
-    probe(
-      "/api/catalog_system/pvt/brand",
-      "Marcas",
-      "Tu App Key necesita permiso: Catalog - Read",
-    ),
+    testOrders(),
+    testCatalog(),
+    testPricing(),
+    testInventory(),
+    testShipping(),
+    testBrands(),
   ]);
 
   const areas = {
-    orders: ordersArea,
-    catalog: catalogArea,
-    pricing: pricingArea,
-    inventory: logisticsInvArea,
-    shipping: logisticsShipArea,
-    brands: brandsArea,
+    ventas: ordersArea,
+    catálogo: catalogArea,
+    precios: pricingArea,
+    stock: logisticsInvArea,
+    tarifas: logisticsShipArea,
+    marcas: brandsArea,
   };
 
-  // Ordersearea falla → problema crítico (sin ventas no hay nada). Cuenta no existe probablemente.
-  if (!ordersArea.ok && ordersArea.detail.includes("404")) {
-    return {
-      ok: false,
-      detail: `Cuenta "${accountName}" no existe en VTEX`,
-      hint: "Revisá el accountName (sin https:// ni .myvtex.com).",
-    };
+  if (!ordersArea.ok && ordersArea.detail.includes(`no existe`)) {
+    return { ok: false, detail: ordersArea.detail, hint: ordersArea.hint };
   }
 
   const failing = Object.entries(areas).filter(([, r]) => !r.ok);
   const passing = Object.entries(areas).filter(([, r]) => r.ok);
 
   if (failing.length === 0) {
-    // Todas OK: sacar total de ordenes del resultado de orders para dar info útil
-    return {
-      ok: true,
-      detail: `✅ 6 áreas OK (ventas, catálogo, precios, stock, tarifas, marcas)`,
-    };
+    const details = Object.values(areas).map((r) => r.detail).join(" · ");
+    return { ok: true, detail: `✅ 6 áreas profundas OK. ${details}` };
   }
 
   if (!ordersArea.ok) {
-    // Orders falla: bloqueante.
-    return {
-      ok: false,
-      detail: `❌ Credenciales inválidas para ventas: ${ordersArea.detail}`,
-      hint: ordersArea.hint || "Revisar App Key / App Token.",
-    };
+    return { ok: false, detail: `❌ Ventas: ${ordersArea.detail}`, hint: ordersArea.hint };
   }
 
-  // Orders OK pero otras áreas fallan → parcial
-  const failedNames = failing.map(([, r]) => r.detail).join(" · ");
+  const failedDetail = failing.map(([, r]) => r.detail).join(" · ");
   const firstHint = failing.find(([, r]) => r.hint)?.[1]?.hint;
   return {
     ok: false,
-    detail: `⚠️ Parcial: ${passing.length}/6 áreas OK. Faltan: ${failedNames}`,
-    hint: firstHint || "Revisar permisos de la App Key en VTEX Admin → Configuración de la cuenta → Roles.",
+    detail: `⚠️ Parcial: ${passing.length}/6 áreas OK. Detalle: ${failedDetail}`,
+    hint: firstHint || "Revisar permisos o completar data en VTEX Admin.",
   };
 }
 
@@ -303,50 +379,127 @@ export async function testMercadoLibre(creds: any): Promise<TestResult> {
     return { ok: false, detail: "No se pudo obtener userId", hint: "Re-autorizar MercadoLibre." };
   }
 
-  // Helper para probar endpoints con interpretacion de status
-  async function probe(path: string, friendlyName: string, permHint: string): Promise<{ ok: boolean; detail: string; hint?: string }> {
+  // Helper MELI fetch
+  async function mlFetch(path: string): Promise<{ status: number; data: any | null; error: string | null }> {
     try {
       const r = await fetch(`https://api.mercadolibre.com${path}`, {
         headers: { Authorization: `Bearer ${tokenToUse}` },
         signal: AbortSignal.timeout(10000),
       });
-      if (r.status === 401 || r.status === 403) {
-        return { ok: false, detail: `${friendlyName}: sin permiso (${r.status})`, hint: permHint };
-      }
-      if (!r.ok) {
-        return { ok: false, detail: `${friendlyName}: error ${r.status}` };
-      }
-      return { ok: true, detail: `${friendlyName}: OK` };
+      let data: any = null;
+      try { data = await r.json(); } catch { data = null; }
+      return { status: r.status, data, error: r.ok ? null : `HTTP ${r.status}` };
     } catch (err: any) {
-      if (err?.name === "TimeoutError" || err?.name === "AbortError") {
-        return { ok: false, detail: `${friendlyName}: timeout` };
-      }
-      return { ok: false, detail: `${friendlyName}: ${err?.message || "error de red"}` };
+      const msg = err?.name === "TimeoutError" || err?.name === "AbortError" ? "timeout" : (err?.message || "error de red");
+      return { status: 0, data: null, error: msg };
     }
   }
 
-  // Probar 4 áreas de MELI en paralelo
+  type AreaResult = { ok: boolean; detail: string; hint?: string };
+
+  // Test PROFUNDO de ventas: trae 1 orden reciente y valida estructura
+  async function testMLOrders(): Promise<AreaResult> {
+    const list = await mlFetch(`/orders/search?seller=${userId}&limit=1&sort=date_desc`);
+    if (list.status === 401 || list.status === 403) {
+      return { ok: false, detail: `Ventas: sin permiso (${list.status})`, hint: "Re-autorizar MELI con scope 'read'" };
+    }
+    if (list.error) return { ok: false, detail: `Ventas: ${list.error}` };
+    const results = list.data?.results;
+    if (!Array.isArray(results) || results.length === 0) {
+      return { ok: true, detail: "Ventas: OK (cuenta sin ventas todavía)" };
+    }
+    const o = results[0];
+    const missing: string[] = [];
+    if (!o.id) missing.push("orden ID");
+    if (!o.status) missing.push("estado");
+    if (o.total_amount == null) missing.push("monto total");
+    if (!Array.isArray(o.order_items) || o.order_items.length === 0) missing.push("items");
+    else {
+      const it = o.order_items[0];
+      if (!it.item?.id && !it.item?.title) missing.push("detalle de producto");
+      if (it.unit_price == null) missing.push("precio unitario");
+    }
+    if (!o.buyer && !o.buyer_id) missing.push("comprador");
+    if (missing.length > 0) {
+      return { ok: false, detail: `Ventas: estructura incompleta, faltan: ${missing.join(", ")}` };
+    }
+    return { ok: true, detail: "Ventas: OK (items + comprador + montos completos)" };
+  }
+
+  // Test PROFUNDO de listings
+  async function testMLListings(): Promise<AreaResult> {
+    const list = await mlFetch(`/users/${userId}/items/search?limit=1&status=active`);
+    if (list.status === 401 || list.status === 403) {
+      return { ok: false, detail: `Publicaciones: sin permiso (${list.status})`, hint: "Re-autorizar MELI con scope 'read'" };
+    }
+    if (list.error) return { ok: false, detail: `Publicaciones: ${list.error}` };
+    const ids = list.data?.results || [];
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return { ok: true, detail: "Publicaciones: OK (sin publicaciones activas)" };
+    }
+    // Traer detalle de 1 publicación
+    const det = await mlFetch(`/items/${ids[0]}`);
+    if (det.error) return { ok: false, detail: `Publicaciones: detalle fallo (${det.error})` };
+    const item = det.data;
+    const missing: string[] = [];
+    if (!item?.title) missing.push("título");
+    if (item?.price == null) missing.push("precio");
+    if (!item?.status) missing.push("estado");
+    if (item?.available_quantity == null) missing.push("stock disponible");
+    if (!item?.thumbnail && !item?.pictures?.length) missing.push("imagen");
+    if (!item?.permalink) missing.push("link");
+    if (missing.length > 0) {
+      return { ok: false, detail: `Publicaciones: estructura incompleta, faltan: ${missing.join(", ")}` };
+    }
+    return { ok: true, detail: "Publicaciones: OK (título + precio + stock + imagen)" };
+  }
+
+  // Test PROFUNDO de preguntas
+  async function testMLQuestions(): Promise<AreaResult> {
+    const r = await mlFetch(`/my/received_questions/search?limit=1`);
+    if (r.status === 401 || r.status === 403) {
+      return { ok: false, detail: `Preguntas: sin permiso (${r.status})`, hint: "Re-autorizar MELI (scope 'read' cubre preguntas)" };
+    }
+    if (r.error) return { ok: false, detail: `Preguntas: ${r.error}` };
+    const qs = r.data?.questions;
+    if (!Array.isArray(qs) || qs.length === 0) {
+      return { ok: true, detail: "Preguntas: OK (sin preguntas recibidas)" };
+    }
+    const q = qs[0];
+    const missing: string[] = [];
+    if (!q.id) missing.push("ID de pregunta");
+    if (!q.text) missing.push("texto");
+    if (!q.status) missing.push("estado");
+    if (!q.item_id) missing.push("producto asociado");
+    if (missing.length > 0) {
+      return { ok: false, detail: `Preguntas: estructura incompleta, faltan: ${missing.join(", ")}` };
+    }
+    return { ok: true, detail: "Preguntas: OK (con texto + estado + producto)" };
+  }
+
+  // Test PROFUNDO de reputación
+  async function testMLReputation(): Promise<AreaResult> {
+    const r = await mlFetch(`/users/${userId}`);
+    if (r.status === 401 || r.status === 403) {
+      return { ok: false, detail: `Reputación: sin permiso (${r.status})` };
+    }
+    if (r.error) return { ok: false, detail: `Reputación: ${r.error}` };
+    const rep = r.data?.seller_reputation;
+    if (!rep) return { ok: true, detail: "Reputación: usuario sin perfil de vendedor todavía" };
+    const missing: string[] = [];
+    if (!rep.level_id && !rep.power_seller_status) missing.push("nivel de reputación");
+    if (!rep.transactions) missing.push("total de transacciones");
+    if (missing.length > 0) {
+      return { ok: false, detail: `Reputación: estructura incompleta, faltan: ${missing.join(", ")}` };
+    }
+    return { ok: true, detail: `Reputación: OK (nivel ${rep.level_id || rep.power_seller_status})` };
+  }
+
   const [ordersArea, listingsArea, questionsArea, reputationArea] = await Promise.all([
-    probe(
-      `/orders/search?seller=${userId}&limit=1`,
-      "Ventas",
-      "La app de MELI necesita el scope 'read'. Re-autorizar con todos los permisos.",
-    ),
-    probe(
-      `/users/${userId}/items/search?limit=1`,
-      "Publicaciones",
-      "La app de MELI necesita el scope 'read'. Re-autorizar con todos los permisos.",
-    ),
-    probe(
-      `/my/received_questions/search?limit=1`,
-      "Preguntas de compradores",
-      "La app de MELI necesita scope 'read_questions' o permisos de respuesta a preguntas.",
-    ),
-    probe(
-      `/users/${userId}`,
-      "Reputación",
-      "El scope 'read' lo cubre. Re-autorizar si falta.",
-    ),
+    testMLOrders(),
+    testMLListings(),
+    testMLQuestions(),
+    testMLReputation(),
   ]);
 
   const areas = {
