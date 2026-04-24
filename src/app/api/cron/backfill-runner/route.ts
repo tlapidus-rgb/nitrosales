@@ -132,6 +132,17 @@ export async function GET(req: NextRequest) {
       if (result.isComplete) {
         await completeJob(currentJob.id);
 
+        // Si fue VTEX: disparar catalog refresh para tener precios canónicos
+        // (precio real al cliente + precio tachado + costo) en los Products creados.
+        if (currentJob.platform === "VTEX") {
+          const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+          const refreshUrl = `${baseUrl}/api/sync/vtex/catalog-refresh?orgId=${encodeURIComponent(currentJob.organizationId)}&key=nitrosales-secret-key-2024-production`;
+          // Fire-and-forget: no bloquear el runner
+          fetch(refreshUrl, { method: "GET" })
+            .then((r) => console.log(`[backfill-runner] vtex catalog-refresh triggered: HTTP ${r.status}`))
+            .catch((err) => console.error(`[backfill-runner] vtex catalog-refresh failed: ${err.message}`));
+        }
+
         // Si era parte de un onboarding y ya terminaron todos → activar
         if (currentJob.onboardingRequestId) {
           const allDone = await areAllJobsComplete(currentJob.onboardingRequestId);
