@@ -127,15 +127,19 @@ export function VisualTutorial({ platformKey }: { platformKey: BrandKey }) {
 
   const steps = TUTORIAL_STEPS[platformKey] || [];
   const total = steps.length;
-  const current = steps[step];
+  // Clamp step al rango valido. Sin esto: si venias de VTEX (4 pasos) en step=3
+  // y cambias a Meta Pixel (1 paso), el primer render antes del useEffect reset
+  // leeria steps[3] = undefined y crashearia al leer .title.
+  const safeStep = total > 0 ? Math.min(step, total - 1) : 0;
+  const current = steps[safeStep];
 
-  if (total === 0) return null;
+  if (total === 0 || !current) return null;
 
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "#818CF8", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>
-          Tutorial visual · paso {step + 1} de {total}
+          Tutorial visual · paso {safeStep + 1} de {total}
         </div>
         <h3 style={{ fontSize: 17, fontWeight: 700, color: "#fff", margin: 0, letterSpacing: "-0.01em" }}>
           {current.title}
@@ -156,7 +160,7 @@ export function VisualTutorial({ platformKey }: { platformKey: BrandKey }) {
               flex: 1,
               height: 3,
               borderRadius: 2,
-              background: i === step ? BRAND_ORANGE : i < step ? "rgba(255,94,26,0.35)" : "rgba(255,255,255,0.08)",
+              background: i === safeStep ? BRAND_ORANGE : i < safeStep ? "rgba(255,94,26,0.35)" : "rgba(255,255,255,0.08)",
               cursor: "pointer",
               transition: "all 200ms",
             }}
@@ -260,17 +264,17 @@ export function VisualTutorial({ platformKey }: { platformKey: BrandKey }) {
 
       <div style={{ display: "flex", gap: 8 }}>
         <button
-          onClick={() => setStep(Math.max(0, step - 1))}
-          disabled={step === 0}
-          style={navBtnStyle(step === 0)}
+          onClick={() => setStep(Math.max(0, safeStep - 1))}
+          disabled={safeStep === 0}
+          style={navBtnStyle(safeStep === 0)}
         >
           <ChevronLeft size={14} />
           Atrás
         </button>
         <button
-          onClick={() => setStep(Math.min(total - 1, step + 1))}
-          disabled={step >= total - 1}
-          style={navBtnStyle(step >= total - 1)}
+          onClick={() => setStep(Math.min(total - 1, safeStep + 1))}
+          disabled={safeStep >= total - 1}
+          style={navBtnStyle(safeStep >= total - 1)}
         >
           Siguiente
           <ChevronRight size={14} />
