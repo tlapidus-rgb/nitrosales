@@ -110,11 +110,18 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
   }
 
   async function testCatalog(): Promise<AreaResult> {
-    // Si admin provee SKU, buscar ese solo. Sino: 5 productos para muestra estadistica.
-    const searchPath = options?.testSku
+    // Si admin provee SKU, buscar ese solo. Sino: 5 productos ACTIVOS con stock
+    // (fq=isAvailable:true) para muestra representativa. Los productos
+    // inactivos/en catalogación suelen no tener precios/imágenes completas.
+    let searchPath = options?.testSku
       ? `/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(options.testSku)}`
-      : "/api/catalog_system/pub/products/search?_from=0&_to=4";
-    const search = await vtexFetch(searchPath);
+      : "/api/catalog_system/pub/products/search?_from=0&_to=4&fq=isAvailable:true";
+    let search = await vtexFetch(searchPath);
+    // Fallback: si el filtro isAvailable no trae nada, probar sin filtro.
+    if (!options?.testSku && (!Array.isArray(search.data) || search.data.length === 0)) {
+      searchPath = "/api/catalog_system/pub/products/search?_from=0&_to=4";
+      search = await vtexFetch(searchPath);
+    }
     if (search.status === 401 || search.status === 403) {
       return { area: "Catálogo", ok: false, detail: `sin permiso (${search.status})`, hint: "App Key necesita permiso Catalog - Read" };
     }
@@ -156,14 +163,20 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
   }
 
   async function testPricing(): Promise<AreaResult> {
-    // Si admin provee SKU, usa ese solo. Sino: saca 5 SKUs del catalogo para
-    // estadistica agregada (evita falso positivo por 1 SKU con datos raros).
+    // Si admin provee SKU, usa ese solo. Sino: saca 5 SKUs de productos ACTIVOS
+    // con stock (fq=isAvailable:true). Evita agarrar productos inactivos sin
+    // precios cargados, que darian falsos negativos.
     let skusToCheck: string[] = [];
     if (options?.testSku) {
       skusToCheck = [options.testSku];
     } else {
-      const search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=4");
-      const prods: any[] = Array.isArray(search.data) ? search.data : [];
+      let search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=4&fq=isAvailable:true");
+      let prods: any[] = Array.isArray(search.data) ? search.data : [];
+      if (prods.length === 0) {
+        // Fallback sin filtro si la cuenta no tiene activos
+        search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=4");
+        prods = Array.isArray(search.data) ? search.data : [];
+      }
       skusToCheck = prods
         .map((p) => p.items?.[0]?.itemId)
         .filter((id): id is string => !!id)
