@@ -264,6 +264,7 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
     //    Concurrency 8 para no saturar VTEX. Fallas silenciosas — el order basico ya esta.
     if (upsertedOrders.length > 0) {
       await withConcurrency(
+        ENRICH_CONCURRENCY,
         upsertedOrders.map((o) => async () => {
           try {
             const vData = await fetchVtexOrderDetail(creds, o.externalId);
@@ -274,7 +275,6 @@ export async function processVtexChunk(job: any): Promise<ChunkResult> {
             console.warn(`[vtex-backfill] enrich failed ${o.externalId}: ${err.message}`);
           }
         }),
-        ENRICH_CONCURRENCY,
       );
     }
 

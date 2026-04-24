@@ -154,7 +154,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    await withConcurrency(tasks, CONCURRENCY);
+    await withConcurrency(CONCURRENCY, tasks);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     return NextResponse.json({

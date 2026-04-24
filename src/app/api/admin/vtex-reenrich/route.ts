@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    await withConcurrency(tasks, CONCURRENCY);
+    await withConcurrency(CONCURRENCY, tasks);
 
     // ── Stats post-run ──
     const itemsAgg: any[] = await prisma.$queryRawUnsafe(
