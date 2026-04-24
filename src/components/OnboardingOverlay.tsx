@@ -126,7 +126,19 @@ export default function OnboardingOverlay() {
                 WebkitBackdropFilter: "blur(40px)",
               }}
             >
-              {state.phase === "validating" && <ValidatingPhase />}
+              {state.phase === "validating" && (
+                <ValidatingPhase
+                  onReopen={async () => {
+                    // POST reopen → state pasa a IN_PROGRESS → el proximo fetchState()
+                    // va a devolver phase="wizard" y el overlay se transforma solo.
+                    const res = await fetch("/api/me/onboarding/reopen-wizard", { method: "POST" });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(json?.error || "No se pudo volver al wizard");
+                    // Refrescar state inmediatamente para que el overlay cambie a wizard
+                    await fetchState();
+                  }}
+                />
+              )}
               {state.phase === "backfilling" && <BackfillingPhase progress={state.backfillProgress} />}
             </div>
           </div>
@@ -207,7 +219,28 @@ function AuroraBackground() {
 // Validating + Backfilling
 // ═══════════════════════════════════════════════════════════════
 
-function ValidatingPhase() {
+function ValidatingPhase({ onReopen }: { onReopen?: () => Promise<void> }) {
+  const [reopening, setReopening] = useState(false);
+  const [reopenError, setReopenError] = useState<string | null>(null);
+
+  const handleReopen = async () => {
+    if (!onReopen) return;
+    const ok = window.confirm(
+      "¿Querés volver a editar tus datos?\n\n" +
+      "Se va a reabrir el wizard con lo que cargaste hasta ahora. " +
+      "Podés cambiar cualquier plataforma, reconectar MercadoLibre o corregir credenciales."
+    );
+    if (!ok) return;
+    setReopening(true);
+    setReopenError(null);
+    try {
+      await onReopen();
+    } catch (err: any) {
+      setReopenError(err?.message || "No se pudo volver al wizard. Contactá a soporte.");
+      setReopening(false);
+    }
+  };
+
   return (
     <div style={{ textAlign: "center", padding: "20px 0" }}>
       <div style={{ display: "inline-flex", marginBottom: 18 }}>
@@ -217,10 +250,58 @@ function ValidatingPhase() {
       </div>
       <Pretitle tone={BRAND_ORANGE}>Validando tus datos</Pretitle>
       <Title>Estamos revisando tu configuración</Title>
-      <p style={{ color: TEXT_SECONDARY, fontSize: 14, lineHeight: 1.7, margin: "0 0 20px", maxWidth: 480, marginInline: "auto" }}>
+      <p style={{ color: TEXT_SECONDARY, fontSize: 14, lineHeight: 1.7, margin: "0 0 24px", maxWidth: 480, marginInline: "auto" }}>
         Nuestro equipo está validando las credenciales que cargaste. Te avisamos por email apenas
         aprobemos el backfill de tu data histórica.
       </p>
+
+      {/* Opcion de volver atras al wizard — disponible mientras el admin
+          todavia no aprueba el backfill. Se deshabilita una vez que arranca. */}
+      {onReopen && (
+        <div style={{
+          padding: "14px 16px",
+          background: "rgba(255,255,255,0.02)",
+          border: `1px solid ${BORDER}`,
+          borderRadius: 12,
+          maxWidth: 480,
+          marginInline: "auto",
+          textAlign: "left",
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 4 }}>
+            ¿Te faltó cargar algo?
+          </div>
+          <div style={{ fontSize: 12, color: TEXT_SECONDARY, lineHeight: 1.5, marginBottom: 10 }}>
+            Podés volver al wizard y editar tus datos mientras no hayamos aprobado el backfill.
+            Lo que ya cargaste se mantiene.
+          </div>
+          <button
+            type="button"
+            onClick={handleReopen}
+            disabled={reopening}
+            style={{
+              padding: "8px 14px",
+              background: reopening ? "rgba(255,255,255,0.04)" : "transparent",
+              color: reopening ? TEXT_MUTED : BRAND_ORANGE,
+              border: `1px solid ${reopening ? BORDER : "rgba(255,94,26,0.35)"}`,
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: reopening ? "not-allowed" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              transition: "all 160ms",
+            }}
+          >
+            {reopening ? "Reabriendo…" : "← Volver a editar mis datos"}
+          </button>
+          {reopenError && (
+            <div style={{ marginTop: 10, fontSize: 11, color: ACCENT_RED, lineHeight: 1.5 }}>
+              {reopenError}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -414,25 +495,41 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
   const [focusedPlatform, setFocusedPlatform] = useState<BrandKey | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
-  // Hidratar state desde sessionStorage al montar.
-  // El OAuth de MercadoLibre hace un redirect completo de la pagina, lo que
-  // reinicia el state local del wizard. Para que el user no pierda lo que
-  // ya tipeo en otras plataformas (VTEX, Meta, etc.), persistimos el state
-  // en sessionStorage entre navegaciones y lo rehidratamos aqui.
+  // Hidratar state al montar — 2 fuentes, ordenadas por prioridad:
+  //  1. sessionStorage: data fresca de la sesion actual (incluyendo lo que el
+  //     user tipeo y no envio al backend). Se reinicia al cerrar tab pero
+  //     sobrevive al redirect OAuth de MercadoLibre.
+  //  2. /api/me/onboarding/saved-state: credenciales ya guardadas en DB
+  //     + orgInfo + history. Fallback si el cliente volvio dias despues o
+  //     uso "Volver a editar" desde ValidatingPhase.
+  // Preferir cache si tiene decisions reales; sino DB.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const cached = sessionStorage.getItem("nitro_wizard_state");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed?.decisions && typeof parsed.decisions === "object") setDecisions(parsed.decisions);
-        if (parsed?.creds && typeof parsed.creds === "object") setCreds(parsed.creds);
-        if (parsed?.history && typeof parsed.history === "object") setHistory((h) => ({ ...h, ...parsed.history }));
-        if (parsed?.orgInfo && typeof parsed.orgInfo === "object") setOrgInfo((o) => ({ ...o, ...parsed.orgInfo }));
-        if (typeof parsed?.focusedPlatform === "string") setFocusedPlatform(parsed.focusedPlatform as BrandKey);
+    (async () => {
+      let fromCache: any = null;
+      try {
+        const cached = sessionStorage.getItem("nitro_wizard_state");
+        if (cached) fromCache = JSON.parse(cached);
+      } catch {}
+
+      let fromDb: any = null;
+      try {
+        const res = await fetch("/api/me/onboarding/saved-state");
+        if (res.ok) fromDb = await res.json();
+      } catch {}
+
+      const cacheHasData = fromCache && fromCache.decisions && Object.keys(fromCache.decisions).length > 0;
+      const source = cacheHasData ? fromCache : fromDb;
+
+      if (source) {
+        if (source.decisions && typeof source.decisions === "object") setDecisions(source.decisions);
+        if (source.creds && typeof source.creds === "object") setCreds(source.creds);
+        if (source.history && typeof source.history === "object") setHistory((h) => ({ ...h, ...source.history }));
+        if (source.orgInfo && typeof source.orgInfo === "object") setOrgInfo((o) => ({ ...o, ...source.orgInfo }));
+        if (typeof source.focusedPlatform === "string") setFocusedPlatform(source.focusedPlatform as BrandKey);
       }
-    } catch {}
-    setHydrated(true);
+      setHydrated(true);
+    })();
   }, []);
 
   // Auto-save del state a sessionStorage cada vez que cambia.
