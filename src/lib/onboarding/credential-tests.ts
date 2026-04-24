@@ -23,49 +23,116 @@ export async function testVtex(creds: any): Promise<TestResult> {
     return { ok: false, detail: "Account Name inválido", hint: "Solo letras, números y guiones. Sin https:// ni .myvtex.com" };
   }
 
-  const url = `https://${accountName}.vtexcommercestable.com.br/api/oms/pvt/orders?per_page=1`;
+  const headers = {
+    "X-VTEX-API-AppKey": appKey,
+    "X-VTEX-API-AppToken": appToken,
+    Accept: "application/json",
+  };
+  const base = `https://${accountName}.vtexcommercestable.com.br`;
 
-  try {
-    const resp = await fetch(url, {
-      method: "GET",
-      headers: {
-        "X-VTEX-API-AppKey": appKey,
-        "X-VTEX-API-AppToken": appToken,
-        Accept: "application/json",
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (resp.status === 401 || resp.status === 403) {
-      return {
-        ok: false,
-        detail: `Credenciales inválidas (HTTP ${resp.status})`,
-        hint: "Revisar que App Token corresponda al App Key. Verificar permisos sobre OMS.",
-      };
+  // Helper: test 1 endpoint con interpretacion de status
+  async function probe(path: string, friendlyName: string, permHint: string): Promise<{ ok: boolean; detail: string; hint?: string }> {
+    try {
+      const r = await fetch(`${base}${path}`, { headers, signal: AbortSignal.timeout(10000) });
+      if (r.status === 401 || r.status === 403) {
+        return { ok: false, detail: `${friendlyName}: sin permiso (${r.status})`, hint: permHint };
+      }
+      if (r.status === 404) {
+        // 404 en endpoints como pricing/{id} es OK — el SKU id 1 puede no existir, pero la API respondió.
+        return { ok: true, detail: `${friendlyName}: OK` };
+      }
+      if (!r.ok && r.status !== 204) {
+        return { ok: false, detail: `${friendlyName}: error ${r.status}` };
+      }
+      return { ok: true, detail: `${friendlyName}: OK` };
+    } catch (err: any) {
+      if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+        return { ok: false, detail: `${friendlyName}: timeout` };
+      }
+      return { ok: false, detail: `${friendlyName}: ${err?.message || "error de red"}` };
     }
-    if (resp.status === 404) {
-      return {
-        ok: false,
-        detail: "Cuenta no encontrada",
-        hint: `VTEX no reconoce la cuenta "${accountName}".`,
-      };
-    }
-    if (!resp.ok) {
-      return { ok: false, detail: `Error HTTP ${resp.status}` };
-    }
-
-    const data = await resp.json();
-    const totalOrders = data?.paging?.total;
-    if (typeof totalOrders === "number") {
-      return { ok: true, detail: `Conexión OK · ${totalOrders.toLocaleString("es-AR")} órdenes en histórico` };
-    }
-    return { ok: true, detail: "Conexión OK" };
-  } catch (err: any) {
-    if (err?.name === "TimeoutError" || err?.name === "AbortError") {
-      return { ok: false, detail: "Timeout (10s)", hint: "VTEX no respondió. Reintentar." };
-    }
-    return { ok: false, detail: err?.message || "Error de red" };
   }
+
+  // Probar las 6 áreas en paralelo
+  const [ordersArea, catalogArea, pricingArea, logisticsInvArea, logisticsShipArea, brandsArea] = await Promise.all([
+    probe(
+      "/api/oms/pvt/orders?per_page=1",
+      "Ventas (OMS)",
+      "Tu App Key necesita permiso: OMS - Full access",
+    ),
+    probe(
+      "/api/catalog_system/pvt/products/GetBrandList",
+      "Catálogo de productos",
+      "Tu App Key necesita permiso: Catalog - Read (o Full)",
+    ),
+    probe(
+      "/api/pricing/prices/1?_forceGet=true",
+      "Precios",
+      "Tu App Key necesita permiso: Pricing - Read",
+    ),
+    probe(
+      "/api/logistics/pvt/inventory/warehouses",
+      "Stock / depósitos",
+      "Tu App Key necesita permiso: Logistics - Read",
+    ),
+    probe(
+      "/api/logistics/pvt/shipping-policies",
+      "Tarifas de envío",
+      "Tu App Key necesita permiso: Logistics - Read (shipping-policies)",
+    ),
+    probe(
+      "/api/catalog_system/pvt/brand",
+      "Marcas",
+      "Tu App Key necesita permiso: Catalog - Read",
+    ),
+  ]);
+
+  const areas = {
+    orders: ordersArea,
+    catalog: catalogArea,
+    pricing: pricingArea,
+    inventory: logisticsInvArea,
+    shipping: logisticsShipArea,
+    brands: brandsArea,
+  };
+
+  // Ordersearea falla → problema crítico (sin ventas no hay nada). Cuenta no existe probablemente.
+  if (!ordersArea.ok && ordersArea.detail.includes("404")) {
+    return {
+      ok: false,
+      detail: `Cuenta "${accountName}" no existe en VTEX`,
+      hint: "Revisá el accountName (sin https:// ni .myvtex.com).",
+    };
+  }
+
+  const failing = Object.entries(areas).filter(([, r]) => !r.ok);
+  const passing = Object.entries(areas).filter(([, r]) => r.ok);
+
+  if (failing.length === 0) {
+    // Todas OK: sacar total de ordenes del resultado de orders para dar info útil
+    return {
+      ok: true,
+      detail: `✅ 6 áreas OK (ventas, catálogo, precios, stock, tarifas, marcas)`,
+    };
+  }
+
+  if (!ordersArea.ok) {
+    // Orders falla: bloqueante.
+    return {
+      ok: false,
+      detail: `❌ Credenciales inválidas para ventas: ${ordersArea.detail}`,
+      hint: ordersArea.hint || "Revisar App Key / App Token.",
+    };
+  }
+
+  // Orders OK pero otras áreas fallan → parcial
+  const failedNames = failing.map(([, r]) => r.detail).join(" · ");
+  const firstHint = failing.find(([, r]) => r.hint)?.[1]?.hint;
+  return {
+    ok: false,
+    detail: `⚠️ Parcial: ${passing.length}/6 áreas OK. Faltan: ${failedNames}`,
+    hint: firstHint || "Revisar permisos de la App Key en VTEX Admin → Configuración de la cuenta → Roles.",
+  };
 }
 
 export async function testMetaAds(creds: any): Promise<TestResult> {
