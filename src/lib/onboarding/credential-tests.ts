@@ -181,104 +181,96 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
   }
 
   async function testPricing(): Promise<AreaResult> {
-    // Usa los MISMOS SKUs de ventas reales (calculados arriba en realSkus).
-    // Asi si Catalog y Pricing chequean sobre la misma muestra, los resultados
-    // son consistentes.
     const skusToCheck: string[] = realSkus.length > 0 ? realSkus : [];
     if (skusToCheck.length === 0) {
       return { area: "Precios", ok: true, detail: "sin SKUs disponibles para validar" };
     }
 
-    // Fetch de precios en paralelo
-    const priceResults = await Promise.all(
-      skusToCheck.map((sku) => vtexFetch(`/api/pricing/prices/${sku}?_forceGet=true`)),
-    );
+    // VTEX tiene 2 fuentes de precio:
+    //  1. Catalog Search → commertialOffer.Price = PRECIO REAL al cliente
+    //     (con políticas comerciales aplicadas). ESTE es el precio correcto
+    //     para mostrar y para calcular revenue.
+    //  2. Pricing API → basePrice/costPrice = valores de tabla base.
+    //     Sirven para costo, NO para precio al cliente si hay políticas.
+    const [priceResults, catalogResults] = await Promise.all([
+      Promise.all(skusToCheck.map((sku) => vtexFetch(`/api/pricing/prices/${sku}?_forceGet=true`))),
+      Promise.all(skusToCheck.map((sku) => vtexFetch(`/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(sku)}`))),
+    ]);
 
-    // Chequear permisos: si TODOS dan 401/403 es problema de permiso
     const forbidden = priceResults.filter((r) => r.status === 401 || r.status === 403).length;
     if (forbidden === priceResults.length) {
       return { area: "Precios", ok: false, detail: `sin permiso (${priceResults[0].status})`, hint: "App Key necesita permiso Pricing - Read" };
     }
 
     const N = skusToCheck.length;
-    // Filosofía del test: validamos PRESENCIA del campo, NO el valor.
-    // Si el cliente cargó costo == precio a propósito o por error, es decisión
-    // suya. Nosotros solo verificamos que el dato llegue correctamente de VTEX.
-    let countReachable = 0;       // endpoint responde (200 o 404 ambos validos)
-    let countWithPrice = 0;       // basePrice != null
-    let countWithListPrice = 0;
-    let countWithCost = 0;
-    let countWithMarkup = 0;
+    const offers: Array<any | null> = skusToCheck.map((sku, i) => {
+      const catRes = catalogResults[i];
+      if (!catRes.data || !Array.isArray(catRes.data) || catRes.data.length === 0) return null;
+      const prod = catRes.data[0];
+      const item = (prod.items || []).find((it: any) => String(it.itemId) === String(sku)) || prod.items?.[0];
+      return item?.sellers?.[0]?.commertialOffer || null;
+    });
 
-    for (const pr of priceResults) {
-      if (pr.status === 404) { countReachable++; continue; } // 404 = SKU sin precio en Pricing, VTEX usa Catalog → OK
-      if (pr.error || !pr.data) continue;
-      countReachable++;
-      const p = pr.data;
-      if (p.basePrice != null) countWithPrice++;
-      if (p.listPrice != null) countWithListPrice++;
-      if (p.costPrice != null) countWithCost++;
-      if (p.markup != null) countWithMarkup++;
+    // Contadores según FUENTE correcta
+    let countWithRealPrice = 0;      // Catalog.commertialOffer.Price > 0 (precio al cliente)
+    let countWithListPrice = 0;      // Catalog.commertialOffer.ListPrice tachado
+    let countWithCost = 0;           // Pricing.costPrice
+    let countReachablePricing = 0;   // Pricing API responde
+
+    for (let i = 0; i < N; i++) {
+      const co = offers[i];
+      const pr = priceResults[i];
+      if (co?.Price != null && co.Price > 0) countWithRealPrice++;
+      if (co?.ListPrice != null && co.ListPrice > 0 && co.ListPrice > (co.Price || 0)) countWithListPrice++;
+      if (pr.status === 404 || pr.status === 200) countReachablePricing++;
+      if (pr.data?.costPrice != null) countWithCost++;
     }
 
     const checks: SubCheck[] = [
       {
-        label: "Pricing API accesible",
-        ok: countReachable === N,
-        value: `${countReachable}/${N}`,
+        label: "Precio al cliente (Catalog)",
+        ok: countWithRealPrice >= Math.ceil(N / 2),
+        value: `${countWithRealPrice}/${N}`,
       },
       {
-        label: "Precio base presente",
-        ok: countWithPrice >= Math.ceil(N / 2),
-        value: `${countWithPrice}/${N}`,
-      },
-      {
-        label: "Precio de lista",
+        label: "Precio tachado (ListPrice)",
         ok: countWithListPrice >= 1,
         value: `${countWithListPrice}/${N}`,
         optional: true,
       },
       {
-        label: "Costo (costPrice) presente",
+        label: "Costo del producto (Pricing)",
         ok: countWithCost >= Math.ceil(N / 2),
         value: `${countWithCost}/${N}`,
       },
       {
-        label: "Markup",
-        ok: countWithMarkup >= 1,
-        value: `${countWithMarkup}/${N}`,
+        label: "Pricing API accesible",
+        ok: countReachablePricing === N,
+        value: `${countReachablePricing}/${N}`,
         optional: true,
       },
     ];
 
-    // Desglose SKU por SKU para diagnostico concreto
+    // Desglose por SKU mostrando AMBAS fuentes para diagnostico
     for (let i = 0; i < skusToCheck.length; i++) {
       const sku = skusToCheck[i];
+      const co = offers[i];
       const pr = priceResults[i];
-      let value: string;
-      let ok = false;
-      if (pr.status === 401 || pr.status === 403) {
-        value = `sin permiso (${pr.status})`;
-      } else if (pr.status === 404) {
-        value = "sin entrada en Pricing (usa precio del Catalog)";
-        ok = true;
-      } else if (pr.error || !pr.data) {
-        value = `error: ${pr.error || "sin data"}`;
+      const parts: string[] = [];
+      if (co) {
+        parts.push(`precio=${co.Price ?? "null"}`);
+        parts.push(`tachado=${co.ListPrice ?? "null"}`);
       } else {
-        const p = pr.data;
-        const parts: string[] = [];
-        parts.push(`base=${p.basePrice ?? "null"}`);
-        parts.push(`lista=${p.listPrice ?? "null"}`);
-        parts.push(`costo=${p.costPrice ?? "null"}`);
-        parts.push(`markup=${p.markup ?? "null"}`);
-        value = parts.join(" · ");
-        ok = true;
+        parts.push(`sin offer en catalog`);
       }
+      if (pr.status === 404) parts.push(`pricing=404`);
+      else if (pr.data) parts.push(`costo=${pr.data.costPrice ?? "null"}`);
+      else parts.push(`pricing=error`);
       checks.push({
         label: `SKU ${sku}`,
-        ok,
-        value,
-        optional: true, // no cuenta como falla; solo muestra
+        ok: !!co,
+        value: parts.join(" · "),
+        optional: true,
       });
     }
 
