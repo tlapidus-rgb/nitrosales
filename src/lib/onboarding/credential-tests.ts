@@ -251,6 +251,37 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
       },
     ];
 
+    // Desglose SKU por SKU para diagnostico concreto
+    for (let i = 0; i < skusToCheck.length; i++) {
+      const sku = skusToCheck[i];
+      const pr = priceResults[i];
+      let value: string;
+      let ok = false;
+      if (pr.status === 401 || pr.status === 403) {
+        value = `sin permiso (${pr.status})`;
+      } else if (pr.status === 404) {
+        value = "sin entrada en Pricing (usa precio del Catalog)";
+        ok = true;
+      } else if (pr.error || !pr.data) {
+        value = `error: ${pr.error || "sin data"}`;
+      } else {
+        const p = pr.data;
+        const parts: string[] = [];
+        parts.push(`base=${p.basePrice ?? "null"}`);
+        parts.push(`lista=${p.listPrice ?? "null"}`);
+        parts.push(`costo=${p.costPrice ?? "null"}`);
+        parts.push(`markup=${p.markup ?? "null"}`);
+        value = parts.join(" · ");
+        ok = true;
+      }
+      checks.push({
+        label: `SKU ${sku}`,
+        ok,
+        value,
+        optional: true, // no cuenta como falla; solo muestra
+      });
+    }
+
     const failed = checks.filter((c) => !c.ok && !c.optional);
     const hasWarnings = checks.some((c) => c.optional && !c.ok);
     return {
