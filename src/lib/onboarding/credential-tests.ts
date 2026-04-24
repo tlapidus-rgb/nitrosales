@@ -185,69 +185,64 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
     }
 
     const N = skusToCheck.length;
-    let countWithPrice = 0;      // tiene basePrice
-    let countWithListPrice = 0;   // tiene listPrice
-    let countWithRealCost = 0;    // costPrice presente Y distinto de basePrice
-    let countCostEqualsPrice = 0; // costo == precio (fallback VTEX, sospechoso)
-    let countNoPricingEntry = 0;  // 404: SKU sin precio en Pricing
+    // Filosofía del test: validamos PRESENCIA del campo, NO el valor.
+    // Si el cliente cargó costo == precio a propósito o por error, es decisión
+    // suya. Nosotros solo verificamos que el dato llegue correctamente de VTEX.
+    let countReachable = 0;       // endpoint responde (200 o 404 ambos validos)
+    let countWithPrice = 0;       // basePrice != null
+    let countWithListPrice = 0;
+    let countWithCost = 0;
+    let countWithMarkup = 0;
 
     for (const pr of priceResults) {
-      if (pr.status === 404) { countNoPricingEntry++; continue; }
+      if (pr.status === 404) { countReachable++; continue; } // 404 = SKU sin precio en Pricing, VTEX usa Catalog → OK
       if (pr.error || !pr.data) continue;
+      countReachable++;
       const p = pr.data;
       if (p.basePrice != null) countWithPrice++;
       if (p.listPrice != null) countWithListPrice++;
-      if (p.costPrice != null && p.costPrice > 0) {
-        if (p.costPrice === p.basePrice) countCostEqualsPrice++;
-        else countWithRealCost++;
-      }
+      if (p.costPrice != null) countWithCost++;
+      if (p.markup != null) countWithMarkup++;
     }
-
-    const pricePct = countWithPrice / N;
-    const costHealthy = countWithRealCost;
-    const costSuspicious = countCostEqualsPrice;
 
     const checks: SubCheck[] = [
       {
-        label: "Precio base cargado",
-        ok: pricePct >= 0.6,
+        label: "Pricing API accesible",
+        ok: countReachable === N,
+        value: `${countReachable}/${N}`,
+      },
+      {
+        label: "Precio base presente",
+        ok: countWithPrice >= Math.ceil(N / 2),
         value: `${countWithPrice}/${N}`,
       },
       {
         label: "Precio de lista",
-        ok: countWithListPrice === N,
+        ok: countWithListPrice >= 1,
         value: `${countWithListPrice}/${N}`,
         optional: true,
       },
       {
-        label: "Costo real (≠ precio)",
-        ok: costHealthy >= Math.ceil(N / 2),
-        value: `${costHealthy}/${N}`,
-        warning: costHealthy < Math.ceil(N / 2),
+        label: "Costo (costPrice) presente",
+        ok: countWithCost >= Math.ceil(N / 2),
+        value: `${countWithCost}/${N}`,
       },
       {
-        label: "Costo igual al precio (sospechoso)",
-        ok: costSuspicious === 0,
-        value: `${costSuspicious}/${N}${costSuspicious > 0 ? " (revisar)" : ""}`,
-        warning: costSuspicious > 0 && costSuspicious < N,
-        optional: costSuspicious === 0,
-      },
-      {
-        label: "SKUs sin entrada en Pricing",
-        ok: countNoPricingEntry === 0,
-        value: `${countNoPricingEntry}/${N}${countNoPricingEntry > 0 ? " usan precio del Catalog" : ""}`,
+        label: "Markup",
+        ok: countWithMarkup >= 1,
+        value: `${countWithMarkup}/${N}`,
         optional: true,
       },
     ];
 
     const failed = checks.filter((c) => !c.ok && !c.optional);
-    const hasWarnings = checks.some((c) => c.warning || (c.optional && !c.ok));
+    const hasWarnings = checks.some((c) => c.optional && !c.ok);
     return {
       area: "Precios",
       ok: failed.length === 0,
       detail: failed.length === 0
-        ? (costHealthy >= Math.ceil(N / 2) ? `${N} SKUs validados · costos reales OK` : `${N} SKUs validados · costos con warnings`)
-        : `${N} SKUs validados · ${failed.length} campos críticos fallan`,
+        ? `${N} SKUs validados · campos llegan correctamente`
+        : `${N} SKUs validados · ${failed.length} campos críticos no llegan`,
       subChecks: checks,
       hasWarnings,
     };
