@@ -1,90 +1,138 @@
-# NEXT_SESSION_PROMPT.md — Retomar auditoría VTEX (S56 cerrada)
+# NEXT_SESSION_PROMPT.md — S58 arranque (2026-04-25)
 
-> **Actualizado S56 (2026-04-23 noche)**: Tomy se va a dormir. S56 cerró con todos los KPIs MELI matcheando 1:1 con UI de MELI. Mañana arrancamos **auditoría sección por sección de VTEX**.
-
----
-
-## ✅ QUE SE RESOLVIÓ EN S56 (no toques, confirmado funcionando)
-
-**Fix crítico: /orders MELI ahora muestra exacto lo mismo que MELI UI.**
-
-Problemas encontrados y resueltos:
-1. **Status mapping bug**: `paid → "PAID"` pero enum Prisma no tenía PAID → 0 ventas paid visibles. Fix: `paid → APPROVED`, cancelled/invalid siempre gana sobre tag delivered histórico, `partially_refunded → APPROVED`.
-2. **Dedup packs (pack_id)**: 1 carrito MELI con N items = N rows en nuestra DB pero 1 venta en MELI UI. Fix: columna `Order.packId` + `COUNT(DISTINCT COALESCE(packId, externalId))` en 25 queries de `/api/metrics/orders` + `/api/mercadolibre/dashboard`.
-3. **Anti-join mixtos + mapping status terminales**: packs que MELI cancela después pero tenían tag="delivered" histórico. Fix: cancelled SIEMPRE gana + partially_refunded mapeado + endpoint `/api/admin/ml-force-refresh` para actualizar data existente sin guard.
-4. **MELI bootstrap post-backfill**: listings + reputation + questions se sincronizan automáticamente tras `approve-backfill` (commit `13be0bc`). Multi-tenant safe.
-5. **Listings pagination fix**: bug que cortaba a 100 items de >1000 (commit `f25283f`). Scroll_id ahora funciona correctamente.
-
-**Validación final (ya confirmada por Tomy)**:
-- `/orders` filtro 12m MELI: **1196 ventas** = MELI UI "concretadas + en camino" ✓
-- Canceladas: **182** ✓
-- Total packs: **1378** ✓
-- `1196 + 182 = 1378` ✓
-
-**Errores S56 documentados** en `ERRORES_CLAUDE_NO_REPETIR.md`:
-- `#S56-TAG-OVERRIDES-STATUS`
-- `#S56-UNMAPPED-STATUS-SILENT-FALLBACK`
-- `#S56-ITERATE-WITHOUT-VLOOKUP` ← error de proceso más costoso del día
+> Tomy: copia/pega el bloque "PROMPT A PEGAR" más abajo en la próxima sesión.
+> Esto es para que el próximo Claude arranque con TODO el contexto y no pierda eficiencia.
 
 ---
 
-## 🎯 TAREA MAÑANA: Auditoría VTEX sección por sección
+## 📋 Estado al cierre de S57 (2026-04-24)
 
-Tomy quiere validar que el backfill de VTEX traiga TODA la data posible y que se despliegue correctamente en toda la plataforma.
+### Qué se hizo hoy
+1. **Deep test de credenciales VTEX/MELI** con validación área por área (no solo "conecta sí/no"). 9 iteraciones hasta lograr un test robusto con 5 SKUs reales de ventas.
+2. **Descubrimiento VTEX Simulation API**: única fuente de precio confiable (los otros 2 endpoints devuelven valores sin política comercial).
+3. **Catalog refresh automático post-backfill**: endpoint que actualiza `Product.price / compareAtPrice / costPrice` usando Simulation, disparado solo al completar el backfill de VTEX.
+4. **BUG CRÍTICO encontrado y fixeado**: args invertidos en `withConcurrency(...)` del processor VTEX causaban que el enrichment (customer + items + products) fuera un no-op silencioso. El backfill marcaba COMPLETED pero la DB quedaba con 0 items/products/customers.
 
-### Plan propuesto
+### Commits pusheados a `main` (12, todos verificados con `tsc --noEmit`)
+- `547dc51` muestra 5 SKUs en test (antes 1)
+- `f4864ae` validar presencia de campos, no juzgar valores
+- `3da5c8f` samplear SKUs con `fq=isAvailable:true`
+- `ee967de` samplear SKUs de VENTAS reales (no del catálogo)
+- `83d9bce` mostrar raw JSON por SKU (debug)
+- `eaf0b81` usar Catalog Search para precio
+- `45ae07a` **BREAKTHROUGH**: Simulation API como fuente primaria
+- `7f183ae` catalog-refresh automático post-backfill VTEX
+- `a7877e0` catalog-refresh usa Simulation
+- `786d694` endpoint `/api/admin/debug-vtex-enrichment` (diagnóstico paso a paso con dry-run rollback)
+- `8d84fc5` endpoint `/api/admin/vtex-reenrich` (enrichment de orders existentes sin re-backfill)
+- `407d5a6` **FIX CRÍTICO** args invertidos `withConcurrency` en 3 archivos
 
-**Primero: re-ejecutar backfill VTEX** (Tomy lo pidió explícitamente).
+### DB actual de Tomy (test con MdJ, orgId `cmocep2vk000b1409iqylv7zg`)
+- 12.298 orders VTEX cargadas ✓ (matchean 1:1 con VTEX OMS)
+- 0 items, 0 products, 0 customers ❌ (bug pre-fix — queda pendiente re-enriquecer)
 
-**Después: BUSCARV por sección** (mismo patrón que usamos con MELI — NO iterar sin medir primero).
+### Pendiente operativo de Tomy ANTES de arrancar S58
+1. Abrir `https://nitrosales.vercel.app/api/admin/vtex-reenrich?orgId=cmocep2vk000b1409iqylv7zg` **~7 veces** hasta que devuelva `"Todas las orders enriquecidas OK"`.
+2. Abrir `https://nitrosales.vercel.app/api/sync/vtex/catalog-refresh?orgId=cmocep2vk000b1409iqylv7zg&key=nitrosales-secret-key-2024-production` **1 vez**.
+3. Verificar con `https://nitrosales.vercel.app/api/admin/vtex-audit-all?orgId=cmocep2vk000b1409iqylv7zg` que `items.total`, `products.total`, `customers.total` están > 0.
+4. Entrar al producto y confirmar visualmente: sección pedidos con detalle, sección productos con imágenes/precios/stock.
 
-### Orden de secciones a auditar
-
-1. **Pedidos/orders** — ya fixeado en S55, solo validar match con VTEX OMS panel (cantidad + revenue).
-2. **Productos / catálogo** — ¿está poblada la tabla `Product`? ¿cuántos SKUs tiene VTEX vs nosotros? ¿falta algún producto que nunca se vendió?
-3. **Stock** — ¿viene el stock por SKU? ¿se actualiza? (no parece estar en el vtex-processor actual).
-4. **Costos (costPrice)** — ¿cuántos productos tienen costo null? ¿VTEX devuelve cost por order item?
-5. **Imágenes** — ¿cuántos productos tienen `imageUrl = null`? ¿podemos traer de catálogo VTEX?
-6. **Brand / Category** — ¿poblado?
-7. **Clientes** — ¿cuántos tienen email? ¿dirección completa?
-8. **Promociones / cupones** — ¿se captan todos los `marketingData.coupon` y `ratesAndBenefitsData`?
-
-### Endpoints que hay que crear (uno por sección, patrón similar a ml-diff-detail)
-
-- `/api/admin/vtex-audit-products` — compara catálogo VTEX vs DB (SKUs faltantes, campos nulos).
-- `/api/admin/vtex-audit-stock` — pide stock de VTEX API y compara con DB (si hay).
-- `/api/admin/vtex-audit-customers` — compara email/dirección completa por cliente.
-
-### Ritual de arranque mañana
-
-1. Leer CLAUDE.md + ERRORES_CLAUDE_NO_REPETIR.md + MEMORY.md + este archivo.
-2. `git status` y `git pull` para asegurar main limpio.
-3. Confirmar con Tomy: "¿arrancamos con re-backfill VTEX + sección 1 (productos/catálogo)?"
-4. **NO iterar fixes sin hacer primero el BUSCARV contra VTEX API** (aplicar regla #S56-ITERATE-WITHOUT-VLOOKUP).
-
-### Consideraciones técnicas previas
-
-- VTEX tiene 5 APIs relevantes: Orders (OMS), Catalog, Logistics/Inventory, Brand, Category.
-- Cada una tiene sus límites y quirks. Antes de escribir código de sync para una nueva API, leer docs y detectar limites de paginación (regla #S55-VTEX-PAGE-LIMIT).
-- Reset test env está disponible si Tomy quiere arrancar limpio: `/api/admin/reset-test-env` con `{email}`.
+Si algo falla en estos pasos, S58 arranca debuggeando eso.
 
 ---
 
-## 📋 Estado del repo al cierre de S56
+## 🎯 Objetivo de S58
 
-- **Branch**: `main` (clean, todo pusheado).
-- **Último commit**: `3a4f251` — docs errores S56.
-- **DB prod**: columna `Order.packId` creada + índice. `email_log` operativo. Data de test de Tomy (MELI) matcheada 1:1 con MELI UI.
-- **Endpoints nuevos S56**:
-  - `/api/admin/migrate-orders-pack-id` (ya ejecutado)
-  - `/api/admin/validate-orders-count` (validador 1196 vs MELI)
-  - `/api/admin/ml-audit-packs` (BUSCARV MELI vs DB)
-  - `/api/admin/ml-diff-detail` (detalle por status)
-  - `/api/admin/ml-force-refresh` (re-sync forzado)
-  - `/api/sync/mercadolibre/bootstrap` (listings + reputation + questions)
+**Mañana (2026-04-25) Tomy va a hacer el primer onboarding real de un cliente.** El backfill tiene que correr end-to-end automático, sin intervención manual, y el cliente debe entrar al producto con data completa.
 
-- **Pending de Tomy**: ninguno. Todo validado y funcionando.
+### Qué tiene que funcionar sin tocar nada
+- Form público → admin approve cuenta → email de bienvenida
+- Wizard premium → cliente carga credenciales
+- Admin approve backfill → dispara jobs por plataforma
+- Backfill runner procesa en paralelo todas las plataformas
+- VTEX: trae orders + enriquecimiento (customer + items + products) + catalog-refresh automático al final
+- Email "tu data está lista" + overlay desbloqueado
+- Cliente entra al producto con pedidos detallados, productos con precios reales
+
+### Riesgos a mitigar en S58 antes del primer cliente
+- **No volver a repetir el bug de args invertidos**: auditar que TODAS las llamadas a helpers en processors de sync tengan los args correctos. Releer signatures.
+- **Smoke test runtime post-backfill**: asegurar que el bootstrap post-backfill verifique que hay side effects reales (>0 items, >0 products, >0 customers) y no solo "job completed". Si no hay side effects → alerta en admin.
 
 ---
 
-_Última actualización: 2026-04-23 23:30 ART (S56 cierre)._
+## 🚨 PROMPT A PEGAR EN LA PRÓXIMA SESIÓN
+
+```
+Hola Claude, arrancamos S58. Estas son las instrucciones obligatorias:
+
+1. RITUAL DE ARRANQUE (obligatorio, en este orden):
+   - Leé: CLAUDE.md, CLAUDE_STATE.md (sección "Sesion 57" arriba),
+     ERRORES_CLAUDE_NO_REPETIR.md (sobre todo error #S57-ARGS-ORDER-SILENT-NOOP),
+     BACKLOG_PENDIENTES.md, NEXT_SESSION_PROMPT.md (este archivo).
+   - Leé tu MEMORY.md en .claude/projects/.../memory/ — sobre todo los 2 patrones nuevos de S57
+     (bug "proceso OK sin side effects" + VTEX 3 fuentes de precio).
+   - Corré: git fetch origin --prune, git checkout main, git pull origin main,
+     git status, git log --oneline -5.
+
+2. PRIMERA INTERACCIÓN conmigo:
+   - Preguntame: "¿Ejecutaste los 3 pasos pendientes del cierre S57
+     (vtex-reenrich ~7 corridas, catalog-refresh 1 corrida, vtex-audit-all para verificar)?"
+   - Si te digo que NO → ayudame a correrlos.
+   - Si te digo que SÍ → pedime el output del audit para confirmar items/products/customers > 0
+     antes de avanzar a cualquier otra cosa.
+
+3. OBJETIVO DEL DÍA:
+   - Hoy entra el primer cliente real (posiblemente Arredo o TV Compras).
+   - El backfill tiene que correr end-to-end automático sin que yo toque URLs manuales.
+   - Antes de que llegue el cliente, auditá que el processor de VTEX + los crons + el
+     bootstrap post-backfill no tengan otros bugs del tipo "corre sin error pero sin side effects".
+   - Específicamente: releé signatures de helpers en todos los processors (VTEX, ML, Meta,
+     Google, GA4, GSC) y verificá que las llamadas tengan el orden correcto de args.
+
+4. REGLAS CRÍTICAS QUE NO PODÉS OLVIDAR:
+   - Hablame en español simple, sin jerga técnica. Soy founder no técnico.
+   - Cuando diseñes un cambio grande, describime el plan en 4-5 líneas y esperá "dale"
+     antes de codear. Refactors de >200 LOC sin confirmación = prohibido.
+   - Si un proceso reporta "completed" con 0 side effects → **primera hipótesis = bug
+     en llamada a helper (args invertidos, shape mal)**. NO perseguir causas externas.
+   - Todo va directo a main. NO hay staging ni feature branches.
+   - Antes de cada push: tsc --noEmit debe pasar. Si toca UI, next build también.
+   - Valores en VTEX vienen en centavos. Simulation API es la UNICA fuente de precio
+     real al cliente.
+
+5. COMUNICACIÓN:
+   - Respuestas breves y directas.
+   - Analogías simples para explicarme bugs ("la función le pasamos los argumentos
+     al revés, entonces no ejecutaba nada pero tampoco tiraba error").
+   - Si hay 2 opciones técnicamente equivalentes, elegí vos y seguí. No me interrumpas
+     para decisiones triviales.
+
+6. SKILLS:
+   - Tenés disponibles todos los anthropic-skills de NitroSales (vtex-master, marketplace-master,
+     backend-api, etc.). Usalos cuando corresponda sin pedir permiso.
+
+Arrancá con el ritual del punto 1 y después hacé el punto 2.
+```
+
+---
+
+## 📎 Archivos clave para contexto técnico S58
+
+**Si tenés que investigar algo en particular**:
+
+| Tema | Archivo principal |
+|---|---|
+| Backfill orquestación | `src/app/api/cron/backfill-runner/route.ts` |
+| VTEX backfill processor | `src/lib/backfill/processors/vtex-processor.ts` |
+| VTEX enrichment helper | `src/lib/connectors/vtex-enrichment.ts` |
+| Concurrency helper | `src/lib/sync/concurrency.ts` ← **firma: `withConcurrency(limit, tasks)`** |
+| Test de credenciales | `src/lib/onboarding/credential-tests.ts` |
+| Audit post-backfill | `src/app/api/admin/vtex-audit-all/route.ts` |
+| Debug step-by-step | `src/app/api/admin/debug-vtex-enrichment/route.ts` |
+| Re-enrich orders existentes | `src/app/api/admin/vtex-reenrich/route.ts` |
+| Catalog refresh (precios) | `src/app/api/sync/vtex/catalog-refresh/route.ts` |
+| ML processor | `src/lib/backfill/processors/ml-processor.ts` |
+
+---
+
+_Última actualización: 2026-04-24 ~04:30 ART (cierre S57)._

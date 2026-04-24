@@ -1392,4 +1392,54 @@ return { ok: result.ok, error: result.error };
 
 ---
 
+## Error #S57-ARGS-ORDER-SILENT-NOOP — Invertir orden de args en función helper → no-op silencioso sin excepción
+
+**Cuándo pasó**: Sesión 57 (2026-04-24). El backfill VTEX del cliente MdJ completó con `processedCount=12298` y `status=COMPLETED`, pero `order_items=0, products=0, customers=0`. Cabeceras de órdenes OK, detalle CERO.
+
+Causa raíz: en `src/lib/backfill/processors/vtex-processor.ts` y en 2 endpoints nuevos (`catalog-refresh`, `vtex-reenrich`), la llamada a `withConcurrency` tenía los argumentos **invertidos**:
+
+```ts
+// Firma real: withConcurrency(limit: number, tasks: Task[])
+// Llamada incorrecta:
+await withConcurrency(
+  upsertedOrders.map(o => async () => {...}),   // array como "limit"
+  ENRICH_CONCURRENCY,                            // número 8 como "tasks"
+);
+```
+
+### Causa raíz (comportamiento en JS)
+- `limit = array` → `limit <= 0` → `NaN <= 0` → `false` (coerción de array vacío = 0, no vacío = NaN), pasa validación.
+- `tasks = 8` → `tasks.length` = `undefined`.
+- `Math.min(array, undefined)` → `NaN`.
+- `Array.from({ length: NaN })` → `[]` (NaN coerciona a 0).
+- **Se lanzan CERO workers**. La función retorna inmediatamente sin ejecutar ninguna tarea, sin throw.
+- El código que sigue interpreta que "funcionó", sigue de largo.
+
+Resultado: el processor upserteaba cabeceras de órdenes (paso 1) pero la sección de enrichment (paso 2) era un no-op invisible. El backfill marcaba COMPLETED porque nada tiraba error.
+
+### Regla
+**Cuando una función helper toma 2 o más parámetros del mismo "dominio" (números + arrays, strings + strings), nombrar o validar los args para que invertirlos sea un error de tipo.**
+
+Opciones:
+1. **Usar objeto en vez de args posicionales**:
+   ```ts
+   withConcurrency({ limit: 8, tasks })
+   ```
+2. **Validación runtime del primer arg**:
+   ```ts
+   if (typeof limit !== "number") throw new Error("withConcurrency: limit debe ser number");
+   ```
+3. **Consistencia API-wide**: si TODOS los helpers de sync reciben `(limit, ...)` o `(items, limit)`, siempre igual. Mixto = bug garantizado.
+
+### Prevención
+- Al crear endpoints nuevos que usan helpers existentes, **leer la signature del helper primero**. No asumir por analogía con otras llamadas.
+- Agregar un smoke test runtime rápido: después de escribir un endpoint nuevo, llamarlo con data real y verificar side effects esperados (ej: "debe crear >0 OrderItems"). No confiar solo en tsc + build.
+- **Símptoma típico de este bug**: "corrió pero no hizo nada, sin error". Si un proceso largo reporta 0 side effects, sospechar helper mal invocado antes que causa lógica.
+
+### Lecciones de proceso de esta sesión (S57)
+- Tomy detectó el bug porque **verificó que el feature prometido realmente había sucedido** (tabla `order_items` vacía en la UI). Si no hubiera entrado al producto, el bug habría pasado a prod silenciosamente.
+- Yo tardé mucho en identificar la causa raíz porque seguí asumiendo causas externas (rate limit de VTEX, timeouts) en vez de releer el código del processor **con la hipótesis de que el helper podía estar mal llamado**. Revisar SIEMPRE firmas de funciones cuando un proceso corre sin errores pero sin side effects.
+
+---
+
 _Fin del archivo. Claude: si estás por cometer algo que se parece a uno de estos errores, PARÁ y releé la regla._

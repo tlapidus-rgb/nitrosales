@@ -3,7 +3,82 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-22 (Sesion 55 BIS+3 — ML sync v2 (4 capas) + Email log (observability) + Debug flow tools + Reset test env + Fix deliverability no-reply@. Tomy probo flow parcialmente: emails llegan al inbox despues de cambiar RESEND_FROM. Pendiente: ejecutar 2 migraciones DB + completar test E2E con credenciales ML.)
+## Ultima actualizacion: 2026-04-24 (Sesion 57 — Deep test credenciales VTEX/MELI + descubrimiento Simulation API + BUG CRITICO args invertidos en withConcurrency causaban 0 enrichment silencioso. Fix aplicado, pendiente re-enrich 12298 orders del test MdJ. Listo para primer cliente real.)
+
+### Sesion 57 (2026-04-24) — Test credenciales profundo + BUG CRITICO enrichment silencioso
+
+**Contexto**: S55 habia cerrado con test E2E de onboarding "exitoso" (12437 orders en 4min). Hoy Tomy pidio profundizar test de credenciales (validacion area por area). Encontramos discrepancias de precios VTEX → descubrimos 3 fuentes distintas (Pricing, Catalog, Simulation) y que solo **Simulation API** devuelve el precio real al cliente con politica comercial aplicada. Al cierre, auditoria post-backfill revelo bug critico: processor marcaba COMPLETED pero 0 items/products/customers.
+
+#### Commits clave (12)
+
+**Deep test credenciales (9 iteraciones)**:
+- `547dc51` muestra 5 SKUs en lugar de 1 (estadistico)
+- `f4864ae` validar PRESENCIA de campos, no juzgar VALORES (Tomy correction)
+- `3da5c8f` samplear SKUs con `fq=isAvailable:true`
+- `ee967de` samplear SKUs de VENTAS reales (no del catalogo)
+- `83d9bce` mostrar raw JSON de cada SKU para diagnostico
+- `eaf0b81` usar Catalog Search para precio REAL
+- `45ae07a` **BREAKTHROUGH**: Simulation API como fuente primaria de precio
+- `7f183ae` catalog-refresh automatico al completar backfill VTEX
+- `a7877e0` catalog-refresh usa Simulation API (misma metodologia que test OK)
+
+**Debug + fix enrichment**:
+- `786d694` endpoint `/api/admin/debug-vtex-enrichment` (step-by-step dry-run con rollback)
+- `8d84fc5` endpoint `/api/admin/vtex-reenrich` (enrichment de orders existentes)
+- `407d5a6` **FIX CRITICO**: args invertidos en withConcurrency (3 archivos)
+
+#### Descubrimiento VTEX Simulation API
+
+VTEX tiene 3 fuentes de precio distintas que pueden diferir (caso real MdJ SKU 3600003: 24.500 vs 38.500):
+
+1. **Pricing API** (`/api/pricing/prices/{sku}`): `basePrice` SIN politica comercial. NO es el precio al cliente.
+2. **Catalog Search** (`/api/catalog_system/pub/products/search?fq=skuId:{sku}&sc=1`): `commertialOffer.Price` si el SKU tiene offer publicada en ese sales channel. A veces null.
+3. **Simulation API** (`POST /api/checkout/pub/orderForms/simulation?sc=1` con `{items: [{id, quantity:1, seller:"1"}], country:"ARG"}`): **UNICA fuente con precio real al cliente** + listPrice (tachado).
+
+Aplicado en:
+- `src/lib/onboarding/credential-tests.ts` (test de credenciales)
+- `src/app/api/sync/vtex/catalog-refresh/route.ts` (refresh de precios post-backfill)
+
+#### BUG CRITICO #S57-ARGS-ORDER-SILENT-NOOP
+
+**Sintoma**: backfill VTEX de MdJ completo con `processedCount=12298`, `status=COMPLETED`, `lastError=null`. Pero `vtex-audit-all` mostraba orders=12298, order_items=0, products=0, customers=0.
+
+**Diagnostico**: endpoint `debug-vtex-enrichment` confirmo que credenciales, fetch detail, parse y dry-run enrichment funcionaban. O sea el codigo estaba OK. Entonces el bug estaba en COMO se llamaba.
+
+**Causa raiz**: en `vtex-processor.ts:266` + 2 endpoints que yo creaba hoy (`catalog-refresh`, `vtex-reenrich`):
+
+```ts
+// Firma real: withConcurrency(limit: number, tasks: Task[])
+// Llamada INCORRECTA:
+await withConcurrency(
+  upsertedOrders.map(o => async () => {...}),  // array como "limit"
+  ENRICH_CONCURRENCY,                           // numero 8 como "tasks"
+);
+```
+
+Por coercion JS: `limit=array NaN<=0 false`, `tasks=8 tasks.length=undefined`, `Math.min(array,undefined)=NaN`, `Array.from({length:NaN})=[]`. **Cero workers lanzados. Retorna inmediato sin error.**
+
+**Fix**: invertir args en los 3 lugares. Commit `407d5a6`.
+
+Documentado en `ERRORES_CLAUDE_NO_REPETIR.md` como `#S57-ARGS-ORDER-SILENT-NOOP`.
+
+#### Estado al cierre S57
+
+**Commits pusheados a main**: 12 (todos con `tsc --noEmit` OK).
+
+**DB de MdJ (orgId `cmocep2vk000b1409iqylv7zg`)**: 12298 orders OK, pero 0 items/products/customers. Pendiente ejecucion manual de:
+1. `/api/admin/vtex-reenrich?orgId=cmocep2vk000b1409iqylv7zg` (~7 corridas)
+2. `/api/sync/vtex/catalog-refresh?orgId=cmocep2vk000b1409iqylv7zg&key=nitrosales-secret-key-2024-production` (1 corrida)
+3. `/api/admin/vtex-audit-all?orgId=cmocep2vk000b1409iqylv7zg` (verificar items/products/customers > 0)
+
+**Fix para proximo cliente**: el bug ya esta arreglado en main. Proximo onboarding va a correr enrichment end-to-end automatico, sin intervencion manual.
+
+**Autocritica de proceso**:
+- Tomy debio corregir decisiones de validacion 4 veces (juzgar valores vs presencia, 1 SKU vs 5, isAvailable vs real sold, Catalog→Simulation) antes de llegar a la solucion correcta.
+- Al detectar el bug del enrichment, persegui hipotesis externas (rate limit, timeout, deploy desfasado) antes de releer el codigo del helper.
+- **Leccion para proxima sesion**: cuando un proceso reporta 0 side effects sin error, **primera hipotesis = bug en llamada a helper/signature**, no causa externa.
+
+---
 
 ### Sesion 55 BIS+3 (22-04 tarde/noche) — ML sync robusto + Observability + Deliverability fix
 
