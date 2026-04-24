@@ -405,6 +405,40 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
   const [error, setError] = useState<string | null>(null);
   const [skipModalFor, setSkipModalFor] = useState<BrandKey | null>(null);
   const [focusedPlatform, setFocusedPlatform] = useState<BrandKey | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Hidratar state desde sessionStorage al montar.
+  // El OAuth de MercadoLibre hace un redirect completo de la pagina, lo que
+  // reinicia el state local del wizard. Para que el user no pierda lo que
+  // ya tipeo en otras plataformas (VTEX, Meta, etc.), persistimos el state
+  // en sessionStorage entre navegaciones y lo rehidratamos aqui.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const cached = sessionStorage.getItem("nitro_wizard_state");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.decisions && typeof parsed.decisions === "object") setDecisions(parsed.decisions);
+        if (parsed?.creds && typeof parsed.creds === "object") setCreds(parsed.creds);
+        if (parsed?.history && typeof parsed.history === "object") setHistory((h) => ({ ...h, ...parsed.history }));
+        if (typeof parsed?.focusedPlatform === "string") setFocusedPlatform(parsed.focusedPlatform as BrandKey);
+      }
+    } catch {}
+    setHydrated(true);
+  }, []);
+
+  // Auto-save del state a sessionStorage cada vez que cambia.
+  // Solo despues de hidratar, para no sobrescribir con state vacio
+  // en el primer render post-mount.
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return;
+    try {
+      sessionStorage.setItem(
+        "nitro_wizard_state",
+        JSON.stringify({ decisions, creds, history, focusedPlatform }),
+      );
+    } catch {}
+  }, [decisions, creds, history, focusedPlatform, hydrated]);
 
   // Comunicar el paso actual al overlay (para que Aurum tenga contexto)
   useEffect(() => {
@@ -480,6 +514,8 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
         setSubmitting(false);
         return;
       }
+      // Limpiar el state persistido: el wizard se envio OK y ya no hace falta.
+      try { sessionStorage.removeItem("nitro_wizard_state"); } catch {}
       onSubmitted();
     } catch (e: any) {
       setError(e.message);
@@ -1067,25 +1103,57 @@ function MlInputs({ creds, onChange }: any) {
         <button
           type="button"
           onClick={handleConnect}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 24px rgba(255,230,0,0.35), 0 0 0 1px rgba(255,230,0,0.4) inset";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(255,230,0,0.25), 0 0 0 1px rgba(0,0,0,0.04) inset";
+          }}
           style={{
             width: "100%",
-            padding: "14px 20px",
-            background: "linear-gradient(135deg, #FFE600 0%, #FFC400 100%)",
+            padding: "14px 22px",
+            background: "linear-gradient(135deg, #FFF159 0%, #FFE600 55%, #FFD100 100%)",
             color: "#1A1A1A",
             border: 0,
-            borderRadius: 10,
+            borderRadius: 12,
             fontSize: 15,
             fontWeight: 700,
             cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: 10,
-            boxShadow: "0 4px 16px rgba(255,230,0,0.25)",
+            gap: 12,
+            letterSpacing: "-0.01em",
+            boxShadow: "0 4px 16px rgba(255,230,0,0.25), 0 0 0 1px rgba(0,0,0,0.04) inset",
+            transition: "all 200ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
-          Conectar con MercadoLibre
+          {/* Logo oficial de MercadoLibre (public/logos/mercadolibre.png) */}
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              background: "rgba(255,255,255,0.5)",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+              flexShrink: 0,
+            }}
+          >
+            <img
+              src="/logos/mercadolibre.png"
+              alt=""
+              width={22}
+              height={22}
+              style={{ objectFit: "contain", display: "block" }}
+            />
+          </span>
+          <span>Ingresar con MercadoLibre</span>
+          <ArrowRight size={15} strokeWidth={2.5} style={{ opacity: 0.75, marginLeft: 2 }} />
         </button>
       </div>
       <InfoBox>
