@@ -769,16 +769,53 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
         </BrowserFrame>
       ),
       instructions: {
-        heading: "Cómo obtener Pixel ID + Access Token",
+        heading: "Pixel ID (obligatorio)",
         steps: [
           { text: "Abrí business.facebook.com/events_manager logueado", hint: "Es distinto de Business Manager — es el módulo de eventos y pixeles." },
           { text: "Seleccioná tu pixel en el sidebar", hint: "Si no tenés uno, '+ Conectar fuente de datos' → Web → Pixel de Meta." },
-          { text: "Copiá el 'ID del pixel' (15-16 dígitos)", hint: "Aparece debajo del nombre del pixel. No es el Ad Account ID — son distintos." },
-          { text: "Pestaña 'Configuración' → scrollear hasta 'Conversions API'", hint: "Click en 'Configurar manualmente' (no con partner)." },
-          { text: "Click 'Generar token de acceso'", hint: "Copialo al instante, solo se muestra una vez." },
+          { text: "Copiá el 'ID del pixel' (15-16 dígitos)", hint: "Aparece debajo del nombre del pixel. NO es el Ad Account ID — son distintos." },
         ],
-        tip: "Si ya tenés el System User token de Meta Ads con permiso ads_management, podés reusar ese token. Pero Meta recomienda uno dedicado para trazabilidad.",
+        tip: "El Pixel ID es la parte fácil. El Access Token CAPI del paso siguiente tiene 2 caminos — leé con atención.",
       },
+    },
+    {
+      title: "Access Token CAPI — 2 formas, elegí UNA",
+      subtitle: "Si Meta te confunde con 'configurá con tu app', usá la Forma A",
+      mockup: (
+        <BrowserFrame url="business.facebook.com/settings/system-users">
+          <div style={{ padding: 14, background: "#fff" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1a1a", marginBottom: 8 }}>
+              ✅ Forma A (recomendada): reusar System User de Meta Ads
+            </div>
+            <div style={{ padding: 10, background: "#E8F5E9", borderLeft: "3px solid #22C55E", borderRadius: 4, marginBottom: 12, fontSize: 10, color: "#1a1a1a", lineHeight: 1.5 }}>
+              Si ya hiciste el paso 2 de Meta Ads y generaste el System User token, usá ese MISMO token.
+              Antes asignale el Pixel como activo (<em>Agregar activos → Fuentes de datos</em>).
+              <br /><br />
+              <strong>Ventaja:</strong> 1 solo token para Meta Ads + CAPI. No vence nunca.
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1a1a", marginBottom: 8 }}>
+              ⚠ Forma B (alternativa): generar token del pixel directo
+            </div>
+            <div style={{ padding: 10, background: "#FFF3E0", borderLeft: "3px solid #F59E0B", borderRadius: 4, fontSize: 10, color: "#1a1a1a", lineHeight: 1.5 }}>
+              Events Manager → tu Pixel → Configuración → Conversions API → <strong>"Configurar manualmente"</strong>.
+              <br /><br />
+              Si Meta solo te muestra "Configurar con partner" o "Hacelo con tu app", tocá <em>Más opciones</em> y
+              buscá "Generar token de acceso" manual.
+            </div>
+          </div>
+        </BrowserFrame>
+      ),
+      instructions: {
+        heading: "Forma A (simplísima y robusta)",
+        steps: [
+          { text: "Andá a business.facebook.com/settings/system-users", hint: "Si hiciste el paso Meta Ads, ya tenés un System User llamado 'NitroSales'." },
+          { text: "Click sobre el System User → 'Agregar activos' → 'Fuentes de datos' → seleccioná tu Pixel", hint: "Le damos al System User acceso al Pixel (antes solo tenía acceso a Meta Ads)." },
+          { text: "Permiso 'Administrador' o 'Acceso completo'", hint: "Necesario para enviar eventos CAPI en nombre del pixel." },
+          { text: "Pegá en el wizard el MISMO token que usaste para Meta Ads", hint: "Con los permisos correctos funciona para Meta Ads y CAPI. Meta recomienda uno dedicado para trazabilidad, pero no es obligatorio." },
+        ],
+        tip: "Si alguien (IA, doc, agencia) te dice 'hacelo con tu app', ignorá — eso es para empresas que desarrollan su propia app de Meta (raro). La Forma A cubre el 95% de los casos.",
+      },
+      docUrl: "https://developers.facebook.com/docs/marketing-api/conversions-api/get-started",
     },
   ],
 

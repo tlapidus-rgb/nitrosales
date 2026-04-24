@@ -12,6 +12,24 @@
 
 ---
 
+## 🟠 BP-S58-003 — Unificar Meta Ads + Meta Pixel en el schema (Opción B)
+
+**Entró**: 2026-04-24 (S58)
+**Estado**: 📝 pendiente — workaround C aplicado, falta limpieza definitiva
+**Contexto**: El enum Platform de Prisma NO tiene "META_PIXEL", solo "META_ADS". El submit-wizard del S58 mergea las credenciales de Meta Pixel dentro de la connection `META_ADS` con campos `pixelId` + `pixelAccessToken` (workaround Opción C). capi.ts lee desde `platform: "META_ADS"` con fallback al mismo token si el cliente reusa.
+
+**Qué hay que hacer en la Opción B (limpieza)**:
+1. **Wizard**: unificar UI — mostrar Meta Ads + Meta Pixel como UNA sola sección con título "Meta (Ads + CAPI)". Campos: adAccountId, accessToken, businessId, pixelId, pixelAccessToken (este último opcional, hint "dejalo vacío para usar el mismo token de Ads").
+2. **ALL_PLATFORMS**: quitar `META_PIXEL` como entry propia.
+3. **Submit-wizard**: quitar el buffer `pixelCredsPending`, guardar todo en un único pass.
+4. **Validación**: `validatePlatformCreds` de META_ADS acepta `pixelId`/`pixelAccessToken` opcionales.
+5. **Tutorial**: reorganizar como 4 pasos en META_ADS (Ad Account → System User token → Pixel ID → asignar pixel al System User).
+6. **Revisión**: verificar que ninguna otra parte del código (audiences, ltv, alerts, intelligence) busque `platform: "META"` — si lo hace, cambiar a `"META_ADS"`.
+
+**Cuándo**: fin de semana, post primer cliente. El workaround C funciona correctamente; esto es limpieza de deuda.
+
+---
+
 ## 🟡 BP-S58-001 — Cleanup GA4 del codigo (fin de semana)
 
 **Entró**: 2026-04-24 (S58)

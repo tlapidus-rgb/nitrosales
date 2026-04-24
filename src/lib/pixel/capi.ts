@@ -48,26 +48,29 @@ export async function sendCapiPurchase(
 ): Promise<boolean> {
   try {
     // 1. Get Meta credentials from Connection
+    // Buscamos platform="META_ADS" (el enum Platform no tiene "META" ni
+    // "META_PIXEL"). El submit-wizard mergea las credenciales del Pixel
+    // dentro de la connection META_ADS (campos pixelId + pixelAccessToken).
     const connection = await prisma.connection.findFirst({
       where: {
         organizationId,
-        platform: 'META' as any, // Platform enum
+        platform: 'META_ADS' as any,
         status: 'ACTIVE' as any,
       },
       select: { credentials: true }
     });
 
-    // Multi-tenant: resolver credentials EXCLUSIVAMENTE desde Connection table.
-    // Eliminado fallback a env vars (META_PIXEL_ID, META_ADS_ACCESS_TOKEN) porque
-    // en multi-tenant mezclaría credentials de MdJ con otra org que no las tiene
-    // configuradas. Si la org no tiene Meta conectado, CAPI skip silencioso.
+    // Multi-tenant: credentials EXCLUSIVAMENTE desde Connection (no env fallback).
+    // Preferimos el token especifico del Pixel (pixelAccessToken) y caemos al
+    // accessToken de Meta Ads si el cliente reuso el mismo System User token
+    // para ambos (valido — es el patron mas robusto).
     let pixelId: string | undefined;
     let accessToken: string | undefined;
 
     if (connection?.credentials) {
       const creds = connection.credentials as Record<string, string>;
       pixelId = creds.pixelId || creds.pixel_id;
-      accessToken = creds.accessToken || creds.access_token;
+      accessToken = creds.pixelAccessToken || creds.accessToken || creds.access_token;
     }
 
     if (!pixelId || !accessToken) {
@@ -190,23 +193,24 @@ interface CAPIGenericData {
 }
 
 async function resolveMetaCredentials(organizationId: string): Promise<{ pixelId: string; accessToken: string } | null> {
+  // Platform="META_ADS" — el pixel se guarda mergeado ahi con campos
+  // pixelId + pixelAccessToken (ver comment en sendCapiPurchase).
   const connection = await prisma.connection.findFirst({
     where: {
       organizationId,
-      platform: 'META' as any,
+      platform: 'META_ADS' as any,
       status: 'ACTIVE' as any,
     },
     select: { credentials: true }
   });
 
-  // Multi-tenant: credentials EXCLUSIVAMENTE desde Connection (no env fallback).
   let pixelId: string | undefined;
   let accessToken: string | undefined;
 
   if (connection?.credentials) {
     const creds = connection.credentials as Record<string, string>;
     pixelId = creds.pixelId || creds.pixel_id;
-    accessToken = creds.accessToken || creds.access_token;
+    accessToken = creds.pixelAccessToken || creds.accessToken || creds.access_token;
   }
 
   if (!pixelId || !accessToken) return null;

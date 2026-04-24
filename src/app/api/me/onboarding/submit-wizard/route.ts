@@ -101,6 +101,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Validar y crear/actualizar connections
+    // NOTA: El enum Platform de Prisma NO tiene "META_PIXEL" — solo "META_ADS".
+    // Si el wizard manda platform="META_PIXEL", fusionamos las credenciales
+    // pixelId + pixelAccessToken dentro de la connection "META_ADS" (o la
+    // creamos si no existe). Un solo Connection representa toda la cuenta
+    // Meta del cliente (Ads + Pixel CAPI). Refactor a schema unificado queda
+    // como BP-S58-003 para el finde (Opcion B).
+    const pixelCredsPending: any = {}; // creds de META_PIXEL esperando merge
+
     const created: string[] = [];
     for (const p of platforms) {
       if (!VALID_PLATFORMS.has(p.platform)) continue;
@@ -111,6 +119,17 @@ export async function POST(req: NextRequest) {
           { error: `${p.platform}: ${validationError}` },
           { status: 400 }
         );
+      }
+
+      // META_PIXEL NO se guarda como connection propia (enum Platform no lo
+      // soporta). Lo buffereamos para mergear dentro de META_ADS mas abajo,
+      // manteniendo los campos con prefijo "pixel" para que capi.ts los lea.
+      if (p.platform === "META_PIXEL") {
+        const c = sanitizeCreds(p.credentials) as any;
+        if (c?.pixelId) pixelCredsPending.pixelId = c.pixelId;
+        if (c?.accessToken) pixelCredsPending.pixelAccessToken = c.accessToken;
+        created.push("META_PIXEL");
+        continue;
       }
 
       // Upsert connection (PENDING hasta aprobacion de Tomy)
@@ -152,6 +171,41 @@ export async function POST(req: NextRequest) {
         });
       }
       created.push(p.platform);
+    }
+
+    // Merge de credenciales META_PIXEL dentro de la connection META_ADS.
+    // Hay 3 casos:
+    //  1. El cliente conecto Meta Ads Y Meta Pixel: ya existe connection
+    //     META_ADS (recien creada en el loop), le updateamos el credentials
+    //     con los campos pixel*.
+    //  2. Solo conecto Meta Pixel sin Meta Ads: creamos connection
+    //     META_ADS nueva con SOLO los campos pixel* (sin adAccountId). CAPI
+    //     va a funcionar aunque el resto de Meta Ads falle por falta de
+    //     creds (los otros endpoints chequean adAccountId antes).
+    //  3. No conecto ninguno de los dos: no hacemos nada.
+    if (Object.keys(pixelCredsPending).length > 0) {
+      const existingMeta = await prisma.connection.findFirst({
+        where: { organizationId: user.organizationId, platform: "META_ADS" as any },
+        select: { id: true, credentials: true },
+      });
+      if (existingMeta) {
+        const existingCreds = (existingMeta.credentials as any) || {};
+        await prisma.connection.update({
+          where: { id: existingMeta.id },
+          data: {
+            credentials: { ...existingCreds, ...pixelCredsPending },
+          },
+        });
+      } else {
+        await prisma.connection.create({
+          data: {
+            organizationId: user.organizationId,
+            platform: "META_ADS" as any,
+            status: "PENDING",
+            credentials: pixelCredsPending,
+          },
+        });
+      }
     }
 
     // Guardar historyMonths en el onboarding_request asociado
