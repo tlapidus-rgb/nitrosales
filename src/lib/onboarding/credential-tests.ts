@@ -109,19 +109,37 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
     };
   }
 
-  async function testCatalog(): Promise<AreaResult> {
-    // Si admin provee SKU, buscar ese solo. Sino: 5 productos ACTIVOS con stock
-    // (fq=isAvailable:true) para muestra representativa. Los productos
-    // inactivos/en catalogación suelen no tener precios/imágenes completas.
-    let searchPath = options?.testSku
-      ? `/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(options.testSku)}`
-      : "/api/catalog_system/pub/products/search?_from=0&_to=4&fq=isAvailable:true";
-    let search = await vtexFetch(searchPath);
-    // Fallback: si el filtro isAvailable no trae nada, probar sin filtro.
-    if (!options?.testSku && (!Array.isArray(search.data) || search.data.length === 0)) {
-      searchPath = "/api/catalog_system/pub/products/search?_from=0&_to=4";
-      search = await vtexFetch(searchPath);
+  // Obtener 5 SKUs de VENTAS RECIENTES (100% productos activos, que se venden).
+  // Esto evita muestrear productos inactivos/en catalogación del primer page.
+  async function getRealSoldSkus(): Promise<string[]> {
+    if (options?.testSku) return [options.testSku];
+    const ordersRes = await vtexFetch("/api/oms/pvt/orders?per_page=5&orderBy=creationDate,desc");
+    const orderIds = (ordersRes.data?.list || []).map((o: any) => o.orderId).filter(Boolean);
+    const soldSkus = new Set<string>();
+    for (const oid of orderIds.slice(0, 5)) {
+      if (soldSkus.size >= 5) break;
+      const det = await vtexFetch(`/api/oms/pvt/orders/${oid}`);
+      for (const it of (det.data?.items || [])) {
+        const sku = String(it.id || it.productId || "");
+        if (sku) soldSkus.add(sku);
+        if (soldSkus.size >= 5) break;
+      }
     }
+    return Array.from(soldSkus).slice(0, 5);
+  }
+  const realSkus = await getRealSoldSkus();
+
+  async function testCatalog(): Promise<AreaResult> {
+    let searchPath: string;
+    if (realSkus.length > 0) {
+      // Buscar los SKUs reales en el catalog
+      const skuFq = realSkus.map((s) => `fq=skuId:${s}`).join("&");
+      searchPath = `/api/catalog_system/pub/products/search?${skuFq}`;
+    } else {
+      // Fallback: primeros del catalog (cuenta sin ventas todavia)
+      searchPath = "/api/catalog_system/pub/products/search?_from=0&_to=4";
+    }
+    const search = await vtexFetch(searchPath);
     if (search.status === 401 || search.status === 403) {
       return { area: "Catálogo", ok: false, detail: `sin permiso (${search.status})`, hint: "App Key necesita permiso Catalog - Read" };
     }
@@ -163,25 +181,10 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
   }
 
   async function testPricing(): Promise<AreaResult> {
-    // Si admin provee SKU, usa ese solo. Sino: saca 5 SKUs de productos ACTIVOS
-    // con stock (fq=isAvailable:true). Evita agarrar productos inactivos sin
-    // precios cargados, que darian falsos negativos.
-    let skusToCheck: string[] = [];
-    if (options?.testSku) {
-      skusToCheck = [options.testSku];
-    } else {
-      let search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=4&fq=isAvailable:true");
-      let prods: any[] = Array.isArray(search.data) ? search.data : [];
-      if (prods.length === 0) {
-        // Fallback sin filtro si la cuenta no tiene activos
-        search = await vtexFetch("/api/catalog_system/pub/products/search?_from=0&_to=4");
-        prods = Array.isArray(search.data) ? search.data : [];
-      }
-      skusToCheck = prods
-        .map((p) => p.items?.[0]?.itemId)
-        .filter((id): id is string => !!id)
-        .slice(0, 5);
-    }
+    // Usa los MISMOS SKUs de ventas reales (calculados arriba en realSkus).
+    // Asi si Catalog y Pricing chequean sobre la misma muestra, los resultados
+    // son consistentes.
+    const skusToCheck: string[] = realSkus.length > 0 ? realSkus : [];
     if (skusToCheck.length === 0) {
       return { area: "Precios", ok: true, detail: "sin SKUs disponibles para validar" };
     }
