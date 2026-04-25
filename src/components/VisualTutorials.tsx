@@ -813,9 +813,67 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
           { text: "Permiso 'Administrador' o 'Acceso completo'", hint: "Necesario para enviar eventos CAPI en nombre del pixel." },
           { text: "Pegá en el wizard el MISMO token que usaste para Meta Ads", hint: "Con los permisos correctos funciona para Meta Ads y CAPI. Meta recomienda uno dedicado para trazabilidad, pero no es obligatorio." },
         ],
-        tip: "Si alguien (IA, doc, agencia) te dice 'hacelo con tu app', ignorá — eso es para empresas que desarrollan su propia app de Meta (raro). La Forma A cubre el 95% de los casos.",
+        tip: "Si alguien (IA, doc, agencia) te dice 'hacelo con tu app', en realidad sí hace falta una app del Business Manager para vincular el token (paso 3 de este tutorial te explica). NO necesitás programar nada — es una app vacía dentro de tu BM.",
       },
       docUrl: "https://developers.facebook.com/docs/marketing-api/conversions-api/get-started",
+    },
+    {
+      title: "¿Te trabaste? Casos comunes",
+      subtitle: "Employee en vez de Admin · te pide elegir una app · permisos",
+      mockup: (
+        <BrowserFrame url="business.facebook.com/settings/system-users">
+          <div style={{ padding: 14, background: "#fff" }}>
+            {/* Caso 1: Employee */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 14 }}>👤</span>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1a1a" }}>
+                Caso 1: "Solo puedo crear System User Employee, no Admin"
+              </div>
+            </div>
+            <div style={{ padding: 10, background: "#EFF6FF", borderLeft: "3px solid #3B82F6", borderRadius: 4, marginBottom: 14, fontSize: 10, color: "#1a1a1a", lineHeight: 1.5 }}>
+              Meta limita a <strong>1 System User Admin por Business Manager</strong>. Si ya lo gastaste en otra
+              integración (Klaviyo, Shopify, etc.), tenés que crear uno tipo <strong>Employee</strong>.
+              <br /><br />
+              <strong>Funciona perfecto.</strong> Solo hay que asignarle 2 activos:
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                <li><strong>Cuentas publicitarias</strong> → tu Ad Account → permiso "Acceso completo"</li>
+                <li><strong>Fuentes de datos</strong> → tu Pixel → permiso "Administrador"</li>
+              </ul>
+            </div>
+
+            {/* Caso 2: Elegir una app */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 14 }}>📦</span>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1a1a" }}>
+                Caso 2: "Al generar el token me pide elegir una app"
+              </div>
+            </div>
+            <div style={{ padding: 10, background: "#FEF3C7", borderLeft: "3px solid #F59E0B", borderRadius: 4, fontSize: 10, color: "#1a1a1a", lineHeight: 1.5 }}>
+              Meta exige vincular el token a una "app" de tu Business Manager. <strong>NO es una app que programás</strong> —
+              es solo un identificador interno.
+              <br /><br />
+              Si nunca creaste una, hacelo así:
+              <ol style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                <li>Configuración del negocio → <strong>Cuentas → Apps → "Agregar"</strong></li>
+                <li>Tipo: "Negocios" (o el más simple disponible)</li>
+                <li>Nombre: cualquiera, ej. <em>"NitroSales-Connector"</em></li>
+                <li>Volvé a "Generar token" y elegí esa app</li>
+              </ol>
+            </div>
+          </div>
+        </BrowserFrame>
+      ),
+      instructions: {
+        heading: "Cómo resolver los 2 problemas más comunes",
+        steps: [
+          { text: "Si solo podés crear System User Employee → CREALO", hint: "Funciona idéntico a Admin para CAPI, siempre que le des los activos correctos en el siguiente paso." },
+          { text: "Asignale al Employee: Ad Account (Acceso completo) + Pixel (Administrador)", hint: "Click sobre el System User → 'Agregar activos' → seleccioná los 2 tipos por separado." },
+          { text: "Si te pide elegir una app, creá una vacía en Configuración → Apps → Agregar", hint: "Tipo 'Negocios', nombre arbitrario (ej: NitroSales-Connector). Tarda 30 segundos. Después volvés a generar el token." },
+          { text: "Permisos del token: ads_read, ads_management, business_management", hint: "Marcá esos 3 sí o sí. No marques ninguno extra que pueda dar problemas." },
+        ],
+        tip: "El cliente típico tarda ~10-15 minutos en este paso si nunca tocó Business Manager. Si después de eso seguís trabado, contactanos por chat — nosotros entramos al BM con vos para destrabarlo.",
+      },
+      docUrl: "https://developers.facebook.com/docs/marketing-api/system-users/create-retrieve-update#user-token",
     },
   ],
 
