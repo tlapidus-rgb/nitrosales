@@ -517,11 +517,23 @@ function WizardFullscreen({ orgId, onSubmitted, onStepChange }: { orgId: string 
       const source = cacheHasData ? fromCache : fromDb;
 
       if (source) {
-        if (source.decisions && typeof source.decisions === "object") setDecisions(source.decisions);
+        // Filtrar plataformas que ya no existen en ALL_PLATFORMS (ej: META_PIXEL
+        // post-S58-003). Sino, el sessionStorage de un cliente viejo puede
+        // intentar enfocar una plataforma inexistente y crashear el render.
+        const validKeys = new Set(ALL_PLATFORMS.map((p) => p.key));
+        if (source.decisions && typeof source.decisions === "object") {
+          const filtered: Record<string, Decision> = {};
+          for (const [k, v] of Object.entries(source.decisions)) {
+            if (validKeys.has(k as BrandKey)) filtered[k] = v as Decision;
+          }
+          setDecisions(filtered);
+        }
         if (source.creds && typeof source.creds === "object") setCreds(source.creds);
         if (source.history && typeof source.history === "object") setHistory((h) => ({ ...h, ...source.history }));
         if (source.orgInfo && typeof source.orgInfo === "object") setOrgInfo((o) => ({ ...o, ...source.orgInfo }));
-        if (typeof source.focusedPlatform === "string") setFocusedPlatform(source.focusedPlatform as BrandKey);
+        if (typeof source.focusedPlatform === "string" && validKeys.has(source.focusedPlatform as BrandKey)) {
+          setFocusedPlatform(source.focusedPlatform as BrandKey);
+        }
       }
       setHydrated(true);
     })();
@@ -900,7 +912,10 @@ function EmptyCenter() {
 }
 
 function PlatformCenterPanel({ platformKey, creds, onChange, orgId, history, onHistoryChange }: any) {
-  const p = ALL_PLATFORMS.find((pl) => pl.key === platformKey)!;
+  // Defensive: si llega un platformKey que ya no existe en ALL_PLATFORMS
+  // (ej: META_PIXEL post-S58-003 desde sessionStorage viejo), no crashear.
+  const p = ALL_PLATFORMS.find((pl) => pl.key === platformKey);
+  if (!p) return <EmptyCenter />;
   return (
     <div style={{ maxWidth: 640 }}>
       {/* Header */}
