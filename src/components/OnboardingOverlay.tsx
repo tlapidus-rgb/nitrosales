@@ -427,14 +427,17 @@ const ALL_PLATFORMS: Platform[] = [
   },
   {
     key: "NITROPIXEL", name: "NitroPixel",
-    subtitle: "Tracking first-party — requerido",
+    subtitle: "Tracking first-party — recomendado",
     requiredFields: ["confirmedInstalled"],
     hasHistory: false,
-    essential: true,
+    // essential queda en false: el cliente puede skipear si no quiere/no
+    // puede instalar el snippet ahora. El modal de skip le advierte que
+    // pierde Analytics propias + atribucion multi-touch (ver missFeatures).
     missFeatures: [
-      "Analytics propias de NitroSales",
+      "Analytics propias de NitroSales (sin GA4)",
+      "Atribución multi-touch real",
       "NitroScore de calidad de tracking",
-      "Atribución multi-touch",
+      "Conversiones server-side a Meta y Google",
     ],
   },
 ];
