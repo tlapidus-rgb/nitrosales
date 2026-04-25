@@ -73,30 +73,10 @@ export async function GET() {
     for (const c of connections) {
       const platform = String(c.platform);
       const credentials = (c.credentials as any) || {};
-
-      if (platform === "META_ADS") {
-        // Split: si tiene adAccountId => META_ADS "use"; si tiene pixelId => META_PIXEL "use".
-        if (credentials.adAccountId) {
-          decisions.META_ADS = "use";
-          creds.META_ADS = {
-            adAccountId: credentials.adAccountId,
-            accessToken: credentials.accessToken,
-            businessId: credentials.businessId,
-          };
-        }
-        if (credentials.pixelId) {
-          decisions.META_PIXEL = "use";
-          creds.META_PIXEL = {
-            pixelId: credentials.pixelId,
-            // Preferir el token especifico del pixel; fallback al shared.
-            accessToken: credentials.pixelAccessToken || credentials.accessToken,
-          };
-        }
-      } else {
-        // VTEX, MERCADOLIBRE, GOOGLE_ADS, GSC, etc.
-        decisions[platform] = "use";
-        creds[platform] = credentials;
-      }
+      // BP-S58-003: META_ADS contiene Ads + Pixel en un solo objeto.
+      // No hace falta splittear — el wizard lee creds.META_ADS directo.
+      decisions[platform] = "use";
+      creds[platform] = credentials;
     }
 
     // Historia del wizard

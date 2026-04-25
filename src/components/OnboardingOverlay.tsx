@@ -386,26 +386,21 @@ const ALL_PLATFORMS: Platform[] = [
     ],
   },
   {
-    key: "META_ADS", name: "Meta Ads",
-    subtitle: "Facebook + Instagram Ads",
+    // BP-S58-003: META_ADS unifica Ads + Pixel CAPI. Antes habia 2 entries
+    // separadas (META_ADS + META_PIXEL) pero generaban friccion (1 cliente
+    // podia hacer una y olvidar la otra) y el enum Platform de Prisma no
+    // tiene "META_PIXEL" anyway. Ahora todo en una sola seccion: el cliente
+    // pone Ad Account + Token (obligatorios) y opcionalmente Business ID +
+    // Pixel ID + Pixel Access Token.
+    key: "META_ADS", name: "Meta (Ads + Pixel)",
+    subtitle: "Facebook + Instagram Ads · Conversions API",
     requiredFields: ["adAccountId", "accessToken"],
     hasHistory: true,
     missFeatures: [
       "ROAS y CPA de Meta Ads",
-      "Análisis de creatividades",
-      "Detección de fatigue creative",
-      "Optimización de presupuesto entre campañas",
-    ],
-  },
-  {
-    key: "META_PIXEL", name: "Meta Pixel",
-    subtitle: "Conversiones API server-side",
-    requiredFields: ["pixelId", "accessToken"],
-    hasHistory: false,
-    missFeatures: [
-      "Match quality mejorado hacia Meta",
-      "Tracking sin depender del navegador",
-      "Recuperación de eventos bloqueados por iOS14+",
+      "Análisis de creatividades + fatigue",
+      "Conversiones server-side (post-iOS14)",
+      "Atribución multi-touch con NitroPixel",
     ],
   },
   {
@@ -923,7 +918,6 @@ function PlatformCenterPanel({ platformKey, creds, onChange, orgId, history, onH
         {platformKey === "VTEX" && <EcommerceInputs creds={creds} onChange={onChange} />}
         {platformKey === "MERCADOLIBRE" && <MlInputs creds={creds} onChange={onChange} />}
         {platformKey === "META_ADS" && <MetaAdsInputs creds={creds} onChange={onChange} />}
-        {platformKey === "META_PIXEL" && <MetaPixelInputs creds={creds} onChange={onChange} />}
         {platformKey === "GOOGLE_ADS" && <GoogleAdsInputs creds={creds} onChange={onChange} />}
         {platformKey === "GSC" && <GscInputs creds={creds} onChange={onChange} />}
         {platformKey === "NITROPIXEL" && <NitroPixelInputs creds={creds} onChange={onChange} orgId={orgId} />}
@@ -1281,28 +1275,36 @@ function MlInputs({ creds, onChange }: any) {
 function MetaAdsInputs({ creds, onChange }: any) {
   return (
     <>
+      {/* ─── Ads (obligatorio) ─── */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+        Meta Ads · obligatorio
+      </div>
       <Field label="Ad Account ID" hint="Solo los números, sin 'act_'.">
         <Input value={creds.adAccountId || ""} onChange={(v) => onChange("adAccountId", v.replace(/[^0-9]/g, ""))} placeholder="123456789" mono maxLength={30} />
       </Field>
-      <Field label="Access Token (System User)">
+      <Field label="Access Token (System User)" hint="Empieza con 'EAA…'. Es el token con permisos ads_read + ads_management + business_management.">
         <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
       </Field>
       <Field label="Business ID (opcional)" hint="ID de tu Business Manager. Sirve para audiencias custom y conversiones avanzadas. Si no sabés, dejalo vacío.">
         <Input value={creds.businessId || ""} onChange={(v) => onChange("businessId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890123456" mono maxLength={20} />
       </Field>
-    </>
-  );
-}
 
-function MetaPixelInputs({ creds, onChange }: any) {
-  return (
-    <>
-      <Field label="Pixel ID" hint="15-16 dígitos.">
-        <Input value={creds.pixelId || ""} onChange={(v) => onChange("pixelId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890123456" mono maxLength={20} />
-      </Field>
-      <Field label="Access Token CAPI">
-        <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
-      </Field>
+      {/* ─── Pixel (opcional, mismo bloque) ─── */}
+      <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px dashed ${BORDER}` }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: TEXT_PRIMARY, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+          Meta Pixel + Conversions API · opcional
+        </div>
+        <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.55, marginBottom: 14 }}>
+          Sirve para mandar conversiones server-side a Meta y mejorar la atribución post-iOS14.
+          Si no usás Meta Pixel, dejá los 2 campos vacíos.
+        </div>
+        <Field label="Pixel ID" hint="15-16 dígitos. Lo encontrás en business.facebook.com/events_manager.">
+          <Input value={creds.pixelId || ""} onChange={(v) => onChange("pixelId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890123456" mono maxLength={20} />
+        </Field>
+        <Field label="Access Token CAPI" hint="Si dejás vacío, NitroSales usa el mismo token de Meta Ads de arriba (válido si tiene los 3 permisos correctos y está asignado al pixel).">
+          <Input value={creds.pixelAccessToken || ""} onChange={(v) => onChange("pixelAccessToken", v)} placeholder="EAA... (opcional, dejá vacío para reusar el de arriba)" mono />
+        </Field>
+      </div>
     </>
   );
 }

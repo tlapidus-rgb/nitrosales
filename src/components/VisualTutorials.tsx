@@ -708,13 +708,12 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
         tip: "Sirve para habilitar en el futuro: Custom Audiences (audiencias propias), Custom Conversions (eventos de conversión personalizados), y Conversions API en modo 'avanzado'. Si lo dejás vacío, todo funciona igual — solo que esas features quedan bloqueadas hasta que lo cargues.",
       },
     },
-  ],
-
-  // ─────────── META PIXEL ───────────
-  META_PIXEL: [
+    // ───── PASOS 4 a 6: Meta Pixel + Conversions API (opcional) ─────
+    // Movidos desde META_PIXEL en BP-S58-003. Si el cliente NO usa Pixel,
+    // puede saltar estos 3 pasos sin problema.
     {
-      title: "Paso 1: Copiá el Pixel ID",
-      subtitle: "Es un número de 15 o 16 dígitos. La parte más fácil.",
+      title: "Paso 4: Pixel ID (opcional, para CAPI)",
+      subtitle: "Solo si usás Meta Pixel. Si no, saltá al final del wizard.",
       mockup: (
         <BrowserFrame url="business.facebook.com/events_manager">
           <div style={{ display: "flex", minHeight: 220 }}>
@@ -755,27 +754,28 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
       instructions: {
         heading: "3 pasos para el Pixel ID",
         steps: [
-          { text: "Abrí en tu navegador: business.facebook.com/events_manager", hint: "Tenés que estar logueado con la cuenta que administra tu pixel. Es una página de Meta distinta del Business Manager normal." },
+          { text: "Abrí en tu navegador: business.facebook.com/events_manager", hint: "Es una página de Meta distinta del Business Manager normal. Tenés que estar logueado con la cuenta que administra tu pixel." },
           { text: "Click en tu pixel del menú izquierdo (lo identificás con el cuadrado azul)", hint: "Si no aparece ninguno, click en '+ Conectar fuente de datos' → Web → 'Pixel de Meta' y creá uno nuevo. Tarda 1 minuto." },
-          { text: "Copiá el número que aparece debajo del nombre, donde dice 'ID del pixel'", hint: "Son 15 o 16 dígitos. Pegalo en el campo 'Pixel ID' del wizard. CUIDADO: NO es el mismo número que el 'Ad Account ID' que pusiste en Meta Ads — son cuentas distintas." },
+          { text: "Copiá el número que aparece debajo del nombre, donde dice 'ID del pixel'", hint: "Son 15 o 16 dígitos. Pegalo en el campo 'Pixel ID' del wizard. CUIDADO: NO es el mismo número que el Ad Account ID que pusiste en el Paso 1 — son cuentas distintas." },
         ],
-        tip: "Listo el ID. Ahora viene la parte que confunde más: el Access Token. Lee el paso 2 con calma — son 4 sub-pasos pero cada uno es simple.",
+        tip: "Listo el ID. Ahora viene la parte que confunde más: el Access Token CAPI (paso 5). Si usás el mismo System User que ya creaste en el Paso 2, vas a poder reusar el mismo token y SALTAR el campo del wizard.",
       },
     },
     {
-      title: "Paso 2: Conseguir el Access Token (la \"llave\")",
-      subtitle: "Es lo que le da permiso a NitroSales para mandar eventos a tu Meta",
+      title: "Paso 5: Access Token CAPI (la \"llave\" del pixel)",
+      subtitle: "Le da permiso a NitroSales para mandar eventos al pixel",
       mockup: (
         <BrowserFrame url="business.facebook.com/settings/system-users">
           <div style={{ padding: 14, background: "#fff" }}>
-            <div style={{ padding: 12, background: "#F0F9FF", border: "1px solid #BFDBFE", borderRadius: 8, marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#1E40AF", marginBottom: 6 }}>
-                💡 Antes de empezar: ¿qué es el Access Token?
+            <div style={{ padding: 12, background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 8, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#065F46", marginBottom: 6 }}>
+                ⚡ Atajo: reusá el token del Paso 2
               </div>
               <div style={{ fontSize: 10, color: "#1F2937", lineHeight: 1.6 }}>
-                Pensalo como una <strong>llave de tu casa</strong>. Vos se la das a alguien de
-                confianza (NitroSales) para que entre y deje cosas adentro (los datos de tus ventas).
-                Sin esa llave, Meta rechaza todo lo que mandamos.
+                En el Paso 2 ya creaste el "usuario de sistema" para Meta Ads.
+                Si le asignás también el Pixel como activo, <strong>el MISMO token sirve para Ads y CAPI</strong>.
+                Y en el wizard podés <strong>dejar el campo vacío</strong> — NitroSales reusa automáticamente
+                el token de arriba.
               </div>
             </div>
 
@@ -783,57 +783,45 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
               📋 Lo que vamos a hacer (resumen):
             </div>
             <div style={{ padding: 10, background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 6, fontSize: 10, color: "#1a1a1a", lineHeight: 1.7 }}>
-              <div><strong>1.</strong> Crear un "usuario de sistema" en tu Business Manager <em>(es como un usuario robot, no humano)</em></div>
-              <div><strong>2.</strong> Darle a ese usuario acceso a 2 cosas: tu cuenta publicitaria + tu pixel</div>
-              <div><strong>3.</strong> Apretar "Generar token" y copiar el código que sale</div>
-              <div><strong>4.</strong> Pegar ese código en el campo "Access Token CAPI" del wizard</div>
-            </div>
-            <div style={{ marginTop: 10, padding: 8, background: "#FEF3C7", borderLeft: "3px solid #F59E0B", borderRadius: 4, fontSize: 10, color: "#1a1a1a", lineHeight: 1.5 }}>
-              <strong>📌 Atajo:</strong> si ya seguiste el tutorial de Meta Ads, ya creaste un usuario de sistema.
-              <strong> Podés usar el mismo</strong> y solo agregarle el pixel como acceso adicional.
+              <div><strong>1.</strong> Volver al "usuario de sistema" del Paso 2</div>
+              <div><strong>2.</strong> Asignarle el Pixel como activo (con permiso "Administrador")</div>
+              <div><strong>3.</strong> Listo: ese mismo usuario ya tiene acceso a Ads + Pixel</div>
+              <div><strong>4.</strong> Si querés un token dedicado al pixel, generalo aparte (sino dejá el campo vacío)</div>
             </div>
           </div>
         </BrowserFrame>
       ),
       instructions: {
-        heading: "Cómo conseguir el token, paso a paso",
+        heading: "Cómo asignar el pixel + (opcional) generar token dedicado",
         steps: [
           {
-            text: "Andá a business.facebook.com/settings/system-users",
-            hint: "Si ya hiciste el tutorial de Meta Ads, vas a ver un usuario que se llama 'NitroSales'. Si no, click en 'Agregar' → nombre 'NitroSales' → rol 'Empleado' (Employee)."
+            text: "Volvé a business.facebook.com/settings/system-users",
+            hint: "El mismo lugar del Paso 2. Vas a ver el usuario que creaste con nombre 'NitroSales' (o como lo hayas llamado)."
           },
           {
-            text: "Click sobre tu usuario 'NitroSales' → botón 'Agregar activos'",
-            hint: "Aparece un panel donde tenés que asignarle a ese usuario qué partes de tu cuenta puede usar. Vamos a asignarle 2: Ad Account y Pixel."
+            text: "Click sobre el usuario → 'Agregar activos' → pestaña 'Fuentes de datos'",
+            hint: "Aparece el listado de pixeles de tu Business Manager."
           },
           {
-            text: "Asignale tu Ad Account (con permiso 'Acceso completo')",
-            hint: "Click en la pestaña 'Cuentas publicitarias' → tildá tu cuenta → permiso 'Acceso completo'. Click 'Guardar'."
+            text: "Tildá tu pixel y elegí permiso 'Administrador' → Guardar",
+            hint: "Sin este paso, NitroSales no puede mandar eventos al pixel aunque tenga el token. Es la causa #1 de errores."
           },
           {
-            text: "Asignale tu Pixel (con permiso 'Administrador')",
-            hint: "Click en la pestaña 'Fuentes de datos' → tildá tu pixel → permiso 'Administrador'. Click 'Guardar'. ESTE PASO se olvida mucho — sin él, NitroSales no puede mandar eventos al pixel."
+            text: "OPCIÓN A — Reusar token: dejá vacío el campo 'Access Token CAPI' del wizard",
+            hint: "NitroSales detecta el campo vacío y usa automáticamente el token de Meta Ads que pusiste arriba. Más simple, menos tokens que mantener."
           },
           {
-            text: "Click en 'Generar token de acceso' (botón azul arriba)",
-            hint: "Si te pide elegir una 'app' de tu Business Manager, mirá el paso 3 — te explica cómo crear una en 30 segundos. NO es una app de programar."
-          },
-          {
-            text: "Marcá los 3 permisos: ads_read, ads_management, business_management",
-            hint: "Son checkboxes. Marcá EXACTAMENTE esos 3. No marques ninguno más (puede generar errores). Click 'Generar'."
-          },
-          {
-            text: "Copiá el token que aparece (empieza con 'EAA...') y pegalo en el wizard",
-            hint: "⚠️ El token solo se muestra UNA vez. Si cerrás esa pantalla sin copiarlo, perdés el token y tenés que regenerarlo. Pegalo en el campo 'Access Token CAPI' del wizard de NitroSales."
+            text: "OPCIÓN B — Token dedicado: 'Generar token de acceso' con los 3 permisos",
+            hint: "ads_read + ads_management + business_management. Copialo (empieza con 'EAA...') y pegalo en el campo 'Access Token CAPI'. Meta recomienda esta opción para trazabilidad pero NO es obligatoria."
           },
         ],
-        tip: "Este token es el MISMO que usás para Meta Ads (si ya lo generaste antes). Meta recomienda uno dedicado al pixel pero no es obligatorio — funciona idéntico mientras tenga los 3 permisos correctos.",
+        tip: "Si te pide elegir una 'app' del Business Manager al generar el token, mirá el Paso 6 — te explica cómo crear una en 30 segundos. NO es una app de programar.",
       },
       docUrl: "https://developers.facebook.com/docs/marketing-api/conversions-api/get-started",
     },
     {
-      title: "Paso 3: Si te trabaste, mirá acá",
-      subtitle: "Los 3 problemas que más confunden a los clientes",
+      title: "Paso 6: ¿Te trabaste con el pixel? Soluciones rápidas",
+      subtitle: "Los 3 problemas más comunes y cómo resolverlos",
       mockup: (
         <BrowserFrame url="business.facebook.com/settings">
           <div style={{ padding: 14, background: "#fff" }}>
@@ -849,7 +837,7 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
                   (Klaviyo, Shopify, agencia, etc.), te queda solo Employee.
                   <div style={{ marginTop: 6, padding: 8, background: "#DBEAFE", borderRadius: 4 }}>
                     <strong>✅ Tranquilo: Employee funciona idéntico</strong>, siempre que le asignes
-                    los 2 accesos del paso anterior (Ad Account + Pixel).
+                    los 2 accesos del Paso 2 + Paso 5 (Ad Account + Pixel).
                   </div>
                 </div>
               </div>
@@ -880,7 +868,7 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
               <div style={{ flexShrink: 0, width: 26, height: 26, borderRadius: "50%", background: "#EF4444", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>3</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 6 }}>
-                  "Genere el token pero NitroSales me dice que no funciona"
+                  "Generé el token pero NitroSales me dice que no funciona"
                 </div>
                 <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6 }}>
                   El 99% de las veces es porque <strong>te olvidaste de un permiso</strong> al generar el token.
@@ -889,7 +877,7 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
                     ✅ ads_read &nbsp;·&nbsp; ✅ ads_management &nbsp;·&nbsp; ✅ business_management
                   </div>
                   <div style={{ marginTop: 6 }}>
-                    Otra causa común: <strong>no le asignaste el Pixel</strong> al usuario en el paso 2.
+                    Otra causa común: <strong>no le asignaste el Pixel</strong> al usuario en el Paso 5.
                     Volvé a "Agregar activos" → Fuentes de datos → tildá el pixel.
                   </div>
                 </div>
@@ -911,6 +899,9 @@ const TUTORIAL_STEPS: Record<string, TutorialStep[]> = {
       docUrl: "https://developers.facebook.com/docs/marketing-api/system-users/create-retrieve-update#user-token",
     },
   ],
+
+  // META_PIXEL eliminado en BP-S58-003 — los pasos del pixel ahora viven al
+  // final de META_ADS como pasos 4-6 (opcionales).
 
   // ─────────── GOOGLE ADS ───────────
   GOOGLE_ADS: [
