@@ -1100,11 +1100,23 @@ function EcommerceInputs({ creds, onChange }: any) {
           <Field label="Account Name" hint="Es el subdomain de tu tienda VTEX.">
             <Input value={creds.accountName || ""} onChange={(v) => onChange("accountName", v)} placeholder="miempresa" maxLength={60} />
           </Field>
-          <Field label="App Key" hint="Empieza con 'vtexappkey-'.">
+          <Field label="App Key" hint="Empieza con 'vtexappkey-'. Formato típico: 'vtexappkey-empresa-XXXXXX' (~30-40 caracteres).">
             <Input value={creds.appKey || ""} onChange={(v) => onChange("appKey", v)} placeholder="vtexappkey-xxxxx-XXXXXX" mono />
+            {creds.appKey && creds.appKey.length > 0 && creds.appKey.length < 20 && (
+              <div style={{ marginTop: 6, padding: "8px 10px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: 7, fontSize: 11, color: "#FBBF24", lineHeight: 1.5 }}>
+                ⚠ Esta App Key parece corta ({creds.appKey.length} caracteres). Verificá que la copiaste completa — debería tener 30+ caracteres.
+              </div>
+            )}
           </Field>
-          <Field label="App Token">
-            <Input value={creds.appToken || ""} onChange={(v) => onChange("appToken", v)} placeholder="ABCD1234..." mono />
+          <Field label="App Token" hint="Token largo de 60+ caracteres. CUIDADO: copialo COMPLETO sin cortar — si te quedás con menos, no va a funcionar.">
+            <Input value={creds.appToken || ""} onChange={(v) => onChange("appToken", v)} placeholder="2Zk8X4...Q3aZ (60+ caracteres)" mono />
+            {creds.appToken && creds.appToken.length > 0 && creds.appToken.length < 40 && (
+              <div style={{ marginTop: 6, padding: "8px 10px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 7, fontSize: 11, color: "#FCA5A5", lineHeight: 1.5 }}>
+                ⚠ <strong>App Token incompleto</strong> ({creds.appToken.length} caracteres). El App Token de VTEX debería tener <strong>60+ caracteres</strong>.
+                <br />
+                Volvé a tu admin VTEX, copialo COMPLETO (sin que se corte) y pegalo de nuevo. Si no, NitroSales no va a poder leer tus ventas.
+              </div>
+            )}
           </Field>
           <Field label="Sales Channel ID (opcional)" hint="Si operás multi-canal (ej: retail, wholesale, marketplace), poné el ID principal. Si no sabés, dejalo vacío.">
             <Input value={creds.salesChannelId || ""} onChange={(v) => onChange("salesChannelId", v.replace(/[^0-9]/g, ""))} placeholder="1" maxLength={6} />

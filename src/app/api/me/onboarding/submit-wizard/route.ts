@@ -256,6 +256,16 @@ function validatePlatformCreds(platform: string, creds: any): string | null {
         if (!creds.accountName || typeof creds.accountName !== "string") return "accountName requerido";
         if (!creds.appKey || typeof creds.appKey !== "string") return "appKey requerido";
         if (!creds.appToken || typeof creds.appToken !== "string") return "appToken requerido";
+        // Defensa contra App Token truncado al copy-paste. Caso real S58:
+        // un cliente pego un token de ~12 chars (deberia ser 60+), todas las
+        // areas privadas dieron 401 y tardamos horas en diagnosticar. Ahora
+        // rechazamos antes de guardar.
+        if (creds.appToken.length < 40) {
+          return "App Token parece incompleto (" + creds.appToken.length + " caracteres). Volvé a tu admin VTEX, copialo COMPLETO y pegalo de nuevo en el wizard. Debería tener 60+ caracteres.";
+        }
+        if (creds.appKey.length < 20) {
+          return "App Key parece incompleta (" + creds.appKey.length + " caracteres). Debería tener 30+ caracteres y empezar con 'vtexappkey-'.";
+        }
       }
       // Para providers no-vtex (tiendanube/shopify/etc), solo capturamos interes.
       break;

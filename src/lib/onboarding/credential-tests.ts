@@ -41,6 +41,22 @@ export async function testVtex(creds: any, options?: { testSku?: string }): Prom
   if (!/^[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(accountName)) {
     return { ok: false, detail: "Account Name inválido", hint: "Solo letras, números y guiones. Sin https:// ni .myvtex.com" };
   }
+  // Caso real S58: appToken truncado al copy-paste (12 chars en vez de 60+).
+  // Detectar y fallar rapido con mensaje accionable antes de probar las 6 areas.
+  if (appToken.length < 40) {
+    return {
+      ok: false,
+      detail: `App Token parece incompleto (${appToken.length} caracteres)`,
+      hint: "El App Token de VTEX tiene 60+ caracteres. Volvé a tu admin VTEX, copialo COMPLETO sin cortar, y pegalo de nuevo en el wizard. Es la causa #1 de errores 401.",
+    };
+  }
+  if (appKey.length < 20) {
+    return {
+      ok: false,
+      detail: `App Key parece incompleta (${appKey.length} caracteres)`,
+      hint: "La App Key de VTEX empieza con 'vtexappkey-' y tiene 30+ caracteres. Verificá que la copiaste completa.",
+    };
+  }
 
   const headers = {
     "X-VTEX-API-AppKey": appKey,
