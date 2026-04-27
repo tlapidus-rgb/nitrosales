@@ -197,21 +197,77 @@ export async function enrichOrderFromVtex(
     }
 
     // ── Campos de order que el LIST endpoint no trae ───
-    const shippingCost = (vData.totals?.find((t: any) => t.id === "Shipping")?.value || 0) / 100;
-    const discountValue = Math.abs(vData.totals?.find((t: any) => t.id === "Discounts")?.value || 0) / 100;
-    const promoNames = (Array.isArray(vData.ratesAndBenefitsData) ? vData.ratesAndBenefitsData : [])
-      .map((r: any) => r.name)
+    // S58 BP-S58-002: ahora poblamos TODOS los campos opcionales del schema
+    // que VTEX expone en el detail. Antes solo 4 (shippingCost, discount,
+    // promotion, coupon) y solo si > 0. Ahora 11+ campos sin filtro de > 0
+    // (env\u00edo gratis o discount=0 son info valida tambien).
+    const totalsArr = Array.isArray(vData.totals) ? vData.totals : [];
+    const shippingTotal = totalsArr.find((t: any) => t.id === "Shipping");
+    const discountTotal = totalsArr.find((t: any) => t.id === "Discounts");
+    const shippingCost = shippingTotal ? Number(shippingTotal.value || 0) / 100 : null;
+    const discountValue = discountTotal ? Math.abs(Number(discountTotal.value || 0)) / 100 : null;
+
+    // Promotions: VTEX devuelve el shape como `ratesAndBenefitsData.rateAndBenefitsIdentifiers`
+    // (objeto), no array directo. El codigo viejo asumia array y por eso quedaba 100% null.
+    const rateIdentifiers = vData.ratesAndBenefitsData?.rateAndBenefitsIdentifiers
+      || (Array.isArray(vData.ratesAndBenefitsData) ? vData.ratesAndBenefitsData : []);
+    const promoNames = (Array.isArray(rateIdentifiers) ? rateIdentifiers : [])
+      .map((r: any) => r?.name || r?.featured || null)
       .filter(Boolean)
       .join(", ") || null;
+
     const couponCode = vData.marketingData?.coupon || null;
+    const utmSource = vData.marketingData?.utmSource || null;
+    const utmMedium = vData.marketingData?.utmMedium || null;
+
+    // Shipping logistics
+    const logistics = vData.shippingData?.logisticsInfo;
+    const firstLogi = Array.isArray(logistics) && logistics.length > 0 ? logistics[0] : null;
+    const shippingCarrier = firstLogi?.deliveryCompany || null;
+    const shippingService = firstLogi?.selectedSla || firstLogi?.shippingMethod || null;
+    const realShippingCost = firstLogi?.sellingPrice != null ? Number(firstLogi.sellingPrice) / 100 : null;
+
+    // Delivery type: pickup (retiro) vs shipping (envio domicilio).
+    // Heuristic: pickup si selectedSla incluye "pickup" o "retiro" o si hay pickupPointId.
+    const sla = String(firstLogi?.selectedSla || "").toLowerCase();
+    const pickupStoreName = firstLogi?.pickupStoreInfo?.friendlyName || null;
+    const deliveryType = pickupStoreName || /pickup|retiro/.test(sla) ? "PICKUP" : (firstLogi ? "DELIVERY" : null);
+
+    // Channel: VTEX salesChannel (1 = retail default, 2 = B2B, etc).
+    const channel = vData.salesChannel != null ? `sc-${vData.salesChannel}` : null;
+
+    // Address fields (additional to Customer.city/state/country).
+    const postalCode = vData.shippingData?.address?.postalCode || null;
+
+    // Payment method (primary).
+    const transactions = Array.isArray(vData.paymentData?.transactions) ? vData.paymentData.transactions : [];
+    const firstTxn = transactions[0];
+    const firstPayment = Array.isArray(firstTxn?.payments) && firstTxn.payments[0];
+    const paymentMethod = firstPayment?.paymentSystemName || firstPayment?.group || null;
+
+    // Device type: VTEX no expone directamente. Si openTextField o origin tiene info, usar.
+    const origin = String(vData.origin || "").toLowerCase();
+    const deviceType = /mobile|android|ios|app/.test(origin) ? "MOBILE" : (origin === "fulfillment" || origin === "marketplace" ? null : "DESKTOP");
 
     await prisma.order.update({
       where: { id: dbOrderId },
       data: {
-        ...(shippingCost > 0 ? { shippingCost } : {}),
-        ...(discountValue > 0 ? { discountValue } : {}),
+        // Solo seteamos si hay valor distinto de null (preservamos lo que ya tenia
+        // si VTEX no lo devuelve).
+        ...(shippingCost !== null ? { shippingCost } : {}),
+        ...(discountValue !== null ? { discountValue } : {}),
         ...(promoNames ? { promotionNames: promoNames } : {}),
         ...(couponCode ? { couponCode } : {}),
+        ...(channel ? { channel } : {}),
+        ...(paymentMethod ? { paymentMethod } : {}),
+        ...(shippingCarrier ? { shippingCarrier } : {}),
+        ...(shippingService ? { shippingService } : {}),
+        ...(realShippingCost !== null ? { realShippingCost } : {}),
+        ...(deliveryType ? { deliveryType } : {}),
+        ...(pickupStoreName ? { pickupStoreName } : {}),
+        ...(postalCode ? { postalCode } : {}),
+        ...(deviceType ? { deviceType } : {}),
+        ...(utmSource ? { trafficSource: utmSource } : {}),
       },
     });
 
