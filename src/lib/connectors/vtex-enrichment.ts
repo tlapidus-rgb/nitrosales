@@ -157,58 +157,73 @@ export async function enrichOrderFromVtex(
     // S58 O3.2: batch inserts de OrderItems. Antes 1 INSERT por item
     // (5-10 round-trips DB por orden). Ahora: products en serie + 1
     // createMany de TODOS los items. Ahorro ~30% en DB writes.
+    //
+    // S58 F-RACE: race condition mitigation. Antes count+if(==0)+createMany;
+    // si dos calls concurrentes (webhook + backfill) llegaban al mismo
+    // dbOrderId entre el count y el createMany podian crear duplicados.
+    // Ahora: deleteMany previo + createMany. Atomico desde el punto de
+    // vista de "estado final consistente" — la orden queda con EXACTAMENTE
+    // los items que devuelve VTEX en este snapshot.
     const items = vData.items || [];
     if (items.length > 0) {
-      const existingItems = await prisma.orderItem.count({ where: { orderId: dbOrderId } });
-      if (existingItems === 0) {
-        const orderItemsToCreate: any[] = [];
+      const orderItemsToCreate: any[] = [];
 
-        for (const item of items) {
-          const productExtId = String(item.id || item.productId);
-          const realSku = (item.refId || item.sellerSku || "").trim() || null;
-          const rawCatIds = item.additionalInfo?.categoriesIds || "";
-          const categoryPath = typeof rawCatIds === "string" && rawCatIds.includes("/")
-            ? rawCatIds.split("/").filter(Boolean).join(" > ")
-            : null;
-          const ean = item.ean || item.gtin || null;
+      for (const item of items) {
+        const productExtId = String(item.id || item.productId);
+        const realSku = (item.refId || item.sellerSku || "").trim() || null;
+        const rawCatIds = item.additionalInfo?.categoriesIds || "";
+        const categoryPath = typeof rawCatIds === "string" && rawCatIds.includes("/")
+          ? rawCatIds.split("/").filter(Boolean).join(" > ")
+          : null;
+        const ean = item.ean || item.gtin || null;
 
-          const product = await upsertProductBySku({
-            organizationId: orgId,
-            externalId: productExtId,
-            sku: realSku,
-            create: {
-              name: item.name || `SKU ${productExtId}`,
-              brand: item.additionalInfo?.brandName || null,
-              category: rawCatIds || null,
-              ...(categoryPath ? { categoryPath } : {}),
-              ...(ean ? { ean } : {}),
-              price: (item.sellingPrice || item.price) / 100,
-              imageUrl: item.imageUrl || null,
-              isActive: true,
-            },
-            update: {
-              name: item.name || undefined,
-              price: (item.sellingPrice || item.price) / 100,
-              imageUrl: item.imageUrl || undefined,
-              ...(categoryPath ? { categoryPath } : {}),
-              ...(ean ? { ean } : {}),
-            },
-          });
+        // S58 F-PRICE: usar ?? (nullish coalescing) en vez de || para soportar
+        // sellingPrice = 0 (regalo, sample, item promocional). VTEX devuelve
+        // sellingPrice y price en centavos. Si AMBOS son null/undefined, fallback 0.
+        const rawSelling = item.sellingPrice;
+        const rawList = item.price;
+        const rawCents = rawSelling != null ? Number(rawSelling) : (rawList != null ? Number(rawList) : 0);
+        const unitPrice = Number.isFinite(rawCents) ? rawCents / 100 : 0;
 
-          orderItemsToCreate.push({
-            orderId: dbOrderId,
-            productId: product.id,
-            quantity: item.quantity,
-            unitPrice: (item.sellingPrice || item.price) / 100,
-            totalPrice: ((item.sellingPrice || item.price) * item.quantity) / 100,
-            costPrice: (product as any).costPrice ?? null,
-          });
-        }
+        const product = await upsertProductBySku({
+          organizationId: orgId,
+          externalId: productExtId,
+          sku: realSku,
+          create: {
+            name: item.name || `SKU ${productExtId}`,
+            brand: item.additionalInfo?.brandName || null,
+            category: rawCatIds || null,
+            ...(categoryPath ? { categoryPath } : {}),
+            ...(ean ? { ean } : {}),
+            price: unitPrice,
+            imageUrl: item.imageUrl || null,
+            isActive: true,
+          },
+          update: {
+            name: item.name || undefined,
+            price: unitPrice,
+            imageUrl: item.imageUrl || undefined,
+            ...(categoryPath ? { categoryPath } : {}),
+            ...(ean ? { ean } : {}),
+          },
+        });
 
-        if (orderItemsToCreate.length > 0) {
-          await prisma.orderItem.createMany({ data: orderItemsToCreate as any });
-          itemsCreated = orderItemsToCreate.length;
-        }
+        orderItemsToCreate.push({
+          orderId: dbOrderId,
+          productId: product.id,
+          quantity: item.quantity,
+          unitPrice,
+          totalPrice: unitPrice * item.quantity,
+          costPrice: (product as any).costPrice ?? null,
+        });
+      }
+
+      if (orderItemsToCreate.length > 0) {
+        await prisma.$transaction([
+          prisma.orderItem.deleteMany({ where: { orderId: dbOrderId } }),
+          prisma.orderItem.createMany({ data: orderItemsToCreate as any }),
+        ]);
+        itemsCreated = orderItemsToCreate.length;
       }
     }
 
@@ -244,10 +259,15 @@ export async function enrichOrderFromVtex(
     const realShippingCost = firstLogi?.sellingPrice != null ? Number(firstLogi.sellingPrice) / 100 : null;
 
     // Delivery type: pickup (retiro) vs shipping (envio domicilio).
-    // Heuristic: pickup si selectedSla incluye "pickup" o "retiro" o si hay pickupPointId.
+    // S58 F-DELIVERY: parens explicitos para evitar ambiguedad de precedencia.
+    // Logica: si hay pickupStoreName O sla matchea pickup/retiro -> PICKUP.
+    // Si hay logistica pero no es pickup -> DELIVERY. Si no hay logistica -> null.
     const sla = String(firstLogi?.selectedSla || "").toLowerCase();
     const pickupStoreName = firstLogi?.pickupStoreInfo?.friendlyName || null;
-    const deliveryType = pickupStoreName || /pickup|retiro/.test(sla) ? "PICKUP" : (firstLogi ? "DELIVERY" : null);
+    const isPickup = Boolean(pickupStoreName) || /pickup|retiro/.test(sla);
+    const deliveryType = isPickup
+      ? "PICKUP"
+      : (firstLogi ? "DELIVERY" : null);
 
     // Channel: VTEX salesChannel (1 = retail default, 2 = B2B, etc).
     const channel = vData.salesChannel != null ? `sc-${vData.salesChannel}` : null;

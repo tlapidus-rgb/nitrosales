@@ -179,7 +179,25 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
       const lastName = buyer.last_name || null;
       const nickname = buyer.nickname || null;
 
-      const addr = order.shipping?.receiver_address;
+      // S58 F-WEBHOOK-TOKEN: si no viene receiver_address en el payload del
+      // /orders, GET /shipments/{id} como hace el backfill. Antes el webhook
+      // no hacia este fallback y orders nuevas quedaban sin city/state.
+      let addr = order.shipping?.receiver_address;
+      const shippingId = order.shipping?.id;
+      if (!addr && shippingId && token) {
+        try {
+          const r = await fetch(`https://api.mercadolibre.com/shipments/${shippingId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (r.ok) {
+            const shipData = await r.json();
+            addr = shipData?.receiver_address;
+          }
+        } catch {
+          // Silencioso — no bloqueamos el webhook por falta de address.
+        }
+      }
       const city = addr?.city?.name || null;
       const state = addr?.state?.name || null;
       const country = addr?.country?.id || null;

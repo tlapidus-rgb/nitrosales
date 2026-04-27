@@ -76,9 +76,13 @@ export async function enrichOrderFromMl(
       const shippingId = mlOrder.shipping?.id;
       if (!addr && shippingId && token) {
         try {
+          // S58 F-TIMEOUT: 8s -> 15s. ML /shipments puede tardar 5-10s en
+          // sellers grandes; con 8s timing-out frecuentemente y perdemos
+          // city/state. El backfill ya tiene timeouts mas generosos en otros
+          // pasos asi que 15s no rompe budget total.
           const r = await fetch(`https://api.mercadolibre.com/shipments/${shippingId}`, {
             headers: { Authorization: `Bearer ${token}` },
-            signal: AbortSignal.timeout(8000),
+            signal: AbortSignal.timeout(15000),
           });
           if (r.ok) {
             const shipData = await r.json();
@@ -139,58 +143,65 @@ export async function enrichOrderFromMl(
     }
 
     // ── Products + OrderItems ───────────────────────
+    // S58 F-RACE: race condition mitigation (mismo patron que VTEX).
+    // Antes: count + if(==0) + create por item. Si webhook + backfill llegaban
+    // concurrentes al mismo order podian crear duplicados. Ahora: products en
+    // serie, despues UN deleteMany + createMany atomico.
     const items = mlOrder.order_items || [];
     if (items.length > 0) {
-      // Idempotencia: si ya hay items para este order, no duplicar.
-      const existingItems = await prisma.orderItem.count({ where: { orderId: dbOrderId } });
-      if (existingItems === 0) {
-        for (const it of items) {
-          const mlItem = it.item || {};
-          const productExtId = String(mlItem.id || mlItem.variation_id || "");
-          if (!productExtId) continue;
+      const orderItemsToCreate: any[] = [];
 
-          const realSku = (mlItem.seller_sku || mlItem.seller_custom_field || "").toString().trim() || null;
-          const unitPrice = Number(it.unit_price ?? it.full_unit_price ?? 0);
-          const quantity = Number(it.quantity) || 1;
+      for (const it of items) {
+        const mlItem = it.item || {};
+        const productExtId = String(mlItem.id || mlItem.variation_id || "");
+        if (!productExtId) continue;
 
-          // ML devuelve la imagen directamente en el payload de /orders/search
-          // via mlItem.thumbnail. Ojo: puede ser http:// (http v1 de ML) — forzar https para
-          // evitar mixed-content warnings en el frontend.
-          const rawThumb = (mlItem.thumbnail || "").toString().trim();
-          const thumbnail = rawThumb ? rawThumb.replace(/^http:\/\//, "https://") : null;
+        const realSku = (mlItem.seller_sku || mlItem.seller_custom_field || "").toString().trim() || null;
+        const unitPrice = Number(it.unit_price ?? it.full_unit_price ?? 0);
+        const quantity = Number(it.quantity) || 1;
 
-          const product = await upsertProductBySku({
-            organizationId: orgId,
-            externalId: productExtId,
-            sku: realSku,
-            create: {
-              name: mlItem.title || `ML ${productExtId}`,
-              brand: null,
-              category: mlItem.category_id || null,
-              price: unitPrice,
-              imageUrl: thumbnail,
-              isActive: true,
-            },
-            update: {
-              // No sobreescribir name/price si ya vinieron de VTEX u otra fuente con mas data
-              name: mlItem.title || undefined,
-              category: mlItem.category_id || undefined,
-              ...(thumbnail ? { imageUrl: thumbnail } : {}),
-            },
-          });
+        // ML devuelve la imagen directamente en el payload de /orders/search
+        // via mlItem.thumbnail. Ojo: puede ser http:// (http v1 de ML) — forzar https para
+        // evitar mixed-content warnings en el frontend.
+        const rawThumb = (mlItem.thumbnail || "").toString().trim();
+        const thumbnail = rawThumb ? rawThumb.replace(/^http:\/\//, "https://") : null;
 
-          await prisma.orderItem.create({
-            data: {
-              orderId: dbOrderId,
-              productId: product.id,
-              quantity,
-              unitPrice,
-              totalPrice: unitPrice * quantity,
-              costPrice: (product as any).costPrice ?? null,
-            } as any,
-          });
-          itemsCreated++;
-        }
+        const product = await upsertProductBySku({
+          organizationId: orgId,
+          externalId: productExtId,
+          sku: realSku,
+          create: {
+            name: mlItem.title || `ML ${productExtId}`,
+            brand: null,
+            category: mlItem.category_id || null,
+            price: unitPrice,
+            imageUrl: thumbnail,
+            isActive: true,
+          },
+          update: {
+            // No sobreescribir name/price si ya vinieron de VTEX u otra fuente con mas data
+            name: mlItem.title || undefined,
+            category: mlItem.category_id || undefined,
+            ...(thumbnail ? { imageUrl: thumbnail } : {}),
+          },
+        });
+
+        orderItemsToCreate.push({
+          orderId: dbOrderId,
+          productId: product.id,
+          quantity,
+          unitPrice,
+          totalPrice: unitPrice * quantity,
+          costPrice: (product as any).costPrice ?? null,
+        });
+      }
+
+      if (orderItemsToCreate.length > 0) {
+        await prisma.$transaction([
+          prisma.orderItem.deleteMany({ where: { orderId: dbOrderId } }),
+          prisma.orderItem.createMany({ data: orderItemsToCreate as any }),
+        ]);
+        itemsCreated = orderItemsToCreate.length;
       }
     }
 
