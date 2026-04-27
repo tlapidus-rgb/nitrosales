@@ -132,29 +132,21 @@ export async function GET(req: NextRequest) {
       if (result.isComplete) {
         await completeJob(currentJob.id);
 
-        // Catalog refresh post-backfill (parte del backfill desde la vista del cliente).
-        //  - VTEX: trae precios canonicos (precio real al cliente + tachado + costo).
-        //  - ML: trae imagenes (pictures/thumbnail), stock y status del item.
-        // Fire-and-forget: no bloquea el runner. Si falla, no rompe el onboarding.
-        const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
-        const REFRESH_KEY = "nitrosales-secret-key-2024-production";
-        if (currentJob.platform === "VTEX") {
-          const refreshUrl = `${baseUrl}/api/sync/vtex/catalog-refresh?orgId=${encodeURIComponent(currentJob.organizationId)}&key=${REFRESH_KEY}`;
-          fetch(refreshUrl, { method: "GET" })
-            .then((r) => console.log(`[backfill-runner] vtex catalog-refresh triggered: HTTP ${r.status}`))
-            .catch((err) => console.error(`[backfill-runner] vtex catalog-refresh failed: ${err.message}`));
-        }
-        if (currentJob.platform === "MERCADOLIBRE") {
-          const refreshUrl = `${baseUrl}/api/sync/mercadolibre/catalog-refresh?orgId=${encodeURIComponent(currentJob.organizationId)}&key=${REFRESH_KEY}`;
-          fetch(refreshUrl, { method: "GET" })
-            .then((r) => console.log(`[backfill-runner] ml catalog-refresh triggered: HTTP ${r.status}`))
-            .catch((err) => console.error(`[backfill-runner] ml catalog-refresh failed: ${err.message}`));
-        }
-
-        // Si era parte de un onboarding y ya terminaron todos → activar
+        // Si era parte de un onboarding y ya terminaron TODOS los jobs:
+        //   - dispara post-backfill-finalize (catalog-refresh + recompute aggregates +
+        //     backfill-orderitem-costs SECUENCIALMENTE — fire-and-forget porque
+        //     puede tardar 5-10 min)
+        //   - llama finalizeOnboarding (email + activacion del cliente, mas rapido)
         if (currentJob.onboardingRequestId) {
           const allDone = await areAllJobsComplete(currentJob.onboardingRequestId);
           if (allDone) {
+            const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+            const KEY = "nitrosales-secret-key-2024-production";
+            const finalizeUrl = `${baseUrl}/api/cron/post-backfill-finalize?orgId=${encodeURIComponent(currentJob.organizationId)}&key=${KEY}`;
+            fetch(finalizeUrl, { method: "GET" })
+              .then((r) => console.log(`[backfill-runner] post-backfill-finalize triggered: HTTP ${r.status}`))
+              .catch((err) => console.error(`[backfill-runner] post-backfill-finalize failed: ${err.message}`));
+
             await finalizeOnboarding(currentJob.onboardingRequestId);
           }
         }
