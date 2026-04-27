@@ -162,6 +162,16 @@ export async function enrichOrderFromVtex(
           const productExtId = String(item.id || item.productId);
           // SKU-first: refId o sellerSku es el SKU real.
           const realSku = (item.refId || item.sellerSku || "").trim() || null;
+          // S58 F2.2: poblar tambien categoryPath ("Juguetes > Bebes > Sonajeros")
+          // y EAN/GTIN. categoriesIds en VTEX es algo como "/151/238/452/" — la
+          // jerarquia esta separada por "/". Si esta presente, lo usamos como path.
+          // El `category` legacy (hoja) sigue siendo additionalInfo.categoriesIds.
+          const rawCatIds = item.additionalInfo?.categoriesIds || "";
+          const categoryPath = typeof rawCatIds === "string" && rawCatIds.includes("/")
+            ? rawCatIds.split("/").filter(Boolean).join(" > ")
+            : null;
+          const ean = item.ean || item.gtin || null;
+
           const product = await upsertProductBySku({
             organizationId: orgId,
             externalId: productExtId,
@@ -169,7 +179,9 @@ export async function enrichOrderFromVtex(
             create: {
               name: item.name || `SKU ${productExtId}`,
               brand: item.additionalInfo?.brandName || null,
-              category: item.additionalInfo?.categoriesIds || null,
+              category: rawCatIds || null,
+              ...(categoryPath ? { categoryPath } : {}),
+              ...(ean ? { ean } : {}),
               price: (item.sellingPrice || item.price) / 100,
               imageUrl: item.imageUrl || null,
               isActive: true,
@@ -178,6 +190,8 @@ export async function enrichOrderFromVtex(
               name: item.name || undefined,
               price: (item.sellingPrice || item.price) / 100,
               imageUrl: item.imageUrl || undefined,
+              ...(categoryPath ? { categoryPath } : {}),
+              ...(ean ? { ean } : {}),
             },
           });
 
