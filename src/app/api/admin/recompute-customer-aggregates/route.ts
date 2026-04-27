@@ -1,6 +1,6 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
-// POST /api/admin/recompute-customer-aggregates?orgId=X
+// GET /api/admin/recompute-customer-aggregates?orgId=X
 // ══════════════════════════════════════════════════════════════
 // El backfill inserta customers con totalOrders=1, totalSpent=0,
 // firstOrderAt/lastOrderAt = orderDate (de la PRIMER orden que vio).
@@ -24,7 +24,7 @@ import { isInternalUser } from "@/lib/feature-flags";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   const t0 = Date.now();
   try {
     const allowed = await isInternalUser();

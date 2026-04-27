@@ -1,6 +1,6 @@
 // @ts-nocheck
 // ══════════════════════════════════════════════════════════════
-// POST /api/admin/backfill-orderitem-costs?orgId=X
+// GET /api/admin/backfill-orderitem-costs?orgId=X
 // ══════════════════════════════════════════════════════════════
 // Cuando el backfill VTEX crea OrderItems, snapshot-ea Product.costPrice
 // al momento de la creacion. PERO Product.costPrice se popula DESPUES por
@@ -22,7 +22,7 @@ import { isInternalUser } from "@/lib/feature-flags";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   const t0 = Date.now();
   try {
     const allowed = await isInternalUser();
