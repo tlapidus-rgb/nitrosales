@@ -60,6 +60,12 @@ export async function enrichOrderFromMl(
   try {
     let customerCreated = false;
     let itemsCreated = 0;
+    // S58 BIS-2: shipData se mantiene en outer scope para usarlo no solo
+    // en customer (city/state) sino tambien en order.update (shippingCost,
+    // shippingCarrier via logistic_type, postalCode via zip_code). Sin
+    // esto, el code anterior leia esos campos del mlOrder.shipping (objeto
+    // chico de /orders/search que casi nunca los trae).
+    let shipData: any = null;
 
     // ── Customer ─────────────────────────────────────
     const buyer = mlOrder.buyer;
@@ -90,7 +96,7 @@ export async function enrichOrderFromMl(
             signal: AbortSignal.timeout(15000),
           });
           if (r.ok) {
-            const shipData = await r.json();
+            shipData = await r.json();
             // Mergear: priorizar shipData (mas completo) pero conservar
             // valores del addr inicial si existen.
             const shipAddr = shipData?.receiver_address;
@@ -219,21 +225,37 @@ export async function enrichOrderFromMl(
     // (post-S58 F2.1) setea ademas channel/shippingCost/deliveryType. Ahora
     // el backfill tambien — para que las orders historicas tengan los
     // mismos campos que las nuevas via webhook.
+    //
+    // S58 BIS-2: priorizar shipData (de /shipments) sobre mlOrder.shipping
+    // para shippingCost/shippingCarrier/postalCode. mlOrder.shipping es el
+    // mini-objeto que /orders/search devuelve (casi nunca trae estos campos).
+    // /shipments es la fuente autoritativa — la usamos cuando esta disponible.
     const orderFields: any = { channel: "marketplace" };
-    const rawShipCost = mlOrder.shipping?.cost;
+
+    // shippingCost: shipData.shipping_option.cost > shipData.cost > mlOrder.shipping.cost
+    const rawShipCost = shipData?.shipping_option?.cost
+      ?? shipData?.cost
+      ?? mlOrder.shipping?.cost;
     if (rawShipCost != null) {
       const n = Number(rawShipCost);
       if (Number.isFinite(n)) orderFields.shippingCost = n;
     }
-    const shipmentType = mlOrder.shipping?.shipment_type;
+
+    // deliveryType: priorizar shipData.shipment_type, sino mlOrder.shipping.shipment_type
+    const shipmentType = shipData?.shipment_type || mlOrder.shipping?.shipment_type;
     if (shipmentType === "pickup" || shipmentType === "self_service") {
       orderFields.deliveryType = "PICKUP";
-    } else if (mlOrder.shipping) {
+    } else if (shipData || mlOrder.shipping) {
       orderFields.deliveryType = "DELIVERY";
     }
-    const logisticType = mlOrder.shipping?.logistic_type;
+
+    // shippingCarrier: priorizar shipData.logistic_type
+    const logisticType = shipData?.logistic_type || mlOrder.shipping?.logistic_type;
     if (logisticType) orderFields.shippingCarrier = String(logisticType);
-    const postalCode = mlOrder.shipping?.receiver_address?.zip_code;
+
+    // postalCode: priorizar shipData.receiver_address.zip_code
+    const postalCode = shipData?.receiver_address?.zip_code
+      || mlOrder.shipping?.receiver_address?.zip_code;
     if (postalCode) orderFields.postalCode = String(postalCode);
 
     await prisma.order.update({
