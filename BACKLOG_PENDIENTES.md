@@ -8,7 +8,59 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-22 — Sesión 55 BIS+3. ML sync v2 (4 capas) implementado. Email log + debug flow tools + reset test env. Fix deliverability no-reply@. Test E2E de ML pendiente de completarse (Tomy se fue a evento, retoma de noche).
+> **Última actualización**: 2026-04-27 — Sesión 58 BIS. EMDJ onboardeado al 99%. BP-S58-005 nuevo: OAuth Meta Ads en standby hasta que dominio nitrosales.ai esté activo.
+
+---
+
+## 🟡 BP-S58-005 — OAuth Meta Ads (en STANDBY hasta migración a nitrosales.ai)
+
+**Entró**: 2026-04-27 (S58 BIS, post detección de gap en tutorial Meta)
+**Estado**: 🟡 PARCIAL — pre-requisitos hechos, frenado para no configurar 2 veces
+**Prioridad**: ALTA cuando se retome (lo pidió Tomy explícito: "no quiero hacer nada a medias, todo tiene que estar excelente porque los clientes están probando")
+
+### Por qué se frenó
+
+Cliente de TVC reportó que el tutorial Meta Ads no explica los pre-requisitos para crear la App de Meta (productos a agregar, asignar al BM, vincular System User). Decisión de fondo: migrar de **input manual de token** (status quo) a **OAuth completo "Conectar con Meta"** (como Google Ads/GSC). Mid-conversación Tomy avisó que va a migrar dominio a `nitrosales.ai` pronto, así que pausamos para no configurar la Redirect URI con `vercel.app` y tener que rehacerlo.
+
+### Lo que YA está hecho (no se pierde)
+
+- ✅ App Meta creada en developers.facebook.com — App ID **`1770085970626718`**
+- ✅ Producto "Inicio de sesión con Facebook" agregado a la App
+- ✅ Env vars cargadas en Vercel:
+  - `META_APP_ID` = `1770085970626718`
+  - `META_APP_SECRET` = (cargado, no compartido en chat)
+- ✅ Redeploy de Vercel ejecutado (env vars activas en prod)
+- ✅ Análisis del codebase: `meta-ads.ts`, `capi.ts`, `credential-tests.ts`, `OnboardingOverlay.tsx` (donde está GoogleAdsInputs como referencia)
+
+### Lo que FALTA cuando se retome
+
+**Pre-requisitos del lado Tomy (con dominio nitrosales.ai vivo)**:
+1. Pegar Redirect URIs en Facebook Login → Configuración:
+   - `https://nitrosales.vercel.app/api/oauth/meta/callback` (compat)
+   - `https://nitrosales.ai/api/oauth/meta/callback` (producción)
+2. App Review de Meta para permisos `ads_read`, `ads_management`, `business_management` (1-7 días Meta)
+3. Mientras esperamos review: agregar emails de testers (Tomy + cliente TVC) en developers.facebook.com → Roles → Testers
+
+**Pre-requisitos del lado código (Claude implementa)**:
+1. Endpoint `/api/oauth/meta/start?orgId=X` → redirige a Meta OAuth dialog con scopes correctos
+2. Endpoint `/api/oauth/meta/callback` → recibe `code`, intercambia por access_token (long-lived 60 días via `/oauth/access_token`)
+3. Cron `/api/cron/meta-token-refresh` antes de día 55 (evita expiración silenciosa)
+4. UI: en `OnboardingOverlay.tsx`, reemplazar inputs manuales (`accessToken`, `pixelAccessToken`) por botón **"Conectar con Meta"** estilo OAuth como Google Ads
+5. Tutorial nuevo MUY simple: "Click conectar → Login Meta → Autorizar → Listo"
+6. Eliminar tutorial viejo de System User Token
+
+### Sub-decisión técnica al retomar
+
+| Approach | Token | Recomendación |
+|---|---|---|
+| **B1** User Access Token long-lived | 60 días, refresh manual del cliente | OK para arrancar |
+| **B2** System User Token via Business Login | No expira | Profesional (lo usan HubSpot, Triple Whale) |
+
+Default sugerido: **empezar con B1** y migrar a B2 después de tener review aprobado y arquitectura validada.
+
+### Trigger para retomar
+
+Cuando Tomy diga **"ya activé el dominio nitrosales.ai"** o **"retomamos OAuth Meta"**.
 
 ---
 
