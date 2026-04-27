@@ -829,18 +829,43 @@ export async function testMercadoLibre(creds: any): Promise<TestResult> {
 
 // ── GOOGLE ADS ──────────────────────────────────────
 // Test: refresh OAuth + listAccessibleCustomers
+//
+// S58 FIX: el cliente solo carga customerId (+ loginCustomerId opcional) en el
+// wizard. clientId/clientSecret/developerToken son env vars del servidor (la
+// app OAuth de NitroSales). refreshToken se obtiene cuando el cliente completa
+// OAuth post-wizard. Antes el test pedia los 5 al cliente y siempre fallaba
+// con "faltan credenciales OAuth" aunque el cliente cargara customerId — ahora
+// lee del env + acepta snake_case fallback en creds.
 export async function testGoogleAds(creds: any): Promise<TestResult> {
-  const clientId = (creds?.clientId || "").trim();
-  const clientSecret = (creds?.clientSecret || "").trim();
-  const refreshToken = (creds?.refreshToken || "").trim();
-  const developerToken = (creds?.developerToken || "").trim();
-  const customerId = (creds?.customerId || "").replace(/-/g, "").trim();
+  const clientId = (process.env.GOOGLE_ADS_CLIENT_ID || creds?.clientId || "").trim();
+  const clientSecret = (process.env.GOOGLE_ADS_CLIENT_SECRET || creds?.clientSecret || "").trim();
+  const refreshToken = (creds?.refreshToken || creds?.refresh_token || "").trim();
+  const developerToken = (process.env.GOOGLE_ADS_DEVELOPER_TOKEN || creds?.developerToken || "").trim();
+  const customerId = (creds?.customerId || creds?.customer_id || "").replace(/-/g, "").trim();
 
-  if (!clientId || !clientSecret || !refreshToken) {
-    return { ok: false, detail: "Faltan credenciales OAuth (clientId/clientSecret/refreshToken)" };
+  if (!customerId) {
+    return { ok: false, detail: "Falta Customer ID (10 digitos)" };
+  }
+  if (!refreshToken) {
+    return {
+      ok: false,
+      detail: "OAuth pendiente — falta autorizar Google Ads",
+      hint: "El cliente debe completar OAuth en /settings/integraciones (login oficial de Google).",
+    };
+  }
+  if (!clientId || !clientSecret) {
+    return {
+      ok: false,
+      detail: "Server config incompleta",
+      hint: "Faltan env vars GOOGLE_ADS_CLIENT_ID y/o GOOGLE_ADS_CLIENT_SECRET en Vercel.",
+    };
   }
   if (!developerToken) {
-    return { ok: false, detail: "Falta developer_token", hint: "Se pide en https://ads.google.com/aw/apicenter" };
+    return {
+      ok: false,
+      detail: "Server config incompleta",
+      hint: "Falta env var GOOGLE_ADS_DEVELOPER_TOKEN en Vercel.",
+    };
   }
 
   // Refresh token
