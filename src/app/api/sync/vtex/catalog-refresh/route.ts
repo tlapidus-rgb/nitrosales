@@ -103,16 +103,18 @@ export async function GET(req: NextRequest) {
     let withRealPrice = 0;
     let withListPrice = 0;
     let withCost = 0;
+    let withStock = 0;
 
     // Procesar en paralelo con límite de concurrency.
     // Fuentes usadas (misma estrategia que el test de credenciales):
-    //  1. Simulation API → precio REAL al cliente (con política aplicada) + tachado
-    //  2. Catalog Search → fallback precio si Simulation falla
+    //  1. Simulation API → precio REAL al cliente (con política aplicada) + tachado + stock
+    //  2. Catalog Search → fallback precio + stock si Simulation falla
     //  3. Pricing API → costo interno
+    //  4. (S58 F1.5) Logistics inventory → stock real consolidado todos los warehouses
     const tasks = products.map((prod) => async () => {
       try {
         const sku = prod.externalId;
-        const [simData, catalogData, pricingData] = await Promise.all([
+        const [simData, catalogData, pricingData, inventoryData] = await Promise.all([
           fetchWithRetry(
             `/api/checkout/pub/orderForms/simulation?sc=1`,
             "POST",
@@ -120,6 +122,10 @@ export async function GET(req: NextRequest) {
           ),
           fetchWithRetry(`/api/catalog_system/pub/products/search?fq=skuId:${encodeURIComponent(sku)}&sc=1`),
           fetchWithRetry(`/api/pricing/prices/${sku}?_forceGet=true`),
+          // S58 F1.5: stock real desde Logistics. Devuelve { skuId, balance: [...] }
+          // donde cada balance es {warehouseId, totalQuantity, reservedQuantity}.
+          // Stock disponible = sum(totalQuantity - reservedQuantity).
+          fetchWithRetry(`/api/logistics/pvt/inventory/skus/${sku}`),
         ]);
 
         // Precio real: prefiere Simulation (valores vienen en centavos)
@@ -138,11 +144,27 @@ export async function GET(req: NextRequest) {
           : (offer?.ListPrice != null && offer.ListPrice > (realPrice || 0) ? Number(offer.ListPrice) : null);
         const costPrice = pricingData?.costPrice != null ? Number(pricingData.costPrice) : null;
 
+        // Stock: prioridad Logistics (suma todos los warehouses) → fallback Simulation
+        // (que da stock del sales channel default).
+        let stock: number | null = null;
+        if (inventoryData?.balance && Array.isArray(inventoryData.balance)) {
+          stock = inventoryData.balance.reduce((sum: number, b: any) => {
+            const total = Number(b.totalQuantity) || 0;
+            const reserved = Number(b.reservedQuantity) || 0;
+            return sum + Math.max(0, total - reserved);
+          }, 0);
+        } else if (typeof simItem?.availability === "string" && simItem?.availability === "available") {
+          // Simulation devuelve quantity disponible para 1 unit, no stock total.
+          // Como fallback solo sabemos "hay stock" (>0) o "sin stock" (0).
+          stock = simItem?.unavailableItems ? 0 : 1;
+        }
+
         // Update solo campos que vinieron
         const data: any = {};
         if (realPrice != null) { data.price = realPrice; withRealPrice++; }
         if (listPrice != null) { data.compareAtPrice = listPrice; withListPrice++; }
         if (costPrice != null) { data.costPrice = costPrice; withCost++; }
+        if (stock != null) { data.stock = stock; data.stockUpdatedAt = new Date(); withStock++; }
 
         if (Object.keys(data).length > 0) {
           await prisma.product.update({ where: { id: prod.id }, data });
@@ -167,6 +189,7 @@ export async function GET(req: NextRequest) {
         withRealPrice,
         withListPrice,
         withCost,
+        withStock,
       },
       elapsed: `${elapsed}s`,
     });
