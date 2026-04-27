@@ -51,25 +51,44 @@
 
 ---
 
-## 🔴 BP-S58-002 — Fixes post-auditoria del wizard (esta semana + proxima)
+## 🟡 BP-S58-002 — Fixes post-auditoria del wizard (parcialmente resuelto S58)
 
 **Entró**: 2026-04-24 (S58)
-**Estado**: 📝 pendiente
-**Contexto**: Auditoria exhaustiva de 8 gaps identificados en S58. El wizard YA captura toda la data del cliente (campos nuevos agregados), ahora falta procesar esa data en sync/enrichment.
+**Estado**: 🟡 #5 y #7 RESUELTOS en S58 BIS (2026-04-27). Resto pendiente.
 
-**Fixes de esta semana (~4-5h)**:
+**Resueltos en S58 BIS**:
+- ✅ **#5 VTEX guardar 8 campos faltantes**: TODOS poblados en `vtex-enrichment.ts`. Score health-check post EMDJ: VTEX 100% en channel/payment/deliveryType/shippingCarrier/postalCode. Solo `deviceType` queda 100% null por heuristica imposible sin pixel data — aceptable.
+- ✅ **#7 ML shipping address completa**: `enrichOrderFromMl` hace GET `/shipments/{id}` cuando city/state vacios. Score post BIS-2: customer.city 99% completo (5 pickups), order.postalCode/shippingCost/shippingCarrier 99% completo (8 pickups, comportamiento esperado para retiros sin envio).
+
+**Pendientes esta semana (~3h)**:
 - **#2 Token Meta en wizard**: llamar testConnection al completar. Si falla, advertir al cliente antes de submit.
 - **#3 CAPI desacoplado de Meta Pixel**: permitir que CAPI funcione con business_id + CAPI token sin requerir Pixel ID conectado.
-- **#5 VTEX guardar 8 campos faltantes**: `channel`, `trafficSource`, `paymentMethod`, `deliveryType`, `shippingCarrier`, `postalCode`, `deviceType`, `promotionIds`. En `vtex-enrichment.ts`.
-- **#7 ML shipping address completa**: ZIP + calle + nombre receptor desde `/shipments/{id}`.
 - **#10 Cron Google Ads diario**: agregar a vercel.json.
 
-**Fixes proxima semana (~8-10h)**:
+**Pendientes proxima semana (~8-10h)**:
 - **#6 ML shipments históricos + claims**: nuevo step backfill. Requiere modelo DB.
 - **#8 Meta breakdowns demograficos**: breakdowns=age,gender,region en insights.
 - **#9 Thumbnails Meta permanentes**: copy a R2/S3 storage, proxy layer.
 
-**Por qué queda pendiente**: tiempo de implementacion es grande. Priorizamos capturar la data del cliente AHORA (wizard) para que fixes futuros no requieran volver a molestarlo.
+**Validacion en cliente real**: EMDJ (orgId `cmod9fmy6000djepldqo2ty3v`) onboardeado con success en S58 BIS, health-check confirma fixes funcionando.
+
+---
+
+## ✅ BP-S58-004 — Race conditions OrderItem + price 0 + mini-object ML + truthy check (RESUELTO 2026-04-27)
+
+**Resuelto**: S58 BIS — commits `06cae9e`, `32b80e5`, `c715de2`
+**Entró**: 2026-04-27 detectado en auditoria con 3 agentes paralelos pre-reset+rebackfill EMDJ
+
+**Que se hizo**:
+- Race condition VTEX+ML OrderItem: `count+create` → `$transaction([deleteMany, createMany])`. Atomico, idempotente, race-safe entre webhook y backfill concurrentes.
+- Price 0 perdido: `||` → `??` con `Number.isFinite` para soportar items con `sellingPrice = 0` (regalo, sample, promo).
+- deliveryType refactor: ternario ambiguo → variable boolean `isPickup` intermedia.
+- Timeout `/shipments` 8s → 15s para sellers grandes.
+- Webhook ML pasa token y hace fallback `/shipments` cuando receiver_address vacio.
+- Check truthy permisivo `!addr` → `!addr?.city?.name || !addr?.state?.name` (objetos vacios `{}` son truthy).
+- Mini-objeto vs autoritativo: persistir `shipData` de `/shipments` y leer shippingCost/shippingCarrier/postalCode de ahi (en vez de `mlOrder.shipping` que casi nunca trae esos campos).
+
+**Documentado** en ERRORES_CLAUDE_NO_REPETIR.md como #S58-RACE-COUNT-CREATE, #S58-FALLBACK-OR-VS-NULLISH, #S58-MINI-OBJECT-VS-AUTHORITATIVE, #S58-TRUTHY-OBJECT-CHECK.
 
 ---
 

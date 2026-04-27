@@ -3,7 +3,113 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-24 (Sesion 57 — Deep test credenciales VTEX/MELI + descubrimiento Simulation API + BUG CRITICO args invertidos en withConcurrency causaban 0 enrichment silencioso. Fix aplicado, pendiente re-enrich 12298 orders del test MdJ. Listo para primer cliente real.)
+## Ultima actualizacion: 2026-04-27 (Sesion 58 CIERRE — Primer cliente REAL onboardeado E2E con data perfecta. EMDJ orgId `cmod9fmy6000djepldqo2ty3v`. 12,185 orders VTEX + 663 orders MELI. Auditoria con 3 agentes paralelos detecto bugs en pipeline → 6 fixes Tipo A + 2 BIS Tipo A. Score final: VTEX 100%, MELI 99%. Pipeline listo para Arredo y TV Compras sin tocar codigo.)
+
+### Sesion 58 (2026-04-25 a 2026-04-27) — Primer cliente real E2E + hardening completo del enrichment
+
+**Contexto**: cerramos S57 con bug fix de withConcurrency pero data de MdJ vieja sin re-enriquecer. Este block (3 sesiones de trabajo) cubre 3 fases:
+- **S58 inicial (25-04)**: mejoras de wizard, unificacion Meta Ads+Pixel, Aurum chat, fixes credentials test, defensas anti-truncado VTEX App Token, optionalmente saltear NitroPixel.
+- **S58 backfill EMDJ (26-04)**: primer cliente real (El Mundo del Juguete) onboardeado E2E. 12,133 orders VTEX + 660 ML procesadas. Auditoria post-backfill detecto 6 gaps. Fixes integrados al pipeline (no parches).
+- **S58 hardening BIS (27-04)**: auditoria deep con 3 agentes paralelos antes del reset+rebackfill detecto 6 bugs adicionales. Aplicados como Tipo A. Reset+backfill exitoso. Audit post detecto 2 bugs MAS (race lookup `!addr`, mini-objeto vs autoritativo). BIS-2 fix. Final: data al 99-100% en todos los campos.
+
+#### Commits clave de S58 (~25 commits)
+
+**Wizard improvements (25-04)**:
+- `a20afbf` BP-S58-003 unificacion Meta Ads + Meta Pixel (1 entry, -77 LOC)
+- `2fcd68e` permitir skip NitroPixel ("no lo uso")
+- `d9c95c9` defensa anti-crash META_PIXEL en sessionStorage
+- `ac814c3` defensa triple anti-truncado VTEX App Token (frontend warning + backend validation + pre-check testVtex)
+- `690deca` endpoint vtex-probe para diagnosticar 401 VTEX
+
+**Backfill orchestration (26-04)**:
+- `d3defaf` post-backfill-finalize orchestrator: catalog-refresh VTEX → catalog-refresh ML → recompute-aggregates → backfill-orderitem-costs (corre fire-and-forget al completar todos los jobs)
+- `e8b0363` webhook ML enrichment de customer (pre-S58 webhook orders_v2 NO creaba customers, dejaba customerId null)
+- `72b6620` VTEX enrichment con categoryPath + EAN
+- `93bc9cf` ML shipping address via /shipments con timeout 8s + token opcional
+- `db29740` batch inserts OrderItems + concurrency 8→12
+
+**Hardening BIS (27-04, post-auditoria con 3 agentes)**:
+- `06cae9e` 6 fixes pre-reset: race condition deleteMany+createMany VTEX+ML, price `??` con isFinite, deliveryType refactor, /shipments timeout 15s, webhook ML pasa token
+- `f804de0` reset-backfill-by-org GET endpoint friendly-browser
+- `32b80e5` ml-enrichment completar campos faltantes: needsShipmentLookup chequea `!addr?.city?.name`, order.update con channel/shippingCost/deliveryType + endpoint admin ml-reenrich-fields
+- `c715de2` BIS-2 persistir shipData en outer scope para shippingCost/Carrier/postalCode (antes leia de mlOrder.shipping que casi nunca trae esos campos)
+
+#### Cliente real onboardeado: El Mundo del Juguete (EMDJ)
+
+**Datos**:
+- **Onboarding ID**: `7e576e0d-80d7-4b94-b9f7-748668da3906`
+- **Org ID**: `cmod9fmy6000djepldqo2ty3v`
+- **Plataformas**: VTEX + MercadoLibre
+- **Data backfill**: 3 meses → 12,185 orders VTEX + 663 orders MELI, 24,773 OrderItems, 4,043 products, 11,635 customers
+
+**Score final post-fixes** (health-check post BIS-2):
+| Métrica | VTEX | MELI |
+|---|---|---|
+| no_channel | 0% | 0% |
+| no_payment | 0% | 0% |
+| no_delivery_type | 0% | 0% |
+| no_shipping_cost | 0% | 1.2% (8 pickups) |
+| no_postal_code | 0% | 1.2% (8 pickups) |
+| customers no_city | 0% | 0.9% (5 pickups) |
+| 0 duplicados, 0 huérfanos, 0 zero_price | ✅ | ✅ |
+
+**El restante 1% en MELI = órdenes pickup sin envío a domicilio** (cliente retira en sucursal) — comportamiento correcto, no bug.
+
+#### Aurum Onboarding Assistant (S58 inicial)
+
+Chat con vision integrado en wizard, system prompt afinado para tono tecnico en seguridad/privacidad. Permite al cliente preguntar dudas mientras llena el wizard sin abandonar.
+
+#### Tipos de fixes (A vs B) — concepto importante
+
+Distincion explicita por pedido de Tomy:
+- **Tipo A**: cambio en codigo del pipeline. Proximo cliente (Arredo, TV Compras) lo gana automaticamente sin tocar nada. Ejemplo: race condition fix en vtex-enrichment.ts.
+- **Tipo B**: endpoint admin one-shot para reparar data vieja de un cliente. NO lo necesita proximo cliente. Ejemplo: `vtex-reenrich-fields`, `ml-reenrich-fields`.
+
+90% de los fixes de S58 fueron Tipo A. Solo los `*-reenrich-fields` y `reset-backfill-by-org` son Tipo B.
+
+#### Endpoints admin nuevos creados en S58
+
+| Endpoint | Tipo | Que hace |
+|---|---|---|
+| `/api/cron/post-backfill-finalize?orgId=X` | A | Orchestrator post-backfill (catalog-refresh + recompute + costs) |
+| `/api/admin/recompute-customer-aggregates` | A | SQL CTE UPDATE customer.totalOrders/totalSpent/firstOrderAt/lastOrderAt |
+| `/api/admin/backfill-orderitem-costs` | A | UPDATE orderItem.costPrice = product.costPrice donde fuera null |
+| `/api/sync/mercadolibre/catalog-refresh` | A | Refresh catalog ML (corre dentro de post-backfill-finalize) |
+| `/api/admin/health-check?orgId=X` | A | Diagnostico exhaustivo de gaps por categoria + samples |
+| `/api/admin/vtex-probe?orgId=X` | B | Debug 401 VTEX |
+| `/api/admin/vtex-reenrich-fields` | B | Re-enrich orders VTEX existentes |
+| `/api/admin/ml-reenrich-fields?orgId=X` | B | Re-enrich orders ML existentes (refetch /orders + /shipments) |
+| `/api/admin/reset-backfill-by-org?id=X&confirm=yes` | B | GET wrapper friendly-browser de reset-backfill |
+
+#### Bugs criticos descubiertos y arreglados en S58 BIS
+
+1. **Race condition OrderItem (#S58-RACE-COUNT-CREATE)**: `count + if(==0) + createMany` no era atomico. Webhook + backfill concurrentes podian crear duplicados. Fix: `$transaction([deleteMany, createMany])`.
+
+2. **Price 0 perdido (#S58-FALLBACK-OR-VS-NULLISH)**: `(item.sellingPrice || item.price)` colapsaba 0 al fallback (regalo, sample). Fix: `??` + `Number.isFinite`.
+
+3. **Mini-objeto vs autoritativo (#S58-MINI-OBJECT-VS-AUTHORITATIVE)**: ML `/orders/search` devuelve `shipping` como objeto chico que casi NUNCA trae cost/logistic_type/zip_code. La fuente autoritativa es `/shipments/{id}`. Codigo viejo leia del mini-objeto y los 3 campos quedaban 100% null. Fix: persistir `shipData` y leer desde ahi con fallback al mini-objeto.
+
+4. **Check truthy permisivo (#S58-TRUTHY-OBJECT-CHECK)**: `if (!addr)` no disparaba el GET /shipments cuando ML devolvia `receiver_address: {}` (objeto vacio truthy). Fix: chequear `!addr?.city?.name || !addr?.state?.name`.
+
+5. **Token no propagado en webhook ML**: el webhook orders_v2 no hacia fallback a `/shipments` cuando receiver_address venia vacio. Fix: agregar el mismo lookup que hace el backfill.
+
+6. **deliveryType ambiguous parens**: ternario sin parens explicitos. Fix: variable boolean `isPickup` intermedia.
+
+#### Lecciones de S58
+
+- **Auditoria con agentes paralelos antes de operacion irreversible (reset+backfill 4 min)** detecto 6 bugs que un solo pase no hubiera encontrado. Replicar para cualquier prod operation costosa de revertir.
+- **Distinguir Tipo A vs Tipo B explicitamente** ayuda a Tomy a saber que se queda en el pipeline vs que es parche one-shot. Comunicacion clave para evitar la pregunta "estos fixes perduran o solo arreglan ahora?".
+- **Health-check exhaustivo (campos null por source) es la herramienta de cierre de cliente**: corrida + audit + fix iterativo = 3 ciclos hasta 99%.
+- **APIs externas tienen mini-objetos vs autoritativos**: ML `/orders/search` shipping ≠ `/shipments`. VTEX `/orders` list ≠ `/orders/{id}` detail. SIEMPRE checkear cual es la fuente autoritativa.
+- **Endpoint admin re-enrich es Tipo B aceptable** para reparar data legacy sin reset+backfill completo. Idempotente. ~1 min para 663 orders ML.
+
+#### Estado al cierre S58
+
+- **Producto listo para Arredo + TV Compras**: pipeline 100% Tipo A, no se requieren parches por cliente.
+- **EMDJ activo en producto** con data al 99-100%.
+- **Documentacion actualizada**: este archivo + ERRORES (4 errores nuevos) + BACKLOG (varios resueltos) + MEMORY (3 patrones nuevos).
+
+---
 
 ### Sesion 57 (2026-04-24) — Test credenciales profundo + BUG CRITICO enrichment silencioso
 

@@ -4,7 +4,154 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-23 — Sesión 56 (3 errores nuevos: mapping priorizaba tag histórico sobre status terminal, status de API externa sin mapear caen a default silencioso, iterar fixes sin BUSCARV directo contra fuente de verdad).**
+> **Última actualización: 2026-04-27 — Sesión 58 BIS (4 errores nuevos: race condition con count+create no atomico, price `||` colapsa 0, mini-objeto API vs fuente autoritativa, check truthy permisivo sobre objeto vacio).**
+
+---
+
+## Error #S58-RACE-COUNT-CREATE — Race condition con `count + if(==0) + createMany` en lugar de transactional deleteMany+createMany
+
+**Cuándo pasó**: Sesión 58 BIS. En `vtex-enrichment.ts` y `mercadolibre-enrichment.ts`, el patron era:
+```ts
+const existing = await prisma.orderItem.count({ where: { orderId } });
+if (existing === 0) {
+  await prisma.orderItem.createMany({ data: items });
+}
+```
+
+Auditoria con agente paralelo detecto que esto NO es atomico: si webhook (real-time) y backfill (cron) llegaban concurrentes a la misma orden, ambos podian leer `count=0`, ambos pasaban el if, y ambos hacian `createMany` → items duplicados en la orden.
+
+### Causa raíz
+- "Idempotencia naive" basada en check-then-act sin transaccion.
+- Asumia que solo un proceso a la vez tocaba la orden, pero en realidad webhook + cron + re-enrich pueden coexistir.
+- El bug NO se manifestaba en testing local (single-process) — solo en prod con concurrencia real.
+
+### Regla
+**Para "estado final consistente" (la orden debe quedar con EXACTAMENTE los items que dice la fuente), usar `$transaction([deleteMany, createMany])` en vez de check-then-act.**
+
+```ts
+// CORRECTO — atomico, idempotente, race-safe
+await prisma.$transaction([
+  prisma.orderItem.deleteMany({ where: { orderId } }),
+  prisma.orderItem.createMany({ data: items }),
+]);
+```
+
+Esto reemplaza COMPLETAMENTE los items existentes por los nuevos, en una sola transaccion. Si dos calls concurrentes llegan, el ultimo gana, pero NUNCA quedan duplicados.
+
+### Prevención
+- Cada vez que veo `count + if + create` o `findUnique + if-not-exists + create` → ALARMA. Usar transaction o upsert.
+- Tests de stress (varios calls concurrentes al mismo recurso) cuando hay webhook + cron + manual ops sobre la misma entidad.
+
+---
+
+## Error #S58-FALLBACK-OR-VS-NULLISH — `||` colapsa 0/false/string-vacio a fallback
+
+**Cuándo pasó**: Sesión 58 BIS. En `vtex-enrichment.ts`:
+```ts
+const unitPrice = (item.sellingPrice || item.price) / 100;
+```
+
+VTEX devuelve sellingPrice y price en centavos. Para items con `sellingPrice = 0` (regalo, sample, item promocional), el `||` colapsaba al fallback `item.price`. Pero el regalo *deberia* costar 0, no el precio de catalogo. La auditoria con agente detecto que ~5% de items en muchos sellers podrian tener este caso.
+
+### Causa raíz
+- `||` testea truthy/falsy. `0`, `""`, `false`, `null`, `undefined` son TODOS falsy → caen al fallback.
+- Pero el dato de negocio es: "0 es VALOR VALIDO, fallback solo si es null/undefined".
+- En APIs financieras/comerciales, distinguir 0 valido de null faltante es CRITICO.
+
+### Regla
+**Para fallback de campos numericos/booleanos donde 0/false son valores validos, SIEMPRE usar `??` (nullish coalescing) en vez de `||`.**
+
+```ts
+// CORRECTO — solo cae a fallback si es null/undefined
+const rawSelling = item.sellingPrice;
+const rawList = item.price;
+const rawCents = rawSelling != null ? Number(rawSelling) : (rawList != null ? Number(rawList) : 0);
+const unitPrice = Number.isFinite(rawCents) ? rawCents / 100 : 0;
+```
+
+Notar: `Number.isFinite` es la guarda final contra NaN/Infinity (por si el cast falla).
+
+### Prevención
+- Buscar en codebase patrones `(field1 || field2)` donde fields son numericos. Cambiar a `??`.
+- Mental check al escribir fallbacks: ¿0 es un valor valido aqui? ¿Y false? ¿Y string vacio? Si SI a cualquiera → usar `??`.
+
+---
+
+## Error #S58-MINI-OBJECT-VS-AUTHORITATIVE — Leer datos del mini-objeto de un endpoint LIST cuando hay un endpoint DETAIL autoritativo
+
+**Cuándo pasó**: Sesión 58 BIS. ML `/orders/search` devuelve cada orden con un objeto `shipping` chico que tiene `id`, a veces `shipment_type`, pero CASI NUNCA `cost`, `logistic_type`, `receiver_address.zip_code`. El codigo:
+
+```ts
+const orderFields = {};
+if (mlOrder.shipping?.cost != null) orderFields.shippingCost = mlOrder.shipping.cost;
+if (mlOrder.shipping?.logistic_type) orderFields.shippingCarrier = mlOrder.shipping.logistic_type;
+if (mlOrder.shipping?.receiver_address?.zip_code) orderFields.postalCode = mlOrder.shipping.receiver_address.zip_code;
+```
+
+Resultado: 100% de las orders MELI quedaron sin shipping_cost, shipping_carrier, postal_code aunque ML expone esos datos en `/shipments/{id}`. La fuente autoritativa es OTRA URL.
+
+Mismo patron pasa en VTEX: `/api/oms/pvt/orders` (list) trae info chica vs `/api/oms/pvt/orders/{id}` (detail) que trae todo.
+
+### Causa raíz
+- Asumi que el `shipping` del payload de `/orders/search` era el mismo que `/shipments`. NO lo es.
+- El payload del LIST endpoint suele ser un MINI-OBJETO con solo IDs y campos basicos para listings. El DETAIL trae el objeto completo.
+- Sin auditoria explicita campo-por-campo (health-check), el bug pasaba desapercibido — campos quedaban en null pero no rompia.
+
+### Regla
+**Al integrar APIs externas, IDENTIFICAR explicitamente cual es el endpoint autoritativo para cada campo. NO leer del payload de LIST si DETAIL existe.**
+
+Patron correcto:
+```ts
+let detailedData = lookupFromListPayload();
+if (needsAuthoritativeData && hasResourceId && hasToken) {
+  try {
+    detailedData = await fetchFromDetailEndpoint(resourceId, token);
+  } catch {} // failsafe silent
+}
+// Despues leer SIEMPRE de detailedData con fallback al list payload
+const cost = detailedData?.cost ?? listPayload?.shipping?.cost;
+```
+
+### Prevención
+- Al integrar nueva API, mapear: ¿que campos vienen completos en LIST? ¿Cuales requieren DETAIL?
+- Health-check post-backfill (gaps por campo y por source) detecta este bug rapido — campos al 100% null = sospechar mini-objeto.
+- Documentar en comments: "este campo viene de /shipments, no de /orders/search".
+
+---
+
+## Error #S58-TRUTHY-OBJECT-CHECK — Check `if (!obj)` no detecta objetos vacios `{}`
+
+**Cuándo pasó**: Sesión 58 BIS. En `mercadolibre-enrichment.ts`:
+```ts
+let addr = mlOrder.shipping?.receiver_address;
+if (!addr && shippingId) {
+  // hacer GET /shipments para llenar addr
+}
+```
+
+El codigo asumia que si `addr` era null/undefined, hacia el lookup. Pero ML devuelve `receiver_address: {}` (objeto vacio truthy) en `/orders/search`. Asi `!addr` era `false` → NUNCA disparaba el lookup → city/state/country quedaban 98% null en customers ML.
+
+Bug pasivo durante MESES sin detectar (S55 ya tenia la misma logica).
+
+### Causa raíz
+- En JS/TS, `Boolean({}) === true`. Objeto vacio es truthy.
+- El check `!addr` solo detecta null/undefined/0/""/false, no objetos sin campos.
+- Asumir "si addr existe → tiene data" era invalido.
+
+### Regla
+**Para validar "el objeto trae data util", chequear las KEYS especificas que necesitas, no si el objeto existe.**
+
+```ts
+// CORRECTO — chequea los campos que realmente importan
+const needsLookup = !addr?.city?.name || !addr?.state?.name;
+if (needsLookup && shippingId && token) {
+  // hacer GET /shipments
+}
+```
+
+### Prevención
+- Cada vez que hacer `if (!obj)` sobre un objeto que vino de API externa → preguntar: "¿esta API devuelve objetos vacios cuando no hay data?". Si la respuesta es SI o "no se" → chequear keys especificas.
+- Al hacer lookup condicional (dispara solo si falta data), nombrar la variable de check semanticamente: `needsShipmentLookup` mejor que `if (!addr)`.
 
 ---
 
