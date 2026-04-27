@@ -72,9 +72,14 @@ export async function enrichOrderFromMl(
 
       // Location desde shipping. Primero intentamos del payload (a veces viene
       // en webhooks); si no, GET /shipments/{id} (caso normal del backfill).
+      // S58 BIS: el check anterior (`!addr`) era muy permisivo — ML devuelve
+      // receiver_address como objeto VACIO {} en /orders/search, asi que addr
+      // queda truthy pero city/state son undefined. Cambio: hacer el lookup
+      // siempre que falte city o state.
       let addr = mlOrder.shipping?.receiver_address;
+      const needsShipmentLookup = !addr?.city?.name || !addr?.state?.name;
       const shippingId = mlOrder.shipping?.id;
-      if (!addr && shippingId && token) {
+      if (needsShipmentLookup && shippingId && token) {
         try {
           // S58 F-TIMEOUT: 8s -> 15s. ML /shipments puede tardar 5-10s en
           // sellers grandes; con 8s timing-out frecuentemente y perdemos
@@ -86,7 +91,10 @@ export async function enrichOrderFromMl(
           });
           if (r.ok) {
             const shipData = await r.json();
-            addr = shipData?.receiver_address;
+            // Mergear: priorizar shipData (mas completo) pero conservar
+            // valores del addr inicial si existen.
+            const shipAddr = shipData?.receiver_address;
+            if (shipAddr) addr = shipAddr;
           }
         } catch {
           // Silencioso — la falta de address no rompe el enrich completo.
@@ -204,6 +212,34 @@ export async function enrichOrderFromMl(
         itemsCreated = orderItemsToCreate.length;
       }
     }
+
+    // ── Campos opcionales de la orden ─────────────────
+    // S58 BIS: el processor del backfill ML antes solo seteaba status/total/
+    // currency/itemCount/paymentMethod/marketplaceFee. El webhook ML
+    // (post-S58 F2.1) setea ademas channel/shippingCost/deliveryType. Ahora
+    // el backfill tambien — para que las orders historicas tengan los
+    // mismos campos que las nuevas via webhook.
+    const orderFields: any = { channel: "marketplace" };
+    const rawShipCost = mlOrder.shipping?.cost;
+    if (rawShipCost != null) {
+      const n = Number(rawShipCost);
+      if (Number.isFinite(n)) orderFields.shippingCost = n;
+    }
+    const shipmentType = mlOrder.shipping?.shipment_type;
+    if (shipmentType === "pickup" || shipmentType === "self_service") {
+      orderFields.deliveryType = "PICKUP";
+    } else if (mlOrder.shipping) {
+      orderFields.deliveryType = "DELIVERY";
+    }
+    const logisticType = mlOrder.shipping?.logistic_type;
+    if (logisticType) orderFields.shippingCarrier = String(logisticType);
+    const postalCode = mlOrder.shipping?.receiver_address?.zip_code;
+    if (postalCode) orderFields.postalCode = String(postalCode);
+
+    await prisma.order.update({
+      where: { id: dbOrderId },
+      data: orderFields,
+    });
 
     return { customerCreated, itemsCreated };
   } catch (err: any) {
