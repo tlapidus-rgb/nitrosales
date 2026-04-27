@@ -164,6 +164,71 @@ async function processOrder(token: string, orgId: string, resource: string): Pro
     },
   });
 
+  // ── Customer enrichment (S58 F2.1) ──
+  // Antes el webhook orders_v2 NO creaba customers, dejando customerId NULL
+  // en orders nuevas post-backfill. Esto rompia atribucion + LTV. Ahora
+  // creamos/actualizamos el Customer desde order.buyer + shipping.
+  try {
+    const buyer = order.buyer;
+    if (buyer && buyer.id) {
+      const customerExtId = `ml-${buyer.id}`;
+      const rawEmail = String(buyer.email || "").toLowerCase().trim();
+      const realEmail = rawEmail && !rawEmail.includes("noreply@mercadolibre") && !rawEmail.includes("mail.mercadolibre")
+        ? rawEmail : null;
+      const firstName = buyer.first_name || null;
+      const lastName = buyer.last_name || null;
+      const nickname = buyer.nickname || null;
+
+      const addr = order.shipping?.receiver_address;
+      const city = addr?.city?.name || null;
+      const state = addr?.state?.name || null;
+      const country = addr?.country?.id || null;
+
+      const orderDate = order.date_created ? new Date(order.date_created) : new Date();
+
+      if (firstName || lastName || nickname || realEmail) {
+        const customer = await prisma.customer.upsert({
+          where: {
+            organizationId_externalId: {
+              organizationId: orgId,
+              externalId: customerExtId,
+            },
+          },
+          create: {
+            organizationId: orgId,
+            externalId: customerExtId,
+            email: realEmail,
+            firstName: firstName || nickname,
+            lastName,
+            city,
+            state,
+            country,
+            firstOrderAt: orderDate,
+            lastOrderAt: orderDate,
+            totalOrders: 1,
+            totalSpent: Number(totalValue) || 0,
+          },
+          update: {
+            ...(realEmail ? { email: realEmail } : {}),
+            ...(firstName ? { firstName } : nickname ? { firstName: nickname } : {}),
+            ...(lastName ? { lastName } : {}),
+            ...(city ? { city } : {}),
+            ...(state ? { state } : {}),
+            ...(country ? { country } : {}),
+            lastOrderAt: orderDate,
+          },
+        });
+
+        await prisma.order.update({
+          where: { id: dbOrder.id },
+          data: { customerId: customer.id },
+        });
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[ML Processor] customer enrichment failed for order ${order.id}: ${err.message}`);
+  }
+
   // ── Create Products + OrderItems for MELI ──
   if (mlItems.length > 0) {
     await prisma.orderItem.deleteMany({ where: { orderId: dbOrder.id } });
