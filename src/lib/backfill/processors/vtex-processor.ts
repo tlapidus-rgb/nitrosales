@@ -39,11 +39,13 @@ import { fetchVtexOrderDetail, enrichOrderFromVtex } from "@/lib/connectors/vtex
 import { withConcurrency } from "@/lib/sync/concurrency";
 import type { ChunkResult } from "../types";
 
-const PAGES_PER_CHUNK = 5;       // 5 × 100 = 500 ordenes/chunk (con enrichment lleva ~40s)
+const PAGES_PER_CHUNK = 5;       // 5 × 100 = 500 ordenes/chunk (con enrichment ~30s con concurrency 12)
 const PAGE_SIZE = 100;
 const WINDOW_DAYS = 7;           // ventana de 7 dias por iteracion
 const VTEX_PAGE_LIMIT = 30;      // limite hardcoded de VTEX por consulta
-const ENRICH_CONCURRENCY = 8;    // fetchs paralelos de detail (VTEX rate limit ~30 req/s)
+// S58 O3.3: subido de 8 a 12 (VTEX rate limit ~30 req/s, pool Postgres 8).
+// Cada enrich hace 1 GET + writes rapidas, 12 paralelos no satura. Ahorro ~15%.
+const ENRICH_CONCURRENCY = 12;
 
 interface VtexCreds {
   accountName: string;

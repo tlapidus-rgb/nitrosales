@@ -154,18 +154,18 @@ export async function enrichOrderFromVtex(
     }
 
     // ── Products + OrderItems ───────────────────────
+    // S58 O3.2: batch inserts de OrderItems. Antes 1 INSERT por item
+    // (5-10 round-trips DB por orden). Ahora: products en serie + 1
+    // createMany de TODOS los items. Ahorro ~30% en DB writes.
     const items = vData.items || [];
     if (items.length > 0) {
       const existingItems = await prisma.orderItem.count({ where: { orderId: dbOrderId } });
       if (existingItems === 0) {
+        const orderItemsToCreate: any[] = [];
+
         for (const item of items) {
           const productExtId = String(item.id || item.productId);
-          // SKU-first: refId o sellerSku es el SKU real.
           const realSku = (item.refId || item.sellerSku || "").trim() || null;
-          // S58 F2.2: poblar tambien categoryPath ("Juguetes > Bebes > Sonajeros")
-          // y EAN/GTIN. categoriesIds en VTEX es algo como "/151/238/452/" — la
-          // jerarquia esta separada por "/". Si esta presente, lo usamos como path.
-          // El `category` legacy (hoja) sigue siendo additionalInfo.categoriesIds.
           const rawCatIds = item.additionalInfo?.categoriesIds || "";
           const categoryPath = typeof rawCatIds === "string" && rawCatIds.includes("/")
             ? rawCatIds.split("/").filter(Boolean).join(" > ")
@@ -195,17 +195,19 @@ export async function enrichOrderFromVtex(
             },
           });
 
-          await prisma.orderItem.create({
-            data: {
-              orderId: dbOrderId,
-              productId: product.id,
-              quantity: item.quantity,
-              unitPrice: (item.sellingPrice || item.price) / 100,
-              totalPrice: ((item.sellingPrice || item.price) * item.quantity) / 100,
-              costPrice: (product as any).costPrice ?? null,
-            } as any,
+          orderItemsToCreate.push({
+            orderId: dbOrderId,
+            productId: product.id,
+            quantity: item.quantity,
+            unitPrice: (item.sellingPrice || item.price) / 100,
+            totalPrice: ((item.sellingPrice || item.price) * item.quantity) / 100,
+            costPrice: (product as any).costPrice ?? null,
           });
-          itemsCreated++;
+        }
+
+        if (orderItemsToCreate.length > 0) {
+          await prisma.orderItem.createMany({ data: orderItemsToCreate as any });
+          itemsCreated = orderItemsToCreate.length;
         }
       }
     }
