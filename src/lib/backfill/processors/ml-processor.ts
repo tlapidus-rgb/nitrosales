@@ -326,13 +326,16 @@ export async function processMercadoLibreChunk(job: any): Promise<ChunkResult> {
     }
 
     // 5b. Enriquecer en paralelo (customer + products + items desde el payload ML)
+    //     S58 F2.3: pasamos el token para que enrichOrderFromMl pueda llamar
+    //     /shipments/{id} cuando la direccion NO viene en /orders/search (caso
+    //     normal). Eso completa city/state/country del Customer.
     //     Failsafe: errores en enrich NO fallan el chunk. El order basico ya esta.
     if (toEnrich.length > 0) {
       await withConcurrency(
         ENRICH_CONCURRENCY,
         toEnrich.map((e) => async () => {
           try {
-            await enrichOrderFromMl(e.dbOrderId, orgId, e.mlOrder);
+            await enrichOrderFromMl(e.dbOrderId, orgId, e.mlOrder, token);
           } catch (err: any) {
             console.warn(`[ml-processor] enrich failed ${e.mlOrder.id}: ${err.message}`);
           }

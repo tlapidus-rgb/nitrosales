@@ -51,6 +51,11 @@ export async function enrichOrderFromMl(
   dbOrderId: string,
   orgId: string,
   mlOrder: any,
+  // S58 F2.3: token opcional para GET /shipments/{id} si la direccion NO viene
+  // en el payload de /orders/search (caso normal — receiver_address es null).
+  // Si se pasa, se hace 1 GET extra por orden con shipping.id para traer
+  // city/state/country/zip completos.
+  token?: string,
 ): Promise<MlEnrichResult | null> {
   try {
     let customerCreated = false;
@@ -65,8 +70,24 @@ export async function enrichOrderFromMl(
       const lastName = buyer.last_name || null;
       const nickname = buyer.nickname || null;
 
-      // Location desde shipping (si existe)
-      const addr = mlOrder.shipping?.receiver_address;
+      // Location desde shipping. Primero intentamos del payload (a veces viene
+      // en webhooks); si no, GET /shipments/{id} (caso normal del backfill).
+      let addr = mlOrder.shipping?.receiver_address;
+      const shippingId = mlOrder.shipping?.id;
+      if (!addr && shippingId && token) {
+        try {
+          const r = await fetch(`https://api.mercadolibre.com/shipments/${shippingId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (r.ok) {
+            const shipData = await r.json();
+            addr = shipData?.receiver_address;
+          }
+        } catch {
+          // Silencioso — la falta de address no rompe el enrich completo.
+        }
+      }
       const city = addr?.city?.name || null;
       const state = addr?.state?.name || null;
       const country = addr?.country?.id || null;
