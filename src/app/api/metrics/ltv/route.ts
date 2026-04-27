@@ -19,11 +19,12 @@ export async function GET(request: NextRequest) {
     const dateFrom = fromParam
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 365 * MS_PER_DAY);
-    // LTV analysis only works with VTEX (tienda propia) because MercadoLibre
-    // does NOT share customer identity (no email, no name, no customerId).
-    // Without customer identification, LTV tracking is impossible.
-    const MELI_EXCLUDE = `AND o."source" != 'MELI'`;
-    const srcWhere = MELI_EXCLUDE;
+    // BP-S58 actualizacion (2026-04-26): el comentario anterior era cierto en
+    // sesiones tempranas pero ML enrichment YA crea customers con externalId
+    // "ml-{buyerId}", firstName (nickname), lastName y location parcial. Aunque
+    // el email no viene, el customerId interno es estable y permite LTV
+    // tracking por buyer ML. Removida la exclusion de MELI.
+    const srcWhere = ``;
 
     // Period for comparison
     const periodMs = dateTo.getTime() - dateFrom.getTime();
