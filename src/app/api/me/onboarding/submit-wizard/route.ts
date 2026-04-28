@@ -130,19 +130,53 @@ export async function POST(req: NextRequest) {
       // rompen fetch con "Cannot convert argument to a ByteString because...".
       // Tambien trim + filter non-printable ASCII.
       let credsToSave: any = sanitizeCreds(p.credentials);
+      const existingCreds = (existing?.credentials as any) || {};
+
       if (p.platform === "MERCADOLIBRE" && existing?.credentials) {
-        const existingCreds = existing.credentials as any;
         // Si ya hay tokens en DB (del OAuth callback), preservarlos.
         if (existingCreds?.accessToken && existingCreds?.mlUserId) {
           credsToSave = existingCreds; // ignoramos lo que mandó el frontend
         }
       }
 
+      // S58 OAuth: para META_ADS y GOOGLE_ADS preservamos campos OAuth de la
+      // Connection existente (accessToken, refreshToken, fbEmail/googleEmail,
+      // authStatus, availableAdAccounts) y solo overrideamos los campos que
+      // vinieron del frontend (adAccountId/customerId/loginCustomerId/etc).
+      if ((p.platform === "META_ADS" || p.platform === "GOOGLE_ADS") && existing?.credentials) {
+        // Mergeamos: preserva OAuth state + sobreescribe lo que vino del wizard.
+        credsToSave = {
+          ...existingCreds,   // OAuth tokens, authStatus, fbEmail, etc.
+          ...credsToSave,     // adAccountId / customerId / loginCustomerId del wizard
+          // Si el cliente borro el accessToken/refreshToken por error, preservar.
+          ...(existingCreds.accessToken ? { accessToken: existingCreds.accessToken } : {}),
+          ...(existingCreds.refreshToken ? { refreshToken: existingCreds.refreshToken } : {}),
+          ...(existingCreds.tokenExpiresAt ? { tokenExpiresAt: existingCreds.tokenExpiresAt } : {}),
+          ...(existingCreds.authStatus ? { authStatus: existingCreds.authStatus } : {}),
+          ...(existingCreds.fbEmail ? { fbEmail: existingCreds.fbEmail } : {}),
+          ...(existingCreds.googleEmail ? { googleEmail: existingCreds.googleEmail } : {}),
+        };
+      }
+
+      // Determinar status de la Connection.
+      // - Si tiene OAuth token → ACTIVE
+      // - Si está en authStatus PENDING/APPROVED sin token → PENDING (no bloquea
+      //   el wizard, pero el cliente sabe que falta completar)
+      // - Sino → PENDING (default, esperando aprobacion admin de backfill)
+      let connectionStatus: any = "PENDING";
+      if (p.platform === "META_ADS" && credsToSave?.accessToken) {
+        connectionStatus = "ACTIVE";
+      } else if (p.platform === "GOOGLE_ADS" && credsToSave?.refreshToken) {
+        connectionStatus = "ACTIVE";
+      } else if (p.platform === "MERCADOLIBRE" && credsToSave?.accessToken) {
+        connectionStatus = "ACTIVE";
+      }
+
       if (existing) {
         await prisma.connection.update({
           where: { id: existing.id },
           data: {
-            status: "PENDING",
+            status: connectionStatus,
             credentials: credsToSave,
             lastSyncError: null,
           },
@@ -152,7 +186,7 @@ export async function POST(req: NextRequest) {
           data: {
             organizationId: user.organizationId,
             platform: p.platform as any,
-            status: "PENDING",
+            status: connectionStatus,
             credentials: credsToSave,
           },
         });
@@ -277,13 +311,21 @@ function validatePlatformCreds(platform: string, creds: any): string | null {
       }
       break;
     case "META_ADS":
-      if (!creds.adAccountId || typeof creds.adAccountId !== "string") return "adAccountId requerido";
-      if (!creds.accessToken || typeof creds.accessToken !== "string") return "accessToken requerido";
+      // S58 OAuth: accessToken puede venir de 3 fuentes:
+      //   1. creds del frontend (legacy: cliente pego token manual)
+      //   2. Connection.credentials existente (OAuth ya conecto)
+      //   3. authStatus PENDING/APPROVED (esperando autorizacion, sin token aun)
+      // La validacion final se hace en el bucle del submit con acceso a la DB.
+      // Aca solo validamos formato basico si vienen los campos.
+      if (creds.adAccountId && typeof creds.adAccountId !== "string") return "adAccountId tipo invalido";
+      if (creds.accessToken && typeof creds.accessToken !== "string") return "accessToken tipo invalido";
       break;
     // META_PIXEL eliminado en BP-S58-003: pixelId + pixelAccessToken son
     // campos opcionales dentro de META_ADS (validados arriba sin requerirse).
     case "GOOGLE_ADS":
-      if (!creds.customerId || typeof creds.customerId !== "string") return "customerId requerido";
+      // S58 OAuth: customerId puede venir del wizard, refreshToken del OAuth.
+      // Validacion permisiva — el bucle final valida con acceso a DB.
+      if (creds.customerId && typeof creds.customerId !== "string") return "customerId tipo invalido";
       break;
   }
   return null;

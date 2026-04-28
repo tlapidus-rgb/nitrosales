@@ -10,6 +10,7 @@ import { AurumOrb } from "@/components/aurum/AurumOrb";
 import { PermissionsProvider, NavItemGate, NavGroupGate, PathnameGuard } from "@/hooks/usePermissions";
 import AlertsBadge from "@/components/alerts/AlertsBadge";
 import { PixelInstallBanner } from "@/components/PixelInstallBanner";
+import { AdsAuthBanner } from "@/components/AdsAuthBanner";
 import OnboardingGate from "@/components/OnboardingGate";
 
 type NavItem = {
@@ -1391,6 +1392,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               }
             >
               <PixelInstallBanner />
+              <AdsAuthBanner />
               <PathnameGuard pathname={pathname}>
                 {children}
               </PathnameGuard>
