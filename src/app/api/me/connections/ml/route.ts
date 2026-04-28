@@ -20,7 +20,12 @@ export async function GET() {
 
     const conn = await prisma.connection.findFirst({
       where: { organizationId: orgId, platform: "MERCADOLIBRE" as any },
-      select: { credentials: true, status: true },
+      select: {
+        credentials: true,
+        status: true,
+        lastSyncAt: true,
+        lastSyncError: true,
+      },
     });
 
     if (!conn) return NextResponse.json({ ok: true, connected: false });
@@ -28,11 +33,19 @@ export async function GET() {
     const creds = conn.credentials as any;
     const connected = !!(creds?.accessToken && creds?.mlUserId);
 
+    // S58 unificacion: este endpoint ahora devuelve TODO lo que necesitan
+    // tanto el wizard (mlUserId, connected, status) como /settings/integraciones/
+    // mercadolibre (lastSyncAt, lastSyncError, nickname, siteId).
     return NextResponse.json({
       ok: true,
       connected,
       mlUserId: connected ? creds.mlUserId : null,
       status: conn.status,
+      nickname: creds?.nickname || null,
+      siteId: creds?.siteId || null,
+      tokenExpiresAt: creds?.tokenExpiresAt || null,
+      lastSyncAt: conn.lastSyncAt?.toISOString() || null,
+      lastSyncError: conn.lastSyncError,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

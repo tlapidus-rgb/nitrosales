@@ -48,6 +48,7 @@ export default function MetaIntegrationPage() {
       ]);
       setAuthState(statusRes?.state || "NONE");
       setFbEmail(statusRes?.fbEmail || null);
+      setTokenExpiresAt(statusRes?.tokenExpiresAt || null);
       if (accountsRes?.connected) {
         setAccounts(accountsRes.accounts || []);
         setCurrentAdAccountId(accountsRes.currentAdAccountId || null);

@@ -30,8 +30,20 @@ export default function MercadoLibreIntegrationPage() {
   const loadStatus = async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/me/ml-status").then((x) => x.json());
-      if (r?.ok) setStatus(r);
+      // S58 unificacion: usamos el mismo endpoint que el wizard
+      // (/api/me/connections/ml) en vez de /api/me/ml-status (duplicado).
+      const r = await fetch("/api/me/connections/ml", { cache: "no-store" }).then((x) => x.json());
+      if (r?.ok) {
+        setStatus({
+          connected: !!r.connected,
+          status: r.status || "DISCONNECTED",
+          mlUserId: r.mlUserId,
+          nickname: r.nickname || null,
+          siteId: r.siteId || null,
+          lastSyncAt: r.lastSyncAt || null,
+          lastSyncError: r.lastSyncError || null,
+        } as any);
+      }
     } finally {
       setLoading(false);
     }

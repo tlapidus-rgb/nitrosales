@@ -42,6 +42,9 @@ export async function GET() {
         ok: true,
         state: "CONNECTED",
         fbEmail: creds.fbEmail || null,
+        tokenExpiresAt: creds.tokenExpiresAt || null,
+        adAccountId: creds.adAccountId || null,
+        availableAdAccounts: (creds.availableAdAccounts || []).length,
       });
     }
 
