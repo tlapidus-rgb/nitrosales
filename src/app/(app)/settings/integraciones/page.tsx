@@ -405,8 +405,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* S58: link a página dedicada por plataforma para META_ADS y
-              GOOGLE_ADS (con OAuth + auth-request flow standalone). */}
+          {/* S58: link a página dedicada para las 4 plataformas principales. */}
           {connector.platform === "META_ADS" && (
             <a
               href="/settings/integraciones/meta"
@@ -423,7 +422,23 @@ function ConnectorRow({ connector }: { connector: Connector }) {
               {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
             </a>
           )}
-          {connector.platform !== "META_ADS" && connector.platform !== "GOOGLE_ADS" && (isError || isDisconnected) && (
+          {connector.platform === "VTEX" && (
+            <a
+              href="/settings/integraciones/vtex"
+              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
+            </a>
+          )}
+          {connector.platform === "MERCADOLIBRE" && (
+            <a
+              href="/settings/integraciones/mercadolibre"
+              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
+            </a>
+          )}
+          {!["META_ADS", "GOOGLE_ADS", "VTEX", "MERCADOLIBRE"].includes(connector.platform) && (isError || isDisconnected) && (
             <a
               href={
                 meta.connectHref ??
