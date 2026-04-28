@@ -412,6 +412,7 @@ function DetailDrawer({
   const [rejecting, setRejecting] = useState(false);
   const [approvingBackfill, setApprovingBackfill] = useState(false);
   const [activatingClient, setActivatingClient] = useState(false);
+  const [resetting, setResetting] = useState<"none" | "soft" | "wipe">("none");
   const [result, setResult] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // F1.3 — Test de credenciales del lado admin
@@ -496,6 +497,49 @@ function DetailDrawer({
       setErrorMsg(err.message || "Error de red");
     } finally {
       setTestingCreds(false);
+    }
+  };
+
+  const resetBackfill = async (mode: "soft" | "wipe") => {
+    const confirmMsg = mode === "soft"
+      ? `RESET SUAVE para ${detail.companyName}\n\n` +
+        `Borra solo los backfill_jobs. La data cargada (orders, customers, products) se mantiene.\n\n` +
+        `Después podés re-aprobar el backfill y el sistema rellenará lo que falte sin destruir lo bueno.\n\n` +
+        `¿Continuar?`
+      : `⚠️ RESET COMPLETO (WIPE) para ${detail.companyName}\n\n` +
+        `Borra TODA la data: orders, items, customers, products, eventos pixel, etc.\n` +
+        `Mantiene: credenciales, organización, usuarios.\n\n` +
+        `El cliente queda como recién terminó el wizard pero sin data. Vas a tener que re-aprobar el backfill.\n\n` +
+        `Esta acción NO SE PUEDE DESHACER. ¿Continuar?`;
+
+    if (!confirm(confirmMsg)) return;
+    if (mode === "wipe" && !confirm("Confirmá una vez más: vas a borrar TODA la data del cliente.")) return;
+
+    setResetting(mode);
+    setErrorMsg(null);
+    try {
+      const path = mode === "soft"
+        ? `/api/admin/onboardings/${id}/reset-backfill`
+        : `/api/admin/onboardings/${id}/reset-wipe`;
+      const res = await fetch(path, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setErrorMsg(json.error || "Error en el reset");
+        setResetting("none");
+        return;
+      }
+      onRefresh();
+      const detailRes = await fetch(`/api/admin/onboardings/${id}`);
+      const detailJson = await detailRes.json();
+      if (detailRes.ok) setDetail(detailJson.request);
+      const summary = mode === "wipe"
+        ? `Wipe completado. ${json.totalDeleted || 0} registros borrados.`
+        : `Reset suave completado. ${json.jobsDeleted || 0} jobs borrados.`;
+      alert(summary);
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setResetting("none");
     }
   };
 
@@ -954,6 +998,82 @@ function DetailDrawer({
                       Activada {formatRelative(detail.activatedAt)}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* S59: Operaciones avanzadas — disponibles en BACKFILLING / READY_FOR_REVIEW / ACTIVE */}
+              {detail.createdOrgId && ["BACKFILLING", "READY_FOR_REVIEW", "ACTIVE"].includes(detail.status) && (
+                <div style={{
+                  marginTop: 24,
+                  paddingTop: 20,
+                  borderTop: "1px solid #1F1F23",
+                }}>
+                  <div style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#71717A",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginBottom: 12,
+                  }}>
+                    Operaciones avanzadas
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {/* Reset suave */}
+                    <button
+                      onClick={() => resetBackfill("soft")}
+                      disabled={resetting !== "none"}
+                      style={{
+                        width: "100%",
+                        padding: "10px 14px",
+                        background: "transparent",
+                        color: "#FCD34D",
+                        border: "1px solid rgba(251,191,36,0.4)",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: resetting !== "none" ? "wait" : "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      🔄 Reset suave (re-correr backfill)
+                      <div style={{ fontSize: 10, color: "#A1A1AA", fontWeight: 400, marginTop: 2 }}>
+                        Borra los jobs y vuelve a NEEDS_INFO. La data cargada se mantiene.
+                        Después aprobás backfill de nuevo y el sistema rellena lo que falte.
+                      </div>
+                    </button>
+
+                    {/* Reset wipe */}
+                    <button
+                      onClick={() => resetBackfill("wipe")}
+                      disabled={resetting !== "none"}
+                      style={{
+                        width: "100%",
+                        padding: "10px 14px",
+                        background: "transparent",
+                        color: "#F87171",
+                        border: "1px solid rgba(248,113,113,0.4)",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: resetting !== "none" ? "wait" : "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      ⚠️ Wipe completo (empezar de cero)
+                      <div style={{ fontSize: 10, color: "#A1A1AA", fontWeight: 400, marginTop: 2 }}>
+                        Borra TODA la data (orders, customers, products, etc.). Mantiene credenciales.
+                        Solo para emergencias o cuenta conectada equivocada.
+                      </div>
+                    </button>
+
+                    {resetting !== "none" && (
+                      <div style={{ fontSize: 11, color: "#A1A1AA", textAlign: "center", padding: "8px 0" }}>
+                        {resetting === "soft" ? "Reset suave en proceso…" : "Wipe completo en proceso…"}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </>
