@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     const baseUrl =
       process.env.NEXTAUTH_URL ??
       process.env.VERCEL_URL ??
-      "https://nitrosales.vercel.app";
+      "https://app.nitrosales.ai";
     const acceptUrl = `${baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`}/accept-invite?token=${token}`;
 
     // Data para el email

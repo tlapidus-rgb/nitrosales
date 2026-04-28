@@ -14,7 +14,7 @@ export async function POST() {
   }
 
   const syncKey = process.env.NEXTAUTH_SECRET || "";
-  const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+  const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
 
   try {
     const res = await fetch(

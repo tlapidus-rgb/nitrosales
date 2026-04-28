@@ -16,7 +16,7 @@ async function runSyncForOrg(orgId: string, syncKey: string) {
   }
 
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     const results: any = {
       orgId,
       vtex: null,

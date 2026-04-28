@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+        const appUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
         const dashboardLink = `${appUrl}/i/${inf.organization.slug}/${inf.code}`;
 
         const { subject, html } = monthlyCommissionSummaryEmail({

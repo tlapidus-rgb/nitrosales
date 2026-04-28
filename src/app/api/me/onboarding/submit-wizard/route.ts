@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
       where: { id: user.organizationId },
       select: { name: true },
     });
-    const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const appUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     waitUntil(
       sendEmail({
         to: adminEmail,

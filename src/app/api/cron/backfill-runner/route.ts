@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
         if (currentJob.onboardingRequestId) {
           const allDone = await areAllJobsComplete(currentJob.onboardingRequestId);
           if (allDone) {
-            const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+            const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
             const KEY = "nitrosales-secret-key-2024-production";
             const finalizeUrl = `${baseUrl}/api/cron/post-backfill-finalize?orgId=${encodeURIComponent(currentJob.organizationId)}&key=${KEY}`;
             fetch(finalizeUrl, { method: "GET" })

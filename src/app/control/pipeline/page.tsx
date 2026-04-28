@@ -107,7 +107,7 @@ const STAGES: Array<{
   },
 ];
 
-const APP_URL = "https://nitrosales.vercel.app";
+const APP_URL = "https://app.nitrosales.ai";
 const ONBOARDING_URL = `${APP_URL}/onboarding`;
 
 // ── Templates copiables ──

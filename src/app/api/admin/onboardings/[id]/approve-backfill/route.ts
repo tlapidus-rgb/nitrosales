@@ -163,7 +163,7 @@ export async function POST(
     // Trigger inmediato del runner: no esperar al proximo tick del cron (1 min).
     // Disparamos el runner en background para que arranque a procesar AHORA.
     // waitUntil mantiene la funcion alive despues de responder 200 al admin.
-    const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     if (createdJobs.length > 0) {
       const runnerUrl = `${baseUrl}/api/cron/backfill-runner?key=${encodeURIComponent(BACKFILL_RUNNER_KEY)}`;
       waitUntil(

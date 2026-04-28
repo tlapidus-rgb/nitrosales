@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     const totalIssues =
       errorCount + warnCount + stuckOnboardings.length + inactiveClients.length;
 
-    const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const appUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     const { subject, html } = buildAlertEmailHtml({
       connectionIssues,
       stuckOnboardings,

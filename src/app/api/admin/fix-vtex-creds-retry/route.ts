@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     );
 
     // 3. Trigger runner immediately
-    const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     waitUntil(
       fetch(`${baseUrl}/api/cron/backfill-runner?key=${BACKFILL_RUNNER_KEY}`, { method: "GET" })
         .then((r) => console.log(`[fix-vtex-creds] runner triggered: ${r.status}`))

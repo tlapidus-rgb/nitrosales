@@ -336,7 +336,7 @@ export async function GET(
 
     // Links: tracking (al store, multi-tenant) + dashboard público del creador (en la app)
     const storeUrl = await getStoreUrl(org.id);
-    const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const appUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     const trackingLink = `${storeUrl}/?utm_source=inf_${influencer.code}&utm_medium=influencer`;
     const dashboardUrl = `${appUrl}/i/${org.slug}/${influencer.code}`;
 

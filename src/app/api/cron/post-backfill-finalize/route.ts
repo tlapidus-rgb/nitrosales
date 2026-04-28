@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     const orgId = url.searchParams.get("orgId");
     if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
 
-    const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
 
     // Detectar qué connections tiene la org para llamar solo los catalog-refresh relevantes.
     const connections = await prisma.connection.findMany({

@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
     // Fire-and-forget: trigger sync in background
     const syncKey = process.env.NEXTAUTH_SECRET || "";
-    const baseUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     const syncUrl = `${baseUrl}${syncPath}?key=${encodeURIComponent(syncKey)}`;
 
     waitUntil(

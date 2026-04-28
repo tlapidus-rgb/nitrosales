@@ -19,7 +19,7 @@ function getBaseUrl(req: NextRequest): string {
   if (envUrl) return envUrl;
   const protocol = req.headers.get("x-forwarded-proto") ?? "https";
   const host = req.headers.get("host");
-  return host ? `${protocol}://${host}` : "https://nitrosales.vercel.app";
+  return host ? `${protocol}://${host}` : "https://app.nitrosales.ai";
 }
 
 export async function GET(req: NextRequest) {

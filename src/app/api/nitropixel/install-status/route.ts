@@ -42,7 +42,7 @@ export async function GET() {
       visitorsCount,
       lastEventAt: lastEvent?.receivedAt?.toISOString() || null,
       orgId,
-      snippetUrl: `${process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app"}/api/pixel/script?org=${orgId}`,
+      snippetUrl: `${process.env.NEXTAUTH_URL || "https://app.nitrosales.ai"}/api/pixel/script?org=${orgId}`,
     });
   } catch (error: any) {
     console.error("[nitropixel/install-status] error:", error);

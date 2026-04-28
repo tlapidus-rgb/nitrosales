@@ -25,7 +25,7 @@ export function appUrl(): string {
   return (
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXTAUTH_URL ||
-    "https://nitrosales.vercel.app"
+    "https://app.nitrosales.ai"
   ).replace(/\/+$/, "");
 }
 

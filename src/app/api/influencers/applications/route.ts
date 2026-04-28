@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const appUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     const applyUrl = `${appUrl}/i/${org.slug}/apply`;
 
     return NextResponse.json({ applications, applyUrl });
@@ -120,7 +120,7 @@ export async function PUT(req: NextRequest) {
 
     // Build tracking link and dashboard link (multi-tenant storeUrl)
     const storeUrl = await getStoreUrl(org.id);
-    const appUrl = process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+    const appUrl = process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
     const trackingLink = storeUrl ? `${storeUrl.replace(/\/$/, "")}/?utm_source=inf_${finalCode}&utm_medium=influencer` : `${appUrl}/?utm_source=inf_${finalCode}&utm_medium=influencer`;
     const dashboardLink = `${appUrl}/i/${org.slug}/${finalCode}`;
 

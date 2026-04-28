@@ -157,7 +157,7 @@ export async function GET(req: Request) {
     const section = searchParams.get("section") || "dashboard";
 
     const baseUrl =
-      process.env.NEXTAUTH_URL || "https://nitrosales.vercel.app";
+      process.env.NEXTAUTH_URL || "https://app.nitrosales.ai";
 
     // Load org context dynamically (name + industry/country from onboarding)
     const org = await getOrganization();

@@ -1370,7 +1370,7 @@ function GscInputs({ creds, onChange }: any) {
 
 function NitroPixelInputs({ creds, onChange, orgId }: any) {
   const [copied, setCopied] = useState(false);
-  const appUrl = typeof window !== "undefined" ? window.location.origin : "https://nitrosales.vercel.app";
+  const appUrl = typeof window !== "undefined" ? window.location.origin : "https://app.nitrosales.ai";
   const snippet = orgId
     ? `<!-- NitroPixel -->\n<script src="${appUrl}/api/pixel/script?org=${orgId}" async></script>`
     : `<!-- Cargando ID de tu organización... -->`;

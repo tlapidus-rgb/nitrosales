@@ -122,6 +122,6 @@ export async function runWithConcurrency<T, R>(
 export function getBaseUrl(): string {
   return (
     process.env.NEXTAUTH_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://nitrosales.vercel.app")
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://app.nitrosales.ai")
   );
 }

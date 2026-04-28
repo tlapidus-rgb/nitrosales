@@ -72,7 +72,7 @@ export async function POST(
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL ||
       process.env.NEXTAUTH_URL ||
-      "https://nitrosales.vercel.app";
+      "https://app.nitrosales.ai";
     const dashboardLink = `${baseUrl}/i/${org.slug}/${influencer.code}`;
 
     const subject = didRegenerate
