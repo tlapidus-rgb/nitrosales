@@ -3,7 +3,171 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-27 (Sesion 58 CIERRE — Primer cliente REAL onboardeado E2E con data perfecta. EMDJ orgId `cmod9fmy6000djepldqo2ty3v`. 12,185 orders VTEX + 663 orders MELI. Auditoria con 3 agentes paralelos detecto bugs en pipeline → 6 fixes Tipo A + 2 BIS Tipo A. Score final: VTEX 100%, MELI 99%. Pipeline listo para Arredo y TV Compras sin tocar codigo.)
+## Ultima actualizacion: 2026-04-28 (Sesion 59 — Migracion dominio app.nitrosales.ai + OAuth Meta y Google completos + paginas dedicadas /settings/integraciones/* + sistema de bloqueo de secciones con override admin. Listo para mandar mensaje a TVC y Arredo pidiendo emails.)
+
+### Sesion 59 (2026-04-28) — Dominio nuevo + OAuth completo + pages dedicadas + sistema bloqueo secciones
+
+**Contexto**: post-S58 (EMDJ onboardeado al 99%), Tomy quiso avanzar en 4 frentes grandes para preparar la entrada de TVC y Arredo:
+1. Migrar dominio de `nitrosales.vercel.app` a `app.nitrosales.ai` (subdominio limpio).
+2. Implementar OAuth completo de Meta y Google Ads (reemplazar input manual de tokens).
+3. Páginas dedicadas en `/settings/integraciones/*` para que el cliente pueda gestionar conexiones desde dentro de la app.
+4. Sistema de bloqueo de secciones con override admin (auto por integración + manual por cliente).
+
+#### Commits clave de S59 (~25 commits)
+
+**Migración dominio (1)**:
+- `bfa7bac` migrar 22 archivos con fallback hardcoded `vercel.app` → `app.nitrosales.ai`
+
+**Fixes pre-existentes (2)**:
+- `d831864` test NitroPixel usaba columna `eventTime` (no existe) → `receivedAt`
+- `8ce8932` test Google Ads pedia clientId/clientSecret/developerToken al cliente — son env vars del servidor
+
+**OAuth Meta completo (4)**:
+- `b64b665` 3 endpoints OAuth: `/api/oauth/meta/start`, `/api/oauth/meta/callback`, `/api/cron/meta-token-refresh`
+- `1bcac64` endpoint admin meta-status para diagnostico
+- `c014e71` fix start endpoint usa sesion NextAuth (antes `?orgId=` literal guardaba en orgs equivocadas)
+- `9598607` redirect inteligente post-OAuth via referrer
+- `21ccde4` boton "Conectar con Meta" en wizard
+- `c5d1f59` selector dropdown Ad Accounts post-OAuth (lista de 17 ad accounts)
+- `de567d1` flow auth-request: cliente pide autorización, admin lo agrega como tester, cliente conecta
+
+**OAuth Google completo (1)**:
+- `1275543` mismo patron que Meta: 3 endpoints + auth-request flow + UI 4 estados
+
+**Páginas dedicadas /settings/integraciones/* (3)**:
+- `d4f63a8` Meta + Google standalone
+- `3396fe6` VTEX + MercadoLibre standalone
+- `f0e9f45` unificar endpoints wizard <-> settings (eliminado /me/ml-status duplicado)
+- `dd91a6a` VTEX page muestra datos pre-rellenados con secretos protegidos •••••
+- `5e3c4cf` pre-rellenar TODOS los campos + Business ID/Pixel/Token CAPI en Meta + Login Customer ID con tooltip MCC + NitroPixel page con snippet/status/eventos + GSC page + GA4 cleanup completo
+
+**Permitir saltear Meta/Google PENDING (1)**:
+- `aeeafe8` submit-wizard valida permisivo + AdsAuthBanner cartel persistente en dashboard
+
+**Sistema bloqueo de secciones (3)**:
+- `f1f3698` config.ts + endpoint /api/me/section-status + componente SectionGuard + hook useSectionStatus + migracion system_setting + endpoint admin section-overrides + panel /control/section-overrides
+- `3ada66c` link "Secciones" en ControlNav + leyenda explicativa expandida (3 tarjetas)
+- `239091a` AutoSectionGuard activo en (app)/layout.tsx — todas las paginas del producto protegidas con un solo cambio
+
+#### Dominio nuevo: app.nitrosales.ai
+
+**Arquitectura final acordada**:
+- `nitrosales.ai` = landing de marketing/venta (pendiente, otro proyecto Vercel)
+- `app.nitrosales.ai` = la app actual de NitroSales (producto)
+
+**Configuración**:
+- Dominio comprado en Hostinger
+- DNS: CNAME `app` → `fd391c1a5b4977b7.vercel-dns-017.com.`
+- Vercel config: app.nitrosales.ai apuntando al proyecto nitrosales (Production)
+- NEXTAUTH_URL actualizada a `https://app.nitrosales.ai`
+- Redeploy ejecutado
+- 22 archivos con fallback hardcoded `"https://nitrosales.vercel.app"` reemplazados por `"https://app.nitrosales.ai"` (Tipo A)
+
+**Compat**: `nitrosales.vercel.app` sigue activo (Vercel mantiene los dos dominios). Webhooks viejos de VTEX/MELI siguen funcionando.
+
+#### OAuth Meta + Google flow completo
+
+**Pre-requisitos del lado Tomy (ya hechos)**:
+- App Meta creada (App ID `1770085970626718`)
+- Producto "Inicio de sesión con Facebook" agregado
+- Redirect URIs: `https://app.nitrosales.ai/api/oauth/meta/callback` + `https://nitrosales.vercel.app/api/oauth/meta/callback`
+- Env vars `META_APP_ID` y `META_APP_SECRET` cargadas en Vercel
+
+**Flow para clientes nuevos (TVC, Arredo)**:
+1. Cliente entra al wizard, va al paso de Meta/Google
+2. Estado NONE: ingresa email FB / email Google → click "Pedir autorización"
+3. Tomy recibe email con link directo a Meta App / Google Cloud Console + botón "Marcar autorizado"
+4. Tomy lo agrega como Tester (Meta) o Test User (Google) → click el botón
+5. Cliente recibe email "ya estás autorizado, andá al wizard"
+6. Cliente vuelve, estado APPROVED, click "Conectar con Meta/Google" → OAuth → estado CONNECTED
+7. Cliente puede saltear este paso si todavía no completó la autorización (cartel "pendiente" + dashboard muestra AdsAuthBanner)
+
+**Endpoints clave**:
+- `/api/oauth/meta/start` → redirect a Facebook OAuth (state firmado HMAC, orgId desde sesion)
+- `/api/oauth/meta/callback` → intercambia code → long-lived token 60d → guarda en Connection
+- `/api/cron/meta-token-refresh` → corre 5am diario, renueva tokens a <7d de expirar
+- `/api/auth/google-ads` + `/api/auth/google-ads/callback` → mismo patron
+- `/api/me/meta-auth-request` + `/api/me/google-auth-request` → cliente solicita autorización
+- `/api/admin/meta-auth-confirm` + `/api/admin/google-auth-confirm` → admin confirma desde mail (GET friendly-browser)
+- `/api/me/meta-auth-status` + `/api/me/google-auth-status` → wizard chequea estado
+
+**Decisión token Meta**: A (User Access Token long-lived 60d con auto-refresh) en vez de B (System User Token sin expiración). Auto-refresh hace que el cliente nunca lo note. Como Triple Whale, HubSpot, etc.
+
+#### Páginas dedicadas /settings/integraciones/*
+
+6 plataformas con páginas standalone donde el cliente puede gestionar conexiones SIN pasar por wizard:
+
+| Plataforma | Características |
+|---|---|
+| Meta (`/meta`) | 4 estados (NONE/PENDING/APPROVED/CONNECTED). Pre-rellena adAccountId, businessId, pixelId. Pixel Access Token protegido como ••••• Cambiar. Dropdown Ad Accounts. |
+| Google Ads (`/google-ads`) | 4 estados. Pre-rellena customerId. **Login Customer ID** con tooltip "¿Qué es MCC?" expandible. |
+| VTEX (`/vtex`) | Pre-rellena accountName, storeUrl, salesChannelId. App Key + App Token protegidos como ••••• (configurado) + botón Cambiar. Botón "Probar credenciales" reusa secretos guardados. |
+| MercadoLibre (`/mercadolibre`) | OAuth flow. Estado conectado muestra mlUserId, nickname, lastSync. Botón Reconectar. |
+| GSC (`/google-search-console`) | Form propertyUrl + instrucciones para invitar al service account. |
+| NitroPixel (`/nitropixel`) | Snippet copiable + status (instalado/no) + tabla últimos 10 eventos para verificación visual. |
+
+**Patrón Stripe/Vercel para secretos** (importante): NUNCA exponemos secretos en frontend. Si ya hay un appKey/appToken/pixelAccessToken cargado, mostramos `•••••••• (configurado)` con botón "Cambiar" que abre input vacío. Backend (vtex-save, meta-save-fields, etc.) preserva el secreto existente si el body viene vacío.
+
+#### GA4 cleanup (BP-S58-001 RESUELTO)
+
+Eliminado quirúrgicamente sin tocar archivos cruzados:
+- ❌ Sacado de `/settings/integraciones` index
+- ❌ Sacado de endpoint `/api/connectors`
+- ❌ Endpoint `/api/sync/ga4` BORRADO
+- ❌ Llamada GA4 sacada de `/api/sync/route.ts`
+- ✅ Archivos `lib/connectors/ga4.ts` quedan como código muerto inocuo (ya nadie los importa)
+- ✅ NitroPixel agregado en su lugar como integración visible
+
+#### Sistema de bloqueo de secciones (NUEVO)
+
+Permite a Tomy controlar qué secciones ven los clientes con 3 estados:
+- **Sin override** (default): modo automático. Decide solo según integraciones del cliente.
+- **Activa (forzada)**: siempre visible aunque falte integración.
+- **Mantenimiento**: nunca visible. Cliente ve cartel "en mantenimiento. Te avisamos cuando esté lista."
+
+**Arquitectura**:
+- `src/lib/sections/config.ts`: mapa central SECTIONS con `key`, `path`, `label`, `requires`. Single source of truth.
+- `src/app/api/me/section-status/route.ts`: calcula status por sección combinando connections + global override + org override. Override por org > global > auto-detect.
+- `src/hooks/useSectionStatus.ts`: hook con cache 30s, comparte cache entre instancias.
+- `src/components/SectionGuard.tsx`: wrapper que muestra cartel correspondiente o children.
+- `src/components/AutoSectionGuard.tsx`: detecta pathname automáticamente y aplica SectionGuard. Inserto en `(app)/layout.tsx`. UN solo cambio cubre TODAS las páginas.
+- Tabla DB: `system_setting` (key TEXT PK, value JSONB) — para overrides globales.
+- `Organization.settings.sectionOverrides` JSON — para overrides por org.
+- Panel admin `/control/section-overrides`: tabla Sección × Org. Click en celda cicla 3 estados.
+- Link "Secciones" en ControlNav del admin.
+
+**Paths siempre abiertos** (nunca se bloquean):
+- `/settings/*` (cliente bloqueado puede ir a re-conectar integraciones)
+- `/onboarding`, `/login`, `/accept-invite`
+
+**Pendiente del lado Tomy (1 vez)**:
+```
+GET /api/admin/migrate-system-setting?key=nitrosales-secret-key-2024-production
+```
+
+#### Estado al cierre S59
+
+**Plataforma lista para mandar mensaje a TVC y Arredo**:
+- Subdominio `app.nitrosales.ai` activo
+- OAuth Meta + Google funcionando con flow de autorización tester
+- Páginas /settings/integraciones/* con datos pre-rellenados
+- Sistema de bloqueo de secciones operable desde panel admin
+
+**Próximo paso**: mandar el mensaje unificado a Federico (TVC) y contacto Arredo pidiendo email Facebook + email Google.
+
+#### Patrones críticos descubiertos
+
+1. **OAuth con orgId del cliente**: SIEMPRE leer orgId de la sesión NextAuth, no del query param. Tomy probó con `?orgId=TU_ORG_ID` literal y el OAuth guardó el token en una org fantasma. Fix: `getServerSession()` y forzar orgId de sesión sobre query param.
+
+2. **Páginas de gestión post-conexión**: pre-rellenar TODOS los campos no-secretos con datos actuales. Secretos protegidos como `••••••• (configurado)` + botón "Cambiar" que abre input vacío. Patron Stripe/Vercel/GitHub.
+
+3. **Endpoints duplicados**: ANTES de crear `/api/me/X-status`, buscar si ya existe `/api/me/connections/X` o equivalente. Tuvimos `/me/ml-status` (mío nuevo) y `/me/connections/ml` (existente del wizard) — duplicación. Lección: extender el existente, no crear nuevo.
+
+4. **AutoSectionGuard pattern**: en vez de wrappear cada página individual con SectionGuard, hacer un wrapper en el layout que detecta pathname automáticamente. UN solo cambio cubre todas las páginas. Single source of truth = config.ts.
+
+5. **Override 3 estados**: cualquier feature flag por cliente debería tener 3 estados claros: "Sin override (auto)" / "Forzada activa" / "Forzada inactiva". El default automático es lo más común; los overrides son escapes de emergencia.
+
+---
 
 ### Sesion 58 (2026-04-25 a 2026-04-27) — Primer cliente real E2E + hardening completo del enrichment
 

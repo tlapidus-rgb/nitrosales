@@ -4,7 +4,148 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-27 — Sesión 58 BIS (4 errores nuevos: race condition con count+create no atomico, price `||` colapsa 0, mini-objeto API vs fuente autoritativa, check truthy permisivo sobre objeto vacio).**
+> **Última actualización: 2026-04-28 — Sesión 59 (4 errores nuevos: OAuth orgId desde query param sin validar, endpoints duplicados sin buscar existente, tests pidiendo env vars del servidor al cliente, columnas SQL incorrectas en queries raw).**
+
+---
+
+## Error #S59-OAUTH-ORGID-FROM-QUERY — Aceptar orgId desde query param sin validar contra sesión
+
+**Cuándo pasó**: Sesión 59. El endpoint `/api/oauth/meta/start` aceptaba `?orgId=...` literal del query string. Tomy abrió la URL con un valor mal copiado (probablemente arrastró `TU_ORG_ID` literal o uno de otra org de prueba). El OAuth completó, Meta redirigió al callback que guardó el token en la Connection de **una org fantasma** (`cmn8gt0lj00011dsvlr0dox2q`), no en la org real del cliente logueado (`cmmmga1uq0000sb43w0krvvys`).
+
+Resultado: Tomy revisaba el endpoint de status de SU cuenta y el token aparecía como faltante, aunque acababa de hacer OAuth con éxito. Confusión. Tiempo perdido diagnosticando.
+
+### Causa raíz
+- El endpoint usaba `url.searchParams.get("orgId")` directamente sin contrastar con la sesión NextAuth.
+- Asumía que el cliente sabía cuál era su orgId y lo iba a poner correctamente.
+- Sin validación cruzada, cualquier orgId arbitrario era aceptado.
+
+### Regla
+**En endpoints OAuth (start) y cualquier endpoint que acepte un identificador del propietario, SIEMPRE leer el orgId/userId de la sesión NextAuth y forzarlo sobre el query param.**
+
+```ts
+// CORRECTO
+const queryOrgId = url.searchParams.get("orgId") || "";
+let orgId = queryOrgId;
+const session = await getServerSession(authOptions);
+const sessionOrgId = (session as any)?.user?.organizationId;
+if (sessionOrgId) orgId = sessionOrgId; // sesion gana
+if (!orgId) return error("orgId requerido");
+```
+
+Si el cliente está logueado, el orgId viene de la sesión. El query param solo se usa como fallback para casos sin sesión (raros). Esto previene que un cliente pueda hacer OAuth para una org que no es la suya.
+
+### Prevención
+- Cada vez que un endpoint acepte `orgId`/`userId` desde query string, agregar validación cruzada con sesión.
+- Logs en endpoints OAuth: log el orgId final usado + sessionOrgId + queryOrgId, así un mismatch se detecta inmediatamente.
+- Este error es **falla de seguridad** además de bug — un cliente malicioso podía hacer OAuth para tokens de otras orgs.
+
+---
+
+## Error #S59-DUPLICATE-ENDPOINTS — Crear endpoint nuevo sin buscar el existente equivalente
+
+**Cuándo pasó**: Sesión 59. Construyendo páginas dedicadas en `/settings/integraciones/*`, creé `/api/me/ml-status` para que la página de MercadoLibre leyera el estado. NO chequee si ya existía un endpoint equivalente. **Existía**: `/api/me/connections/ml` que el wizard usaba desde S55.
+
+Resultado: 2 endpoints duplicados con shape parecido pero distintos. La auditoría de coherencia detectó la duplicación. Tuve que unificar y borrar el mío.
+
+### Causa raíz
+- Empecé a programar sin hacer el listado de endpoints existentes para la plataforma que estaba tocando.
+- Asumí que si necesitaba un nuevo dato (lastSyncAt, nickname), tenía que crear un endpoint nuevo. Pero podía extender el existente.
+- El nombre `connections/ml` no me era familiar al momento; busqué `ml-status` por inercia y no encontré, así que lo creé.
+
+### Regla
+**Antes de crear cualquier endpoint nuevo, hacer un grep por la plataforma + buscar paths típicos:**
+- `/api/me/{platform}*`
+- `/api/me/connections/{platform}`
+- `/api/auth/{platform}*`
+- `/api/oauth/{platform}*`
+- `/api/sync/{platform}*`
+
+Si encuentro algo cercano (incluso con shape distinto), **extender ese** en vez de crear nuevo.
+
+```bash
+# Comando sanity check antes de crear endpoint
+grep -rn "api/me/[a-z-]*ml\|api/me/connections/ml" src/
+```
+
+### Prevención
+- Auditoría de coherencia DESPUÉS de hacer cambios grandes — comparar endpoints usados por wizard vs settings vs admin. Si dos lugares pegan a endpoints distintos para la misma data, hay algo mal.
+- Naming consistente: si existe `/api/me/connections/ml`, las nuevas plataformas deberían seguir el mismo path (`/api/me/connections/meta`, etc.) en vez de inventar `/me/meta-status`.
+
+---
+
+## Error #S59-TEST-ASKS-SERVER-ENV-FROM-CLIENT — Test de credenciales pedía env vars del servidor al cliente
+
+**Cuándo pasó**: Sesión 59. Tomy testeó las credenciales de TVC y `testGoogleAds` devolvió "Faltan credenciales OAuth (clientId/clientSecret/refreshToken)" aunque TVC había cargado correctamente su `customerId`.
+
+Causa: el código leía clientId, clientSecret, developerToken **desde `creds`** (input del cliente), cuando en realidad esas son env vars del servidor (la app OAuth registrada de NitroSales en Google Cloud Console). El cliente solo carga `customerId` + `loginCustomerId`. El refreshToken se obtiene cuando completa el OAuth post-wizard, no se carga manual.
+
+```ts
+// MAL
+const clientId = (creds?.clientId || "").trim(); // ← cliente nunca lo tuvo
+const clientSecret = (creds?.clientSecret || "").trim();
+if (!clientId || !clientSecret || !refreshToken) {
+  return { ok: false, detail: "Faltan credenciales OAuth..." };
+}
+```
+
+### Causa raíz
+- Confusión entre los 5 valores de OAuth:
+  - `clientId` + `clientSecret` → identidad de la app OAuth (server-side, registrados en Google Cloud)
+  - `developerToken` → token global de la app para Google Ads API (server-side env)
+  - `refreshToken` → token del CLIENTE post-OAuth (DB, no env)
+  - `customerId` → ID de la cuenta del cliente (input)
+
+  Solo los 2 últimos son del cliente. Los 3 primeros son del servidor.
+
+- Test escrito asumiendo que TODOS venían del cliente.
+
+### Regla
+**Al escribir test de credenciales para una plataforma OAuth de terceros, listar EXPLÍCITAMENTE qué inputs vienen del cliente y qué del servidor.**
+
+Mental check antes de escribir:
+| Input | Quién lo tiene |
+|---|---|
+| App credentials (clientId/clientSecret) | Servidor (env vars) |
+| Developer/API token | Servidor (env vars) |
+| User refresh token | DB Connection (post-OAuth flow) |
+| Account ID (customer/ad account) | Cliente (input wizard) |
+
+Sólo lo último (account ID) lo carga manualmente el cliente. El resto se lee de env vars o de la DB.
+
+### Prevención
+- Al integrar una plataforma OAuth nueva, primero documentar las 4 categorías arriba en un comment del archivo de test.
+- Después escribir el test leyendo de los lugares correctos (env vs creds vs DB).
+
+---
+
+## Error #S59-WRONG-COLUMN-NAME-IN-RAW-SQL — Query raw con nombre de columna inexistente
+
+**Cuándo pasó**: Sesión 59. Test NitroPixel fallaba con error Postgres `42703: column "eventTime" does not exist`. La query era:
+
+```ts
+`SELECT COUNT(*)::int AS c FROM "pixel_events" WHERE "organizationId" = $1 AND "eventTime" >= $2`
+```
+
+La columna real del schema Prisma es `receivedAt` (cuando server recibió) o `timestamp` (timestamp del cliente). `eventTime` no existe.
+
+### Causa raíz
+- Usé un nombre genérico ("eventTime") en vez de chequear el schema real (`schema.prisma`) o un endpoint que ya leyera de esa tabla.
+- TypeScript NO captura este error porque `$queryRawUnsafe` recibe un string — no hay tipos.
+- Bug pasivo: el test devolvió error solo cuando alguien lo tiró (Tomy probando TVC).
+
+### Regla
+**Para queries SQL raw (`$queryRawUnsafe` / `$executeRawUnsafe`), siempre verificar nombres de columna contra `schema.prisma` antes de escribir.**
+
+```bash
+grep -A 30 "model PixelEvent" prisma/schema.prisma
+```
+
+Mirar los campos exactos. Notar que Prisma usa camelCase y los mapea a la DB (a veces snake_case). En queries raw, usás el nombre EXACTO del campo Prisma (que en este proyecto es camelCase con doble comilla).
+
+### Prevención
+- Cuando construyas una query raw nueva, antes de escribir copiar el modelo del schema.prisma como referencia.
+- Si hay un endpoint que ya consulta esa tabla via Prisma client (`prisma.pixelEvent.findMany`), usar ese como referencia de cómo se llaman los campos.
+- Tests: agregar test smoke que ejecute la query con datos reales en algún momento de CI.
 
 ---
 

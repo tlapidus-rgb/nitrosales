@@ -8,11 +8,123 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-27 — Sesión 58 BIS. EMDJ onboardeado al 99%. BP-S58-005 nuevo: OAuth Meta Ads en standby hasta que dominio nitrosales.ai esté activo.
+> **Última actualización**: 2026-04-28 — Sesión 59. Subdominio app.nitrosales.ai activo, OAuth Meta+Google completos, paginas dedicadas integraciones, sistema bloqueo de secciones. BP-S58-001 (GA4 cleanup) y BP-S58-005 (OAuth Meta) RESUELTOS.
 
 ---
 
-## 🟡 BP-S58-005 — OAuth Meta Ads (en STANDBY hasta migración a nitrosales.ai)
+## ✅ BP-S58-001 — GA4 cleanup (RESUELTO 2026-04-28, S59)
+
+**Resuelto**: S59 — commit `5e3c4cf`
+**Entró**: 2026-04-24 (S58)
+
+**Que se hizo**:
+- Eliminado del UI `/settings/integraciones` (no aparece en lista)
+- Eliminado de endpoint `/api/connectors` (no se devuelve)
+- Endpoint `/api/sync/ga4` BORRADO completamente
+- Llamada a sync GA4 sacada de `/api/sync/route.ts`
+- Archivos `lib/connectors/ga4.ts` quedan como código muerto inocuo (nadie los importa)
+- NitroPixel agregado en su lugar como integración visible
+
+Analytics ahora se hacen desde NitroPixel (decisión de producto explícita de Tomy).
+
+---
+
+## ✅ BP-S58-005 — OAuth Meta Ads (RESUELTO 2026-04-28, S59)
+
+**Resuelto**: S59 — commits `b64b665`, `c014e71`, `21ccde4`, `c5d1f59`, `de567d1`
+**Entró**: 2026-04-27 (S58 BIS, post detección de gap en tutorial Meta)
+
+**Que se hizo**:
+- App Meta creada (App ID `1770085970626718`)
+- Producto "Inicio de sesión con Facebook" agregado
+- Redirect URIs configuradas (vercel.app + app.nitrosales.ai)
+- Env vars META_APP_ID + META_APP_SECRET en Vercel
+- Endpoints OAuth: `/api/oauth/meta/start`, `/api/oauth/meta/callback`
+- Cron `/api/cron/meta-token-refresh` (5am diario, renueva tokens <7d de expirar)
+- Flow auth-request: cliente pide ser tester, admin lo agrega manualmente, cliente conecta OAuth
+- UI MetaAdsInputs en wizard con 4 estados (NONE/PENDING/APPROVED/CONNECTED)
+- Selector dropdown Ad Accounts post-OAuth (lista de hasta 50 accounts)
+- Cuenta @99media de Tomy conectada y validada (17 ad accounts)
+
+**Approach**: A (User Access Token long-lived 60d con auto-refresh). Mismo patrón que Triple Whale, HubSpot.
+
+**App Review**: pendiente del lado Tomy (lo hace cuando quiera). Mientras tanto, agregar emails de TVC/Arredo como "App Tester" en developers.facebook.com → Roles.
+
+---
+
+## ✅ BP-S59-001 — OAuth Google Ads (RESUELTO 2026-04-28, S59)
+
+**Resuelto**: S59 — commit `1275543`
+**Entró**: 2026-04-28 (S59) por pedido explícito de Tomy "hagamos lo mismo que Meta para Google"
+
+**Que se hizo**:
+- Endpoints `/api/auth/google-ads` (start) + `/api/auth/google-ads/callback` (persiste refreshToken en Connection)
+- Flow auth-request idéntico a Meta: `/api/me/google-auth-request`, `/api/me/google-auth-status`, `/api/admin/google-auth-confirm`
+- UI GoogleAdsInputs con 4 estados
+- Login Customer ID con tooltip "¿Qué es MCC?" expandible
+
+**Pre-requisitos del lado Tomy** (pendiente cuando quiera):
+- App OAuth en Google Cloud Console (Test mode → agregar test users) + verificación posterior si quiere modo producción
+- Mientras: agregar emails de clientes como Test Users en OAuth Consent Screen
+
+---
+
+## ✅ BP-S59-002 — Migración dominio app.nitrosales.ai (RESUELTO 2026-04-28, S59)
+
+**Resuelto**: S59 — commit `bfa7bac`
+
+**Que se hizo**:
+- Dominio `nitrosales.ai` comprado en Hostinger
+- DNS CNAME `app` → `fd391c1a5b4977b7.vercel-dns-017.com.`
+- Dominio agregado en Vercel project nitrosales (Production)
+- NEXTAUTH_URL actualizada a `https://app.nitrosales.ai`
+- 22 archivos con fallback hardcoded `"https://nitrosales.vercel.app"` reemplazados por `"https://app.nitrosales.ai"` (Tipo A)
+
+**Estado**: ambos dominios activos (vercel.app sigue funcionando como compat). Webhooks viejos VTEX/MELI no se migraron — siguen apuntando a vercel.app y funcionan.
+
+---
+
+## ✅ BP-S59-003 — Páginas dedicadas /settings/integraciones/* (RESUELTO 2026-04-28, S59)
+
+**Resuelto**: S59 — commits `d4f63a8`, `3396fe6`, `f0e9f45`, `dd91a6a`, `5e3c4cf`
+
+**Que se hizo**:
+6 páginas standalone para gestionar conexiones desde dentro de la app sin pasar por wizard:
+- `/settings/integraciones/meta` — 4 estados + Business ID + Pixel ID + Token CAPI protegido
+- `/settings/integraciones/google-ads` — 4 estados + Customer ID + Login Customer ID con tooltip MCC
+- `/settings/integraciones/vtex` — datos pre-rellenados, secretos protegidos como ••••• Cambiar
+- `/settings/integraciones/mercadolibre` — OAuth flow, mlUserId, lastSync
+- `/settings/integraciones/google-search-console` — propertyUrl + invitar service account
+- `/settings/integraciones/nitropixel` — snippet copiable + status + tabla últimos 10 eventos
+
+Patrón Stripe/Vercel: secretos NUNCA expuestos en frontend. Pre-rellena no-secretos con datos de la DB. Backend preserva secretos existentes si body viene vacío.
+
+---
+
+## ✅ BP-S59-004 — Sistema de bloqueo de secciones (RESUELTO 2026-04-28, S59)
+
+**Resuelto**: S59 — commits `f1f3698`, `3ada66c`, `239091a`
+
+**Que se hizo**:
+Sistema completo para que Tomy controle qué secciones ven los clientes:
+- 3 estados: Sin override (auto) / Activa (forzada) / Mantenimiento (cartel)
+- Override por cliente individual + override global
+- Override por org tiene prioridad sobre global
+- Detección automática de "falta integración" → cartel "Conectá [Plataforma]" + botón directo
+- Panel admin `/control/section-overrides` con tabla Sección × Org
+- Link "Secciones" en ControlNav del admin
+- AutoSectionGuard en `(app)/layout.tsx` aplica protección automática a todas las páginas
+
+**Pendiente del lado Tomy**: correr migración 1 vez:
+```
+GET /api/admin/migrate-system-setting?key=nitrosales-secret-key-2024-production
+```
+
+Sin esto, los overrides globales no persisten (los por-org sí, van a Organization.settings).
+
+---
+
+## 🟡 BP-S58-005 (HISTÓRICO) — OAuth Meta Ads (en STANDBY hasta migración a nitrosales.ai)
 
 **Entró**: 2026-04-27 (S58 BIS, post detección de gap en tutorial Meta)
 **Estado**: 🟡 PARCIAL — pre-requisitos hechos, frenado para no configurar 2 veces
