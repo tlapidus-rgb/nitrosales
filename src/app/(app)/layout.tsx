@@ -11,6 +11,7 @@ import { PermissionsProvider, NavItemGate, NavGroupGate, PathnameGuard } from "@
 import AlertsBadge from "@/components/alerts/AlertsBadge";
 import { PixelInstallBanner } from "@/components/PixelInstallBanner";
 import { AdsAuthBanner } from "@/components/AdsAuthBanner";
+import { AutoSectionGuard } from "@/components/AutoSectionGuard";
 import OnboardingGate from "@/components/OnboardingGate";
 
 type NavItem = {
@@ -1394,7 +1395,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <PixelInstallBanner />
               <AdsAuthBanner />
               <PathnameGuard pathname={pathname}>
-                {children}
+                <AutoSectionGuard>
+                  {children}
+                </AutoSectionGuard>
               </PathnameGuard>
             </main>
           );
