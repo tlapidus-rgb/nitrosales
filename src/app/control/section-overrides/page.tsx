@@ -129,21 +129,48 @@ export default function SectionOverridesPage() {
       </Link>
 
       <div className="mb-6">
-        <h1 className="text-[22px] font-bold text-slate-900 mb-1">Section Overrides</h1>
+        <h1 className="text-[22px] font-bold text-slate-900 mb-1">Bloqueo de secciones</h1>
         <p className="text-[13px] text-slate-600">
-          Activá o poné en mantenimiento secciones globalmente o por cliente.
-          Click en una celda para ciclar entre <strong>Sin override</strong> → <strong>Activa</strong> → <strong>Mantenimiento</strong>.
+          Controlá qué secciones ven los clientes. Click en una celda para ciclar entre los 3 estados.
         </p>
-        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-          <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-slate-600">
-            <Minus className="h-3 w-3" /> Sin override (auto-detect por integración)
-          </span>
-          <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-1 text-emerald-700">
-            <CheckCircle2 className="h-3 w-3" /> Activa (forzada)
-          </span>
-          <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-1 text-amber-700">
-            <Wrench className="h-3 w-3" /> Mantenimiento (cartel para el cliente)
-          </span>
+
+        {/* Leyenda explicativa expandida */}
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Minus className="h-4 w-4 text-slate-400" />
+              <strong className="text-[12px] text-slate-900">Sin override</strong>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              <strong>Modo automático.</strong> El sistema decide solo según las integraciones
+              del cliente. Si falta Meta → bloquea Campañas Meta. Si Meta está conectado → la deja activa. Es el default.
+            </p>
+          </div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <strong className="text-[12px] text-emerald-900">Activa (forzada)</strong>
+            </div>
+            <p className="text-[11px] text-emerald-800 leading-relaxed">
+              <strong>Siempre visible</strong>, aunque falte la integración.
+              Caso raro. La sección se ve aunque no tenga datos.
+            </p>
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Wrench className="h-4 w-4 text-amber-600" />
+              <strong className="text-[12px] text-amber-900">Mantenimiento</strong>
+            </div>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              <strong>Nunca visible</strong>: cliente ve cartel "en mantenimiento".
+              Útil para secciones que estás puliendo y no querés mostrar todavía.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 text-[11px] text-slate-500">
+          <strong>Override por org tiene prioridad sobre global.</strong> Si poneś Aura globalmente
+          en Mantenimiento pero EMDJ en Activa, EMDJ la ve activa y los demás bloqueada.
         </div>
       </div>
 
