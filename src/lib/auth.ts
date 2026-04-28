@@ -1,7 +1,29 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
+import { createHmac } from "crypto";
 import { prisma } from "@/lib/db/client";
+
+// ─────────────────────────────────────────────────────────────
+// S59: Impersonate token verification (sync con /api/admin/impersonate)
+// ─────────────────────────────────────────────────────────────
+function verifyImpersonateToken(token: string): { targetUserId: string; impersonatorUserId: string; impersonatorEmail: string; exp: number } | null {
+  try {
+    const [data, sig] = token.split(".");
+    if (!data || !sig) return null;
+    const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
+    const hmac = createHmac("sha256", secret);
+    hmac.update(data);
+    const expectedSig = hmac.digest("base64url").slice(0, 32);
+    if (expectedSig !== sig) return null;
+    const payload = JSON.parse(Buffer.from(data, "base64url").toString("utf-8"));
+    if (!payload.targetUserId || !payload.impersonatorUserId || !payload.exp) return null;
+    if (Date.now() > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Helper: registrar LoginEvent (best effort — nunca bloquea login)
@@ -103,6 +125,50 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
+    // S59: Impersonate provider — magic link de 60s firmado con HMAC.
+    // Solo se usa internamente (admin → /api/admin/impersonate genera el token).
+    CredentialsProvider({
+      id: "impersonate",
+      name: "impersonate",
+      credentials: {
+        token: { label: "Token", type: "text" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.token) return null;
+        const payload = verifyImpersonateToken(credentials.token);
+        if (!payload) return null;
+
+        const user = await prisma.user.findUnique({
+          where: { id: payload.targetUserId },
+          include: { organization: true },
+        });
+        if (!user) return null;
+
+        // Audit log: registramos el impersonate exitoso.
+        try {
+          await prisma.loginEvent.create({
+            data: {
+              userId: user.id,
+              email: user.email,
+              success: true,
+              failureReason: `Impersonate session started by ${payload.impersonatorEmail}`,
+            },
+          });
+        } catch {}
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          organizationId: user.organizationId,
+          organizationName: user.organization.name,
+          // Flags impersonate (van al JWT y de ahí a session)
+          impersonatedBy: payload.impersonatorUserId,
+          impersonatorEmail: payload.impersonatorEmail,
+        };
+      },
+    }),
   ],
   session: {
     strategy: "jwt",
@@ -115,6 +181,11 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role;
         token.organizationId = (user as any).organizationId;
         token.organizationName = (user as any).organizationName;
+        // S59: propagar flags de impersonate
+        if ((user as any).impersonatedBy) {
+          token.impersonatedBy = (user as any).impersonatedBy;
+          token.impersonatorEmail = (user as any).impersonatorEmail;
+        }
       }
       return token;
     },
@@ -124,6 +195,10 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).role = token.role;
         (session.user as any).organizationId = token.organizationId;
         (session.user as any).organizationName = token.organizationName;
+        if (token.impersonatedBy) {
+          (session.user as any).impersonatedBy = token.impersonatedBy;
+          (session.user as any).impersonatorEmail = token.impersonatorEmail;
+        }
       }
       return session;
     },

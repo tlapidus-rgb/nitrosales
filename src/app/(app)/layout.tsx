@@ -12,6 +12,7 @@ import AlertsBadge from "@/components/alerts/AlertsBadge";
 import { PixelInstallBanner } from "@/components/PixelInstallBanner";
 import { AdsAuthBanner } from "@/components/AdsAuthBanner";
 import { AutoSectionGuard } from "@/components/AutoSectionGuard";
+import { ImpersonateBanner } from "@/components/ImpersonateBanner";
 import OnboardingGate from "@/components/OnboardingGate";
 
 type NavItem = {
@@ -1392,6 +1393,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   : "flex-1 p-4 lg:p-6 bg-[#F7F8FA] overflow-y-auto"
               }
             >
+              <ImpersonateBanner />
               <PixelInstallBanner />
               <AdsAuthBanner />
               <PathnameGuard pathname={pathname}>

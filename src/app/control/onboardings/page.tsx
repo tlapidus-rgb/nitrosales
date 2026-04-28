@@ -499,6 +499,29 @@ function DetailDrawer({
     }
   };
 
+  const enterAsClient = async () => {
+    if (!detail?.createdOrgId) {
+      setErrorMsg("Este onboarding no tiene org creada todavía");
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId: detail.createdOrgId }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setErrorMsg(json.error || "Error generando link de impersonate");
+        return;
+      }
+      // Abrir en pestaña nueva
+      window.open(json.url, "_blank", "noopener,noreferrer");
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    }
+  };
+
   const activateClient = async () => {
     if (!confirm(`¿Habilitar el producto para ${detail.companyName}?\n\nEl cliente va a recibir email avisando que la plataforma está lista. Asegurate de haber revisado todo (impersonate desde "Entrar como cliente").`)) return;
     setActivatingClient(true);
@@ -793,31 +816,56 @@ function DetailDrawer({
                       ✓ Backfill completado · Listo para revisar
                     </div>
                     <div style={{ fontSize: 13, color: "#A1A1AA", lineHeight: 1.6 }}>
-                      La data ya está cargada. Antes de habilitar al cliente, entrá como él (botón "Entrar como cliente" en /control/clientes) y validá que todo se ve bien.
+                      La data ya está cargada. Antes de habilitar al cliente, entrá como él (modo solo lectura) y validá que todo se ve bien.
                     </div>
                   </div>
-                  <button
-                    onClick={activateClient}
-                    disabled={activatingClient}
-                    style={{
-                      width: "100%",
-                      padding: "14px 18px",
-                      background: activatingClient ? "#27272A" : ACCENT_GREEN,
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 10,
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: activatingClient ? "wait" : "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <CheckCircle2 size={16} />
-                    {activatingClient ? "Habilitando…" : "Habilitar cliente"}
-                  </button>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <button
+                      onClick={enterAsClient}
+                      style={{
+                        width: "100%",
+                        padding: "12px 18px",
+                        background: "transparent",
+                        color: "#fff",
+                        border: "1px solid rgba(245,158,11,0.4)",
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                      }}
+                    >
+                      👁 Entrar como cliente (read-only)
+                    </button>
+
+                    <button
+                      onClick={activateClient}
+                      disabled={activatingClient}
+                      style={{
+                        width: "100%",
+                        padding: "14px 18px",
+                        background: activatingClient ? "#27272A" : ACCENT_GREEN,
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 10,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: activatingClient ? "wait" : "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
+                      {activatingClient ? "Habilitando…" : "Habilitar cliente"}
+                    </button>
+                  </div>
+
                   <p style={{ fontSize: 11, color: "#71717A", marginTop: 10, textAlign: "center" }}>
                     El cliente recibe email "tu plataforma está lista" + acceso al producto.
                   </p>
