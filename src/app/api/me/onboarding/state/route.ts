@@ -82,7 +82,7 @@ export async function GET() {
     //  4. status=ACTIVE Y hay al menos 1 connection ACTIVE Y no hay backfill activo → done (desbloqueado)
     //  5. Fallback seguro                → wizard (bloqueado)
 
-    let phase: "wizard" | "validating" | "backfilling" | "done";
+    let phase: "wizard" | "validating" | "backfilling" | "awaiting_activation" | "done";
     let locked = true;
 
     if (activeBackfillCount > 0) {
@@ -93,6 +93,11 @@ export async function GET() {
       // Status dice backfilling pero no hay jobs activos → algo raro, lo mandamos a backfilling
       // (no desbloqueamos hasta que el admin intervenga o terminen los jobs)
       phase = "backfilling";
+    } else if (ob.status === "READY_FOR_REVIEW") {
+      // S59: backfill terminó, esperando que admin (Tomy) haga QA y active
+      // manualmente desde /control/onboardings/[id]. Cliente ve overlay
+      // "preparando" hasta entonces.
+      phase = "awaiting_activation";
     } else if (ob.status === "ACTIVE" && activeConnectionsCount > 0) {
       phase = "done";
       locked = false;

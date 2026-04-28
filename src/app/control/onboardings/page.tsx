@@ -411,6 +411,7 @@ function DetailDrawer({
   const [activating, setActivating] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [approvingBackfill, setApprovingBackfill] = useState(false);
+  const [activatingClient, setActivatingClient] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // F1.3 — Test de credenciales del lado admin
@@ -495,6 +496,29 @@ function DetailDrawer({
       setErrorMsg(err.message || "Error de red");
     } finally {
       setTestingCreds(false);
+    }
+  };
+
+  const activateClient = async () => {
+    if (!confirm(`¿Habilitar el producto para ${detail.companyName}?\n\nEl cliente va a recibir email avisando que la plataforma está lista. Asegurate de haber revisado todo (impersonate desde "Entrar como cliente").`)) return;
+    setActivatingClient(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/admin/onboardings/${id}/activate-client`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setErrorMsg(json.error || "Error");
+        setActivatingClient(false);
+        return;
+      }
+      onRefresh();
+      const detailRes = await fetch(`/api/admin/onboardings/${id}`);
+      const detailJson = await detailRes.json();
+      if (detailRes.ok) setDetail(detailJson.request);
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setActivatingClient(false);
     }
   };
 
@@ -750,6 +774,53 @@ function DetailDrawer({
                     <XCircle size={14} />
                     {rejecting ? "…" : "Rechazar"}
                   </button>
+                </div>
+              )}
+
+              {/* S59: Backfill terminó, esperando QA + activación manual */}
+              {detail.status === "READY_FOR_REVIEW" && (
+                <div style={{
+                  marginTop: 24, paddingTop: 20, borderTop: "1px solid #1F1F23",
+                }}>
+                  <div style={{
+                    padding: "14px 16px",
+                    background: "rgba(34,197,94,0.06)",
+                    border: "1px solid rgba(34,197,94,0.2)",
+                    borderRadius: 10,
+                    marginBottom: 14,
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#86EFAC", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                      ✓ Backfill completado · Listo para revisar
+                    </div>
+                    <div style={{ fontSize: 13, color: "#A1A1AA", lineHeight: 1.6 }}>
+                      La data ya está cargada. Antes de habilitar al cliente, entrá como él (botón "Entrar como cliente" en /control/clientes) y validá que todo se ve bien.
+                    </div>
+                  </div>
+                  <button
+                    onClick={activateClient}
+                    disabled={activatingClient}
+                    style={{
+                      width: "100%",
+                      padding: "14px 18px",
+                      background: activatingClient ? "#27272A" : ACCENT_GREEN,
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 10,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: activatingClient ? "wait" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <CheckCircle2 size={16} />
+                    {activatingClient ? "Habilitando…" : "Habilitar cliente"}
+                  </button>
+                  <p style={{ fontSize: 11, color: "#71717A", marginTop: 10, textAlign: "center" }}>
+                    El cliente recibe email "tu plataforma está lista" + acceso al producto.
+                  </p>
                 </div>
               )}
 

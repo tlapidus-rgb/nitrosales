@@ -140,6 +140,7 @@ export default function OnboardingOverlay() {
                 />
               )}
               {state.phase === "backfilling" && <BackfillingPhase progress={state.backfillProgress} />}
+              {state.phase === "awaiting_activation" && <AwaitingActivationPhase />}
             </div>
           </div>
         )}
@@ -302,6 +303,43 @@ function ValidatingPhase({ onReopen }: { onReopen?: () => Promise<void> }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// S59: estado nuevo cuando backfill terminó pero admin (Tomy) no activó
+// manualmente todavía. Cliente ve esta pantalla "preparando" hasta que el
+// admin haga click "Habilitar cliente" desde /control/onboardings/[id].
+function AwaitingActivationPhase() {
+  return (
+    <div style={{ padding: "10px 0", textAlign: "center" }}>
+      <div style={{ display: "inline-flex", marginBottom: 22 }}>
+        <div style={iconCircle(BRAND_ORANGE)}>
+          <Loader2 size={32} color={BRAND_ORANGE} style={{ animation: "spin 2.5s linear infinite" }} />
+        </div>
+      </div>
+      <Pretitle tone={BRAND_ORANGE}>Últimos detalles</Pretitle>
+      <Title>Estamos preparando tu plataforma</Title>
+      <p style={{
+        marginTop: 16,
+        fontSize: 13,
+        color: TEXT_SECONDARY,
+        lineHeight: 1.7,
+        maxWidth: 380,
+        margin: "16px auto 0",
+      }}>
+        Tu data ya se cargó. Estamos haciendo los últimos ajustes para que la
+        experiencia sea perfecta cuando entres por primera vez.
+      </p>
+      <p style={{
+        marginTop: 12,
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+        lineHeight: 1.6,
+        opacity: 0.8,
+      }}>
+        Te vamos a avisar por mail cuando esté lista.
+      </p>
     </div>
   );
 }

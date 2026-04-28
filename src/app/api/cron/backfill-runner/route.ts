@@ -187,31 +187,20 @@ async function finalizeOnboarding(onboardingRequestId: string) {
   if (!rows[0]) return;
   const r = rows[0];
 
-  // Marcar ACTIVE (esto hace que el overlay del producto desaparezca solo)
+  // S59: marcar READY_FOR_REVIEW (estado intermedio). El cliente sigue
+  // viendo overlay "preparando" hasta que admin haga click "Habilitar"
+  // desde /control/onboardings/[id] o /control/clientes/[id]. Asi se hace
+  // QA visual antes de exponer el producto al cliente.
+  //
+  // El email "tu data esta lista" NO se manda aca — se manda cuando admin
+  // hace click en activate-client.
   await prisma.$executeRawUnsafe(
     `UPDATE "onboarding_requests"
-     SET "status" = 'ACTIVE'::"OnboardingStatus",
-         "progressStage" = 'completed',
+     SET "status" = 'READY_FOR_REVIEW'::"OnboardingStatus",
+         "progressStage" = 'awaiting_admin_activation',
          "updatedAt" = NOW()
      WHERE "id" = $1`,
     onboardingRequestId
   );
-
-  // Email "tu data esta lista"
-  if (r.contactEmail) {
-    try {
-      const tpl = await dataReadyEmailActive({
-        contactName: r.contactName,
-        companyName: r.companyName,
-      });
-      await sendEmail({
-        to: r.contactEmail,
-        subject: tpl.subject,
-        html: tpl.html,
-      });
-      console.log(`[backfill-runner] Email 'data lista' enviado a ${r.contactEmail}`);
-    } catch (err) {
-      console.error(`[backfill-runner] Email failed:`, err);
-    }
-  }
+  console.log(`[backfill-runner] Onboarding ${onboardingRequestId} marcado READY_FOR_REVIEW. Esperando activacion manual del admin.`);
 }
