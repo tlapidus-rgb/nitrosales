@@ -40,7 +40,20 @@ function signState(payload: string): string {
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const queryOrgId = url.searchParams.get("orgId") || "";
-  const returnTo = url.searchParams.get("returnTo") || "/onboarding";
+  // Default returnTo: /settings/integraciones (donde se conecta Meta normalmente).
+  // Si el cliente esta en onboarding, pasa explicitamente ?returnTo=/onboarding.
+  // Tambien soportamos returnTo desde el referrer cuando no se pasa explicito.
+  const referrerPath = (() => {
+    try {
+      const ref = req.headers.get("referer");
+      if (!ref) return null;
+      const refUrl = new URL(ref);
+      return refUrl.pathname + (refUrl.search || "");
+    } catch {
+      return null;
+    }
+  })();
+  const returnTo = url.searchParams.get("returnTo") || referrerPath || "/settings/integraciones";
 
   // Resolver orgId: query param > sesion NextAuth.
   // Esto evita que el cliente tenga que pasar el orgId manual y
