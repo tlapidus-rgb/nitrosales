@@ -23,6 +23,8 @@
 
 import { NextResponse } from "next/server";
 import { createHmac } from "crypto";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -37,11 +39,30 @@ function signState(payload: string): string {
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const orgId = url.searchParams.get("orgId") || "";
+  const queryOrgId = url.searchParams.get("orgId") || "";
   const returnTo = url.searchParams.get("returnTo") || "/onboarding";
 
+  // Resolver orgId: query param > sesion NextAuth.
+  // Esto evita que el cliente tenga que pasar el orgId manual y
+  // tambien protege contra orgId ajeno (el query param tiene que
+  // matchear con la sesion).
+  let orgId = queryOrgId;
+  let sessionOrgId: string | null = null;
+  try {
+    const session = await getServerSession(authOptions as any);
+    sessionOrgId = (session as any)?.user?.organizationId || null;
+  } catch {
+    // sin sesion → solo aceptamos query param (caso unusual: link directo).
+  }
+
+  // Si hay sesion, prevalece (evita orgId equivocado por copy-paste).
+  if (sessionOrgId) orgId = sessionOrgId;
+
   if (!orgId) {
-    return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
+    return NextResponse.json(
+      { error: "orgId requerido (loguearse o pasar ?orgId=)" },
+      { status: 400 },
+    );
   }
 
   const appId = (process.env.META_APP_ID || "").trim();
