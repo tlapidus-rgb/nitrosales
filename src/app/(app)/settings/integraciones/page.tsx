@@ -405,7 +405,25 @@ function ConnectorRow({ connector }: { connector: Connector }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {(isError || isDisconnected) && (
+          {/* S58: link a página dedicada por plataforma para META_ADS y
+              GOOGLE_ADS (con OAuth + auth-request flow standalone). */}
+          {connector.platform === "META_ADS" && (
+            <a
+              href="/settings/integraciones/meta"
+              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
+            </a>
+          )}
+          {connector.platform === "GOOGLE_ADS" && (
+            <a
+              href="/settings/integraciones/google-ads"
+              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
+            </a>
+          )}
+          {connector.platform !== "META_ADS" && connector.platform !== "GOOGLE_ADS" && (isError || isDisconnected) && (
             <a
               href={
                 meta.connectHref ??
