@@ -1303,18 +1303,102 @@ function MlInputs({ creds, onChange }: any) {
 }
 
 function MetaAdsInputs({ creds, onChange }: any) {
+  // S58 OAuth: detectamos si el cliente ya conecto via OAuth.
+  // Si conecto, accessToken viene populado automaticamente por el callback
+  // (via Connection en DB). El submit-wizard despues lee la Connection
+  // existente. Si no conecto, mostramos input manual como antes.
+  //
+  // Tambien soportamos detectar `?metaConnected=1` en la URL (post-redirect
+  // del callback) para mostrar feedback inmediato.
+  const [oauthSuccess, setOauthSuccess] = useState<{ accounts: number } | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("metaConnected") === "1") {
+      const accounts = parseInt(params.get("metaAccounts") || "0", 10);
+      setOauthSuccess({ accounts });
+      // Limpiar query params de la URL para no confundir despues.
+      const cleaned = new URL(window.location.href);
+      cleaned.searchParams.delete("metaConnected");
+      cleaned.searchParams.delete("metaAccounts");
+      window.history.replaceState({}, "", cleaned.toString());
+    }
+  }, []);
+
+  const tokenAlreadyOAuth = !!oauthSuccess; // Si conecto via OAuth, no pedimos token manual.
+
+  const handleConnect = () => {
+    // Guardamos lo que ya tiene cargado en sessionStorage por si recarga la pagina al volver.
+    // (Wizard ya hace esto, pero forzamos por las dudas.)
+    if (typeof window !== "undefined") {
+      const returnTo = window.location.pathname + window.location.search;
+      window.location.href = `/api/oauth/meta/start?returnTo=${encodeURIComponent(returnTo)}`;
+    }
+  };
+
   return (
     <>
       {/* ─── Ads (obligatorio) ─── */}
       <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
         Meta Ads · obligatorio
       </div>
+
+      {/* ─── OAuth Connect (recomendado) ─── */}
+      {oauthSuccess ? (
+        <div style={{
+          padding: "14px 16px",
+          background: "linear-gradient(135deg, rgba(34,197,94,0.10), rgba(16,185,129,0.06))",
+          border: "1px solid rgba(34,197,94,0.30)",
+          borderRadius: 10,
+          marginBottom: 18,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#86efac", marginBottom: 4 }}>
+            ✓ Conectado con Meta
+          </div>
+          <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.55 }}>
+            Token guardado correctamente. {oauthSuccess.accounts > 0 ? `Tenés acceso a ${oauthSuccess.accounts} cuenta${oauthSuccess.accounts === 1 ? "" : "s"} publicitaria${oauthSuccess.accounts === 1 ? "" : "s"}.` : ""}
+            {" "}Cargá abajo el Ad Account ID que querés usar para sync.
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 18 }}>
+          <button
+            type="button"
+            onClick={handleConnect}
+            style={{
+              width: "100%",
+              padding: "14px 18px",
+              background: "linear-gradient(135deg, #1877F2, #166fe5)",
+              border: "none",
+              borderRadius: 10,
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              boxShadow: "0 4px 12px rgba(24,119,242,0.30)",
+            }}
+          >
+            <span style={{ fontSize: 18 }}>f</span>
+            Conectar con Meta (recomendado)
+          </button>
+          <div style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 8, textAlign: "center", lineHeight: 1.55 }}>
+            Login oficial de Facebook. Sin pegar tokens. Más seguro.
+          </div>
+        </div>
+      )}
+
       <Field label="Ad Account ID" hint="Solo los números, sin 'act_'.">
         <Input value={creds.adAccountId || ""} onChange={(v) => onChange("adAccountId", v.replace(/[^0-9]/g, ""))} placeholder="123456789" mono maxLength={30} />
       </Field>
-      <Field label="Access Token (System User)" hint="Empieza con 'EAA…'. Es el token con permisos ads_read + ads_management + business_management.">
-        <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
-      </Field>
+      {!tokenAlreadyOAuth && (
+        <Field label="Access Token (System User)" hint="Empieza con 'EAA…'. Solo necesario si NO conectás con el botón de arriba. Permisos: ads_read + ads_management + business_management.">
+          <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
+        </Field>
+      )}
       <Field label="Business ID (opcional)" hint="ID de tu Business Manager. Sirve para audiencias custom y conversiones avanzadas. Si no sabés, dejalo vacío.">
         <Input value={creds.businessId || ""} onChange={(v) => onChange("businessId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890123456" mono maxLength={20} />
       </Field>
@@ -1331,9 +1415,11 @@ function MetaAdsInputs({ creds, onChange }: any) {
         <Field label="Pixel ID" hint="15-16 dígitos. Lo encontrás en business.facebook.com/events_manager.">
           <Input value={creds.pixelId || ""} onChange={(v) => onChange("pixelId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890123456" mono maxLength={20} />
         </Field>
-        <Field label="Access Token CAPI" hint="Si dejás vacío, NitroSales usa el mismo token de Meta Ads de arriba (válido si tiene los 3 permisos correctos y está asignado al pixel).">
-          <Input value={creds.pixelAccessToken || ""} onChange={(v) => onChange("pixelAccessToken", v)} placeholder="EAA... (opcional, dejá vacío para reusar el de arriba)" mono />
-        </Field>
+        {!tokenAlreadyOAuth && (
+          <Field label="Access Token CAPI" hint="Si dejás vacío, NitroSales usa el mismo token de Meta Ads de arriba (válido si tiene los 3 permisos correctos y está asignado al pixel).">
+            <Input value={creds.pixelAccessToken || ""} onChange={(v) => onChange("pixelAccessToken", v)} placeholder="EAA... (opcional, dejá vacío para reusar el de arriba)" mono />
+          </Field>
+        )}
       </div>
     </>
   );
