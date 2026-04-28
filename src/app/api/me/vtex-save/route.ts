@@ -27,22 +27,44 @@ export async function POST(req: Request) {
     const salesChannelId = String(body?.salesChannelId || "1").trim();
 
     if (!accountName) return NextResponse.json({ error: "accountName requerido" }, { status: 400 });
-    if (!appKey || appKey.length < 20) {
-      return NextResponse.json({ error: `appKey muy corta (${appKey.length} chars). Debería tener 30+.` }, { status: 400 });
-    }
-    if (!appToken || appToken.length < 40) {
-      return NextResponse.json({ error: `appToken muy corto (${appToken.length} chars). Debería tener 60+. Volvé al admin VTEX y copialo COMPLETO.` }, { status: 400 });
-    }
 
     const existing = await prisma.connection.findFirst({
       where: { organizationId: orgId, platform: "VTEX" as any },
     });
+    const existingCreds = (existing?.credentials as any) || {};
+
+    // S58: validamos appKey/appToken solo si vienen NUEVOS o si no hay
+    // existentes. Si vienen vacios y ya hay guardados, preservamos los
+    // existentes (cliente puede editar accountName/storeUrl sin re-pegar
+    // el secret).
+    let finalAppKey = appKey;
+    let finalAppToken = appToken;
+
+    if (!finalAppKey) {
+      if (existingCreds.appKey) {
+        finalAppKey = existingCreds.appKey;
+      } else {
+        return NextResponse.json({ error: "appKey requerida (cargala por primera vez)" }, { status: 400 });
+      }
+    } else if (finalAppKey.length < 20) {
+      return NextResponse.json({ error: `appKey muy corta (${finalAppKey.length} chars). Debería tener 30+.` }, { status: 400 });
+    }
+
+    if (!finalAppToken) {
+      if (existingCreds.appToken) {
+        finalAppToken = existingCreds.appToken;
+      } else {
+        return NextResponse.json({ error: "appToken requerido (cargalo por primera vez)" }, { status: 400 });
+      }
+    } else if (finalAppToken.length < 40) {
+      return NextResponse.json({ error: `appToken muy corto (${finalAppToken.length} chars). Debería tener 60+. Volvé al admin VTEX y copialo COMPLETO.` }, { status: 400 });
+    }
 
     const credentials = {
-      ...((existing?.credentials as any) || {}),
+      ...existingCreds,
       accountName,
-      appKey,
-      appToken,
+      appKey: finalAppKey,
+      appToken: finalAppToken,
       ...(storeUrl ? { storeUrl } : {}),
       salesChannelId,
     };
