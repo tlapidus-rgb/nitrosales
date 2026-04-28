@@ -8,7 +8,55 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-28 — Sesión 59. Subdominio app.nitrosales.ai activo, OAuth Meta+Google completos, paginas dedicadas integraciones, sistema bloqueo de secciones. BP-S58-001 (GA4 cleanup) y BP-S58-005 (OAuth Meta) RESUELTOS.
+> **Última actualización**: 2026-04-28 (extendida tarde/noche) — Sesión 59. Activación manual del cliente + Impersonate read-only + Cancelar/resetear backfill. 8 BPs RESUELTOS en S59 total.
+
+---
+
+## ✅ BP-S59-005 — Activación manual del cliente (RESUELTO 2026-04-28, S59 extendida)
+
+**Resuelto**: S59 — commit `e534ee5`
+
+**Que se hizo**:
+- Estado nuevo `READY_FOR_REVIEW` en enum OnboardingStatus
+- backfill-runner finalizeOnboarding ya NO marca ACTIVE ni manda email automáticamente
+- Cliente ve overlay "Estamos preparando tu plataforma" hasta que admin active
+- Endpoint `POST /api/admin/onboardings/[id]/activate-client` marca ACTIVE + manda email
+- Botón "Habilitar cliente" en `/control/onboardings/[id]` cuando status=READY_FOR_REVIEW
+- Migración aplicada (READY_FOR_REVIEW agregado al enum)
+
+**Por qué**: QA visual del admin antes de exponer el producto al cliente. Plataforma en fase temprana = mejor revisar antes que descubrir bugs cuando el cliente ya entró.
+
+---
+
+## ✅ BP-S59-006 — Impersonate read-only "Entrar como cliente" (RESUELTO 2026-04-28, S59 extendida)
+
+**Resuelto**: S59 — commit `2653632`
+
+**Que se hizo**:
+- Magic link 60s firmado HMAC SHA256 + provider NextAuth `impersonate`
+- Endpoint `POST /api/admin/impersonate` (body: `{ targetUserId }` o `{ orgId }`)
+- Página `/auth/impersonate?token=X` (client component) que llama signIn
+- ImpersonateBanner sticky amarillo arriba del producto cuando session.impersonatedBy presente
+- middleware.ts read-only: bloquea POST/PUT/DELETE/PATCH a /api/* durante impersonate (excepto /api/auth/* para signOut)
+- Botón "Entrar como cliente" en `/control/onboardings/[id]`
+- Audit log en LoginEvent: "Impersonated by [admin]"
+
+**Patrón profesional**: igual a Stripe / Intercom / Vercel.
+
+---
+
+## ✅ BP-S59-007 — Cancelar/resetear backfill (RESUELTO 2026-04-28, S59 extendida)
+
+**Resuelto**: S59 — commit `0aae5d6`
+
+**Que se hizo**:
+- Endpoint nuevo `POST /api/admin/onboardings/[id]/reset-wipe` (borra TODA la data del cliente)
+- Reset suave reusa endpoint `/reset-backfill` existente desde S58
+- UI "Operaciones avanzadas" en `/control/onboardings/[id]` visible en BACKFILLING / READY_FOR_REVIEW / ACTIVE
+- 2 botones: 🔄 Reset suave (amarillo) + ⚠️ Wipe completo (rojo, doble confirmación)
+- Cancelación durante BACKFILLING: borrar jobs en DB → cron del próximo tick no encuentra los jobs → no continua
+
+**Por qué**: control total a Tomy en cualquier momento del flow. Bug en código → reset suave + re-correr. Cuenta equivocada → wipe + re-correr. Cliente activo con problema → wipe sin tocar al cliente.
 
 ---
 

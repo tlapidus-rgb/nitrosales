@@ -3,9 +3,137 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-28 (Sesion 59 — Migracion dominio app.nitrosales.ai + OAuth Meta y Google completos + paginas dedicadas /settings/integraciones/* + sistema de bloqueo de secciones con override admin. Listo para mandar mensaje a TVC y Arredo pidiendo emails.)
+## Ultima actualizacion: 2026-04-28 (Sesion 59 EXTENDIDA — todo lo de la sesion previa + activacion manual del cliente + impersonate read-only + cancelar/resetear backfill (suave o wipe). Sistema completo para que Tomy controle el flow E2E con QA antes de exponer producto al cliente.)
 
-### Sesion 59 (2026-04-28) — Dominio nuevo + OAuth completo + pages dedicadas + sistema bloqueo secciones
+### Sesion 59 EXTENDIDA (2026-04-28 tarde/noche) — Activacion manual + Impersonate + Reset backfill
+
+**Contexto**: post-commits de S59 inicial (dominio + OAuth + integraciones + section-overrides), Tomy pidio 3 features grandes pre-onboarding TVC para tener control total sobre la experiencia del cliente:
+
+1. **Activacion manual**: cliente NO entra al producto automaticamente cuando termina backfill. Estado intermedio READY_FOR_REVIEW. Tomy hace QA visual + click "Habilitar cliente" + email "lista".
+2. **Impersonate read-only**: Tomy entra como el cliente (tipo Stripe/Intercom) para hacer QA sin necesitar usuario propio dentro de la org.
+3. **Cancelar/resetear backfill**: 2 modos (suave o wipe completo) disponibles en BACKFILLING / READY_FOR_REVIEW / ACTIVE. Para frenar, re-correr o limpiar.
+
+#### Commits clave de S59 EXTENDIDA (4)
+
+- `e534ee5` Estado READY_FOR_REVIEW + activacion manual del cliente (Fase 1)
+- `2653632` Impersonate read-only (Fase 2)
+- `0aae5d6` Cancelar/resetear backfill: suave + wipe en 3 estados
+- `(este commit)` Documentacion S59 EXTENDIDA
+
+#### Fase 1: activacion manual del cliente
+
+**Estado nuevo en enum OnboardingStatus**: `READY_FOR_REVIEW`. Migracion: `GET /api/admin/migrate-onboarding-ready-for-review?key=...` ✅ ejecutada.
+
+**Cambios en backfill-runner finalizeOnboarding**:
+- ANTES: marcaba status=ACTIVE + mandaba email "data lista" → cliente entraba al producto automaticamente.
+- AHORA: marca status=READY_FOR_REVIEW + NO manda email. El cliente sigue viendo overlay "preparando" hasta que admin haga QA y active.
+
+**Cambios en /api/me/onboarding/state**:
+- Nueva fase `awaiting_activation` cuando ob.status === "READY_FOR_REVIEW".
+- Sigue locked=true → cliente queda bloqueado en overlay.
+
+**Componente nuevo en OnboardingOverlay**: `AwaitingActivationPhase` — loader animado naranja + "Estamos preparando tu plataforma. Te avisamos por mail cuando este lista."
+
+**Endpoint nuevo `POST /api/admin/onboardings/[id]/activate-client`**:
+- Solo isInternalUser
+- Marca onboarding como ACTIVE (status + progressStage='completed')
+- Manda email `dataReadyEmailActive` ("tu plataforma esta lista")
+- Acepta READY_FOR_REVIEW, IN_PROGRESS, BACKFILLING como source state (override flexible)
+- Idempotente: si ya esta ACTIVE, devuelve `alreadyActive: true` sin tocar nada
+
+**UI**: bloque verde "Backfill completado · Listo para revisar" en `/control/onboardings/[id]` con 2 botones:
+- "👁 Entrar como cliente (read-only)"
+- "✓ Habilitar cliente" (verde) → POST endpoint → cliente activado + email enviado
+
+#### Fase 2: Impersonate read-only
+
+**Approach**: magic link de 60s firmado HMAC SHA256 + provider NextAuth `impersonate`. Mismo patron que Stripe/Intercom.
+
+**Endpoint `POST /api/admin/impersonate`** (admin only):
+- Body: `{ targetUserId }` o `{ orgId }` (busca primer OWNER de la org)
+- Anti-loop: rechaza si targetUserId === impersonatorUserId
+- Genera JWT corto firmado con NEXTAUTH_SECRET, exp 60s, payload `{ targetUserId, impersonatorUserId, impersonatorEmail, exp }`
+- Audit log en LoginEvent: "Impersonated by [admin]"
+- Returns: `{ url: "/auth/impersonate?token=..." }`
+
+**Provider NextAuth `impersonate`** (en src/lib/auth.ts):
+- id: "impersonate", credentials: { token }
+- authorize: verifica HMAC + exp → busca user → devuelve user object con flags `impersonatedBy` + `impersonatorEmail`
+- JWT y session callbacks propagan los flags a session.user
+
+**Pagina `/auth/impersonate?token=X`** (client component):
+- Llama signIn("impersonate", { token, redirect: false })
+- Redirect a "/" al success
+- Muestra error si token invalido/expirado (con link al panel admin)
+
+**ImpersonateBanner** sticky arriba en `(app)/layout.tsx`:
+- Solo se muestra si session.user.impersonatedBy presente
+- Banner amarillo con: "Estas viendo como [email] ([nombre]) — Modo solo lectura · Admin: [adminEmail]"
+- Boton "Salir" → signOut → redirect /login
+
+**middleware.ts read-only enforcement**:
+- Matcher: /api/:path* + /dashboard/:path*
+- Si method es POST/PUT/DELETE/PATCH y session tiene `impersonatedBy` → bloquea con 403 + mensaje "Read-only durante impersonate"
+- Excepcion: /api/auth/* (para signOut, csrf, session)
+- Edge runtime safe (usa getToken de next-auth/jwt, no Prisma)
+
+**UI**: boton "👁 Entrar como cliente (read-only)" en `/control/onboardings/[id]` cuando status=READY_FOR_REVIEW. Click → POST impersonate con orgId → abre nueva pestaña con la URL del magic link.
+
+#### Fase 3: Cancelar/resetear backfill (suave + wipe)
+
+**Diferencia entre los 2 modos**:
+
+**Reset SUAVE** (reusa `/api/admin/onboardings/[id]/reset-backfill` existente desde S58):
+- Borra solo backfill_jobs (la "lista de tareas")
+- MANTIENE: orders, customers, products, items, ad_metrics, etc.
+- Vuelve onboarding a NEEDS_INFO
+- Re-aprobar backfill → upsertea encima de la data existente, no duplica
+- 95% de los casos: bug arreglado, backfill incompleto, ampliar rango histórico, etc.
+
+**Reset WIPE** (endpoint nuevo `POST /api/admin/onboardings/[id]/reset-wipe`):
+- Borra: orders, order_items, customers, products, ad_metrics, ad_creatives, ad_campaigns, pixel_events, pixel_visitors, pixel_attributions, influencer_attributions, ml_listings, ml_questions, meli_webhook_events, sync_watermarks, web_metric_daily, seo_query_daily
+- MANTIENE: connections (creds), org, users, onboarding_request
+- Vuelve onboarding a NEEDS_INFO
+- Re-aprobar backfill → arranca de cero limpio
+- Casos extremos: cuenta conectada equivocada, data corrupta, simular cliente fresco
+
+**Cancelacion durante BACKFILLING** (sin endpoint dedicado): borrar el job de DB efectivamente cancela. El cron-runner del proximo tick (cada 1 min) no encuentra el job → no continua. Las invocaciones in-flight terminan idempotentemente sin escribir nada.
+
+**UI**: bloque "Operaciones avanzadas" abajo del detail del onboarding en `/control/onboardings/[id]`. Visible cuando status es BACKFILLING / READY_FOR_REVIEW / ACTIVE. 2 botones:
+- 🔄 **Reset suave** (amarillo) — confirma una vez
+- ⚠️ **Wipe completo** (rojo) — confirma DOS veces (acción no reversible)
+
+#### Patrones criticos de S59 EXTENDIDA
+
+1. **Activacion manual con QA antes de exponer producto**: para clientes en fase temprana, NO confiar en automatizacion del backfill. Estado intermedio READY_FOR_REVIEW + actividad de QA del admin (impersonate) + click "Habilitar" → mejor experiencia + menos sorpresas. Cuando la plataforma este 100% madura, se puede revertir al flow automatico.
+
+2. **Impersonate pattern con NextAuth + middleware**: para implementar "ver como otro user" sin perder la sesion admin, usar magic link de 60s + provider Credentials adicional + flag impersonatedBy en JWT. Read-only enforcement via middleware Edge runtime (chequea token + bloquea writes). Patron robusto, no requiere Prisma en Edge.
+
+3. **Reset suave vs wipe**: dos modos cubren 99% de casos. Suave es upsert-friendly (la data existente se "actualiza" con el nuevo run), wipe es nuclear. Usar suave por default, wipe solo cuando hay corrupcion real o credenciales equivocadas.
+
+4. **Cancelacion implicita por borrar jobs**: borrar la fila del job en DB es suficiente para cancelar un backfill en curso. El cron-runner es defensivo: chequea que el job exista antes de procesar. No requiere endpoint "cancel" separado.
+
+#### Estado al cierre S59 EXTENDIDA
+
+**Plataforma 100% lista para TVC** (próximo cliente):
+- ✅ Wizard con OAuth Meta + Google + flow de autorización tester
+- ✅ Cliente puede saltear plataformas pendientes (cartel persistente en dashboard)
+- ✅ Páginas dedicadas /settings/integraciones/* con datos pre-rellenados
+- ✅ Sistema de bloqueo de secciones con override admin
+- ✅ Estado intermedio "preparando plataforma" hasta QA del admin
+- ✅ Impersonate read-only para que Tomy entre como cliente
+- ✅ Activación manual con click "Habilitar cliente"
+- ✅ Cancelar/re-correr backfill (suave o wipe) en cualquier momento
+
+**Pendiente del lado Tomy** (1 sola vez):
+- ✅ `/api/admin/migrate-onboarding-ready-for-review?key=...` (READY_FOR_REVIEW al enum) — EJECUTADA
+- ✅ `/api/admin/migrate-system-setting?key=...` (system_setting tabla) — EJECUTADA por confirmación previa
+
+**Próximo paso**: Tomy manda mensaje a TVC y Arredo pidiendo email del Ads Manager Meta + email Google Ads. Cuando los manda, los agrega como Test Users en developers.facebook.com (Meta) y Google Cloud Console (Google).
+
+---
+
+### Sesion 59 (2026-04-28 mañana) — Dominio nuevo + OAuth completo + pages dedicadas + sistema bloqueo secciones
 
 **Contexto**: post-S58 (EMDJ onboardeado al 99%), Tomy quiso avanzar en 4 frentes grandes para preparar la entrada de TVC y Arredo:
 1. Migrar dominio de `nitrosales.vercel.app` a `app.nitrosales.ai` (subdominio limpio).
