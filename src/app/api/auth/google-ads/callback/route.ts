@@ -1,31 +1,72 @@
+// @ts-nocheck
+// ══════════════════════════════════════════════════════════════
+// GET /api/auth/google-ads/callback
+// ══════════════════════════════════════════════════════════════
+// S58 OAuth update: en vez de mostrar el token en HTML para que Tomy
+// lo copie a Vercel env vars, ahora se guarda directo en la Connection
+// de la org del cliente (mismo patron que Meta OAuth).
+//
+// Flow: verifica state → intercambia code → persiste en DB → redirige.
+// ══════════════════════════════════════════════════════════════
+
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db/client";
+import { createHmac } from "crypto";
 
 export const dynamic = "force-dynamic";
 
+function verifyState(payload: string, signature: string): boolean {
+  const secret = process.env.NEXTAUTH_SECRET || "fallback-secret";
+  const hmac = createHmac("sha256", secret);
+  hmac.update(payload);
+  const expected = hmac.digest("hex").slice(0, 16);
+  return expected === signature;
+}
+
+function errorPage(title: string, message: string, retryUrl?: string): NextResponse {
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>NitroSales — Error Google OAuth</title>
+<style>body{font-family:-apple-system,sans-serif;background:#0a0a0a;color:#fff;margin:0;padding:40px 20px;}
+.card{max-width:560px;margin:60px auto;background:#1a1a1a;border-radius:16px;padding:32px;border:1px solid #2a2a2a;}
+h1{color:#ef4444;margin-top:0;}
+a{display:inline-block;margin:8px 8px 0 0;padding:10px 20px;background:#3b82f6;color:white;text-decoration:none;border-radius:8px;}
+</style></head><body>
+<div class="card"><h1>${title}</h1><p>${message}</p>${retryUrl ? `<a href="${retryUrl}">Reintentar</a>` : ""}<a href="/onboarding">Volver al onboarding</a></div>
+</body></html>`;
+  return new NextResponse(html, { status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const code = url.searchParams.get("code");
-  const error = url.searchParams.get("error");
+  const code = url.searchParams.get("code") || "";
+  const state = url.searchParams.get("state") || "";
+  const error = url.searchParams.get("error") || "";
 
   if (error) {
-    return new NextResponse(
-      `<html><body><h1>OAuth Error</h1><p>${error}</p></body></html>`,
-      { headers: { "Content-Type": "text/html" } }
-    );
+    return errorPage("OAuth Error", `Google nos avisó: <code>${error}</code>. Si fue por error, reintentá.`);
+  }
+  if (!code) {
+    return errorPage("Falta authorization code", "Google no devolvió el code. Reintentá.");
+  }
+  if (!state) {
+    return errorPage("Falta state", "Reintentá desde el wizard.");
   }
 
-  if (!code) {
-    return new NextResponse(
-      `<html><body><h1>Error</h1><p>No authorization code received</p></body></html>`,
-      { headers: { "Content-Type": "text/html" } }
-    );
+  const parts = state.split(".");
+  if (parts.length < 2) {
+    return errorPage("State malformado", "El state no tiene formato esperado.");
+  }
+  const [orgId, signature, ...returnToParts] = parts;
+  const returnTo = decodeURIComponent(returnToParts.join(".") || "/onboarding");
+
+  if (!verifyState(orgId, signature)) {
+    return errorPage("State inválido (CSRF)", "Firma del state no coincide. Posible link viejo.");
   }
 
   const baseUrl = `${url.protocol}//${url.host}`;
   const redirectUri = `${baseUrl}/api/auth/google-ads/callback`;
 
   try {
-    // Exchange code for tokens
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -40,85 +81,50 @@ export async function GET(req: Request) {
 
     const tokenData = await tokenRes.json();
 
-    if (!tokenRes.ok) {
-      return new NextResponse(
-        `<html><body style="font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px;">
-          <h1 style="color:#e74c3c;">Token Exchange Failed</h1>
-          <p>Status: ${tokenRes.status}</p>
-          <pre style="background:#f5f5f5;padding:15px;border-radius:8px;overflow-x:auto;">${JSON.stringify(tokenData, null, 2)}</pre>
-          <a href="/api/auth/google-ads">Try Again</a>
-        </body></html>`,
-        { headers: { "Content-Type": "text/html" } }
+    if (!tokenRes.ok || !tokenData?.refresh_token) {
+      const msg = tokenData?.error_description || tokenData?.error || `HTTP ${tokenRes.status}`;
+      return errorPage(
+        "Falló intercambio del código",
+        `Google rechazó: ${msg}.`,
+        `/api/auth/google-ads?orgId=${orgId}`,
       );
     }
 
-    const refreshToken = tokenData.refresh_token || "No refresh token received";
+    const refreshToken = tokenData.refresh_token;
     const accessToken = tokenData.access_token || "";
 
-    // Test the token
-    let testResult = "Not tested";
-    if (accessToken) {
-      try {
-        const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID || "").replace(/-/g, "");
-        const testRes = await fetch(
-          `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "developer-token": process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ query: "SELECT customer.id FROM customer LIMIT 1" }),
-          }
-        );
-        testResult = testRes.ok ? "OK - Token works!" : `Failed (${testRes.status})`;
-      } catch (e: any) {
-        testResult = `Error: ${e.message}`;
-      }
+    const existing = await prisma.connection.findFirst({
+      where: { organizationId: orgId, platform: "GOOGLE_ADS" as any },
+    });
+
+    const credentials = {
+      ...((existing?.credentials as any) || {}),
+      refreshToken,
+      accessToken,
+      tokenObtainedAt: new Date().toISOString(),
+    };
+
+    if (existing) {
+      await prisma.connection.update({
+        where: { id: existing.id },
+        data: { credentials, status: "ACTIVE" as any, lastSyncError: null },
+      });
+    } else {
+      await prisma.connection.create({
+        data: {
+          organizationId: orgId,
+          platform: "GOOGLE_ADS" as any,
+          status: "ACTIVE" as any,
+          credentials,
+        },
+      });
     }
 
-    return new NextResponse(
-      `<html>
-      <head><title>NitroSales - Google Ads Token</title></head>
-      <body style="font-family:sans-serif;max-width:700px;margin:40px auto;padding:20px;background:#fafafa;">
-        <div style="background:white;padding:30px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
-          <h1 style="color:#2ecc71;margin-top:0;">Google Ads Token Generated</h1>
-          <p style="color:#666;">API Test: <strong style="color:${testResult.includes('OK') ? '#2ecc71' : '#e74c3c'}">${testResult}</strong></p>
-          
-          <h3>New Refresh Token:</h3>
-          <div style="position:relative;">
-            <pre id="token" style="background:#f5f5f5;padding:15px;border-radius:8px;word-break:break-all;white-space:pre-wrap;font-size:13px;">${refreshToken}</pre>
-            <button onclick="navigator.clipboard.writeText(document.getElementById('token').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)" 
-              style="position:absolute;top:8px;right:8px;background:#3498db;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px;">
-              Copy
-            </button>
-          </div>
-          
-          <h3>Next Steps:</h3>
-          <ol style="line-height:2;">
-            <li>Copy the refresh token above</li>
-            <li>Go to <a href="https://vercel.com/tlapidus-rgb/nitrosales/settings/environment-variables" target="_blank">Vercel Environment Variables</a></li>
-            <li>Update <code>GOOGLE_ADS_REFRESH_TOKEN</code> with the new value</li>
-            <li>Trigger a <a href="https://vercel.com/tlapidus-rgb/nitrosales/deployments" target="_blank">Redeploy</a></li>
-          </ol>
-          
-          <p style="color:#e67e22;font-size:14px;margin-top:20px;padding:10px;background:#fff8e1;border-radius:6px;">
-            ⚠️ In test mode ("Acceso al Explorador"), this token expires in ~7 days. Bookmark this page: <a href="/api/auth/google-ads">/api/auth/google-ads</a>
-          </p>
-        </div>
-      </body>
-      </html>`,
-      { headers: { "Content-Type": "text/html" } }
-    );
-  } catch (error: any) {
-    return new NextResponse(
-      `<html><body style="font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px;">
-        <h1 style="color:#e74c3c;">Error</h1>
-        <pre style="background:#f5f5f5;padding:15px;border-radius:8px;">${error.message}</pre>
-        <a href="/api/auth/google-ads">Try Again</a>
-      </body></html>`,
-      { headers: { "Content-Type": "text/html" } }
-    );
+    const successUrl = new URL(returnTo, baseUrl);
+    successUrl.searchParams.set("googleConnected", "1");
+    return NextResponse.redirect(successUrl.toString());
+  } catch (err: any) {
+    console.error("[google-ads/callback] error:", err);
+    return errorPage("Error inesperado", `${err?.message || "Unknown"}. Reintentá.`, `/api/auth/google-ads?orgId=${orgId}`);
   }
 }

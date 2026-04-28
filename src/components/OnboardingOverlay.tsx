@@ -1605,17 +1605,223 @@ function MetaAdsInputs({ creds, onChange }: any) {
 }
 
 function GoogleAdsInputs({ creds, onChange }: any) {
+  // S58 OAuth: mismo patron que MetaAdsInputs.
+  // 4 estados: NONE / PENDING / APPROVED / CONNECTED.
+  const [authState, setAuthState] = useState<"NONE" | "PENDING" | "APPROVED" | "CONNECTED" | "LOADING">("LOADING");
+  const [authGoogleEmail, setAuthGoogleEmail] = useState<string | null>(null);
+  const [oauthSuccess, setOauthSuccess] = useState(false);
+
+  const [googleEmailInput, setGoogleEmailInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("googleConnected") === "1") {
+      setOauthSuccess(true);
+      const cleaned = new URL(window.location.href);
+      cleaned.searchParams.delete("googleConnected");
+      window.history.replaceState({}, "", cleaned.toString());
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/me/google-auth-status")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.state) {
+          setAuthState(data.state);
+          setAuthGoogleEmail(data.googleEmail || null);
+        } else {
+          setAuthState("NONE");
+        }
+      })
+      .catch(() => setAuthState("NONE"));
+    return () => { cancelled = true; };
+  }, [oauthSuccess]);
+
+  const handleRequestAuth = async () => {
+    const email = googleEmailInput.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setSubmitError("Email inválido");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const r = await fetch("/api/me/google-auth-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ googleEmail: email }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setSubmitError(data?.error || "Error en la solicitud");
+        setSubmitting(false);
+        return;
+      }
+      setAuthState("PENDING");
+      setAuthGoogleEmail(email);
+    } catch (err: any) {
+      setSubmitError(err?.message || "Error de red");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleConnect = () => {
+    if (typeof window !== "undefined") {
+      const returnTo = window.location.pathname + window.location.search;
+      window.location.href = `/api/auth/google-ads?returnTo=${encodeURIComponent(returnTo)}`;
+    }
+  };
+
   return (
     <>
       <Field label="Customer ID" hint="10 dígitos sin guiones.">
         <Input value={creds.customerId || ""} onChange={(v) => onChange("customerId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890" mono maxLength={10} />
       </Field>
-      <Field label="Login Customer ID (opcional)" hint="Si tu cuenta está administrada por un MCC (manager), poné el ID del MCC. Si la cuenta es solo tuya, dejalo vacío.">
+      <Field label="Login Customer ID (opcional)" hint="Si tu cuenta está administrada por un MCC (manager), poné el ID del MCC.">
         <Input value={creds.loginCustomerId || ""} onChange={(v) => onChange("loginCustomerId", v.replace(/[^0-9]/g, ""))} placeholder="1234567890" mono maxLength={10} />
       </Field>
-      <InfoBox>
-        <strong style={{ color: TEXT_PRIMARY }}>Después del wizard</strong>, te llevamos a login oficial de Google para autorizar.
-      </InfoBox>
+
+      {/* ─── Estado autorización Google (4 estados) ─── */}
+      <div style={{ marginTop: 18 }}>
+        {authState === "LOADING" && (
+          <div style={{ padding: "12px 16px", color: TEXT_SECONDARY, fontSize: 12 }}>Cargando estado…</div>
+        )}
+
+        {authState === "CONNECTED" && (
+          <div style={{
+            padding: "14px 16px",
+            background: "linear-gradient(135deg, rgba(34,197,94,0.10), rgba(16,185,129,0.06))",
+            border: "1px solid rgba(34,197,94,0.30)",
+            borderRadius: 10,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#86efac", marginBottom: 4 }}>
+              ✓ Conectado con Google Ads
+            </div>
+            <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.55 }}>
+              Token OAuth guardado correctamente.
+            </div>
+          </div>
+        )}
+
+        {authState === "APPROVED" && (
+          <>
+            <div style={{
+              padding: "14px 16px",
+              background: "linear-gradient(135deg, rgba(34,197,94,0.10), rgba(16,185,129,0.06))",
+              border: "1px solid rgba(34,197,94,0.30)",
+              borderRadius: 10,
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#86efac", marginBottom: 4 }}>
+                ✓ Estás autorizado
+              </div>
+              <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.55 }}>
+                Ya podés conectar con Google Ads.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleConnect}
+              style={{
+                width: "100%",
+                padding: "14px 18px",
+                background: "linear-gradient(135deg, #4285F4, #1a73e8)",
+                border: "none",
+                borderRadius: 10,
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                boxShadow: "0 4px 12px rgba(66,133,244,0.30)",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>G</span>
+              Conectar con Google
+            </button>
+          </>
+        )}
+
+        {authState === "PENDING" && (
+          <div style={{
+            padding: "16px 18px",
+            background: "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(245,158,11,0.06))",
+            border: "1px solid rgba(251,191,36,0.30)",
+            borderRadius: 10,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#fcd34d", marginBottom: 6 }}>
+              ⏳ Solicitud enviada
+            </div>
+            <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+              Te avisamos por mail cuando estés autorizado (~1 día). Mientras, podés saltear este paso.
+              {authGoogleEmail && (
+                <div style={{ marginTop: 8, color: TEXT_PRIMARY }}>
+                  Email Google: <code style={{ background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: 4 }}>{authGoogleEmail}</code>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {authState === "NONE" && (
+          <>
+            <div style={{
+              padding: "14px 16px",
+              background: "rgba(66,133,244,0.06)",
+              border: "1px solid rgba(66,133,244,0.20)",
+              borderRadius: 10,
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#8ab4f8", marginBottom: 6 }}>
+                Antes de conectar Google Ads
+              </div>
+              <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+                Necesitamos autorizarte como usuario de prueba (1 paso de nuestro lado, ~1 día).
+                Pasanos el <strong>email de Google</strong> con el que entrás a Google Ads.
+              </div>
+            </div>
+            <Field label="Email de Google" hint="El email/Gmail con el que entrás a Google Ads.">
+              <Input
+                value={googleEmailInput}
+                onChange={(v) => { setGoogleEmailInput(v); setSubmitError(null); }}
+                placeholder="tu@gmail.com"
+                mono={false}
+              />
+            </Field>
+            {submitError && (
+              <div style={{ fontSize: 11, color: "#f87171", marginBottom: 10 }}>{submitError}</div>
+            )}
+            <button
+              type="button"
+              disabled={submitting || !googleEmailInput}
+              onClick={handleRequestAuth}
+              style={{
+                width: "100%",
+                padding: "12px 18px",
+                background: submitting || !googleEmailInput ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #4285F4, #1a73e8)",
+                border: "none",
+                borderRadius: 10,
+                color: submitting || !googleEmailInput ? TEXT_SECONDARY : "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: submitting || !googleEmailInput ? "not-allowed" : "pointer",
+              }}
+            >
+              {submitting ? "Enviando…" : "Pedir autorización"}
+            </button>
+          </>
+        )}
+      </div>
     </>
   );
 }
