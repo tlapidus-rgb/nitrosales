@@ -1303,15 +1303,20 @@ function MlInputs({ creds, onChange }: any) {
 }
 
 function MetaAdsInputs({ creds, onChange }: any) {
-  // S58 OAuth: detectamos si el cliente ya conecto via OAuth.
-  // Si conecto, accessToken viene populado automaticamente por el callback
-  // (via Connection en DB). El submit-wizard despues lee la Connection
-  // existente. Si no conecto, mostramos input manual como antes.
-  //
-  // Tambien soportamos detectar `?metaConnected=1` en la URL (post-redirect
-  // del callback) para mostrar feedback inmediato.
+  // S58 OAuth: 4 estados posibles para el cliente:
+  //   NONE → no pidio autorizacion. Mostramos form: "pasame tu email FB".
+  //   PENDING → pidio autorizacion, esperando admin. Mostramos cartel amarillo.
+  //   APPROVED → admin lo agrego como tester. Mostramos boton "Conectar con Meta".
+  //   CONNECTED → ya hizo OAuth y tenemos token. Cartel verde + dropdown.
+  const [authState, setAuthState] = useState<"NONE" | "PENDING" | "APPROVED" | "CONNECTED" | "LOADING">("LOADING");
+  const [authFbEmail, setAuthFbEmail] = useState<string | null>(null);
   const [oauthSuccess, setOauthSuccess] = useState<{ accounts: number } | null>(null);
   const [availableAccounts, setAvailableAccounts] = useState<Array<{ id: string; name: string; status: number }>>([]);
+
+  // Form state para cuando NONE: cliente ingresa email FB.
+  const [fbEmailInput, setFbEmailInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1319,7 +1324,6 @@ function MetaAdsInputs({ creds, onChange }: any) {
     if (params.get("metaConnected") === "1") {
       const accounts = parseInt(params.get("metaAccounts") || "0", 10);
       setOauthSuccess({ accounts });
-      // Limpiar query params de la URL para no confundir despues.
       const cleaned = new URL(window.location.href);
       cleaned.searchParams.delete("metaConnected");
       cleaned.searchParams.delete("metaAccounts");
@@ -1327,28 +1331,62 @@ function MetaAdsInputs({ creds, onChange }: any) {
     }
   }, []);
 
-  // Fetch availableAccounts al montar y cuando detectamos OAuth success.
-  // Soporta tambien caso "ya estaba conectado de antes" (sin URL params).
+  // Fetch estado de autorizacion + accounts en paralelo.
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/me/meta-accounts")
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (data?.connected) {
-          setOauthSuccess((prev) => prev || { accounts: data.accounts?.length || 0 });
-          setAvailableAccounts(data.accounts || []);
+    Promise.all([
+      fetch("/api/me/meta-auth-status").then((r) => r.json()).catch(() => null),
+      fetch("/api/me/meta-accounts").then((r) => r.json()).catch(() => null),
+    ]).then(([statusData, accountsData]) => {
+      if (cancelled) return;
+      if (statusData?.state) {
+        setAuthState(statusData.state);
+        setAuthFbEmail(statusData.fbEmail || null);
+      } else {
+        setAuthState("NONE");
+      }
+      if (accountsData?.connected) {
+        setAvailableAccounts(accountsData.accounts || []);
+        if (!oauthSuccess) {
+          setOauthSuccess({ accounts: accountsData.accounts?.length || 0 });
         }
-      })
-      .catch(() => {});
+      }
+    });
     return () => { cancelled = true; };
   }, [oauthSuccess?.accounts]);
 
-  const tokenAlreadyOAuth = !!oauthSuccess; // Si conecto via OAuth, no pedimos token manual.
+  const tokenAlreadyOAuth = authState === "CONNECTED" || !!oauthSuccess;
+
+  const handleRequestAuth = async () => {
+    const email = fbEmailInput.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setSubmitError("Email inválido");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const r = await fetch("/api/me/meta-auth-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fbEmail: email }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setSubmitError(data?.error || "Error en la solicitud");
+        setSubmitting(false);
+        return;
+      }
+      setAuthState("PENDING");
+      setAuthFbEmail(email);
+    } catch (err: any) {
+      setSubmitError(err?.message || "Error de red");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleConnect = () => {
-    // Guardamos lo que ya tiene cargado en sessionStorage por si recarga la pagina al volver.
-    // (Wizard ya hace esto, pero forzamos por las dudas.)
     if (typeof window !== "undefined") {
       const returnTo = window.location.pathname + window.location.search;
       window.location.href = `/api/oauth/meta/start?returnTo=${encodeURIComponent(returnTo)}`;
@@ -1362,8 +1400,14 @@ function MetaAdsInputs({ creds, onChange }: any) {
         Meta Ads · obligatorio
       </div>
 
-      {/* ─── OAuth Connect (recomendado) ─── */}
-      {oauthSuccess ? (
+      {/* ─── Estado de autorización Meta (4 estados) ─── */}
+      {authState === "LOADING" && (
+        <div style={{ padding: "14px 16px", color: TEXT_SECONDARY, fontSize: 12, marginBottom: 18 }}>
+          Cargando estado…
+        </div>
+      )}
+
+      {authState === "CONNECTED" && (
         <div style={{
           padding: "14px 16px",
           background: "linear-gradient(135deg, rgba(34,197,94,0.10), rgba(16,185,129,0.06))",
@@ -1375,12 +1419,29 @@ function MetaAdsInputs({ creds, onChange }: any) {
             ✓ Conectado con Meta
           </div>
           <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.55 }}>
-            Token guardado correctamente. {oauthSuccess.accounts > 0 ? `Tenés acceso a ${oauthSuccess.accounts} cuenta${oauthSuccess.accounts === 1 ? "" : "s"} publicitaria${oauthSuccess.accounts === 1 ? "" : "s"}.` : ""}
-            {" "}Cargá abajo el Ad Account ID que querés usar para sync.
+            {availableAccounts.length > 0
+              ? `Tenés acceso a ${availableAccounts.length} cuenta${availableAccounts.length === 1 ? "" : "s"} publicitaria${availableAccounts.length === 1 ? "" : "s"}. Elegí abajo cuál usar.`
+              : "Token guardado. Cargá abajo el Ad Account."}
           </div>
         </div>
-      ) : (
+      )}
+
+      {authState === "APPROVED" && (
         <div style={{ marginBottom: 18 }}>
+          <div style={{
+            padding: "14px 16px",
+            background: "linear-gradient(135deg, rgba(34,197,94,0.10), rgba(16,185,129,0.06))",
+            border: "1px solid rgba(34,197,94,0.30)",
+            borderRadius: 10,
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#86efac", marginBottom: 4 }}>
+              ✓ Estás autorizado
+            </div>
+            <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.55 }}>
+              Ya podés conectar con Meta. Antes de hacer click, asegurate de haber aceptado la invitación que te llegó al Facebook.
+            </div>
+          </div>
           <button
             type="button"
             onClick={handleConnect}
@@ -1402,11 +1463,80 @@ function MetaAdsInputs({ creds, onChange }: any) {
             }}
           >
             <span style={{ fontSize: 18 }}>f</span>
-            Conectar con Meta (recomendado)
+            Conectar con Meta
           </button>
-          <div style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 8, textAlign: "center", lineHeight: 1.55 }}>
-            Login oficial de Facebook. Sin pegar tokens. Más seguro.
+        </div>
+      )}
+
+      {authState === "PENDING" && (
+        <div style={{
+          padding: "16px 18px",
+          background: "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(245,158,11,0.06))",
+          border: "1px solid rgba(251,191,36,0.30)",
+          borderRadius: 10,
+          marginBottom: 18,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#fcd34d", marginBottom: 6 }}>
+            ⏳ Solicitud enviada
           </div>
+          <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+            Te vamos a avisar por mail cuando estés autorizado (~1 día hábil).
+            Mientras tanto, podés saltear este paso y completar el resto del onboarding.
+            {authFbEmail && (
+              <div style={{ marginTop: 8, color: TEXT_PRIMARY }}>
+                Email FB: <code style={{ background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: 4 }}>{authFbEmail}</code>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {authState === "NONE" && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{
+            padding: "14px 16px",
+            background: "rgba(24,119,242,0.06)",
+            border: "1px solid rgba(24,119,242,0.20)",
+            borderRadius: 10,
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#60a5fa", marginBottom: 6 }}>
+              Antes de conectar Meta
+            </div>
+            <div style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+              Necesitamos autorizarte como usuario de prueba (1 paso de nuestro lado, ~1 día).
+              Pasanos el <strong>email con el que entrás a Facebook</strong> (no el del trabajo, el personal):
+            </div>
+          </div>
+          <Field label="Email de Facebook" hint="El que usás para loguearte a Facebook. Lo encontrás en facebook.com → tu perfil → Configuración → Información personal.">
+            <Input
+              value={fbEmailInput}
+              onChange={(v) => { setFbEmailInput(v); setSubmitError(null); }}
+              placeholder="tu@email.com"
+              mono={false}
+            />
+          </Field>
+          {submitError && (
+            <div style={{ fontSize: 11, color: "#f87171", marginBottom: 10 }}>{submitError}</div>
+          )}
+          <button
+            type="button"
+            disabled={submitting || !fbEmailInput}
+            onClick={handleRequestAuth}
+            style={{
+              width: "100%",
+              padding: "12px 18px",
+              background: submitting || !fbEmailInput ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #1877F2, #166fe5)",
+              border: "none",
+              borderRadius: 10,
+              color: submitting || !fbEmailInput ? TEXT_SECONDARY : "#fff",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: submitting || !fbEmailInput ? "not-allowed" : "pointer",
+            }}
+          >
+            {submitting ? "Enviando…" : "Pedir autorización"}
+          </button>
         </div>
       )}
 
