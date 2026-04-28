@@ -1311,6 +1311,8 @@ function MetaAdsInputs({ creds, onChange }: any) {
   // Tambien soportamos detectar `?metaConnected=1` en la URL (post-redirect
   // del callback) para mostrar feedback inmediato.
   const [oauthSuccess, setOauthSuccess] = useState<{ accounts: number } | null>(null);
+  const [availableAccounts, setAvailableAccounts] = useState<Array<{ id: string; name: string; status: number }>>([]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -1324,6 +1326,23 @@ function MetaAdsInputs({ creds, onChange }: any) {
       window.history.replaceState({}, "", cleaned.toString());
     }
   }, []);
+
+  // Fetch availableAccounts al montar y cuando detectamos OAuth success.
+  // Soporta tambien caso "ya estaba conectado de antes" (sin URL params).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/me/meta-accounts")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.connected) {
+          setOauthSuccess((prev) => prev || { accounts: data.accounts?.length || 0 });
+          setAvailableAccounts(data.accounts || []);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [oauthSuccess?.accounts]);
 
   const tokenAlreadyOAuth = !!oauthSuccess; // Si conecto via OAuth, no pedimos token manual.
 
@@ -1391,9 +1410,39 @@ function MetaAdsInputs({ creds, onChange }: any) {
         </div>
       )}
 
-      <Field label="Ad Account ID" hint="Solo los números, sin 'act_'.">
-        <Input value={creds.adAccountId || ""} onChange={(v) => onChange("adAccountId", v.replace(/[^0-9]/g, ""))} placeholder="123456789" mono maxLength={30} />
-      </Field>
+      {availableAccounts.length > 0 ? (
+        <Field label="Ad Account" hint="Elegí cuál de tus cuentas publicitarias usar para sync.">
+          <select
+            value={creds.adAccountId ? `act_${creds.adAccountId}` : ""}
+            onChange={(e) => {
+              const v = e.target.value.replace(/^act_/, "");
+              onChange("adAccountId", v);
+            }}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              background: "rgba(255,255,255,0.03)",
+              border: `1px solid ${BORDER}`,
+              borderRadius: 8,
+              color: TEXT_PRIMARY,
+              fontSize: 13,
+              fontFamily: "inherit",
+              cursor: "pointer",
+            }}
+          >
+            <option value="">Elegir cuenta…</option>
+            {availableAccounts.map((acc) => (
+              <option key={acc.id} value={acc.id}>
+                {acc.name} ({acc.id})
+              </option>
+            ))}
+          </select>
+        </Field>
+      ) : (
+        <Field label="Ad Account ID" hint="Solo los números, sin 'act_'.">
+          <Input value={creds.adAccountId || ""} onChange={(v) => onChange("adAccountId", v.replace(/[^0-9]/g, ""))} placeholder="123456789" mono maxLength={30} />
+        </Field>
+      )}
       {!tokenAlreadyOAuth && (
         <Field label="Access Token (System User)" hint="Empieza con 'EAA…'. Solo necesario si NO conectás con el botón de arriba. Permisos: ads_read + ads_management + business_management.">
           <Input value={creds.accessToken || ""} onChange={(v) => onChange("accessToken", v)} placeholder="EAA..." mono />
