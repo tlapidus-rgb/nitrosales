@@ -86,31 +86,43 @@ export async function GET() {
       }),
     ]);
 
+    // S58 BP-S58-001: GA4 eliminado del UI (analytics via NitroPixel).
+    // Agregamos NITROPIXEL como integracion visible.
     const platformLabels: Record<string, string> = {
       VTEX: "VTEX",
       MERCADOLIBRE: "MercadoLibre",
-      GA4: "Google Analytics 4",
       GOOGLE_ADS: "Google Ads",
       META_ADS: "Meta Ads",
       GOOGLE_SEARCH_CONSOLE: "Google Search Console",
+      NITROPIXEL: "NitroPixel",
     };
+
+    // NitroPixel: detectamos "fresh" si hay eventos recientes en pixel_events.
+    let latestPixelEvent: any = null;
+    try {
+      latestPixelEvent = await prisma.pixelEvent.findFirst({
+        where: { organizationId: ORG_ID },
+        orderBy: { receivedAt: "desc" },
+        select: { receivedAt: true },
+      });
+    } catch {}
 
     const dataFreshness: Record<string, Date | null> = {
       VTEX: latestOrderVtex?.createdAt ?? null,
       MERCADOLIBRE: latestOrderMeli?.createdAt ?? null,
-      GA4: latestWebMetric?.date ?? null,
       GOOGLE_ADS: latestGoogleAd?.date ?? null,
       META_ADS: latestMetaAd?.date ?? null,
       GOOGLE_SEARCH_CONSOLE: latestSeoQuery?.date ?? null,
+      NITROPIXEL: latestPixelEvent?.receivedAt ?? null,
     };
 
     const platforms = [
       "VTEX",
       "MERCADOLIBRE",
-      "GA4",
       "GOOGLE_ADS",
       "META_ADS",
       "GOOGLE_SEARCH_CONSOLE",
+      "NITROPIXEL",
     ];
 
     const connectors = platforms.map((platform) => {

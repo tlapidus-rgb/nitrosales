@@ -45,6 +45,10 @@ export async function GET() {
         tokenExpiresAt: creds.tokenExpiresAt || null,
         adAccountId: creds.adAccountId || null,
         availableAdAccounts: (creds.availableAdAccounts || []).length,
+        // S58: campos opcionales para gestion en /settings/integraciones/meta.
+        businessId: creds.businessId || null,
+        pixelId: creds.pixelId || null,
+        hasPixelAccessToken: !!creds.pixelAccessToken,
       });
     }
 

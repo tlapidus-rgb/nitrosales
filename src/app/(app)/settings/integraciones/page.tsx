@@ -50,11 +50,7 @@ const PLATFORM_META: Record<
     description: "Órdenes, productos y stock de tu tienda VTEX.",
     color: "#ff3366",
   },
-  GA4: {
-    label: "Google Analytics 4",
-    description: "Sesiones, usuarios y conversiones web.",
-    color: "#e37400",
-  },
+  // S58 BP-S58-001: GA4 eliminado. Analytics se hacen via NitroPixel.
   GOOGLE_ADS: {
     label: "Google Ads",
     description: "Spend, impresiones y conversiones de campañas Google.",
@@ -74,6 +70,11 @@ const PLATFORM_META: Record<
     label: "MercadoLibre",
     description: "Órdenes, comisiones, retenciones y reputación.",
     color: "#fed100",
+  },
+  NITROPIXEL: {
+    label: "NitroPixel",
+    description: "Analytics propio: sesiones, conversiones y atribución.",
+    color: "#06b6d4",
   },
 };
 
@@ -438,7 +439,23 @@ function ConnectorRow({ connector }: { connector: Connector }) {
               {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
             </a>
           )}
-          {!["META_ADS", "GOOGLE_ADS", "VTEX", "MERCADOLIBRE"].includes(connector.platform) && (isError || isDisconnected) && (
+          {connector.platform === "GOOGLE_SEARCH_CONSOLE" && (
+            <a
+              href="/settings/integraciones/google-search-console"
+              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              {connector.status === "CONNECTED" ? "Gestionar" : "Conectar"}
+            </a>
+          )}
+          {connector.platform === "NITROPIXEL" && (
+            <a
+              href="/settings/integraciones/nitropixel"
+              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              {connector.status === "CONNECTED" ? "Gestionar" : "Configurar"}
+            </a>
+          )}
+          {!["META_ADS", "GOOGLE_ADS", "VTEX", "MERCADOLIBRE", "GOOGLE_SEARCH_CONSOLE", "NITROPIXEL"].includes(connector.platform) && (isError || isDisconnected) && (
             <a
               href={
                 meta.connectHref ??

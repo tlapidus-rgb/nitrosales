@@ -22,9 +22,13 @@ export default function GoogleAdsIntegrationPage() {
 
   const [emailInput, setEmailInput] = useState("");
   const [customerIdInput, setCustomerIdInput] = useState("");
+  const [loginCustomerIdInput, setLoginCustomerIdInput] = useState("");
+  const [savedLoginCid, setSavedLoginCid] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [showMccHelp, setShowMccHelp] = useState(false);
 
   const loadStatus = async () => {
     try {
@@ -33,6 +37,8 @@ export default function GoogleAdsIntegrationPage() {
       setGoogleEmail(r?.googleEmail || null);
       setCustomerId(r?.customerId || null);
       setCustomerIdInput(r?.customerId || "");
+      setSavedLoginCid(r?.loginCustomerId || null);
+      setLoginCustomerIdInput(r?.loginCustomerId || "");
     } catch (e) {
       setAuthState("NONE");
     }
@@ -82,23 +88,39 @@ export default function GoogleAdsIntegrationPage() {
     window.location.href = `/api/auth/google-ads?returnTo=${encodeURIComponent(returnTo)}`;
   };
 
-  const handleSaveCustomerId = async () => {
+  const handleSave = async () => {
     const cid = customerIdInput.replace(/[^0-9]/g, "");
+    const lcid = loginCustomerIdInput.replace(/[^0-9]/g, "");
     if (!cid || cid.length !== 10) {
       setError("Customer ID debe tener 10 dígitos");
       return;
     }
-    setSavingCustomer(true);
+    if (lcid && lcid.length !== 10) {
+      setError("Login Customer ID debe tener 10 dígitos (o dejar vacío)");
+      return;
+    }
+    setSaving(true);
     setError(null);
+    setSavedFlash(false);
     try {
-      await fetch("/api/me/google-set-customer-id", {
+      const r = await fetch("/api/me/google-set-customer-id", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerId: cid }),
+        body: JSON.stringify({ customerId: cid, loginCustomerId: lcid }),
       });
+      const data = await r.json();
+      if (!r.ok) {
+        setError(data?.error || "Error guardando");
+        return;
+      }
       setCustomerId(cid);
+      setSavedLoginCid(lcid || null);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2500);
+    } catch (e: any) {
+      setError(e?.message || "Error de red");
     } finally {
-      setSavingCustomer(false);
+      setSaving(false);
     }
   };
 
@@ -142,41 +164,80 @@ export default function GoogleAdsIntegrationPage() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <div className="text-[13px] font-semibold text-slate-900 mb-2">Customer ID</div>
-            <div className="text-[12px] text-slate-500 mb-3">
-              10 dígitos sin guiones. Lo encontrás arriba a la derecha en ads.google.com.
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-700 mb-1">Customer ID</label>
+                <input
+                  value={customerIdInput}
+                  onChange={(e) => { setCustomerIdInput(e.target.value.replace(/[^0-9]/g, "")); setError(null); }}
+                  placeholder="1234567890"
+                  maxLength={10}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                />
+                <p className="mt-1 text-[10px] text-slate-500">10 dígitos sin guiones. Lo encontrás arriba a la derecha en ads.google.com.</p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[12px] font-semibold text-slate-700">
+                    Login Customer ID <span className="text-slate-400 font-normal">(opcional, MCC)</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowMccHelp(!showMccHelp)}
+                    className="text-[10px] font-semibold text-blue-600 hover:underline"
+                  >
+                    {showMccHelp ? "Ocultar ayuda" : "¿Qué es MCC?"}
+                  </button>
+                </div>
+                <input
+                  value={loginCustomerIdInput}
+                  onChange={(e) => { setLoginCustomerIdInput(e.target.value.replace(/[^0-9]/g, "")); setError(null); }}
+                  placeholder="(dejar vacío si tu cuenta no está bajo un MCC)"
+                  maxLength={10}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
+                />
+                {showMccHelp && (
+                  <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-[11px] text-blue-900 leading-relaxed">
+                    <strong>MCC = Manager Account.</strong> Es una cuenta de Google Ads que <em>administra otras cuentas</em>.
+                    <ul className="mt-2 ml-3 list-disc space-y-1">
+                      <li>Si <strong>tu cuenta es solo tuya</strong> y la administrás directo → dejá vacío.</li>
+                      <li>Si tu cuenta <strong>está bajo una agencia o un manager</strong> que la administra → cargá el ID del MCC (10 dígitos del manager).</li>
+                    </ul>
+                    <div className="mt-2 text-[10px] text-blue-700">Para anunciantes individuales, lo normal es dejarlo vacío.</div>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex gap-2">
-              <input
-                value={customerIdInput}
-                onChange={(e) => { setCustomerIdInput(e.target.value.replace(/[^0-9]/g, "")); setError(null); }}
-                placeholder="1234567890"
-                maxLength={10}
-                className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-mono"
-              />
-              <button
-                onClick={handleSaveCustomerId}
-                disabled={savingCustomer || customerIdInput === customerId}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
-              >
-                {savingCustomer ? "Guardando…" : "Guardar"}
-              </button>
-            </div>
+
             {error && (
-              <div className="flex items-center gap-1.5 text-[11px] text-rose-600 mt-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-rose-600 mt-3">
                 <AlertCircle className="h-3.5 w-3.5" />
                 {error}
               </div>
             )}
-          </div>
+            {savedFlash && (
+              <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 mt-3">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Guardado.
+              </div>
+            )}
 
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={handleConnect}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Reconectar
-            </button>
+            <div className="mt-4 flex gap-2 flex-wrap">
+              <button
+                onClick={handleSave}
+                disabled={saving || (customerIdInput === (customerId || "") && loginCustomerIdInput === (savedLoginCid || ""))}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
+              >
+                {saving ? "Guardando…" : "Guardar cambios"}
+              </button>
+              <button
+                onClick={handleConnect}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Reconectar
+              </button>
+            </div>
           </div>
         </>
       )}

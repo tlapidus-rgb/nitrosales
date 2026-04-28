@@ -48,17 +48,8 @@ async function runSyncForOrg(orgId: string, syncKey: string) {
       results.vtexDetails = { error: e.message };
     }
 
-    // 2. Sync GA4
-    try {
-      const ga4Res = await fetch(`${baseUrl}/api/sync/ga4?org=${encodeURIComponent(orgId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ syncKey }),
-      });
-      results.ga4 = await ga4Res.json();
-    } catch (e: any) {
-      results.ga4 = { error: e.message };
-    }
+    // 2. GA4 — eliminado en S58 BP-S58-001 (analytics via NitroPixel ahora).
+    results.ga4 = { status: "deprecated", reason: "moved_to_nitropixel" };
 
     // 3. Google Ads + 4. Meta Ads corren en crones independientes
     results.googleAds = { status: "independent_cron", schedule: "*/15 * * * *" };
