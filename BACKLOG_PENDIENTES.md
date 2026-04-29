@@ -8,7 +8,67 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-29 — Onboarding TVC en proceso. BP-S59-008 nuevo: estimado total + barra de progreso para backfill ML.
+> **Última actualización**: 2026-04-29 — BP-S59-009 nuevo: backfill VTEX corte automatico cuando ya no hay ventas + race condition del runner. BP-S59-010 nuevo: corregir emails enmascarados de VTEX en backfill+enrichment.
+
+---
+
+## 🟡 BP-S59-010 — Limpiar emails enmascarados VTEX en backfill + enrichment
+
+**Entró**: 2026-04-29 (S59), durante backfill de TVC
+
+**Contexto**: VTEX entrega emails con formato enmascarado (`real@email.com-265600829169b.ct.vtex.com.br`) y a veces full-anonimo (`abc123def456@ct.vtex.com.br`). Hay un helper `extractRealEmail` en `src/app/api/webhooks/vtex/orders/route.ts` (línea 33) que los limpia, pero **solo se aplica al webhook**. El backfill (`src/lib/backfill/processors/vtex-processor.ts`) y el enrichment (`src/lib/connectors/vtex-enrichment.ts`) NO usan ese helper, así que los clientes nuevos quedan con emails crudos en la DB.
+
+**Impacto en TVC**: 12.536 customers VTEX (43%) sin email útil porque el helper no corrió en backfill.
+
+**Solución**:
+1. **Tipo A (perduran)**: mover `extractRealEmail` a `src/lib/connectors/vtex.ts` o nuevo helper `src/lib/connectors/vtex-email.ts`. Importarlo desde:
+   - `webhooks/vtex/orders/route.ts` (ya lo usa)
+   - `lib/connectors/vtex-enrichment.ts` (donde se hace el upsert del customer durante backfill)
+   - Cualquier otro path que toque email VTEX
+2. **Tipo B (one-shot para TVC)**: endpoint admin `/api/admin/onboardings/[id]/vtex-clean-emails` que recorra customers VTEX de la org y aplique `extractRealEmail` a los enmascarados existentes. Idempotente.
+
+**Archivos a tocar**:
+- `src/lib/connectors/vtex-email.ts` (crear) — helper compartido
+- `src/lib/connectors/vtex-enrichment.ts` — usar el helper antes de upsert customer
+- `src/app/api/webhooks/vtex/orders/route.ts` — importar del helper compartido
+- `src/app/api/admin/onboardings/[id]/vtex-clean-emails/route.ts` (crear) — one-shot para legacy
+
+**Esfuerzo estimado**: ~1 hora total (Tipo A + Tipo B)
+
+**Estado**: Tomy aprobó. A correr cuando termine TVC.
+
+---
+
+## 🟡 BP-S59-009 — Backfill VTEX: cortar al detectar ventanas vacías + arreglar race condition del runner
+
+**Entró**: 2026-04-29 (S59), durante backfill de TVC
+
+**Contexto**: Dos bugs distintos en el motor de backfill, ambos manifestados con TVC.
+
+### Bug A: walk-back infinito en historial vacío
+Cuando un job pide "todo" (120 meses) pero el cliente arrancó hace 4 años, el motor sigue caminando hacia atrás en ventanas de 7 días después de haber cargado todas las órdenes reales. Cada chunk camina 5 ventanas (35 días), lo que significa atravesar ~6 años de "vacío" toma ~63 chunks = ~63 minutos de procesamiento inútil.
+
+**Síntomas**: barra al 100% (DB count >= estimate) pero status = RUNNING durante ~30-60 min, "última actividad hace X min" sin avanzar nada.
+
+**Solución propuesta**: en `processVtexChunk`, si N ventanas consecutivas (ej: 4) devuelven 0 órdenes Y el dbCount ya alcanzó el totalEstimate (con margen 95%), marcar `isComplete: true`. Persistir un contador de "windows seguidas vacías" en el cursor para soportar múltiples chunks.
+
+### Bug B: race condition del runner (overshoot del processedCount)
+El runner tiene cooldown de 2 min en `pickNextJob`. Si un chunk tarda más de 2 min (común con enrichment + 500 órdenes), el siguiente cron tick arranca otro motor que pickea el MISMO job → ambos procesan en paralelo → upsert duplica el trabajo (DB queda bien por externalId, pero processedCount infla 30-50%).
+
+**Síntomas en TVC**: 33.985 órdenes únicas en DB pero processedCount llegó a 45.000+ (~30% overshoot).
+
+**Solución propuesta**: subir cooldown de 2 min a 5 min en `pickNextJob` (`src/lib/backfill/job-manager.ts:72`). Considerar también un advisory lock en Postgres (`pg_try_advisory_lock(jobId.hashCode())`) para evitar pisarse aunque el cooldown se quede corto.
+
+**Archivos a tocar**:
+- `src/lib/backfill/processors/vtex-processor.ts` — corte temprano por ventanas vacías
+- `src/lib/backfill/job-manager.ts` — cooldown 5 min + advisory lock opcional
+- `src/lib/backfill/processors/ml-processor.ts` — verificar si tiene el mismo bug
+
+**Mitigación temporal en S59**: botón "✓ Marcar completado" en `/control/onboardings/[id]` cuando dbCount ≥ 99% del estimate (commit fix de S59). Permite cerrar a mano si vuelve a pasar.
+
+**Esfuerzo estimado**: ~2 horas (1h corte temprano + 1h race condition)
+
+**Estado**: Tomy aprobó. A correr post-TVC junto con BP-S59-010.
 
 ---
 

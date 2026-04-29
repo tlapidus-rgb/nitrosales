@@ -1929,7 +1929,7 @@ function BackfillProgress({ onboardingId }: { onboardingId: string }) {
       {/* Per-platform */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {jobs.map((j: any) => (
-          <BackfillJobRow key={j.id} job={j} />
+          <BackfillJobRow key={j.id} job={j} onboardingId={onboardingId} onForceComplete={load} />
         ))}
       </div>
 
@@ -1949,7 +1949,7 @@ function BackfillProgress({ onboardingId }: { onboardingId: string }) {
   );
 }
 
-function BackfillJobRow({ job }: { job: any }) {
+function BackfillJobRow({ job, onboardingId, onForceComplete }: { job: any; onboardingId?: string; onForceComplete?: () => void }) {
   const colorByStatus: Record<string, string> = {
     QUEUED: "#71717A",
     RUNNING: BRAND_ORANGE,
@@ -2019,16 +2019,56 @@ function BackfillJobRow({ job }: { job: any }) {
         />
       </div>
       {(job.dbCount > 0 || job.processedCount > 0) && (
-        <div style={{ fontSize: 10, color: "#71717A", marginTop: 4 }}>
-          {Number(job.dbCount || 0).toLocaleString("es-AR")} en base
-          {job.totalEstimate && ` / ${job.totalEstimate.toLocaleString("es-AR")} estimadas`}
-          {job.status === "RUNNING" && job.secondsSinceLastChunk !== null && (
-            <span style={{ marginLeft: 8, color: job.looksStalled ? "#F87171" : "#52525B" }}>
-              · última actividad hace {job.secondsSinceLastChunk < 60
-                ? `${job.secondsSinceLastChunk}s`
-                : `${Math.round(job.secondsSinceLastChunk / 60)} min`}
-              {job.looksStalled && " (¿frenado?)"}
-            </span>
+        <div style={{ fontSize: 10, color: "#71717A", marginTop: 4, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <span>
+            {Number(job.dbCount || 0).toLocaleString("es-AR")} en base
+            {job.totalEstimate && ` / ${job.totalEstimate.toLocaleString("es-AR")} estimadas`}
+            {job.status === "RUNNING" && job.secondsSinceLastChunk !== null && (
+              <span style={{ marginLeft: 8, color: job.looksStalled ? "#F87171" : "#52525B" }}>
+                · última actividad hace {job.secondsSinceLastChunk < 60
+                  ? `${job.secondsSinceLastChunk}s`
+                  : `${Math.round(job.secondsSinceLastChunk / 60)} min`}
+                {job.looksStalled && " (¿frenado?)"}
+              </span>
+            )}
+          </span>
+          {/* Boton "marcar como completado" cuando ya cargo todo lo que estimaba */}
+          {job.status === "RUNNING"
+            && onboardingId
+            && onForceComplete
+            && job.totalEstimate
+            && job.dbCount >= job.totalEstimate * 0.99 && (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (!confirm(`Marcar el job ${job.platform} como completado? Ya tiene ${job.dbCount.toLocaleString("es-AR")} órdenes cargadas.`)) return;
+                try {
+                  const res = await fetch(`/api/admin/onboardings/${onboardingId}/force-complete-job`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ jobId: job.id }),
+                  });
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json.error || "Error");
+                  onForceComplete();
+                } catch (err: any) {
+                  alert("Error: " + err.message);
+                }
+              }}
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: "3px 8px",
+                background: "rgba(34,197,94,0.15)",
+                border: "1px solid rgba(34,197,94,0.4)",
+                color: "#86efac",
+                borderRadius: 5,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ✓ Marcar completado
+            </button>
           )}
         </div>
       )}
