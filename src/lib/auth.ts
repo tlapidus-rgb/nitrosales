@@ -3,6 +3,15 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { createHmac } from "crypto";
 import { prisma } from "@/lib/db/client";
+import { cookies } from "next/headers";
+
+// S59 BIS: lista de emails con poder de "View as Org" (override de
+// session.organizationId via cookie). Los demas users no pueden
+// usar esa cookie aunque la setean.
+const INTERNAL_VIEW_AS_EMAILS = new Set([
+  "tlapidus@99media.com.ar",
+]);
+const VIEW_AS_COOKIE = "nitro-view-org";
 
 // ─────────────────────────────────────────────────────────────
 // S59: Impersonate token verification (sync con /api/admin/impersonate)
@@ -198,6 +207,33 @@ export const authOptions: NextAuthOptions = {
         if (token.impersonatedBy) {
           (session.user as any).impersonatedBy = token.impersonatedBy;
           (session.user as any).impersonatorEmail = token.impersonatorEmail;
+        }
+
+        // S59 BIS: View as Org. Si user es internal Y hay cookie, override
+        // organizationId/Name. Nunca aplica si esta impersonando (la
+        // impersonate session ya hizo el switch de identidad).
+        const email = (session.user.email || "").toLowerCase();
+        const isInternal = INTERNAL_VIEW_AS_EMAILS.has(email);
+        if (isInternal && !token.impersonatedBy) {
+          try {
+            const c = await cookies();
+            const viewAsOrgId = c.get(VIEW_AS_COOKIE)?.value;
+            if (viewAsOrgId && viewAsOrgId !== token.organizationId) {
+              const org = await prisma.organization.findUnique({
+                where: { id: viewAsOrgId },
+                select: { id: true, name: true },
+              });
+              if (org) {
+                (session.user as any).realOrganizationId = token.organizationId;
+                (session.user as any).realOrganizationName = token.organizationName;
+                (session.user as any).organizationId = org.id;
+                (session.user as any).organizationName = org.name;
+                (session.user as any).viewingAsOrg = true;
+              }
+            }
+          } catch {
+            // silent — no romper la sesion si falla la cookie
+          }
         }
       }
       return session;

@@ -13,6 +13,7 @@ import { PixelInstallBanner } from "@/components/PixelInstallBanner";
 import { AdsAuthBanner } from "@/components/AdsAuthBanner";
 import { AutoSectionGuard } from "@/components/AutoSectionGuard";
 import { ImpersonateBanner } from "@/components/ImpersonateBanner";
+import { ViewAsOrgBanner } from "@/components/ViewAsOrgBanner";
 import OnboardingGate from "@/components/OnboardingGate";
 
 type NavItem = {
@@ -1394,6 +1395,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               }
             >
               <ImpersonateBanner />
+              <ViewAsOrgBanner />
               <PixelInstallBanner />
               <AdsAuthBanner />
               <PathnameGuard pathname={pathname}>

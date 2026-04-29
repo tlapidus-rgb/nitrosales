@@ -547,35 +547,26 @@ function DetailDrawer({
   };
 
   const enterAsClient = async () => {
+    // S59 BIS: ya no impersonamos al user — usamos "View as Org" que mantiene
+    // tu identidad admin pero overridea el organizationId de tu sesion.
     if (!detail?.createdOrgId) {
       setErrorMsg("Este onboarding no tiene org creada todavía");
       return;
     }
     try {
-      const res = await fetch("/api/admin/impersonate", {
+      const res = await fetch("/api/admin/view-as-org", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orgId: detail.createdOrgId }),
       });
       const json = await res.json();
       if (!res.ok) {
-        setErrorMsg(json.error || "Error generando link de impersonate");
+        setErrorMsg(json.error || "Error activando view-as-org");
         return;
       }
-      // Mostrar quien es el target ANTES de navegar — si esta mal,
-      // el admin puede cancelar y avisar.
-      const target = json.target || {};
-      const orgFromDetail = detail.companyName || "(sin nombre)";
-      if (!confirm(
-        `Vas a entrar como cliente (modo solo lectura).\n\n` +
-        `Empresa esperada: ${orgFromDetail}\n` +
-        `Usuario target: ${target.name || "?"} (${target.email || "?"})\n` +
-        `Org ID: ${detail.createdOrgId}\n\n` +
-        `Si el usuario no corresponde a la empresa esperada, CANCELÁ y avisame.\n\n` +
-        `Para volver como admin: cerrá sesión desde el banner amarillo y volvé a loguear.\n\n` +
-        `¿Continuar?`
-      )) return;
-      window.location.href = json.url;
+      // Forzar full reload — el session callback va a leer la cookie nueva
+      // y mostrar la data de esa org. Banner azul aparece arriba.
+      window.location.href = "/";
     } catch (err: any) {
       setErrorMsg(err.message);
     }
@@ -924,7 +915,7 @@ function DetailDrawer({
                       ✓ Backfill completado · Listo para revisar
                     </div>
                     <div style={{ fontSize: 13, color: "#A1A1AA", lineHeight: 1.6 }}>
-                      La data ya está cargada. Antes de habilitar al cliente, entrá como él (modo solo lectura) y validá que todo se ve bien.
+                      La data ya está cargada. Antes de habilitar al cliente, mirá su data como admin y validá que todo se ve bien.
                     </div>
                   </div>
 
@@ -947,7 +938,7 @@ function DetailDrawer({
                         gap: 8,
                       }}
                     >
-                      👁 Entrar como cliente (read-only)
+                      👁 Ver data como admin
                     </button>
 
                     <button
