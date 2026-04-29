@@ -27,16 +27,23 @@ export async function GET(
 
     // Conteo real de orders unicas en DB por plataforma — mas honesto que
     // el processedCount que infla con reprocesos del runner.
+    // NOTA: orders.source es String, no enum. Y ML guarda como "MELI",
+    // mientras que el platform del job es "MERCADOLIBRE".
+    const platformToSource: Record<string, string> = {
+      VTEX: "VTEX",
+      MERCADOLIBRE: "MELI",
+    };
     const dbCounts: Record<string, number> = {};
     const orgId = jobs[0]?.organizationId;
     if (orgId) {
       const platforms = Array.from(new Set(jobs.map((j: any) => j.platform)));
       for (const p of platforms) {
+        const sourceValue = platformToSource[p] || p;
         try {
           const rows = await prisma.$queryRawUnsafe<Array<any>>(
-            `SELECT COUNT(*)::int as n FROM "orders" WHERE "organizationId" = $1 AND "source" = $2::"OrderSource"`,
+            `SELECT COUNT(*)::int as n FROM "orders" WHERE "organizationId" = $1 AND "source" = $2`,
             orgId,
-            p,
+            sourceValue,
           );
           dbCounts[p] = Number(rows[0]?.n || 0);
         } catch {
