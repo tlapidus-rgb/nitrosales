@@ -562,8 +562,15 @@ function DetailDrawer({
         setErrorMsg(json.error || "Error generando link de impersonate");
         return;
       }
-      // Abrir en pestaña nueva
-      window.open(json.url, "_blank", "noopener,noreferrer");
+      // Navegar en la misma pestana — evita popup blockers.
+      // Para volver al admin: cerrar sesion y loguear de nuevo.
+      if (!confirm(
+        `Vas a entrar como cliente (modo solo lectura).\n\n` +
+        `La pestaña actual va a cargar la vista del cliente.\n` +
+        `Para volver como admin: cerrá sesión desde el banner amarillo y volvé a loguear.\n\n` +
+        `¿Continuar?`
+      )) return;
+      window.location.href = json.url;
     } catch (err: any) {
       setErrorMsg(err.message);
     }
