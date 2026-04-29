@@ -8,7 +8,33 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-28 (extendida tarde/noche) — Sesión 59. Activación manual del cliente + Impersonate read-only + Cancelar/resetear backfill. 8 BPs RESUELTOS en S59 total.
+> **Última actualización**: 2026-04-29 — Onboarding TVC en proceso. BP-S59-008 nuevo: estimado total + barra de progreso para backfill ML.
+
+---
+
+## 🟡 BP-S59-008 — Estimado total + barra de progreso para backfill ML
+
+**Entró**: 2026-04-29 (S59), durante backfill de TVC
+
+**Contexto**: el processor de MercadoLibre usa pagination por ventanas de 7 días con offset hasta 1000 por ventana. La API `/orders/search` no devuelve un total global pre-calculado. Por eso, la UI del onboarding muestra para ML solo "X procesadas" sin un denominador, y la barra de progreso no avanza hasta saltar a 100% al completar.
+
+**Comportamiento actual**:
+- VTEX: "967 / 33.984 estimadas · 3%" — barra avanza correctamente.
+- ML: "454 procesadas" sin total — barra inmóvil hasta 100% final.
+
+**Solución a implementar**:
+- Antes de arrancar el ML processor, hacer una llamada de "discovery" que estime el total (ej: pegarle a `/orders/search?seller=X&limit=1` por cada ventana de 7 días dentro del rango histórico, sumar los `paging.total` de cada ventana).
+- Costo: 1 request por semana de rango (12 meses = ~52 requests). Se hace una sola vez al arrancar.
+- Persistir el `totalEstimate` en el `backfill_job` antes del primer chunk → la UI ya tiene la información para mostrar % real.
+- Si el estimado falla o es impreciso, fallback a comportamiento actual (sin total).
+
+**Archivos a tocar**:
+- `src/lib/backfill/processors/ml-processor.ts` — agregar función `estimateMlTotal()` antes del primer chunk
+- (opcional) `src/lib/backfill/job-manager.ts` si hay que extender el shape
+
+**Esfuerzo estimado**: ~1.5 horas
+
+**Por qué queda pendiente**: no es bloqueante. El backfill funciona igual, solo es UX del progreso. Tomy lo prefiere como mejora para próxima iteración (no para TVC).
 
 ---
 
