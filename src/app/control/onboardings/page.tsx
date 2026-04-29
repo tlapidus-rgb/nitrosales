@@ -562,11 +562,16 @@ function DetailDrawer({
         setErrorMsg(json.error || "Error generando link de impersonate");
         return;
       }
-      // Navegar en la misma pestana — evita popup blockers.
-      // Para volver al admin: cerrar sesion y loguear de nuevo.
+      // Mostrar quien es el target ANTES de navegar — si esta mal,
+      // el admin puede cancelar y avisar.
+      const target = json.target || {};
+      const orgFromDetail = detail.companyName || "(sin nombre)";
       if (!confirm(
         `Vas a entrar como cliente (modo solo lectura).\n\n` +
-        `La pestaña actual va a cargar la vista del cliente.\n` +
+        `Empresa esperada: ${orgFromDetail}\n` +
+        `Usuario target: ${target.name || "?"} (${target.email || "?"})\n` +
+        `Org ID: ${detail.createdOrgId}\n\n` +
+        `Si el usuario no corresponde a la empresa esperada, CANCELÁ y avisame.\n\n` +
         `Para volver como admin: cerrá sesión desde el banner amarillo y volvé a loguear.\n\n` +
         `¿Continuar?`
       )) return;
