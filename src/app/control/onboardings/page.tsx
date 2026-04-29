@@ -1943,7 +1943,7 @@ function BackfillProgress({ onboardingId }: { onboardingId: string }) {
           textAlign: "center",
         }}
       >
-        El email de activación se envía automáticamente cuando todos los jobs terminen.
+        Cuando todos los jobs terminen, el onboarding pasa a "Listo para revisar". Vos tenés que validar la cuenta (impersonate) y hacer click "Habilitar cliente" para que el cliente reciba el email y pueda entrar al producto.
       </div>
     </div>
   );
