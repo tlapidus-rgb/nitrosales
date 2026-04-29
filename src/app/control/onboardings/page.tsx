@@ -413,6 +413,9 @@ function DetailDrawer({
   const [approvingBackfill, setApprovingBackfill] = useState(false);
   const [activatingClient, setActivatingClient] = useState(false);
   const [resetting, setResetting] = useState<"none" | "soft" | "wipe">("none");
+  const [showBackfillModal, setShowBackfillModal] = useState(false);
+  const [bfPlatforms, setBfPlatforms] = useState<Record<string, boolean>>({});
+  const [addingPlatform, setAddingPlatform] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // F1.3 — Test de credenciales del lado admin
@@ -589,20 +592,42 @@ function DetailDrawer({
     }
   };
 
+  // S59: abre modal con checkboxes de plataformas conectadas
+  const openBackfillModal = () => {
+    const initial: Record<string, boolean> = {};
+    const conns = detail?.connections || [];
+    for (const c of conns) {
+      // Solo VTEX y ML son backfilleables hoy. Marcamos todas tildadas por default.
+      if (c.platform === "VTEX" || c.platform === "MERCADOLIBRE") {
+        initial[c.platform] = true;
+      }
+    }
+    setBfPlatforms(initial);
+    setShowBackfillModal(true);
+  };
+
   const approveBackfill = async () => {
-    if (!confirm(`¿Aprobar el backfill para ${detail.companyName}?\n\nVa a arrancar a procesar la data histórica de VTEX y MercadoLibre. Recibís email cuando termine.`)) return;
+    const selected = Object.entries(bfPlatforms).filter(([_, v]) => v).map(([k]) => k);
+    if (selected.length === 0) {
+      setErrorMsg("Tenés que seleccionar al menos 1 plataforma");
+      return;
+    }
     setApprovingBackfill(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`/api/admin/onboardings/${id}/approve-backfill`, { method: "POST" });
+      const res = await fetch(`/api/admin/onboardings/${id}/approve-backfill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platforms: selected }),
+      });
       const json = await res.json();
       if (!res.ok) {
         setErrorMsg(json.error || "Error");
         setApprovingBackfill(false);
         return;
       }
+      setShowBackfillModal(false);
       onRefresh();
-      // Releer detail para que muestre estado BACKFILLING
       const detailRes = await fetch(`/api/admin/onboardings/${id}`);
       const detailJson = await detailRes.json();
       if (detailRes.ok) setDetail(detailJson.request);
@@ -610,6 +635,33 @@ function DetailDrawer({
       setErrorMsg(err.message);
     } finally {
       setApprovingBackfill(false);
+    }
+  };
+
+  const addBackfillPlatform = async (platform: string) => {
+    if (!confirm(`Agregar backfill de ${platform} para ${detail.companyName}?\n\nVa a procesar la data historica de esa plataforma sin tocar lo ya cargado.`)) return;
+    setAddingPlatform(platform);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/admin/onboardings/${id}/add-backfill-platform`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setErrorMsg(json.error || "Error");
+        return;
+      }
+      onRefresh();
+      const detailRes = await fetch(`/api/admin/onboardings/${id}`);
+      const detailJson = await detailRes.json();
+      if (detailRes.ok) setDetail(detailJson.request);
+      alert(`Backfill ${platform} agregado: ${json.monthsBack} meses.`);
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setAddingPlatform(null);
     }
   };
 
@@ -952,7 +1004,7 @@ function DetailDrawer({
                   />
 
                   <button
-                    onClick={approveBackfill}
+                    onClick={openBackfillModal}
                     disabled={approvingBackfill}
                     style={{
                       width: "100%",
@@ -974,6 +1026,94 @@ function DetailDrawer({
                     <CheckCircle2 size={14} />
                     {approvingBackfill ? "Aprobando…" : "Aprobar backfill (paso 2)"}
                   </button>
+                </div>
+              )}
+
+              {/* S59: Modal de seleccion de plataformas para backfill */}
+              {showBackfillModal && (
+                <div
+                  onClick={() => !approvingBackfill && setShowBackfillModal(false)}
+                  style={{
+                    position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+                    backdropFilter: "blur(4px)", display: "flex", alignItems: "center",
+                    justifyContent: "center", zIndex: 9999,
+                  }}
+                >
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      background: "#0F0F11", border: "1px solid #1F1F23",
+                      borderRadius: 14, padding: 28, maxWidth: 460, width: "92%",
+                    }}
+                  >
+                    <h3 style={{ fontSize: 17, fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>
+                      Aprobar backfill — {detail.companyName}
+                    </h3>
+                    <p style={{ fontSize: 12, color: "#A1A1AA", margin: "0 0 20px", lineHeight: 1.5 }}>
+                      Elegí qué plataformas backfillear ahora. Las no seleccionadas se pueden agregar después desde "Operaciones avanzadas".
+                    </p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
+                      {(detail.connections || [])
+                        .filter((c: any) => c.platform === "VTEX" || c.platform === "MERCADOLIBRE")
+                        .map((c: any) => {
+                          const months = c.platform === "VTEX" ? detail.historyVtexMonths : detail.historyMlMonths;
+                          return (
+                            <label
+                              key={c.platform}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 12,
+                                padding: "12px 14px",
+                                background: bfPlatforms[c.platform] ? "rgba(255,94,26,0.08)" : "rgba(255,255,255,0.02)",
+                                border: `1px solid ${bfPlatforms[c.platform] ? "rgba(255,94,26,0.3)" : "#1F1F23"}`,
+                                borderRadius: 8, cursor: "pointer",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!!bfPlatforms[c.platform]}
+                                onChange={(e) => setBfPlatforms((p) => ({ ...p, [c.platform]: e.target.checked }))}
+                                style={{ width: 16, height: 16, cursor: "pointer" }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
+                                  {c.platform === "VTEX" ? "VTEX" : "MercadoLibre"}
+                                </div>
+                                <div style={{ fontSize: 11, color: "#71717A", marginTop: 2 }}>
+                                  {months} meses históricos · {c.status === "ACTIVE" ? "Conexión activa" : "Pendiente"}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                    </div>
+
+                    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                      <button
+                        onClick={() => setShowBackfillModal(false)}
+                        disabled={approvingBackfill}
+                        style={{
+                          padding: "9px 16px", background: "transparent", color: "#A1A1AA",
+                          border: "1px solid #27272A", borderRadius: 8,
+                          fontSize: 12, fontWeight: 600, cursor: "pointer",
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={approveBackfill}
+                        disabled={approvingBackfill || Object.values(bfPlatforms).every((v) => !v)}
+                        style={{
+                          padding: "9px 18px",
+                          background: approvingBackfill ? "#27272A" : `linear-gradient(135deg, ${BRAND_ORANGE}, #FF8C4A)`,
+                          color: "#fff", border: "none", borderRadius: 8,
+                          fontSize: 12, fontWeight: 700, cursor: approvingBackfill ? "wait" : "pointer",
+                        }}
+                      >
+                        {approvingBackfill ? "Aprobando…" : `Aprobar ${Object.values(bfPlatforms).filter(Boolean).length} plataforma${Object.values(bfPlatforms).filter(Boolean).length === 1 ? "" : "s"}`}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1020,6 +1160,34 @@ function DetailDrawer({
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {/* S59: Agregar backfill de plataforma adicional */}
+                    {(detail.connections || [])
+                      .filter((c: any) => (c.platform === "VTEX" || c.platform === "MERCADOLIBRE") && c.status === "ACTIVE")
+                      .map((c: any) => (
+                        <button
+                          key={`add-${c.platform}`}
+                          onClick={() => addBackfillPlatform(c.platform)}
+                          disabled={addingPlatform !== null}
+                          style={{
+                            width: "100%",
+                            padding: "10px 14px",
+                            background: "transparent",
+                            color: "#60A5FA",
+                            border: "1px solid rgba(96,165,250,0.4)",
+                            borderRadius: 8,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: addingPlatform !== null ? "wait" : "pointer",
+                            textAlign: "left",
+                          }}
+                        >
+                          ➕ Backfillear {c.platform === "VTEX" ? "VTEX" : "MercadoLibre"} (extra)
+                          <div style={{ fontSize: 10, color: "#A1A1AA", fontWeight: 400, marginTop: 2 }}>
+                            Crea un job adicional para procesar la data histórica de esta plataforma. No toca lo ya cargado.
+                          </div>
+                        </button>
+                      ))}
+
                     {/* Reset suave */}
                     <button
                       onClick={() => resetBackfill("soft")}

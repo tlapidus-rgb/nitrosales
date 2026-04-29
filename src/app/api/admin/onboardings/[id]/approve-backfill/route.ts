@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 const BACKFILL_RUNNER_KEY = "nitrosales-secret-key-2024-production";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -32,6 +32,17 @@ export async function POST(
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id } = await params;
+
+    // S59: body opcional con { platforms: ["VTEX", "MERCADOLIBRE", ...] }
+    // Si no viene → comportamiento actual (todas las plataformas con creds).
+    // Si viene → solo crea jobs para las plataformas listadas.
+    let selectedPlatforms: Set<string> | null = null;
+    try {
+      const body = await req.json().catch(() => ({}));
+      if (Array.isArray(body?.platforms) && body.platforms.length > 0) {
+        selectedPlatforms = new Set(body.platforms.map((p: string) => p.toUpperCase()));
+      }
+    } catch {}
 
     const rows = await prisma.$queryRawUnsafe<Array<any>>(
       `SELECT * FROM "onboarding_requests" WHERE "id" = $1 LIMIT 1`,
@@ -95,7 +106,8 @@ export async function POST(
 
     const vtexConn = connections.find((c) => c.platform === "VTEX");
     const vtexMonths = Number(ob.historyVtexMonths) || 0;
-    if (vtexConn && vtexMonths > 0) {
+    const includeVtex = !selectedPlatforms || selectedPlatforms.has("VTEX");
+    if (vtexConn && vtexMonths > 0 && includeVtex) {
       // Verificar que no haya un job activo
       const existing = await prisma.$queryRawUnsafe<Array<any>>(
         `SELECT "id" FROM "backfill_jobs"
@@ -116,7 +128,8 @@ export async function POST(
 
     const mlConn = connections.find((c) => c.platform === "MERCADOLIBRE");
     const mlMonths = Number(ob.historyMlMonths) || 0;
-    if (mlConn && mlMonths > 0) {
+    const includeMl = !selectedPlatforms || selectedPlatforms.has("MERCADOLIBRE");
+    if (mlConn && mlMonths > 0 && includeMl) {
       const existing = await prisma.$queryRawUnsafe<Array<any>>(
         `SELECT "id" FROM "backfill_jobs"
          WHERE "organizationId" = $1 AND "platform" = 'MERCADOLIBRE'
@@ -175,7 +188,8 @@ export async function POST(
 
     // Bootstrap de ML: listings + reputation + questions (multi-tenant safe).
     // Orders NO acá, las trae el backfill v2. Corre en paralelo al runner.
-    if (mlConn && (mlConn.credentials as any)?.accessToken) {
+    // S59: solo si ML estaba en la seleccion (o si no hay seleccion = todas).
+    if (mlConn && (mlConn.credentials as any)?.accessToken && includeMl) {
       const bootUrl =
         `${baseUrl}/api/sync/mercadolibre/bootstrap` +
         `?orgId=${encodeURIComponent(ob.createdOrgId)}&key=${encodeURIComponent(BACKFILL_RUNNER_KEY)}`;
