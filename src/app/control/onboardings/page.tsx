@@ -2018,10 +2018,18 @@ function BackfillJobRow({ job }: { job: any }) {
           }}
         />
       </div>
-      {job.processedCount > 0 && (
+      {(job.dbCount > 0 || job.processedCount > 0) && (
         <div style={{ fontSize: 10, color: "#71717A", marginTop: 4 }}>
-          {job.processedCount.toLocaleString("es-AR")} procesadas
+          {Number(job.dbCount || 0).toLocaleString("es-AR")} en base
           {job.totalEstimate && ` / ${job.totalEstimate.toLocaleString("es-AR")} estimadas`}
+          {job.status === "RUNNING" && job.secondsSinceLastChunk !== null && (
+            <span style={{ marginLeft: 8, color: job.looksStalled ? "#F87171" : "#52525B" }}>
+              · última actividad hace {job.secondsSinceLastChunk < 60
+                ? `${job.secondsSinceLastChunk}s`
+                : `${Math.round(job.secondsSinceLastChunk / 60)} min`}
+              {job.looksStalled && " (¿frenado?)"}
+            </span>
+          )}
         </div>
       )}
       {job.lastError && (

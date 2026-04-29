@@ -25,20 +25,56 @@ export async function GET(
 
     const jobs = await getJobsByOnboarding(id);
 
-    const mapped = jobs.map((j: any) => ({
-      id: j.id,
-      platform: j.platform,
-      status: j.status,
-      monthsRequested: Number(j.monthsRequested),
-      processedCount: Number(j.processedCount || 0),
-      totalEstimate: j.totalEstimate ? Number(j.totalEstimate) : null,
-      progressPct: Number(j.progressPct || 0),
-      lastError: j.lastError,
-      startedAt: j.startedAt ? new Date(j.startedAt).toISOString() : null,
-      completedAt: j.completedAt ? new Date(j.completedAt).toISOString() : null,
-      lastChunkAt: j.lastChunkAt ? new Date(j.lastChunkAt).toISOString() : null,
-      createdAt: new Date(j.createdAt).toISOString(),
-    }));
+    // Conteo real de orders unicas en DB por plataforma — mas honesto que
+    // el processedCount que infla con reprocesos del runner.
+    const dbCounts: Record<string, number> = {};
+    const orgId = jobs[0]?.organizationId;
+    if (orgId) {
+      const platforms = Array.from(new Set(jobs.map((j: any) => j.platform)));
+      for (const p of platforms) {
+        try {
+          const rows = await prisma.$queryRawUnsafe<Array<any>>(
+            `SELECT COUNT(*)::int as n FROM "orders" WHERE "organizationId" = $1 AND "source" = $2::"OrderSource"`,
+            orgId,
+            p,
+          );
+          dbCounts[p] = Number(rows[0]?.n || 0);
+        } catch {
+          dbCounts[p] = 0;
+        }
+      }
+    }
+
+    const now = Date.now();
+    const mapped = jobs.map((j: any) => {
+      const dbCount = dbCounts[j.platform] || 0;
+      const lastChunkMs = j.lastChunkAt ? new Date(j.lastChunkAt).getTime() : null;
+      const secondsSinceLastChunk = lastChunkMs ? Math.round((now - lastChunkMs) / 1000) : null;
+      // % "honesto" basado en DB real / estimate
+      const totalEst = j.totalEstimate ? Number(j.totalEstimate) : 0;
+      const honestPct = j.status === "COMPLETED"
+        ? 100
+        : (totalEst > 0 ? Math.min(100, Math.round((dbCount / totalEst) * 100)) : Number(j.progressPct || 0));
+      return {
+        id: j.id,
+        platform: j.platform,
+        status: j.status,
+        monthsRequested: Number(j.monthsRequested),
+        processedCount: Number(j.processedCount || 0),
+        dbCount,
+        totalEstimate: j.totalEstimate ? Number(j.totalEstimate) : null,
+        progressPct: honestPct,
+        rawProgressPct: Number(j.progressPct || 0),
+        lastError: j.lastError,
+        startedAt: j.startedAt ? new Date(j.startedAt).toISOString() : null,
+        completedAt: j.completedAt ? new Date(j.completedAt).toISOString() : null,
+        lastChunkAt: j.lastChunkAt ? new Date(j.lastChunkAt).toISOString() : null,
+        secondsSinceLastChunk,
+        // Si es RUNNING y hace >3 min sin chunk, lo flageamos como sospechoso de frenado.
+        looksStalled: j.status === "RUNNING" && secondsSinceLastChunk !== null && secondsSinceLastChunk > 180,
+        createdAt: new Date(j.createdAt).toISOString(),
+      };
+    });
 
     const completed = mapped.filter((j) => j.status === "COMPLETED").length;
     const running = mapped.filter((j) => j.status === "RUNNING").length;
