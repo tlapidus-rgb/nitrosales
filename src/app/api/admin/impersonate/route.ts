@@ -38,10 +38,23 @@ export async function POST(req: NextRequest) {
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const session = await getServerSession(authOptions as any);
-    const impersonatorUserId = (session as any)?.user?.id;
+    let impersonatorUserId = (session as any)?.user?.id;
     const impersonatorEmail = (session as any)?.user?.email;
+    // Fallback: si la sesion no tiene id (puede pasar con builds stale o
+    // sesiones viejas), buscamos por email. isInternalUser ya valido que
+    // hay sesion con email autorizado.
+    if (!impersonatorUserId && impersonatorEmail) {
+      const u = await prisma.user.findUnique({
+        where: { email: impersonatorEmail },
+        select: { id: true },
+      });
+      impersonatorUserId = u?.id;
+    }
     if (!impersonatorUserId) {
-      return NextResponse.json({ error: "No hay sesion admin" }, { status: 401 });
+      return NextResponse.json({
+        error: "No hay sesion admin",
+        debug: { hasSession: !!session, hasEmail: !!impersonatorEmail },
+      }, { status: 401 });
     }
 
     const body = await req.json().catch(() => ({}));
