@@ -14,7 +14,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { useEffect, useState, Suspense } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -31,6 +31,11 @@ function ImpersonateContent() {
     }
     (async () => {
       try {
+        // CRITICO: cerrar la sesion admin actual primero. Sin esto, NextAuth
+        // mantiene la JWT del admin (EMDJ) y no la reemplaza con la del
+        // target user (TVC). Resultado: el admin termina viendo su propia
+        // org en vez de la del cliente.
+        await signOut({ redirect: false });
         const result = await signIn("impersonate", {
           token,
           redirect: false,
@@ -39,8 +44,9 @@ function ImpersonateContent() {
           setError(result.error);
           return;
         }
-        // Login OK → redirect al producto
-        router.push("/");
+        // Login OK → forzar full reload para que el JWT nuevo se aplique
+        // a TODA la app (server components incluidos).
+        window.location.href = "/";
       } catch (e: any) {
         setError(e?.message || "Error desconocido");
       }
