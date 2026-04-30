@@ -8,7 +8,136 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-29 — BP-S59-009 nuevo: backfill VTEX corte automatico cuando ya no hay ventas + race condition del runner. BP-S59-010 nuevo: corregir emails enmascarados de VTEX en backfill+enrichment.
+> **Última actualización**: 2026-04-30 mediodia — Sesion 60. Bug afiliado VTEX detectado y resuelto manualmente para TVC. 4 entradas nuevas BP-S60-001 a BP-S60-004.
+
+---
+
+## 🔴 BP-S60-001 — Verificar atribucion end-to-end TVC con primera orden web real (URGENTE — destraba activacion)
+
+**Entró**: 2026-04-30 (S60), post-resolucion manual del afiliado VTEX
+
+**Contexto**: Leandro de TVC creo el afiliado "NitroSales (NSL)" en su VTEX a las 12:10 hs del 30/04. La URL del endpoint responde, el pixel funciona, otros webhooks VTEX llegan. Pero hasta que entre una orden web real, no podemos confirmar end-to-end que el webhook de orders esta llegando y atribuyendo. TVC tuvo 0 ordenes web el 30/04 hasta el momento de cierre de sesion.
+
+**Que hay que hacer**:
+1. Cuando TVC tenga su primera orden web post-12:10 hs del 30/04, mirar logs Vercel buscando `[Webhook:Orders] Received: <orderId>` para esa orden.
+2. Correr `https://app.nitrosales.ai/api/admin/debug-orders-attribution-detail?orgId=cmod6ns420047dlnth544px9c&date=YYYY-MM-DD&key=nitrosales-secret-key-2024-production` con la fecha de la orden y verificar que aparece como ATRIBUIDO.
+3. Si despues de 2-3 ordenes seguidas no llega POST al endpoint, revisar que Leandro haya pegado la URL exacta sin typos (pedirle screenshot del afiliado guardado).
+
+**Bloquea**: BP-S60-005 (activacion de TVC).
+
+**Esfuerzo**: 5 minutos cuando entre la primera orden.
+
+**Estado**: Esperando trafico real.
+
+---
+
+## 🔴 BP-S60-002 — Implementar paso del afiliado VTEX en el wizard de onboarding (Tipo A — fix multi-tenant CRITICO)
+
+**Entró**: 2026-04-30 (S60), causa raiz del bug TVC
+
+**Contexto**: el wizard de NitroSales NO automatiza la creacion del afiliado en VTEX (verificado por grep en codigo: cero referencias a `/api/orders/hook/config` ni a Afiliados). Para EMDJ se hizo manual en S53, para TVC se olvido y rompio atribucion. **Para Arredo y los proximos clientes va a romper igual hasta que se arregle.**
+
+**Solucion (Tipo A, perdura)**: agregar un sub-paso dentro del step VTEX del wizard que:
+
+1. Muestre la captura blurreada de la pantalla de Afiliados de VTEX (Tomy ya tiene la captura blurreada lista — guardarla en `/public/onboarding/vtex-afiliado.png` o similar).
+2. Genere automaticamente la URL del endpoint con la `key` (env `NEXTAUTH_SECRET`) + `org` (de la sesion del cliente) lista para copiar:
+   ```
+   https://app.nitrosales.ai/api/webhooks/vtex/orders?key=<NEXTAUTH_SECRET>&org=<orgId>
+   ```
+3. Boton "Copiar URL".
+4. Liste los valores para cada campo de la pantalla VTEX:
+   - Nombre: NitroSales
+   - ID: NSL (o NSL2, NSL3 si tiene multiples politicas)
+   - Politica comercial: pedirle al cliente que confirme cual es la de su web propia (ofrecer pregunta tipo "¿que politica comercial usa tu web propia?"). Aclarar que las politicas de marketplaces externos (Frávega, Banco Provincia, etc.) NO necesitan afiliado.
+   - Email para notificaciones: webhooks@nitrosales.ai
+   - Endpoint de busca: la URL generada
+   - Version del endpoint: 1.x.x
+   - "Utilizar mi medio de pago": SIN tildar
+5. Marcarlo como **paso obligatorio** para terminar el onboarding (no se puede continuar sin marcar "ya lo configure").
+6. **Bonus**: agregar al test de credenciales VTEX una verificacion empirica del afiliado. Idea: hacer un GET a `/api/orders/hook/config` con auth de la app key del cliente para ver si VTEX expone la lista de afiliados y confirmar que "NitroSales" esta. Si VTEX no expone ese GET, dejar como verificacion manual.
+
+**Archivos a tocar**:
+- `src/app/(app)/wizard/...` (paso VTEX) — agregar sub-step
+- `src/app/api/me/wizard/vtex/...` (si existe) o nuevo `/api/me/vtex-affiliate-info` — endpoint que retorna la URL armada server-side (NO exponer NEXTAUTH_SECRET en client)
+- `public/onboarding/vtex-afiliado.png` — captura blurreada que ya tiene Tomy
+- `src/lib/onboarding/credential-tests.ts` — opcional: agregar test de afiliado configurado
+
+**Esfuerzo estimado**: ~2 horas (1h UI, 1h endpoint backend + integrar con wizard).
+
+**Estado**: Aprobado por Tomy. A correr post-verificacion BP-S60-001.
+
+---
+
+## 🟠 BP-S60-003 — Reparar atribucion historica TVC (Tipo B — one-shot)
+
+**Entró**: 2026-04-30 (S60)
+
+**Contexto**: TVC tiene 33,985 ordenes VTEX traidas por backfill (S59 EXT2) sin atribucion en `pixel_attributions`. Tambien las 8 del 29/04 + las que entren antes de tener el webhook conectado. Como ahora el afiliado VTEX esta activo, las **futuras** ordenes se atribuiran automaticamente, pero **las pasadas no** — quedan vacias en el dashboard.
+
+**Solucion (Tipo B, one-shot)**: endpoint admin nuevo `/api/admin/onboardings/[id]/replay-attribution` que:
+
+1. Toma todas las ordenes web de la org (excluyendo MELI, FVG-, BPR-, channel=marketplace, trafficSource=Marketplace).
+2. Para cada orden, intenta correr la misma logica de atribucion del webhook (las 6 estrategias en orden):
+   - client-side PURCHASE event matching
+   - email-checkout heuristic
+   - email match
+   - phone match
+   - IP+UA fingerprint
+   - recent activity
+3. Si alguna estrategia matchea, llama `calculateAttribution(orderId, visitorId, orgId)`.
+4. Idempotente: si ya hay attribution row, skip.
+5. Limita procesamiento a ~500 ordenes por chunk con cursor para no timeout.
+
+**Archivos a crear/tocar**:
+- `src/app/api/admin/onboardings/[id]/replay-attribution/route.ts` — endpoint admin
+- Refactor recomendado: extraer logica de las 6 estrategias del webhook (`src/app/api/webhooks/vtex/orders/route.ts` lineas 437-680) a `src/lib/pixel/attribution-strategies.ts` para usarlo desde el webhook Y desde el endpoint replay.
+
+**Esfuerzo estimado**: ~2 horas (1.5h refactor + 0.5h endpoint).
+
+**Estado**: Aprobado. A correr post-BP-S60-002.
+
+---
+
+## 🟢 BP-S60-004 — Configurar alias webhooks@nitrosales.ai (operativo, no codigo)
+
+**Entró**: 2026-04-30 (S60)
+
+**Contexto**: en la pantalla de Afiliados VTEX se carga un email para que VTEX avise si el webhook se rompe. Para no exponer `tlapidus@99media.com.ar` al cliente, se decidio usar `webhooks@nitrosales.ai` (dominio comprado en Hostinger, S59) que reenvia a `tlapidus@99media.com.ar`.
+
+**No bloquea** TVC: el email solo se usa para notificaciones de errores. VTEX igual acepta cargarlo aunque el alias todavia no exista. Cuando se cree el alias, los emails que VTEX haya mandado al "limbo" hasta ese momento se pierden, pero los siguientes empiezan a llegar.
+
+**Solucion (operativa, Tomy lo hace, NO requiere codigo)**:
+1. Crear cuenta en improvmx.com (gratis).
+2. Agregar dominio `nitrosales.ai`.
+3. Crear alias `webhooks` → `tlapidus@99media.com.ar`.
+4. Copiar los 2 MX records que da ImprovMX.
+5. Entrar a Hostinger → DNS Zone Editor de `nitrosales.ai`.
+6. Verificar que NO hay MX previos (si hay, parar y avisar a Claude — puede pisar emails existentes).
+7. Agregar 2 records MX (`mx1.improvmx.com` priority 10, `mx2.improvmx.com` priority 20).
+8. Esperar 5-30 min de propagacion.
+9. Probar: mandar email desde Gmail a `webhooks@nitrosales.ai` y ver si llega a `tlapidus@99media.com.ar`.
+
+**Esfuerzo**: 10 minutos.
+
+**Estado**: Pendiente. Tomy lo hace cuando pueda. No bloquea nada.
+
+---
+
+## 🟡 BP-S60-005 — Activar TVC (click "Habilitar cliente")
+
+**Entró**: 2026-04-30 (S60)
+
+**Contexto**: TVC sigue en `READY_FOR_REVIEW`. Falta darle click a "Habilitar cliente" en `/control/onboardings/eb283d21-b45d-4ccd-8caa-7db29309044d`. El click manda email "tu plataforma esta lista" a Leandro y le habilita el acceso al producto.
+
+**Pre-requisitos**:
+- ✅ BP-S60-001 confirmado (webhook llegando OK con orden real)
+- ✅ BP-S60-003 corrido (atribucion historica reparada)
+- (opcional) BP-S60-002 implementado para evitar que pase con Arredo
+- (opcional) BP-S60-004 configurado para que las notificaciones VTEX queden en alias prolijo
+
+**Esfuerzo**: 1 click + 5 min de QA visual con view-as-org antes.
+
+**Estado**: Esperando pre-requisitos.
 
 ---
 

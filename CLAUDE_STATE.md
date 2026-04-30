@@ -3,7 +3,70 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-30 (Sesion 59 EXTENDIDA #2 — onboarding TVC en proceso. Backfill completado (33,987 VTEX + 14,616 ML). Multiples fixes pixel + emails VTEX + view-as-org. SESION CON MUCHOS ERRORES DE DIAGNOSTICO — varios deploys fueron al pedo por asumir mal antes de contrastar con la realidad. TVC NO esta activado todavia. NitroPixel TVC se ve mal (cobertura 1% en /pixel/analytics) — bug de FVG/BPR contados como web ARREGLADO, pero queda problema mayor: solo 105 atribuciones / 25k orders web.)
+## Ultima actualizacion: 2026-04-30 mediodia (Sesion 60 — TVC: causa raiz del 0/8 atribuidas IDENTIFICADA y resuelta manualmente. El wizard NO configura el afiliado VTEX automaticamente — bug multi-tenant CRITICO. Leandro de TVC creo el afiliado a mano (12:10 hs). Verificacion end-to-end pendiente hasta que TVC tenga su primera orden web post-config. Pendientes: configurar alias webhooks@nitrosales.ai, implementar paso afiliado VTEX en wizard (Tipo A), reparar atribucion historica TVC, activar TVC.)
+
+### Sesion 60 (2026-04-30 mediodia) — Bug afiliado VTEX detectado y resuelto manualmente para TVC
+
+**Contexto**: post-S59 EXT2, TVC seguia con 0/8 ordenes web atribuidas y sin activar. Tomy y Claude arrancamos esta sesion con foco en encontrar causa raiz comparando funcionamiento EMDJ (atribuye OK) vs TVC (no atribuye). En 2hs llegamos a la causa raiz, mensaje a Leandro y resolucion manual.
+
+#### Diagnostico (approach correcto)
+
+Tomy planteo el approach correcto y critico (memorable): **"comparar como funciona la logica entre clientes, no comparar resultados"**. Con esa instruccion:
+
+- Compare orden por orden EMDJ (orgId `cmmmga1uq0000sb43w0krvvys`) vs TVC (orgId `cmod6ns420047dlnth544px9c`) del 29/04 usando `debug-orders-attribution-detail`.
+- EMDJ: 63 ordenes web → 63 atribuidas (100%). TVC: 8 ordenes web → 0 atribuidas (0%).
+- Misma plataforma, mismo snippet, misma logica. Resultados opuestos = bug NO esta en la logica del producto.
+- Lectura cruzada de logs: en EMDJ hay POST a `/api/webhooks/vtex/orders` por cada orden. En TVC: cero POSTs en cualquier rango. Diferencia clara.
+
+#### Causa raiz: bug multi-tenant CRITICO
+
+VTEX tiene un mecanismo "Afiliados" en su admin (Configuracion tienda → Pedidos → Configuracion → tab Afiliados) donde cada cliente registra el endpoint del webhook por politica comercial. EMDJ tiene un afiliado "NitroSales (NSL)" registrado con la URL del webhook. **TVC nunca tuvo este afiliado registrado**.
+
+El wizard de NitroSales NO configura este afiliado automaticamente — verifique grep en todo el codigo, no hay UNA SOLA llamada a `/api/orders/hook/config` ni a la UI de Afiliados. **Para EMDJ se hizo a mano en S53. Para TVC se olvido. Y para Arredo y los proximos 100 clientes va a romper IGUAL hasta que arreglemos el wizard.**
+
+#### Resolucion manual TVC
+
+1. Tomy mando captura de la pantalla de afiliados de EMDJ blurreada (datos privados de EMDJ tachados) a Leandro de TVC por WhatsApp.
+2. Mensaje 1: pregunta sobre politicas comerciales activas. Leandro respondio: 5 politicas total, 4 son marketplaces externos, 1 es la web de tevecompras (numero 1).
+3. Mensaje 2: instrucciones para crear afiliado con datos:
+   - Nombre: NitroSales
+   - ID: NSL
+   - Politica comercial: 1
+   - Email para notificaciones: webhooks@nitrosales.ai (alias todavia sin crear, NO bloquea)
+   - Endpoint: `https://app.nitrosales.ai/api/webhooks/vtex/orders?key=nitrosales-secret-key-2024-production&org=cmod6ns420047dlnth544px9c`
+   - Version del endpoint: 1.x.x
+   - Utilizar mi medio de pago: SIN tildar
+4. Leandro confirmo guardado a las 12:10 hs.
+
+#### Verificacion (parcial)
+
+✅ URL del endpoint responde correctamente (probado con GET → JSON `{"ok":true,"webhook":"vtex-orders","message":"Validation OK"}`).
+✅ Pixel TVC activo y mandando eventos (logs Vercel confirman PAGE_VIEW, IDENTIFY, VIEW_PRODUCT desde TVC org).
+✅ Otros webhooks VTEX (inventory) llegan a TVC — confirma conectividad VTEX → NitroSales.
+⏳ POST a `/api/webhooks/vtex/orders` para TVC: **0 en los ultimos 30 min**, pero **TVC tuvo 0 ordenes web hoy** (confirmado con `debug-orders-attribution-detail?date=2026-04-30` retorna `totalOrdersWeb: 0`). Por eso no hay trafico al endpoint todavia.
+⏳ Verificacion end-to-end **pendiente**: cuando entre la primera orden web real de TVC, hay que mirar logs Vercel buscando `[Webhook:Orders] Received` con orderId de TVC, y correr `debug-orders-attribution-detail` con fecha de hoy para confirmar atribucion.
+
+#### Riesgo bajo
+
+Si Leandro pego la URL con un typo, no nos vamos a enterar hasta que llegue trafico. Mitigacion: mirar logs cuando entre la primera orden. Si despues de 2-3 ordenes seguidas no llega POST, revisar que pego Leandro literal.
+
+#### Pendientes para proxima sesion (priorizados)
+
+1. **Verificar webhook con orden real**: cuando TVC tenga su primera orden web post-config (probable en horas), confirmar via logs y debug endpoint.
+2. **Reparar atribucion historica TVC** (Tipo B, one-shot): las 33,985+ ordenes VTEX traidas por backfill estan en DB sin atribucion. Hay que correr `calculateAttribution` sobre todas las ordenes web pasadas (excluir marketplaces FVG/BPR). Endpoint admin nuevo `/api/admin/onboardings/[id]/replay-attribution` o similar.
+3. **Implementar paso del afiliado VTEX en wizard (Tipo A)**: ver BP-S60-002. Multi-tenant fix.
+4. **Configurar alias `webhooks@nitrosales.ai`**: ImprovMX (gratis) + 2 MX records en Hostinger DNS. Pasos detallados en chat. Tomy lo hace.
+5. **Activar TVC**: una vez 1+2 confirmados, click "Habilitar cliente" en `/control/onboardings/eb283d21-b45d-4ccd-8caa-7db29309044d`.
+
+#### Patrones criticos S60
+
+1. **Comparar funcionamiento entre clientes (NO resultados) para detectar bugs multi-tenant**: cuando cliente A funciona y cliente B con mismo stack no, comparar la implementacion (config externa, eventos en logs, registros en DB) en lugar de hipotetizar desde cero. Tomy lo intuyo correctamente y me corrigio cuando yo iba por hipotesis.
+
+2. **Multi-tenant enlatado es prioridad maxima**: ningun paso del onboarding debe requerir intervencion manual del founder. Si un cliente nuevo va a romper un comportamiento, el wizard tiene que cubrirlo. **El producto no es multi-tenant si requiere acciones manuales del founder por cliente.** Esto no es opcional, es requisito para escalar.
+
+3. **VTEX UI Afiliados ES el mecanismo de webhook de orders** (correcion a doc previa de CLAUDE.md): la doc decia que Afiliados = SKU/inventory y Orders Broadcaster = orders. Realidad confirmada: el mecanismo Afiliados se usa tambien para webhooks de orders cuando se carga endpoint en "Endpoint de busca". Es UI clickable, NO requiere API. Cliente registra un afiliado por politica comercial relevante. Es el mecanismo en uso por EMDJ y ahora TVC.
+
+---
 
 ### Sesion 59 EXTENDIDA #2 (2026-04-29 noche → 2026-04-30 mañana) — Onboarding TVC
 

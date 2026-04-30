@@ -1874,4 +1874,69 @@ Toda query de KPIs del pixel (cobertura, atribución, ROAS) debe excluir orders 
 
 ---
 
+## Error #S60-WIZARD-NO-AUTOMATIZA-PASO-CRITICO — Onboarding requiere accion manual del founder por cliente, rompiendo multi-tenant
+
+**Cuándo pasó**: Sesión 60 (2026-04-30). TVC quedo con 0/8 ordenes web atribuidas porque el wizard del onboarding NO automatiza la creacion del afiliado VTEX (mecanismo "Afiliados" del admin de VTEX). Para EMDJ se hizo a mano en S53 — para TVC nadie lo hizo, y se rompio. Para Arredo y los proximos clientes va a romper IGUAL si no se arregla.
+
+### Causa raíz
+- El wizard de NitroSales pide al cliente: nombre de cuenta + App Key + App Token. Despues lo aprueba como "completo".
+- Pero VTEX requiere un paso adicional: registrar un afiliado en VTEX Admin → Configuracion tienda → Pedidos → Configuracion → tab "Afiliados" — donde el cliente carga el endpoint del webhook de NitroSales por politica comercial. Sin esto, VTEX nunca manda webhooks al server, y la atribucion de ordenes nunca corre.
+- Este paso era **conocimiento implicito del founder** (Tomy lo sabia hacer manualmente porque lo hizo para EMDJ). Pero un cliente nuevo no tiene como saber que existe.
+- El wizard no lo expone, no genera la URL automatica, no marca el paso como obligatorio. Resultado: cada cliente nuevo es una bomba de tiempo silenciosa.
+
+### Regla
+**Cualquier paso del onboarding de un cliente que requiera intervencion manual del founder rompe el modelo multi-tenant. Si un cliente nuevo va a romper un comportamiento del producto sin que el founder se de cuenta, hay un bug grave de wizard, no un bug puntual de ese cliente.**
+
+Pattern de revision: cuando se onboardea un cliente nuevo, antes de aprobarlo, hacerse esta pregunta: **"Si el founder no estuviera presente, ¿el cliente podria llegar a un estado funcional 100% por su cuenta solo siguiendo el wizard?"**. Si la respuesta es NO, hay que arreglar el wizard antes de aceptar mas clientes.
+
+### Prevención
+- Auditar el onboarding flow completo (wizard → aprobacion admin → backfill → activacion) para identificar TODOS los pasos manuales fuera del wizard. Documentarlos. Decidir cuales se pueden automatizar (preferido) y cuales hay que exponer al cliente como instrucciones explicitas con assets visuales (capturas, screencasts) y validaciones empiricas.
+- Para cada cliente nuevo, antes de aprobar el onboarding, **correr una checklist de verificacion** que confirme que todos los webhooks/integraciones criticas estan configuradas en su sistema externo (no solo en NitroSales).
+
+### Patron similar a buscar en otras integraciones
+- ¿El wizard configura el feed de Meta Ads correctamente del lado Meta? ¿Solo carga el token y se asume que el ad account esta listo?
+- ¿El cron de GA4 funciona desde dia 1 sin que el cliente tenga que activar algo en GA4?
+- ¿El feed de Google Merchant esta linkeado a Google Ads del cliente?
+- ¿El sync de MercadoLibre funciona sin que el cliente tenga que activar el webhook en su panel ML?
+
+Cada una de estas requiere auditoria. Si alguna requiere accion manual del founder, **es el mismo bug que TVC**.
+
+### Endpoints / archivos relevantes
+- `src/app/api/webhooks/vtex/orders/route.ts` — el endpoint que VTEX deberia llamar (configurado correctamente para EMDJ, faltaba para TVC).
+- `src/app/(app)/wizard/...` — donde tiene que ir el sub-step del afiliado.
+- BACKLOG_PENDIENTES.md → BP-S60-002 — fix concreto del bug.
+
+---
+
+## Error #S60-COMPARAR-FUNCIONAMIENTO-NO-RESULTADOS — Cuando un cliente A funciona y otro B no, comparar IMPLEMENTACION end-to-end, no porcentajes
+
+**Cuándo pasó**: Sesión 60. Cuando le mostre a Tomy que TVC tenia 0% atribucion vs EMDJ 63/63, mi primer instinto fue empezar a teorizar hipotesis sobre por que la data de TVC podia ser distinta a la de EMDJ (formato emails, snippet capturando email o no, etc). Tomy me corrigio: **"no quiero que compares el porcentaje de atribucion, eso es comparar resultado. Tenes que comparar como esta hecho todo, cual es la logica, cual es el funcionamiento."**
+
+Esa observacion fue clave. Cuando aplique el approach correcto (correr `debug-orders-attribution-detail` para EMDJ y compararlo orden por orden con el de TVC), la diferencia salto a la vista en 5 minutos: en EMDJ habia POSTs al webhook, en TVC no. De ahi la causa raiz (afiliado VTEX no configurado) en otros 5 minutos. Total: 10 minutos.
+
+Si hubiera seguido por hipotesis, hubiera tirado 6 endpoints debug mas como en S59 EXT2, y capaz tardado horas o dias.
+
+### Causa raíz del error de proceso
+- Reflejo de "encontre una diferencia, voy a buscar por que la data difiere" en lugar de "voy a comparar la implementacion end-to-end y ver que esta haciendo cada lado".
+- Foco en el sintoma (% bajo) en lugar del flujo completo (que dispara que cosa, en que orden, con que data).
+
+### Regla
+**Cuando dos clientes tienen el mismo stack pero comportamiento opuesto, antes de hipotetizar sobre por que la data difiere, comparar la implementacion completa end-to-end:**
+
+1. ¿Que llega a cada cliente desde sus integraciones externas? (logs de webhooks, eventos del pixel, tickets de sync)
+2. ¿Que registros tienen en DB? (no solo cuantos, sino que estructura)
+3. ¿Que dispara que en cada lado? (sigue el flujo desde el evento hasta el resultado para 1 caso de cada cliente, en paralelo)
+4. ¿Hay algo que el cliente A tenga (config externa, settings, registros, webhooks) que el cliente B no tenga, o viceversa?
+
+El primer "diferencia clara" que encontremos en alguno de esos 4 puntos es muy probable que sea la causa raiz. Si encontramos varias, priorizar las que estan upstream del flow (mas cerca del evento que dispara la cadena).
+
+### Prevención
+- Cuando me dispongo a teorizar hipotesis sobre por que un cliente difiere de otro, parar y preguntarme: **"¿Ya compare la implementacion end-to-end de ambos?"** Si no, hacerlo primero. Las hipotesis pueden venir despues de tener data dura comparativa.
+- Aprovechar endpoints comparativos existentes (`debug-orders-attribution-detail`, `compare-orgs-pixel`, `health-check`) en lugar de improvisar nuevos.
+
+### Pattern relevante
+Este error es contracara de #S57-ARGS-ORDER-SILENT-NOOP y #S59-EXT2-IMPROVISAR. La regla unificada: **antes de teorizar sobre causas, leer/comparar lo que esta pasando en la realidad**.
+
+---
+
 _Fin del archivo. Claude: si estás por cometer algo que se parece a uno de estos errores, PARÁ y releé la regla._
