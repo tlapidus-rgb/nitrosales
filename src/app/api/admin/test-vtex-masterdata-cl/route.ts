@@ -41,35 +41,43 @@ export async function GET(req: NextRequest) {
     const creds = conn.credentials as any;
 
     const baseUrl = `https://${creds.accountName}.vtexcommercestable.com.br`;
-    const endpoint = `${baseUrl}/api/dataentities/CL/search?_where=document=${encodeURIComponent(document)}&_fields=email,firstName,lastName,phone,document,id`;
+    const headers = {
+      "X-VTEX-API-AppKey": creds.appKey,
+      "X-VTEX-API-AppToken": creds.appToken,
+      Accept: "application/json",
+      "REST-Range": "resources=0-9",
+    };
 
-    const res = await fetch(endpoint, {
-      headers: {
-        "X-VTEX-API-AppKey": creds.appKey,
-        "X-VTEX-API-AppToken": creds.appToken,
-        Accept: "application/json",
-        "REST-Range": "resources=0-9", // VTEX requiere range header en Master Data
-      },
-    });
+    // Probamos varias variantes del query (VTEX usa nombres distintos
+    // para el campo DNI/document segun el setup de la cuenta)
+    const variants = [
+      { name: "by document", url: `${baseUrl}/api/dataentities/CL/search?_where=document=${encodeURIComponent(document)}&_fields=_all` },
+      { name: "by documentNumber", url: `${baseUrl}/api/dataentities/CL/search?_where=documentNumber=${encodeURIComponent(document)}&_fields=_all` },
+      { name: "by cpf", url: `${baseUrl}/api/dataentities/CL/search?_where=cpf=${encodeURIComponent(document)}&_fields=_all` },
+      { name: "list first 5 (sin filtro)", url: `${baseUrl}/api/dataentities/CL/search?_fields=_all` },
+      { name: "schemas disponibles", url: `${baseUrl}/api/dataentities/CL/schemas` },
+    ];
 
-    const status = res.status;
-    let body: any = null;
-    let bodyText = "";
-    try {
-      bodyText = await res.text();
-      body = JSON.parse(bodyText);
-    } catch {
-      body = bodyText.slice(0, 500);
+    const out: any[] = [];
+    for (const v of variants) {
+      try {
+        const r = await fetch(v.url, { headers });
+        const txt = await r.text();
+        let parsed: any;
+        try { parsed = JSON.parse(txt); } catch { parsed = txt.slice(0, 300); }
+        out.push({
+          test: v.name,
+          url: v.url,
+          status: r.status,
+          resultCount: Array.isArray(parsed) ? parsed.length : null,
+          firstResult: Array.isArray(parsed) ? parsed[0] : parsed,
+        });
+      } catch (err: any) {
+        out.push({ test: v.name, url: v.url, error: err.message });
+      }
     }
 
-    return NextResponse.json({
-      ok: true,
-      requestUrl: endpoint,
-      status,
-      bodyType: Array.isArray(body) ? "array" : typeof body,
-      resultCount: Array.isArray(body) ? body.length : null,
-      results: body,
-    });
+    return NextResponse.json({ ok: true, document, tests: out });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
