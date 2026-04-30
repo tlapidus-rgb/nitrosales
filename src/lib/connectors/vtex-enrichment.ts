@@ -18,6 +18,7 @@
 import { prisma } from "@/lib/db/client";
 import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
 import { retryWithBackoff, isRetryableStatus } from "@/lib/sync/retry";
+import { extractRealEmail as _extractRealEmail } from "@/lib/connectors/vtex-email";
 
 export interface VtexCreds {
   accountName: string;
@@ -31,19 +32,10 @@ export interface EnrichResult {
 }
 
 /**
- * Remueve el formato enmascarado de emails VTEX para obtener el email real
- * (VTEX enmascara emails en entorno de sandbox/preview).
+ * Re-export del helper compartido (S59 BIS: centralizado en vtex-email.ts).
+ * Mantenemos el export aca por compat con codigo que ya lo importaba.
  */
-export function extractRealEmail(vtexEmail: string): string {
-  if (!vtexEmail) return vtexEmail;
-  const vtexAnonPattern = /^[a-f0-9]{20,}@ct\.vtex\.com\.br$/i;
-  if (vtexAnonPattern.test(vtexEmail)) return "";
-  const vtexMaskPattern = /-[0-9a-z]+b?\.ct\.vtex\.com\.br$/i;
-  if (vtexMaskPattern.test(vtexEmail)) {
-    return vtexEmail.replace(vtexMaskPattern, "").toLowerCase().trim();
-  }
-  return vtexEmail.toLowerCase().trim();
-}
+export const extractRealEmail = _extractRealEmail;
 
 /**
  * GET /api/oms/pvt/orders/{orderId} con retry + timeout.

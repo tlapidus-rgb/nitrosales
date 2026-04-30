@@ -23,32 +23,10 @@ import { sendCapiPurchase } from "@/lib/pixel/capi";
 import { normalizePhone } from "@/lib/pixel/identity";
 import { linkVisitorToCustomer } from "@/lib/pixel/link-visitor";
 import { verifyWebhookSignature } from "@/lib/webhooks/signature";
+import { extractRealEmail } from "@/lib/connectors/vtex-email";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
-
-// ─── Helper: Extract real email from VTEX masked format ───
-// VTEX masks emails: "real@email.com-265600829169b.ct.vtex.com.br"
-// We need the real email for pixel visitor matching.
-function extractRealEmail(vtexEmail: string): string {
-  if (!vtexEmail) return vtexEmail;
-
-  // VTEX anonymous hash format: "abc123def456@ct.vtex.com.br" — not a real email
-  // These are auto-generated when customer never provided a real email.
-  const vtexAnonPattern = /^[a-f0-9]{20,}@ct\.vtex\.com\.br$/i;
-  if (vtexAnonPattern.test(vtexEmail)) {
-    return ''; // Return empty — this is not a real customer email
-  }
-
-  // VTEX masked format: "real@email.com-{vtexId}b.ct.vtex.com.br"
-  // Strip the VTEX suffix to recover the real email.
-  const vtexMaskPattern = /-[0-9a-z]+b?\.ct\.vtex\.com\.br$/i;
-  if (vtexMaskPattern.test(vtexEmail)) {
-    return vtexEmail.replace(vtexMaskPattern, '').toLowerCase().trim();
-  }
-
-  return vtexEmail.toLowerCase().trim();
-}
 
 // Status mapping imported from @/lib/vtex-status (single source of truth)
 

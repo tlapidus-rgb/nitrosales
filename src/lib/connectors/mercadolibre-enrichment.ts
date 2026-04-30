@@ -178,7 +178,36 @@ export async function enrichOrderFromMl(
         // via mlItem.thumbnail. Ojo: puede ser http:// (http v1 de ML) — forzar https para
         // evitar mixed-content warnings en el frontend.
         const rawThumb = (mlItem.thumbnail || "").toString().trim();
-        const thumbnail = rawThumb ? rawThumb.replace(/^http:\/\//, "https://") : null;
+        let thumbnail = rawThumb ? rawThumb.replace(/^http:\/\//, "https://") : null;
+        let brandFromSibling: string | null = null;
+
+        // S59 BIS: cross-source SKU matching para imagen + brand.
+        // Si ML no devuelve thumbnail (caso comun en /orders/search) y existe
+        // un producto hermano de VTEX con el mismo SKU, le copiamos la imagen
+        // y la marca para que se vea bien en dashboard + health-check + DB.
+        // Esto persiste, no es solo runtime.
+        if (realSku && (!thumbnail || !mlItem.title)) {
+          try {
+            const sibling = await prisma.product.findFirst({
+              where: {
+                organizationId: orgId,
+                sku: realSku,
+                NOT: { externalId: productExtId },
+                OR: [
+                  { imageUrl: { not: null } },
+                  { brand: { not: null } },
+                ],
+              },
+              select: { imageUrl: true, brand: true },
+            });
+            if (sibling) {
+              if (!thumbnail && sibling.imageUrl) thumbnail = sibling.imageUrl;
+              if (sibling.brand) brandFromSibling = sibling.brand;
+            }
+          } catch {
+            // silent — no romper el enrichment si falla la query
+          }
+        }
 
         const product = await upsertProductBySku({
           organizationId: orgId,
@@ -186,7 +215,7 @@ export async function enrichOrderFromMl(
           sku: realSku,
           create: {
             name: mlItem.title || `ML ${productExtId}`,
-            brand: null,
+            brand: brandFromSibling,
             category: mlItem.category_id || null,
             price: unitPrice,
             imageUrl: thumbnail,
@@ -197,6 +226,7 @@ export async function enrichOrderFromMl(
             name: mlItem.title || undefined,
             category: mlItem.category_id || undefined,
             ...(thumbnail ? { imageUrl: thumbnail } : {}),
+            ...(brandFromSibling ? { brand: brandFromSibling } : {}),
           },
         });
 

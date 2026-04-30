@@ -6,18 +6,7 @@ import { mapVtexStatus, isValidVtexStatus } from "@/lib/vtex-status";
 import { getVtexConfig } from "@/lib/vtex-credentials";
 import { getOrganization } from "@/lib/auth-guard";
 import { upsertProductBySku } from "@/lib/products/upsert-by-sku";
-
-// -- Helper: Extract real email from VTEX masked format --
-function extractRealEmail(vtexEmail: string): string {
-  if (!vtexEmail) return vtexEmail;
-  const vtexAnonPattern = /^[a-f0-9]{20,}@ct\.vtex\.com\.br$/i;
-  if (vtexAnonPattern.test(vtexEmail)) return "";
-  const vtexMaskPattern = /-[0-9a-z]+b?\.ct\.vtex\.com\.br$/i;
-  if (vtexMaskPattern.test(vtexEmail)) {
-    return vtexEmail.replace(vtexMaskPattern, "").toLowerCase().trim();
-  }
-  return vtexEmail.toLowerCase().trim();
-}
+import { extractRealEmail } from "@/lib/connectors/vtex-email";
 
 // -- Helper: Enrich a DB order with customer + items from VTEX detail --
 // Called when an order exists in DB but is missing customer/products data.
