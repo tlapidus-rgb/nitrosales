@@ -1730,4 +1730,148 @@ Opciones:
 
 ---
 
+---
+
+## Error #S59-EXT2-NO-CONTRASTAR-CON-REALIDAD — Sacar conclusiones sobre datos sin contrastar con la fuente real
+
+**Cuándo pasó**: Sesión 59 EXTENDIDA #2 (2026-04-30). Tomy preguntó por qué la atribución del pixel TVC funcionaba mal. Yo conté customers únicos VTEX con email y reporté **"39% con email"**, comparándolo con EMDJ que tenía **"98%"**. De ahí saqué hipótesis tras hipótesis (clientes recurrentes vs guest, App Key sin permisos, Master Data CL vacía...). Cada una falsa.
+
+La métrica que realmente importaba era **% de orders web con email**, no customers únicos. Y el número real era **84%** (no 39%). Tomy lo detectó cuando me dijo "yo veo emails en el dashboard de pedidos, ¿cómo puede ser?".
+
+Cuando finalmente miré la realidad (orders web con email leyendo desde la misma query del dashboard), TVC era 84% — comparable a EMDJ y completamente normal. Los 16% sin email eran principalmente **órdenes de Frávega y Banco Provincia** (marketplaces externos publicados via VTEX), no un bug.
+
+### Causa raíz
+- Conté **customers únicos** y comparé con **% que ve el dashboard** (que muestra orders, no customers únicos). Mezcla de unidades de medida → conclusión completamente errónea.
+- No contrasté la metric con lo que Tomy veía en el dashboard real ANTES de armar hipótesis.
+- Encadené hipótesis basadas en la métrica mala: pensé "guests sin email → permisos faltantes → Master Data CL → recovery endpoint" sin nunca verificar el supuesto base.
+
+Resultado: 4-5 commits inútiles (`vtex-recover-customer-emails`, `test-vtex-masterdata-cl`, etc.) y horas de tiempo perdido. Tomy frustrado.
+
+### Regla
+**Cuando voy a reportar un % o una métrica al usuario, validar PRIMERO que coincida con lo que el usuario ve en su dashboard.** Si la app tiene una página que muestra esa info, leer la query exacta de esa página y replicarla, no inventar una mía.
+
+```
+Antes de afirmar "TVC tiene 39% emails":
+1. Leer el código de la página del dashboard que Tomy ve (`/api/metrics/orders/route.ts`).
+2. Replicar la MISMA query con los MISMOS filtros.
+3. Comparar mi resultado con lo que el dashboard muestra (Tomy puede confirmarlo).
+4. Solo entonces afirmar el %.
+```
+
+### Prevención
+- Si tengo acceso a un endpoint que muestra la data al usuario (ej: `/api/metrics/orders`), USARLO como referencia, no inventar mi propia query.
+- Antes de armar hipótesis sobre "por qué falla X", primero confirmar que X realmente falla. Pedir un dato concreto del usuario o de su dashboard ("dame 5 ordenes que vos veas, vamos a ver caso por caso").
+- Si una métrica suena rara comparada con otra org (39% vs 98%), **pausar y verificar la metric antes de teorizar**.
+
+---
+
+## Error #S59-EXT2-NO-LEER-CLAUDE-MD-AL-ARRANCAR — Empezar a editar sin leer la documentación obligatoria
+
+**Cuándo pasó**: Sesión 59 EXTENDIDA #2. Continué la sesión post-compactación sin leer `CLAUDE_STATE.md`, `ERRORES_CLAUDE_NO_REPETIR.md`, `BACKLOG_PENDIENTES.md`, ni `CLAUDE.md`. La regla está documentada explícitamente en `CLAUDE.md` REGLA #2.
+
+Si hubiera leído `ERRORES_CLAUDE_NO_REPETIR.md`, hubiera visto el Error #S57-ARGS-ORDER-SILENT-NOOP que enseña: "**Símptoma típico de bugs de queries: corrió pero no hizo nada. Sospechar de filtros mal puestos antes que causa lógica.**" Eso me hubiera ahorrado horas — la cobertura del pixel daba 1% no por bug profundo sino porque el filtro de marketplace no contemplaba FVG/BPR.
+
+### Causa raíz
+- Asumí que post-compactación, el resumen de la sesión previa era suficiente.
+- No abrí los archivos de proceso al empezar a programar.
+- Tomy tuvo que explícitamente pedirme que los lea al final de la sesión.
+
+### Regla
+**El ritual de arranque de `CLAUDE.md` REGLA #2 NO es opcional ni se puede saltear**. Antes de cualquier edit:
+
+```
+1. cd <repo>
+2. git fetch origin --prune && git pull origin main
+3. Read CLAUDE_STATE.md (estado actual del proyecto)
+4. Read ERRORES_CLAUDE_NO_REPETIR.md (errores que NO debo repetir)
+5. Read BACKLOG_PENDIENTES.md (pendientes priorizados)
+6. Read CLAUDE.md (reglas de proceso)
+```
+
+Esto es válido tanto para sesión nueva como para continuación post-compactación.
+
+### Prevención
+- Cuando arranco una sesión nueva o continúo post-compactación, lo PRIMERO que hago es ese ritual. No editar NADA hasta tenerlo hecho.
+- En la primera respuesta al usuario, mencionar explícitamente: "leí CLAUDE_STATE, ERRORES_NO_REPETIR, BACKLOG y CLAUDE.md. Estado actual: X. Errores conocidos a evitar: Y."
+- Si Tomy me pregunta algo específico de un cliente o feature, primero veo si está documentado en CLAUDE_STATE (puede tener contexto crítico que no me dijo).
+
+---
+
+## Error #S59-EXT2-IMPROVISAR-DEBUG-ENDPOINTS — Crear cadena de endpoints debug en vez de leer el código existente
+
+**Cuándo pasó**: Sesión 59 EXTENDIDA #2. Para diagnosticar por qué la cobertura del pixel TVC daba 1%, creé 6+ endpoints debug en cascada: `debug-pixel-attribution`, `compare-orgs-pixel`, `sample-customers`, `debug-vtex-raw-emails`, `compare-vtex-orders-profile`, `debug-orders-emails-shown`, `debug-vtex-emails-by-channel`, `test-vtex-masterdata-cl`, `debug-orders-attribution-detail`.
+
+La causa raíz real (FVG/BPR contados como web) hubiera salido en 5 minutos si:
+1. Hubiera leído primero `src/app/api/metrics/pixel/route.ts` (la query de la métrica que daba 1%)
+2. Hubiera mirado los filtros que usa para `webOrders` y comparado con la realidad de TVC
+
+En vez de eso, asumí múltiples causas y armé tests para cada una. Tiempo perdido: horas. Endpoints inútiles deployeados a prod.
+
+### Causa raíz
+- Reflejo de "diagnosticar = más datos" en vez de "diagnosticar = leer la lógica primero".
+- No tenía un mapa mental de "esta página → este endpoint → esta query". Cada vez que Tomy mostraba un número raro, asumía bug en la data en vez de bug en la query.
+- No usé los Agent (Explore) para mapear el flow del dashboard pixel ANTES de programar.
+
+### Regla
+**Cuando un dashboard muestra un número raro, el orden correcto es**:
+
+```
+1. Read del código de la página del dashboard (qué API consume).
+2. Read del API endpoint (qué query SQL hace).
+3. Read del schema de tablas que toca (qué columnas y filtros tiene).
+4. Buscar el bug en la lógica de la query, NO en la data subyacente.
+5. Solo si la lógica está OK, recién entonces investigar la data con endpoints debug.
+```
+
+Inversión total del orden que tuve esta sesión.
+
+### Prevención
+- Pre-flight check antes de crear cualquier endpoint debug nuevo: "¿Ya leí el código de la página/query que produce este número raro?". Si la respuesta es no → leer primero.
+- Si después de leer la query encuentro un filtro sospechoso (ej: el filtro de marketplace solo cubre MELI pero olvida FVG/BPR), ese es el bug. No necesito endpoints debug para confirmarlo.
+- Si necesito un endpoint debug, máximo UNO por hipótesis. Si la primera hipótesis es falsa, leer más código antes de crear el segundo endpoint.
+
+---
+
+## Error #S59-EXT2-MARKETPLACES-NO-MARCADOS — VTEX marketplaces (Frávega, Banco Provincia) contados como web propia
+
+**Cuándo pasó**: Sesión 59 EXTENDIDA #2. El dashboard NitroPixel de TVC mostraba "Cobertura del pixel: 1%". Causa raíz: la query de cobertura excluía solo MercadoLibre (`source = 'MELI'` y `channel = 'marketplace'`), pero no excluía órdenes VTEX que vienen de marketplaces externos publicados via VTEX (Frávega, Banco Provincia, etc.).
+
+Síntoma: TVC tenía 33,987 orders VTEX, de las cuales 8,611 eran de marketplaces (FVG- + BPR-) que jamás pueden tener atribución del pixel propio (la sesión del comprador está en Frávega.com, no en la web de TVC). Esos 8,611 inflaban el denominador → cobertura aparece en 1%.
+
+Lo identifiqué SOLO cuando Tomy me dijo "FVG es Frávega, BPR es Banco Provincia". Yo lo había estado tratando como "tipos especiales misteriosos" hasta entonces.
+
+### Causa raíz
+- VTEX permite a un seller publicar sus productos en múltiples marketplaces externos. Esas órdenes vienen al endpoint OMS del seller con prefijo en el `externalId` que identifica el marketplace (`FVG-`, `BPR-`, etc.).
+- El enrichment de VTEX no marcaba esas órdenes con `channel = 'marketplace'` o `trafficSource = 'Marketplace'` automáticamente.
+- La query de cobertura del pixel asumía que solo MELI era marketplace → contaba FVG/BPR como web propia.
+- El pixel NUNCA puede atribuir esas órdenes (la sesión está en otra web).
+
+### Regla
+**Para clientes VTEX en Argentina, si tienen prefijos de marketplace en `externalId`, marcarlos automáticamente al ingestar**:
+
+```ts
+const isMarketplaceOrder = externalId.startsWith("FVG-")    // Frávega
+                        || externalId.startsWith("BPR-");   // Banco Provincia
+// (Otros prefijos posibles a investigar: COTO-, otros marketplaces argentinos)
+
+if (isMarketplaceOrder) {
+  channel = "marketplace";
+  trafficSource = "Marketplace";
+}
+```
+
+Toda query de KPIs del pixel (cobertura, atribución, ROAS) debe excluir orders con `channel = 'marketplace'` Y `trafficSource = 'Marketplace'` Y `source = 'MELI'`.
+
+### Prevención
+- Cuando un cliente VTEX activa, preguntarle qué marketplaces externos vende (Frávega, Banco Provincia, COTO, etc.) y agregar el prefijo al pattern matcher si hace falta.
+- En la primera revisión del onboarding, correr el endpoint `debug-vtex-emails-by-channel` para ver la distribución de canales del cliente. Si aparecen prefijos no contemplados, agregarlos.
+- **Pattern de detección de bug similar en el futuro**: si la "cobertura del pixel" da números muy bajos (< 10%) cuando el pixel está pegado y los eventos llegan, sospechar primero del filtro de marketplaces ANTES que de la captura de email del visitor.
+
+### Endpoints relevantes (para referencia futura)
+- `mark-vtex-marketplace-orders` (`/api/admin/...`) — one-shot reparativo para marcar orders FVG/BPR de un cliente legacy.
+- `vtex-enrichment.ts` (línea ~265) — marca automáticamente desde S59 EXT2 commit `e44db86`.
+- `pixel/route.ts` línea ~470 (`webOrders`) y ~580 (`perDayCoverage`) — queries que excluyen FVG/BPR.
+
+---
+
 _Fin del archivo. Claude: si estás por cometer algo que se parece a uno de estos errores, PARÁ y releé la regla._

@@ -3,7 +3,90 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-28 (Sesion 59 EXTENDIDA — todo lo de la sesion previa + activacion manual del cliente + impersonate read-only + cancelar/resetear backfill (suave o wipe). Sistema completo para que Tomy controle el flow E2E con QA antes de exponer producto al cliente.)
+## Ultima actualizacion: 2026-04-30 (Sesion 59 EXTENDIDA #2 — onboarding TVC en proceso. Backfill completado (33,987 VTEX + 14,616 ML). Multiples fixes pixel + emails VTEX + view-as-org. SESION CON MUCHOS ERRORES DE DIAGNOSTICO — varios deploys fueron al pedo por asumir mal antes de contrastar con la realidad. TVC NO esta activado todavia. NitroPixel TVC se ve mal (cobertura 1% en /pixel/analytics) — bug de FVG/BPR contados como web ARREGLADO, pero queda problema mayor: solo 105 atribuciones / 25k orders web.)
+
+### Sesion 59 EXTENDIDA #2 (2026-04-29 noche → 2026-04-30 mañana) — Onboarding TVC
+
+**Contexto**: TVC era el primer cliente real en pasar por el flow completo (wizard → backfill → READY_FOR_REVIEW → activacion manual). Surgieron MUCHOS problemas, varios resueltos y otros documentados como bugs en logica de pixel/atribucion.
+
+#### Estado al cierre de la sesion
+
+- TVC backfilleado: 33,987 orders VTEX + 14,616 orders ML.
+- TVC NO activado todavia (status sigue READY_FOR_REVIEW).
+- NitroPixel TVC muestra 0 atribuidos en `/pixel/analytics` aunque hay 79k eventos en 7 dias.
+- Bug de cobertura inflada por marketplaces (FVG/BPR contados como web) **arreglado**.
+- Pero queda problema mayor: solo 105 atribuciones / 25k orders web (= 0.4%).
+
+#### Commits — DEPLOYS QUE FUERON CORRECTOS Y QUEDARON
+
+**Backfill UI mejoras**:
+- `8ab6f31` Seleccionar plataformas a backfillear + agregar despues
+- `378ae81` Texto del cartel de progreso desactualizado
+- `ae71da0` Barra de progreso usa orders unicas en DB + indicador de actividad ("ultima actividad hace Xs")
+- `518479c` orders.source es String no enum + ML usa 'MELI' (bug en query del progress)
+- `1991025` Boton "Marcar completado" para forzar cierre de job (cuando walk-back queda paseando por anios vacios)
+
+**Impersonate flow (5 commits resolviendo bugs en cascada)**:
+- `0439742` Navega misma pestana en vez de popup (Safari/Chrome bloqueaban window.open)
+- `e4637f4` Fallback buscar user.id por email si sesion no lo trae
+- `cc14d4e` Mostrar target user en confirm antes de navegar
+- `8e9e64f` debug-org endpoint para inspeccionar org + users + onboardings
+- `82f8fe1` signOut admin antes de signIn como cliente (sin esto el JWT no se reemplazaba → admin terminaba viendo su propia org en vez de la del cliente)
+
+**View-as-Org (REEMPLAZA el impersonate complejo para uso diario)**:
+- `3a3f550` Admin puede ver data de cualquier org sin perder identidad. Cookie `nitro-view-org` + override en session callback. Banner azul. Endpoint POST/GET/DELETE `/api/admin/view-as-org`. Componente `ViewAsOrgBanner.tsx`. **El boton "Ver data como admin" en `/control/onboardings/[id]` ahora usa esto en vez de impersonate.**
+
+**Health-check + diagnosticos (utiles a futuro)**:
+- `a4c2422` Key bypass para diagnostico sin sesion admin (`?key=...`)
+- `0cb9fb1` `debug-orders-emails-shown` — mostrar emails que ve el dashboard
+- `289f11d` `debug-vtex-emails-by-channel` — emails por canal (web vs FVG vs BPR)
+- `06560f0` `compare-orgs-pixel` — comparativa side-by-side de todas las orgs
+- `47d762c` `debug-pixel-attribution` — diagnostica orders no atribuidas
+- `f8af104` `sample-customers` — formatos de email entre orgs
+- `997b531` `debug-vtex-raw-emails` — mostrar email RAW que VTEX devuelve
+- `792e572` `compare-vtex-orders-profile` — VTEX por puerta A (con userProfileId) vs B (guest)
+- `128ae4d` `debug-orders-attribution-detail` — diagnostica atribucion orden por orden
+
+**Fixes "tipo A" (perduran para futuros clientes)**:
+- `42bfcc1` Centralizar `extractRealEmail` en `src/lib/connectors/vtex-email.ts` + aplicar en backfill VTEX (faltaba) + ML cross-VTEX SKU matching para imagenes/brand. Endpoint admin one-shot `vtex-clean-emails` y `ml-images-from-vtex-sibling` para reparar TVC.
+- `e44db86` **FIX REAL DEL DASHBOARD PIXEL**: excluir Fravega (FVG-) y Banco Provincia (BPR-) del calculo de cobertura. Marca automatico `channel='marketplace' + trafficSource='Marketplace'` en enrichment para futuros clientes. Endpoint admin `mark-vtex-marketplace-orders` para reparar TVC (8,611 orders marcadas: 7,270 BPR + 1,341 FVG).
+
+#### Commits — DEPLOYS QUE FUERON AL PEDO (mi diagnostico estaba mal)
+
+> **CRITICO**: estos endpoints existen en el repo pero NO sirven para TVC. Se crearon basados en hipotesis que despues resultaron falsas. Si la proxima sesion los ve, no asumir que son utiles.
+
+- `2b2ce0c` `vtex-recover-customer-emails` — pensé que podía recuperar emails escondidos enmascarados de customers que estaban con email NULL. Resultado real: VTEX devuelve hash anonimo (`abc123...@ct.vtex.com.br`). Hipotesis del momento: **App Key de TVC sin permiso "Profile System View"** (no confirmada con TVC todavia, Tomy iba a preguntar) O guest checkouts puros. NADA recuperable via este endpoint para TVC.
+- `8d07243` `vtex-recover-customer-emails` con auto-continue en background — version mejorada del anterior con waitUntil. Misma utilidad: cero porque la causa era otra.
+- `519c532` y `0fb5ead` `test-vtex-masterdata-cl` — pensé que VTEX Master Data CL (entidad Cliente) tendría los emails reales si buscaba por DNI. Resultado: query devuelve `[]` (Master Data vacia o entidad no usada por TVC). Hipotesis falsa.
+
+#### LO QUE QUEDA SIN RESOLVER (proxima sesion)
+
+1. **Atribucion del pixel TVC**: el dashboard `/pixel/analytics` filtrado por "Ayer" muestra 0 de 8 orders web atribuidas. Causa probable: visitors del pixel no estan linkeando a customers porque el pixel no captura email del visitor en checkout VTEX (solo 338 visitors con email de 14k = 2.3%). Sin email del visitor → no hay match con customer aunque customer tenga email. **Hay que investigar por que el pixel no captura email en checkout VTEX TVC**.
+
+2. **Verificar si NitroSales tiene TODAS las orders web de TVC**: el dashboard muestra "0 de 8 orders web" para ayer. Tomy duda que solo hayan sido 8. Hay que contrastar con VTEX directamente (cuantas orders tuvo TVC ayer en su VTEX vs cuantas estan en NitroSales).
+
+3. **TVC sigue en READY_FOR_REVIEW**: no se le dio click a "Habilitar cliente". Tomy quiere que el dashboard se vea correcto antes de activarlo.
+
+#### Datos clave de TVC
+
+- **orgId**: `cmod6ns420047dlnth544px9c`
+- **VTEX account**: `tevecompras`
+- **OWNER user**: Leandro Cura (`leandroc@tevecompras.com`)
+- **Onboarding ID**: `eb283d21-b45d-4ccd-8caa-7db29309044d`
+- **Distribucion orders VTEX** (33,987 totales):
+  - Web propia (numericos `1628...`): 25,376 (84% con email)
+  - Banco Provincia (`BPR-...`): 7,270 (0% email — marketplace)
+  - Fravega (`FVG-...`): 1,341 (0% email — marketplace)
+- **Pixel TVC**: 79,180 eventos en 7 dias, 78 PURCHASE events, 14,489 visitors, 6 linkeados a customer, 105 atribuciones existentes en pixel_attributions.
+
+#### Patron de errores de proceso de esta sesion (CRITICO)
+
+1. **Asumi sin contrastar con realidad**. Conclui "TVC tiene 39% de emails" mezclando customers con orders. La metrica real era **84% orders web con email**. Tomy lo detecto pidiendo que mire el dashboard de orders.
+2. **No lei `ERRORES_CLAUDE_NO_REPETIR.md` al iniciar sesion** (regla en CLAUDE.md REGLA #2 que viole).
+3. **Improvise endpoints debug en cascada** en vez de leer primero el codigo de la pagina del dashboard. 6+ endpoints creados que no resolvian nada.
+4. **No identifique FVG y BPR como marketplaces** hasta que Tomy lo dijo (Fravega y Banco Provincia). Tener este patron en mente para clientes con multi-canal VTEX.
+
+---
 
 ### Sesion 59 EXTENDIDA (2026-04-28 tarde/noche) — Activacion manual + Impersonate + Reset backfill
 
