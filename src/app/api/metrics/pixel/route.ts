@@ -467,10 +467,10 @@ export async function GET(request: NextRequest) {
       prisma.$queryRaw`
         SELECT
           COUNT(*)::int as total,
-          COUNT(*) FILTER (WHERE "trafficSource" = 'Marketplace' OR source = 'MELI' OR channel = 'marketplace')::int as "marketplaceOrders",
-          SUM("totalValue") FILTER (WHERE "trafficSource" = 'Marketplace' OR source = 'MELI' OR channel = 'marketplace')::float as "marketplaceRevenue",
-          COUNT(*) FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace' AND source IS DISTINCT FROM 'MELI' AND channel IS DISTINCT FROM 'marketplace')::int as "webOrders",
-          SUM("totalValue") FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace' AND source IS DISTINCT FROM 'MELI' AND channel IS DISTINCT FROM 'marketplace')::float as "webRevenue"
+          COUNT(*) FILTER (WHERE "trafficSource" = 'Marketplace' OR source = 'MELI' OR channel = 'marketplace' OR "externalId" LIKE 'FVG-%' OR "externalId" LIKE 'BPR-%')::int as "marketplaceOrders",
+          SUM("totalValue") FILTER (WHERE "trafficSource" = 'Marketplace' OR source = 'MELI' OR channel = 'marketplace' OR "externalId" LIKE 'FVG-%' OR "externalId" LIKE 'BPR-%')::float as "marketplaceRevenue",
+          COUNT(*) FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace' AND source IS DISTINCT FROM 'MELI' AND channel IS DISTINCT FROM 'marketplace' AND "externalId" NOT LIKE 'FVG-%' AND "externalId" NOT LIKE 'BPR-%')::int as "webOrders",
+          SUM("totalValue") FILTER (WHERE "trafficSource" IS DISTINCT FROM 'Marketplace' AND source IS DISTINCT FROM 'MELI' AND channel IS DISTINCT FROM 'marketplace' AND "externalId" NOT LIKE 'FVG-%' AND "externalId" NOT LIKE 'BPR-%')::float as "webRevenue"
         FROM orders
         WHERE "organizationId" = ${ORG_ID}
           AND "orderDate" >= ${dateFrom}
@@ -575,7 +575,11 @@ export async function GET(request: NextRequest) {
 
       // 19. Per-day coverage: total orders vs attributed orders per day
       //     Used for accurate ROAS scaling instead of uniform coverage ratio
-      //     Excludes marketplace orders (MercadoLibre) which can't be pixel-tracked
+      //     Excludes marketplace orders which can't be pixel-tracked:
+      //       - MercadoLibre (source = MELI)
+      //       - Marketplace flag (channel/trafficSource)
+      //       - VTEX marketplaces que el seller publica via VTEX (Fravega, Banco Provincia)
+      //         se identifican por prefijo en externalId (FVG-, BPR-)
       prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
@@ -596,6 +600,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY 1
       ` as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,

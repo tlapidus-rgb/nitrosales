@@ -262,7 +262,16 @@ export async function enrichOrderFromVtex(
       : (firstLogi ? "DELIVERY" : null);
 
     // Channel: VTEX salesChannel (1 = retail default, 2 = B2B, etc).
-    const channel = vData.salesChannel != null ? `sc-${vData.salesChannel}` : null;
+    // S59 BIS: marcar automaticamente como "marketplace" cuando el orden viene
+    // de un marketplace externo publicado via VTEX (Fravega, Banco Provincia,
+    // etc). Estos se identifican por prefijo en el externalId. Importante para
+    // que los KPIs del pixel los excluyan del calculo de cobertura.
+    const externalIdStr = String(vData.orderId || "");
+    const isMarketplaceOrder = externalIdStr.startsWith("FVG-") || externalIdStr.startsWith("BPR-");
+    const channel = isMarketplaceOrder
+      ? "marketplace"
+      : (vData.salesChannel != null ? `sc-${vData.salesChannel}` : null);
+    const trafficSource = isMarketplaceOrder ? "Marketplace" : undefined;
 
     // Address fields (additional to Customer.city/state/country).
     const postalCode = vData.shippingData?.address?.postalCode || null;
@@ -295,7 +304,9 @@ export async function enrichOrderFromVtex(
         ...(pickupStoreName ? { pickupStoreName } : {}),
         ...(postalCode ? { postalCode } : {}),
         ...(deviceType ? { deviceType } : {}),
-        ...(utmSource ? { trafficSource: utmSource } : {}),
+        // S59 BIS: trafficSource = "Marketplace" para orders FVG-/BPR-,
+        // sino el utmSource del campo marketingData (UTM tracking original).
+        ...(trafficSource ? { trafficSource } : (utmSource ? { trafficSource: utmSource } : {})),
       },
     });
 
