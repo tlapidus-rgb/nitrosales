@@ -33,9 +33,12 @@ const COLORS = ["#f97316", "#06b6d4", "#a855f7", "#22c55e", "#eab308", "#ec4899"
 
 // ── Channel Identity ──
 const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string }> = {
-  // Meta family — todos labelados "Meta" (se agrupan en una sola fila, ver `mergeChannelsByLabel`)
-  meta: { icon: "M", color: "#1877F2", label: "Meta" },
-  facebook: { icon: "M", color: "#1877F2", label: "Meta" },
+  // Meta family — 3 canales separados (decision producto S60)
+  // - "meta" = clicks pagos en Facebook/Instagram con fbclid (Meta Ads)
+  // - "facebook" = referrer organico de facebook.com
+  // - "instagram" mas abajo = referrer organico de instagram.com
+  meta: { icon: "M", color: "#1877F2", label: "Meta Ads" },
+  facebook: { icon: "F", color: "#0866FF", label: "Facebook" },
   // Google paid — varios aliases historicos: gclid → "google", utm_source=adwords, utm_source=google_ads, etc
   google: { icon: "G", color: "#EA4335", label: "Google Ads" },
   google_ads: { icon: "G", color: "#EA4335", label: "Google Ads" },
