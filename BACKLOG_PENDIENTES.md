@@ -8,11 +8,24 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-04-30 mediodia — Sesion 60. Bug afiliado VTEX detectado y resuelto manualmente para TVC. 4 entradas nuevas BP-S60-001 a BP-S60-004.
+> **Última actualización**: 2026-05-01 noche — Sesion 60 EXTENDIDA. TVC operativo (webhook OK, atribucion historica reparada). 3 features multi-tenant nuevos deployados. BP-S60-001 y BP-S60-003 ✅ resueltos. BP-S60-006 nuevo.
 
 ---
 
-## 🔴 BP-S60-001 — Verificar atribucion end-to-end TVC con primera orden web real (URGENTE — destraba activacion)
+## ✅ BP-S60-001 — Verificar atribucion end-to-end TVC con primera orden web real — RESUELTO
+
+**Resuelto**: 2026-05-01 (S60 EXT) via endpoints `vtex-recent-orders` + `trigger-vtex-sync`.
+
+VTEX tenia 30 ordenes (25 web + 5 Frávega) del 30/04 + 01/05 que no estaban en DB. Investigacion mostro que:
+- Webhook de afiliado funciona perfecto desde 30/04 12:10 (las 26 post-config llegaron OK).
+- Las 4 pre-12:10 NO llegaron (webhook no estaba activo) ni el cron diario las trajo (el cron 01/05 3am no corrio o fallo).
+- `trigger-vtex-sync` recupero las 4 faltantes manualmente. 30/30 ahora en DB con 100% success.
+
+Conclusion: el webhook esta validado end-to-end. **Bug colateral menor**: el cron diario VTEX fallo el 01/05. No bloquea TVC (las ordenes nuevas llegan via webhook), pero hay que entender por que. Anotado para revision (NO bloqueante).
+
+---
+
+## 🔴 BP-S60-001-OLD — texto original (referencia)
 
 **Entró**: 2026-04-30 (S60), post-resolucion manual del afiliado VTEX
 
@@ -68,33 +81,42 @@
 
 ---
 
-## 🟠 BP-S60-003 — Reparar atribucion historica TVC (Tipo B — one-shot)
+## ✅ BP-S60-003 — Reparar atribucion historica TVC — RESUELTO
 
-**Entró**: 2026-04-30 (S60)
+**Resuelto**: 2026-05-01 (S60 EXT) via endpoint `/api/admin/replay-attribution` (commits `a9e177e` + `5ad02b3`).
 
-**Contexto**: TVC tiene 33,985 ordenes VTEX traidas por backfill (S59 EXT2) sin atribucion en `pixel_attributions`. Tambien las 8 del 29/04 + las que entren antes de tener el webhook conectado. Como ahora el afiliado VTEX esta activo, las **futuras** ordenes se atribuiran automaticamente, pero **las pasadas no** — quedan vacias en el dashboard.
+**Implementacion final** (mas simple que la propuesta original):
+- Endpoint detecta automaticamente la fecha de instalacion del pixel para esa org y solo procesa ordenes posteriores (sino no hay data para atribuir).
+- Estrategia: solo email-match (`pixel_visitor.email == customer.email`). El refactor de las 6 estrategias del webhook quedo como mejora futura — la mayoria de los matches historicos vienen por email.
+- Idempotente: skip si ya hay attribution row con model='LAST_CLICK'.
 
-**Solucion (Tipo B, one-shot)**: endpoint admin nuevo `/api/admin/onboardings/[id]/replay-attribution` que:
+**Resultado para TVC**:
+- 93 ordenes web post-pixel sin atribuir
+- **71 atribuidas (76%)**
+- 22 sin visitor matching (data no recuperable, normal)
+- 0 errores
 
-1. Toma todas las ordenes web de la org (excluyendo MELI, FVG-, BPR-, channel=marketplace, trafficSource=Marketplace).
-2. Para cada orden, intenta correr la misma logica de atribucion del webhook (las 6 estrategias en orden):
-   - client-side PURCHASE event matching
-   - email-checkout heuristic
-   - email match
-   - phone match
-   - IP+UA fingerprint
-   - recent activity
-3. Si alguna estrategia matchea, llama `calculateAttribution(orderId, visitorId, orgId)`.
-4. Idempotente: si ya hay attribution row, skip.
-5. Limita procesamiento a ~500 ordenes por chunk con cursor para no timeout.
+**Aplicable para Arredo y futuros clientes**: correr el endpoint despues del backfill inicial cuando el cliente conecte el pixel.
 
-**Archivos a crear/tocar**:
-- `src/app/api/admin/onboardings/[id]/replay-attribution/route.ts` — endpoint admin
-- Refactor recomendado: extraer logica de las 6 estrategias del webhook (`src/app/api/webhooks/vtex/orders/route.ts` lineas 437-680) a `src/lib/pixel/attribution-strategies.ts` para usarlo desde el webhook Y desde el endpoint replay.
+---
 
-**Esfuerzo estimado**: ~2 horas (1.5h refactor + 0.5h endpoint).
+## 🆕 BP-S60-006 — Mejorar /pixel/configuracion (bonus features)
 
-**Estado**: Aprobado. A correr post-BP-S60-002.
+**Entró**: 2026-05-01 (S60 EXT)
+
+**Contexto**: la subseccion `/pixel/configuracion` (commit `23da7ac`) tiene constructor de UTMs + guia de tagueo. Falta agregar bonus features de configuracion del pixel:
+
+**Que hacer**:
+1. **Estado del snippet**: mostrar si el pixel esta instalado y disparando eventos (last-eventAt < 1h).
+2. **Pixel ID visible**: mostrar el orgId que el cliente debe usar al integrar.
+3. **Snippet copiable**: link al script `/api/pixel/script?org=<orgId>` con boton de copiar.
+4. **Test de integracion**: boton para enviar un evento de prueba manualmente y validar que llega.
+
+**Archivos**: extender `src/app/(app)/pixel/configuracion/page.tsx`.
+
+**Esfuerzo**: ~1 hora.
+
+**Estado**: Backlog. NO bloquea nada, mejora UX onboarding.
 
 ---
 

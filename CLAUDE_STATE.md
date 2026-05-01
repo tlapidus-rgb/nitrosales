@@ -3,7 +3,133 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-04-30 mediodia (Sesion 60 — TVC: causa raiz del 0/8 atribuidas IDENTIFICADA y resuelta manualmente. El wizard NO configura el afiliado VTEX automaticamente — bug multi-tenant CRITICO. Leandro de TVC creo el afiliado a mano (12:10 hs). Verificacion end-to-end pendiente hasta que TVC tenga su primera orden web post-config. Pendientes: configurar alias webhooks@nitrosales.ai, implementar paso afiliado VTEX en wizard (Tipo A), reparar atribucion historica TVC, activar TVC.)
+## Ultima actualizacion: 2026-05-01 noche (Sesion 60 EXTENDIDA — TVC quedo OPERATIVO. Webhook VTEX llegando OK, atribucion historica reparada (71/93), 30 ordenes 30/04+01/05 traidas y atribuidas via trigger-vtex-sync. + 3 features multi-tenant nuevos: spend manual de canales sin integracion, /pixel/configuracion con constructor UTMs, fix dashboard canales (Meta Ads / Facebook / Instagram separados, Adwords → Google Ads, merge por label). Pendientes finales: activar TVC, implementar afiliado VTEX en wizard, alias webhooks@nitrosales.ai.)
+
+### Sesion 60 EXTENDIDA (2026-05-01 noche) — Features multi-tenant + activacion TVC pendiente
+
+**Contexto**: continuacion de S60 mañana. Verificamos que el webhook VTEX de TVC empezo a funcionar post-config de afiliado. Detectamos gap de ordenes pre-12:10 + cron diario que no corrio el 01/05. Resolvimos con endpoints nuevos. Aprovechamos para levantar 3 features multi-tenant que mejoran el producto para TODOS los clientes.
+
+#### Endpoints debug/admin nuevos (cinco)
+
+1. **`/api/admin/vtex-recent-orders`** (commit `41059d8`): pega a la API de VTEX directo con las creds de la org y compara con DB. Distingue Escenario A (cliente no vendio) vs B (ingest roto).
+2. **`/api/admin/trigger-vtex-sync`** (commit `3ff2f64`): dispara sync VTEX manualmente. Lista ordenes de VTEX en rango y para cada una invoca al webhook propio. Reusa toda la logica del webhook (upsert order + items + customer + atribucion). Devuelve por orden: webhookStatus, webhookBody, wasInDb, nowInDb. Sirve para re-sincronizar cuando el cron rompe.
+3. **`/api/admin/replay-attribution`** (commit `a9e177e` + fix `5ad02b3`): re-corre atribucion para ordenes web post-pixel-install sin attribution row. Email-match contra pixel_visitors. Idempotente. Limit 100 default, max 500. Detecta automaticamente la fecha de instalacion del pixel para no procesar ordenes pre-pixel (no hay data para atribuir).
+4. **`/api/admin/relabel-app-referrers`** (commit `f78a6aa`): limpia retroactivamente touchpoints con sources tipo `com.instagram.android` → `instagram`. Soporta `dryRun=1`. En la corrida sobre TODA la DB (35,346 attributions, 122,850 touchpoints) → 0 cambios = no habia data con esos labels. Las apps moviles strippean el referrer (Instagram especialmente), no llegan como android-app schema.
+5. **`/api/admin/migrate-manual-spend`** (commit `6b2e157`): crea tabla `manual_channel_spends`. Idempotente. EJECUTADA en prod por Tomy.
+
+#### Caso TVC — resolucion completa
+
+**Verificacion ingest** (problema descubierto al volver de la reunion de Tomy):
+- 30/04: 0 ordenes web en NitroSales DB.
+- 01/05 (feriado): 0 ordenes web en NitroSales DB.
+- EMDJ control: 86 + 38 ordenes en mismos dias. Sistema general OK.
+- VTEX directo via `vtex-recent-orders`: TVC tiene 30 ordenes (25 web `1628...` + 5 Frávega `FVG-...`) en esos 2 dias. **Ingest VTEX para TVC roto.**
+- `trigger-vtex-sync` aplicado: 30 procesadas, 4 nuevas insertadas, 26 ya existian (las que llegaron via webhook post-12:10 hs del 30/04). 100% success rate.
+
+**Hallazgo del gap**:
+- Las 4 que faltaban son TODAS pre-12:10 hs del 30/04 (antes de la config del afiliado).
+- Las 26 que ya estaban son TODAS post-12:10 (ingestadas via webhook).
+- Conclusion: el webhook **funciona perfecto** desde el segundo que se configuro. El cron diario 01/05 3am que tendria que haber traido las 4 anteriores **no corrio o fallo silenciosamente** — bug colateral menor.
+
+**Atribucion historica reparada** (`replay-attribution` ejecutado):
+- 93 ordenes web post-pixel sin atribuir → **71 atribuidas (76%)**
+- 22 sin visitor matching (data no recuperable, normal)
+- 0 errores
+
+**TVC esta listo para activar**: webhook OK, atribucion limpia, dashboard mostrando ventas, MELI sync OK. Solo falta el click de "Habilitar cliente" y QA visual con view-as-org antes.
+
+#### Feature multi-tenant: Spend manual de canales sin integracion (commit `9891a8b`)
+
+Para canales como TV, radio, OOH, podcast, omnichannel — donde no hay API que devuelva el spend — el cliente puede cargar inversion manual con rango libre fromDate/toDate. El dashboard prorratea segun overlap con el rango query y suma al spend para calcular ROAS.
+
+**Decisiones de producto** (Tomy aprobado):
+- Granularidad: rango libre desde/hasta (no por mes).
+- Permisos: cliente edita desde su dashboard (autonomo).
+- Aparece solo en canales SIN integracion (platformSpend=0). Si Meta/Google ya tienen spend de su API, no se permite override.
+
+**Implementacion**:
+- DB: tabla `manual_channel_spends` (id, organizationId, channel, fromDate, toDate, amount, note). Indices: org+channel y org+date.
+- Prisma model `ManualChannelSpend` agregado a `Organization.manualChannelSpends`.
+- Endpoints: `/api/me/manual-spend` GET+POST, `/api/me/manual-spend/[id]` PATCH+DELETE. Autenticados con `getOrganizationId()`. Validaciones de fechas y amount > 0.
+- `/api/metrics/pixel` route.ts: query `manualSpends` con overlap, prorrateo en JS, sumado a `chSpend`. Response separa `platformSpend` + `manualSpend` para que el frontend distinga.
+- UI `pixel/analytics/page.tsx`:
+  - Celda Spend con 3 estados: integracion (monto sin editar) / manual cargado (naranja con icono lapiz) / sin nada (boton cyan "+ Cargar inversion").
+  - `ManualSpendModal` componente: lista existentes + form nuevo (monto, desde, hasta, nota) + boton borrar.
+  - Refresh dashboard al cerrar modal.
+
+**Multi-tenant aplica a todos los clientes desde el momento del deploy.**
+
+#### Feature multi-tenant: Fix dashboard canales (commits `4cbef55` + `fb3f6fe`)
+
+Bug visible en TVC: "Meta" aparecia 2 veces (una para fbclid, otra para referrer facebook.com), "Adwords" en lugar de "Google Ads".
+
+**Cambios en `pixel/analytics/page.tsx`**:
+1. **SOURCE_ICONS** extendido:
+   - `meta` → "Meta Ads" (paid con fbclid)
+   - `facebook` → "Facebook" (referrer organico)
+   - `instagram` → "Instagram" (sin cambios — separado)
+   - `google` / `adwords` / `google_ads` / `google-ads` → "Google Ads" (rebrand 2018)
+2. **`mergeChannelsByLabel`** despues de `rawChannels`: agrupa filas que comparten label visual, suma metricas (revenue, spend, orders, platformSpend, manualSpend), recalcula ROAS y diffPercent, ordena por pixelRevenue desc.
+3. Decision producto: Instagram queda separado de Meta (canales distintos). Si dos sources distintos en DB tienen mismo label visual, se suman.
+
+**Aplica a todos los clientes inmediatamente.**
+
+#### Feature multi-tenant: Reconocimiento de apps moviles en attribution (commit `f78a6aa`)
+
+Hipotesis original: visitors desde apps moviles llegan con referrer `android-app://com.instagram.android/`. El codigo viejo no los reconocia → caian a fallback con hostname literal. Patterns nuevos en `lib/pixel/attribution.ts` REFERRER_RULES:
+- `com.instagram.*` (android, lite, barcelona/Threads) → instagram
+- `com.facebook.*` (katana, lite, orca) → facebook
+- TikTok, Twitter, LinkedIn, YouTube, Pinterest, WhatsApp, Telegram apps Android.
+
+**Resultado real medido**: en toda la DB (122,850 touchpoints) hay 0 con esos labels. Las apps moviles NO mandan ese referrer — Instagram strippea el referrer especialmente en Stories. El trafico de Instagram organico cae como "Directo" en general. **El fix queda como prevencion** para casos edge futuros.
+
+**Conclusion para clientes**: para tracking real de Instagram organico, hay que taguear los links con UTMs (`?utm_source=instagram&utm_medium=stories&utm_campaign=...`).
+
+#### Feature multi-tenant: /pixel/configuracion (commit `23da7ac`)
+
+Nueva subseccion en NitroPixel para que el cliente arme URLs con UTMs correctas. Decision de producto: NO en el wizard del onboarding (eso pasa una sola vez), si en el producto persistente porque el cliente arma campañas constantemente.
+
+**Pagina** `/pixel/configuracion`:
+- **Constructor de URL** interactivo: form (URL base + 12 presets de canal + campaign name + variante) → URL final con `?utm_source=...&utm_medium=...&utm_campaign=...` lista para copiar.
+- 12 presets: Instagram Stories/Bio/Reels, Facebook, TikTok, WhatsApp, Email Newsletter / Cart-Abandonment, TV QR, Radio, Vía pública, Podcast.
+- Slugify automatico (lowercase, sin acentos, guiones).
+- **Tabla guia**: formatos recomendados de utm_source/utm_medium por canal.
+- **Cartel explicativo**: por que importa taguear (Instagram strippea referrer, canales offline necesitan UTMs, ROAS sin UTMs es a ciegas).
+- **Sidebar**: agregado item "Configuracion" al pixelSubItems con icono de tuerca.
+
+**Es client-side puro, sin endpoints backend.** Multi-tenant aplica automaticamente.
+
+#### Pendientes finales (priorizados)
+
+1. **BP-S60-005 — Activar TVC** (ahora desbloqueado): click "Habilitar cliente" en `/control/onboardings/eb283d21-b45d-4ccd-8caa-7db29309044d` despues de QA visual con view-as-org. Email a Leandro lo notifica.
+2. **BP-S60-002 — Implementar afiliado VTEX en wizard** (Tipo A multi-tenant CRITICO): para que Arredo y los proximos clientes no tengan que hacer manual lo que hizo Leandro. Captura blurreada ya disponible (Tomy la tiene). Pendiente: programar el sub-step en wizard VTEX.
+3. **BP-S60-004 — Configurar alias `webhooks@nitrosales.ai`** (operativo, Tomy lo hace): ImprovMX + Hostinger DNS. 10 minutos.
+4. **BP-S60-006 (NUEVO) — Mejorar /pixel/configuracion**: bonus features: estado del snippet (instalado/no), pixel ID visible, link al script para copiar. Opcional, no bloquea.
+
+#### Estado final TVC al cierre de S60 EXT
+
+| Area | Estado |
+|---|---|
+| Backfill VTEX (33,987 ordenes) | ✅ completo desde S59 EXT2 |
+| Backfill ML (14,616 ordenes) | ✅ completo desde S59 EXT2 |
+| Pixel TVC instalado y disparando eventos | ✅ desde 23/04 |
+| Webhook VTEX configurado (afiliado NSL) | ✅ desde 30/04 12:10 |
+| Atribucion ordenes nuevas (post-webhook) | ✅ 100% |
+| Atribucion historica (replay) | ✅ 71/93 (76%, 22 no recuperables) |
+| Dashboard pedidos VTEX visible | ✅ |
+| MELI sync funcionando | ✅ |
+| Marketplaces FVG/BPR clasificados como marketplace | ✅ desde S59 EXT2 |
+| Status onboarding | `READY_FOR_REVIEW` — esperando click "Habilitar cliente" |
+
+#### Patrones criticos S60 EXT (memorables)
+
+1. **Cuando ingest se rompe en un cliente especifico, comparar con cliente OK con misma stack para aislar el problema** (replicado de S60). Endpoint `vtex-recent-orders` lo formaliza como herramienta multi-tenant.
+2. **Endpoint que dispara webhook propio internamente para reusar logica complete (trigger-vtex-sync)**: en vez de duplicar logica de upsert/atribucion en multiples endpoints, simular el POST que VTEX haria. Idempotente, reusa todo el codigo. Patron aplicable a otros conectores.
+3. **Detectar fecha de instalacion del pixel automaticamente** en endpoints de replay-attribution para evitar procesar ordenes pre-pixel (no hay data). Patron reutilizable para cualquier metrica que dependa del pixel.
+4. **Verificar realidad antes de aplicar fix retroactivo**: el dryRun del relabel-app-referrers devolvio 0 cambios. La hipotesis era plausible pero el fix retroactivo no era necesario — el fix preventivo si.
+5. **Configuracion del cliente vive en el producto, no en el wizard**: para herramientas que el cliente usa muchas veces (constructor UTMs), una subseccion persistente es mejor UX que un paso unico.
+
+---
 
 ### Sesion 60 (2026-04-30 mediodia) — Bug afiliado VTEX detectado y resuelto manualmente para TVC
 
