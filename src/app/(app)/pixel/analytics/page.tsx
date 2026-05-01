@@ -33,10 +33,16 @@ const COLORS = ["#f97316", "#06b6d4", "#a855f7", "#22c55e", "#eab308", "#ec4899"
 
 // ── Channel Identity ──
 const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string }> = {
+  // Meta family — todos labelados "Meta" (se agrupan en una sola fila, ver `mergeChannelsByLabel`)
   meta: { icon: "M", color: "#1877F2", label: "Meta" },
   facebook: { icon: "M", color: "#1877F2", label: "Meta" },
+  // Google paid — varios aliases historicos: gclid → "google", utm_source=adwords, utm_source=google_ads, etc
+  google: { icon: "G", color: "#EA4335", label: "Google Ads" },
+  google_ads: { icon: "G", color: "#EA4335", label: "Google Ads" },
+  "google-ads": { icon: "G", color: "#EA4335", label: "Google Ads" },
+  adwords: { icon: "G", color: "#EA4335", label: "Google Ads" },
+  // Otros canales
   instagram: { icon: "I", color: "#E4405F", label: "Instagram" },
-  google: { icon: "G", color: "#EA4335", label: "Google" },
   bing: { icon: "B", color: "#008373", label: "Bing" },
   tiktok: { icon: "T", color: "#000000", label: "TikTok" },
   direct: { icon: "D", color: "#22C55E", label: "Directo" },
@@ -498,7 +504,39 @@ export default function AnalyticsPage() {
   }
 
   const bk = pixelData?.businessKpis;
-  const channels = pixelData?.channelRoas || [];
+  const rawChannels = pixelData?.channelRoas || [];
+
+  // ── Merge channels que comparten label visual ──
+  // Distintas source values pueden mapear al mismo label (ej: "meta" + "facebook" → "Meta",
+  // "google" + "adwords" + "google_ads" → "Google Ads"). Sin este merge, el dashboard
+  // muestra varias filas con el mismo label, lo cual es confuso. Sumamos las metricas
+  // y conservamos el primer source como key para los handlers de expand.
+  const mergedMap = new Map<string, typeof rawChannels[0]>();
+  for (const ch of rawChannels) {
+    const label = getSourceInfo(ch.source).label;
+    const existing = mergedMap.get(label);
+    if (!existing) {
+      mergedMap.set(label, { ...ch });
+    } else {
+      existing.pixelRevenue += ch.pixelRevenue;
+      existing.platformRevenue += ch.platformRevenue;
+      existing.spend += ch.spend;
+      existing.orders += ch.orders;
+      existing.platformConversions += ch.platformConversions;
+      if (ch.projectedRevenue !== undefined) {
+        existing.projectedRevenue = (existing.projectedRevenue || 0) + ch.projectedRevenue;
+      }
+      // Recalcular ROAS sobre la suma
+      existing.pixelRoas = existing.spend > 0 ? existing.pixelRevenue / existing.spend : 0;
+      existing.platformRoas = existing.spend > 0 ? existing.platformRevenue / existing.spend : 0;
+      existing.diffPercent =
+        existing.platformRevenue > 0
+          ? ((existing.pixelRevenue - existing.platformRevenue) / existing.platformRevenue) * 100
+          : null;
+    }
+  }
+  const channels = Array.from(mergedMap.values()).sort((a, b) => b.pixelRevenue - a.pixelRevenue);
+
   const funnel = pixelData?.funnel;
   const journeys = pixelData?.recentJourneys || [];
   const dailyTrend = discrepancy?.dailyTrend || [];
