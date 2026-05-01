@@ -45,6 +45,20 @@ const REFERRER_RULES: Array<{ pattern: RegExp; source: string; medium: string }>
   { pattern: /duckduckgo\.com/, source: 'duckduckgo', medium: 'organic' },
   { pattern: /baidu\.com/, source: 'baidu', medium: 'organic' },
   // Social → social organic (separated by platform for clarity)
+  // S60: agregar Android app schemas (com.<app>.android) — visitas desde apps moviles
+  // mandan referrer 'android-app://com.<app>.android/' que new URL().hostname parsea
+  // como 'com.<app>.android'. Sin estas reglas, todo el trafico de apps moviles cae
+  // a 'unknown referrer → generic referral' con source = literal del hostname.
+  { pattern: /com\.instagram\.android|com\.instagram\.lite|com\.instagram\.barcelona/, source: 'instagram', medium: 'social' },
+  { pattern: /com\.facebook\.katana|com\.facebook\.lite|com\.facebook\.orca/, source: 'facebook', medium: 'social' },
+  { pattern: /com\.zhiliaoapp\.musically|com\.ss\.android\.ugc\.trill/, source: 'tiktok', medium: 'social' },
+  { pattern: /com\.twitter\.android|com\.x\.android/, source: 'twitter', medium: 'social' },
+  { pattern: /com\.linkedin\.android/, source: 'linkedin', medium: 'social' },
+  { pattern: /com\.google\.android\.youtube/, source: 'youtube', medium: 'social' },
+  { pattern: /com\.pinterest/, source: 'pinterest', medium: 'social' },
+  { pattern: /com\.whatsapp/, source: 'whatsapp', medium: 'referral' },
+  { pattern: /org\.telegram\.messenger/, source: 'telegram', medium: 'referral' },
+  // Web — patterns historicos
   { pattern: /l\.instagram\.com/, source: 'instagram', medium: 'social' },
   { pattern: /instagram\.com/, source: 'instagram', medium: 'social' },
   { pattern: /facebook\.com|fb\.com|m\.facebook\.com/, source: 'facebook', medium: 'social' },
