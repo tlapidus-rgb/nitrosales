@@ -12,12 +12,13 @@
 //   - Solo ordenes sin attribution row con model='LAST_CLICK'
 //   - Status NOT IN ('CANCELLED', 'PENDING') AND totalValue > 0
 //
-// Estrategia de atribucion (por orden):
-//   1. Email match: pixel_visitor con email == customer.email
-//   2. Phone match: pixel_visitor con phone == customer.phone normalizado
+// Estrategia de atribucion:
+//   - Email match: pixel_visitor con email == customer.email
 //
-// Las otras estrategias del webhook (checkout heuristic, IP+UA, recent
-// activity) usan ventanas temporales que no aplican a data historica.
+// La tabla customers no tiene columna phone, asi que phone-match no
+// aplica aca. Las otras estrategias del webhook (checkout heuristic,
+// IP+UA, recent activity) usan ventanas temporales que no aplican a
+// data historica.
 //
 // Default: limit=100. Max=500 por invocacion.
 // ══════════════════════════════════════════════════════════════
@@ -26,7 +27,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { isInternalUser } from "@/lib/feature-flags";
 import { calculateAttribution } from "@/lib/pixel/attribution";
-import { normalizePhone } from "@/lib/pixel/identity";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -76,8 +76,7 @@ export async function GET(req: NextRequest) {
          o."orderDate",
          o."totalValue",
          o."customerId",
-         c."email" as customer_email,
-         c."phone" as customer_phone
+         c."email" as customer_email
        FROM "orders" o
        LEFT JOIN "customers" c ON c."id" = o."customerId"
        LEFT JOIN "pixel_attributions" pa ON pa."orderId" = o."id" AND pa."model"::text = 'LAST_CLICK'
@@ -111,9 +110,8 @@ export async function GET(req: NextRequest) {
       const externalId = o.externalId;
       const orderDbId = o.order_id;
       const email = (o.customer_email || "").toLowerCase().trim() || null;
-      const phone = normalizePhone(o.customer_phone);
 
-      // Estrategia 1: Email match
+      // Email match
       let visitor: any = null;
       let matchedBy: string | null = null;
 
@@ -125,22 +123,13 @@ export async function GET(req: NextRequest) {
         if (visitor) matchedBy = "email-match";
       }
 
-      // Estrategia 2: Phone match (fallback)
-      if (!visitor && phone) {
-        visitor = await prisma.pixelVisitor.findFirst({
-          where: { organizationId: orgId, phone },
-          select: { id: true, visitorId: true, email: true },
-        });
-        if (visitor) matchedBy = "phone-match";
-      }
-
       if (!visitor) {
-        if (!email && !phone) {
+        if (!email) {
           noEmail++;
-          results.push({ externalId, orderDate: o.orderDate, status: "skipped", reason: "no-customer-email-or-phone" });
+          results.push({ externalId, orderDate: o.orderDate, status: "skipped", reason: "no-customer-email" });
         } else {
           noVisitor++;
-          results.push({ externalId, orderDate: o.orderDate, status: "skipped", reason: "no-pixel-visitor-matching", customerEmail: email, customerPhone: phone });
+          results.push({ externalId, orderDate: o.orderDate, status: "skipped", reason: "no-pixel-visitor-matching", customerEmail: email });
         }
         continue;
       }
