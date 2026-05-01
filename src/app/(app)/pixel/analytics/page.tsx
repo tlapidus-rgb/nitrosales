@@ -131,7 +131,8 @@ interface PixelData {
   };
   channelRoas: Array<{
     source: string; orders: number; pixelRevenue: number; projectedRevenue?: number;
-    platformRevenue: number; spend: number; platformConversions: number;
+    platformRevenue: number; spend: number; platformSpend?: number; manualSpend?: number;
+    platformConversions: number;
     pixelRoas: number; pixelRoasRaw?: number; platformRoas: number; diffPercent: number | null;
   }>;
   funnel: { pageView: number; viewProduct: number; addToCart: number; checkoutStart: number; purchase: number };
@@ -418,6 +419,13 @@ export default function AnalyticsPage() {
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<"truth" | "channels">("truth");
 
+  // Manual spend modal (S60)
+  const [manualSpendModal, setManualSpendModal] = useState<{
+    open: boolean;
+    channel: string;
+    label: string;
+  } | null>(null);
+
   // Refetch indicator
   const [isRefetching, setIsRefetching] = useState(false);
 
@@ -524,6 +532,8 @@ export default function AnalyticsPage() {
       existing.pixelRevenue += ch.pixelRevenue;
       existing.platformRevenue += ch.platformRevenue;
       existing.spend += ch.spend;
+      existing.platformSpend = (existing.platformSpend || 0) + (ch.platformSpend || 0);
+      existing.manualSpend = (existing.manualSpend || 0) + (ch.manualSpend || 0);
       existing.orders += ch.orders;
       existing.platformConversions += ch.platformConversions;
       if (ch.projectedRevenue !== undefined) {
@@ -852,7 +862,47 @@ export default function AnalyticsPage() {
                             <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
-                        <td className="text-right px-4 py-3.5 text-gray-500">{ch.spend ? fmtCompact(ch.spend) : "—"}</td>
+                        <td className="text-right px-4 py-3.5 text-gray-500">
+                          {(() => {
+                            const platformSpend = ch.platformSpend ?? ch.spend ?? 0;
+                            const manualSp = ch.manualSpend ?? 0;
+                            const totalSpend = ch.spend || 0;
+                            // Si tiene integracion (platform spend > 0): mostrar el spend total, sin boton
+                            if (platformSpend > 0) {
+                              return <span>{fmtCompact(totalSpend)}</span>;
+                            }
+                            // Sin integracion + con manual cargado: mostrar monto + boton editar
+                            if (manualSp > 0) {
+                              return (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setManualSpendModal({ open: true, channel: ch.source, label: info.label });
+                                  }}
+                                  className="inline-flex items-center gap-1 text-amber-700 hover:text-amber-900 hover:underline"
+                                  title="Editar inversion manual"
+                                >
+                                  {fmtCompact(manualSp)}
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                              );
+                            }
+                            // Sin integracion ni manual: boton para cargar
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setManualSpendModal({ open: true, channel: ch.source, label: info.label });
+                                }}
+                                className="text-cyan-600 hover:text-cyan-800 hover:underline text-xs"
+                              >
+                                + Cargar inversión
+                              </button>
+                            );
+                          })()}
+                        </td>
                         <td className="text-right px-4 py-3.5 font-semibold text-gray-900">{ch.pixelRoas ? `${ch.pixelRoas.toFixed(1)}x` : "—"}</td>
                         <td className="text-right px-4 py-3.5 text-gray-400">{ch.platformRoas ? `${ch.platformRoas.toFixed(1)}x` : "—"}</td>
                         <td className="text-right px-6 py-3.5 text-gray-600">{fmt(ch.orders)}</td>
@@ -1932,6 +1982,214 @@ export default function AnalyticsPage() {
           <p className="text-[11px] text-gray-300">
             NitroPixel Analytics — Datos propios. Sin intermediarios. La verdad de tu negocio.
           </p>
+        </div>
+
+        {/* Manual Spend Modal (S60) */}
+        {manualSpendModal?.open && (
+          <ManualSpendModal
+            channel={manualSpendModal.channel}
+            label={manualSpendModal.label}
+            onClose={() => setManualSpendModal(null)}
+            onSaved={() => {
+              setManualSpendModal(null);
+              fetchAll(true);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Manual Spend Modal — cargar/editar inversion de canal sin integracion
+// ══════════════════════════════════════════════════════════════
+function ManualSpendModal({
+  channel,
+  label,
+  onClose,
+  onSaved,
+}: {
+  channel: string;
+  label: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [items, setItems] = useState<Array<{ id: string; channel: string; fromDate: string; toDate: string; amount: number; note: string | null }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Form state (nuevo)
+  const [amount, setAmount] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [note, setNote] = useState("");
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/me/manual-spend");
+      const data = await res.json();
+      if (data.ok) {
+        setItems((data.list || []).filter((it: any) => it.channel === channel.toLowerCase()));
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [channel]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const handleSave = async () => {
+    setError(null);
+    setSaving(true);
+    try {
+      const amt = Number(amount.replace(/[^0-9.]/g, ""));
+      if (!Number.isFinite(amt) || amt <= 0) throw new Error("Monto debe ser mayor a 0");
+      if (!fromDate) throw new Error("Fecha desde requerida");
+      if (!toDate) throw new Error("Fecha hasta requerida");
+      const res = await fetch("/api/me/manual-spend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel: channel.toLowerCase(),
+          fromDate: new Date(`${fromDate}T00:00:00.000Z`).toISOString(),
+          toDate: new Date(`${toDate}T23:59:59.999Z`).toISOString(),
+          amount: amt,
+          note: note || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Error al guardar");
+      setAmount(""); setFromDate(""); setToDate(""); setNote("");
+      await refresh();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Borrar esta inversión?")) return;
+    try {
+      const res = await fetch(`/api/me/manual-spend/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Error al borrar");
+      await refresh();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Inversión manual — {label}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Para canales sin integración. Se prorratea según el rango de fechas del dashboard.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+
+        {/* Lista existentes */}
+        {loading ? (
+          <div className="text-sm text-gray-400 py-4">Cargando…</div>
+        ) : items.length > 0 ? (
+          <div className="mb-5 space-y-2">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Inversiones cargadas</p>
+            {items.map((it) => (
+              <div key={it.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                <div className="text-sm">
+                  <div className="font-medium text-gray-900">${it.amount.toLocaleString("es-AR")}</div>
+                  <div className="text-xs text-gray-500">
+                    {new Date(it.fromDate).toLocaleDateString("es-AR")} → {new Date(it.toDate).toLocaleDateString("es-AR")}
+                  </div>
+                  {it.note && <div className="text-xs text-gray-400 italic">{it.note}</div>}
+                </div>
+                <button
+                  onClick={() => handleDelete(it.id)}
+                  className="text-red-500 hover:text-red-700 text-xs"
+                >Borrar</button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {/* Form nuevo */}
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cargar nueva inversión</p>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Monto (ARS)</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="500000"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Desde</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Hasta</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Nota (opcional)</label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Ej: Campaña Día de la Madre"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none"
+            />
+          </div>
+
+          {error && <div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >Cancelar</button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-300 rounded-lg transition-colors"
+            >{saving ? "Guardando…" : "Guardar"}</button>
+            <button
+              onClick={() => { onSaved(); }}
+              className="px-3 py-2 text-sm font-medium text-cyan-600 hover:text-cyan-800"
+            >Listo</button>
+          </div>
         </div>
       </div>
     </div>

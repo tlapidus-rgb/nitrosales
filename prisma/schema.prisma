@@ -88,6 +88,8 @@ model Organization {
   apiKeys                  ApiKey[]
   // Settings Fase 7 QA — Roles custom per-org
   customRoles              CustomRole[]
+  // S60 — Inversion manual de canales sin integracion (TV, radio, omnichannel, etc)
+  manualChannelSpends      ManualChannelSpend[]
 
   @@map("organizations")
 }
@@ -1893,4 +1895,31 @@ model CustomRole {
   @@index([organizationId], map: "custom_roles_org_idx")
   @@index([organizationId, isActive], map: "custom_roles_org_active_idx")
   @@map("custom_roles")
+}
+
+// ══════════════════════════════════════════════════════════════
+// S60 — Manual Channel Spend
+// ══════════════════════════════════════════════════════════════
+// Permite al cliente cargar inversion manual en canales sin
+// integracion (TV, radio, omnichannel, etc) para que el dashboard
+// calcule ROAS sumando esa inversion al gasto del canal.
+// Granularidad: rango libre fromDate/toDate.
+// El dashboard calcula overlap con el rango query y prorratea.
+// ══════════════════════════════════════════════════════════════
+model ManualChannelSpend {
+  id             String   @id @default(cuid())
+  organizationId String
+  channel        String                                  // "tv", "omnichannel", etc.
+  fromDate       DateTime @db.Timestamptz
+  toDate         DateTime @db.Timestamptz
+  amount         Decimal  @db.Decimal(14, 2)
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, channel], map: "manual_channel_spends_org_channel_idx")
+  @@index([organizationId, fromDate, toDate], map: "manual_channel_spends_org_date_idx")
+  @@map("manual_channel_spends")
 }

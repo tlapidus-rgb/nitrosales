@@ -943,11 +943,35 @@ export async function GET(request: NextRequest) {
     const prevOrdersAttr = prevAttr?.ordersAttributed || 0;
     const prevRoas = totalAdSpend > 0 ? (prevPixelRevenue / totalAdSpend) : 0;
 
-    // ── NEW: Build channelRoas (merge pixel attribution + platform metrics) ──
+    // ── Manual channel spend (S60) ──
+    // Para canales sin integracion (TV, omnichannel, etc) el cliente puede
+    // cargar inversion manual con un rango fromDate/toDate. Aca prorrateamos
+    // el monto segun el overlap con el rango query del dashboard.
+    const manualSpends = await prisma.manualChannelSpend.findMany({
+      where: {
+        organizationId: ORG_ID,
+        fromDate: { lte: dateTo },
+        toDate: { gte: dateFrom },
+      },
+    });
+    const manualSpendByChannel = new Map<string, number>();
+    for (const ms of manualSpends) {
+      const totalDur = ms.toDate.getTime() - ms.fromDate.getTime();
+      if (totalDur <= 0) continue;
+      const overlapStart = Math.max(ms.fromDate.getTime(), dateFrom.getTime());
+      const overlapEnd = Math.min(ms.toDate.getTime(), dateTo.getTime());
+      const overlap = Math.max(0, overlapEnd - overlapStart);
+      const prorated = (overlap / totalDur) * Number(ms.amount);
+      const current = manualSpendByChannel.get(ms.channel) || 0;
+      manualSpendByChannel.set(ms.channel, current + prorated);
+    }
+
+    // ── NEW: Build channelRoas (merge pixel attribution + platform metrics + manual spend) ──
     const adSpendMap = new Map(adSpendBySourceResult.map((s) => [s.source, s]));
     const channelRoas = attributionBySource.map((ch) => {
       const platform = adSpendMap.get(ch.source) || { spend: 0, platformConversions: 0, platformRevenue: 0 };
-      const chSpend = platform.spend || 0;
+      const manualSpend = manualSpendByChannel.get(ch.source) || 0;
+      const chSpend = (platform.spend || 0) + manualSpend;
       // Scale channel revenue by overall attribution coverage
       const chProjectedRevenue = coverageRatio > 0 ? (ch.revenue || 0) / coverageRatio : 0;
       return {
@@ -957,6 +981,8 @@ export async function GET(request: NextRequest) {
         projectedRevenue: Math.round(chProjectedRevenue),
         platformRevenue: platform.platformRevenue || 0,
         spend: chSpend,
+        platformSpend: platform.spend || 0,
+        manualSpend: manualSpend,
         platformConversions: platform.platformConversions || 0,
         pixelRoas: chSpend > 0 ? Math.round((chProjectedRevenue / chSpend) * 100) / 100 : 0,
         pixelRoasRaw: chSpend > 0 ? Math.round(((ch.revenue || 0) / chSpend) * 100) / 100 : 0,
