@@ -3,7 +3,68 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-02 noche (Sesion 60 EXT-2 — fixes adicionales y mejoras UX en /pixel/analytics. Funnel ahora viene del pixel propio (no GA4) y soporta filtro por canal de primer toque con dropdown de logos. Bug del enrichment historico detectado por Tomy: 1.741 ordenes web propias mal etiquetadas como Marketplace, reparadas. Webhook VTEX ya NO atribuye ordenes marketplace (FVG/BPR/MELI) para evitar atribuciones falsas. Revenue Intelligence ahora filtra por orderDate (no createdAt) para no mostrar data en fechas pre-pixel. Tooltips explicativos en todos los modulos. Pendientes intactos: activar TVC, wizard afiliado, alias email.)
+## Ultima actualizacion: 2026-05-02 noche (Sesion 60 EXT-2 BIS — extension final del dia. Multiples bugs detectados y corregidos: (1) Funnel y Conversion por Canal usaban definiciones distintas de canal — unificado a first-touch; (2) bug guard marketplace usaba `vtexOrder.origin === 'Marketplace'` que VTEX devuelve para todas las ordenes — corregido a solo prefijo FVG-/BPR-; (3) cron diario VTEX 1x/dia insuficiente como red de seguridad — agregado nuevo cron `/api/cron/vtex-sync-recent` cada 30 min iterando todas las orgs VTEX; (4) tooltips aclaratorios en todos los modulos del pixel/analytics explicando que definicion de canal usa cada uno; (5) Tomy reporto que Claude se volvio dependiente de pegar URLs manualmente — Claude reconoce el error de proceso y recupera autonomia con WebFetch. Pendientes intactos: activar TVC, wizard afiliado VTEX, alias webhooks@nitrosales.ai.)
+
+### Sesion 60 EXT-2 BIS (2026-05-02 noche tarde) — Unificacion canales + cron VTEX + recuperacion autonomia
+
+**Contexto**: post-S60 EXT-2 (mañana/tarde), Tomy detecto 3 problemas adicionales mientras revisaba el dashboard. Esta seccion documenta los fixes finales del dia.
+
+#### Bug 1: Funnel vs Conversion por Canal mostraban numeros distintos
+- **Sintoma**: Funnel filtrado por Google Ads = 6.566 visitas / 39 compras. Conversion por Canal mostraba Google Ads = 378 / 48. Inconsistente.
+- **Causa**: cada modulo usaba definicion distinta de "visitor de canal X". Funnel = first-touch (CTE visitor_first_source). Conversion por Canal = priorizaba utmParams sobre tiempo, ignoraba clickIds, no normalizaba aliases.
+- **Fix** (commit `da4cf08`): query 23 reemplazada con CTE identico al funnel. Frontend consume directamente visitors+purchases del nuevo response.
+- **Decision producto Tomy**: TODA la plataforma usa first-touch como definicion de canal.
+
+#### Bug 2: webhook VTEX skipeaba atribucion de ordenes web propia
+- **Sintoma**: ordenes web propia entraban a DB pero quedaban sin attribution row.
+- **Causa**: mi commit anterior (`31d5ee3`) usaba `vtexOrder.origin === "Marketplace"` como criterio para detectar marketplace. PERO VTEX devuelve `origin: "Marketplace"` para TODAS las ordenes (web propia tambien). Detalle interno raro de VTEX que descubrimos en S60 EXT-1 pero olvide al implementar el guard.
+- **Fix** (commit `24da6de`): guard ahora solo chequea prefijo del externalId (`FVG-`/`BPR-`). El campo `origin` de VTEX no se usa.
+
+#### Bug 3: cron VTEX 1x/dia es insuficiente
+- **Sintoma**: 24 ordenes faltantes en TVC del 30/04 al 02/05. Webhook intermitente perdio eventos, cron diario no recupero por timing.
+- **Causa**: solo cron `0 3 * * *` como respaldo del webhook. Gap maximo 24 hs.
+- **Fix** (commit `4d1cb0b`): nuevo `/api/cron/vtex-sync-recent` cada 30 min. Itera todas las orgs VTEX activas (multi-tenant), pega internamente a `trigger-vtex-sync` con rango ultimas 24 hs (idempotente). Procesa hasta 5 orgs en paralelo. Gap maximo ahora: 30 min.
+
+#### Bug 4: Claude perdio autonomia, dependiente de Tomy pegando URLs
+- **Sintoma**: Tomy reporto que se volvio "todo dependiente de mi pegando URLs". Frustracion por flujo lento.
+- **Causa**: Claude se olvido que `WebFetch` puede invocar endpoints admin con `?key=` directamente.
+- **Fix**: Claude pega URLs admin con `WebFetch` directamente. Solo pide al user pegar URLs cuando: (a) endpoint requiere sesion NextAuth, (b) operacion destructiva en prod requiere confirmacion explicita, (c) WebFetch tira timeout >60s.
+- **Validado en sesion**: Claude corrio trigger-vtex-sync para 02/05 y 01/05 + replay-attribution + audit, todo solo con WebFetch.
+
+#### Bug 5 (UX): tooltips aclaratorios en cada modulo
+- **Causa**: cada modulo de pixel/analytics usa una definicion distinta de canal (Truth Score = last-click, Funnel = first-touch, Roles = first/last/assist separados). Sin tooltips claros, el cliente se confunde con numeros que difieren.
+- **Fix** (commit `533bca4`): tooltips actualizados en cada modulo explicando que definicion usa Y por que. Truth Score aclara LAST-CLICK + comparacion con plataformas. Funnel aclara FIRST-TOUCH. Etc.
+
+#### Deploys del dia (orden cronologico)
+1. `7f1f02e` — tooltips iniciales en todos los modulos
+2. `f57e5f7` — docs de S60 EXT-1
+3. `da4cf08` — unificar Conversion por Canal a first-touch
+4. `533bca4` — tooltips aclaratorios sobre definicion de canal por modulo
+5. `24da6de` — guard marketplace solo por prefijo (fix bug propio del dia)
+6. `4d1cb0b` — cron vtex-sync-recent cada 30 min
+
+#### Acciones admin ejecutadas (autonomas con WebFetch)
+- `trigger-vtex-sync` para TVC 02/05 → 22 ya en DB (entraron por webhook minutos antes)
+- `trigger-vtex-sync` para TVC 01/05 → 2 nuevas insertadas + 10 ya estaban
+- Audit final → 12 de VTEX = 12 en DB ✓
+- `replay-attribution` para TVC → 22 procesadas, 0 atribuidas (limitacion del snippet TVC ya conocida — captura 2.3% de emails en checkout, esperado)
+
+#### Patrones criticos S60 EXT-2 BIS
+
+1. **Autonomia agentica via WebFetch**: cuando un endpoint admin acepta `?key=`, NO pedir al user que pegue. Invocarlo directamente. Solo involucrar al user para decisiones, no para ser network proxy.
+
+2. **First-touch como default de plataforma**: para reportes ejecutivos consolidados, first-touch es la definicion estandar. Modulos especializados (Truth Score vs plataformas, Roles de Canal) pueden usar last-click o first/last/assist con TOOLTIP CLARO de que definicion usan y por que.
+
+3. **Webhook + cron 30min + cron diario = redundancia para integraciones criticas**: el webhook puede perder eventos en silencio. Una capa de cron frecuente de 30 min recupera con poco gap. La capa diaria sigue como deep sync. Aplicar a integracion futura (Arredo, etc.).
+
+4. **Olvidar descubrimientos de la misma sesion**: el bug del guard marketplace usaba un campo (vtex_origin) que ya habiamos descubierto que era ambiguo en la primera mitad de la sesion. Lecciones de la sesion deben memorizarse para no repetir errores en horas siguientes. La tabla "Mental model de fields ambiguos" deberia mantenerse activa.
+
+#### Pendientes finales (sin cambios)
+1. 🟡 BP-S60-005 Activar TVC
+2. 🟡 BP-S60-002 Wizard del afiliado VTEX
+3. 🟢 BP-S60-004 Alias webhooks@nitrosales.ai
+
+---
 
 ### Sesion 60 EXTENDIDA #2 (2026-05-02 noche) — Fixes profundos en pixel/analytics + reparaciones data legacy
 

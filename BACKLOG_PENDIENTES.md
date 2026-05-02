@@ -8,7 +8,7 @@
 > - Cuando un ítem se resuelve, se marca como `✅ resuelto` con la sesión y commit(s), y se archiva en la sección "Resueltos".
 > - Cuando un ítem se descarta, se marca como `🗑 descartado` con la razón.
 >
-> **Última actualización**: 2026-05-02 noche — Sesion 60 EXT-2. Multiples fixes en /pixel/analytics: funnel desde NitroPixel (no GA4) con filtro por canal first-touch, dashboard canales pulido (logos correctos Meta/Facebook/Instagram, normalizacion aliases), webhook VTEX no atribuye ordenes marketplace, queries filtran por orderDate (no createdAt), tooltips explicativos en todos los modulos. Reparacion data legacy: 1.746 ordenes web mal etiquetadas como Marketplace en EMDJ, 95 atribuciones falsas marketplace borradas. BP-S60-001/003 resueltos previamente. Pendientes BP-S60-002/004/005 sin cambios.
+> **Última actualización**: 2026-05-02 noche tarde — Sesion 60 EXT-2 BIS. Continuacion del dia con 5 bugs adicionales: unificacion Funnel+Conversion por Canal a first-touch, fix guard marketplace usando solo prefijos, nuevo cron VTEX cada 30 min como red de seguridad, recuperacion autonomia Claude via WebFetch, tooltips aclaratorios por modulo. Pendientes BP-S60-002/004/005 sin cambios.
 
 ---
 

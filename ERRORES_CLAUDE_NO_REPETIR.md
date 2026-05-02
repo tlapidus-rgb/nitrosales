@@ -1995,4 +1995,100 @@ Conexion con #S59-EXT2-NO-CONTRASTAR-CON-REALIDAD: ambos son "asumi que el flag/
 
 ---
 
+## Error #S60-EXT2-PEDIR-AL-USUARIO-PEGAR-URLS-EN-LUGAR-DE-USAR-WEBFETCH
+
+**Cuándo pasó**: Sesión 60 EXT-2. Tomy reporto frustracion: "antes resolvias solo los problemas, ahora me dependes para pegar URLs". Tenia razon. Yo tenia disponible el tool `WebFetch` para invocar URLs publicas (incluyendo endpoints admin con `?key=...` que NO requieren sesion NextAuth), pero estaba pidiendo a Tomy que pegara las URLs en su navegador y me devolviera el JSON manualmente.
+
+Resultado: dependencia innecesaria del usuario, perdida de velocidad, frustracion. Tomy debio empujarme a usar `WebFetch` cuando ya estaba disponible.
+
+### Causa raíz
+- Olvide que `WebFetch` puede pegarle a endpoints admin con auth via query param `?key=`.
+- Asumi (sin verificar) que necesitaba la sesion del navegador del usuario para invocar endpoints admin.
+- En sesiones anteriores (S57+), la dinamica era "armo URL → user pega → user me trae JSON". Quedo como habito.
+
+### Regla
+**Cuando un endpoint admin acepta auth via query param (`?key=...`), invocarlo YO con `WebFetch` en lugar de pedirle al user que lo pegue.** Patron:
+
+```
+WebFetch(`https://app.nitrosales.ai/api/admin/...?orgId=X&key=...`, "qué quiero del JSON")
+```
+
+Casos donde SI debo pedirle al user:
+- Endpoints autenticados con sesion NextAuth (no aceptan `?key=`).
+- Operaciones que requieren confirmacion explicita del user (cambios destructivos en prod).
+- Cuando WebFetch tira timeout (>60s) y no puedo paginar el call.
+
+### Prevención
+- Default: **usar WebFetch primero**, pedir al user solo si falla.
+- Si el endpoint es admin con `?key=`, lo invoco yo. Si requiere sesion, lo pego al user.
+- Para endpoints lentos (timeout 60s), paginarlos: bajar `limit`/`max` y hacer N calls. Mejor que pedir al user que pegue 1 sola call de 5 minutos.
+
+### Pattern relevante
+Conexion con autonomia agentica. La regla general: **maximizar lo que puedo hacer YO sin involucrar al user**. El user esta para decisiones, no para ser un proxy de network requests.
+
+---
+
+## Error #S60-EXT2-GUARD-MARKETPLACE-USANDO-CAMPO-VTEX-AMBIGUO
+
+**Cuándo pasó**: Sesión 60 EXT-2. Para evitar atribuir ordenes marketplace, agregue un guard al webhook VTEX:
+```ts
+const isMarketplaceOrder =
+  orderId.startsWith("FVG-") || orderId.startsWith("BPR-") ||
+  vtexOrder.origin === "Marketplace" || vtexOrder.origin === "Fulfillment";
+```
+
+Pero VTEX devuelve `origin: "Marketplace"` para TODAS las ordenes (incluso web propia). Es un detalle interno de VTEX que YA HABIAMOS DESCUBIERTO en S60 EXT-1 al diagnosticar el ingest, pero olvide al implementar el guard.
+
+Resultado: el guard skipeaba atribucion para ordenes web propia tambien. Las ordenes se INSERTABAN OK pero quedaban sin attribution row.
+
+### Causa raíz
+- Olvide un descubrimiento de la misma sesion al implementar codigo nuevo.
+- Confie en que el campo `origin` de VTEX significaba "marketplace en sentido comercial". No lo era.
+- No hice cross-check con la captura del trigger-vtex-sync (commit de hace ~2 horas) que mostraba TODAS las ordenes con `origin: "Marketplace"` aunque eran web propia.
+
+### Regla
+**Antes de usar un campo de un sistema externo (VTEX, MELI, Meta, Google) como criterio de logica, verificar que su valor signifique lo que asumo.** Patron de check:
+
+1. Buscar muestras del campo en data real (audit endpoint, query SQL).
+2. Verificar que cubre solo el caso que quiero filtrar.
+3. Si el campo es ambiguo, usar otra señal mas confiable (en este caso: prefijo del externalId, NO el campo `origin`).
+
+### Prevención
+- Cuando estoy por usar un campo de plataforma externa para logica destructiva (filtros, exclusiones, skips), pegar mentalmente: "¿este valor lo vi yo en data real? ¿en que sample?". Si no, agregar audit antes.
+- Mantener un mental model de "fields de VTEX que son ambiguos" y revisarlos. Por ejemplo: `origin`, `salesChannel`, `trafficSource` (ya descubrimos que historicamente venia mal seteado).
+
+### Pattern relevante
+Conexion con #S60-EXT2-NO-VALIDAR-FLAGS-LEGACY: ambos son "asumi que un campo significa X cuando significa Y". Regla unificada: **antes de usar un flag/campo en logica, sample real**.
+
+---
+
+## Error #S60-EXT2-CRON-DIARIO-ES-INSUFICIENTE-COMO-RED-DE-SEGURIDAD
+
+**Cuándo pasó**: Sesión 60 EXT-2. El sistema dependia del webhook VTEX (real-time) + cron diario `/api/sync` (3 AM) como respaldo. Los webhooks de VTEX tienen fallas intermitentes (perdida de eventos sin notificacion). El cron diario solo corria 1x/dia, asi que cualquier evento perdido por el webhook quedaba afuera hasta 24 hs despues. Resultado para TVC el 02/05: 24 ordenes faltantes en NitroSales DB.
+
+### Causa raíz
+- El cron `0 3 * * *` se diseno asumiendo que el webhook era confiable. No lo es.
+- No habia metric/alerta cuando el webhook perdia eventos.
+- Sin mas frecuencia de respaldo, gaps grandes silenciosos.
+
+### Regla
+**Para integraciones criticas via webhook con sistemas externos, NO depender solo del webhook. Tener un cron de respaldo frecuente (cada 30 min - 1 hr) que pegue a la API directamente y traiga las ultimas N horas, idempotente.**
+
+Patron multi-tenant:
+1. Cron `*/30 * * * *` que itera todas las orgs activas en la integracion.
+2. Para cada org, pega a la API externa filtrando ultimas 24 hs.
+3. Compara con DB y trae solo lo que falta (idempotente).
+4. Devuelve resumen con `totalInserted` para monitoring.
+
+Aplicado en S60 EXT-2: `/api/cron/vtex-sync-recent` cada 30 min.
+
+### Prevención
+- Cuando integro nueva plataforma via webhook (proximo: Arredo VTEX, etc), DEFAULT incluir cron de respaldo cada 30 min - 1 hr. No dejar para "despues".
+- Pattern documentado: webhook (real-time) + cron 30min (red de seguridad) + cron diario (deep sync con consistency check). 3 capas.
+
+### Pattern relevante
+Conexion con #S52-VTEX-SYNC-FAIL-SILENTLY: ambos son "fallaba en silencio sin alertar". La regla unificada: **integracion critica = redundancia + monitoring activo**.
+
+---
+
 _Fin del archivo. Claude: si estás por cometer algo que se parece a uno de estos errores, PARÁ y releé la regla._
