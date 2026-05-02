@@ -993,30 +993,40 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // ── Funnel from GA4 (FunnelDaily) ──
-    // GA4 ecommerce events are more reliable than pixel_events for funnel.
-    // pixel_events had issues: VTEX DOM pre-loading, webhook timestamp contamination,
-    // and unreliable checkout step detection.
-    const funnelData = await prisma.funnelDaily.aggregate({
-      where: {
-        organizationId: ORG_ID,
-        date: { gte: dateFrom, lte: dateTo },
-      },
-      _sum: {
-        visitors: true,
-        productViews: true,
-        addToCarts: true,
-        checkoutStarts: true,
-        purchases: true,
-      },
-    });
-    const fSum = funnelData._sum;
+    // ── Funnel from NitroPixel (S60 EXT — decision producto) ──
+    // El funnel se arma desde pixel_events propios. NitroSales es fuente de verdad.
+    // Cuenta visitors UNICOS por etapa, excluyendo eventos creados server-side por
+    // el webhook (sessionId LIKE 'webhook-%') que no representan humanos.
+    //
+    // Mapping estandar:
+    //   Visitas       → PAGE_VIEW
+    //   Vio Producto  → VIEW_PRODUCT
+    //   Carrito       → ADD_TO_CART
+    //   Checkout      → INITIATE_CHECKOUT o CHECKOUT_SHIPPING
+    //   Compra        → PURCHASE
+    const funnelRaw = await prisma.$queryRaw<Array<{
+      pageView: number; viewProduct: number; addToCart: number;
+      checkoutStart: number; purchase: number;
+    }>>`
+      SELECT
+        COUNT(DISTINCT CASE WHEN pe.type = 'PAGE_VIEW' THEN pe."visitorId" END)::int as "pageView",
+        COUNT(DISTINCT CASE WHEN pe.type = 'VIEW_PRODUCT' THEN pe."visitorId" END)::int as "viewProduct",
+        COUNT(DISTINCT CASE WHEN pe.type = 'ADD_TO_CART' THEN pe."visitorId" END)::int as "addToCart",
+        COUNT(DISTINCT CASE WHEN pe.type IN ('INITIATE_CHECKOUT', 'CHECKOUT_SHIPPING') THEN pe."visitorId" END)::int as "checkoutStart",
+        COUNT(DISTINCT CASE WHEN pe.type = 'PURCHASE' THEN pe."visitorId" END)::int as "purchase"
+      FROM pixel_events pe
+      WHERE pe."organizationId" = ${ORG_ID}
+        AND pe.timestamp >= ${dateFrom}
+        AND pe.timestamp <= ${dateTo}
+        AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
+    `;
+    const fRow = funnelRaw[0] || { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0, purchase: 0 };
     const funnel = {
-      pageView: fSum.visitors || 0,
-      viewProduct: fSum.productViews || 0,
-      addToCart: fSum.addToCarts || 0,
-      checkoutStart: fSum.checkoutStarts || 0,
-      purchase: fSum.purchases || 0,
+      pageView: fRow.pageView || 0,
+      viewProduct: fRow.viewProduct || 0,
+      addToCart: fRow.addToCart || 0,
+      checkoutStart: fRow.checkoutStart || 0,
+      purchase: fRow.purchase || 0,
     };
 
     // ── NEW: Daily revenue merged with daily spend ──
