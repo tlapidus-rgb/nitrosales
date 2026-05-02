@@ -3,7 +3,73 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-02 madrugada++++ (Sesion 60 EXT-2 BIS++++ — UX mejoras seccion Atribucion. 7 cambios pedidos por Tomy: (1) renombrar "Ventana de atribucion" → "por defecto" + texto explicativo de herencia; (2) componente compartido ChannelLogo con SVGs oficiales de 14 canales reemplazando los emojis; (3) tilde Precisión correcto; (4) input numerico editable junto al slider en Pesos de Precision; (5) badge "Hereda · 30d" / "Custom · 60d" al lado de cada canal; (6) tooltips por modelo con descripcion + ejemplo concreto; (7) Facebook ahora usa la F clasica, ya no comparte el loop de Meta. Pendientes intactos.)
+## Ultima actualizacion: 2026-05-02 madrugada+++++ (Sesion 60 EXT-2 BIS+++++ — Refactor /pixel Atribucion Fase 1. 5 cambios: (1) Fase 1 completa de claridad: borrar mini editor pesos legacy en B5 + chip read-only que linkea a /pixel/configuracion, B2 Truth Gap como seccion colapsable con teaser de canales que inflan, tooltips DarkTip explicativos en 5 KPIs + Truth Gap + "% inflado", CTA en Click ID coverage cuando <50%; (2) paleta de colores unicos por canal en Hero Bar (antes 5 canales caian al fallback gris) + tono distinto Facebook vs Meta + email vs email-marketing; (3) endpoint debug-channel-sources que lista los `source` literales en pa.touchpoints; (4) fix LOWER en queries que agrupan por source — ADWORDS y adwords ahora colapsan a una sola fila; (5) Tomy confirma logo Facebook con F clasica. Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS+++++ (2026-05-02 madrugada+++++) — Refactor /pixel Atribucion Fase 1
+
+**Contexto**: post-mejoras UX en /pixel/configuracion (BIS++++), Tomy pidio analisis profundo de /pixel (Atribucion) para que la pagina quede "fluida, rapida, con info real, clara, simple, analizable". Le di plan en 5 fases priorizadas. Aprobo Fase 1 completa (limpieza + claridad). Despues reporto colores duplicados en el Hero Bar y ahi profundizamos hasta encontrar duplicados de caps (ADWORDS vs adwords) en la base.
+
+#### Cambios implementados
+
+1. **Fase 1 — limpieza + claridad** (commit `0985394`)
+   - **1.1 Mini editor pesos legacy borrado**: el footer B5 tenia un panel inline (weightsOpen + setWeightsOpen + editingWeights + saveNitroWeights) que duplicaba la edicion ya disponible en /pixel/configuracion. Si un usuario lo usaba se desincronizaba. Reemplazado por chip read-only "Nitro · 30/30/40 ›" que linkea a configuracion.
+   - **1.2 B2 Truth Gap colapsable**: B1 Hero (revenue por canal) + B2 Truth Gap (revenue por canal vs plataformas) duplicaban info al primer scroll. Ahora B2 wrappeado en seccion colapsable con header siempre visible que muestra teaser "N canales inflan sus numeros" cuando hay overReporting. Default: cerrado.
+   - **1.3 Tooltips DarkTip en KPIs**: nuevo componente DarkTip (icono "i" + tooltip dark consistente con theme). Aplicado a Revenue Atribuido, ROAS Blended, Ordenes Atribuidas, Tasa de Atribucion, Inversion Total + header Truth Gap + "% inflado" del Hero. Cada uno con definicion + como se calcula + benchmark/que la afecta.
+   - **1.4 CTA Click IDs <50%**: si la cobertura de Click IDs es <50%, el circle se pone rojo y aparece "Subila configurando UTMs ›" que linkea a /pixel/configuracion. Si >=50% se mantiene violeta con tooltip explicativo.
+
+2. **Paleta de colores unicos por canal en Hero Bar** (commit `c0e547a`)
+   - Tomy reporto en captura: 5 canales (ADWORDS, google_organic, TV, omnichannel, perfil) con mismo color gris fallback. Email vs Email-Marketing igual naranja.
+   - Fix: expandir SOURCE_ICONS con colores propios — adwords #4285F4, google_organic #34A853, tv #FBBF24, omnichannel #14B8A6, perfil #A855F7. Email #F59E0B vs email-marketing #D97706 (mismo grupo, tonos distintos). Facebook #4267B2 vs Meta #1877F2 (azules distintos).
+   - Plus: helper fallbackColor(source) — hash deterministico para canales nuevos, asigna uno de 10 colores. Asi nunca mas se ven 5 canales grises iguales.
+
+3. **Endpoint debug-channel-sources** (commit `077fab9`)
+   - `/api/admin/debug-channel-sources?orgId=X&days=N&key=Y` lista los `source` literales de pa.touchpoints sin transformar + duplicados case-insensitive + variants por (source, medium) + transform que aplica el frontend.
+   - Diagnostico real de TVC: ADWORDS+SEARCH ($20.4M, 70 attr) vs adwords+search ($1.1M, 4 attr) — son **el mismo Google Ads** dividido por caps mismatch.
+   - Diagnostico real de EMDJ: NO hay duplicados de caps. Lo que se veia "Meta dos veces" en captura era meta + facebook ambos labelados "Meta" en codigo viejo (resuelto en commit BIS++++ con label distinto).
+
+4. **Fix LOWER en queries source/medium** (commit `10e9662`)
+   - Decision producto Tomy: opcion A — colapsar caps mismatch en backend en vez de pedir al cliente que normalice UTMs.
+   - Aplicar `LOWER(COALESCE(tp->>'source','direct'))` y `LOWER(tp->>'medium')` en query #9 (Attribution by source — 4 variantes NITRO/LAST/FIRST/LINEAR), query #20 (per-day per-source revenue) y otra query similar (6 lugares total).
+   - Resultado en TVC: ADWORDS + adwords colapsan a 'adwords' con $21.5M total. Visible en Hero Bar como una sola fila.
+   - Query #23 (visitorsBySource) ya hacia LOWER, queda consistente con el resto.
+
+5. **Logo Facebook con F clasica** — confirmacion final
+   - Tomy confirmo que el logo Facebook ahora usa la F clasica (commit `6652073` de la BIS++++).
+   - Meta y Facebook tienen logos visualmente distinguibles ademas de colores distintos.
+
+#### Patrones criticos S60 EXT-2 BIS+++++
+
+1. **Investigar antes de afirmar/decidir sobre datos reales**: Tomy paro mi propuesta de "consolidar Meta duplicado" cuando admiti que era una suposicion. Pidio "analizar bien la informacion de donde proviene". Cree endpoint debug, consulte prod, encontre la verdad: el "Meta duplicado" estaba en CODIGO viejo (label compartido) — ya resuelto. El duplicado real era ADWORDS/adwords en TVC. Sin esa investigacion habria intentado consolidar algo que ya estaba bien y fallado en lo que realmente estaba mal. Lecciones: NO sugerir cambios sobre data sin verificarlos en prod. La frase "probablemente es X" es un red flag — antes de decidir hay que cambiar a "es X porque vi Y".
+
+2. **Caps mismatch en UTMs es industria estandar**: los UTMs son input humano (cliente arma URLs en distintos lugares con distintas convenciones). Esperar normalizacion perfecta del input es ponerlos en posicion de fallar. La normalizacion debe ser server-side. LOWER en GROUP BY es defensivo basico, sin perdida de informacion (la suma queda igual).
+
+3. **Sticky header debe ser de modelo, no editor**: el chip read-only que linkea a configuracion es 10x mejor UX que el panel inline editable. Cambiar el modelo es decision consciente, no toggle al pasar.
+
+4. **Hash deterministico para fallback colors > color generico**: cuando llega un canal sin paleta definida (raro pero pasa), asignarle un color por hash del nombre garantiza que dos canales sin definicion NO terminen con el mismo color. Aplicable a cualquier sistema con dimensiones cardinales abiertas (regiones, productos, etiquetas custom).
+
+5. **Bloque colapsable para info "rica pero secundaria"**: el Truth Gap es valioso pero no del primer scroll. Colapsable con teaser visible alcanza para que el cliente sepa que existe sin sobrecargar el viewport inicial.
+
+#### Deploys cronologicos del bloque
+1. `0985394` — feat(pixel/atribucion): Fase 1 (limpieza + claridad)
+2. `c0e547a` — fix(pixel/atribucion): paleta de canales con colores unicos en Hero Bar
+3. `077fab9` — debug(channel-sources): endpoint para listar sources literales
+4. `10e9662` — fix(pixel/metrics): LOWER en source/medium para colapsar duplicados de caps
+
+#### Pendientes finales (sin cambios)
+1. 🟡 BP-S60-005 Activar TVC
+2. 🟡 BP-S60-002 Wizard del afiliado VTEX
+3. 🟢 BP-S60-004 Alias webhooks@nitrosales.ai
+4. 🟢 (cosmetico) OrgSwitcher dark theme
+5. 🟢 (refactor) Renombrar pa.visitorId → pa.pixelVisitorId
+6. 🟡 Fase 2 — Tarjeta comparativa de modelos (proximo gran impacto en UX)
+7. 🟢 Fase 3 — Filtros + drill-down + CSV en Live Orders
+8. 🟢 Fase 4 — Performance (auditoria 28 queries, lazy load, materialized view)
+9. 🟢 Fase 5 — Mobile responsive
+10. 🟢 Avisar a Leandro (TVC): bug del medium-WhatsApp en omnichannel (texto entero copiado en vez de UTM)
+
+---
+
+## Ultima actualizacion previa: 2026-05-02 madrugada++++ (Sesion 60 EXT-2 BIS++++ — UX mejoras seccion Atribucion. 7 cambios pedidos por Tomy: naming "por defecto", logos reales SVG en componente compartido ChannelLogo, tilde Precisión, input numerico junto al slider, badge Hereda/Custom, tooltips por modelo con ejemplos, Facebook con F clasica.)
 
 ### Sesion 60 EXT-2 BIS++++ (2026-05-02 madrugada++++) — UX mejoras seccion Atribucion
 
