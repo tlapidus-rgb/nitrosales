@@ -763,16 +763,28 @@ export async function GET(request: NextRequest) {
         LIMIT 20
       ` as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
 
-      // 24. Orders by device — derive device from pixel_attributions → pixel_visitors
-      // Uses crDateFrom to only count orders from when pixel was active
+      // 24. Orders by device — derive device from pixel_events of the attributed visitor
+      // (alineado con query #5 que usa pe."deviceType"). Antes usaba pv."deviceTypes"[1]
+      // pero ese array queda vacio si el primer evento del visitor no traia deviceType,
+      // resultando en device='unknown' y mismatch contra deviceBreakdown → CR vacio.
+      // Uses crDateFrom to only count orders from when pixel was active.
       prisma.$queryRaw`
         SELECT
-          COALESCE(pv."deviceTypes"[1], 'unknown') as device,
+          COALESCE(pe_dev.dev, pv."deviceTypes"[1], 'unknown') as device,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(pa."attributedValue")::float as revenue
         FROM pixel_attributions pa
         JOIN pixel_visitors pv ON pv."visitorId" = pa."visitorId" AND pv."organizationId" = pa."organizationId"
         JOIN orders o ON o.id = pa."orderId"
+        LEFT JOIN LATERAL (
+          SELECT pe2."deviceType" as dev
+          FROM pixel_events pe2
+          WHERE pe2."visitorId" = pa."visitorId"
+            AND pe2."organizationId" = pa."organizationId"
+            AND pe2."deviceType" IS NOT NULL
+          ORDER BY pe2.timestamp DESC
+          LIMIT 1
+        ) pe_dev ON true
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${crDateFrom}
           AND o."orderDate" <= ${dateTo}
