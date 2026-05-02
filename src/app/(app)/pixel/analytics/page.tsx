@@ -707,6 +707,7 @@ export default function AnalyticsPage() {
               label: "Revenue Atribuido", value: fmtCompact(revCountUp),
               detail: bk ? `${fmt(bk.ordersAttributed)} de ${fmt(bk.webOrders)} órdenes web` : "",
               change: bk?.changes?.pixelRevenue || 0,
+              tooltip: "Suma de la facturación de las órdenes web que el pixel logró atribuir a un canal. NO es la facturación total — son solo las ventas que el pixel pudo trackear hasta el origen.",
               icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>),
               gradient: "from-cyan-500 to-blue-600",
             },
@@ -714,6 +715,7 @@ export default function AnalyticsPage() {
               label: "ROAS Real", value: `${roasCountUp.toFixed(1)}x`,
               detail: `Spend: ${fmtCompact(bk?.totalAdSpend || 0)}`,
               change: bk?.changes?.pixelRoas || 0,
+              tooltip: "Retorno de la inversión publicitaria SEGÚN EL PIXEL (no según las plataformas). Por cada $1 gastado en ads, cuántos $ atribuidos volvieron como venta. Más realista que el ROAS que reportan Meta o Google.",
               icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/></svg>),
               gradient: "from-violet-500 to-purple-600",
             },
@@ -721,6 +723,7 @@ export default function AnalyticsPage() {
               label: "Ordenes Atribuidas", value: fmt(Math.round(ordersCountUp)),
               detail: bk ? `Ticket promedio: ${fmtCompact(bk.aov || 0)}` : "",
               change: bk?.changes?.ordersAttributed || 0,
+              tooltip: "Cantidad de órdenes web que el pixel pudo seguir hasta saber de qué canal vinieron. Ticket promedio = revenue atribuido dividido entre estas órdenes.",
               icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>),
               gradient: "from-emerald-500 to-teal-600",
             },
@@ -728,6 +731,7 @@ export default function AnalyticsPage() {
               label: "Tasa de Atribución", value: `${attrRateCountUp.toFixed(0)}%`,
               detail: `${fmt(pixelData?.pixelHealth?.eventsInPeriod || 0)} eventos capturados`,
               change: 0,
+              tooltip: "Qué porcentaje de las órdenes web del período el pixel logró atribuir. 100% = todas trackeadas. Menos = hay clientes que compraron sin que el pixel los siguiera (ej: bloqueadores, móviles sin cookies).",
               icon: (<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z"/></svg>),
               gradient: "from-orange-500 to-amber-600",
             },
@@ -738,7 +742,10 @@ export default function AnalyticsPage() {
               style={{ ...cardShadow, animationDelay: `${i * 70}ms` }}
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{kpi.label}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{kpi.label}</span>
+                  <InfoTip text={kpi.tooltip} />
+                </div>
                 <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${kpi.gradient} flex items-center justify-center text-white opacity-80 group-hover:opacity-100 transition-opacity`}>
                   {kpi.icon}
                 </div>
@@ -1178,7 +1185,10 @@ export default function AnalyticsPage() {
 
           {/* Customer Journeys — 2 cols */}
           <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card overflow-hidden`} style={{ ...cardShadow, animationDelay: "440ms" }}>
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Últimos Customer Journeys</h2>
+            <div className="flex items-center gap-1.5 mb-4">
+              <h2 className="text-sm font-semibold text-gray-900">Últimos Customer Journeys</h2>
+              <InfoTip text="Las últimas órdenes web con su recorrido completo: por qué canales pasó cada cliente antes de comprar (descubrimiento, asistencia, cierre). Click en una orden expande el detalle." />
+            </div>
             {journeys.length === 0 ? (
               <div className="text-center text-gray-400 text-sm py-8">Sin journeys en este período</div>
             ) : (
@@ -1255,7 +1265,10 @@ export default function AnalyticsPage() {
         {/* ═══════════════════════════════════════════════════════ */}
         <div id="sec-revenue" className={`${cardStyle} p-6 stagger-card scroll-mt-20`} style={{ ...cardShadow, animationDelay: "500ms" }}>
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-sm font-semibold text-gray-900">Revenue Intelligence</h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-sm font-semibold text-gray-900">Revenue Intelligence</h2>
+              <InfoTip text="Compara 3 cosas día a día: PIXEL (real) = revenue de las órdenes que tu pixel atribuyó. PLATAFORMAS (reportado) = lo que Meta/Google dicen haberte traído (suelen inflar). AD SPEND = cuánto gastaste. Sirve para auditar honestidad de las plataformas." />
+            </div>
             <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
               {[
                 { key: "truth" as const, label: "Pixel vs Plataformas" },
@@ -1431,7 +1444,10 @@ export default function AnalyticsPage() {
         <div id="sec-dispositivos" className="grid grid-cols-1 lg:grid-cols-5 gap-4 scroll-mt-20">
           {/* Device Breakdown — 3 cols */}
           <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "620ms" }}>
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Dispositivos</h2>
+            <div className="flex items-center gap-1.5 mb-4">
+              <h2 className="text-sm font-semibold text-gray-900">Dispositivos</h2>
+              <InfoTip text="Cómo se reparten tus visitantes entre mobile, desktop y tablet. Útil para decidir dónde invertir en optimización (si la mayoría es mobile, priorizar UX mobile)." />
+            </div>
             {(() => {
               try {
               // API returns "device" field, normalize to "deviceType"
@@ -1512,6 +1528,7 @@ export default function AnalyticsPage() {
           <div className={`${cardStyle} lg:col-span-2 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "680ms" }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-gray-900">Top Páginas</h2>
+              <InfoTip text="Las páginas más visitadas del sitio en este período, con cuántos visitantes únicos y cuántas vistas. Identifica páginas estrella y oportunidades de optimización." />
               <span className="text-[10px] text-gray-400">visitantes únicos</span>
             </div>
             {(() => {
@@ -1606,7 +1623,10 @@ export default function AnalyticsPage() {
             <div className={`${cardStyle} p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "740ms" }}>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Cobertura del Pixel</h2>
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="text-sm font-semibold text-gray-900">Cobertura del Pixel</h2>
+                    <InfoTip text="Mide qué % de las órdenes web de cada día el pixel logró atribuir. 100% = todas trackeadas. Si baja un día específico es señal de problema técnico (snippet roto, picos de bots, etc)." />
+                  </div>
                   <p className="text-[11px] text-gray-400 mt-0.5">% de órdenes con atribución por día — muestra la salud del tracking</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1736,7 +1756,10 @@ export default function AnalyticsPage() {
                 {/* Journey Complexity — visual bar chart */}
                 <div className={`${cardStyle} p-5 stagger-card`} style={{ ...cardShadow, animationDelay: "1340ms" }}>
                   <div className="mb-4">
-                    <h2 className="text-sm font-semibold text-gray-900">Complejidad del Journey</h2>
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="text-sm font-semibold text-gray-900">Complejidad del Journey</h2>
+                      <InfoTip text="Cuántos canales distintos toca un cliente antes de comprar. 1 toque = compró por impulso o canal único. 4+ toques = journey largo, varios canales involucrados (ojo: ROAS de Meta o Google solos te miente, hay asistencia)." />
+                    </div>
                     <p className="text-[11px] text-gray-400 mt-0.5">¿Cuántos puntos de contacto necesita un comprador?</p>
                   </div>
                   <div className="space-y-3">
@@ -1779,7 +1802,10 @@ export default function AnalyticsPage() {
                 {/* Winning Channel Combos — visual flow pairs */}
                 <div className={`${cardStyle} p-5 stagger-card`} style={{ ...cardShadow, animationDelay: "1400ms" }}>
                   <div className="mb-4">
-                    <h2 className="text-sm font-semibold text-gray-900">Combinaciones Ganadoras</h2>
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="text-sm font-semibold text-gray-900">Combinaciones Ganadoras</h2>
+                      <InfoTip text="Las rutas más rentables: por qué canal entraron primero los clientes y por cuál cerraron la compra. Ej: 'Meta Ads → Google Ads' = entraron por Meta y volvieron a buscar por Google. Te dice cómo combinar inversión." />
+                    </div>
                     <p className="text-[11px] text-gray-400 mt-0.5">Las rutas primer canal → último canal que más facturan</p>
                   </div>
                   {ji.channelPairs.length > 0 ? (
