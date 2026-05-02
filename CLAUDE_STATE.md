@@ -3,7 +3,79 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-02 madrugada+++ (Sesion 60 EXT-2 BIS+++ — refactor seccion Atribucion. 4 fixes en /pixel: (1) bloque Custom triplicado eliminado (-176 lineas, era duplicacion accidental); (2) query #20 'revenue por canal por dia' ahora respeta el modelo seleccionado en SQL (antes hardcodeaba LAST_CLICK con un comentario explicito de 'too much complexity'); (3) modelo + ventanas centralizadas en /pixel/configuracion via componente nuevo AttributionSettings con 4 secciones (Modelo / Pesos Precision / Ventana global / Ventanas por canal); /pixel ahora muestra solo un chip read-only que linkea a configuracion; (4) cache cliente in-memory con TTL 60s para refetches al togglear rango. Pendientes intactos.)
+## Ultima actualizacion: 2026-05-02 madrugada++++ (Sesion 60 EXT-2 BIS++++ — UX mejoras seccion Atribucion. 7 cambios pedidos por Tomy: (1) renombrar "Ventana de atribucion" → "por defecto" + texto explicativo de herencia; (2) componente compartido ChannelLogo con SVGs oficiales de 14 canales reemplazando los emojis; (3) tilde Precisión correcto; (4) input numerico editable junto al slider en Pesos de Precision; (5) badge "Hereda · 30d" / "Custom · 60d" al lado de cada canal; (6) tooltips por modelo con descripcion + ejemplo concreto; (7) Facebook ahora usa la F clasica, ya no comparte el loop de Meta. Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS++++ (2026-05-02 madrugada++++) — UX mejoras seccion Atribucion
+
+**Contexto**: post-refactor de Atribucion (BIS+++), Tomy reporto 4 ajustes UX y pidio analisis antes de implementar (no avanzar linealmente). Le di propuesta con 4 puntos + 2 extras (badge Hereda/Custom + tooltips con ejemplos) → aprobo todo. Cierre del bloque con fix puntual del logo Facebook.
+
+#### Cambios implementados
+
+1. **Naming "por defecto"** (commit `c2f1fdf`):
+   - "Ventana de atribución" → "**Ventana de atribución por defecto**" + texto: *"todos los canales la heredan a menos que les definas una específica más abajo"*.
+   - Resuelve la ambiguedad reportada (global vs canal parecian contradecirse).
+   - Decision: opcion B de las 3 propuestas — no "para canales nuevos" porque "nuevos" implica futuros, lo cual no aplica.
+
+2. **Componente compartido ChannelLogo** (commits `c2f1fdf` + `6652073`):
+   - Nuevo `src/components/pixel/ChannelLogo.tsx` con SVGs oficiales de 14 canales: meta, facebook, instagram, google, bing, tiktok, youtube, linkedin, twitter, whatsapp, email, direct, organic, referral.
+   - Avatares circulares 26px con color de marca + SVG blanco adentro.
+   - Reemplaza los emojis (🟦 🔍 📸) en AttributionSettings.
+   - Sub-componente `ChannelLogoSvg` para casos donde solo se necesita el SVG.
+   - Helper `getChannelMeta(source)` devuelve color + label.
+   - Fix posterior `6652073`: `facebook` compartia case con `meta` (loop infinito) — ahora usa la F clasica. Color #1877F2 mantenido en ambos.
+
+3. **Tilde "Precisión"** (commit `c2f1fdf`):
+   - `MODEL_LABELS.CUSTOM` en `src/app/(app)/pixel/page.tsx`.
+   - Labels y descripciones en AttributionSettings.
+   - Mensaje de error consistente.
+
+4. **Input numerico editable junto al slider** (commit `c2f1fdf`):
+   - `<input type="number" min={0} max={100}>` al lado del slider en Pesos de Precision.
+   - Antes solo arrastrar — ahora tipear directo + arrastrar.
+   - Mismo `handleSlider` reajusta otros pesos. Clamp 0-100, redondeo entero.
+   - Color del input cambia con el del slider (cyan/violeta/naranja).
+
+5. **Badge Hereda/Custom** (commit `c2f1fdf`):
+   - `Hereda · 30d` (gris) o `Custom · 60d` (violeta) al lado del input por canal.
+   - Estado explicito sin tener que mirar colores.
+   - Boton "Global (30d)" → "Por defecto" para consistencia con el naming nuevo.
+   - Input con borde violeta cuando hay override.
+
+6. **Tooltips por modelo** (commit `c2f1fdf`):
+   - Cada card de los 5 modelos tiene 3 niveles: titulo + descripcion + ejemplo concreto.
+   - Ejemplos: *"Si vio Instagram → Google → compró: Instagram 30%, Google 40%, intermedios 30%"* (Nitro), *"Google 100%"* (Last Click), etc.
+   - `title` attr como tooltip nativo en hover.
+
+7. **Fix Facebook logo** (commit `6652073`):
+   - Antes: `case "meta": case "facebook":` con loop infinito.
+   - Ahora: case separado con F clasica. Color #1877F2 mantenido.
+
+#### Patrones criticos S60 EXT-2 BIS++++
+
+1. **Pedir analisis antes de implementar cuando hay >3 cambios relacionados**: Tomy pidio explicitamente *"no linealmente, analiza y si hay mejoras propone"*. Plan con 4 puntos del usuario + 2 extras → aprobo todo. Trade-off: 5 min de planning ahorra 30 min de re-trabajo.
+
+2. **Componentes compartidos cuando se usa SVG en >1 lugar**: ChannelLogo vivia inline en pixel/page.tsx. Cuando AttributionSettings los necesito, NO copiar — extraer a `/components/pixel/ChannelLogo.tsx`. Centralizar = un solo lugar para agregar canales nuevos.
+
+3. **Distinguir marcas que comparten color**: Meta (loop) vs Facebook (F) son del mismo grupo y comparten color #1877F2 pero son **logos distintos**. Mismo con Twitter/X. No agrupar por color, agrupar por logo individual. Aplicable a cualquier paleta de marcas en el producto.
+
+4. **Estados visuales explicitos > implicitos**: el badge "Hereda · 30d" / "Custom · 60d" es 4x mas claro que el color del input. Texto > color cuando la diferencia es semantica (no solo decorativa).
+
+5. **Ejemplos concretos en cards de seleccion**: descripcion abstracta ("ponderacion segun rol") + ejemplo concreto ("Instagram 30%, Google 40%") ayuda a decision consciente. Patron aplicable a cualquier card de seleccion en el producto (Aurum, Bondly, Aura).
+
+#### Deploys cronologicos del bloque
+1. `c2f1fdf` — feat(pixel/configuracion): 6 mejoras UX (naming + logos + tilde + input numerico + badge + tooltips)
+2. `6652073` — fix(channel-logo): Facebook usa la F clasica, no el loop de Meta
+
+#### Pendientes finales (sin cambios)
+1. 🟡 BP-S60-005 Activar TVC
+2. 🟡 BP-S60-002 Wizard del afiliado VTEX
+3. 🟢 BP-S60-004 Alias webhooks@nitrosales.ai
+4. 🟢 (cosmetico) OrgSwitcher dark theme
+5. 🟢 (refactor) Renombrar pa.visitorId → pa.pixelVisitorId
+
+---
+
+## Ultima actualizacion previa: 2026-05-02 madrugada+++ (Sesion 60 EXT-2 BIS+++ — refactor seccion Atribucion. 4 fixes en /pixel: (1) bloque Custom triplicado eliminado (-176 lineas); (2) query #20 'revenue por canal por dia' model-aware; (3) modelo + ventanas centralizadas en /pixel/configuracion via componente nuevo AttributionSettings; chip read-only en /pixel; (4) cache cliente in-memory TTL 60s.)
 
 ### Sesion 60 EXT-2 BIS+++ (2026-05-02 madrugada+++) — Refactor seccion Atribucion
 
