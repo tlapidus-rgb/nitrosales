@@ -1,41 +1,77 @@
 "use client";
 
 // ══════════════════════════════════════════════════════════════
-// AttributionSettings — config completa de atribucion (S60 EXT-2 BIS++)
+// AttributionSettings — config completa de atribucion
 // ══════════════════════════════════════════════════════════════
 // Vive en /pixel/configuracion. Centraliza:
-//   1) Modelo de atribucion (Nitro / Last / First / Linear / Precision custom)
-//   2) Pesos de Precision (sliders + locks)
-//   3) Ventana global (7/14/30/60 dias)
-//   4) Ventanas por canal (override del global, 1-90 dias)
+//   1) Modelo de atribucion (Nitro / Last / First / Linear / Precisión)
+//   2) Pesos de Precisión (sliders + inputs numericos + locks)
+//   3) Ventana de atribucion por defecto (7/14/30/60 dias)
+//   4) Ventanas por canal (override del default, 1-90 dias)
 //
-// Antes vivia disperso en /pixel/page.tsx con 3 bloques duplicados de
-// sliders y sin UI para ventanas. Ahora es un solo componente claro.
+// S60 EXT-2 BIS+++: naming "por defecto", logos reales (no emojis), tilde
+// "Precisión", input numerico editable junto al slider, badge "Hereda/
+// Custom" en ventanas por canal, tooltips por modelo.
 // ══════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
+import { ChannelLogo } from "@/components/pixel/ChannelLogo";
 
-const MODELS: Array<{ id: string; label: string; description: string; isCustom?: boolean }> = [
-  { id: "NITRO", label: "Nitro", description: "Pondera segun rol del canal: ultimo > primero > intermedios. Recomendado para multi-touch." },
-  { id: "LAST_CLICK", label: "Last Click", description: "100% del credito al ultimo canal antes de la compra. Estandar Google/Meta." },
-  { id: "FIRST_CLICK", label: "First Click", description: "100% del credito al primer canal que trajo al cliente." },
-  { id: "LINEAR", label: "Linear", description: "El credito se reparte en partes iguales entre todos los canales." },
-  { id: "CUSTOM", label: "Precision", description: "Tus propios pesos para primer / intermedios / ultimo clic.", isCustom: true },
+const MODELS: Array<{
+  id: string;
+  label: string;
+  description: string;
+  example: string;
+  isCustom?: boolean;
+}> = [
+  {
+    id: "NITRO",
+    label: "Nitro",
+    description: "Pondera según rol del canal: último > primero > intermedios. Recomendado para multi-touch.",
+    example: "Si un cliente vio Instagram → Google → compró: Instagram se lleva 30%, Google 40%, intermedios 30%.",
+  },
+  {
+    id: "LAST_CLICK",
+    label: "Last Click",
+    description: "100% del crédito al último canal antes de la compra. Estándar de Google/Meta.",
+    example: "Si vio Instagram → Google → compró: Google se lleva 100%.",
+  },
+  {
+    id: "FIRST_CLICK",
+    label: "First Click",
+    description: "100% del crédito al primer canal que trajo al cliente.",
+    example: "Si vio Instagram → Google → compró: Instagram se lleva 100%.",
+  },
+  {
+    id: "LINEAR",
+    label: "Linear",
+    description: "El crédito se reparte en partes iguales entre todos los canales del recorrido.",
+    example: "Si vio Instagram → Google → Email → compró: cada uno se lleva 33%.",
+  },
+  {
+    id: "CUSTOM",
+    label: "Precisión",
+    description: "Tus propios pesos para primer / intermedios / último clic. Control total.",
+    example: "Si valorás más el descubrimiento, podés dar 50% al primer clic, 20% intermedios, 30% al último.",
+    isCustom: true,
+  },
 ];
 
 const VALID_GLOBAL_WINDOWS = [7, 14, 30, 60];
 
-const CHANNELS: Array<{ id: string; label: string; emoji: string }> = [
-  { id: "meta", label: "Meta Ads", emoji: "🟦" },
-  { id: "google", label: "Google", emoji: "🔍" },
-  { id: "instagram", label: "Instagram", emoji: "📸" },
-  { id: "facebook", label: "Facebook", emoji: "👍" },
-  { id: "tiktok", label: "TikTok", emoji: "🎵" },
-  { id: "email", label: "Email", emoji: "📧" },
-  { id: "whatsapp", label: "WhatsApp", emoji: "💬" },
-  { id: "direct", label: "Directo", emoji: "🔗" },
-  { id: "organic", label: "Organico", emoji: "🌱" },
-  { id: "referral", label: "Referido", emoji: "👥" },
+const CHANNELS: Array<{ id: string; label: string }> = [
+  { id: "meta", label: "Meta Ads" },
+  { id: "google", label: "Google" },
+  { id: "instagram", label: "Instagram" },
+  { id: "facebook", label: "Facebook" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "youtube", label: "YouTube" },
+  { id: "email", label: "Email" },
+  { id: "whatsapp", label: "WhatsApp" },
+  { id: "direct", label: "Directo" },
+  { id: "organic", label: "Orgánico" },
+  { id: "referral", label: "Referido" },
+  { id: "bing", label: "Bing" },
 ];
 
 type Settings = {
@@ -74,7 +110,7 @@ export function AttributionSettings() {
         setOriginal(next);
         setDraft(next);
       })
-      .catch(() => setError("No pude cargar la configuracion. Recarga la pagina."))
+      .catch(() => setError("No pude cargar la configuración. Recargá la página."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -84,12 +120,13 @@ export function AttributionSettings() {
   const isDirty = JSON.stringify(draft) !== JSON.stringify(original);
 
   const handleSlider = (key: "first" | "middle" | "last", val: number) => {
-    const newW = { ...draft.weights, [key]: val };
+    const clamped = Math.max(0, Math.min(100, Math.round(val)));
+    const newW = { ...draft.weights, [key]: clamped };
     const others = (["first", "middle", "last"] as const).filter((k) => k !== key && !locked[k]);
     const lockedSum = (["first", "middle", "last"] as const)
       .filter((k) => k !== key && locked[k])
       .reduce((s, k) => s + newW[k], 0);
-    const remaining = 100 - val - lockedSum;
+    const remaining = 100 - clamped - lockedSum;
     if (others.length > 0 && remaining >= 0) {
       const oSum = others.reduce((s, k) => s + newW[k], 0);
       if (oSum > 0) {
@@ -114,7 +151,7 @@ export function AttributionSettings() {
   };
 
   const save = async () => {
-    if (!weightsValid) { setError("Los pesos de Precision deben sumar 100%."); return; }
+    if (!weightsValid) { setError("Los pesos de Precisión deben sumar 100%."); return; }
     setSaving(true); setError(null);
     try {
       const cleanCw: Record<string, number | null> = {};
@@ -122,7 +159,6 @@ export function AttributionSettings() {
         if (v !== null && v !== draft.attributionWindowDays) cleanCw[ch] = v;
         else cleanCw[ch] = null;
       }
-      // CUSTOM se persiste como NITRO + weights customizados (no es un valor valido del enum)
       const modelToPersist = draft.attributionModel === "CUSTOM" ? "NITRO" : draft.attributionModel;
       const res = await fetch("/api/settings/attribution", {
         method: "PUT",
@@ -156,7 +192,7 @@ export function AttributionSettings() {
   if (loading) {
     return (
       <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-        <div className="text-sm text-gray-400">Cargando configuracion...</div>
+        <div className="text-sm text-gray-400">Cargando configuración...</div>
       </div>
     );
   }
@@ -178,13 +214,16 @@ export function AttributionSettings() {
                 key={m.id}
                 type="button"
                 onClick={() => setDraft({ ...draft, attributionModel: m.id })}
-                className={`text-left p-3 rounded-xl border transition-all ${
-                  active
-                    ? "border-cyan-500 bg-cyan-50/60 shadow-sm"
-                    : "border-gray-200 bg-white hover:border-gray-300"
-                } ${m.isCustom && active ? "border-violet-500 bg-violet-50/60" : ""}`}
+                className={`text-left p-3 rounded-xl border transition-all flex flex-col gap-1.5 ${
+                  active && m.isCustom
+                    ? "border-violet-500 bg-violet-50/60 shadow-sm"
+                    : active
+                      ? "border-cyan-500 bg-cyan-50/60 shadow-sm"
+                      : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+                title={m.example}
               >
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2">
                   <div
                     className={`w-2 h-2 rounded-full ${
                       active ? (m.isCustom ? "bg-violet-500" : "bg-cyan-500") : "bg-gray-300"
@@ -193,19 +232,22 @@ export function AttributionSettings() {
                   <span className="text-sm font-semibold text-gray-900">{m.label}</span>
                 </div>
                 <p className="text-[11px] text-gray-500 leading-snug">{m.description}</p>
+                <p className="text-[10px] text-gray-400 italic leading-snug pt-1 border-t border-gray-100">
+                  {m.example}
+                </p>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ─── 2) Pesos de Precision (solo si CUSTOM) ─── */}
+      {/* ─── 2) Pesos de Precisión (solo si CUSTOM) ─── */}
       {isCustom && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-1">Pesos de Precision</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Pesos de Precisión</h2>
           <p className="text-xs text-gray-500 mb-4">
             Definí qué porcentaje del crédito se lleva cada momento del recorrido del cliente.
-            Total debe sumar 100%.
+            Total debe sumar 100%. Podés mover el slider o escribir el número directo.
           </p>
           <div className="space-y-4">
             {(["first", "middle", "last"] as const).map((k) => {
@@ -239,9 +281,22 @@ export function AttributionSettings() {
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                     />
                   </div>
-                  <span className="w-12 text-right text-sm font-semibold tabular-nums" style={{ color }}>
-                    {draft.weights[k]}%
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={draft.weights[k]}
+                      onChange={(e) => {
+                        const v = e.target.value === "" ? 0 : Number(e.target.value);
+                        if (!isNaN(v)) handleSlider(k, v);
+                      }}
+                      disabled={locked[k]}
+                      className="w-14 px-1.5 py-1 border border-gray-200 rounded-md text-sm font-semibold tabular-nums text-right outline-none focus:border-cyan-500 disabled:bg-gray-50 disabled:text-gray-400"
+                      style={{ color: locked[k] ? undefined : color }}
+                    />
+                    <span className="text-xs text-gray-400">%</span>
+                  </div>
                 </div>
               );
             })}
@@ -255,12 +310,13 @@ export function AttributionSettings() {
         </div>
       )}
 
-      {/* ─── 3) Ventana global ─── */}
+      {/* ─── 3) Ventana de atribución por defecto ─── */}
       <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Ventana de atribución</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">Ventana de atribución por defecto</h2>
         <p className="text-xs text-gray-500 mb-4">
           Cuántos días antes de la compra se considera que un canal influyó en la venta.
-          Más días = más crédito a canales tempranos del recorrido.
+          Esta es la <strong>ventana base</strong> — todos los canales la heredan a menos que les definas
+          una ventana específica más abajo.
         </p>
         <div className="grid grid-cols-4 gap-2">
           {VALID_GLOBAL_WINDOWS.map((d) => (
@@ -287,31 +343,41 @@ export function AttributionSettings() {
           <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Override</span>
         </div>
         <p className="text-xs text-gray-500 mb-4">
-          Permite que un canal específico use una ventana distinta a la global.
-          Ejemplo: email puede tener 60 días (ciclos largos) mientras que TikTok mantiene 7 (impulsivo).
-          Dejalo en "Global" para usar el valor de arriba.
+          Cada canal usa la <strong>ventana por defecto ({draft.attributionWindowDays} días)</strong> a
+          menos que le definas una específica. Ej: email puede tener 60 días (ciclos largos) mientras
+          TikTok mantiene 7 (impulsivo).
         </p>
         <div className="space-y-2">
           {CHANNELS.map((ch) => {
             const override = draft.channelWindows[ch.id] ?? null;
+            const isOverride = override !== null;
             return (
               <div key={ch.id} className="flex items-center gap-3 py-1.5">
-                <div className="w-32 flex items-center gap-2">
-                  <span className="text-base">{ch.emoji}</span>
-                  <span className="text-xs font-medium text-gray-700">{ch.label}</span>
+                <div className="w-44 flex items-center gap-2.5">
+                  <ChannelLogo source={ch.id} size={26} />
+                  <span className="text-xs font-medium text-gray-800">{ch.label}</span>
                 </div>
                 <div className="flex-1" />
+                <span
+                  className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
+                    isOverride
+                      ? "bg-violet-100 text-violet-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {isOverride ? `Custom · ${override}d` : `Hereda · ${draft.attributionWindowDays}d`}
+                </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setChannelWindow(ch.id, null)}
                     className={`px-2.5 py-1 rounded-md text-[11px] border transition-all ${
-                      override === null
+                      !isOverride
                         ? "border-cyan-500 bg-cyan-50 text-cyan-700"
                         : "border-gray-200 text-gray-500 hover:bg-gray-50"
                     }`}
                   >
-                    Global ({draft.attributionWindowDays}d)
+                    Por defecto
                   </button>
                   <input
                     type="number"
@@ -325,8 +391,8 @@ export function AttributionSettings() {
                       else if (v >= 1 && v <= 90) setChannelWindow(ch.id, v);
                     }}
                     className={`w-20 px-2 py-1 border rounded-md text-xs text-center tabular-nums outline-none transition-all ${
-                      override !== null
-                        ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                      isOverride
+                        ? "border-violet-500 bg-violet-50 text-violet-700"
                         : "border-gray-200 text-gray-500"
                     }`}
                   />

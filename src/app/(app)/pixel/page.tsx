@@ -28,7 +28,7 @@ const MODEL_LABELS: Record<string, string> = {
   FIRST_CLICK: "First Click",
   LINEAR: "Linear",
   NITRO: "Nitro",
-  CUSTOM: "Precision",
+  CUSTOM: "Precisión",
 };
 const MODEL_DESCRIPTIONS: Record<string, string> = {
   LAST_CLICK: "100% del crédito al último canal antes de la compra",
