@@ -87,8 +87,8 @@ export async function GET(request: NextRequest) {
             FROM pixel_attributions pa,
             jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
-              AND pa."createdAt" >= ${dateFrom}
-              AND pa."createdAt" <= ${dateTo}
+              AND o."orderDate" >= ${dateFrom}
+              AND o."orderDate" <= ${dateTo}
               AND pa.model::text = 'NITRO'
             GROUP BY 1
             ORDER BY revenue DESC
@@ -107,8 +107,8 @@ export async function GET(request: NextRequest) {
             FROM pixel_attributions pa,
             jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
-              AND pa."createdAt" >= ${dateFrom}
-              AND pa."createdAt" <= ${dateTo}
+              AND o."orderDate" >= ${dateFrom}
+              AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
             GROUP BY 1
             ORDER BY revenue DESC
@@ -127,8 +127,8 @@ export async function GET(request: NextRequest) {
             FROM pixel_attributions pa,
             jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
-              AND pa."createdAt" >= ${dateFrom}
-              AND pa."createdAt" <= ${dateTo}
+              AND o."orderDate" >= ${dateFrom}
+              AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
             GROUP BY 1
             ORDER BY revenue DESC
@@ -146,8 +146,8 @@ export async function GET(request: NextRequest) {
             FROM pixel_attributions pa,
             jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
-              AND pa."createdAt" >= ${dateFrom}
-              AND pa."createdAt" <= ${dateTo}
+              AND o."orderDate" >= ${dateFrom}
+              AND o."orderDate" <= ${dateTo}
               AND pa.model::text = ${selectedModel}
             GROUP BY 1
             ORDER BY revenue DESC
@@ -169,8 +169,8 @@ export async function GET(request: NextRequest) {
         FROM pixel_attributions pa,
         jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
         WHERE pa."organizationId" = ${ORG_ID}
-          AND pa."createdAt" >= ${dateFrom}
-          AND pa."createdAt" <= ${dateTo}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
           AND tp->>'campaign' IS NOT NULL
         GROUP BY 1, 2
@@ -230,8 +230,8 @@ export async function GET(request: NextRequest) {
         JOIN orders o ON o.id = pa."orderId"
         , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
         WHERE pa."organizationId" = ${ORG_ID}
-          AND pa."createdAt" >= ${dateFrom}
-          AND pa."createdAt" <= ${dateTo}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
           AND pa.model::text = ${selectedModel}
         GROUP BY 1, 2
         ORDER BY 1

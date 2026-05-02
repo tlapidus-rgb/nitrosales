@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
       JOIN orders o ON o.id = pa."orderId"
       WHERE pa."organizationId" = ${ORG_ID}
         AND pa.model::text = ${selectedModel}
-        AND pa."createdAt" >= ${dateFrom}
-        AND pa."createdAt" <= ${dateTo}
+        AND o."orderDate" >= ${dateFrom}
+        AND o."orderDate" <= ${dateTo}
       ORDER BY pa."attributedValue" DESC
     `;
 
