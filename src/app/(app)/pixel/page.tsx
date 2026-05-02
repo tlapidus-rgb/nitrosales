@@ -122,6 +122,16 @@ function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) 
   }
 }
 
+// Canonicaliza un source para que aliases del mismo canal queden agrupados.
+// Mantener en sync con la canonicalizacion del backend (CTE visitor_first_source).
+function canonicalSource(source: string): string {
+  const lower = (source || "direct").toLowerCase().trim();
+  if (["adwords", "google_ads", "google-ads", "googleads"].includes(lower)) return "google";
+  if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads", "fb"].includes(lower)) return "meta";
+  if (["ig", "instagram_ads", "instagram-ads"].includes(lower)) return "instagram";
+  return lower;
+}
+
 function getSourceInfo(source: string) {
   const key = (source || "direct").toLowerCase();
   if (SOURCE_ICONS[key]) return SOURCE_ICONS[key];
@@ -1116,20 +1126,26 @@ export default function PixelPage() {
         {/* BLOQUE 4 — Live Orders with Journey Dots + Filtros      */}
         {/* ════════════════════════════════════════════════════════ */}
         {(() => {
-          // Canales presentes en las journeys (para chips)
-          const channelsInJourneys = new Set<string>();
+          // Canales presentes en las journeys, CANONICALIZADOS (chips unicos sin duplicados)
+          const channelCounts: Record<string, number> = {};
           for (const j of journeys) {
             for (const tp of (j.touchpoints || [])) {
-              channelsInJourneys.add((tp.source || "direct").toLowerCase());
+              const s = canonicalSource(tp.source || "direct");
+              channelCounts[s] = (channelCounts[s] || 0) + 1;
             }
           }
-          // Filtrado client-side
+          const sortedChannelChips = Object.keys(channelCounts)
+            .sort((a, b) => (channelCounts[b] || 0) - (channelCounts[a] || 0))
+            .slice(0, 8);
+
+          // Filtrado client-side — aplica canonicalSource ambos lados
           const filteredJourneys = journeys.filter(j => {
             if (journeyMinValue > 0 && j.revenue < journeyMinValue) return false;
             if (journeyMinTouchpoints > 0 && (j.touchpointCount || 0) < journeyMinTouchpoints) return false;
             if (journeyChannelFilter.length > 0) {
-              const sources = (j.touchpoints || []).map(tp => (tp.source || "direct").toLowerCase());
-              const hasMatch = journeyChannelFilter.some(ch => sources.includes(ch.toLowerCase()));
+              const journeyChannels = new Set((j.touchpoints || []).map(tp => canonicalSource(tp.source || "direct")));
+              const filterCanonical = journeyChannelFilter.map(c => canonicalSource(c));
+              const hasMatch = filterCanonical.some(ch => journeyChannels.has(ch));
               if (!hasMatch) return false;
             }
             return true;
@@ -1137,17 +1153,6 @@ export default function PixelPage() {
           const visibleJourneys = filteredJourneys.slice(0, 12);
           const hasFilters = journeyChannelFilter.length > 0 || journeyMinValue > 0 || journeyMinTouchpoints > 0;
           const totalAvailable = journeys.length;
-          // Top channels in journeys, ordenados por frecuencia
-          const channelCounts: Record<string, number> = {};
-          for (const j of journeys) {
-            for (const tp of (j.touchpoints || [])) {
-              const s = (tp.source || "direct").toLowerCase();
-              channelCounts[s] = (channelCounts[s] || 0) + 1;
-            }
-          }
-          const sortedChannelChips = Array.from(channelsInJourneys)
-            .sort((a, b) => (channelCounts[b] || 0) - (channelCounts[a] || 0))
-            .slice(0, 8);
 
           return (
             <>
