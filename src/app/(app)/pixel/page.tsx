@@ -342,14 +342,34 @@ export default function PixelPage() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const scrollRef = useRef<HTMLElement | null>(null);
 
+  // Cache en memoria por sesion para evitar refetch innecesario al togglear rangos
+  // o navegar entre paginas (ej. Atribucion → Analytics → volver). TTL: 60s.
+  const dataCacheRef = useRef<Map<string, { data: PixelData; ts: number }>>(new Map());
+  const CACHE_TTL_MS = 60_000;
+
   const fetchData = useCallback(async () => {
+    const apiModel = selectedModel === "CUSTOM" ? "NITRO" : selectedModel;
+    const cacheKey = `${dateFrom}|${dateTo}|${currentPage}|${apiModel}`;
+    const cached = dataCacheRef.current.get(cacheKey);
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      setData(cached.data);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const apiModel = selectedModel === "CUSTOM" ? "NITRO" : selectedModel;
       const res = await fetch(`/api/metrics/pixel?from=${dateFrom}&to=${dateTo}&page=${currentPage}&pageSize=20&model=${apiModel}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setData(await res.json());
+      const json: PixelData = await res.json();
+      dataCacheRef.current.set(cacheKey, { data: json, ts: Date.now() });
+      // Limit cache to last 8 entries (LRU-ish)
+      if (dataCacheRef.current.size > 8) {
+        const firstKey = dataCacheRef.current.keys().next().value;
+        if (firstKey) dataCacheRef.current.delete(firstKey);
+      }
+      setData(json);
     } catch (e) { setError(String(e)); } finally { setLoading(false); }
   }, [dateFrom, dateTo, currentPage, selectedModel]);
 
