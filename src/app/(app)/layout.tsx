@@ -15,6 +15,7 @@ import { AutoSectionGuard } from "@/components/AutoSectionGuard";
 import { ImpersonateBanner } from "@/components/ImpersonateBanner";
 import { ViewAsOrgBanner } from "@/components/ViewAsOrgBanner";
 import OnboardingGate from "@/components/OnboardingGate";
+import { OrgSwitcher } from "@/components/OrgSwitcher";
 
 type NavItem = {
   href: string;
@@ -469,6 +470,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
         </div>
+
+        {/* Org Switcher (admin only) */}
+        <OrgSwitcher />
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
