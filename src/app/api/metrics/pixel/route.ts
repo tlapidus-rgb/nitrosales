@@ -537,7 +537,7 @@ export async function GET(request: NextRequest) {
           AND o."externalId" NOT LIKE 'FVG-%'
           AND o."externalId" NOT LIKE 'BPR-%'
         ORDER BY o."orderDate" DESC
-        LIMIT 15
+        LIMIT 50
       ` as Promise<Array<{
         orderId: string; orderExternalId: string; revenue: number;
         touchpointCount: number; conversionLag: number | null;

@@ -400,6 +400,10 @@ export default function PixelPage() {
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [truthGapOpen, setTruthGapOpen] = useState(false);
   const [applyingModel, setApplyingModel] = useState<string | null>(null);
+  // Filtros de Live Orders (Fase 3.1)
+  const [journeyChannelFilter, setJourneyChannelFilter] = useState<string[]>([]);
+  const [journeyMinValue, setJourneyMinValue] = useState<number>(0);
+  const [journeyMinTouchpoints, setJourneyMinTouchpoints] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   // Debounced refetching state — minimum 800ms to avoid flash/glitch
@@ -1109,10 +1113,147 @@ export default function PixelPage() {
         </div>
 
         {/* ════════════════════════════════════════════════════════ */}
-        {/* BLOQUE 4 — Live Orders with Journey Dots                */}
+        {/* BLOQUE 4 — Live Orders with Journey Dots + Filtros      */}
         {/* ════════════════════════════════════════════════════════ */}
-        <section className="space-y-3 attr-stagger">
-          {journeys.slice(0, 8).map(j => {
+        {(() => {
+          // Canales presentes en las journeys (para chips)
+          const channelsInJourneys = new Set<string>();
+          for (const j of journeys) {
+            for (const tp of (j.touchpoints || [])) {
+              channelsInJourneys.add((tp.source || "direct").toLowerCase());
+            }
+          }
+          // Filtrado client-side
+          const filteredJourneys = journeys.filter(j => {
+            if (journeyMinValue > 0 && j.revenue < journeyMinValue) return false;
+            if (journeyMinTouchpoints > 0 && (j.touchpointCount || 0) < journeyMinTouchpoints) return false;
+            if (journeyChannelFilter.length > 0) {
+              const sources = (j.touchpoints || []).map(tp => (tp.source || "direct").toLowerCase());
+              const hasMatch = journeyChannelFilter.some(ch => sources.includes(ch.toLowerCase()));
+              if (!hasMatch) return false;
+            }
+            return true;
+          });
+          const visibleJourneys = filteredJourneys.slice(0, 12);
+          const hasFilters = journeyChannelFilter.length > 0 || journeyMinValue > 0 || journeyMinTouchpoints > 0;
+          const totalAvailable = journeys.length;
+          // Top channels in journeys, ordenados por frecuencia
+          const channelCounts: Record<string, number> = {};
+          for (const j of journeys) {
+            for (const tp of (j.touchpoints || [])) {
+              const s = (tp.source || "direct").toLowerCase();
+              channelCounts[s] = (channelCounts[s] || 0) + 1;
+            }
+          }
+          const sortedChannelChips = Array.from(channelsInJourneys)
+            .sort((a, b) => (channelCounts[b] || 0) - (channelCounts[a] || 0))
+            .slice(0, 8);
+
+          return (
+            <>
+              {/* Barra de filtros */}
+              <div className="attr-glass rounded-xl p-3 flex items-center gap-3 flex-wrap">
+                {/* Channel chips */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-white/30 mr-1">Canal</span>
+                  {sortedChannelChips.map(ch => {
+                    const info = getSourceInfo(ch);
+                    const isSelected = journeyChannelFilter.includes(ch);
+                    return (
+                      <button
+                        key={ch}
+                        type="button"
+                        onClick={() => setJourneyChannelFilter(prev =>
+                          isSelected ? prev.filter(c => c !== ch) : [...prev, ch]
+                        )}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-all"
+                        style={{
+                          background: isSelected ? `${info.color}25` : "rgba(15,23,42,0.5)",
+                          border: `1px solid ${isSelected ? info.color + "60" : "rgba(6,182,212,0.1)"}`,
+                          color: isSelected ? "#fff" : "rgba(148,163,184,0.7)",
+                        }}
+                      >
+                        <span className="w-3 h-3 rounded-full flex items-center justify-center" style={{ background: info.color }}>
+                          <ChannelLogo source={ch} size={8} />
+                        </span>
+                        <span>{info.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Divider */}
+                <div className="w-px h-5 bg-white/10" />
+
+                {/* Min value */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Min</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={10000}
+                    value={journeyMinValue || ""}
+                    placeholder="$0"
+                    onChange={e => setJourneyMinValue(Number(e.target.value) || 0)}
+                    className="w-24 px-2 py-1 rounded-md text-[11px] text-white/80 font-mono outline-none"
+                    style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}
+                  />
+                </div>
+
+                {/* Touchpoints */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Touchpoints ≥</span>
+                  <select
+                    value={journeyMinTouchpoints}
+                    onChange={e => setJourneyMinTouchpoints(Number(e.target.value))}
+                    className="px-2 py-1 rounded-md text-[11px] text-white/80 font-mono outline-none cursor-pointer"
+                    style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}
+                  >
+                    <option value={0}>Todos</option>
+                    <option value={2}>≥ 2</option>
+                    <option value={3}>≥ 3</option>
+                    <option value={5}>≥ 5</option>
+                    <option value={7}>≥ 7</option>
+                  </select>
+                </div>
+
+                {/* Counter + clear */}
+                <div className="flex-1" />
+                <span className="text-[11px] text-white/40 font-mono">
+                  {hasFilters ? (
+                    <span>
+                      <span className="text-cyan-400 font-semibold">{filteredJourneys.length}</span>
+                      {" / "}
+                      {totalAvailable} órdenes
+                    </span>
+                  ) : (
+                    <span>{Math.min(visibleJourneys.length, totalAvailable)} órdenes</span>
+                  )}
+                </span>
+                {hasFilters && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJourneyChannelFilter([]);
+                      setJourneyMinValue(0);
+                      setJourneyMinTouchpoints(0);
+                    }}
+                    className="text-[10px] text-cyan-400/70 hover:text-cyan-400 underline-offset-2 hover:underline"
+                  >
+                    Limpiar filtros
+                  </button>
+                )}
+              </div>
+
+              {/* Lista de journeys filtradas */}
+              {visibleJourneys.length === 0 ? (
+                <div className="attr-glass rounded-xl p-8 text-center">
+                  <p className="text-sm text-white/40">No hay órdenes que coincidan con los filtros aplicados.</p>
+                  <p className="text-[11px] text-white/20 mt-1">Probá quitando algún filtro o ampliando el rango de fechas.</p>
+                </div>
+              ) : (
+                <section className="space-y-3 attr-stagger">
+                  {visibleJourneys.map(j => {
             const credits = getCreditsForModel(j.touchpoints, selectedModel, nitroWeights);
             const isExpanded = expandedJourney === j.orderId;
             return (
@@ -1206,19 +1347,23 @@ export default function PixelPage() {
             );
           })}
 
-          {/* Pagination */}
-          {data && data.pagination.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-4">
-              {currentPage > 1 && (
-                <button onClick={() => setCurrentPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Anterior</button>
+                  {/* Pagination — solo cuando NO hay filtros activos */}
+                  {!hasFilters && data && data.pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 pt-4">
+                      {currentPage > 1 && (
+                        <button onClick={() => setCurrentPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Anterior</button>
+                      )}
+                      <span className="text-xs text-white/20 font-mono">{currentPage} / {data.pagination.totalPages}</span>
+                      {currentPage < data.pagination.totalPages && (
+                        <button onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Siguiente</button>
+                      )}
+                    </div>
+                  )}
+                </section>
               )}
-              <span className="text-xs text-white/20 font-mono">{currentPage} / {data.pagination.totalPages}</span>
-              {currentPage < data.pagination.totalPages && (
-                <button onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs text-white/50" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(6,182,212,0.1)" }}>Siguiente</button>
-              )}
-            </div>
-          )}
-        </section>
+            </>
+          );
+        })()}
 
         {/* ════════════════════════════════════════════════════════ */}
         {/* BLOQUE 5 — Pixel Health Footer                          */}
