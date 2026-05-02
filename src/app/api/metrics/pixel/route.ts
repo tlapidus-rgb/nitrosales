@@ -292,10 +292,10 @@ export async function GET(request: NextRequest) {
         ? prisma.$queryRaw`
             SELECT
               CASE
-                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
-                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
-                THEN COALESCE(tp->>'source','direct') || '_organic'
-                ELSE COALESCE(tp->>'source', 'direct')
+                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
+                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
+                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
+                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
               END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(
@@ -329,10 +329,10 @@ export async function GET(request: NextRequest) {
         ? prisma.$queryRaw`
             SELECT
               CASE
-                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
-                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
-                THEN COALESCE(tp->>'source','direct') || '_organic'
-                ELSE COALESCE(tp->>'source', 'direct')
+                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
+                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
+                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
+                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
               END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
@@ -357,10 +357,10 @@ export async function GET(request: NextRequest) {
         ? prisma.$queryRaw`
             SELECT
               CASE
-                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
-                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
-                THEN COALESCE(tp->>'source','direct') || '_organic'
-                ELSE COALESCE(tp->>'source', 'direct')
+                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
+                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
+                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
+                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
               END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = 1 THEN pa."attributedValue" ELSE 0 END)::float as revenue
@@ -384,10 +384,10 @@ export async function GET(request: NextRequest) {
         : prisma.$queryRaw`
             SELECT
               CASE
-                WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
-                  AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
-                THEN COALESCE(tp->>'source','direct') || '_organic'
-                ELSE COALESCE(tp->>'source', 'direct')
+                WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
+                  AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
+                THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
+                ELSE LOWER(COALESCE(tp->>'source', 'direct'))
               END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(pa."attributedValue" / GREATEST(pa."touchpointCount", 1))::float as revenue
@@ -638,10 +638,10 @@ export async function GET(request: NextRequest) {
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
           CASE
-            WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(tp->>'source','direct') || '_organic'
-            ELSE COALESCE(tp->>'source', 'direct')
+            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
+              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
+            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
+            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
           END as source,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(
@@ -701,10 +701,10 @@ export async function GET(request: NextRequest) {
       prisma.$queryRaw`
         SELECT
           CASE
-            WHEN COALESCE(tp->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(tp->>'source','direct') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(tp->>'source','direct') || '_organic'
-            ELSE COALESCE(tp->>'source', 'direct')
+            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
+              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
+            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
+            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
           END as source,
           COUNT(*) FILTER (WHERE tp_ord = 1)::int as "firstTouch",
           COUNT(*) FILTER (WHERE tp_ord > 1 AND tp_ord < pa."touchpointCount")::int as "assistTouch",
