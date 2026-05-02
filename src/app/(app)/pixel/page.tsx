@@ -293,6 +293,47 @@ function PixelBrainMini({ size = 32, color = "#06b6d4" }: { size?: number; color
 
 
 // ══════════════════════════════════════════════════════════════
+// DarkTip — tooltip dark consistente para KPIs
+// ══════════════════════════════════════════════════════════════
+function DarkTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      className="relative inline-flex items-center align-middle cursor-help"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+      tabIndex={0}
+    >
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="text-cyan-400/40 hover:text-cyan-400 transition-colors">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12.01" y2="8" />
+      </svg>
+      {open && (
+        <span
+          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg text-[10px] leading-snug font-normal w-56 text-left pointer-events-none"
+          style={{
+            background: "rgba(15,23,42,0.98)",
+            border: "1px solid rgba(6,182,212,0.25)",
+            color: "rgba(226,232,240,0.9)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+            whiteSpace: "normal",
+          }}
+        >
+          {text}
+          <span
+            className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 rotate-45"
+            style={{ background: "rgba(15,23,42,0.98)", borderRight: "1px solid rgba(6,182,212,0.25)", borderBottom: "1px solid rgba(6,182,212,0.25)", marginTop: "-4px" }}
+          />
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════
 
@@ -321,6 +362,7 @@ export default function PixelPage() {
   const [savingWindow, setSavingWindow] = useState(false);
   const [windowError, setWindowError] = useState<string | null>(null);
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
+  const [truthGapOpen, setTruthGapOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   // Debounced refetching state — minimum 800ms to avoid flash/glitch
@@ -590,7 +632,10 @@ export default function PixelPage() {
             </div>
             {totalPlatformRevenue > totalPixelRevenue && (
               <div className="text-right">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-red-400/60">Plataformas reportan</p>
+                <div className="flex items-center justify-end gap-1.5">
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-red-400/60">Plataformas reportan</p>
+                  <DarkTip text="Suma de revenue que Meta Ads y Google Ads se atribuyen a sí mismos. Tipicamente está inflado porque cada plataforma se queda con el crédito completo de cada venta (last-click), generando double-counting. NitroPixel mide la verdad: una venta = un crédito repartido según el modelo elegido." />
+                </div>
                 <p className="text-sm text-red-400/80">
                   {fmtCompact(totalPlatformRevenue)}
                   <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}>
@@ -667,73 +712,89 @@ export default function PixelPage() {
           </div>
         </section>
 
-        {/* ── Section divider ── */}
-        <div className="flex items-center gap-4">
-          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
-          <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-cyan-400/30">La Verdad</span>
-          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(6,182,212,0.15), transparent)" }} />
-        </div>
-
         {/* ════════════════════════════════════════════════════════ */}
-        {/* BLOQUE 2 — TRUTH GAP · Pixel vs Plataforma             */}
+        {/* BLOQUE 2 — TRUTH GAP · Pixel vs Plataforma (colapsable) */}
         {/* ════════════════════════════════════════════════════════ */}
-        <section className="space-y-3 attr-stagger">
-          {sortedChannels.filter(c => c.pixelRevenue > 0 || c.platformRevenue > 0).map(ch => {
-            const info = getSourceInfo(ch.source);
-            const diff = ch.diffPercent;
-            const pixelPct = maxChannelRevenue > 0 ? (ch.pixelRevenue / maxChannelRevenue) * 100 : 0;
-            const platPct = maxChannelRevenue > 0 ? (ch.platformRevenue / maxChannelRevenue) * 100 : 0;
-            const isOverReporting = diff !== null && diff > 5;
-            return (
-              <div key={ch.source} className="attr-glass rounded-xl p-4 transition-all duration-300 hover:border-opacity-30" style={{ borderTop: `2px solid ${info.color}60` }}>
-                <div className="flex items-center gap-4">
-                  {/* Channel logo */}
-                  <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${info.color}20`, boxShadow: `0 0 20px ${info.color}10` }}>
-                    <ChannelLogo source={ch.source} size={20} />
-                  </div>
-
-                  {/* Bars */}
-                  <div className="flex-1 min-w-0 space-y-2">
-                    {/* Pixel truth bar */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-mono uppercase tracking-wider text-cyan-400/50 w-16 flex-shrink-0">Pixel</span>
-                      <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(15,23,42,0.5)" }}>
-                        <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(pixelPct, 2)}%`, background: `linear-gradient(90deg, ${info.color}cc, ${info.color}88)`, boxShadow: `0 0 12px ${info.color}30` }}>
-                          <span className="text-[10px] font-bold text-white whitespace-nowrap">{fmtCompact(ch.pixelRevenue)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Platform bar */}
-                    {ch.platformRevenue > 0 && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-white/25 w-16 flex-shrink-0">{info.label}</span>
-                        <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(15,23,42,0.5)" }}>
-                          <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(platPct, 2)}%`, background: "repeating-linear-gradient(135deg, rgba(148,163,184,0.12), rgba(148,163,184,0.12) 4px, rgba(148,163,184,0.06) 4px, rgba(148,163,184,0.06) 8px)" }}>
-                            <span className="text-[10px] font-medium text-white/40 whitespace-nowrap">{fmtCompact(ch.platformRevenue)}</span>
+        {(() => {
+          const channelsWithData = sortedChannels.filter(c => c.pixelRevenue > 0 || c.platformRevenue > 0);
+          const overReporting = channelsWithData.filter(c => c.diffPercent !== null && c.diffPercent > 5);
+          if (channelsWithData.length === 0) return null;
+          return (
+            <section className="attr-glass rounded-2xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setTruthGapOpen(o => !o)}
+                className="w-full flex items-center justify-between gap-4 p-4 hover:bg-cyan-500/5 transition-colors"
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <span className="text-[9px] font-mono uppercase tracking-[0.4em] text-cyan-400/50">La Verdad</span>
+                  <span className="text-sm font-semibold text-white">Pixel vs Plataformas</span>
+                  {overReporting.length > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
+                      {overReporting.length} {overReporting.length === 1 ? "canal infla" : "canales inflan"} sus números
+                    </span>
+                  )}
+                  <DarkTip text="Compara revenue real (NitroPixel) vs revenue que reportan Meta y Google. Las plataformas tipicamente inflan porque cada una se queda con el crédito completo (last-click). Si Meta dice $100 y Pixel dice $70, +43% inflado significa que Meta se atribuye ventas que también ven otros canales." />
+                </div>
+                <svg className={`w-4 h-4 text-cyan-400/50 transition-transform ${truthGapOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {truthGapOpen && (
+                <div className="px-4 pb-4 space-y-3 attr-stagger" style={{ borderTop: "1px solid rgba(6,182,212,0.08)" }}>
+                  {channelsWithData.map(ch => {
+                    const info = getSourceInfo(ch.source);
+                    const diff = ch.diffPercent;
+                    const pixelPct = maxChannelRevenue > 0 ? (ch.pixelRevenue / maxChannelRevenue) * 100 : 0;
+                    const platPct = maxChannelRevenue > 0 ? (ch.platformRevenue / maxChannelRevenue) * 100 : 0;
+                    const isOverReporting = diff !== null && diff > 5;
+                    return (
+                      <div key={ch.source} className="attr-glass rounded-xl p-4 transition-all duration-300" style={{ borderTop: `2px solid ${info.color}60`, marginTop: "1rem" }}>
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${info.color}20`, boxShadow: `0 0 20px ${info.color}10` }}>
+                            <ChannelLogo source={ch.source} size={20} />
+                          </div>
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[9px] font-mono uppercase tracking-wider text-cyan-400/50 w-16 flex-shrink-0">Pixel</span>
+                              <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(15,23,42,0.5)" }}>
+                                <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(pixelPct, 2)}%`, background: `linear-gradient(90deg, ${info.color}cc, ${info.color}88)`, boxShadow: `0 0 12px ${info.color}30` }}>
+                                  <span className="text-[10px] font-bold text-white whitespace-nowrap">{fmtCompact(ch.pixelRevenue)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            {ch.platformRevenue > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-mono uppercase tracking-wider text-white/25 w-16 flex-shrink-0">{info.label}</span>
+                                <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(15,23,42,0.5)" }}>
+                                  <div className="h-full rounded-md flex items-center px-2 transition-all duration-700" style={{ width: `${Math.max(platPct, 2)}%`, background: "repeating-linear-gradient(135deg, rgba(148,163,184,0.12), rgba(148,163,184,0.12) 4px, rgba(148,163,184,0.06) 4px, rgba(148,163,184,0.06) 8px)" }}>
+                                    <span className="text-[10px] font-medium text-white/40 whitespace-nowrap">{fmtCompact(ch.platformRevenue)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0 text-right w-28">
+                            <div className="text-sm font-bold text-white">{ch.pixelRoas.toFixed(1)}x <span className="text-[9px] font-normal text-cyan-400/50">ROAS</span></div>
+                            {ch.platformRoas > 0 && (
+                              <div className="text-xs text-white/25 line-through">{ch.platformRoas.toFixed(1)}x plat.</div>
+                            )}
+                            {isOverReporting && (
+                              <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
+                                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                +{Math.round(diff!)}%
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-
-                  {/* ROAS comparison */}
-                  <div className="flex-shrink-0 text-right w-28">
-                    <div className="text-sm font-bold text-white">{ch.pixelRoas.toFixed(1)}x <span className="text-[9px] font-normal text-cyan-400/50">ROAS</span></div>
-                    {ch.platformRoas > 0 && (
-                      <div className="text-xs text-white/25 line-through">{ch.platformRoas.toFixed(1)}x plat.</div>
-                    )}
-                    {isOverReporting && (
-                      <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
-                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        +{Math.round(diff!)}%
-                      </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              </div>
-            );
-          })}
-        </section>
+              )}
+            </section>
+          );
+        })()}
 
         {/* ── Section divider ── */}
         <div className="flex items-center gap-4">
@@ -748,14 +809,47 @@ export default function PixelPage() {
         <section className="attr-glass rounded-2xl p-5" style={{ animation: "attrFadeUp 0.6s 0.3s both" }}>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
             {[
-              { label: "Revenue Atribuido", value: fmtCompact(bk.pixelRevenue), change: bk.changes?.pixelRevenue, gradient: "from-cyan-400 to-blue-400" },
-              { label: "ROAS Blended", value: `${bk.pixelRoas.toFixed(1)}x`, change: bk.changes?.pixelRoas, gradient: "from-emerald-400 to-cyan-400" },
-              { label: "Órdenes Atribuidas", value: fmt(bk.ordersAttributed), change: bk.changes?.ordersAttributed, gradient: "from-violet-400 to-purple-400" },
-              { label: "Tasa de Atribución", value: `${bk.attributionRate}%`, change: null, gradient: "from-orange-400 to-amber-400" },
-              { label: "Inversión Total", value: fmtCompact(bk.totalAdSpend), change: null, gradient: "from-pink-400 to-rose-400" },
+              {
+                label: "Revenue Atribuido",
+                value: fmtCompact(bk.pixelRevenue),
+                change: bk.changes?.pixelRevenue,
+                gradient: "from-cyan-400 to-blue-400",
+                tip: `Suma del valor de las órdenes atribuidas por NitroPixel en el período, según el modelo ${MODEL_LABELS[selectedModel]}. Excluye marketplace (FVG/BPR/MELI). Cambia si cambiás el modelo en /pixel/configuracion.`,
+              },
+              {
+                label: "ROAS Blended",
+                value: `${bk.pixelRoas.toFixed(1)}x`,
+                change: bk.changes?.pixelRoas,
+                gradient: "from-emerald-400 to-cyan-400",
+                tip: "Revenue Atribuido ÷ Inversión Total (Meta + Google + manual). Es 'blended' porque combina todas las plataformas en un solo número. Mayor que el ROAS reportado por las plataformas suele indicar inflado de ellas.",
+              },
+              {
+                label: "Órdenes Atribuidas",
+                value: fmt(bk.ordersAttributed),
+                change: bk.changes?.ordersAttributed,
+                gradient: "from-violet-400 to-purple-400",
+                tip: "Cantidad de órdenes a las que NitroPixel asoció al menos un touchpoint. No es el total de órdenes — solo las que el cliente pasó por el pixel antes de comprar.",
+              },
+              {
+                label: "Tasa de Atribución",
+                value: `${bk.attributionRate}%`,
+                change: null,
+                gradient: "from-orange-400 to-amber-400",
+                tip: "Órdenes atribuidas ÷ órdenes totales del período. Si está baja: el snippet del pixel no está en todas las páginas, los visitantes llegan directo al checkout sin pasar por el sitio, o el dominio del pixel no matchea el del checkout. Benchmark sano: >40%.",
+              },
+              {
+                label: "Inversión Total",
+                value: fmtCompact(bk.totalAdSpend),
+                change: null,
+                gradient: "from-pink-400 to-rose-400",
+                tip: "Suma de spend de Meta Ads + Google Ads + spend manual cargado en /pixel/analytics (TV, radio, OOH, etc). Es lo que está en juego: el ROAS Blended divide Revenue Atribuido por este número.",
+              },
             ].map((kpi, i) => (
               <div key={i} className="text-center lg:text-left">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-white/30 mb-1">{kpi.label}</p>
+                <div className="flex items-center justify-center lg:justify-start gap-1.5 mb-1">
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-white/30">{kpi.label}</p>
+                  <DarkTip text={kpi.tip} />
+                </div>
                 <p className="text-xl font-bold tracking-tight" style={{ background: `linear-gradient(135deg, var(--tw-gradient-stops))`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                   <span className={`bg-gradient-to-r ${kpi.gradient} bg-clip-text text-transparent`}>{kpi.value}</span>
                 </p>
@@ -912,17 +1006,41 @@ export default function PixelPage() {
                 </div>
               </div>
 
-              {/* Click coverage */}
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4" viewBox="0 0 36 36">
-                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(139,92,246,0.1)" strokeWidth="3" />
-                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="#8b5cf6" strokeWidth="3" strokeDasharray={`${((health.clickCoverage?.clickIdRate || 0) / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
-                </svg>
-                <div>
-                  <p className="text-xs font-bold text-violet-400">{Math.round(health.clickCoverage?.clickIdRate || 0)}%</p>
-                  <p className="text-[9px] text-white/25 font-mono uppercase">Click IDs</p>
-                </div>
-              </div>
+              {/* Click coverage — con CTA si <50% */}
+              {(() => {
+                const rate = Math.round(health.clickCoverage?.clickIdRate || 0);
+                const lowCoverage = rate < 50;
+                const content = (
+                  <>
+                    <svg className="w-4 h-4" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "rgba(239,68,68,0.15)" : "rgba(139,92,246,0.1)"} strokeWidth="3" />
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke={lowCoverage ? "#f87171" : "#8b5cf6"} strokeWidth="3" strokeDasharray={`${(rate / 100) * 97.4} 97.4`} strokeLinecap="round" transform="rotate(-90 18 18)" />
+                    </svg>
+                    <div>
+                      <p className={`text-xs font-bold ${lowCoverage ? "text-red-400" : "text-violet-400"}`}>{rate}%</p>
+                      <p className="text-[9px] text-white/25 font-mono uppercase">Click IDs</p>
+                    </div>
+                    {lowCoverage && (
+                      <span className="text-[9px] text-red-300/80 ml-1 hidden md:inline">
+                        Subila configurando UTMs ›
+                      </span>
+                    )}
+                  </>
+                );
+                return lowCoverage ? (
+                  <a
+                    href="/pixel/configuracion"
+                    className="flex items-center gap-2 transition-all hover:scale-[1.02]"
+                    title="Cobertura baja: configurá UTMs en /pixel/configuracion para llegar al 80%+"
+                  >
+                    {content}
+                  </a>
+                ) : (
+                  <div className="flex items-center gap-2" title="Click IDs (gclid, fbclid, etc) capturados por el pixel. Indica trazabilidad de campañas pagas.">
+                    {content}
+                  </div>
+                );
+              })()}
 
               {/* Events */}
               <div>
@@ -930,44 +1048,27 @@ export default function PixelPage() {
                 <p className="text-[9px] text-white/25 font-mono uppercase">Eventos</p>
               </div>
 
-              {/* Model active */}
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.2)" }}>
-                <span className="text-[10px] font-bold text-orange-400">Modelo: {MODEL_LABELS[selectedModel]}</span>
-              </div>
-
-              {/* Settings gear */}
-              <button onClick={() => setWeightsOpen(!weightsOpen)} className="p-1.5 rounded-lg transition-colors" style={{ background: "rgba(15,23,42,0.4)" }}>
-                <svg className="w-4 h-4 text-white/30 hover:text-cyan-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              {/* Model + weights chip — read-only, link a /pixel/configuracion */}
+              <a
+                href="/pixel/configuracion"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all hover:scale-[1.02]"
+                style={{ background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.2)" }}
+                title="Editar modelo y pesos en Configuración"
+              >
+                <span className="text-[10px] font-bold text-orange-400">{MODEL_LABELS[selectedModel]}</span>
+                {selectedModel === "NITRO" && (
+                  <>
+                    <span className="text-orange-400/30">·</span>
+                    <span className="text-[10px] font-mono text-orange-300/80">
+                      {nitroWeights.first}/{nitroWeights.middle}/{nitroWeights.last}
+                    </span>
+                  </>
+                )}
+                <svg className="w-3 h-3 text-orange-400/60 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18l6-6-6-6" />
                 </svg>
-              </button>
+              </a>
             </div>
-
-            {/* Weights editor panel */}
-            {weightsOpen && selectedModel === "NITRO" && (
-              <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(6,182,212,0.08)" }}>
-                <p className="text-[10px] font-mono uppercase tracking-wider text-cyan-400/40 mb-3">Pesos del modelo Nitro</p>
-                <div className="flex items-center gap-4">
-                  {(["first", "middle", "last"] as const).map(k => (
-                    <div key={k} className="flex-1">
-                      <label className="text-[10px] text-white/30 uppercase mb-1 block">{k === "first" ? "Primero" : k === "last" ? "Último" : "Medio"}</label>
-                      <input
-                        type="number" min={0} max={100}
-                        value={editingWeights[k]}
-                        onChange={e => setEditingWeights({ ...editingWeights, [k]: Number(e.target.value) })}
-                        className="w-full px-2 py-1.5 rounded-lg text-sm text-white font-mono text-center"
-                        style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(6,182,212,0.15)" }}
-                      />
-                    </div>
-                  ))}
-                  <button onClick={saveNitroWeights} disabled={savingWeights} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white transition-all" style={{ background: "linear-gradient(135deg, #f97316, #fb923c)", opacity: savingWeights ? 0.5 : 1 }}>
-                    {savingWeights ? "..." : "Guardar"}
-                  </button>
-                </div>
-                {weightsError && <p className="text-xs text-red-400 mt-2">{weightsError}</p>}
-              </div>
-            )}
           </section>
         )}
 
