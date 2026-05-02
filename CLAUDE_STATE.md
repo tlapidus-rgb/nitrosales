@@ -3,7 +3,71 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-02 noche (Sesion 60 EXT-2 BIS — extension final del dia. Multiples bugs detectados y corregidos: (1) Funnel y Conversion por Canal usaban definiciones distintas de canal — unificado a first-touch; (2) bug guard marketplace usaba `vtexOrder.origin === 'Marketplace'` que VTEX devuelve para todas las ordenes — corregido a solo prefijo FVG-/BPR-; (3) cron diario VTEX 1x/dia insuficiente como red de seguridad — agregado nuevo cron `/api/cron/vtex-sync-recent` cada 30 min iterando todas las orgs VTEX; (4) tooltips aclaratorios en todos los modulos del pixel/analytics explicando que definicion de canal usa cada uno; (5) Tomy reporto que Claude se volvio dependiente de pegar URLs manualmente — Claude reconoce el error de proceso y recupera autonomia con WebFetch. Pendientes intactos: activar TVC, wizard afiliado VTEX, alias webhooks@nitrosales.ai.)
+## Ultima actualizacion: 2026-05-02 madrugada (Sesion 60 EXT-2 BIS+ — cierre del dia. 7 deploys adicionales post cron-30min: (1) endpoints diagnostico connection-status + vtex-deep-audit para auditoria comparativa entre orgs VTEX; (2) CAUSA RAIZ encontrada — cron diario `/api/sync` solo paginaba page=1 (max 100 ordenes), nunca iteraba; deeper bug que el cron 30min ataco como sintoma. Fix definitivo: loop while hasMore. Tomy forzo investigar el por que (no agregar mas crons como parche); (3) Conversion por Canal — revenue $0 en Google Ads por mismatch de aliases en JOIN, colores CR todos rojos por thresholds fijos, filter source corrupto por chars no validos. 3 bugs corregidos en 1 commit; (4) OrgSwitcher en sidebar + fix detectar admin via email cliente-side. Pendientes intactos: activar TVC, wizard afiliado VTEX, alias webhooks@nitrosales.ai.)
+
+### Sesion 60 EXT-2 BIS+ (2026-05-02 madrugada) — Causa raiz webhook + Conversion por Canal + OrgSwitcher
+
+**Contexto**: post cron-30min, Tomy pidio investigacion profunda comparando EMDJ vs TVC ultimos 7 dias para encontrar causa raiz real (no agregar mas patches). Audit revelo cron pagination bug. Adicionalmente reporto 3 bugs en Conversion por Canal y pidio super-administrador visual en sidebar.
+
+#### Bug 6 (CAUSA RAIZ): cron diario `/api/sync` solo procesaba page=1
+- **Sintoma**: 24 ordenes faltantes en TVC del 30/04 al 02/05. Cron 30min las traia, pero nadie habia entendido POR QUE el cron diario no las habia recuperado en su ventana 24hs.
+- **Causa**: `/api/sync/route.ts` invocaba `/api/sync/vtex` sin loop. `/api/sync/vtex` defaulteaba a `page=1`. Si una org generaba >100 ordenes/dia, las paginas siguientes nunca se traian.
+- **Fix** (commit `1097cbd`): loop `while page <= 50 && hasMore` en `/api/sync/route.ts`. Cada iteracion pasa `page` explicito, agrega resultados a array, rompe en hasMore=false o error.
+- **Validacion**: deep audit (`vtex-deep-audit`) post-fix → EMDJ 100% / TVC 95.5% (5 ordenes pre-afiliado, no recuperables sin cambiar config retroactivamente).
+- **Impacto**: tipo A. Beneficia a TODAS las orgs VTEX (presentes y futuras) sin tocar nada.
+
+#### Bug 7: Revenue $0 + colores CR todos rojos + filter sources corruptos en Conversion por Canal
+- **Sintoma**: Google Ads mostraba revenue=$0 aunque tenia attributions. Todos los CR aparecian con color rojo aunque algunos eran buenos. Filter dropdown listaba sources con caracteres corruptos (mojibake).
+- **Causas**:
+  1. attrMap usaba keys literales (`adwords`, `google_ads`) de attributionBySource pero el CTE first-touch normalizaba a `google`. JOIN no matcheaba → revenue=0.
+  2. Colores CR usaban thresholds fijos (>5% verde, <2% rojo). Si TODA la data era <2%, todo aparecia rojo aunque hubiera diferencias relativas.
+  3. CTE traia sources sin sanear, incluyendo strings corruptos del referrer.
+- **Fix** (commit `6fd090c`):
+  1. Backend canonicaliza source en AMBOS lados antes del JOIN. Suma revenue de aliases que canonicalizan al mismo canonical.
+  2. Frontend calcula CR colores proporcionales al rango actual: top 33% verde, mid 33% amarillo, bottom 33% rojo.
+  3. Backend filtra sources con regex `^[a-z0-9_\-\.]+$/i` antes de devolver.
+
+#### Bug 8 (UX): super-administrador visual en sidebar
+- **Pedido**: Tomy queria poder cambiar entre clientes desde el sidebar sin ir a `/control/onboardings`.
+- **Implementacion**:
+  - Endpoint `/api/admin/orgs-list` devuelve todas las orgs (id, name, slug). Auth via `isInternalUser`.
+  - Componente `OrgSwitcher.tsx` arriba del sidebar (entre logo y nav). Dropdown con avatar+nombre, click → POST view-as-org → reload.
+  - Banner "Volver a Tomy Lapidus" si esta viendo otra org.
+- **Bug propio detectado en pruebas**: el componente leia `session.user.isInternalUser` que NO existe en cliente (es funcion server-side en `feature-flags.ts`). Render condicional siempre false → switcher no aparecia.
+- **Fix** (commit `95148a0`): replicar `INTERNAL_EMAILS` en frontend (los emails no son secretos), comparar `session.user.email` directamente.
+- **Estado**: funcional. Tomy validado: "funciona bien". Detalle pendiente: estilo del componente es claro, sidebar es dark theme. Pendiente cosmetico, no funcional.
+
+#### Endpoints de diagnostico nuevos (debug only, no productivos)
+- `/api/admin/connection-status?platform=VTEX&key=...` — devuelve por org el `lastSuccessfulSyncAt`, `lastSyncAt`, `lastSyncError`, calcula `health` (ok / stale_<24h / stale_>24h / never_synced).
+- `/api/admin/vtex-deep-audit?orgId=X&from=...&to=...&key=...` — pagina VTEX completo (hasta N paginas) y compara con DB. Output: `inVtex`, `inDb`, `missing`, `coverage_pct`. Util para validar que cron pagina bien.
+
+#### Deploys cronologicos del bloque (post-cron 30min)
+1. `a55fd36` — connection-status endpoint
+2. `0eb79f7` — vtex-deep-audit endpoint
+3. `1097cbd` — fix sync paginar todas las paginas (CAUSA RAIZ)
+4. `6fd090c` — fix Conversion por Canal (revenue + colores + sources)
+5. `cfb42d9` — docs S60 EXT-2 BIS
+6. `84ce2da` — feat OrgSwitcher en sidebar
+7. `95148a0` — fix OrgSwitcher detectar admin via email
+
+#### Patrones criticos S60 EXT-2 BIS+
+
+1. **Investigar causa raiz vs agregar parches** (refuerzo del patron de cierre): cuando aparece "X no funciona", la primera pregunta es POR QUE — no "agreguemos un retry/cron/safety net". El cron 30min funcionaba pero ocultaba el bug real (cron diario no paginaba). Tomy literalmente dijo: "se vuelve mas costoso estar atendiendo carteros que revisar por que pierden las cartas".
+
+2. **Auditar AMBOS lados antes de afirmar OK**: Tomy: "vos estas asumiendo que EMDJ esta bien, ¿lo chequeaste?". Hice deep-audit de los 2 → EMDJ 100% / TVC 95.5%. Sin esa instigacion, hubiera afirmado fix funciona basado en TVC solamente.
+
+3. **Server-side flags NO viajan al cliente**: `isInternalUser()` es funcion server-side en `feature-flags.ts`. La sesion NextAuth no expone ese flag al cliente automaticamente. Para gates client-side, replicar la allowlist (emails publicos) o agregar el flag al callback de session de NextAuth. Documentado en error nuevo.
+
+4. **Replicar listas chicas en cliente es OK si no son secretas**: emails de admin no son secretos (estan en commits, en logs, en mensajes). Replicar `INTERNAL_EMAILS` en frontend para gates UX es razonable. Si fueran tokens o secrets, NUNCA replicar — pasar via session callback.
+
+#### Pendientes finales (sin cambios)
+1. 🟡 BP-S60-005 Activar TVC
+2. 🟡 BP-S60-002 Wizard del afiliado VTEX
+3. 🟢 BP-S60-004 Alias webhooks@nitrosales.ai
+4. 🟢 (cosmetico) Adaptar OrgSwitcher al dark theme del sidebar (ahora usa fondo blanco)
+
+---
+
 
 ### Sesion 60 EXT-2 BIS (2026-05-02 noche tarde) — Unificacion canales + cron VTEX + recuperacion autonomia
 

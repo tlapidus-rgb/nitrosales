@@ -4,7 +4,107 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-04-28 — Sesión 59 (4 errores nuevos: OAuth orgId desde query param sin validar, endpoints duplicados sin buscar existente, tests pidiendo env vars del servidor al cliente, columnas SQL incorrectas en queries raw).**
+> **Última actualización: 2026-05-02 madrugada — Sesión 60 EXT-2 BIS+ (3 errores nuevos: cron sync sin paginar todas las páginas, leer flag server-side en componente cliente, agregar más cron/retry como parche en vez de buscar causa raíz).**
+
+---
+
+## Error #S60-EXT2BIS-CRON-SIN-PAGINAR — Cron diario llamaba a paginated endpoint sin loop
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+. El cron diario `/api/sync` invocaba `/api/sync/vtex` una sola vez por org. El endpoint `/api/sync/vtex` defaulteaba a `page=1` y devolvía hasta 100 órdenes con un flag `hasMore`. **El cron nunca leía ese flag, nunca iteraba.** Si una org generaba >100 órdenes en el rango procesado, las páginas siguientes simplemente no se traían — se perdían silenciosamente.
+
+Síntoma cliente: 24 órdenes faltantes en TVC entre 30/04 y 02/05. El cron 30min agregado en el mismo bloque las recuperó, pero ocultó el bug real durante horas hasta que Tomy forzó investigar la causa raíz.
+
+### Causa raíz
+- Asumir que un endpoint que devuelve `hasMore` es responsabilidad del CALLER iterar — pero olvidar implementarlo.
+- No probar el cron con una org que tuviera volumen >100 órdenes/día.
+- El cron 30min creado como "safety net" funcionaba bien por su rango chico (24hs), enmascarando el bug del cron diario.
+
+### Regla
+**Cualquier endpoint paginated que devuelva `hasMore` (o equivalente: `nextPage`, `nextCursor`, `total`) y sea consumido por un cron, DEBE consumirse con loop hasta agotar páginas o llegar a un cap de seguridad (`maxPages`).**
+
+```ts
+// CORRECTO
+let page = 1;
+const maxPages = 50;
+while (page <= maxPages) {
+  const res = await fetch(`/api/sync/vtex?org=${orgId}`, {
+    method: "POST",
+    body: JSON.stringify({ syncKey, page }),
+  });
+  const data = await res.json();
+  results.push(data);
+  if (!data.hasMore || data.error) break;
+  page++;
+}
+```
+
+### Prevención
+- Revisar TODOS los crons existentes que invocan endpoints internos: ¿el endpoint es paginated? ¿el cron itera?
+- Cuando se encuentra un sintoma "X no aparece en producción", SIEMPRE investigar por qué los caminos de recovery (cron, reintentos, webhooks) NO recuperaron — no agregar más caminos.
+- Logging defensivo: cron debe loggear `pagesProcessed` y `totalRecords` por org. Si una org consistente reporta exactamente 100 páginas/100 records, alarma.
+
+---
+
+## Error #S60-EXT2BIS-FLAG-SERVERSIDE-EN-CLIENTE — Componente cliente leyó flag que solo existe en servidor
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+. Implementé `OrgSwitcher.tsx` (componente cliente) con `const isAdmin = session.user.isInternalUser === true`. El componente nunca se renderizaba porque ese campo NO está en la sesión de NextAuth — `isInternalUser` es una **función server-side** en `src/lib/feature-flags.ts` que llama a `getServerSession`. La sesión que llega al cliente solo tiene los campos que el callback `session` de NextAuth expone explícitamente.
+
+Tomy probó con hard refresh y mandó captura: switcher no aparece. Diagnóstico: el flag en cliente era siempre `undefined`, comparado con `=== true` siempre `false`, render condicional siempre null.
+
+### Causa raíz
+- Asumir que cualquier helper auth llamado `isInternalUser` está disponible en cliente solo por convención de nombre.
+- No leer `src/lib/feature-flags.ts` antes de usar el flag — habría visto que es `async function getServerSession`.
+- Confundir "está en el codebase" con "está en `session.user`".
+
+### Regla
+**Antes de usar un flag de auth en componente cliente (`"use client"`), confirmar que está expuesto en la session de NextAuth (callback `session` en `authOptions`) o pasarlo via prop desde un Server Component.**
+
+Opciones válidas para gates UX en cliente:
+1. **Agregar el flag al callback `session`** de NextAuth → todos los componentes cliente lo ven en `useSession`.
+2. **Replicar la lista (si no es secreta)** en frontend → comparar localmente. Ej: `INTERNAL_EMAILS` con emails públicos.
+3. **Server Component padre** lee el flag y pasa boolean prop al cliente.
+
+```ts
+// OPCION 2 (replicar lista, válido si no es secreta)
+const INTERNAL_EMAILS = new Set<string>(["tlapidus@99media.com.ar"]);
+const email = (session?.user?.email || "").toLowerCase();
+const isAdmin = INTERNAL_EMAILS.has(email);
+```
+
+### Prevención
+- Antes de leer `(session?.user as any)?.X`, hacer un grep rápido en `src/lib/auth.ts` o `authOptions.callbacks.session` para confirmar que `X` se está agregando al token.
+- Si un componente cliente no se renderiza, primero loguear `JSON.stringify(session?.user)` para ver qué campos REALMENTE existen.
+
+---
+
+## Error #S60-EXT2BIS-PARCHE-EN-VEZ-DE-CAUSA-RAIZ — Agregar más cron/retry/safety-net en vez de investigar por qué el sistema actual falla
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+. Aparecieron 24 órdenes faltantes en TVC. Mi primer impulso fue agregar `/api/cron/vtex-sync-recent` cada 30 min como "red de seguridad". Lo implementé y desplegué. Tomy frenó:
+
+> "creo que se vuelve más costoso y tener que estar atendiendo carteros todo el tiempo, que tratar de revisar por qué los carteros pierden las cartas. ¿Por qué EMDJ no perdió ninguna y TVC sí? Hace una investigación profunda."
+
+La investigación reveló el bug real: cron diario no paginaba. El cron 30min funcionaba correctamente, pero ocultaba el sintoma sin resolverlo. Si TVC hubiera generado >100 órdenes en 30 min (improbable pero posible en sales), seguiría perdiendo.
+
+### Causa raíz
+- Sesgo cognitivo: agregar capa = trabajo visible y "resuelve" rápido. Investigar = trabajo lento, sin garantía de hallazgo, requiere parar.
+- Dos crons (diario + 30min) parecía "redundancia defensiva" pero en realidad era enmascarar un bug.
+- Comparar EMDJ vs TVC end-to-end no se me había ocurrido — Tomy lo forzó.
+
+### Regla
+**Cuando un sistema de recovery (cron, retry, safety-net) "no funciona", investigar por qué falló ANTES de agregar otro sistema de recovery encima.**
+
+Preguntas obligatorias antes de agregar nueva capa:
+1. ¿Qué hizo (o no hizo) la capa anterior cuando ocurrió el sintoma? Logs, last run, output.
+2. ¿Otra org/cliente tiene el mismo problema? Si NO → comparar implementación, no resultado.
+3. ¿Existe un cap de paginación, timeout, rate limit que silencia el bug?
+4. Si agrego una nueva capa hoy, ¿cuál es el sintoma que mañana revelará el bug original?
+
+Si después de responder las 4 preguntas la nueva capa sigue siendo necesaria, está bien agregarla — pero documentar la causa raíz separadamente.
+
+### Prevención
+- En CLAUDE_STATE.md mantener una sección "Investigaciones pendientes" cuando un bug se resuelve con un workaround.
+- Cuando Tomy diga "¿estás seguro? hace una investigación profunda", **parar de implementar** y usar agentes paralelos / WebFetch / queries SQL para auditar.
+- No tratar el cron 30min como "exito" hasta haber explicado por qué el cron 1x/día falló.
 
 ---
 
