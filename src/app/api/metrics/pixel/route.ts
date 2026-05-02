@@ -707,46 +707,61 @@ export async function GET(request: NextRequest) {
         ORDER BY "firstTouch" DESC
       ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>,
 
-      // 23. Visitors per source from NitroPixel (for CR by channel)
-      // Per-visitor source: prioritize UTM params, fallback to referrer classification
-      // Uses crDateFrom (pixel install date floor) to avoid comparing against pre-pixel orders
+      // 23. Visitors + Purchases per source — UNIFICADO con el endpoint /api/metrics/pixel/funnel (S60 EXT-2)
+      // Decision producto: TODA la plataforma usa first-touch como definicion de canal.
+      // Mismo CTE visitor_first_source que el funnel para garantizar coincidencia de numeros.
+      // Cuenta: visitor unique con PAGE_VIEW (visitors) y con PURCHASE (purchases) cuyo first-touch fue X.
       prisma.$queryRaw`
-        WITH visitor_source AS (
-          SELECT DISTINCT ON (pe."visitorId")
-            pe."visitorId",
-            pe."utmParams",
-            pe.referrer
-          FROM pixel_events pe
-          WHERE pe."organizationId" = ${ORG_ID}
-            AND pe.timestamp >= ${crDateFrom}
-            AND pe.timestamp <= ${dateTo}
-          ORDER BY pe."visitorId",
-            CASE WHEN pe."utmParams"->>'source' IS NOT NULL AND pe."utmParams"->>'source' != '' THEN 0 ELSE 1 END,
-            pe.timestamp ASC
+        WITH visitor_first_source AS (
+          SELECT DISTINCT ON ("visitorId")
+            "visitorId",
+            CASE
+              WHEN ("clickIds"->>'fbclid') IS NOT NULL AND ("clickIds"->>'fbclid') != '' THEN 'meta'
+              WHEN ("clickIds"->>'gclid') IS NOT NULL AND ("clickIds"->>'gclid') != '' THEN 'google'
+              WHEN ("clickIds"->>'ttclid') IS NOT NULL AND ("clickIds"->>'ttclid') != '' THEN 'tiktok'
+              WHEN ("clickIds"->>'msclkid') IS NOT NULL AND ("clickIds"->>'msclkid') != '' THEN 'microsoft'
+              WHEN ("clickIds"->>'li_fat_id') IS NOT NULL AND ("clickIds"->>'li_fat_id') != '' THEN 'linkedin'
+              WHEN LOWER("utmParams"->>'source') IN ('adwords', 'google_ads', 'google-ads', 'googleads') THEN 'google'
+              WHEN LOWER("utmParams"->>'source') IN ('meta_ads', 'meta-ads', 'metaads', 'fb_ads', 'fb-ads', 'fbads', 'facebook_ads', 'facebook-ads') THEN 'meta'
+              WHEN LOWER("utmParams"->>'source') IN ('ig', 'instagram_ads', 'instagram-ads') THEN 'instagram'
+              WHEN ("utmParams"->>'source') IS NOT NULL AND ("utmParams"->>'source') != '' THEN LOWER("utmParams"->>'source')
+              WHEN referrer ~* 'l\.instagram\.com|instagram\.com' THEN 'instagram'
+              WHEN referrer ~* 'facebook\.com|fb\.com|m\.facebook\.com' THEN 'facebook'
+              WHEN referrer ~* 'tiktok\.com' THEN 'tiktok'
+              WHEN referrer ~* 'twitter\.com|x\.com|t\.co' THEN 'twitter'
+              WHEN referrer ~* 'youtube\.com|youtu\.be' THEN 'youtube'
+              WHEN referrer ~* 'linkedin\.com|lnkd\.in' THEN 'linkedin'
+              WHEN referrer ~* 'pinterest\.com' THEN 'pinterest'
+              WHEN referrer ~* 'whatsapp\.com|wa\.me' THEN 'whatsapp'
+              WHEN referrer ~* 't\.me|telegram\.org' THEN 'telegram'
+              WHEN referrer ~* 'mail\.google\.com|gmail\.com|outlook\.com|yahoo\.com/mail' THEN 'email'
+              WHEN referrer ~* 'google\.[a-z]{2,3}' THEN 'google_organic'
+              WHEN referrer ~* 'bing\.com' THEN 'bing_organic'
+              WHEN referrer ~* 'yahoo\.com' THEN 'yahoo_organic'
+              WHEN referrer = '' OR referrer IS NULL THEN 'direct'
+              ELSE 'referral'
+            END AS first_source
+          FROM pixel_events
+          WHERE "organizationId" = ${ORG_ID}
+            AND timestamp >= ${dateFrom}
+            AND timestamp <= ${dateTo}
+            AND ("sessionId" IS NULL OR "sessionId" NOT LIKE 'webhook-%')
+          ORDER BY "visitorId", timestamp ASC
         )
         SELECT
-          CASE
-            WHEN COALESCE(vs."utmParams"->>'medium','') IN ('organic','social','referral')
-              AND COALESCE(vs."utmParams"->>'source','') IN ('google','bing','yahoo','duckduckgo')
-            THEN COALESCE(vs."utmParams"->>'source','') || '_organic'
-            WHEN vs."utmParams"->>'source' IS NOT NULL AND vs."utmParams"->>'source' != ''
-            THEN vs."utmParams"->>'source'
-            WHEN vs.referrer LIKE '%google.%' THEN 'google_organic'
-            WHEN vs.referrer LIKE '%bing.%' THEN 'bing_organic'
-            WHEN vs.referrer LIKE '%instagram.%' OR vs.referrer LIKE '%l.instagram.%' THEN 'instagram'
-            WHEN vs.referrer LIKE '%facebook.%' OR vs.referrer LIKE '%m.facebook.%' OR vs.referrer LIKE '%l.facebook.%' THEN 'facebook'
-            WHEN vs.referrer LIKE '%tiktok.%' THEN 'tiktok'
-            WHEN vs.referrer LIKE '%twitter.%' OR vs.referrer LIKE '%t.co%' THEN 'twitter'
-            WHEN vs.referrer LIKE '%youtube.%' THEN 'youtube'
-            WHEN vs.referrer IS NOT NULL AND vs.referrer != '' THEN 'referral'
-            ELSE 'direct'
-          END as source,
-          COUNT(*)::int as visitors
-        FROM visitor_source vs
+          vfs.first_source as source,
+          COUNT(DISTINCT pe."visitorId") FILTER (WHERE pe.type = 'PAGE_VIEW')::int as visitors,
+          COUNT(DISTINCT pe."visitorId") FILTER (WHERE pe.type = 'PURCHASE')::int as purchases
+        FROM pixel_events pe
+        INNER JOIN visitor_first_source vfs ON vfs."visitorId" = pe."visitorId"
+        WHERE pe."organizationId" = ${ORG_ID}
+          AND pe.timestamp >= ${dateFrom}
+          AND pe.timestamp <= ${dateTo}
+          AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
         GROUP BY 1
         ORDER BY visitors DESC
         LIMIT 20
-      ` as Promise<Array<{ source: string; visitors: number }>>,
+      ` as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
 
       // 24. Orders by device — derive device from pixel_attributions → pixel_visitors
       // Uses crDateFrom to only count orders from when pixel was active
@@ -1221,25 +1236,26 @@ export async function GET(request: NextRequest) {
 
       // ── Conversion Rates data (100% NitroPixel + VTEX orders) ──
       conversionRates: (() => {
-        // CR by Channel: pixel visitors per source + attribution orders per source
-        // Merge both directions: sources with purchases AND sources with only visitors
-        const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number }>;
-        const visitorMap = new Map(pixelVisitorsBySource.map(v => [v.source.toLowerCase(), v.visitors]));
+        // CR by Channel — UNIFICADO con funnel (S60 EXT-2): same query, same first-touch logic.
+        // Visitors y purchases vienen de visitorsBySourceResult que ahora cuenta por first-touch
+        // del visitor en el rango. Revenue se infiere desde attributionBySource (last-click) cuando
+        // hay match — esto puede diferir levemente del cuento first-touch pero es la mejor proxy
+        // disponible para mostrar revenue por canal sin recalcular full attribution.
+        const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number; purchases: number }>;
         const attrMap = new Map(attributionBySource.map(ch => [ch.source.toLowerCase(), ch]));
 
-        // Start with attribution sources (have purchases)
         const channelMap = new Map<string, { source: string; visitors: number; purchases: number; revenue: number }>();
-        for (const ch of attributionBySource) {
-          const key = ch.source.toLowerCase();
-          const visitors = visitorMap.get(key) || 0;
-          channelMap.set(key, { source: ch.source, visitors, purchases: ch.orders, revenue: ch.revenue || 0 });
-        }
-        // Add sources that have visitors but 0 purchases (important for seeing all traffic sources)
+        // First-touch source determina la fila. Visitors y purchases del CTE first-touch.
         for (const vs of pixelVisitorsBySource) {
+          if (vs.visitors <= 5) continue; // skip tiny sources
           const key = vs.source.toLowerCase();
-          if (!channelMap.has(key) && vs.visitors > 5) { // skip tiny sources
-            channelMap.set(key, { source: vs.source, visitors: vs.visitors, purchases: 0, revenue: 0 });
-          }
+          const attr = attrMap.get(key);
+          channelMap.set(key, {
+            source: vs.source,
+            visitors: vs.visitors,
+            purchases: vs.purchases,
+            revenue: attr?.revenue || 0, // proxy desde attribution last-click
+          });
         }
         const byChannel = Array.from(channelMap.values())
           .map(ch => ({ ...ch, cr: ch.visitors > 0 ? Math.round((ch.purchases / ch.visitors) * 10000) / 100 : 0 }))
