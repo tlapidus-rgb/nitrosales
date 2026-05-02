@@ -207,7 +207,7 @@ export async function GET(req: NextRequest) {
     const pvSamples = await prisma.$queryRaw<Array<{ id: string; visitorId: string; deviceTypes: any }>>`
       SELECT id, "visitorId", "deviceTypes" FROM pixel_visitors
       WHERE "organizationId" = ${orgId}
-      ORDER BY "createdAt" DESC LIMIT 5
+      ORDER BY "lastSeenAt" DESC LIMIT 5
     `;
 
     // Para los visitorIds de attributions, chequear si matchean con pv.id en vez de pv.visitorId
