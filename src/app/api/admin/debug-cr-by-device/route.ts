@@ -149,6 +149,60 @@ export async function GET(req: NextRequest) {
         AND pa.model::text = ${model}
     `;
 
+    // Diagnostico: cuantas attributions joinean exitosamente con pixel_visitors
+    const joinDiag = await prisma.$queryRaw<Array<{
+      total: number; with_pv: number; with_pe_device: number; null_visitor: number;
+    }>>`
+      SELECT
+        COUNT(*)::int as total,
+        COUNT(pv.id)::int as with_pv,
+        COUNT(DISTINCT CASE WHEN EXISTS (
+          SELECT 1 FROM pixel_events pe2
+          WHERE pe2."visitorId" = pa."visitorId" AND pe2."organizationId" = ${orgId}
+          AND pe2."deviceType" IS NOT NULL
+        ) THEN pa.id END)::int as with_pe_device,
+        COUNT(CASE WHEN pa."visitorId" IS NULL OR pa."visitorId" = '' THEN 1 END)::int as null_visitor
+      FROM pixel_attributions pa
+      LEFT JOIN pixel_visitors pv ON pv."visitorId" = pa."visitorId" AND pv."organizationId" = pa."organizationId"
+      JOIN orders o ON o.id = pa."orderId"
+      WHERE pa."organizationId" = ${orgId}
+        AND o."orderDate" >= ${crDateFrom}
+        AND o."orderDate" <= ${dateTo}
+        AND pa.model::text = ${model}
+        AND o.status NOT IN ('CANCELLED', 'PENDING')
+        AND o."totalValue" > 0
+        AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+        AND o.source IS DISTINCT FROM 'MELI'
+        AND o.channel IS DISTINCT FROM 'marketplace'
+        AND o."externalId" NOT LIKE 'FVG-%'
+        AND o."externalId" NOT LIKE 'BPR-%'
+    `;
+
+    // sample: visitorIds de pa y si existen en pixel_visitors
+    const visitorIdSamples = await prisma.$queryRaw<Array<{
+      visitorId: string; existsInPv: boolean; pvDeviceTypes: any; peDeviceType: string | null;
+    }>>`
+      SELECT
+        pa."visitorId",
+        EXISTS (
+          SELECT 1 FROM pixel_visitors pv
+          WHERE pv."visitorId" = pa."visitorId" AND pv."organizationId" = ${orgId}
+        ) as "existsInPv",
+        (SELECT pv2."deviceTypes" FROM pixel_visitors pv2
+          WHERE pv2."visitorId" = pa."visitorId" AND pv2."organizationId" = ${orgId} LIMIT 1) as "pvDeviceTypes",
+        (SELECT pe3."deviceType" FROM pixel_events pe3
+          WHERE pe3."visitorId" = pa."visitorId" AND pe3."organizationId" = ${orgId} AND pe3."deviceType" IS NOT NULL
+          ORDER BY pe3.timestamp DESC LIMIT 1) as "peDeviceType"
+      FROM pixel_attributions pa
+      JOIN orders o ON o.id = pa."orderId"
+      WHERE pa."organizationId" = ${orgId}
+        AND o."orderDate" >= ${crDateFrom}
+        AND o."orderDate" <= ${dateTo}
+        AND pa.model::text = ${model}
+        AND o.status NOT IN ('CANCELLED', 'PENDING')
+      LIMIT 10
+    `;
+
     return NextResponse.json({
       ok: true,
       orgId,
@@ -156,10 +210,12 @@ export async function GET(req: NextRequest) {
       window: { from: crDateFrom.toISOString(), to: dateTo.toISOString(), days },
       pixelInstalledAt: installedAt?.toISOString() || null,
       totalAttributionsInWindow: totalAttr[0],
+      joinDiagnostics: joinDiag[0],
       query5_visitorsByDevice: visitorsByDevice,
       query24_OLD_ordersByDevice: ordersByDeviceOld,
       query24_NEW_ordersByDevice: ordersByDeviceNew,
       sample_visitor_devices: sample,
+      visitorIdSamples,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message, stack: err.stack?.slice(0, 500) }, { status: 500 });
