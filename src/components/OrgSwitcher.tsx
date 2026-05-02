@@ -21,9 +21,16 @@ import { ChevronDown, Building2, Check, ArrowLeft } from "lucide-react";
 
 type Org = { id: string; name: string; slug: string };
 
+// Mantener en sync con src/lib/feature-flags.ts INTERNAL_EMAILS.
+// Replicado aca porque la sesion NextAuth no expone el flag isInternalUser al cliente.
+const INTERNAL_EMAILS = new Set<string>([
+  "tlapidus@99media.com.ar",
+]);
+
 export function OrgSwitcher() {
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.isInternalUser === true;
+  const email = (session?.user?.email || "").toLowerCase();
+  const isAdmin = INTERNAL_EMAILS.has(email);
   const viewingAsOrgId = (session?.user as any)?.viewingAsOrg as string | undefined;
   const realOrgId = (session?.user as any)?.realOrganizationId as string | undefined;
   const realOrgName = (session?.user as any)?.realOrganizationName as string | undefined;
