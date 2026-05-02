@@ -203,6 +203,26 @@ export async function GET(req: NextRequest) {
       LIMIT 10
     `;
 
+    // Sample 5 pixel_visitors rows para ver formato de id vs visitorId
+    const pvSamples = await prisma.$queryRaw<Array<{ id: string; visitorId: string; deviceTypes: any }>>`
+      SELECT id, "visitorId", "deviceTypes" FROM pixel_visitors
+      WHERE "organizationId" = ${orgId}
+      ORDER BY "createdAt" DESC LIMIT 5
+    `;
+
+    // Para los visitorIds de attributions, chequear si matchean con pv.id en vez de pv.visitorId
+    const matchByPvId = await prisma.$queryRaw<Array<{ matches: number }>>`
+      SELECT COUNT(*)::int as matches
+      FROM pixel_attributions pa
+      JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
+      JOIN orders o ON o.id = pa."orderId"
+      WHERE pa."organizationId" = ${orgId}
+        AND o."orderDate" >= ${crDateFrom}
+        AND o."orderDate" <= ${dateTo}
+        AND pa.model::text = ${model}
+        AND o.status NOT IN ('CANCELLED', 'PENDING')
+    `;
+
     return NextResponse.json({
       ok: true,
       orgId,
@@ -211,6 +231,8 @@ export async function GET(req: NextRequest) {
       pixelInstalledAt: installedAt?.toISOString() || null,
       totalAttributionsInWindow: totalAttr[0],
       joinDiagnostics: joinDiag[0],
+      pvSamples,
+      matchByPvId: matchByPvId[0]?.matches,
       query5_visitorsByDevice: visitorsByDevice,
       query24_OLD_ordersByDevice: ordersByDeviceOld,
       query24_NEW_ordersByDevice: ordersByDeviceNew,
