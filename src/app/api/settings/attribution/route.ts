@@ -13,7 +13,9 @@ import { getOrganizationId } from "@/lib/auth-guard";
 
 const DEFAULT_WEIGHTS = { first: 30, last: 40, middle: 30 };
 const DEFAULT_WINDOW = 30;
+const DEFAULT_MODEL = "NITRO";
 const VALID_GLOBAL_WINDOWS = [7, 14, 30, 60];
+const VALID_MODELS = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO"];
 const MIN_CHANNEL_WINDOW = 1;
 const MAX_CHANNEL_WINDOW = 90;
 const VALID_CHANNELS = [
@@ -36,8 +38,11 @@ export async function GET() {
       ? settings.attributionWindowDays
       : DEFAULT_WINDOW;
     const channelWindows = settings.channelWindows || {};
+    const attributionModel = VALID_MODELS.includes(settings.attributionModel)
+      ? settings.attributionModel
+      : DEFAULT_MODEL;
 
-    return NextResponse.json({ weights, attributionWindowDays, channelWindows });
+    return NextResponse.json({ weights, attributionWindowDays, channelWindows, attributionModel });
   } catch (error) {
     console.error("[Settings:Attribution] GET error:", error);
     return NextResponse.json(
@@ -101,6 +106,18 @@ export async function PUT(request: NextRequest) {
       newSettings.attributionWindowDays = w;
     }
 
+    // ── Handle Attribution Model (optional) ──
+    if (body.attributionModel !== undefined) {
+      const m = body.attributionModel;
+      if (typeof m !== "string" || !VALID_MODELS.includes(m)) {
+        return NextResponse.json(
+          { error: `attributionModel must be one of: ${VALID_MODELS.join(", ")}` },
+          { status: 400 }
+        );
+      }
+      newSettings.attributionModel = m;
+    }
+
     // ── Handle Channel Windows (optional) ──
     if (body.channelWindows !== undefined) {
       const cw = body.channelWindows;
@@ -144,6 +161,7 @@ export async function PUT(request: NextRequest) {
       weights: newSettings.nitroWeights || DEFAULT_WEIGHTS,
       attributionWindowDays: newSettings.attributionWindowDays || DEFAULT_WINDOW,
       channelWindows: newSettings.channelWindows || {},
+      attributionModel: newSettings.attributionModel || DEFAULT_MODEL,
     });
   } catch (error) {
     console.error("[Settings:Attribution] PUT error:", error);

@@ -76,14 +76,9 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
     const offset = (page - 1) * pageSize;
 
-    // ── Attribution model selector ──
-    const validModels = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO"];
-    const modelParam = (searchParams.get("model") || "LAST_CLICK").toUpperCase();
-    const selectedModel = validModels.includes(modelParam) ? modelParam : "LAST_CLICK";
-
     const daysInPeriod = Math.max(1, Math.round(periodMs / MS_PER_DAY));
 
-    // ── Nitro Weights (custom per org, default 30/40/30) ──
+    // ── Org settings (model, weights, windows) ──
     const org = await prisma.organization.findUnique({
       where: { id: ORG_ID },
       select: { settings: true },
@@ -94,6 +89,14 @@ export async function GET(request: NextRequest) {
     const attributionWindowDays = VALID_WINDOWS.includes(orgSettings.attributionWindowDays)
       ? orgSettings.attributionWindowDays
       : 30;
+
+    // ── Attribution model selector (S60 EXT-2 BIS++: default desde org settings) ──
+    const validModels = ["LAST_CLICK", "FIRST_CLICK", "LINEAR", "NITRO"];
+    const settingsModel = validModels.includes(orgSettings.attributionModel)
+      ? orgSettings.attributionModel
+      : "NITRO";
+    const modelParam = (searchParams.get("model") || settingsModel).toUpperCase();
+    const selectedModel = validModels.includes(modelParam) ? modelParam : settingsModel;
     const wFirst = nitroWeights.first;
     const wLast = nitroWeights.last;
     const wMiddle = nitroWeights.middle;

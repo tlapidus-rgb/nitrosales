@@ -14,6 +14,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { useMemo, useState } from "react";
+import { AttributionSettings } from "@/components/pixel/AttributionSettings";
 
 const PRESETS: Array<{
   label: string;
@@ -76,8 +77,21 @@ export default function PixelConfigPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Configuración de NitroPixel</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Construí URLs con UTMs para que el dashboard atribuya correctamente cada canal sin
-            integración (Stories, TV, email, etc).
+            Modelo y ventanas de atribución, constructor de UTMs y guía de tagueo.
+          </p>
+        </div>
+
+        {/* ──────────────────────────────────────────────────────── */}
+        {/* Atribución — Modelo + Ventanas                          */}
+        {/* ──────────────────────────────────────────────────────── */}
+        <div className="mb-8">
+          <AttributionSettings />
+        </div>
+
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Constructor de URL & Tagueo</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Para canales sin integración (Stories, TV, email, etc).
           </p>
         </div>
 
