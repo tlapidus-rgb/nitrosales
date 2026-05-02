@@ -3,7 +3,62 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-02 madrugada (Sesion 60 EXT-2 BIS+ — cierre del dia. 7 deploys adicionales post cron-30min: (1) endpoints diagnostico connection-status + vtex-deep-audit para auditoria comparativa entre orgs VTEX; (2) CAUSA RAIZ encontrada — cron diario `/api/sync` solo paginaba page=1 (max 100 ordenes), nunca iteraba; deeper bug que el cron 30min ataco como sintoma. Fix definitivo: loop while hasMore. Tomy forzo investigar el por que (no agregar mas crons como parche); (3) Conversion por Canal — revenue $0 en Google Ads por mismatch de aliases en JOIN, colores CR todos rojos por thresholds fijos, filter source corrupto por chars no validos. 3 bugs corregidos en 1 commit; (4) OrgSwitcher en sidebar + fix detectar admin via email cliente-side. Pendientes intactos: activar TVC, wizard afiliado VTEX, alias webhooks@nitrosales.ai.)
+## Ultima actualizacion: 2026-05-02 madrugada++ (Sesion 60 EXT-2 BIS++ — extension nocturna. Fix CR por Dispositivo: bug de JOIN viejo en `pixel/route.ts` y `conversion/route.ts` que comparaba `pv.visitorId` (UUID cookie) contra `pa.visitorId` (cuid Prisma) → 0 matches → modulo siempre vacio. Diagnosticado con endpoint debug-cr-by-device: 2.414 attributions validas en EMDJ, 0 matcheaban con JOIN viejo, 2.407 matchean con `pv.id = pa.visitorId`. Tipo A multi-tenant — beneficia todas las orgs. Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS++ (2026-05-02 madrugada++) — Fix CR por Dispositivo
+
+**Contexto**: post-OrgSwitcher, Tomy reporto modulo "CR por Dispositivo" mostrando "Sin datos de dispositivos" en EMDJ. Mi primer fix (alinear device de query #24 a pixel_events con LEFT JOIN LATERAL) no funciono porque el problema estaba MAS abajo: el JOIN base mismo no matcheaba.
+
+#### Diagnostico via endpoint debug
+
+Cree `/api/admin/debug-cr-by-device` que corre las queries 5/24 + diagnosticos cruzados. Resultado en EMDJ ventana 30d:
+- `totalAttributionsInWindow`: 2.518 attributions, 2.414 validas (filtrando marketplace/cancelled).
+- `joinDiagnostics.with_pv`: **0** — ninguna attribution matcheaba con pixel_visitors via `pv.visitorId = pa.visitorId`.
+- `matchByPvId`: **2.407** — casi todas matchean con `pv.id = pa.visitorId`.
+- `pvSamples` mostro la dualidad: pixel_visitors tiene `id` (cuid `cmooltjc1006j...`) y `visitorId` (UUID cookie `8c24cdd3-95c6-...`). Son columnas distintas.
+
+#### Causa raiz
+
+`pixel_attributions.visitorId` guarda **`pv.id` (cuid Prisma)**, NO el UUID del cookie. Mismo case con `pixel_events.visitorId`. El JOIN comparaba un cuid contra un UUID v4 → siempre 0 matches.
+
+`/api/metrics/orders/route.ts:932` ya usaba el JOIN correcto (`pv.id = pa.visitorId`) — confirma que ese era el patron correcto. Los otros 2 archivos tenian el bug.
+
+#### Fix (commit `80e2aec`)
+
+Cambiar JOIN en:
+- `src/app/api/metrics/pixel/route.ts` query #24 (Orders by device)
+- `src/app/api/metrics/conversion/route.ts` query #4 (Orders by device)
+
+De `pv."visitorId" = pa."visitorId"` a `pv.id = pa."visitorId"`.
+
+Verificacion post-deploy: query devuelve `[{device:'mobile',orders:1993,revenue:102M}, {device:'desktop',orders:414,revenue:23M}]`. CR esperado ~1.5% mobile / ~1.5% desktop. Tomy confirmo que aparece en UI.
+
+#### Patrones criticos S60 EXT-2 BIS++
+
+1. **Auditar JOINs cuando un modulo viene vacio sin error**: vacio = 0 filas no es lo mismo que error. Si la query no rompe pero devuelve [], probable que el JOIN sea el culpable. Endpoint debug que cuente match rate por cada estrategia de JOIN ahorra horas.
+
+2. **Columnas con mismo nombre en tablas relacionadas son trampa**: pixel_visitors.visitorId (UUID cookie) NO es lo mismo que pixel_events.visitorId NI pixel_attributions.visitorId (ambos cuid Prisma de pv.id). El nombre es enganoso. Documentar en schema.prisma con comentario explicito (ya lo tiene parcial: "UUID del cookie _np_vid"). Considerar renombrar pa.visitorId → pa.pixelVisitorId a futuro para que no sea ambiguo.
+
+3. **Probar fix con endpoint real, no asumir**: mi primer fix (LEFT JOIN LATERAL pixel_events) era correcto en concepto pero no resolvio porque el JOIN previo ya filtraba todo. Probar el fix con la query completa antes de cerrar.
+
+#### Deploys del bloque
+1. `227cb4d` — fix(pixel/metrics): CR por Dispositivo — derivar device de pixel_events (parche, NO resolvio root)
+2. `9dbd907` — debug endpoint debug-cr-by-device
+3. `58acc65` — fix sample query subquery correlacionada
+4. `882f0f3` — agregar joinDiagnostics
+5. `02d8a31` — agregar pvSamples + matchByPvId
+6. `049d73d` — fix lastSeenAt en pixel_visitors
+7. `80e2aec` — **FIX REAL**: JOIN correcto pv.id = pa.visitorId en pixel/conversion routes
+8. `d764d8f` — actualizar query #24 NEW del debug endpoint con JOIN correcto
+
+#### Pendientes finales (sin cambios)
+1. 🟡 BP-S60-005 Activar TVC
+2. 🟡 BP-S60-002 Wizard del afiliado VTEX
+3. 🟢 BP-S60-004 Alias webhooks@nitrosales.ai
+4. 🟢 (cosmetico) OrgSwitcher dark theme
+5. 🟢 (refactor) Renombrar pa.visitorId → pa.pixelVisitorId para que no se confunda con pv.visitorId
+
+---
 
 ### Sesion 60 EXT-2 BIS+ (2026-05-02 madrugada) — Causa raiz webhook + Conversion por Canal + OrgSwitcher
 

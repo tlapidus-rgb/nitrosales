@@ -4,7 +4,64 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-05-02 madrugada — Sesión 60 EXT-2 BIS+ (3 errores nuevos: cron sync sin paginar todas las páginas, leer flag server-side en componente cliente, agregar más cron/retry como parche en vez de buscar causa raíz).**
+> **Última actualización: 2026-05-02 madrugada++ — Sesión 60 EXT-2 BIS++ (1 error nuevo: JOIN entre tablas con columnas homonimas pero contenido distinto, descubierto en CR por Dispositivo).**
+
+---
+
+## Error #S60-EXT2BIS-JOIN-HOMONIMO-ERRADO — JOIN entre tablas usando columnas con mismo nombre pero contenido distinto
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++. El módulo "CR por Dispositivo" en `/pixel/analytics` mostraba "Sin datos de dispositivos" para EMDJ aunque había 2.518 pixel_attributions en la ventana. Mi primer fix (alinear device source) no resolvió. El verdadero bug era el JOIN base:
+
+```sql
+-- INCORRECTO
+JOIN pixel_visitors pv ON pv."visitorId" = pa."visitorId"
+```
+
+`pixel_visitors` tiene DOS columnas que se prestaban a confusión:
+- `id`: cuid Prisma autogenerado (`cmooltjc1006j...`)
+- `visitorId`: UUID v4 del cookie `_np_vid` (`8c24cdd3-95c6-4954-...`)
+
+`pixel_attributions.visitorId` y `pixel_events.visitorId` ambos guardaban **el `id` del PixelVisitor (cuid)**, NO el UUID del cookie. Por convención el código bautizó la columna `visitorId` aunque su contenido es el `id` del visitor row.
+
+El JOIN comparaba `pv.visitorId` (UUID v4) contra `pa.visitorId` (cuid) → **siempre 0 matches** → query devolvía array vacío → frontend filter `d.visitors > 0` vaciaba todo → módulo "Sin datos".
+
+### Causa raíz
+- Asumir que dos columnas con el mismo nombre (`visitorId`) en tablas relacionadas guardan el mismo valor.
+- No leer el comentario del schema (`// UUID del cookie _np_vid`) que explicitamente decía que `pv.visitorId` es el cookie.
+- No ver que `/api/metrics/orders/route.ts:932` ya usaba el JOIN correcto (`pv.id = pa.visitorId`), lo cual era una pista clarísima del patrón correcto.
+- Hacer copy-paste del JOIN incorrecto entre archivos sin verificarlo.
+
+### Regla
+**Antes de hacer JOIN entre dos tablas usando columnas con el mismo nombre, verificar que ambas guarden el mismo tipo de valor.**
+
+Pasos obligatorios:
+1. Leer el schema (`prisma/schema.prisma`) y los comentarios de cada columna.
+2. Hacer un `SELECT id, "visitorId" FROM tabla LIMIT 5` de cada lado para ver el formato real.
+3. Buscar en otros archivos cómo se hace el mismo JOIN — si hay variantes (`pv.id` vs `pv.visitorId`), una está mal.
+
+### Patrón de diagnóstico cuando un módulo viene vacío sin error
+Cuando una query devuelve `[]` (no error, no exception, solo vacío), probable que el problema sea un JOIN. Crear endpoint debug que ejecute la query con `LEFT JOIN` en vez de `JOIN` y cuente cuántas filas pierden el match. En este caso:
+
+```sql
+SELECT COUNT(*) as total, COUNT(pv.id) as with_pv
+FROM pixel_attributions pa
+LEFT JOIN pixel_visitors pv ON pv."visitorId" = pa."visitorId"
+```
+
+Si `with_pv` es 0 mientras `total` > 0 → JOIN está mal.
+
+### Prevención
+- Cuando aparezca un módulo vacío en producción, antes de tocar nada hacer un mini-audit de las queries: ¿cuántas filas hay en la base? ¿cuántas pasa cada JOIN? ¿el JOIN aplica el filtro de `organizationId`?
+- Considerar renombrar columnas con nombres ambiguos: `pa.visitorId` debería ser `pa.pixelVisitorId` para que no se confunda con `pv.visitorId` (cookie). Pero ese es un refactor grande con migración — para ahora, comentario `-- pa.visitorId guarda pv.id, NO pv.visitorId` en cada query que lo use.
+
+### Casos similares conocidos en el codebase
+- `pixel_events.visitorId` también guarda `pv.id` (no el cookie). Mismo bug.
+- `pixel_attributions.visitorId` igual.
+- `pv.id` ↔ `pa.visitorId` ↔ `pe.visitorId` son la misma cosa (cuid).
+- `pv.visitorId` es el cookie UUID y solo se usa internamente cuando el snippet identifica un visitor.
+
+### Fix aplicado
+Commits `80e2aec` (productivo) + endpoint debug `9dbd907..d764d8f`.
 
 ---
 
