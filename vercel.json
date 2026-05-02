@@ -14,6 +14,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/vtex-sync-recent?key=nitrosales-secret-key-2024-production",
+      "schedule": "*/30 * * * *"
+    },
+    {
       "path": "/api/sync/chain?key=nitrosales-secret-key-2024-production",
       "schedule": "0 4 * * *"
     },
