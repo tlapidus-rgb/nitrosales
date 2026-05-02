@@ -3,7 +3,60 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-01 noche (Sesion 60 EXTENDIDA — TVC quedo OPERATIVO. Webhook VTEX llegando OK, atribucion historica reparada (71/93), 30 ordenes 30/04+01/05 traidas y atribuidas via trigger-vtex-sync. + 3 features multi-tenant nuevos: spend manual de canales sin integracion, /pixel/configuracion con constructor UTMs, fix dashboard canales (Meta Ads / Facebook / Instagram separados, Adwords → Google Ads, merge por label). Pendientes finales: activar TVC, implementar afiliado VTEX en wizard, alias webhooks@nitrosales.ai.)
+## Ultima actualizacion: 2026-05-02 noche (Sesion 60 EXT-2 — fixes adicionales y mejoras UX en /pixel/analytics. Funnel ahora viene del pixel propio (no GA4) y soporta filtro por canal de primer toque con dropdown de logos. Bug del enrichment historico detectado por Tomy: 1.741 ordenes web propias mal etiquetadas como Marketplace, reparadas. Webhook VTEX ya NO atribuye ordenes marketplace (FVG/BPR/MELI) para evitar atribuciones falsas. Revenue Intelligence ahora filtra por orderDate (no createdAt) para no mostrar data en fechas pre-pixel. Tooltips explicativos en todos los modulos. Pendientes intactos: activar TVC, wizard afiliado, alias email.)
+
+### Sesion 60 EXTENDIDA #2 (2026-05-02 noche) — Fixes profundos en pixel/analytics + reparaciones data legacy
+
+**Contexto**: post-S60 EXT, Tomy reporto multiples bugs en el dashboard de NitroPixel. Cada uno fue diagnosticado y corregido. Tambien repare data legacy con bugs del enrichment historico. Cierre con tooltips explicativos en todos los modulos.
+
+#### Deploys de la jornada (12 commits, todos en main)
+
+**Pixel funnel — origen y filtro por canal**:
+- `7594154` fix(pixel/metrics): funnel viene de pixel_events (NitroPixel) en vez de FunnelDaily (GA4). Antes daba todo 0 si no habia GA4 conectado. Ahora cuenta visitors unicos por etapa con CASE WHEN type=X, excluye sessionId LIKE 'webhook-%'.
+- `007b317` feat(pixel/funnel): nuevo endpoint `/api/metrics/pixel/funnel` con filtro por canal de PRIMER toque (first-touch). CTE visitor_first_source calcula source del primer evento de cada visitor en el rango (clickIds → meta/google/etc, utmParams.source, referrer regex, fallback direct).
+- `e02c310` UI inicial: chips horizontales premium con logos. Tomy lo rechazo, prefirio dropdown.
+- `a65ee30` fix: dropdown custom con logos + normalizar source a canonical (helper canonicalSource). Bug detectado: el filtro no matcheaba bien por aliases — backend asignaba 'google' por gclid pero si visitor llegaba con utm_source=adwords sin gclid devolvia 'adwords' literal. Fix: CTE backend tambien normaliza aliases (adwords/google_ads → google, meta_ads/fb_ads → meta, ig → instagram). Resultado: Google Ads paso de 51 a 6.426 visitas detectadas.
+- `c8ce5f8` fix logo: Meta Ads (loop infinito) vs Facebook (F clasica) son brands distintas, deben tener logos distintos.
+
+**Pixel/metrics — filtros marketplace y orderDate**:
+- `670e4ed` fix: agregar filtro de prefijo FVG-/BPR- a TODAS las queries del endpoint /api/metrics/pixel (~12 queries que filtraban marketplace por flags pero no por prefijo). Defensivo: aunque el enrichment falle, el prefijo siempre excluye los marketplaces VTEX.
+- `31d5ee3` fix CRITICO: webhook VTEX ya NO ejecuta atribucion para ordenes con prefijo FVG-/BPR- ni con `vtexOrder.origin = Marketplace/Fulfillment`. Antes: las 6 estrategias de atribucion asignaban visitors random/repetidores a ordenes marketplace que NUNCA pasaron por el pixel propio. Ahora: early guard `isMarketplaceOrder` antes del bloque de atribucion. + endpoint `/api/admin/cleanup-marketplace-attributions` para limpiar retroactivamente atribuciones falsas.
+- `24ead4d` audit: endpoint `/api/admin/audit-marketplace-flags` para validar flags de marketplace antes de cleanup. Tomy lo uso y detecto el bug grande: 1.741 ordenes web propias de EMDJ mal etiquetadas como `trafficSource=Marketplace` por bug del enrichment historico (todas con externalId numerico tipo `1620521503842-01`, source=VTEX, channel=1, fechas anteriores al 27/03).
+- `e3fbe29` repair: endpoint `/api/admin/repair-marketplace-flag` para reparar el flag mal seteado. Reset trafficSource=NULL en ordenes web propia. **Ejecutado en prod**: 1.746 ordenes reparadas (1.741 EMDJ + 5 cliente test). Despues `cleanup-marketplace-attributions` borro solo las 95 atribuciones falsas reales (70 BPR + 25 FVG).
+
+**Revenue Intelligence — fix temporal**:
+- `05e0960` fix: el endpoint `/api/metrics/pixel/discrepancy` filtraba por `pa."createdAt"` (cuando se creo la attribution row) pero agrupaba por `o."orderDate"` (cuando ocurrio la orden). Cuando se corrio replay-attribution recientemente, attributions con createdAt=hoy mostraban data en orderDate de hace anios → grafico mostraba puntos en fechas pre-pixel/pre-NitroSales. Cambiado a `o."orderDate"` en 8 queries del endpoint. Tambien `sales-by-ad` (1) y `sales-by-source` (1).
+- `577c0fb` fix: 5 queries del fix anterior se rompieron porque NO tenian JOIN orders (solo `FROM pixel_attributions pa, jsonb_array_elements`). El replace_all global cambio `pa.createdAt` → `o.orderDate` y SQL fallo con `column o.orderDate does not exist`. Fix: agregar `JOIN orders o ON o.id = pa.\"orderId\"` en las 5 queries afectadas.
+
+**UX — tooltips explicativos**:
+- `7f1f02e` feat: tooltips explicativos (icono i con hover) en TODOS los modulos del dashboard. KPIs principales (Revenue Atribuido, ROAS Real, Ordenes Atribuidas, Tasa de Atribucion) + Revenue Intelligence + Ultimos Customer Journeys + Dispositivos + Top Paginas + Cobertura del Pixel + Complejidad del Journey + Combinaciones Ganadoras. Cada tooltip explica que mide + como interpretarlo en lenguaje simple.
+
+#### Causa raiz multi-bug
+
+Multiples bugs nacian del mismo problema: **historicamente el enrichment marcaba ordenes con flags que no eran consistentes con la realidad** (trafficSource=Marketplace para web propia), y **el sistema de atribucion no validaba que la orden fuera elegible para atribuir** (corria sus 6 estrategias inclusivamente en ordenes marketplace donde el pixel jamas tracko al comprador). Resultado: data contaminada. Fix definitivo:
+
+1. **Webhook valida marketplace antes de atribuir** (Tipo A — para futuro)
+2. **Endpoints debug/repair para data legacy** (Tipo B — one-shot ejecutado)
+
+#### Patrones criticos S60 EXT-2
+
+1. **Cuando un cliente cuestiona un numero, escucharle**: Tomy detecto que 1.746 "atribuciones de marketplace" en EMDJ era imposible. Forzo crear el audit endpoint y se evito borrar 1.676 atribuciones legitimas. Si hubiera procedido sin auditar, perdiamos data real.
+
+2. **Distinguir 'atribuciones' de 'ordenes'**: 1.746 attribution rows ≠ 1.746 ordenes (5 modelos por orden = 1.746 / 5 = ~349 ordenes). Aclarar siempre la unidad de medida cuando se hablan numeros.
+
+3. **NUNCA hacer replace_all sin verificar contexto**: el cambio `pa.createdAt → o.orderDate` se aplico a queries que no tenian `JOIN orders o` y rompio el endpoint. Lecccion: cuando uso replace_all, verificar que el contexto del match sea consistente en todas las ocurrencias. Mejor hacer ediciones puntuales que replace_all genericos.
+
+4. **Tooltips son inversion en autonomia del cliente**: cada tooltip explicando que mide un modulo reduce ~50% las preguntas tecnicas que el cliente hace al founder. Para multi-tenant escalable, los modulos tienen que ser auto-explicativos. Pattern aplicable a todas las secciones del producto, no solo pixel/analytics.
+
+5. **Repair flag vs delete data**: cuando hay flags mal seteados en data legacy, primero reparar el flag (no destructivo), despues limpiar lo que efectivamente esta mal. NO borrar primero asumiendo que el flag esta bien — verificar primero con audit endpoint.
+
+#### Pendientes finales (sin cambios desde S60 EXT)
+
+1. 🟡 BP-S60-005 Activar TVC
+2. 🟡 BP-S60-002 Wizard afiliado VTEX
+3. 🟢 BP-S60-004 Alias webhooks@nitrosales.ai
+
+---
 
 ### Sesion 60 EXTENDIDA (2026-05-01 noche) — Features multi-tenant + activacion TVC pendiente
 

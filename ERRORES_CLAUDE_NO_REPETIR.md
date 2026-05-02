@@ -1939,4 +1939,60 @@ Este error es contracara de #S57-ARGS-ORDER-SILENT-NOOP y #S59-EXT2-IMPROVISAR. 
 
 ---
 
+## Error #S60-EXT2-REPLACE_ALL-SIN-VERIFICAR-CONTEXTO — Romper queries por replace_all sobre patron presente en queries no compatibles
+
+**Cuándo pasó**: Sesión 60 EXT-2. Para arreglar el bug del Revenue Intelligence (que filtraba por `pa."createdAt"` y mostraba data en fechas pre-pixel), use Edit con `replace_all=true` para cambiar `pa."createdAt"` por `o."orderDate"` en TODO el archivo discrepancy/route.ts. **El cambio rompio 5 queries** que NO tenian `JOIN orders o` en su FROM (solo `FROM pixel_attributions pa, jsonb_array_elements(...)`). Cuando esas queries ejecutaban, Postgres tiraba `column o.orderDate does not exist` → backend devolvia 500 → frontend mostraba "Sin datos de comparacion".
+
+Tomy reporto el bug, debugue, y agregue `JOIN orders o ON o.id = pa."orderId"` a las 5 queries afectadas. Tiempo perdido: 30 min de debugging + commit de fix.
+
+### Causa raíz
+- Use `replace_all=true` asumiendo que el contexto era homogeneo en todas las apariciones del patron.
+- No verifique que cada query que iba a tocar tuviera la tabla `orders` joineada (necesaria para usar `o."orderDate"`).
+- Confianza excesiva en que el codigo seguia un patron consistente cuando en realidad mezclaba queries con y sin JOIN orders.
+
+### Regla
+**Antes de usar Edit con replace_all, verificar que TODAS las apariciones del patron tengan contexto compatible con el reemplazo.** Para SQL especificamente:
+
+1. Si reemplazo es `tabla1.campo` → `tabla2.campo`, hacer grep de cada match con `-B 5 -A 0` para ver si la query del match tiene `JOIN tabla2` o `FROM tabla2`.
+2. Si en algunos casos no esta joineada, hacer ediciones puntuales en cada query (con context) en lugar de replace_all.
+3. Despues del cambio, correr `npx tsc --noEmit` Y, si es razonable, simular ejecucion de las queries (ej: postman o pegar a un endpoint debug que ejercite el path).
+
+### Prevención
+- Default mental: **replace_all es para texto donde el contexto NO importa** (ej: renombrar variable JS donde TS chequea, cambiar magic string en constantes). Para SQL, JSON, regex y otros lenguajes con sintaxis dependiente del contexto, **prefiero ediciones puntuales con context unico de cada match**.
+- Cuando deba usar replace_all, hacer un grep PREVIO con context para listar todas las apariciones y revisar mentalmente que cada una sea compatible con el reemplazo.
+
+### Pattern relevante
+Conexion con #S57-ARGS-ORDER-SILENT-NOOP: ambos son "el cambio compilo pero no funciono". Para el de S57 era ARGS posicional vs nombrado; para este, dependencia de tabla joineada en SQL raw.
+
+---
+
+## Error #S60-EXT2-NO-VALIDAR-FLAGS-LEGACY-ANTES-DE-LIMPIAR — Casi borro 1.676 atribuciones legitimas por confiar en flag mal seteado
+
+**Cuándo pasó**: Sesión 60 EXT-2. Tomy me pidio limpiar atribuciones falsas en ordenes marketplace. Identifique 1.771 atribuciones (95 reales FVG/BPR + 1.676 con `trafficSource=Marketplace`) y propuse borrar todas. Tomy me freno con "es imposible que EMDJ haya tenido 1.746 ventas marketplace" y forzo crear un audit endpoint antes.
+
+El audit revelo: las 1.741 ordenes con `trafficSource=Marketplace` (que sumadas a 5 modelos = 1.676 atribuciones) eran ordenes web propias mal etiquetadas por bug del enrichment historico. Externalids numericos `1620521503842-01`, source=VTEX, channel=1 (web propia VTEX), todas anteriores al 27/03 (cuando se arreglo el enrichment). Si hubiera borrado, perdia 1.676 atribuciones legitimas de EMDJ.
+
+### Causa raíz
+- Confie en que los flags `trafficSource=Marketplace` reflejaban realidad sin validar.
+- Cree el endpoint de cleanup asumiendo que cualquier orden con flag de marketplace era marketplace real.
+- No anticipe que historicamente el enrichment podia tener bugs y haber marcado mal data legacy.
+
+### Regla
+**Antes de borrar/modificar data en bulk basado en flags, validar con un endpoint de audit que muestre samples y permita verificar visualmente que los flags reflejan realidad.** Pattern:
+
+1. **Endpoint audit** (Tipo B): cuenta ordenes por flag + devuelve 10 samples con externalId/source/channel/trafficSource. Permite ver si los flags tienen sentido.
+2. **Endpoint repair** (Tipo B): si los flags estan mal, repararlos primero. Reset al valor correcto.
+3. **Endpoint cleanup** (Tipo B): borra solo lo que verdaderamente sea problema. Idempotente, soporta dryRun.
+
+Orden: audit → repair → cleanup. Nunca cleanup directo.
+
+### Prevención
+- Default mental: **flag-based filtering en data legacy es sospechoso**. Verificar antes de tomar decisiones destructivas.
+- Cuando cliente cuestiona un numero ("¿es posible que tenga X de eso?"), tomar la duda como señal de validar antes de proceder. Tomy detecto el bug. Yo iba a borrar la data legitima.
+
+### Pattern relevante
+Conexion con #S59-EXT2-NO-CONTRASTAR-CON-REALIDAD: ambos son "asumi que el flag/metric reflejaba realidad sin validar". La regla unificada: **siempre auditar antes de actuar sobre data en bulk**.
+
+---
+
 _Fin del archivo. Claude: si estás por cometer algo que se parece a uno de estos errores, PARÁ y releé la regla._
