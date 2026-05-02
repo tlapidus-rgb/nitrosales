@@ -434,8 +434,25 @@ export async function POST(req: NextRequest) {
       console.log(`[NitroPixel] Skipping attribution for ${orderId} — order already exists (status update)`);
       pixelAttribution = true; // Assume it was already done
     }
+
+    // ── EARLY GUARD: marketplaces NO se atribuyen (S60 EXT) ──
+    // Si la orden viene de Fravega (FVG-), Banco Provincia (BPR-), MELI o
+    // tiene channel/trafficSource de marketplace, NUNCA paso por nuestro
+    // pixel propio (la sesion del comprador estuvo en el marketplace, no
+    // en la web del cliente). Atribuirla seria asignar tracking a un
+    // visitor random o a un cliente repetidor que no compro esta orden.
+    const isMarketplaceOrder =
+      orderId.startsWith("FVG-") ||
+      orderId.startsWith("BPR-") ||
+      vtexOrder.origin === "Marketplace" ||
+      vtexOrder.origin === "Fulfillment";
+    if (isMarketplaceOrder && isNewOrder) {
+      console.log(`[NitroPixel] Skipping attribution for marketplace order ${orderId} (origin: ${vtexOrder.origin})`);
+      pixelAttribution = true; // Marcamos como hecho para que el flow continue normal
+    }
+
     try {
-      if (isNewOrder) {
+      if (isNewOrder && !isMarketplaceOrder) {
       const orderIdBase = orderId.replace(/-\d+$/, ''); // Strip VTEX suffix: "1619691502674-01" → "1619691502674"
       const realEmail = profile?.email ? extractRealEmail(profile.email) : null;
       console.log(`[NitroPixel] Starting attribution for order ${orderId} (base: ${orderIdBase}, realEmail: ${realEmail}, vtexEmail: ${profile?.email})`);
