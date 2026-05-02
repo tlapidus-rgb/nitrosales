@@ -1237,25 +1237,57 @@ export async function GET(request: NextRequest) {
       // ── Conversion Rates data (100% NitroPixel + VTEX orders) ──
       conversionRates: (() => {
         // CR by Channel — UNIFICADO con funnel (S60 EXT-2): same query, same first-touch logic.
-        // Visitors y purchases vienen de visitorsBySourceResult que ahora cuenta por first-touch
-        // del visitor en el rango. Revenue se infiere desde attributionBySource (last-click) cuando
-        // hay match — esto puede diferir levemente del cuento first-touch pero es la mejor proxy
-        // disponible para mostrar revenue por canal sin recalcular full attribution.
+        // S60 EXT-2 BIS: normalizar source canonical en ambos lados (CTE + attributionBySource)
+        // para que el JOIN funcione. Filtrar sources con caracteres invalidos (clickIds mal).
+
+        // Helper: canonicaliza source (debe matchear con CTE visitor_first_source)
+        const canonicalSource = (s: string): string => {
+          const lower = (s || "").toLowerCase().trim();
+          if (["adwords", "google_ads", "google-ads", "googleads"].includes(lower)) return "google";
+          if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads"].includes(lower)) return "meta";
+          if (["ig", "instagram_ads", "instagram-ads"].includes(lower)) return "instagram";
+          return lower;
+        };
+
+        // Filtrar sources invalidos (caracteres no imprimibles, encoding roto)
+        const isValidSource = (s: string): boolean => {
+          if (!s || s.length === 0) return false;
+          // Solo ascii printable + algunos chars de utm permitidos
+          return /^[a-z0-9_\-\.]+$/i.test(s);
+        };
+
         const pixelVisitorsBySource = visitorsBySourceResult as Array<{ source: string; visitors: number; purchases: number }>;
-        const attrMap = new Map(attributionBySource.map(ch => [ch.source.toLowerCase(), ch]));
+
+        // Construir attrMap con keys canonicalizadas — sumar revenue si hay aliases
+        const attrMap = new Map<string, { revenue: number; orders: number }>();
+        for (const ch of attributionBySource) {
+          const key = canonicalSource(ch.source);
+          const existing = attrMap.get(key);
+          attrMap.set(key, {
+            revenue: (existing?.revenue || 0) + (ch.revenue || 0),
+            orders: (existing?.orders || 0) + (ch.orders || 0),
+          });
+        }
 
         const channelMap = new Map<string, { source: string; visitors: number; purchases: number; revenue: number }>();
-        // First-touch source determina la fila. Visitors y purchases del CTE first-touch.
         for (const vs of pixelVisitorsBySource) {
           if (vs.visitors <= 5) continue; // skip tiny sources
-          const key = vs.source.toLowerCase();
+          if (!isValidSource(vs.source)) continue; // skip sources con caracteres rotos
+          const key = canonicalSource(vs.source);
+          const existing = channelMap.get(key);
           const attr = attrMap.get(key);
-          channelMap.set(key, {
-            source: vs.source,
-            visitors: vs.visitors,
-            purchases: vs.purchases,
-            revenue: attr?.revenue || 0, // proxy desde attribution last-click
-          });
+          // Sumar visitors+purchases si hay aliases (ej: dos rows con mismo canonical)
+          if (existing) {
+            existing.visitors += vs.visitors;
+            existing.purchases += vs.purchases;
+          } else {
+            channelMap.set(key, {
+              source: key,
+              visitors: vs.visitors,
+              purchases: vs.purchases,
+              revenue: attr?.revenue || 0,
+            });
+          }
         }
         const byChannel = Array.from(channelMap.values())
           .map(ch => ({ ...ch, cr: ch.visitors > 0 ? Math.round((ch.purchases / ch.visitors) * 10000) / 100 : 0 }))

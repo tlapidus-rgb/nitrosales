@@ -1988,9 +1988,24 @@ export default function AnalyticsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {channels.map((s) => {
+                          {(() => {
+                            // S60 EXT-2 BIS: colores CR proporcionales al rango actual del set
+                            // (no thresholds fijos). Si todos estan abajo de 1%, igual el mejor
+                            // se ve verde y el peor rojo, mostrando el ranking relativo.
+                            const crs = channels.map(c => c.cr || 0).filter(c => c > 0);
+                            const maxCr = crs.length > 0 ? Math.max(...crs) : 0;
+                            const minCr = crs.length > 0 ? Math.min(...crs) : 0;
+                            const range = maxCr - minCr || 1;
+                            const crColorRelative = (cr: number) => {
+                              if (cr === 0) return "text-gray-400";
+                              const norm = (cr - minCr) / range; // 0-1
+                              if (norm >= 0.66) return "text-emerald-600";
+                              if (norm >= 0.33) return "text-amber-600";
+                              return "text-red-500";
+                            };
+                            return channels.map((s) => {
                             const info = getSourceInfo(s.source);
-                            const crColor = s.cr >= 2 ? "text-emerald-600" : s.cr >= 1 ? "text-amber-600" : "text-red-500";
+                            const crColor = crColorRelative(s.cr || 0);
                             return (
                               <tr key={s.source} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
                                 <td className="py-2.5 pr-2">
@@ -2009,7 +2024,8 @@ export default function AnalyticsPage() {
                                 </td>
                               </tr>
                             );
-                          })}
+                          });
+                          })()}
                         </tbody>
                       </table>
                     </div>
