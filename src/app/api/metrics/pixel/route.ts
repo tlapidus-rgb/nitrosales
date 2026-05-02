@@ -274,6 +274,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY revenue DESC
       ` as Promise<Array<{
@@ -314,6 +316,8 @@ export async function GET(request: NextRequest) {
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
               AND o.source IS DISTINCT FROM 'MELI'
               AND o.channel IS DISTINCT FROM 'marketplace'
+              AND o."externalId" NOT LIKE 'FVG-%'
+              AND o."externalId" NOT LIKE 'BPR-%'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -340,6 +344,8 @@ export async function GET(request: NextRequest) {
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
               AND o.source IS DISTINCT FROM 'MELI'
               AND o.channel IS DISTINCT FROM 'marketplace'
+              AND o."externalId" NOT LIKE 'FVG-%'
+              AND o."externalId" NOT LIKE 'BPR-%'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -366,6 +372,8 @@ export async function GET(request: NextRequest) {
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
               AND o.source IS DISTINCT FROM 'MELI'
               AND o.channel IS DISTINCT FROM 'marketplace'
+              AND o."externalId" NOT LIKE 'FVG-%'
+              AND o."externalId" NOT LIKE 'BPR-%'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -391,6 +399,8 @@ export async function GET(request: NextRequest) {
               AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
               AND o.source IS DISTINCT FROM 'MELI'
               AND o.channel IS DISTINCT FROM 'marketplace'
+              AND o."externalId" NOT LIKE 'FVG-%'
+              AND o."externalId" NOT LIKE 'BPR-%'
             GROUP BY 1
             ORDER BY revenue DESC
             LIMIT 10
@@ -422,6 +432,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY MIN(COALESCE(GREATEST(pa."conversionLag", 0), 999))
       ` as Promise<Array<{ bucket: string; orders: number; revenue: number }>>,
@@ -494,6 +506,8 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ source: string; spend: number; platformConversions: number; platformRevenue: number }>>,
 
       // 15. Recent journeys (all orders — LEFT JOIN attribution so unmatched orders also appear)
+      // S60 EXT: agregar filtro de prefijos VTEX marketplace (FVG-, BPR-) que escapan
+      // a los flags channel/trafficSource si el enrichment no los marco.
       prisma.$queryRaw`
         SELECT
           o.id as "orderId",
@@ -515,6 +529,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
         ORDER BY o."orderDate" DESC
         LIMIT 15
       ` as Promise<Array<{
@@ -552,6 +568,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY 1
       ` as Promise<Array<{ day: string; revenue: number; orders: number }>>,
@@ -571,6 +589,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
       ` as Promise<Array<{ ordersAttributed: number; revenue: number }>>,
 
       // 19. Per-day coverage: total orders vs attributed orders per day
@@ -638,6 +658,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1, 2
         ORDER BY 1 DESC, revenue DESC
       ` as Promise<Array<{ day: string; source: string; orders: number; revenue: number }>>,
@@ -679,6 +701,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY "firstTouch" DESC
       ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>,
@@ -743,6 +767,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1
         ORDER BY orders DESC
       ` as Promise<Array<{ device: string; orders: number; revenue: number }>>,
@@ -786,6 +812,8 @@ export async function GET(request: NextRequest) {
           AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
           AND o.source IS DISTINCT FROM 'MELI'
           AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
         GROUP BY 1, 2, 3, 4
         ORDER BY revenue DESC
         LIMIT 500
