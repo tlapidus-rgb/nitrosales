@@ -769,7 +769,7 @@ export default function AnalyticsPage() {
           <div className="px-6 pt-4 pb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold text-gray-900">Canales — Truth Score</h2>
-              <InfoTip text="El Truth Score compara lo que el pixel midió vs lo que la plataforma reporta. 100% = alineados. Menos de 90% = la plataforma sobre-reporta. Más de 110% = sub-reporta." />
+              <InfoTip text="Compara revenue del pixel (LAST-CLICK) vs lo que reporta cada plataforma. 100% = alineados. Menos de 90% = la plataforma sobre-reporta. Más de 110% = sub-reporta. ESTA TABLA usa LAST-CLICK porque las plataformas (Meta, Google) tambien reportan en last-click — usar otra metrica romperia la comparacion. Los modulos Funnel y Conversion por Canal usan FIRST-TOUCH y por eso pueden mostrar numeros distintos." />
             </div>
             {discrepancy?.summary && (
               <div className="flex items-center gap-2">
@@ -1086,7 +1086,7 @@ export default function AnalyticsPage() {
             <div className="mb-4">
               <div className="flex items-center gap-1.5 mb-1">
                 <h2 className="text-sm font-semibold text-gray-900">Funnel de Conversión</h2>
-                <InfoTip text="El filtro por canal usa el PRIMER toque (first-touch) del visitor — el canal por el que entró por primera vez al sitio en este período." />
+                <InfoTip text="El funnel completo se cuenta por FIRST-TOUCH del visitor en el periodo (canal por el que entro por primera vez). Cuando filtras por un canal, ves solo a los visitors que arrancaron su journey por ese canal y como avanzaron etapa por etapa. La tabla Conversion por Canal usa la MISMA definicion (first-touch) y va a mostrar numeros consistentes con este funnel." />
               </div>
               <p className="text-[11px] text-gray-400">
                 {funnelChannel === "all"
@@ -1267,7 +1267,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-1.5">
               <h2 className="text-sm font-semibold text-gray-900">Revenue Intelligence</h2>
-              <InfoTip text="Compara 3 cosas día a día: PIXEL (real) = revenue de las órdenes que tu pixel atribuyó. PLATAFORMAS (reportado) = lo que Meta/Google dicen haberte traído (suelen inflar). AD SPEND = cuánto gastaste. Sirve para auditar honestidad de las plataformas." />
+              <InfoTip text="Compara 3 cosas dia a dia: PIXEL (real, LAST-CLICK) = revenue de las ordenes que tu pixel atribuyo. PLATAFORMAS (reportado) = lo que Meta/Google dicen haberte traido (suelen inflar). AD SPEND = cuanto gastaste. Este modulo usa LAST-CLICK para que sea comparable con lo que reportan las plataformas. Si querés ver por FIRST-TOUCH usa Funnel + Conversion por Canal." />
             </div>
             <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
               {[
@@ -1860,7 +1860,7 @@ export default function AnalyticsPage() {
                       <h2 className="text-sm font-semibold text-gray-900">Roles de cada Canal</h2>
                       <p className="text-[11px] text-gray-400 mt-0.5">¿Cada canal descubre, asiste o cierra la venta?</p>
                     </div>
-                    <InfoTip text="Descubrimiento = primer contacto. Asistencia = touchpoint intermedio. Cierre = último contacto antes de comprar. Solo = journey de un solo toque." />
+                    <InfoTip text="Por cada canal, cuantas veces aparece como FIRST-TOUCH (descubrimiento, primer contacto), ASISTENCIA (touchpoint intermedio del journey), o LAST-TOUCH (cierre, ultimo contacto antes de comprar). Solo = journey de un solo toque (canal hizo todo el trabajo). Permite ver si un canal cierra ventas o solo asiste." />
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
@@ -1973,7 +1973,7 @@ export default function AnalyticsPage() {
                       <h2 className="text-sm font-semibold text-gray-900">Conversión por Canal</h2>
                       <p className="text-[11px] text-gray-400 mt-0.5">Visitantes (NitroPixel) → Compras (atribución pixel) por fuente</p>
                     </div>
-                    <InfoTip text="Visitantes: rastreados por NitroPixel vía UTM source. Compras: atribuidas por el modelo de atribución del pixel. CR = compras / visitantes." />
+                    <InfoTip text="Visitantes y Compras se cuentan por FIRST-TOUCH del visitor (canal por el que entro por primera vez). Mismos numeros que el Funnel cuando lo filtras por ese canal. CR = compras / visitantes. Revenue es proxy desde la atribucion last-click — puede diferir levemente de la atribucion first-touch pura." />
                   </div>
                   {channels.length > 0 ? (
                     <div className="overflow-x-auto">
