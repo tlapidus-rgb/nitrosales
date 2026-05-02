@@ -627,8 +627,10 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ day: string; totalOrders: number; attributedOrders: number }>>,
 
       // 20. Per-day per-source pixel revenue (for daily trend table)
-      // Uses LAST_CLICK logic here; model-specific SQL would add too much complexity.
-      // The selected model is respected via the model filter.
+      // S60 EXT-2 BIS++: respeta el modelo seleccionado distribuyendo el revenue
+      // segun la logica de cada modelo (last_click / first_click / linear / nitro).
+      // Antes hardcodeaba LAST_CLICK lo cual hacia que cambiar de modelo no afecte
+      // la tarjeta de revenue por canal por dia.
       prisma.$queryRaw`
         SELECT
           TO_CHAR(DATE(o."orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as day,
@@ -640,11 +642,26 @@ export async function GET(request: NextRequest) {
           END as source,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(
-            CASE
-              WHEN pa."touchpointCount" = 1 THEN pa."attributedValue"
-              WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue"
-              ELSE 0
-            END
+            pa."attributedValue" * (
+              CASE
+                WHEN pa."touchpointCount" = 1 THEN 1.0
+                WHEN ${selectedModel} = 'LAST_CLICK' THEN
+                  CASE WHEN tp_ord = pa."touchpointCount" THEN 1.0 ELSE 0.0 END
+                WHEN ${selectedModel} = 'FIRST_CLICK' THEN
+                  CASE WHEN tp_ord = 1 THEN 1.0 ELSE 0.0 END
+                WHEN ${selectedModel} = 'LINEAR' THEN
+                  1.0 / pa."touchpointCount"::float
+                WHEN ${selectedModel} = 'NITRO' THEN
+                  CASE
+                    WHEN pa."touchpointCount" = 2 AND tp_ord = 1 THEN ${wFirst}::float / NULLIF((${wFirst} + ${wLast})::float, 0)
+                    WHEN pa."touchpointCount" = 2 AND tp_ord = 2 THEN ${wLast}::float / NULLIF((${wFirst} + ${wLast})::float, 0)
+                    WHEN tp_ord = 1 THEN ${wFirst}::float / 100.0
+                    WHEN tp_ord = pa."touchpointCount" THEN ${wLast}::float / 100.0
+                    ELSE (${wMiddle}::float / 100.0) / GREATEST(pa."touchpointCount" - 2, 1)::float
+                  END
+                ELSE 0.0
+              END
+            )
           )::float as revenue
         FROM pixel_attributions pa
         JOIN orders o ON o.id = pa."orderId"
