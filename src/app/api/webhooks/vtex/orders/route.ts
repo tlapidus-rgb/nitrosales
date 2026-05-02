@@ -435,19 +435,19 @@ export async function POST(req: NextRequest) {
       pixelAttribution = true; // Assume it was already done
     }
 
-    // ── EARLY GUARD: marketplaces NO se atribuyen (S60 EXT) ──
-    // Si la orden viene de Fravega (FVG-), Banco Provincia (BPR-), MELI o
-    // tiene channel/trafficSource de marketplace, NUNCA paso por nuestro
-    // pixel propio (la sesion del comprador estuvo en el marketplace, no
-    // en la web del cliente). Atribuirla seria asignar tracking a un
-    // visitor random o a un cliente repetidor que no compro esta orden.
+    // ── EARLY GUARD: marketplaces externos NO se atribuyen (S60 EXT-2 — fix bug propio) ──
+    // CRITICO: VTEX devuelve `origin: "Marketplace"` para TODAS las ordenes (incluso
+    // web propia) — es un detalle interno de VTEX, NO significa marketplace comercial.
+    // El criterio CORRECTO para detectar marketplace externo (donde el pixel no aplica
+    // porque la sesion estuvo en sitio externo) es SOLO el prefijo del externalId:
+    //   - FVG- → Fravega
+    //   - BPR- → Banco Provincia
+    // (Otros marketplaces como MELI vienen por webhook separado, no por este).
     const isMarketplaceOrder =
       orderId.startsWith("FVG-") ||
-      orderId.startsWith("BPR-") ||
-      vtexOrder.origin === "Marketplace" ||
-      vtexOrder.origin === "Fulfillment";
+      orderId.startsWith("BPR-");
     if (isMarketplaceOrder && isNewOrder) {
-      console.log(`[NitroPixel] Skipping attribution for marketplace order ${orderId} (origin: ${vtexOrder.origin})`);
+      console.log(`[NitroPixel] Skipping attribution for marketplace order ${orderId} (prefix detected)`);
       pixelAttribution = true; // Marcamos como hecho para que el flow continue normal
     }
 
