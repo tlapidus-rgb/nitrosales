@@ -65,6 +65,17 @@ function getSourceInfo(source: string) {
   return SOURCE_ICONS[key] || { icon: key.charAt(0).toUpperCase(), color: "#6B7280", label: source };
 }
 
+// Devuelve el source CANONICAL para un alias dado (S60 EXT — fix bug filtro funnel)
+// El backend CTE normaliza a canonical, asi que el filter del funnel debe usar el
+// canonical para que matchee. Mismo mapping que el CTE en /api/metrics/pixel/funnel.
+function canonicalSource(source: string): string {
+  const s = (source || "").toLowerCase();
+  if (["adwords", "google_ads", "google-ads", "googleads"].includes(s)) return "google";
+  if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads"].includes(s)) return "meta";
+  if (["ig", "instagram_ads", "instagram-ads"].includes(s)) return "instagram";
+  return s;
+}
+
 // SVG channel logos — white icons inside colored circles
 function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) {
   const s = (source || "").toLowerCase();
@@ -561,7 +572,8 @@ export default function AnalyticsPage() {
     const label = getSourceInfo(ch.source).label;
     const existing = mergedMap.get(label);
     if (!existing) {
-      mergedMap.set(label, { ...ch });
+      // Normalizar source al canonical para que el filtro del funnel matchee bien
+      mergedMap.set(label, { ...ch, source: canonicalSource(ch.source) });
     } else {
       existing.pixelRevenue += ch.pixelRevenue;
       existing.platformRevenue += ch.platformRevenue;
@@ -1073,51 +1085,15 @@ export default function AnalyticsPage() {
               </p>
             </div>
 
-            {/* Chips de canales con logos (S60 EXT) */}
+            {/* Dropdown custom con logos (S60 EXT) */}
             <div className="mb-5">
-              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-2">Filtrar por canal</p>
-              <div className={`flex items-center gap-2 flex-wrap ${funnelLoading ? "opacity-60 pointer-events-none" : ""}`}>
-                {/* Chip "Todos" */}
-                <button
-                  onClick={() => setFunnelChannel("all")}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                    funnelChannel === "all"
-                      ? "bg-gray-900 text-white shadow-sm"
-                      : "bg-gray-50 text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                  Todos
-                </button>
-                {/* Chip por cada canal */}
-                {channels.map((ch) => {
-                  const info = getSourceInfo(ch.source);
-                  const active = funnelChannel === ch.source;
-                  return (
-                    <button
-                      key={ch.source}
-                      onClick={() => setFunnelChannel(ch.source)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        active
-                          ? "shadow-sm"
-                          : "bg-gray-50 text-gray-700 hover:bg-gray-100"
-                      }`}
-                      style={active ? { backgroundColor: info.color, color: "white" } : undefined}
-                      title={info.label}
-                    >
-                      <span
-                        className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: active ? "rgba(255,255,255,0.25)" : info.color }}
-                      >
-                        <ChannelLogo source={ch.source} size={9} />
-                      </span>
-                      <span>{info.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">Filtrar por canal</p>
+              <FunnelChannelDropdown
+                channels={channels}
+                value={funnelChannel}
+                onChange={(v) => setFunnelChannel(v)}
+                disabled={funnelLoading}
+              />
             </div>
             {(() => {
               const f = funnelOverride || funnel;
@@ -2090,6 +2066,98 @@ export default function AnalyticsPage() {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// FunnelChannelDropdown — dropdown custom con logos por canal (S60 EXT)
+// ══════════════════════════════════════════════════════════════
+function FunnelChannelDropdown({
+  channels,
+  value,
+  onChange,
+  disabled,
+}: {
+  channels: Array<{ source: string }>;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Cerrar al click fuera
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const renderItem = (source: string, label: string, isActive: boolean) => {
+    const info = getSourceInfo(source);
+    const isAll = source === "all";
+    return (
+      <div className="flex items-center gap-2">
+        {isAll ? (
+          <span className="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </span>
+        ) : (
+          <span
+            className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: info.color }}
+          >
+            <ChannelLogo source={source} size={11} />
+          </span>
+        )}
+        <span className={isActive ? "font-medium text-gray-900" : "text-gray-700"}>{label}</span>
+      </div>
+    );
+  };
+
+  const selectedLabel = value === "all" ? "Todos los canales" : getSourceInfo(value).label;
+
+  return (
+    <div ref={ref} className="relative inline-block w-72 max-w-full">
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((v) => !v)}
+        disabled={disabled}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 border border-gray-200 rounded-lg text-xs bg-white hover:border-gray-300 transition-colors ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+      >
+        {renderItem(value, selectedLabel, true)}
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-72 overflow-y-auto py-1">
+          <button
+            type="button"
+            onClick={() => { onChange("all"); setOpen(false); }}
+            className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${value === "all" ? "bg-gray-50" : ""}`}
+          >
+            {renderItem("all", "Todos los canales", value === "all")}
+          </button>
+          <div className="border-t border-gray-100 my-1" />
+          {channels.map((ch) => (
+            <button
+              key={ch.source}
+              type="button"
+              onClick={() => { onChange(ch.source); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${value === ch.source ? "bg-gray-50" : ""}`}
+            >
+              {renderItem(ch.source, getSourceInfo(ch.source).label, value === ch.source)}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -48,6 +48,10 @@ export async function GET(req: NextRequest) {
               WHEN ("clickIds"->>'ttclid') IS NOT NULL AND ("clickIds"->>'ttclid') != '' THEN 'tiktok'
               WHEN ("clickIds"->>'msclkid') IS NOT NULL AND ("clickIds"->>'msclkid') != '' THEN 'microsoft'
               WHEN ("clickIds"->>'li_fat_id') IS NOT NULL AND ("clickIds"->>'li_fat_id') != '' THEN 'linkedin'
+              -- Normalizar aliases de utm_source a canonical (S60 EXT)
+              WHEN LOWER("utmParams"->>'source') IN ('adwords', 'google_ads', 'google-ads', 'googleads') THEN 'google'
+              WHEN LOWER("utmParams"->>'source') IN ('meta_ads', 'meta-ads', 'metaads', 'fb_ads', 'fb-ads', 'fbads', 'facebook_ads', 'facebook-ads') THEN 'meta'
+              WHEN LOWER("utmParams"->>'source') IN ('ig', 'instagram_ads', 'instagram-ads') THEN 'instagram'
               WHEN ("utmParams"->>'source') IS NOT NULL AND ("utmParams"->>'source') != '' THEN LOWER("utmParams"->>'source')
               WHEN referrer ~* 'l\.instagram\.com|instagram\.com' THEN 'instagram'
               WHEN referrer ~* 'facebook\.com|fb\.com|m\.facebook\.com' THEN 'facebook'
