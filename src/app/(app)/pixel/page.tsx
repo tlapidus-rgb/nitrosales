@@ -399,6 +399,7 @@ export default function PixelPage() {
   const [windowError, setWindowError] = useState<string | null>(null);
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [truthGapOpen, setTruthGapOpen] = useState(false);
+  const [applyingModel, setApplyingModel] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   // Debounced refetching state — minimum 800ms to avoid flash/glitch
@@ -898,6 +899,157 @@ export default function PixelPage() {
             ))}
           </div>
         </section>
+
+        {/* ════════════════════════════════════════════════════════ */}
+        {/* BLOQUE 3.5 — Comparacion de modelos (Fase 2)            */}
+        {/* ════════════════════════════════════════════════════════ */}
+        {(() => {
+          const byModel = data?.attribution?.byModel || [];
+          if (byModel.length === 0) return null;
+
+          // Mapear y completar los 4 modelos (algunos pueden no tener data)
+          const modelOrder = ["NITRO", "LAST_CLICK", "FIRST_CLICK", "LINEAR"];
+          const modelMap = new Map(byModel.map(m => [m.model, m]));
+          const rows = modelOrder.map(m => modelMap.get(m) || { model: m, ordersAttributed: 0, revenue: 0, avgValue: 0, avgTouchpoints: 0 });
+          const activeModel = selectedModel === "CUSTOM" ? "NITRO" : selectedModel;
+          const activeRow = rows.find(r => r.model === activeModel) || rows[0];
+          const activeRevenue = activeRow?.revenue || 0;
+          const maxRevenue = Math.max(...rows.map(r => r.revenue), 1);
+
+          const applyModel = async (model: string) => {
+            if (model === activeModel || applyingModel) return;
+            setApplyingModel(model);
+            try {
+              await fetch("/api/settings/attribution", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ attributionModel: model }),
+              });
+              setSelectedModel(model);
+              setCurrentPage(1);
+              fetchData();
+            } catch {
+              // silent — el dashboard se vuelve a cargar de todas formas
+            } finally {
+              setApplyingModel(null);
+            }
+          };
+
+          return (
+            <section className="attr-glass rounded-2xl p-5" style={{ animation: "attrFadeUp 0.6s 0.4s both" }}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-white tracking-tight">Comparación de modelos</h2>
+                  <DarkTip text={`Cómo cambia el revenue atribuido si elegís otro modelo de atribución. El modelo activo (${MODEL_LABELS[activeModel]}) está marcado y se usa en todo el dashboard. Hacé click en 'Aplicar' para cambiarlo.`} />
+                </div>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400/40">
+                  Activo: <span className="text-cyan-300 font-semibold">{MODEL_LABELS[activeModel]}</span>
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {rows.map(row => {
+                  const isActive = row.model === activeModel;
+                  const diff = activeRevenue > 0 && row.revenue > 0
+                    ? Math.round(((row.revenue - activeRevenue) / activeRevenue) * 100)
+                    : null;
+                  const barPct = maxRevenue > 0 ? (row.revenue / maxRevenue) * 100 : 0;
+                  const aov = row.ordersAttributed > 0 ? row.revenue / row.ordersAttributed : 0;
+                  return (
+                    <div
+                      key={row.model}
+                      className={`rounded-xl p-3 transition-all duration-300 ${
+                        isActive ? "border" : "border border-transparent hover:border-white/10"
+                      }`}
+                      style={isActive ? {
+                        background: "linear-gradient(90deg, rgba(249,115,22,0.08), rgba(249,115,22,0.02))",
+                        borderColor: "rgba(249,115,22,0.25)",
+                      } : { background: "rgba(15,23,42,0.4)" }}
+                    >
+                      <div className="flex items-center gap-4">
+                        {/* Model name + badge */}
+                        <div className="w-32 flex-shrink-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-bold ${isActive ? "text-orange-400" : "text-white/80"}`}>
+                              {MODEL_LABELS[row.model]}
+                            </span>
+                            {isActive && (
+                              <span className="text-[9px] font-mono uppercase tracking-wider text-orange-400/70">activo</span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Bar + revenue */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.6)" }}>
+                              <div
+                                className="h-full rounded-full transition-all duration-700"
+                                style={{
+                                  width: `${Math.max(barPct, 2)}%`,
+                                  background: isActive
+                                    ? "linear-gradient(90deg, #f97316, #fb923c)"
+                                    : "linear-gradient(90deg, #06b6d4, #0891b2)",
+                                  boxShadow: isActive ? "0 0 12px rgba(249,115,22,0.3)" : "0 0 8px rgba(6,182,212,0.2)",
+                                }}
+                              />
+                            </div>
+                            <span className={`text-sm font-bold tabular-nums w-24 text-right ${isActive ? "text-orange-400" : "text-cyan-400"}`}>
+                              {fmtCompact(row.revenue || 0)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[10px] text-white/30 font-mono">
+                            <span>{fmt(row.ordersAttributed || 0)} órdenes</span>
+                            <span>·</span>
+                            <span>AOV {fmtCompact(Math.round(aov))}</span>
+                            {row.avgTouchpoints > 0 && (
+                              <>
+                                <span>·</span>
+                                <span>{Number(row.avgTouchpoints).toFixed(1)} touchpoints</span>
+                              </>
+                            )}
+                            {!isActive && diff !== null && (
+                              <>
+                                <span>·</span>
+                                <span className={diff > 0 ? "text-emerald-400" : diff < 0 ? "text-red-400" : "text-white/30"}>
+                                  {diff > 0 ? "+" : ""}{diff}% vs {MODEL_LABELS[activeModel]}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {/* Apply button */}
+                        <div className="flex-shrink-0 w-24 text-right">
+                          {isActive ? (
+                            <span className="text-[10px] text-orange-400/50 font-mono uppercase tracking-wider">en uso</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => applyModel(row.model)}
+                              disabled={applyingModel !== null}
+                              className="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all"
+                              style={{
+                                background: applyingModel === row.model ? "rgba(6,182,212,0.15)" : "rgba(6,182,212,0.08)",
+                                border: "1px solid rgba(6,182,212,0.2)",
+                                color: "#67e8f9",
+                                opacity: applyingModel !== null && applyingModel !== row.model ? 0.4 : 1,
+                              }}
+                            >
+                              {applyingModel === row.model ? "Aplicando..." : "Aplicar"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="text-[10px] text-white/30 mt-3 leading-relaxed">
+                Cambiar el modelo afecta los reportes de toda la plataforma. La diferencia (% vs {MODEL_LABELS[activeModel]}) muestra cuánto más o menos revenue verías con cada modelo en este mismo período.
+              </p>
+            </section>
+          );
+        })()}
 
         {/* ── Section divider ── */}
         <div className="flex items-center gap-4">
