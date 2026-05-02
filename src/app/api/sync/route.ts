@@ -26,14 +26,39 @@ async function runSyncForOrg(orgId: string, syncKey: string) {
       metaAds: null,
     };
 
-    // 1. Sync VTEX orders
+    // 1. Sync VTEX orders — PAGINAR hasta agotar (S60 EXT-2 BIS — fix bug raiz)
+    // ANTES: el cron solo invocaba page=1 (default), perdiendo todas las ordenes
+    // de paginas posteriores en el rango de 30 dias. Si una org tenia >100 ordenes
+    // en el rango, las viejas se perdian.
+    // AHORA: loop while con hasMore. Safety guard a 50 paginas (5000 ordenes max).
     try {
-      const vtexRes = await fetch(`${baseUrl}/api/sync/vtex?org=${encodeURIComponent(orgId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ syncKey }),
-      });
-      results.vtex = await vtexRes.json();
+      const allPages: any[] = [];
+      let page = 1;
+      const maxPages = 50;
+      while (page <= maxPages) {
+        const vtexRes = await fetch(`${baseUrl}/api/sync/vtex?org=${encodeURIComponent(orgId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ syncKey, page }),
+        });
+        const pageData = await vtexRes.json();
+        allPages.push(pageData);
+        if (!pageData.hasMore || pageData.error) break;
+        page++;
+      }
+      // Resumir totales
+      const totalCreated = allPages.reduce((s: number, p: any) => s + (p.created || 0), 0);
+      const totalUpdated = allPages.reduce((s: number, p: any) => s + (p.updated || 0), 0);
+      const totalEnriched = allPages.reduce((s: number, p: any) => s + (p.enriched || 0), 0);
+      results.vtex = {
+        ok: true,
+        pagesProcessed: allPages.length,
+        totalPages: allPages[0]?.totalPages || 1,
+        totalOrders: allPages[0]?.totalOrders || 0,
+        created: totalCreated,
+        updated: totalUpdated,
+        enriched: totalEnriched,
+      };
     } catch (e: any) {
       results.vtex = { error: e.message };
     }
