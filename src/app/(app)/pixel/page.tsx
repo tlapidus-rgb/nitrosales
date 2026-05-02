@@ -40,22 +40,56 @@ const MODEL_DESCRIPTIONS: Record<string, string> = {
 const MODEL_ORDER = ["NITRO", "LAST_CLICK", "FIRST_CLICK", "LINEAR", "CUSTOM"];
 const DEFAULT_NITRO_WEIGHTS = { first: 30, last: 40, middle: 30 };
 
+// S60 EXT-2 BIS+++++: paleta expandida con color UNICO por canal.
+// Antes 5 canales (adwords, google_organic, tv, omnichannel, perfil) caian
+// al fallback gris #6B7280 y se confundian visualmente en el Hero Bar.
+// Ahora cada canal tiene un color de marca distintivo + email/email-marketing
+// con tonos distintos.
 const SOURCE_ICONS: Record<string, { icon: string; color: string; label: string; svg?: string }> = {
+  // ── Meta family ──
   meta: { icon: "M", color: "#1877F2", label: "Meta", svg: "meta" },
-  facebook: { icon: "M", color: "#1877F2", label: "Meta", svg: "meta" },
+  facebook: { icon: "F", color: "#4267B2", label: "Facebook", svg: "facebook" },
   instagram: { icon: "I", color: "#E4405F", label: "Instagram", svg: "instagram" },
-  google: { icon: "G", color: "#EA4335", label: "Google", svg: "google" },
+  // ── Google family ──
+  google: { icon: "G", color: "#EA4335", label: "Google Ads", svg: "google" },
+  adwords: { icon: "G", color: "#4285F4", label: "Google Ads", svg: "google" },
+  google_organic: { icon: "G", color: "#34A853", label: "Google Orgánico", svg: "google" },
+  "google-organic": { icon: "G", color: "#34A853", label: "Google Orgánico", svg: "google" },
+  // ── Otros search/social ──
   bing: { icon: "B", color: "#008373", label: "Bing", svg: "bing" },
   tiktok: { icon: "T", color: "#69C9D0", label: "TikTok", svg: "tiktok" },
-  direct: { icon: "D", color: "#22C55E", label: "Directo", svg: "direct" },
-  organic: { icon: "O", color: "#8B5CF6", label: "Orgánico", svg: "organic" },
+  youtube: { icon: "Y", color: "#FF0000", label: "YouTube", svg: "youtube" },
+  linkedin: { icon: "L", color: "#0A66C2", label: "LinkedIn", svg: "linkedin" },
+  twitter: { icon: "X", color: "#1DA1F2", label: "Twitter", svg: "twitter" },
+  // ── Mensajeria ──
+  whatsapp: { icon: "W", color: "#25D366", label: "WhatsApp", svg: "whatsapp" },
+  // ── Email family (tonos distintos) ──
   email: { icon: "E", color: "#F59E0B", label: "Email", svg: "email" },
-  "email-marketing": { icon: "E", color: "#F59E0B", label: "Email Marketing", svg: "email" },
+  "email-marketing": { icon: "E", color: "#D97706", label: "Email Marketing", svg: "email" },
   "vtex-abandoned-cart": { icon: "C", color: "#E85D04", label: "Carrito Abandonado", svg: "email" },
   "email-remarketing": { icon: "R", color: "#FB923C", label: "Email Remarketing", svg: "email" },
+  // ── Tradicional / offline ──
+  tv: { icon: "T", color: "#FBBF24", label: "TV", svg: "direct" },
+  radio: { icon: "R", color: "#FACC15", label: "Radio", svg: "direct" },
+  ooh: { icon: "O", color: "#EAB308", label: "Vía pública", svg: "direct" },
+  podcast: { icon: "P", color: "#A78BFA", label: "Podcast", svg: "direct" },
+  // ── Catch-all / agregados ──
+  omnichannel: { icon: "O", color: "#14B8A6", label: "Omnichannel", svg: "direct" },
+  perfil: { icon: "P", color: "#A855F7", label: "Perfil", svg: "direct" },
+  direct: { icon: "D", color: "#22C55E", label: "Directo", svg: "direct" },
+  organic: { icon: "O", color: "#8B5CF6", label: "Orgánico", svg: "organic" },
   referral: { icon: "R", color: "#EC4899", label: "Referido", svg: "referral" },
-  whatsapp: { icon: "W", color: "#25D366", label: "WhatsApp", svg: "whatsapp" },
 };
+
+// Paleta de fallback determinista — si un canal no esta en SOURCE_ICONS,
+// le asignamos un color basado en hash del nombre para que NO se repita
+// con otros canales sin definicion. Mejor que el gris generico para todos.
+const FALLBACK_PALETTE = ["#F87171", "#FB923C", "#FBBF24", "#A3E635", "#34D399", "#22D3EE", "#60A5FA", "#A78BFA", "#F472B6", "#94A3B8"];
+function fallbackColor(source: string): string {
+  let hash = 0;
+  for (let i = 0; i < source.length; i++) hash = (hash * 31 + source.charCodeAt(i)) >>> 0;
+  return FALLBACK_PALETTE[hash % FALLBACK_PALETTE.length];
+}
 
 // SVG logo paths for each channel — rendered as white icons inside colored circles
 function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) {
@@ -90,7 +124,9 @@ function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) 
 
 function getSourceInfo(source: string) {
   const key = (source || "direct").toLowerCase();
-  return SOURCE_ICONS[key] || { icon: key.charAt(0).toUpperCase(), color: "#6B7280", label: source };
+  if (SOURCE_ICONS[key]) return SOURCE_ICONS[key];
+  // Sin definicion explicita: color determinista por hash, label = source
+  return { icon: key.charAt(0).toUpperCase(), color: fallbackColor(key), label: source };
 }
 
 // ── Credit distribution calculation ──
