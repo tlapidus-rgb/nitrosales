@@ -73,14 +73,14 @@ export async function GET(req: NextRequest) {
       ORDER BY orders DESC
     `;
 
-    // query #24 NEW: con LEFT JOIN LATERAL a pixel_events
+    // query #24 NEW: con LEFT JOIN LATERAL a pixel_events + JOIN correcto pv.id = pa.visitorId
     const ordersByDeviceNew = await prisma.$queryRaw<Array<{ device: string; orders: number; revenue: number }>>`
       SELECT
         COALESCE(pe_dev.dev, pv."deviceTypes"[1], 'unknown') as device,
         COUNT(DISTINCT pa."orderId")::int as orders,
         SUM(pa."attributedValue")::float as revenue
       FROM pixel_attributions pa
-      JOIN pixel_visitors pv ON pv."visitorId" = pa."visitorId" AND pv."organizationId" = pa."organizationId"
+      JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
       JOIN orders o ON o.id = pa."orderId"
       LEFT JOIN LATERAL (
         SELECT pe2."deviceType" as dev
