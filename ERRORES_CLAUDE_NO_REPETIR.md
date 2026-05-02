@@ -4,7 +4,83 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-05-02 madrugada++ — Sesión 60 EXT-2 BIS++ (1 error nuevo: JOIN entre tablas con columnas homonimas pero contenido distinto, descubierto en CR por Dispositivo).**
+> **Última actualización: 2026-05-02 madrugada+++ — Sesión 60 EXT-2 BIS+++ (2 errores nuevos: codigo duplicado por refactor incompleto que persiste sin lint, y comentarios SQL "too much complexity" como excusa para shortcuts incorrectos).**
+
+---
+
+## Error #S60-EXT2BISPLUS-CODIGO-DUPLICADO-POR-REFACTOR-INCOMPLETO — Tres bloques idénticos en producción durante meses
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+++. En `src/app/(app)/pixel/page.tsx` el bloque de sliders del modelo Custom (Primer/Intermedios/Último clic) estaba renderizado **3 veces seguidas** (líneas 519/591/674). Cuando el usuario seleccionaba "Precision" se veían los 3 widgets idénticos apilados. Los 2 primeros eran exactos (variable `gradient` renombrada como `grad` la única diferencia), el 3ro era una versión vieja con emojis horizontal.
+
+Probablemente un refactor que probó 3 variantes de UI y nunca borró las 2 que no quedaban. ~250 líneas de código muerto que sobrevivieron deploys, code reviews y nadie noticeó hasta que Tomy reportó "aparece triplicado".
+
+### Causa raíz
+- En archivos largos (>800 líneas), bloques duplicados se vuelven invisibles porque scrolleas por encima de ellos.
+- TypeScript no detecta condicionales duplicadas (`{cond && (...)} {cond && (...)} {cond && (...)}`).
+- ESLint default no detecta este patrón.
+- Code review pasó por alto el mismo `selectedModel === "CUSTOM" && (() => {` repetido 3 veces.
+
+### Regla
+**Cuando se ve un archivo de 800+ líneas con state complejo, hacer pasada de detección de duplicados antes de tocar nada.**
+
+Comandos útiles:
+```bash
+# Detectar bloques que empiezan con la misma condicion
+grep -n 'selectedModel === "CUSTOM"' archivo.tsx
+
+# Detectar funciones identicas dentro del mismo archivo
+grep -n 'const handleSlider' archivo.tsx
+
+# Si aparecen 2+ ocurrencias del mismo guard/handler en un solo archivo, alarma.
+```
+
+### Patrón de prevención
+- Cuando refactor agrega una versión nueva del mismo widget, **borrar la vieja en el mismo commit**, no en uno futuro. Los "limpio después" no llegan.
+- Si dos versiones tienen que coexistir temporalmente (A/B test), wrappearlas en `useFeatureFlag()` explícito con TODO de remoción. Nunca dejar `{condA && (...)} {condA && (...)}` que renderiza ambas.
+- Cualquier sección que ocupe >100 líneas inline en un archivo principal debería ser un componente separado en `/components`.
+
+### Caso similar futuro a chequear
+- Otros archivos largos del codebase: `pixel/analytics/page.tsx` (1900+ líneas), `(app)/layout.tsx` (1400+ líneas), Aurum dashboards.
+
+---
+
+## Error #S60-EXT2BISPLUS-COMMENT-AS-EXCUSE-FOR-SHORTCUT — Comentarios "too much complexity" justificando logica incorrecta
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+++. En `/api/metrics/pixel/route.ts` query #20 (revenue por canal por día) había un comentario explícito:
+
+```ts
+// 20. Per-day per-source pixel revenue (for daily trend table)
+// Uses LAST_CLICK logic here; model-specific SQL would add too much complexity.
+// The selected model is respected via the model filter.
+```
+
+La lógica `WHEN tp_ord = touchpointCount THEN attributedValue ELSE 0` **siempre** daba el revenue completo al último touchpoint, sin importar el modelo seleccionado. El comentario justificaba el shortcut afirmando que era complejo escribir SQL model-aware. **En realidad fueron 8 líneas con CASE WHEN** distribuyendo `attributedValue` como factor multiplicativo según el modelo.
+
+Esto significaba que cuando el usuario cambiaba a LINEAR/FIRST_CLICK/NITRO, los números de esa tarjeta no se movían. Tomy lo reportó como "muchas veces no cambia las atribuciones".
+
+### Causa raíz
+- Aceptar a ciegas el assumption de un comentario sin validar.
+- "Too much complexity" en realidad significaba "no me dio ganas en ese momento" — siempre vale revisar el costo real.
+- El segundo párrafo del comentario ("The selected model is respected via the model filter") es **falso** y engañoso: filtrar por modelo en el WHERE solo selecciona QUÉ filas leer, no cómo distribuir el revenue dentro de cada fila.
+
+### Regla
+**Cuando un comentario justifica un shortcut con una excusa cualitativa ("complex", "edge case", "good enough", "TODO"), tratar como red flag y validar la complejidad real ANTES de aceptarlo.**
+
+Patrones de comentarios sospechosos:
+- "Uses X logic here; doing it right would be too complex"
+- "TODO: this is approximate, fix later"
+- "Edge case ignored — should be rare"
+- "Good enough for now"
+- "Model-specific would add too much complexity"
+
+Acciones:
+1. Estimar el costo real de la solución correcta. Si es <50 líneas, hacerlo.
+2. Si efectivamente es complejo, dejar comentario CON el costo estimado y crear entry en BACKLOG_PENDIENTES.
+3. NUNCA dejar un comentario que afirme falsedades ("the selected model is respected" cuando no lo es).
+
+### Patrón de prevención
+- Grep de fix-en-deuda: `grep -rn "too much complexity\|TODO.*model\|approximate\|good enough" src/`
+- Code review: si un comentario dice "no se puede hacer X", el reviewer debería preguntar "¿probaste? ¿cuántas líneas tomaría?".
 
 ---
 

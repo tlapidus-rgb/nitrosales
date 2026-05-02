@@ -3,7 +3,68 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-02 madrugada++ (Sesion 60 EXT-2 BIS++ — extension nocturna. Fix CR por Dispositivo: bug de JOIN viejo en `pixel/route.ts` y `conversion/route.ts` que comparaba `pv.visitorId` (UUID cookie) contra `pa.visitorId` (cuid Prisma) → 0 matches → modulo siempre vacio. Diagnosticado con endpoint debug-cr-by-device: 2.414 attributions validas en EMDJ, 0 matcheaban con JOIN viejo, 2.407 matchean con `pv.id = pa.visitorId`. Tipo A multi-tenant — beneficia todas las orgs. Pendientes intactos.)
+## Ultima actualizacion: 2026-05-02 madrugada+++ (Sesion 60 EXT-2 BIS+++ — refactor seccion Atribucion. 4 fixes en /pixel: (1) bloque Custom triplicado eliminado (-176 lineas, era duplicacion accidental); (2) query #20 'revenue por canal por dia' ahora respeta el modelo seleccionado en SQL (antes hardcodeaba LAST_CLICK con un comentario explicito de 'too much complexity'); (3) modelo + ventanas centralizadas en /pixel/configuracion via componente nuevo AttributionSettings con 4 secciones (Modelo / Pesos Precision / Ventana global / Ventanas por canal); /pixel ahora muestra solo un chip read-only que linkea a configuracion; (4) cache cliente in-memory con TTL 60s para refetches al togglear rango. Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS+++ (2026-05-02 madrugada+++) — Refactor seccion Atribucion
+
+**Contexto**: Tomy reporto 4 issues en /pixel (Atribucion): tarda mucho cambiar de modelo, muchas veces no cambian las atribuciones, "Precision aparece triplicado", faltan ventanas de atribucion por canal. Tambien propuso mover el modelo a /pixel/configuracion (subseccion creada en S60). Hice investigacion profunda + 4 fixes en orden de impacto.
+
+#### Hallazgos via investigacion
+
+1. **Triplicado**: el bloque de sliders Custom estaba renderizado **3 veces seguidas** en pixel/page.tsx (lineas 519/591/674). Bloques 1 y 2 identicos (variable `gradient` renombrada como `grad` la unica diferencia). Bloque 3 era version vieja horizontal con emojis. Refactor incompleto que dejo las 3 versiones.
+
+2. **No cambian las atribuciones**: query #20 (`per-day per-source pixel revenue`) tenia un comentario literal: *"Uses LAST_CLICK logic here; model-specific SQL would add too much complexity. The selected model is respected via the model filter."* La logica `WHEN tp_ord = touchpointCount THEN attributedValue ELSE 0` daba TODO el revenue al ultimo touchpoint sin importar el modelo. Para LINEAR/FIRST_CLICK/NITRO los numeros de esa tarjeta no se actualizaban.
+
+3. **Faltan ventanas por canal**: el backend `/api/settings/attribution` ya aceptaba `channelWindows` (1-90 dias para 14 canales) y el frontend tenia el state (`globalWindow`, `channelWindows`, `setWindowOpen`). PERO **`setWindowOpen(true)` nunca se llamaba** desde ningun lugar. Estaba la infra completa, faltaba el boton.
+
+4. **Tarda cambiar de modelo**: cada cambio dispara `/api/metrics/pixel?model=X` que ejecuta ~25 queries SQL pesadas en paralelo. No es bug, es inherente a la API. Mejorable con cache cliente.
+
+5. **Modelo como setting**: el modelo era state local del cliente (`useState`), no se persistia en la org. Cambiar de modelo afecta credibilidad de los numeros — no deberia ser un toggle al pasar.
+
+#### Fixes implementados
+
+1. **Triplicado** (commit `1c660c1`): borrados bloques 2 y 3, mantenido el #1 (locks + numeros grandes). pixel/page.tsx: 1221 → 1045 lineas.
+
+2. **Query #20 model-aware** (commit `1c660c1`): reescrito el CASE como factor multiplicativo del attributedValue. LAST_CLICK: 100% al ultimo. FIRST_CLICK: 100% al primero. LINEAR: 1/N a cada uno. NITRO: pesos custom (first/middle/last) con prorateo intermedio + caso especial para 2 touchpoints (sin middle).
+
+3. **Modelo + ventanas en /pixel/configuracion** (commits `33a679f` + `588fe7b`):
+   - Backend `/api/settings/attribution`: agrega `attributionModel` (default NITRO, valido LAST_CLICK/FIRST_CLICK/LINEAR/NITRO).
+   - Backend `/api/metrics/pixel`: si no viene query param `model`, usa `settings.attributionModel`.
+   - Componente nuevo `src/components/pixel/AttributionSettings.tsx`: 4 secciones — Modelo (5 cards: Nitro/Last/First/Linear/Precision), Pesos Precision (sliders + locks, una sola vez), Ventana global (7/14/30/60d), Ventanas por canal (override 1-90d para 10 canales). Footer sticky con boton Guardar + estado dirty/saved/error.
+   - `/pixel/configuracion`: incluye `<AttributionSettings />` arriba + UTM Builder + Guia abajo.
+   - `/pixel` (Atribucion): selector grande de pills + bloque Custom eliminados. Reemplazado por chip read-only "⚙ Nitro · 30d ›" que linkea a /pixel/configuracion.
+
+4. **Cache cliente** (commit `9c39f24`): `useRef<Map<key, {data, ts}>>` con TTL 60s, limit 8 entries. Key: `dateFrom|dateTo|page|model`. Toggle 7d/30d/90d ahora es instant si volves a un rango ya visto. Cuando settings cambia, selectedModel se refresca al re-montar /pixel y la key cambia → cache miss → fetch fresco.
+
+#### Patrones criticos S60 EXT-2 BIS+++
+
+1. **Codigo duplicado por refactor incompleto se acumula silenciosamente**: 3 bloques de ~80 lineas cada uno, identicos los 2 primeros y el 3ero version vieja. Nadie lo limpio. Aplicar grep agresivo cuando se ven secciones largas en archivos de >800 lineas — buscar bloques iniciados con la misma condicion.
+
+2. **Comentarios "too much complexity" en SQL son red flag**: la query #20 tenia un comentario asumiendo que reescribir el SQL para respetar el modelo era complejo. En realidad fue 8 lineas con CASE WHEN. Cuando un comentario justifica un shortcut, validar el assumption.
+
+3. **Settings con UI a medio terminar**: state + endpoint listos, falta el boton/modal. Cuando se ven `useState`s no usados o handlers sin callers, probablemente UI incompleta. Grep `set${StateName}\(true\)` para detectar.
+
+4. **Modelo de atribucion = setting, NO analisis**: cambiar de modelo altera quien se queda con el credito de la venta. Esa es una decision consciente de configuracion, no algo para clickear al pasar. Mover a /configuracion y dejar chip read-only en /pixel evita cambios accidentales.
+
+5. **Cache cliente in-memory por sesion es low-hanging fruit**: 25 lineas de `useRef<Map>` resuelven 80% de los casos donde un usuario toggle entre rangos de fecha. No requiere SWR/React Query — simplemente una key estructurada y un TTL razonable.
+
+#### Deploys cronologicos del bloque
+1. `1c660c1` — fix(pixel/atribucion): triplicado bloque Custom + query #20 model-aware
+2. `33a679f` — feat(pixel/configuracion): seccion Atribucion centralizada (modelo + ventanas)
+3. `588fe7b` — feat(pixel): chip read-only de modelo+ventana, edicion va a /configuracion
+4. `9c39f24` — perf(pixel): cache cliente in-memory para evitar refetch al togglear rango
+
+#### Pendientes finales (sin cambios)
+1. 🟡 BP-S60-005 Activar TVC
+2. 🟡 BP-S60-002 Wizard del afiliado VTEX
+3. 🟢 BP-S60-004 Alias webhooks@nitrosales.ai
+4. 🟢 (cosmetico) OrgSwitcher dark theme
+5. 🟢 (refactor) Renombrar pa.visitorId → pa.pixelVisitorId
+6. 🟢 (idea Tomy) modificaciones adicionales en seccion Atribucion (proxima sesion)
+
+---
+
+## Ultima actualizacion previa: 2026-05-02 madrugada++ (Sesion 60 EXT-2 BIS++ — extension nocturna. Fix CR por Dispositivo: bug de JOIN viejo en `pixel/route.ts` y `conversion/route.ts` que comparaba `pv.visitorId` (UUID cookie) contra `pa.visitorId` (cuid Prisma) → 0 matches → modulo siempre vacio. Diagnosticado con endpoint debug-cr-by-device: 2.414 attributions validas en EMDJ, 0 matcheaban con JOIN viejo, 2.407 matchean con `pv.id = pa.visitorId`. Tipo A multi-tenant — beneficia todas las orgs. Pendientes intactos.)
 
 ### Sesion 60 EXT-2 BIS++ (2026-05-02 madrugada++) — Fix CR por Dispositivo
 
