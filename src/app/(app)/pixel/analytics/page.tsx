@@ -1059,33 +1059,65 @@ export default function AnalyticsPage() {
         <div id="sec-funnel" className="grid grid-cols-1 lg:grid-cols-5 gap-4 scroll-mt-20">
           {/* Funnel — 3 cols */}
           <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "380ms" }}>
-            {/* Header con filtro por canal (S60 EXT — first-touch) */}
-            <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h2 className="text-sm font-semibold text-gray-900">Funnel de Conversión</h2>
-                  <InfoTip text="Filtra el funnel por el canal del PRIMER toque del visitor (first-touch). Ej: 'Meta Ads' muestra solo visitors cuyo primer evento fue por Meta Ads en este período." />
-                </div>
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  {funnelChannel === "all"
-                    ? "Todos los canales"
-                    : <>Filtrado por <strong>primer toque</strong>: {channels.find((c) => c.source === funnelChannel) ? getSourceInfo(funnelChannel).label : funnelChannel}</>
-                  }
-                </p>
+            {/* Header (S60 EXT — first-touch filter) */}
+            <div className="mb-4">
+              <div className="flex items-center gap-1.5 mb-1">
+                <h2 className="text-sm font-semibold text-gray-900">Funnel de Conversión</h2>
+                <InfoTip text="El filtro por canal usa el PRIMER toque (first-touch) del visitor — el canal por el que entró por primera vez al sitio en este período." />
               </div>
-              <select
-                value={funnelChannel}
-                onChange={(e) => setFunnelChannel(e.target.value)}
-                disabled={funnelLoading}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none disabled:opacity-50"
-              >
-                <option value="all">Todos los canales</option>
-                {channels.map((ch) => (
-                  <option key={ch.source} value={ch.source}>
-                    {getSourceInfo(ch.source).label}
-                  </option>
-                ))}
-              </select>
+              <p className="text-[11px] text-gray-400">
+                {funnelChannel === "all"
+                  ? "Mostrando todos los canales"
+                  : <>Filtrado por <strong>primer toque</strong>: {getSourceInfo(funnelChannel).label}</>
+                }
+              </p>
+            </div>
+
+            {/* Chips de canales con logos (S60 EXT) */}
+            <div className="mb-5">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-2">Filtrar por canal</p>
+              <div className={`flex items-center gap-2 flex-wrap ${funnelLoading ? "opacity-60 pointer-events-none" : ""}`}>
+                {/* Chip "Todos" */}
+                <button
+                  onClick={() => setFunnelChannel("all")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    funnelChannel === "all"
+                      ? "bg-gray-900 text-white shadow-sm"
+                      : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                  Todos
+                </button>
+                {/* Chip por cada canal */}
+                {channels.map((ch) => {
+                  const info = getSourceInfo(ch.source);
+                  const active = funnelChannel === ch.source;
+                  return (
+                    <button
+                      key={ch.source}
+                      onClick={() => setFunnelChannel(ch.source)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        active
+                          ? "shadow-sm"
+                          : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                      }`}
+                      style={active ? { backgroundColor: info.color, color: "white" } : undefined}
+                      title={info.label}
+                    >
+                      <span
+                        className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: active ? "rgba(255,255,255,0.25)" : info.color }}
+                      >
+                        <ChannelLogo source={ch.source} size={9} />
+                      </span>
+                      <span>{info.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             {(() => {
               const f = funnelOverride || funnel;
