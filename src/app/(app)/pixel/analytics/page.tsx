@@ -426,6 +426,14 @@ export default function AnalyticsPage() {
     label: string;
   } | null>(null);
 
+  // Filtro del funnel por canal de primer toque (S60 EXT)
+  const [funnelChannel, setFunnelChannel] = useState<string>("all");
+  const [funnelOverride, setFunnelOverride] = useState<{
+    pageView: number; viewProduct: number; addToCart: number;
+    checkoutStart: number; purchase: number;
+  } | null>(null);
+  const [funnelLoading, setFunnelLoading] = useState(false);
+
   // Refetch indicator
   const [isRefetching, setIsRefetching] = useState(false);
 
@@ -459,6 +467,32 @@ export default function AnalyticsPage() {
   }, [dateFrom, dateTo]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Refetch funnel cuando cambia el filtro de canal (S60 EXT) ──
+  useEffect(() => {
+    if (funnelChannel === "all") {
+      // Sin filtro: usar el funnel del fetch principal, no override
+      setFunnelOverride(null);
+      return;
+    }
+    let cancelled = false;
+    setFunnelLoading(true);
+    fetch(`/api/metrics/pixel/funnel?from=${dateFrom}&to=${dateTo}&channel=${encodeURIComponent(funnelChannel)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.ok && data.funnel) setFunnelOverride(data.funnel);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setFunnelLoading(false); });
+    return () => { cancelled = true; };
+  }, [funnelChannel, dateFrom, dateTo]);
+
+  // Reset funnel filter cuando cambia el rango de fechas (para evitar mostrar data stale)
+  useEffect(() => {
+    setFunnelChannel("all");
+    setFunnelOverride(null);
+  }, [dateFrom, dateTo]);
 
   // ── Count-up values ──
   const revCountUp = useCountUp(pixelData?.businessKpis?.pixelRevenue || 0);
@@ -1025,14 +1059,43 @@ export default function AnalyticsPage() {
         <div id="sec-funnel" className="grid grid-cols-1 lg:grid-cols-5 gap-4 scroll-mt-20">
           {/* Funnel — 3 cols */}
           <div className={`${cardStyle} lg:col-span-3 p-6 stagger-card`} style={{ ...cardShadow, animationDelay: "380ms" }}>
-            <h2 className="text-sm font-semibold text-gray-900 mb-6">Funnel de Conversión</h2>
-            {funnel ? (() => {
+            {/* Header con filtro por canal (S60 EXT — first-touch) */}
+            <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-sm font-semibold text-gray-900">Funnel de Conversión</h2>
+                  <InfoTip text="Filtra el funnel por el canal del PRIMER toque del visitor (first-touch). Ej: 'Meta Ads' muestra solo visitors cuyo primer evento fue por Meta Ads en este período." />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {funnelChannel === "all"
+                    ? "Todos los canales"
+                    : <>Filtrado por <strong>primer toque</strong>: {channels.find((c) => c.source === funnelChannel) ? getSourceInfo(funnelChannel).label : funnelChannel}</>
+                  }
+                </p>
+              </div>
+              <select
+                value={funnelChannel}
+                onChange={(e) => setFunnelChannel(e.target.value)}
+                disabled={funnelLoading}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 outline-none disabled:opacity-50"
+              >
+                <option value="all">Todos los canales</option>
+                {channels.map((ch) => (
+                  <option key={ch.source} value={ch.source}>
+                    {getSourceInfo(ch.source).label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {(() => {
+              const f = funnelOverride || funnel;
+              if (!f) return null;
               const steps = [
-                { label: "Visitas", value: funnel.pageView, color: "#06b6d4", gradient: "from-cyan-400 to-cyan-600" },
-                { label: "Vio Producto", value: funnel.viewProduct, color: "#8b5cf6", gradient: "from-violet-400 to-violet-600" },
-                { label: "Carrito", value: funnel.addToCart, color: "#f97316", gradient: "from-orange-400 to-orange-600" },
-                { label: "Checkout", value: funnel.checkoutStart, color: "#eab308", gradient: "from-yellow-400 to-yellow-600" },
-                { label: "Compra", value: funnel.purchase, color: "#22c55e", gradient: "from-emerald-400 to-emerald-600" },
+                { label: "Visitas", value: f.pageView, color: "#06b6d4", gradient: "from-cyan-400 to-cyan-600" },
+                { label: "Vio Producto", value: f.viewProduct, color: "#8b5cf6", gradient: "from-violet-400 to-violet-600" },
+                { label: "Carrito", value: f.addToCart, color: "#f97316", gradient: "from-orange-400 to-orange-600" },
+                { label: "Checkout", value: f.checkoutStart, color: "#eab308", gradient: "from-yellow-400 to-yellow-600" },
+                { label: "Compra", value: f.purchase, color: "#22c55e", gradient: "from-emerald-400 to-emerald-600" },
               ];
               const firstVal = steps[0].value || 1;
 
@@ -1098,9 +1161,7 @@ export default function AnalyticsPage() {
                   })}
                 </div>
               );
-            })() : (
-              <div className="text-center text-gray-400 text-sm py-8">Sin datos de funnel</div>
-            )}
+            })()}
           </div>
 
           {/* Customer Journeys — 2 cols */}
