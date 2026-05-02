@@ -136,13 +136,14 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ device: string; visitors: number }>>,
 
       // 4. Orders by device (via pixel_attributions → pixel_visitors)
+      // CRITICAL: pa."visitorId" guarda pv.id (cuid), NO pv.visitorId (UUID cookie). JOIN debe ser por id.
       prisma.$queryRaw`
         SELECT
           COALESCE(pv."deviceTypes"[1], 'unknown') as device,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(pa."attributedValue")::float as revenue
         FROM pixel_attributions pa
-        JOIN pixel_visitors pv ON pv."visitorId" = pa."visitorId" AND pv."organizationId" = pa."organizationId"
+        JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
         JOIN orders o ON o.id = pa."orderId"
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${crDateFrom}

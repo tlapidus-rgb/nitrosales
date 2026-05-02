@@ -764,9 +764,9 @@ export async function GET(request: NextRequest) {
       ` as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
 
       // 24. Orders by device — derive device from pixel_events of the attributed visitor
-      // (alineado con query #5 que usa pe."deviceType"). Antes usaba pv."deviceTypes"[1]
-      // pero ese array queda vacio si el primer evento del visitor no traia deviceType,
-      // resultando en device='unknown' y mismatch contra deviceBreakdown → CR vacio.
+      // CRITICAL: pa."visitorId" guarda pv.id (cuid Prisma), NO pv.visitorId (UUID cookie).
+      // Mismo case con pe."visitorId". Por eso JOIN debe ser pv.id = pa.visitorId.
+      // Antes el JOIN era pv.visitorId = pa.visitorId → 0 matches → CR vacio.
       // Uses crDateFrom to only count orders from when pixel was active.
       prisma.$queryRaw`
         SELECT
@@ -774,7 +774,7 @@ export async function GET(request: NextRequest) {
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(pa."attributedValue")::float as revenue
         FROM pixel_attributions pa
-        JOIN pixel_visitors pv ON pv."visitorId" = pa."visitorId" AND pv."organizationId" = pa."organizationId"
+        JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
         JOIN orders o ON o.id = pa."orderId"
         LEFT JOIN LATERAL (
           SELECT pe2."deviceType" as dev
