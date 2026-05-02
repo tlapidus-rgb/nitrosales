@@ -84,8 +84,9 @@ export async function GET(request: NextRequest) {
                   ELSE pa."attributedValue" * ${wMiddle} / 100.0 / GREATEST(pa."touchpointCount" - 2, 1)
                 END
               )::float as revenue
-            FROM pixel_attributions pa,
-            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            FROM pixel_attributions pa
+            JOIN orders o ON o.id = pa."orderId"
+            , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
               AND o."orderDate" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
@@ -104,8 +105,9 @@ export async function GET(request: NextRequest) {
               END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
-            FROM pixel_attributions pa,
-            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            FROM pixel_attributions pa
+            JOIN orders o ON o.id = pa."orderId"
+            , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
               AND o."orderDate" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
@@ -124,8 +126,9 @@ export async function GET(request: NextRequest) {
               END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(CASE WHEN tp_ord = 1 THEN pa."attributedValue" ELSE 0 END)::float as revenue
-            FROM pixel_attributions pa,
-            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            FROM pixel_attributions pa
+            JOIN orders o ON o.id = pa."orderId"
+            , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
               AND o."orderDate" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
@@ -143,8 +146,9 @@ export async function GET(request: NextRequest) {
               END as source,
               COUNT(DISTINCT pa."orderId")::int as orders,
               SUM(pa."attributedValue" / GREATEST(pa."touchpointCount", 1))::float as revenue
-            FROM pixel_attributions pa,
-            jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+            FROM pixel_attributions pa
+            JOIN orders o ON o.id = pa."orderId"
+            , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
             WHERE pa."organizationId" = ${ORG_ID}
               AND o."orderDate" >= ${dateFrom}
               AND o."orderDate" <= ${dateTo}
@@ -166,8 +170,9 @@ export async function GET(request: NextRequest) {
               END as source,
           COUNT(DISTINCT pa."orderId")::int as orders,
           SUM(CASE WHEN tp_ord = pa."touchpointCount" THEN pa."attributedValue" ELSE 0 END)::float as revenue
-        FROM pixel_attributions pa,
-        jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+        FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
+        , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
         WHERE pa."organizationId" = ${ORG_ID}
           AND o."orderDate" >= ${dateFrom}
           AND o."orderDate" <= ${dateTo}
