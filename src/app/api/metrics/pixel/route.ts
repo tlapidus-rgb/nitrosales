@@ -156,6 +156,8 @@ export async function GET(request: NextRequest) {
       // ── Journey Intelligence queries ──
       journeyComplexityResult,
       channelPairsResult,
+      // ── Comparacion de modelos: revenue por (model, source) ──
+      attributionByModelChannelResult,
     ] = await Promise.all([
       // 1. Live status
       prisma.$queryRaw`
@@ -926,6 +928,81 @@ export async function GET(request: NextRequest) {
         ORDER BY revenue DESC
         LIMIT 10
       ` as Promise<Array<{ first_channel: string; last_channel: string; journeys: number; revenue: number; aov: number }>>,
+
+      // 29. Revenue por (modelo, canal) — para tarjeta "Comparacion de modelos"
+      // Una sola pasada: descompone cada attribution en touchpoints y aplica
+      // la formula de cada modelo para repartir el attributedValue por canal.
+      // GROUP BY (model, source) → ~4 modelos × N canales rows.
+      prisma.$queryRaw`
+        SELECT
+          pa.model::text as model,
+          CASE
+            WHEN LOWER(COALESCE(tp->>'medium','')) IN ('organic','social','referral')
+              AND LOWER(COALESCE(tp->>'source','direct')) IN ('google','bing','yahoo','duckduckgo')
+            THEN LOWER(COALESCE(tp->>'source','direct')) || '_organic'
+            ELSE LOWER(COALESCE(tp->>'source', 'direct'))
+          END as source,
+          SUM(
+            pa."attributedValue" * (
+              CASE
+                WHEN pa."touchpointCount" = 1 THEN 1.0
+                WHEN pa.model::text = 'LAST_CLICK' THEN
+                  CASE WHEN tp_ord = pa."touchpointCount" THEN 1.0 ELSE 0.0 END
+                WHEN pa.model::text = 'FIRST_CLICK' THEN
+                  CASE WHEN tp_ord = 1 THEN 1.0 ELSE 0.0 END
+                WHEN pa.model::text = 'LINEAR' THEN
+                  1.0 / pa."touchpointCount"::float
+                WHEN pa.model::text = 'NITRO' THEN
+                  CASE
+                    WHEN pa."touchpointCount" = 2 AND tp_ord = 1 THEN ${wFirst}::float / NULLIF((${wFirst} + ${wLast})::float, 0)
+                    WHEN pa."touchpointCount" = 2 AND tp_ord = 2 THEN ${wLast}::float / NULLIF((${wFirst} + ${wLast})::float, 0)
+                    WHEN tp_ord = 1 THEN ${wFirst}::float / 100.0
+                    WHEN tp_ord = pa."touchpointCount" THEN ${wLast}::float / 100.0
+                    ELSE (${wMiddle}::float / 100.0) / GREATEST(pa."touchpointCount" - 2, 1)::float
+                  END
+                ELSE 0.0
+              END
+            )
+          )::float as revenue
+        FROM pixel_attributions pa
+        JOIN orders o ON o.id = pa."orderId"
+        , jsonb_array_elements(pa.touchpoints::jsonb) WITH ORDINALITY AS t(tp, tp_ord)
+        WHERE pa."organizationId" = ${ORG_ID}
+          AND pa.model::text IN ('LAST_CLICK', 'FIRST_CLICK', 'LINEAR', 'NITRO')
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND o.status NOT IN ('CANCELLED', 'PENDING')
+          AND o."totalValue" > 0
+          AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+          AND o.source IS DISTINCT FROM 'MELI'
+          AND o.channel IS DISTINCT FROM 'marketplace'
+          AND o."externalId" NOT LIKE 'FVG-%'
+          AND o."externalId" NOT LIKE 'BPR-%'
+        GROUP BY 1, 2
+        HAVING SUM(
+          pa."attributedValue" * (
+            CASE
+              WHEN pa."touchpointCount" = 1 THEN 1.0
+              WHEN pa.model::text = 'LAST_CLICK' THEN
+                CASE WHEN tp_ord = pa."touchpointCount" THEN 1.0 ELSE 0.0 END
+              WHEN pa.model::text = 'FIRST_CLICK' THEN
+                CASE WHEN tp_ord = 1 THEN 1.0 ELSE 0.0 END
+              WHEN pa.model::text = 'LINEAR' THEN
+                1.0 / pa."touchpointCount"::float
+              WHEN pa.model::text = 'NITRO' THEN
+                CASE
+                  WHEN pa."touchpointCount" = 2 AND tp_ord = 1 THEN ${wFirst}::float / NULLIF((${wFirst} + ${wLast})::float, 0)
+                  WHEN pa."touchpointCount" = 2 AND tp_ord = 2 THEN ${wLast}::float / NULLIF((${wFirst} + ${wLast})::float, 0)
+                  WHEN tp_ord = 1 THEN ${wFirst}::float / 100.0
+                  WHEN tp_ord = pa."touchpointCount" THEN ${wLast}::float / 100.0
+                  ELSE (${wMiddle}::float / 100.0) / GREATEST(pa."touchpointCount" - 2, 1)::float
+                END
+              ELSE 0.0
+            END
+          )
+        ) > 0
+        ORDER BY 1, 3 DESC
+      ` as Promise<Array<{ model: string; source: string; revenue: number }>>,
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -1392,6 +1469,7 @@ export async function GET(request: NextRequest) {
       attribution: {
         byModel: attributionByModelResult,
         bySource: attributionBySource,
+        byModelChannel: attributionByModelChannelResult,
         conversionLag: conversionLagResult,
       },
 

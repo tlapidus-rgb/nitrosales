@@ -214,7 +214,7 @@ interface PixelData {
   deviceBreakdown: Array<{ device: string; count: number; percentage: number }>;
   eventTypes: Array<{ type: string; count: number; uniqueVisitors: number; percentage: number }>;
   popularPages: Array<{ url: string; pageViews: number; uniqueVisitors: number }>;
-  attribution: { byModel: Array<{ model: string; ordersAttributed: number; revenue: number; avgValue: number; avgTouchpoints: number }>; bySource: Array<{ source: string; orders: number; revenue: number; percentage: number }>; conversionLag: Array<{ bucket: string; orders: number; revenue: number }> };
+  attribution: { byModel: Array<{ model: string; ordersAttributed: number; revenue: number; avgValue: number; avgTouchpoints: number }>; bySource: Array<{ source: string; orders: number; revenue: number; percentage: number }>; byModelChannel?: Array<{ model: string; source: string; revenue: number }>; conversionLag: Array<{ bucket: string; orders: number; revenue: number }> };
   recentEvents: Array<{ id: string; type: string; visitorId: string; pageUrl: string | null; deviceType: string | null; timestamp: string; sessionId: string }>;
   pagination: { page: number; pageSize: number; totalCount: number; totalPages: number };
   meta: { dateFrom: string; dateTo: string; daysInPeriod: number; attributionModel?: string; nitroWeights?: { first: number; last: number; middle: number } };
@@ -901,20 +901,41 @@ export default function PixelPage() {
         </section>
 
         {/* ════════════════════════════════════════════════════════ */}
-        {/* BLOQUE 3.5 — Comparacion de modelos (Fase 2)            */}
+        {/* BLOQUE 3.5 — Comparacion de modelos (barras segmentadas por canal) */}
         {/* ════════════════════════════════════════════════════════ */}
         {(() => {
-          const byModel = data?.attribution?.byModel || [];
-          if (byModel.length === 0) return null;
+          const byModelChannel = data?.attribution?.byModelChannel || [];
+          if (byModelChannel.length === 0) return null;
 
-          // Mapear y completar los 4 modelos (algunos pueden no tener data)
+          // Agrupar por modelo → array de { source, revenue }
           const modelOrder = ["NITRO", "LAST_CLICK", "FIRST_CLICK", "LINEAR"];
-          const modelMap = new Map(byModel.map(m => [m.model, m]));
-          const rows = modelOrder.map(m => modelMap.get(m) || { model: m, ordersAttributed: 0, revenue: 0, avgValue: 0, avgTouchpoints: 0 });
+          const modelData: Record<string, { total: number; channels: Array<{ source: string; revenue: number }> }> = {};
+          for (const m of modelOrder) modelData[m] = { total: 0, channels: [] };
+          for (const row of byModelChannel) {
+            if (!modelData[row.model]) continue;
+            modelData[row.model].total += row.revenue;
+            modelData[row.model].channels.push({ source: row.source, revenue: row.revenue });
+          }
+          // Sort canales por revenue desc + recortar a top 8 + agrupar el resto
+          const TOP_N = 8;
+          for (const m of modelOrder) {
+            const sorted = modelData[m].channels.sort((a, b) => b.revenue - a.revenue);
+            if (sorted.length > TOP_N) {
+              const top = sorted.slice(0, TOP_N);
+              const rest = sorted.slice(TOP_N).reduce((s, c) => s + c.revenue, 0);
+              if (rest > 0) top.push({ source: "otros", revenue: rest });
+              modelData[m].channels = top;
+            }
+          }
+
           const activeModel = selectedModel === "CUSTOM" ? "NITRO" : selectedModel;
-          const activeRow = rows.find(r => r.model === activeModel) || rows[0];
-          const activeRevenue = activeRow?.revenue || 0;
-          const maxRevenue = Math.max(...rows.map(r => r.revenue), 1);
+          const activeTotal = modelData[activeModel]?.total || 0;
+          const maxTotal = Math.max(...modelOrder.map(m => modelData[m].total), 1);
+
+          // Coleccion unificada de canales presentes en cualquier modelo (para leyenda)
+          const allSources = new Set<string>();
+          for (const m of modelOrder) for (const c of modelData[m].channels) allSources.add(c.source);
+          const legendSources = Array.from(allSources).sort();
 
           const applyModel = async (model: string) => {
             if (model === activeModel || applyingModel) return;
@@ -929,7 +950,7 @@ export default function PixelPage() {
               setCurrentPage(1);
               fetchData();
             } catch {
-              // silent — el dashboard se vuelve a cargar de todas formas
+              // silent
             } finally {
               setApplyingModel(null);
             }
@@ -940,7 +961,7 @@ export default function PixelPage() {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-semibold text-white tracking-tight">Comparación de modelos</h2>
-                  <DarkTip text={`Cómo cambia el revenue atribuido si elegís otro modelo de atribución. El modelo activo (${MODEL_LABELS[activeModel]}) está marcado y se usa en todo el dashboard. Hacé click en 'Aplicar' para cambiarlo.`} />
+                  <DarkTip text={`Cómo cambia la distribución del revenue entre canales según el modelo de atribución. El total queda igual (es la misma plata). Lo que cambia es CUÁNTO de cada canal se queda con el crédito. El modelo activo (${MODEL_LABELS[activeModel]}) se usa en todo el dashboard.`} />
                 </div>
                 <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400/40">
                   Activo: <span className="text-cyan-300 font-semibold">{MODEL_LABELS[activeModel]}</span>
@@ -948,16 +969,15 @@ export default function PixelPage() {
               </div>
 
               <div className="space-y-2">
-                {rows.map(row => {
-                  const isActive = row.model === activeModel;
-                  const diff = activeRevenue > 0 && row.revenue > 0
-                    ? Math.round(((row.revenue - activeRevenue) / activeRevenue) * 100)
-                    : null;
-                  const barPct = maxRevenue > 0 ? (row.revenue / maxRevenue) * 100 : 0;
-                  const aov = row.ordersAttributed > 0 ? row.revenue / row.ordersAttributed : 0;
+                {modelOrder.map(model => {
+                  const md = modelData[model];
+                  const isActive = model === activeModel;
+                  const total = md.total;
+                  const widthPct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
+                  // Distribucion por canal de ESTE modelo (porcentajes que suman 100% del bar width)
                   return (
                     <div
-                      key={row.model}
+                      key={model}
                       className={`rounded-xl p-3 transition-all duration-300 ${
                         isActive ? "border" : "border border-transparent hover:border-white/10"
                       }`}
@@ -967,56 +987,71 @@ export default function PixelPage() {
                       } : { background: "rgba(15,23,42,0.4)" }}
                     >
                       <div className="flex items-center gap-4">
-                        {/* Model name + badge */}
-                        <div className="w-32 flex-shrink-0">
-                          <div className="flex items-center gap-1.5">
+                        {/* Model name */}
+                        <div className="w-28 flex-shrink-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className={`text-sm font-bold ${isActive ? "text-orange-400" : "text-white/80"}`}>
-                              {MODEL_LABELS[row.model]}
+                              {MODEL_LABELS[model]}
                             </span>
                             {isActive && (
                               <span className="text-[9px] font-mono uppercase tracking-wider text-orange-400/70">activo</span>
                             )}
                           </div>
                         </div>
-                        {/* Bar + revenue */}
+
+                        {/* Segmented bar (revenue por canal) */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.6)" }}>
-                              <div
-                                className="h-full rounded-full transition-all duration-700"
-                                style={{
-                                  width: `${Math.max(barPct, 2)}%`,
-                                  background: isActive
-                                    ? "linear-gradient(90deg, #f97316, #fb923c)"
-                                    : "linear-gradient(90deg, #06b6d4, #0891b2)",
-                                  boxShadow: isActive ? "0 0 12px rgba(249,115,22,0.3)" : "0 0 8px rgba(6,182,212,0.2)",
-                                }}
-                              />
+                            {/* Track */}
+                            <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.6)" }}>
+                              {/* Container con ancho proporcional al maxTotal */}
+                              <div className="h-full flex" style={{ width: `${Math.max(widthPct, 2)}%` }}>
+                                {md.channels.map((c, i) => {
+                                  const info = c.source === "otros"
+                                    ? { color: "#475569", label: "Otros" }
+                                    : getSourceInfo(c.source);
+                                  const segPct = total > 0 ? (c.revenue / total) * 100 : 0;
+                                  if (segPct < 0.5) return null;
+                                  return (
+                                    <div
+                                      key={c.source + i}
+                                      className="h-full transition-all duration-700"
+                                      style={{
+                                        width: `${segPct}%`,
+                                        background: info.color,
+                                        minWidth: "2px",
+                                      }}
+                                      title={`${info.label}: ${fmtCompact(c.revenue)} (${segPct.toFixed(1)}%)`}
+                                    />
+                                  );
+                                })}
+                              </div>
                             </div>
                             <span className={`text-sm font-bold tabular-nums w-24 text-right ${isActive ? "text-orange-400" : "text-cyan-400"}`}>
-                              {fmtCompact(row.revenue || 0)}
+                              {fmtCompact(total)}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 text-[10px] text-white/30 font-mono">
-                            <span>{fmt(row.ordersAttributed || 0)} órdenes</span>
-                            <span>·</span>
-                            <span>AOV {fmtCompact(Math.round(aov))}</span>
-                            {row.avgTouchpoints > 0 && (
-                              <>
-                                <span>·</span>
-                                <span>{Number(row.avgTouchpoints).toFixed(1)} touchpoints</span>
-                              </>
-                            )}
-                            {!isActive && diff !== null && (
-                              <>
-                                <span>·</span>
-                                <span className={diff > 0 ? "text-emerald-400" : diff < 0 ? "text-red-400" : "text-white/30"}>
-                                  {diff > 0 ? "+" : ""}{diff}% vs {MODEL_LABELS[activeModel]}
+                          {/* Mini-leyenda inline: top 3 canales del modelo */}
+                          <div className="flex items-center gap-2 text-[10px] text-white/40 font-mono flex-wrap">
+                            {md.channels.slice(0, 3).map(c => {
+                              const info = c.source === "otros"
+                                ? { color: "#475569", label: "Otros" }
+                                : getSourceInfo(c.source);
+                              const pct = total > 0 ? (c.revenue / total) * 100 : 0;
+                              return (
+                                <span key={c.source} className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: info.color }} />
+                                  <span className="text-white/60">{info.label}</span>
+                                  <span>{pct.toFixed(0)}%</span>
                                 </span>
-                              </>
+                              );
+                            })}
+                            {md.channels.length > 3 && (
+                              <span className="text-white/20">+{md.channels.length - 3} más</span>
                             )}
                           </div>
                         </div>
+
                         {/* Apply button */}
                         <div className="flex-shrink-0 w-24 text-right">
                           {isActive ? (
@@ -1024,17 +1059,17 @@ export default function PixelPage() {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => applyModel(row.model)}
+                              onClick={() => applyModel(model)}
                               disabled={applyingModel !== null}
                               className="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all"
                               style={{
-                                background: applyingModel === row.model ? "rgba(6,182,212,0.15)" : "rgba(6,182,212,0.08)",
+                                background: applyingModel === model ? "rgba(6,182,212,0.15)" : "rgba(6,182,212,0.08)",
                                 border: "1px solid rgba(6,182,212,0.2)",
                                 color: "#67e8f9",
-                                opacity: applyingModel !== null && applyingModel !== row.model ? 0.4 : 1,
+                                opacity: applyingModel !== null && applyingModel !== model ? 0.4 : 1,
                               }}
                             >
-                              {applyingModel === row.model ? "Aplicando..." : "Aplicar"}
+                              {applyingModel === model ? "Aplicando..." : "Aplicar"}
                             </button>
                           )}
                         </div>
@@ -1044,8 +1079,23 @@ export default function PixelPage() {
                 })}
               </div>
 
+              {/* Leyenda global (canales unicos presentes en cualquier modelo) */}
+              {legendSources.length > 0 && (
+                <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3 pt-3 border-t border-white/5">
+                  {legendSources.slice(0, 12).map(src => {
+                    const info = src === "otros" ? { color: "#475569", label: "Otros" } : getSourceInfo(src);
+                    return (
+                      <span key={src} className="flex items-center gap-1.5 text-[10px] text-white/50">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: info.color }} />
+                        <span>{info.label}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
               <p className="text-[10px] text-white/30 mt-3 leading-relaxed">
-                Cambiar el modelo afecta los reportes de toda la plataforma. La diferencia (% vs {MODEL_LABELS[activeModel]}) muestra cuánto más o menos revenue verías con cada modelo en este mismo período.
+                El total de revenue queda igual (mismas órdenes). Lo que cambia es <strong className="text-white/50">cómo se reparte el crédito entre canales</strong>: <strong className="text-white/50">Last Click</strong> le da todo al último, <strong className="text-white/50">First Click</strong> al primero, <strong className="text-white/50">Linear</strong> reparte parejo, <strong className="text-white/50">Nitro</strong> pondera según el rol.
               </p>
             </section>
           );
