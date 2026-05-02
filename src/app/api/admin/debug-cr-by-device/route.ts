@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
         pa."visitorId",
         pv."deviceTypes"[1] as "pvDevice",
         (SELECT pe2."deviceType" FROM pixel_events pe2
-          WHERE pe2."visitorId" = pa."visitorId" AND pe2."organizationId" = pa."organizationId"
+          WHERE pe2."visitorId" = pa."visitorId" AND pe2."organizationId" = ${orgId}
           ORDER BY pe2.timestamp DESC LIMIT 1) as "peDevice",
         COUNT(DISTINCT pa."orderId")::int as orders
       FROM pixel_attributions pa
