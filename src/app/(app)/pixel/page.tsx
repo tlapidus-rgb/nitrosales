@@ -138,7 +138,11 @@ function canonicalSource(source: string): string {
 }
 
 function getSourceInfo(source: string) {
-  const key = (source || "direct").toLowerCase();
+  // Canonicalizar primero para que aliases del mismo canal (adwords/google,
+  // meta_ads/meta, ig/instagram) compartan color y label. Asi un journey
+  // con touchpoints adwords y google muestra dos circulos del mismo color
+  // rojo en vez de azul + rojo.
+  const key = canonicalSource(source || "direct");
   if (SOURCE_ICONS[key]) return SOURCE_ICONS[key];
   // Sin definicion explicita: color determinista por hash, label = source
   return { icon: key.charAt(0).toUpperCase(), color: fallbackColor(key), label: source };
