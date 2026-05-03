@@ -1138,15 +1138,18 @@ export default function PixelPage() {
             .sort((a, b) => (channelCounts[b] || 0) - (channelCounts[a] || 0))
             .slice(0, 8);
 
-          // Filtrado client-side — aplica canonicalSource ambos lados
+          // Filtrado client-side — semantica AND: la journey debe haber pasado
+          // por TODOS los canales seleccionados (interseccion). Permite encontrar
+          // recorridos multi-touch reales (ej: clientes que vieron Meta y luego
+          // Google antes de comprar).
           const filteredJourneys = journeys.filter(j => {
             if (journeyMinValue > 0 && j.revenue < journeyMinValue) return false;
             if (journeyMinTouchpoints > 0 && (j.touchpointCount || 0) < journeyMinTouchpoints) return false;
             if (journeyChannelFilter.length > 0) {
               const journeyChannels = new Set((j.touchpoints || []).map(tp => canonicalSource(tp.source || "direct")));
               const filterCanonical = journeyChannelFilter.map(c => canonicalSource(c));
-              const hasMatch = filterCanonical.some(ch => journeyChannels.has(ch));
-              if (!hasMatch) return false;
+              const allMatch = filterCanonical.every(ch => journeyChannels.has(ch));
+              if (!allMatch) return false;
             }
             return true;
           });
