@@ -437,17 +437,28 @@ export async function calculateAttribution(
       let campaign: string | undefined;
       let confidence: SessionSource['confidence'];
 
+      // Helper: si no hay utm_campaign, intentar fallback a parametros auto-tag
+      // de plataformas de ads (Google: gad_campaignid, Bing: msclkid, etc).
+      // Devuelve el ID con prefijo "Campaña #..." para distinguir de nombres reales.
+      const fallbackCampaignFromAutoTag = (): string | undefined => {
+        if ((utms as any).gad_campaignid) return `Campaña #${(utms as any).gad_campaignid}`;
+        if (clicks.msclkid) return `Campaña #${clicks.msclkid.slice(0, 12)}`;
+        if (clicks.ttclid) return `Campaña #${clicks.ttclid.slice(0, 12)}`;
+        if (clicks.li_fat_id) return `Campaña #${clicks.li_fat_id.slice(0, 12)}`;
+        return undefined;
+      };
+
       if (signalsFresh && hasClicks) {
         // Fresh paid click — highest quality touchpoint
         source = utms.source || (clickType === 'fbclid' ? 'meta' : clickType === 'gclid' ? 'google' : clickType === 'ttclid' ? 'tiktok' : clickType === 'li_fat_id' ? 'linkedin' : clickType === 'msclkid' ? 'microsoft' : undefined);
         medium = utms.medium || 'cpc';
-        campaign = utms.campaign;
+        campaign = utms.campaign || fallbackCampaignFromAutoTag();
         confidence = 'fresh_click';
       } else if (signalsFresh && hasUtms) {
         // Fresh UTMs without click ID (e.g., email campaign, WhatsApp link with UTMs)
         source = utms.source;
         medium = utms.medium;
-        campaign = utms.campaign;
+        campaign = utms.campaign || fallbackCampaignFromAutoTag();
         confidence = 'fresh_utm';
       } else {
         // No fresh signals — try referrer, then stale cookies, then direct
@@ -481,7 +492,7 @@ export async function calculateAttribution(
             // Stale click IDs + unknown referrer → prefer click IDs (likely internal redirect)
             source = utms.source || (clickType === 'fbclid' ? 'meta' : clickType === 'gclid' ? 'google' : undefined);
             medium = utms.medium || 'cpc';
-            campaign = utms.campaign;
+            campaign = utms.campaign || fallbackCampaignFromAutoTag();
             confidence = 'stale_cookie';
           } else {
             source = sessionReferrerSource.source;
@@ -495,7 +506,7 @@ export async function calculateAttribution(
           // Stale click IDs from cookie — low confidence, previous campaign
           source = utms.source || (clickType === 'fbclid' ? 'meta' : clickType === 'gclid' ? 'google' : undefined);
           medium = utms.medium || 'cpc';
-          campaign = utms.campaign;
+          campaign = utms.campaign || fallbackCampaignFromAutoTag();
           confidence = 'stale_cookie';
         } else {
           // No signals at all — direct traffic

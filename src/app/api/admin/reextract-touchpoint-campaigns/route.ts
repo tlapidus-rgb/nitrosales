@@ -1,0 +1,149 @@
+// @ts-nocheck
+// ══════════════════════════════════════════════════════════════
+// GET/POST /api/admin/reextract-touchpoint-campaigns?orgId=X&dryRun=1&key=Y
+// ══════════════════════════════════════════════════════════════
+// Recorre pa.touchpoints viejos sin campaign y re-extrae parseando el
+// campo `page` (URL guardada). Aplica la misma logica de fallback del
+// fix nuevo: si no hay utm_campaign en la URL, busca gad_campaignid,
+// msclkid, ttclid, li_fat_id como fallback y guarda como "Campaña #ID".
+//
+// Idempotente: si el touchpoint YA tiene campaign, no toca.
+// dryRun=1 → cuenta cuantos cambiarian sin tocar nada.
+// orgId opcional → si no viene, aplica a TODAS las orgs.
+// ══════════════════════════════════════════════════════════════
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db/client";
+import { isInternalUser } from "@/lib/feature-flags";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 300; // 5 min en Vercel Pro
+
+const KEY = "nitrosales-secret-key-2024-production";
+
+function extractCampaignFromUrl(pageUrl: string | undefined): string | undefined {
+  if (!pageUrl) return undefined;
+  try {
+    const url = new URL(pageUrl);
+    const params = url.searchParams;
+    // 1. utm_campaign (estándar manual)
+    const utm = params.get("utm_campaign");
+    if (utm && utm.trim()) return utm.trim();
+    // 2. Google Ads auto-tag
+    const gad = params.get("gad_campaignid");
+    if (gad && gad.trim()) return `Campaña #${gad.trim()}`;
+    // 3. Bing Ads auto-tag
+    const msclkid = params.get("msclkid");
+    if (msclkid && msclkid.trim()) return `Campaña #${msclkid.trim().slice(0, 12)}`;
+    // 4. TikTok auto-tag
+    const ttclid = params.get("ttclid");
+    if (ttclid && ttclid.trim()) return `Campaña #${ttclid.trim().slice(0, 12)}`;
+    // 5. LinkedIn auto-tag
+    const lifat = params.get("li_fat_id");
+    if (lifat && lifat.trim()) return `Campaña #${lifat.trim().slice(0, 12)}`;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function processOrg(orgId: string, dryRun: boolean) {
+  const attributions = await prisma.pixelAttribution.findMany({
+    where: { organizationId: orgId },
+    select: { id: true, touchpoints: true },
+  });
+
+  let totalAttributions = attributions.length;
+  let totalTouchpoints = 0;
+  let touchpointsBefore = 0;
+  let touchpointsRecovered = 0;
+  let attributionsUpdated = 0;
+  const samples: Array<{ before: any; after: any; pageSnippet: string }> = [];
+
+  for (const attr of attributions) {
+    const tps = Array.isArray(attr.touchpoints) ? (attr.touchpoints as any[]) : [];
+    if (tps.length === 0) continue;
+
+    let modified = false;
+    const newTps = tps.map((tp) => {
+      totalTouchpoints += 1;
+      if (tp.campaign && String(tp.campaign).trim().length > 0) {
+        return tp; // ya tiene campaign, no tocar
+      }
+      touchpointsBefore += 1;
+      const recovered = extractCampaignFromUrl(tp.page);
+      if (recovered) {
+        touchpointsRecovered += 1;
+        if (samples.length < 8) {
+          samples.push({
+            before: { source: tp.source, medium: tp.medium, campaign: null },
+            after: { source: tp.source, medium: tp.medium, campaign: recovered },
+            pageSnippet: (tp.page || "").slice(0, 100),
+          });
+        }
+        modified = true;
+        return { ...tp, campaign: recovered };
+      }
+      return tp;
+    });
+
+    if (modified && !dryRun) {
+      await prisma.pixelAttribution.update({
+        where: { id: attr.id },
+        data: { touchpoints: newTps as any },
+      });
+      attributionsUpdated += 1;
+    } else if (modified && dryRun) {
+      attributionsUpdated += 1;
+    }
+  }
+
+  return {
+    orgId,
+    totalAttributions,
+    totalTouchpoints,
+    touchpointsWithoutCampaignBefore: touchpointsBefore,
+    touchpointsRecovered,
+    pctRecovered: touchpointsBefore > 0 ? Math.round((touchpointsRecovered / touchpointsBefore) * 100) : 0,
+    attributionsUpdated,
+    samples,
+  };
+}
+
+async function handle(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
+    const key = url.searchParams.get("key");
+    const orgId = url.searchParams.get("orgId");
+    const dryRun = url.searchParams.get("dryRun") === "1";
+
+    const allowed = key === KEY ? true : await isInternalUser();
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    if (orgId) {
+      const result = await processOrg(orgId, dryRun);
+      return NextResponse.json({ ok: true, dryRun, ...result });
+    }
+
+    // Sin orgId: procesa TODAS las orgs
+    const orgs = await prisma.organization.findMany({ select: { id: true, name: true } });
+    const results = [];
+    for (const o of orgs) {
+      const r = await processOrg(o.id, dryRun);
+      results.push({ orgName: o.name, ...r });
+    }
+    return NextResponse.json({
+      ok: true,
+      dryRun,
+      orgsProcessed: orgs.length,
+      totalRecovered: results.reduce((s, r) => s + r.touchpointsRecovered, 0),
+      totalAttributionsUpdated: results.reduce((s, r) => s + r.attributionsUpdated, 0),
+      results,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message, stack: err.stack?.slice(0, 500) }, { status: 500 });
+  }
+}
+
+export async function GET(req: NextRequest) { return handle(req); }
+export async function POST(req: NextRequest) { return handle(req); }

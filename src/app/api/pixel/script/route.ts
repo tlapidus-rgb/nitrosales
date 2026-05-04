@@ -126,6 +126,9 @@ function generatePixelScript(orgId: string): string {
       var params = new URLSearchParams(window.location.search);
       var clickKeys = ['fbclid', 'gclid', 'ttclid', 'li_fat_id', 'msclkid'];
       var utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+      // Auto-tag de Google Ads (gad_*) y otros sistemas que NO usan utm_*.
+      // Se guardan en utmParams para que el backend pueda extraerlos como campaign.
+      var autoTagKeys = ['gad_campaignid', 'gad_source', 'gad_creative', 'gad_groupid', 'srsltid'];
 
       clickKeys.forEach(function(k) {
         var v = params.get(k);
@@ -135,6 +138,11 @@ function generatePixelScript(orgId: string): string {
       utmKeys.forEach(function(k) {
         var v = params.get(k);
         if (v) utmParams[k.replace('utm_', '')] = v;
+      });
+
+      autoTagKeys.forEach(function(k) {
+        var v = params.get(k);
+        if (v) utmParams[k] = v;
       });
     } catch(e) {}
 
