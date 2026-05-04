@@ -21,24 +21,31 @@ export const maxDuration = 300; // 5 min en Vercel Pro
 
 const KEY = "nitrosales-secret-key-2024-production";
 
-function extractCampaignFromUrl(pageUrl: string | undefined): string | undefined {
+type CampaignMap = Map<string, string>;
+
+function resolveWithMap(id: string, platform: 'GOOGLE' | 'META' | null, map: CampaignMap): string {
+  if (platform) {
+    const named = map.get(`${platform}:${id}`);
+    if (named) return named;
+  }
+  const named = map.get(id);
+  if (named) return named;
+  return `Campaña #${id}`;
+}
+
+function extractCampaignFromUrl(pageUrl: string | undefined, campaignMap: CampaignMap): string | undefined {
   if (!pageUrl) return undefined;
   try {
     const url = new URL(pageUrl);
     const params = url.searchParams;
-    // 1. utm_campaign (estándar manual)
     const utm = params.get("utm_campaign");
     if (utm && utm.trim()) return utm.trim();
-    // 2. Google Ads auto-tag
     const gad = params.get("gad_campaignid");
-    if (gad && gad.trim()) return `Campaña #${gad.trim()}`;
-    // 3. Bing Ads auto-tag
+    if (gad && gad.trim()) return resolveWithMap(gad.trim(), 'GOOGLE', campaignMap);
     const msclkid = params.get("msclkid");
     if (msclkid && msclkid.trim()) return `Campaña #${msclkid.trim().slice(0, 12)}`;
-    // 4. TikTok auto-tag
     const ttclid = params.get("ttclid");
     if (ttclid && ttclid.trim()) return `Campaña #${ttclid.trim().slice(0, 12)}`;
-    // 5. LinkedIn auto-tag
     const lifat = params.get("li_fat_id");
     if (lifat && lifat.trim()) return `Campaña #${lifat.trim().slice(0, 12)}`;
     return undefined;
@@ -47,7 +54,32 @@ function extractCampaignFromUrl(pageUrl: string | undefined): string | undefined
   }
 }
 
+// Si una campaign existente tiene formato "Campaña #ID" y el ID matchea ad_campaigns,
+// devolvemos el nombre real. Sino devolvemos undefined (no cambiar).
+function upgradeCampaignName(currentCampaign: string | undefined, campaignMap: CampaignMap): string | undefined {
+  if (!currentCampaign || !currentCampaign.startsWith("Campaña #")) return undefined;
+  const id = currentCampaign.replace("Campaña #", "").trim();
+  const namedGoogle = campaignMap.get(`GOOGLE:${id}`);
+  if (namedGoogle) return namedGoogle;
+  const namedMeta = campaignMap.get(`META:${id}`);
+  if (namedMeta) return namedMeta;
+  const namedAny = campaignMap.get(id);
+  if (namedAny) return namedAny;
+  return undefined;
+}
+
 async function processOrg(orgId: string, dryRun: boolean) {
+  // Pre-cargar ad_campaigns para resolver gad_campaignid → name
+  const adCampaigns = await prisma.adCampaign.findMany({
+    where: { organizationId: orgId },
+    select: { externalId: true, name: true, platform: true },
+  });
+  const campaignMap: CampaignMap = new Map();
+  for (const c of adCampaigns) {
+    campaignMap.set(`${c.platform}:${c.externalId}`, c.name);
+    if (!campaignMap.has(c.externalId)) campaignMap.set(c.externalId, c.name);
+  }
+
   const attributions = await prisma.pixelAttribution.findMany({
     where: { organizationId: orgId },
     select: { id: true, touchpoints: true },
@@ -57,6 +89,7 @@ async function processOrg(orgId: string, dryRun: boolean) {
   let totalTouchpoints = 0;
   let touchpointsBefore = 0;
   let touchpointsRecovered = 0;
+  let touchpointsUpgradedFromIdToName = 0;
   let attributionsUpdated = 0;
   const samples: Array<{ before: any; after: any; pageSnippet: string }> = [];
 
@@ -67,11 +100,28 @@ async function processOrg(orgId: string, dryRun: boolean) {
     let modified = false;
     const newTps = tps.map((tp) => {
       totalTouchpoints += 1;
-      if (tp.campaign && String(tp.campaign).trim().length > 0) {
-        return tp; // ya tiene campaign, no tocar
+      // Path 1: ya tiene campaign en formato "Campaña #ID" → upgrade a nombre real si hay match
+      if (tp.campaign && String(tp.campaign).startsWith("Campaña #")) {
+        const upgraded = upgradeCampaignName(tp.campaign, campaignMap);
+        if (upgraded) {
+          touchpointsUpgradedFromIdToName += 1;
+          if (samples.length < 8) {
+            samples.push({
+              before: { source: tp.source, medium: tp.medium, campaign: tp.campaign },
+              after: { source: tp.source, medium: tp.medium, campaign: upgraded },
+              pageSnippet: (tp.page || "").slice(0, 100),
+            });
+          }
+          modified = true;
+          return { ...tp, campaign: upgraded };
+        }
+        return tp;
       }
+      // Path 2: tiene campaign con valor real (no "Campaña #..."), no tocar
+      if (tp.campaign && String(tp.campaign).trim().length > 0) return tp;
+      // Path 3: sin campaign → re-extraer del page URL
       touchpointsBefore += 1;
-      const recovered = extractCampaignFromUrl(tp.page);
+      const recovered = extractCampaignFromUrl(tp.page, campaignMap);
       if (recovered) {
         touchpointsRecovered += 1;
         if (samples.length < 8) {
@@ -100,10 +150,12 @@ async function processOrg(orgId: string, dryRun: boolean) {
 
   return {
     orgId,
+    adCampaignsLoaded: adCampaigns.length,
     totalAttributions,
     totalTouchpoints,
     touchpointsWithoutCampaignBefore: touchpointsBefore,
     touchpointsRecovered,
+    touchpointsUpgradedFromIdToName,
     pctRecovered: touchpointsBefore > 0 ? Math.round((touchpointsRecovered / touchpointsBefore) * 100) : 0,
     attributionsUpdated,
     samples,
@@ -137,6 +189,7 @@ async function handle(req: NextRequest) {
       dryRun,
       orgsProcessed: orgs.length,
       totalRecovered: results.reduce((s, r) => s + r.touchpointsRecovered, 0),
+      totalUpgradedFromIdToName: results.reduce((s, r) => s + (r.touchpointsUpgradedFromIdToName || 0), 0),
       totalAttributionsUpdated: results.reduce((s, r) => s + r.attributionsUpdated, 0),
       results,
     });

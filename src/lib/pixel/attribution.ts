@@ -171,6 +171,23 @@ export async function calculateAttribution(
       : 30;
     const channelWindows: Record<string, number> = orgSettings.channelWindows || {};
 
+    // 2b. Pre-cargar ad_campaigns de la org para resolver gad_campaignid → nombre.
+    // Mapa { externalId: name } por plataforma. Se consulta en sync dentro del helper
+    // fallbackCampaignFromAutoTag al construir cada touchpoint.
+    const adCampaigns = await prisma.adCampaign.findMany({
+      where: { organizationId },
+      select: { externalId: true, name: true, platform: true },
+    });
+    const campaignNameByExternalId: Map<string, string> = new Map();
+    for (const c of adCampaigns) {
+      // Key incluye platform para evitar colision si Meta y Google tienen mismo ID.
+      campaignNameByExternalId.set(`${c.platform}:${c.externalId}`, c.name);
+      // Fallback sin platform: si solo hay un match, lo usamos.
+      if (!campaignNameByExternalId.has(c.externalId)) {
+        campaignNameByExternalId.set(c.externalId, c.name);
+      }
+    }
+
     // Use the widest window (global or any channel override) for the initial query
     // so we don't lose data from channels with longer windows.
     const allWindowValues = [windowDays, ...Object.values(channelWindows)];
@@ -439,9 +456,19 @@ export async function calculateAttribution(
 
       // Helper: si no hay utm_campaign, intentar fallback a parametros auto-tag
       // de plataformas de ads (Google: gad_campaignid, Bing: msclkid, etc).
-      // Devuelve el ID con prefijo "Campaña #..." para distinguir de nombres reales.
+      // Si el ID matchea con ad_campaigns de la org, devuelve el nombre real.
+      // Sino, devuelve el ID con prefijo "Campaña #..." para distinguir.
+      const resolveCampaign = (id: string, platform: 'GOOGLE' | 'META' | null): string => {
+        if (platform) {
+          const named = campaignNameByExternalId.get(`${platform}:${id}`);
+          if (named) return named;
+        }
+        const named = campaignNameByExternalId.get(id);
+        if (named) return named;
+        return `Campaña #${id}`;
+      };
       const fallbackCampaignFromAutoTag = (): string | undefined => {
-        if ((utms as any).gad_campaignid) return `Campaña #${(utms as any).gad_campaignid}`;
+        if ((utms as any).gad_campaignid) return resolveCampaign(String((utms as any).gad_campaignid), 'GOOGLE');
         if (clicks.msclkid) return `Campaña #${clicks.msclkid.slice(0, 12)}`;
         if (clicks.ttclid) return `Campaña #${clicks.ttclid.slice(0, 12)}`;
         if (clicks.li_fat_id) return `Campaña #${clicks.li_fat_id.slice(0, 12)}`;
