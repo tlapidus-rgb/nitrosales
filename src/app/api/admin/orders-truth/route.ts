@@ -110,8 +110,10 @@ export async function GET(req: NextRequest) {
     // U3: Pixel events PURCHASE
     const purchaseEvents = await prisma.$queryRaw<any[]>`
       SELECT pe.id, pe."visitorId", pe.timestamp, pe."sessionId",
-             pe.payload->>'orderId' as "payloadOrderId",
-             pe.payload->>'value' as "payloadValue"
+             pe.props->>'orderId' as "payloadOrderId",
+             pe.props->>'order_id' as "payloadOrderIdSnake",
+             pe.props->>'externalId' as "payloadExternalId",
+             pe.props->>'value' as "payloadValue"
       FROM pixel_events pe
       WHERE pe."organizationId" = ${orgId}
         AND pe.type = 'PURCHASE'
@@ -138,9 +140,11 @@ export async function GET(req: NextRequest) {
     const orderExternalIdsAll = new Set(
       ordersRaw.map((o) => String(o.externalId || "")).filter(Boolean)
     );
-    const eventsHuerfanos = purchaseEvents.filter(
-      (e) => e.payloadOrderId && !orderExternalIdsAll.has(String(e.payloadOrderId))
-    );
+    const eventsHuerfanos = purchaseEvents.filter((e) => {
+      const candidates = [e.payloadOrderId, e.payloadOrderIdSnake, e.payloadExternalId].filter(Boolean);
+      if (candidates.length === 0) return true; // sin orderId en props
+      return !candidates.some((c) => orderExternalIdsAll.has(String(c)));
+    });
 
     // Eventos PURCHASE duplicados por visitor (mismo visitor disparo PURCHASE varias veces)
     const eventsByVisitor: Record<string, number> = {};
@@ -194,6 +198,8 @@ export async function GET(req: NextRequest) {
         sample_events: purchaseEvents.slice(0, 20).map((e) => ({
           visitorId: e.visitorId,
           payloadOrderId: e.payloadOrderId,
+          payloadOrderIdSnake: e.payloadOrderIdSnake,
+          payloadExternalId: e.payloadExternalId,
           payloadValue: e.payloadValue,
           timestamp: e.timestamp,
           sessionId: e.sessionId,
