@@ -190,13 +190,13 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
           AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
@@ -216,13 +216,13 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
           AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
@@ -247,13 +247,13 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
           AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
@@ -276,13 +276,13 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
           AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
         GROUP BY TO_CHAR("orderDate" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD'), COALESCE("source", 'VTEX')
@@ -314,13 +314,13 @@ export async function GET(request: NextRequest) {
           WHERE "organizationId" = '${ORG_ID}'
             AND "orderDate" >= $1
             AND "orderDate" <= $2
-            AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+            AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
             AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
             AND COALESCE("packId", "externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
                 AND "orderDate" >= $1 AND "orderDate" <= $2
-                AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+                AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
@@ -358,13 +358,13 @@ export async function GET(request: NextRequest) {
           WHERE "organizationId" = '${ORG_ID}'
             AND "orderDate" >= $1
             AND "orderDate" <= $2
-            AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+            AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
             AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
             AND COALESCE("packId", "externalId") NOT IN (
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
                 AND "orderDate" >= $1 AND "orderDate" <= $2
-                AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+                AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
@@ -404,13 +404,13 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
           AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
@@ -472,7 +472,7 @@ export async function GET(request: NextRequest) {
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhere}
@@ -513,7 +513,7 @@ export async function GET(request: NextRequest) {
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhere}
@@ -644,7 +644,7 @@ export async function GET(request: NextRequest) {
         SELECT COUNT(DISTINCT COALESCE("packId", "externalId"))::text AS cnt FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
           ${srcWhereSimple}
       `, dateFrom, dateTo),
 
@@ -660,13 +660,13 @@ export async function GET(request: NextRequest) {
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1
           AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
@@ -692,13 +692,13 @@ export async function GET(request: NextRequest) {
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
@@ -734,13 +734,13 @@ export async function GET(request: NextRequest) {
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
         GROUP BY COALESCE("source", 'VTEX')
@@ -780,7 +780,7 @@ export async function GET(request: NextRequest) {
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
                 AND "orderDate" >= $1 AND "orderDate" <= $2
-                AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+                AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
           AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
@@ -833,7 +833,7 @@ export async function GET(request: NextRequest) {
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
                 AND "orderDate" >= $1 AND "orderDate" <= $2
-                AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+                AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
           AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
@@ -865,13 +865,13 @@ export async function GET(request: NextRequest) {
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
@@ -899,13 +899,13 @@ export async function GET(request: NextRequest) {
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
@@ -938,7 +938,7 @@ export async function GET(request: NextRequest) {
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
                 AND "orderDate" >= $1 AND "orderDate" <= $2
-                AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+                AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
           AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
@@ -968,13 +968,13 @@ export async function GET(request: NextRequest) {
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           ${srcWhereSimple}
@@ -1012,7 +1012,7 @@ export async function GET(request: NextRequest) {
               SELECT COALESCE("packId", "externalId") FROM orders
               WHERE "organizationId" = '${ORG_ID}'
                 AND "orderDate" >= $1 AND "orderDate" <= $2
-                AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+                AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
                 ${srcWhereSimple}
             )
           AND NOT (COALESCE(o."source", 'VTEX') = 'MELI' AND o.status = 'PENDING')
@@ -1040,13 +1040,13 @@ export async function GET(request: NextRequest) {
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           AND "couponCode" IS NOT NULL AND "couponCode" != ''
@@ -1074,13 +1074,13 @@ export async function GET(request: NextRequest) {
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           AND "postalCode" IS NOT NULL AND "postalCode" != ''
@@ -1101,13 +1101,13 @@ export async function GET(request: NextRequest) {
         FROM orders
         WHERE "organizationId" = '${ORG_ID}'
           AND "orderDate" >= $1 AND "orderDate" <= $2
-          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+          AND status NOT IN ('CANCELLED', 'RETURNED', 'PENDING')
           AND NOT (COALESCE("source", 'VTEX') = 'MELI' AND status = 'PENDING')
           AND COALESCE("packId", "externalId") NOT IN (
             SELECT COALESCE("packId", "externalId") FROM orders
             WHERE "organizationId" = '${ORG_ID}'
               AND "orderDate" >= $1 AND "orderDate" <= $2
-              AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+              AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
               ${srcWhereSimple}
           )
           AND "postalCode" IS NOT NULL AND "postalCode" != ''
@@ -1141,7 +1141,7 @@ export async function GET(request: NextRequest) {
           WHERE "organizationId" = '${ORG_ID}'
             AND "orderDate" >= $1 AND "orderDate" <= $2
             AND "source" = 'MELI'
-            AND status IN ('CANCELLED', 'RETURNED', 'PENDING', 'ON_HOLD', 'FAILED')
+            AND status IN ('CANCELLED', 'RETURNED', 'PENDING')
         )
       GROUP BY CASE WHEN ml."catalogListing" = true THEN 'Catálogo' ELSE 'Fuera de catálogo' END
     `, dateFrom, dateTo), [] as any[], "meli-catalog") : [];

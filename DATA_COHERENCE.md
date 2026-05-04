@@ -29,9 +29,15 @@ central. **Esto es inaceptable para una plataforma de data**.
 ### Regla 1 — Una orden es "VÁLIDA" si y sólo si:
 
 ```
-status NOT IN ('CANCELLED', 'PENDING', 'RETURNED', 'ON_HOLD', 'FAILED')
+status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
 AND totalValue > 0
 ```
+
+> Estos son los 3 status del enum `OrderStatus` que indican "no concretada".
+> Los status válidos (concretados) son: `APPROVED`, `INVOICED`, `SHIPPED`, `DELIVERED`.
+> Si en el futuro se agrega un status nuevo al enum (ej: `ON_HOLD`, `FAILED`), hay
+> que clasificarlo en `ORDER_STATUS_CONCRETED` o `ORDER_STATUS_NOT_CONCRETED` en
+> `src/lib/metrics/orders.ts`.
 
 **Justificación**:
 - `CANCELLED` / `RETURNED` → no es venta concretada

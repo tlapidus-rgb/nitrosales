@@ -16,13 +16,16 @@ import { Prisma } from "@prisma/client";
 // Status canonicos
 // ────────────────────────────────────────────────────────────────
 
-/** Status que indican venta concretada (cliente pago, pedido valido, no cancelado). */
+/**
+ * Status que indican venta concretada (cliente pago, pedido valido, no cancelado).
+ *
+ * IMPORTANTE: estos valores DEBEN matchear el enum OrderStatus de prisma/schema.prisma.
+ * Si agregas status nuevos, primero al enum, despues aca.
+ */
 export const ORDER_STATUS_CONCRETED = [
   "APPROVED",
   "INVOICED",
   "SHIPPED",
-  "PAID",
-  "COMPLETED",
   "DELIVERED",
 ] as const;
 
@@ -31,8 +34,6 @@ export const ORDER_STATUS_NOT_CONCRETED = [
   "CANCELLED",
   "PENDING",
   "RETURNED",
-  "ON_HOLD",
-  "FAILED",
 ] as const;
 
 // ────────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ export const ORDER_STATUS_NOT_CONCRETED = [
 export function ordersValidWhere(aliasOrders: string = "o") {
   const a = Prisma.raw(`"${aliasOrders}"`);
   return Prisma.sql`
-    ${a}.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED', 'ON_HOLD', 'FAILED')
+    ${a}.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
     AND ${a}."totalValue" > 0
   `;
 }

@@ -784,7 +784,7 @@ export async function GET(request: NextRequest) {
             AND pa.model::text = ${selectedModel}
             AND o."orderDate" >= ${dateFrom}
             AND o."orderDate" <= ${dateTo}
-            AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED', 'ON_HOLD', 'FAILED')
+            AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED')
             AND o."totalValue" > 0
             AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
             AND o.source IS DISTINCT FROM 'MELI'
