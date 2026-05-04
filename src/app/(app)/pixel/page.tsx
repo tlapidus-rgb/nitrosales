@@ -425,6 +425,7 @@ export default function PixelPage() {
   const [journeyMinTouchpoints, setJourneyMinTouchpoints] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
+  const [drillChannel, setDrillChannel] = useState<string | null>(null);
   // Debounced refetching state — minimum 800ms to avoid flash/glitch
   const [showRefetching, setShowRefetching] = useState(false);
   const refetchTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -729,6 +730,7 @@ export default function PixelPage() {
                     }}
                     onMouseEnter={() => setHoveredChannel(ch.source)}
                     onMouseLeave={() => setHoveredChannel(null)}
+                    onClick={() => setDrillChannel(ch.source)}
                   >
                     {/* Channel logo */}
                     <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.25)" }}>
@@ -1134,6 +1136,7 @@ export default function PixelPage() {
         {/* ════════════════════════════════════════════════════════ */}
         {/* BLOQUE 4 — Live Orders with Journey Dots + Filtros      */}
         {/* ════════════════════════════════════════════════════════ */}
+        <div data-section="live-orders" />
         {(() => {
           // Canales presentes en las journeys, CANONICALIZADOS (chips unicos sin duplicados)
           const channelCounts: Record<string, number> = {};
@@ -1475,6 +1478,170 @@ export default function PixelPage() {
         {/* Bottom spacer */}
         <div className="h-8" />
       </div>
+
+      {/* ── Drill-down de canal (Fase 3.2) ── */}
+      {drillChannel && (() => {
+        const drillCanonical = canonicalSource(drillChannel);
+        const info = getSourceInfo(drillChannel);
+        const ch = channels.find(c => canonicalSource(c.source) === drillCanonical);
+        if (!ch) return null;
+
+        // Journeys que pasaron por este canal
+        const channelJourneys = journeys.filter(j =>
+          (j.touchpoints || []).some(tp => canonicalSource(tp.source || "direct") === drillCanonical)
+        );
+
+        // Top campañas (touchpoints de este canal con campaign)
+        const campaignMap = new Map<string, { campaign: string; touchpoints: number; orders: number; revenue: number }>();
+        for (const j of channelJourneys) {
+          const matchedTps = (j.touchpoints || []).filter(tp => canonicalSource(tp.source || "direct") === drillCanonical);
+          for (const tp of matchedTps) {
+            const camp = (tp as any).campaign || "(sin campaña)";
+            const cur = campaignMap.get(camp) || { campaign: camp, touchpoints: 0, orders: 0, revenue: 0 };
+            cur.touchpoints += 1;
+            campaignMap.set(camp, cur);
+          }
+          // 1 orden cuenta una vez por campaña matcheada
+          const uniqueCampaignsInJourney = new Set(matchedTps.map(tp => (tp as any).campaign || "(sin campaña)"));
+          for (const camp of uniqueCampaignsInJourney) {
+            const cur = campaignMap.get(camp);
+            if (cur) {
+              cur.orders += 1;
+              cur.revenue += j.revenue / uniqueCampaignsInJourney.size;
+            }
+          }
+        }
+        const topCampaigns = Array.from(campaignMap.values())
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 6);
+
+        // Métricas focused
+        const channelOrders = channelJourneys.length;
+        const channelRevenue = ch.pixelRevenue;
+        const aov = channelOrders > 0 ? channelRevenue / channelOrders : 0;
+        const cpa = channelOrders > 0 && ch.spend > 0 ? ch.spend / channelOrders : 0;
+        // Lag promedio (días) de las journeys de este canal
+        const lags = channelJourneys.map(j => j.conversionLag || 0).filter(l => l > 0);
+        const avgLag = lags.length > 0 ? lags.reduce((s, l) => s + l, 0) / lags.length : 0;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ animation: "attrFadeUp 0.3s ease both" }}>
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDrillChannel(null)} />
+            <div className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl" style={{ background: "rgba(8,12,24,0.98)", border: `1px solid ${info.color}40`, boxShadow: `0 20px 60px rgba(0,0,0,0.6), 0 0 40px ${info.color}20` }}>
+              {/* Header */}
+              <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b" style={{ borderColor: `${info.color}25`, background: "rgba(8,12,24,0.98)", backdropFilter: "blur(8px)" }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${info.color}25`, boxShadow: `0 0 20px ${info.color}30` }}>
+                    <ChannelLogo source={drillChannel} size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white">{info.label}</h2>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-white/40">Detalle del canal</p>
+                  </div>
+                </div>
+                <button onClick={() => setDrillChannel(null)} className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all" title="Cerrar">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              {/* Métricas focused */}
+              <div className="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: "Revenue Atribuido", value: fmtCompact(channelRevenue), color: info.color },
+                  { label: "Órdenes", value: fmt(channelOrders), color: "#06b6d4" },
+                  { label: "AOV", value: fmtCompact(Math.round(aov)), color: "#8b5cf6" },
+                  { label: "Inversión", value: ch.spend > 0 ? fmtCompact(ch.spend) : "—", color: "#f97316" },
+                  { label: "ROAS Pixel", value: ch.pixelRoas > 0 ? `${ch.pixelRoas.toFixed(1)}x` : "—", color: "#10b981" },
+                  { label: "CPA", value: cpa > 0 ? fmtCompact(Math.round(cpa)) : "—", color: "#ec4899" },
+                  { label: "Lag promedio", value: avgLag > 0 ? `${avgLag.toFixed(1)}d` : "—", color: "#fbbf24" },
+                  { label: "ROAS Plataforma", value: ch.platformRoas > 0 ? `${ch.platformRoas.toFixed(1)}x` : "—", color: "#94a3b8" },
+                ].map((kpi, i) => (
+                  <div key={i} className="rounded-xl p-3" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-white/30 mb-1">{kpi.label}</p>
+                    <p className="text-lg font-bold tabular-nums" style={{ color: kpi.color }}>{kpi.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Top campañas */}
+              {topCampaigns.length > 0 && (
+                <div className="px-5 pb-5">
+                  <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-3">Top campañas</h3>
+                  <div className="space-y-1.5">
+                    {topCampaigns.map((c, i) => {
+                      const maxRev = Math.max(...topCampaigns.map(x => x.revenue), 1);
+                      const widthPct = (c.revenue / maxRev) * 100;
+                      return (
+                        <div key={i} className="rounded-lg p-2.5" style={{ background: "rgba(15,23,42,0.5)" }}>
+                          <div className="flex items-center justify-between gap-3 mb-1">
+                            <span className="text-xs text-white/80 font-mono truncate flex-1">{c.campaign}</span>
+                            <span className="text-xs font-bold tabular-nums" style={{ color: info.color }}>{fmtCompact(Math.round(c.revenue))}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                              <div className="h-full transition-all" style={{ width: `${widthPct}%`, background: info.color }} />
+                            </div>
+                            <span className="text-[10px] text-white/30 font-mono whitespace-nowrap">{c.orders} ord · {c.touchpoints} toques</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Journeys recientes del canal */}
+              {channelJourneys.length > 0 && (
+                <div className="px-5 pb-5">
+                  <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-3">Últimas órdenes con {info.label}</h3>
+                  <div className="space-y-1.5">
+                    {channelJourneys.slice(0, 8).map(j => (
+                      <div key={j.orderId} className="flex items-center gap-3 rounded-lg p-2.5" style={{ background: "rgba(15,23,42,0.5)" }}>
+                        <span className="text-sm font-bold text-white tabular-nums w-20">{fmtCompact(j.revenue)}</span>
+                        <div className="flex-1 flex items-center gap-1 min-w-0 overflow-hidden">
+                          {(j.touchpoints || []).slice(0, 8).map((tp, ti) => {
+                            const tpInfo = getSourceInfo(tp.source || "direct");
+                            return (
+                              <div key={ti} className="flex items-center flex-shrink-0">
+                                {ti > 0 && <div className="w-2 h-px" style={{ background: "rgba(255,255,255,0.1)" }} />}
+                                <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: `${tpInfo.color}25`, border: `1px solid ${tpInfo.color}50` }}>
+                                  <ChannelLogo source={tp.source} size={10} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <span className="text-[10px] text-white/30 font-mono whitespace-nowrap">{j.touchpointCount}t · {j.conversionLag || 0}d</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Footer con CTA */}
+              <div className="sticky bottom-0 p-4 border-t flex items-center justify-between" style={{ borderColor: `${info.color}15`, background: "rgba(8,12,24,0.98)", backdropFilter: "blur(8px)" }}>
+                <p className="text-[10px] text-white/30">
+                  Datos del rango actual · Click fuera o ✕ para cerrar
+                </p>
+                <button
+                  onClick={() => {
+                    setJourneyChannelFilter([drillCanonical]);
+                    setDrillChannel(null);
+                    // Scroll a las Live Orders
+                    setTimeout(() => {
+                      document.querySelector('[data-section="live-orders"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all"
+                  style={{ background: `${info.color}25`, border: `1px solid ${info.color}50`, color: info.color }}
+                >
+                  Filtrar Live Orders por {info.label} →
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Command palette (Cmd+K) ── */}
       {paletteOpen && (
