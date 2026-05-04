@@ -129,12 +129,24 @@ function ChannelLogo({ source, size = 14 }: { source?: string; size?: number }) 
 
 // Canonicaliza un source para que aliases del mismo canal queden agrupados.
 // Mantener en sync con la canonicalizacion del backend (CTE visitor_first_source).
-function canonicalSource(source: string): string {
+//
+// medium opcional: si es organic/social/referral y el source es un buscador
+// (google/bing/yahoo/duckduckgo), separa como '${source}_organic' para NO
+// mezclar trafico paid con organico (ej: Google Shopping Free Listings con
+// srsltid son organic, no Google Ads paid con gclid).
+function canonicalSource(source: string, medium?: string | null): string {
   const lower = (source || "direct").toLowerCase().trim();
-  if (["adwords", "google_ads", "google-ads", "googleads"].includes(lower)) return "google";
-  if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads", "fb"].includes(lower)) return "meta";
-  if (["ig", "instagram_ads", "instagram-ads"].includes(lower)) return "instagram";
-  return lower;
+  let canonical = lower;
+  if (["adwords", "google_ads", "google-ads", "googleads"].includes(lower)) canonical = "google";
+  else if (["meta_ads", "meta-ads", "metaads", "fb_ads", "fb-ads", "fbads", "facebook_ads", "facebook-ads", "fb"].includes(lower)) canonical = "meta";
+  else if (["ig", "instagram_ads", "instagram-ads"].includes(lower)) canonical = "instagram";
+
+  // Organic-merge: replica el comportamiento del backend (query #9, #20).
+  const med = (medium || "").toLowerCase().trim();
+  if (["organic", "social", "referral"].includes(med) && ["google", "bing", "yahoo", "duckduckgo"].includes(canonical)) {
+    return `${canonical}_organic`;
+  }
+  return canonical;
 }
 
 function getSourceInfo(source: string) {
@@ -1138,11 +1150,12 @@ export default function PixelPage() {
         {/* ════════════════════════════════════════════════════════ */}
         <div data-section="live-orders" />
         {(() => {
-          // Canales presentes en las journeys, CANONICALIZADOS (chips unicos sin duplicados)
+          // Canales presentes en las journeys, CANONICALIZADOS con medium para
+          // separar paid de organico (google paid vs google_organic con srsltid).
           const channelCounts: Record<string, number> = {};
           for (const j of journeys) {
             for (const tp of (j.touchpoints || [])) {
-              const s = canonicalSource(tp.source || "direct");
+              const s = canonicalSource(tp.source || "direct", (tp as any).medium);
               channelCounts[s] = (channelCounts[s] || 0) + 1;
             }
           }
@@ -1158,7 +1171,7 @@ export default function PixelPage() {
             if (journeyMinValue > 0 && j.revenue < journeyMinValue) return false;
             if (journeyMinTouchpoints > 0 && (j.touchpointCount || 0) < journeyMinTouchpoints) return false;
             if (journeyChannelFilter.length > 0) {
-              const journeyChannels = new Set((j.touchpoints || []).map(tp => canonicalSource(tp.source || "direct")));
+              const journeyChannels = new Set((j.touchpoints || []).map(tp => canonicalSource(tp.source || "direct", (tp as any).medium)));
               const filterCanonical = journeyChannelFilter.map(c => canonicalSource(c));
               const allMatch = filterCanonical.every(ch => journeyChannels.has(ch));
               if (!allMatch) return false;
@@ -1481,20 +1494,23 @@ export default function PixelPage() {
 
       {/* ── Drill-down de canal (Fase 3.2) ── */}
       {drillChannel && (() => {
+        // drillChannel viene del Hero (channels.source del backend) que ya
+        // tiene organic-merge aplicado: 'google' (paid) vs 'google_organic'.
         const drillCanonical = canonicalSource(drillChannel);
         const info = getSourceInfo(drillChannel);
         const ch = channels.find(c => canonicalSource(c.source) === drillCanonical);
         if (!ch) return null;
 
-        // Journeys que pasaron por este canal
+        // Journeys que pasaron por este canal — ahora con medium para
+        // separar paid de organico correctamente.
         const channelJourneys = journeys.filter(j =>
-          (j.touchpoints || []).some(tp => canonicalSource(tp.source || "direct") === drillCanonical)
+          (j.touchpoints || []).some(tp => canonicalSource(tp.source || "direct", (tp as any).medium) === drillCanonical)
         );
 
         // Top campañas (touchpoints de este canal con campaign)
         const campaignMap = new Map<string, { campaign: string; touchpoints: number; orders: number; revenue: number }>();
         for (const j of channelJourneys) {
-          const matchedTps = (j.touchpoints || []).filter(tp => canonicalSource(tp.source || "direct") === drillCanonical);
+          const matchedTps = (j.touchpoints || []).filter(tp => canonicalSource(tp.source || "direct", (tp as any).medium) === drillCanonical);
           for (const tp of matchedTps) {
             const camp = (tp as any).campaign || "(sin campaña)";
             const cur = campaignMap.get(camp) || { campaign: camp, touchpoints: 0, orders: 0, revenue: 0 };
@@ -1547,17 +1563,20 @@ export default function PixelPage() {
               {/* Métricas focused */}
               <div className="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: "Revenue Atribuido", value: fmtCompact(channelRevenue), color: info.color },
-                  { label: "Órdenes", value: fmt(channelOrders), color: "#06b6d4" },
-                  { label: "AOV", value: fmtCompact(Math.round(aov)), color: "#8b5cf6" },
-                  { label: "Inversión", value: ch.spend > 0 ? fmtCompact(ch.spend) : "—", color: "#f97316" },
-                  { label: "ROAS Pixel", value: ch.pixelRoas > 0 ? `${ch.pixelRoas.toFixed(1)}x` : "—", color: "#10b981" },
-                  { label: "CPA", value: cpa > 0 ? fmtCompact(Math.round(cpa)) : "—", color: "#ec4899" },
-                  { label: "Lag promedio", value: avgLag > 0 ? `${avgLag.toFixed(1)}d` : "—", color: "#fbbf24" },
-                  { label: "ROAS Plataforma", value: ch.platformRoas > 0 ? `${ch.platformRoas.toFixed(1)}x` : "—", color: "#94a3b8" },
+                  { label: "Revenue Atribuido", value: fmtCompact(channelRevenue), color: info.color, tip: `Plata generada por las órdenes que ${info.label} ayudó a cerrar (según el modelo de atribución activo). En este canal específicamente.` },
+                  { label: "Órdenes", value: fmt(channelOrders), color: "#06b6d4", tip: `Cantidad de órdenes en el rango actual donde ${info.label} aparece como uno de los touchpoints del recorrido del cliente.` },
+                  { label: "AOV", value: fmtCompact(Math.round(aov)), color: "#8b5cf6", tip: "Average Order Value — ticket promedio de las órdenes de este canal. Revenue dividido órdenes. Útil para saber si el canal trae compras grandes o chicas." },
+                  { label: "Inversión", value: ch.spend > 0 ? fmtCompact(ch.spend) : "—", color: "#f97316", tip: "Plata invertida en este canal en el período. Para canales pagos (Meta/Google/etc) viene de la integración con la plataforma. Para canales orgánicos es 0." },
+                  { label: "ROAS Pixel", value: ch.pixelRoas > 0 ? `${ch.pixelRoas.toFixed(1)}x` : "—", color: "#10b981", tip: "Return On Ad Spend según NitroPixel. Revenue Atribuido ÷ Inversión. 3.5x = ganaste $3.5 por cada $1 invertido. Es la verdad real, no la inflada que reportan las plataformas." },
+                  { label: "CPA", value: cpa > 0 ? fmtCompact(Math.round(cpa)) : "—", color: "#ec4899", tip: "Cost Per Acquisition — cuánto te cuesta cada orden de este canal. Inversión ÷ Órdenes. Usalo para comparar eficiencia entre canales pagos." },
+                  { label: "Lag promedio", value: avgLag > 0 ? `${avgLag.toFixed(1)}d` : "—", color: "#fbbf24", tip: `Días promedio entre el PRIMER click del cliente en ${info.label} y la compra. Un lag de 7d significa que en promedio los clientes de este canal tardan una semana en cerrar la venta. Útil para: (1) ajustar la ventana de atribución (si los clientes tardan 14d no tiene sentido ventana de 7d), (2) entender canales rápidos vs lentos (Email suele ser rápido, Meta más lento).` },
+                  { label: "ROAS Plataforma", value: ch.platformRoas > 0 ? `${ch.platformRoas.toFixed(1)}x` : "—", color: "#94a3b8", tip: "ROAS que reporta la plataforma misma (Meta Ads / Google Ads). Tipicamente más alto que el ROAS Pixel porque cada plataforma se atribuye el crédito completo (last-click), generando double-counting con otros canales." },
                 ].map((kpi, i) => (
                   <div key={i} className="rounded-xl p-3" style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-white/30 mb-1">{kpi.label}</p>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-white/30">{kpi.label}</p>
+                      <DarkTip text={kpi.tip} />
+                    </div>
                     <p className="text-lg font-bold tabular-nums" style={{ color: kpi.color }}>{kpi.value}</p>
                   </div>
                 ))}
