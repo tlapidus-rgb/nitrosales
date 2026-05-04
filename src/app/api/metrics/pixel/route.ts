@@ -774,11 +774,12 @@ export async function GET(request: NextRequest) {
           ORDER BY "visitorId", timestamp ASC
         ),
         visitor_to_orders AS (
-          -- Match visitor (cookie UUID) → pixel_visitor.id (cuid) → pixel_attributions → orders
-          SELECT DISTINCT pv."visitorId" as cookie_visitor_id, o.id as order_id
+          -- pe.visitorId y pa.visitorId apuntan AMBOS a pv.id (cuid Prisma) por
+          -- la relacion @relation(references: [id]). NO hace falta JOIN a
+          -- pixel_visitors. Match directo pa.visitorId = pe.visitorId.
+          SELECT DISTINCT pa."visitorId" as pv_id, o.id as order_id
           FROM orders o
           JOIN pixel_attributions pa ON pa."orderId" = o.id
-          JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
           WHERE pa."organizationId" = ${ORG_ID}
             AND pa.model::text = ${selectedModel}
             AND o."orderDate" >= ${dateFrom}
@@ -797,7 +798,7 @@ export async function GET(request: NextRequest) {
           COUNT(DISTINCT vto.order_id)::int as purchases
         FROM pixel_events pe
         INNER JOIN visitor_first_source vfs ON vfs."visitorId" = pe."visitorId"
-        LEFT JOIN visitor_to_orders vto ON vto.cookie_visitor_id = pe."visitorId"
+        LEFT JOIN visitor_to_orders vto ON vto.pv_id = pe."visitorId"
         WHERE pe."organizationId" = ${ORG_ID}
           AND pe.timestamp >= ${dateFrom}
           AND pe.timestamp <= ${dateTo}
