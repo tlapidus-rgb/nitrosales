@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { ordersValidWebWhere } from "@/lib/metrics/orders";
 
 export const dynamic = "force-dynamic";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -34,6 +35,43 @@ export async function GET(req: NextRequest) {
       : new Date(now.getTime() - 7 * MS_PER_DAY);
 
     let funnelRow: { pageView: number; viewProduct: number; addToCart: number; checkoutStart: number; purchase: number };
+
+    // PURCHASE step: usamos ordenes web REALES en el rango (single source of truth
+    // via lib/metrics/orders.ts). Si channel esta seteado, intersectamos con
+    // visitors que tuvieron un evento PURCHASE matcheado (via attribution).
+    let purchaseCount: number;
+    if (channel) {
+      // Channel filter: contar ordenes web validas que tienen al menos 1
+      // pixel_attribution con touchpoints.source que matchee al canal.
+      // (canonicalSource hace el matching de aliases)
+      const rows = await prisma.$queryRaw<Array<{ purchase: number }>>`
+        SELECT COUNT(DISTINCT o.id)::int as purchase
+        FROM orders o
+        JOIN pixel_attributions pa ON pa."orderId" = o.id
+        WHERE pa."organizationId" = ${orgId}
+          AND pa.model::text = 'NITRO'
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND ${ordersValidWebWhere("o")}
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements(pa.touchpoints::jsonb) AS tp
+            WHERE LOWER(COALESCE(tp->>'source', 'direct')) = ${channel}
+               OR (LOWER(COALESCE(tp->>'source', 'direct')) IN ('adwords', 'google_ads', 'google-ads', 'googleads') AND ${channel} = 'google')
+               OR (LOWER(COALESCE(tp->>'source', 'direct')) IN ('meta_ads', 'meta-ads', 'metaads', 'fb_ads', 'fb-ads', 'fbads', 'facebook_ads', 'facebook-ads') AND ${channel} = 'meta')
+          )
+      `;
+      purchaseCount = rows[0]?.purchase || 0;
+    } else {
+      const rows = await prisma.$queryRaw<Array<{ purchase: number }>>`
+        SELECT COUNT(*)::int as purchase
+        FROM orders o
+        WHERE o."organizationId" = ${orgId}
+          AND o."orderDate" >= ${dateFrom}
+          AND o."orderDate" <= ${dateTo}
+          AND ${ordersValidWebWhere("o")}
+      `;
+      purchaseCount = rows[0]?.purchase || 0;
+    }
 
     if (channel) {
       // Con filtro: usar CTE para calcular first_source de cada visitor en el rango,
@@ -119,7 +157,9 @@ export async function GET(req: NextRequest) {
         viewProduct: funnelRow.viewProduct || 0,
         addToCart: funnelRow.addToCart || 0,
         checkoutStart: funnelRow.checkoutStart || 0,
-        purchase: funnelRow.purchase || 0,
+        // S60 EXT-2 BIS+++++++: purchase = ordenes web REALES (no eventos pixel
+        // distinct visitors). Single source of truth via lib/metrics/orders.ts.
+        purchase: purchaseCount,
       },
     });
   } catch (e: any) {

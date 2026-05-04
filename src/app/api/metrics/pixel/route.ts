@@ -729,10 +729,13 @@ export async function GET(request: NextRequest) {
         ORDER BY "firstTouch" DESC
       ` as Promise<Array<{ source: string; firstTouch: number; assistTouch: number; lastTouch: number; soloTouch: number }>>,
 
-      // 23. Visitors + Purchases per source — UNIFICADO con el endpoint /api/metrics/pixel/funnel (S60 EXT-2)
-      // Decision producto: TODA la plataforma usa first-touch como definicion de canal.
-      // Mismo CTE visitor_first_source que el funnel para garantizar coincidencia de numeros.
-      // Cuenta: visitor unique con PAGE_VIEW (visitors) y con PURCHASE (purchases) cuyo first-touch fue X.
+      // 23. Visitors + Purchases per source — S60 EXT-2 BIS+++++++ FIX:
+      // ANTES: purchases = distinct visitors con event PURCHASE → contaba eventos
+      //        huerfanos (sin orden real) y duplicados → daba mas que las ordenes reales.
+      // AHORA: purchases = ORDENES web validas atribuidas via pixel_attributions
+      //        cuyo visitor tuvo first_touch = source. Single source of truth via
+      //        ordersValidWebWhere() de lib/metrics/orders.ts.
+      // Visitors sigue siendo distinct visitor con PAGE_VIEW (definicion de "trafico").
       prisma.$queryRaw`
         WITH visitor_first_source AS (
           SELECT DISTINCT ON ("visitorId")
@@ -769,13 +772,32 @@ export async function GET(request: NextRequest) {
             AND timestamp <= ${dateTo}
             AND ("sessionId" IS NULL OR "sessionId" NOT LIKE 'webhook-%')
           ORDER BY "visitorId", timestamp ASC
+        ),
+        visitor_to_orders AS (
+          -- Match visitor (cookie UUID) → pixel_visitor.id (cuid) → pixel_attributions → orders
+          SELECT DISTINCT pv."visitorId" as cookie_visitor_id, o.id as order_id
+          FROM orders o
+          JOIN pixel_attributions pa ON pa."orderId" = o.id
+          JOIN pixel_visitors pv ON pv.id = pa."visitorId" AND pv."organizationId" = pa."organizationId"
+          WHERE pa."organizationId" = ${ORG_ID}
+            AND pa.model::text = ${selectedModel}
+            AND o."orderDate" >= ${dateFrom}
+            AND o."orderDate" <= ${dateTo}
+            AND o.status NOT IN ('CANCELLED', 'PENDING', 'RETURNED', 'ON_HOLD', 'FAILED')
+            AND o."totalValue" > 0
+            AND o."trafficSource" IS DISTINCT FROM 'Marketplace'
+            AND o.source IS DISTINCT FROM 'MELI'
+            AND o.channel IS DISTINCT FROM 'marketplace'
+            AND o."externalId" NOT LIKE 'FVG-%'
+            AND o."externalId" NOT LIKE 'BPR-%'
         )
         SELECT
           vfs.first_source as source,
           COUNT(DISTINCT pe."visitorId") FILTER (WHERE pe.type = 'PAGE_VIEW')::int as visitors,
-          COUNT(DISTINCT pe."visitorId") FILTER (WHERE pe.type = 'PURCHASE')::int as purchases
+          COUNT(DISTINCT vto.order_id)::int as purchases
         FROM pixel_events pe
         INNER JOIN visitor_first_source vfs ON vfs."visitorId" = pe."visitorId"
+        LEFT JOIN visitor_to_orders vto ON vto.cookie_visitor_id = pe."visitorId"
         WHERE pe."organizationId" = ${ORG_ID}
           AND pe.timestamp >= ${dateFrom}
           AND pe.timestamp <= ${dateTo}
