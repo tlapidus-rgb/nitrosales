@@ -3,7 +3,75 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-04 (Sesion 60 EXT-2 BIS++++++ — Refactor /pixel Atribucion Fases 2 + 3 + Google paid vs organico + auto-tag parser. 8 deploys mayores: (1) Fase 2 comparacion modelos con barras segmentadas por canal (no totales planos identicos); (2) Fase 3.1 filtros multiselect en Live Orders con AND semantics + canonicalizacion en chips; (3) fix journey dots y getSourceInfo aplican canonicalSource a aliases; (4) Fase 3.2 drill-down al click de canal del Hero (modal con metrics + top campaigns + journeys); (5) endpoint debug-touchpoint-campaigns; (6) separar Google Ads paid vs Google Organico via canonicalSource(source, medium) + tips por KPI; (7) parser auto-tag (gad_*, msclkid, ttclid, li_fat_id, srsltid) en pixel script + attribution.ts + endpoint reextract-touchpoint-campaigns one-shot multitenant; (8) cruce gad_campaignid con ad_campaigns para mostrar nombre real de la campaña — 11.660 touchpoints upgraded en EMDJ. Pendientes intactos.)
+## Ultima actualizacion: 2026-05-04 tarde (Sesion 60 EXT-2 BIS+++++++ — Single Source of Truth para "ordenes". Tomy reporto 12 vs 14 vs 16 para la misma metrica en /pixel/analytics filtrado por "Ayer". Fix multitenant: nuevo helper `src/lib/metrics/orders.ts` con SQL fragments canonicos + refactor de /api/metrics/pixel/funnel (step "Compra" ahora es ordenes reales no eventos), query #23 byChannel (purchases ahora son ordenes atribuidas no distinct visitors con event), /api/metrics/orders (excluye PENDING, ON_HOLD, FAILED ademas de CANCELLED, RETURNED — 24 ocurrencias). Endpoint `/api/admin/orders-truth` para auditar las 3 tablas (orders, pixel_attributions, pixel_events) y detectar inconsistencias futuras. Documento `DATA_COHERENCE.md` con el contrato canonico. Numero real ayer en TVC = 12 ordenes web validas, 100% atribuidas. Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS+++++++ (2026-05-04 tarde) — Single Source of Truth para "ordenes"
+
+**Contexto**: Tomy reporto en /pixel/analytics filtrado por "Ayer" 4 lugares con 3 numeros distintos para la misma metrica (12, 14, 16). Es un bug grave en plataforma de data. Tomy enfatizo: "no me preguntes el numero, averigua bien cual es el real y por que da distinto". Pidio establecer una logica de coherencia que aplique a TODA la plataforma.
+
+**Diagnostico real (TVC, 3 mayo 2026, via /api/admin/orders-truth)**:
+- 66 ordenes totales en DB → 64 validas → **12 web validas**
+- 12 atribuidas con NITRO model → 100% cobertura web
+- 13 VTEX APPROVED total (12 web + 1 marketplace VTEX)
+- 14 que veia Tomy en /pedidos VTEX = 13 APPROVED + 1 PENDING (bug: query no excluia PENDING)
+- 16 que veia en Funnel/byChannel = 12 web + 1 visitor que disparo PURCHASE 2 veces para misma orden + 3 events huerfanos (orderId no matchea ninguna orden real)
+
+**Numero canonico**: 12 ordenes web validas.
+
+#### Cambios implementados
+
+1. **Endpoint diagnostico `/api/admin/orders-truth`** (commits `a0c7c72`, `0b28524`)
+   - Cruza 3 universos: orders / pixel_attributions / pixel_events PURCHASE
+   - Devuelve breakdown por (source, status), web vs marketplace, atribuidas vs no, eventos duplicados, eventos huerfanos
+   - Es la herramienta para auditar coherencia en cualquier momento
+
+2. **Helper canonico `src/lib/metrics/orders.ts`** (commit `058176a`)
+   - Constants: ORDER_STATUS_CONCRETED, ORDER_STATUS_NOT_CONCRETED
+   - SQL fragments: `ordersValidWhere(alias)`, `ordersWebWhere(alias)`, `ordersValidWebWhere(alias)`
+   - Helpers JS: `isOrderConcreted`, `isOrderWeb`, `isOrderValidWeb`
+   - Constante `ORDER_DATE_FIELD = "orderDate"` (jamas createdAt)
+
+3. **Refactor `/api/metrics/pixel/funnel`** (commit `058176a`)
+   - Antes: step "Compra" = `COUNT(DISTINCT visitorId) FILTER (type='PURCHASE')` → contaba 16 (con duplicados y huerfanos)
+   - Ahora: step "Compra" = `COUNT(*)` de orders web validas en el rango (con/sin filtro canal via pixel_attributions)
+
+4. **Refactor `/api/metrics/pixel` query #23 byChannel** (commit `058176a`)
+   - Antes: `purchases` = distinct visitors con event PURCHASE en CTE first_source
+   - Ahora: `purchases` = orders web validas atribuidas (CTE `visitor_to_orders` que matchea cookie_visitor_id → pv.id → pa.orderId con filtros canonicos)
+
+5. **Refactor `/api/metrics/orders`** (commit `058176a`)
+   - Antes: `status NOT IN ('CANCELLED', 'RETURNED')` → incluia PENDING → 14 en TVC
+   - Ahora: `status NOT IN ('CANCELLED', 'PENDING', 'RETURNED', 'ON_HOLD', 'FAILED')` → 13 en TVC
+
+6. **Documento `DATA_COHERENCE.md`** — contrato canonico de 6 reglas + mapping de metricas a helpers + qué NO debe pasar + backlog de migracion + historial de incidentes.
+
+#### Patrones criticos S60 EXT-2 BIS+++++++
+
+1. **Single Source of Truth para metricas core**: queries SQL duplicadas con filtros ad-hoc son la causa #1 de inconsistencias en plataformas de data. PROHIBIDO copiar-pegar `WHERE status NOT IN ...`.
+
+2. **El happy path de un funnel debe cerrarse con la realidad de negocio**: steps superiores (visits, vio producto, carrito) son visitors. El ultimo step (compra) DEBE ser ordenes reales matcheadas, no eventos.
+
+3. **PENDING NO es venta concretada**: cliente eligio metodo offline pero no pago. Si paga, pasa a APPROVED. PENDING en metricas agregadas infla ordenes y revenue.
+
+4. **Eventos huerfanos del pixel son inevitables**: NUNCA contar distinct visitors con event = "ventas" sin verificar que la orden existe. JOIN con orders obligatorio.
+
+5. **Endpoint de auditoria como tool permanente**: `/api/admin/orders-truth` es la herramienta de diagnostico para cualquier reporte futuro de "los numeros no cuadran".
+
+6. **El cliente confia en los numeros mas que en las features**: Tomy fue claro: "Somos una plataforma de data, es gravisimo fallar aca". Coherencia > velocidad.
+
+7. **No asumir el numero correcto — averiguarlo**: cuando hay 3 numeros distintos, no preguntar al usuario cual quiere. Mi trabajo es averiguar cual es el real con datos, no opiniones.
+
+#### Commits S60 EXT-2 BIS+++++++
+
+| Hash | Tipo | Descripcion |
+|---|---|---|
+| `a0c7c72` | debug | endpoint orders-truth (3 universos) |
+| `0b28524` | fix | orders-truth pixel_events usa props no payload |
+| `058176a` | fix | single source of truth + 4 endpoints refactoreados |
+
+---
+
+## Ultima actualizacion previa: 2026-05-04 (Sesion 60 EXT-2 BIS++++++ — Refactor /pixel Atribucion Fases 2 + 3 + Google paid vs organico + auto-tag parser. 8 deploys mayores: (1) Fase 2 comparacion modelos con barras segmentadas por canal (no totales planos identicos); (2) Fase 3.1 filtros multiselect en Live Orders con AND semantics + canonicalizacion en chips; (3) fix journey dots y getSourceInfo aplican canonicalSource a aliases; (4) Fase 3.2 drill-down al click de canal del Hero (modal con metrics + top campaigns + journeys); (5) endpoint debug-touchpoint-campaigns; (6) separar Google Ads paid vs Google Organico via canonicalSource(source, medium) + tips por KPI; (7) parser auto-tag (gad_*, msclkid, ttclid, li_fat_id, srsltid) en pixel script + attribution.ts + endpoint reextract-touchpoint-campaigns one-shot multitenant; (8) cruce gad_campaignid con ad_campaigns para mostrar nombre real de la campaña — 11.660 touchpoints upgraded en EMDJ. Pendientes intactos.)
 
 ## Ultima actualizacion: 2026-05-02 madrugada+++++ (Sesion 60 EXT-2 BIS+++++ — Refactor /pixel Atribucion Fase 1. 5 cambios: (1) Fase 1 completa de claridad: borrar mini editor pesos legacy en B5 + chip read-only que linkea a /pixel/configuracion, B2 Truth Gap como seccion colapsable con teaser de canales que inflan, tooltips DarkTip explicativos en 5 KPIs + Truth Gap + "% inflado", CTA en Click ID coverage cuando <50%; (2) paleta de colores unicos por canal en Hero Bar (antes 5 canales caian al fallback gris) + tono distinto Facebook vs Meta + email vs email-marketing; (3) endpoint debug-channel-sources que lista los `source` literales en pa.touchpoints; (4) fix LOWER en queries que agrupan por source — ADWORDS y adwords ahora colapsan a una sola fila; (5) Tomy confirma logo Facebook con F clasica. Pendientes intactos.)
 

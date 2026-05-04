@@ -4,7 +4,95 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-05-04 — Sesión 60 EXT-2 BIS++++++ (3 errores nuevos: pixel que solo lee utm_* y deja sin atribucion los clicks con auto-tagging, comparacion de modelos que muestra totales identicos sin segmentar por canal, filtros multiselect con OR cuando el usuario espera AND).**
+> **Última actualización: 2026-05-04 tarde — Sesión 60 EXT-2 BIS+++++++ (3 errores nuevos: queries SQL duplicadas con filtros ad-hoc como causa de inconsistencia 12/14/16, funnel que cuenta eventos pixel en vez de ordenes reales, asumir/preguntar al usuario cuando hay que investigar y resolver con datos).**
+
+---
+
+## Error #S60-EXT2BIS7X-FILTROS-SQL-DUPLICADOS-AD-HOC — 4 lugares mostrando 3 numeros distintos para la misma metrica
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+++++++. Tomy filtro "Ayer" en `/pixel/analytics` y vio:
+- KPI "Ordenes Atribuidas" = 12
+- Funnel "Compra" = 16
+- Tabla "Conversion por Canal" sumaba 16
+- `/pedidos` filtrada por VTEX = 14
+
+> "Somos una plataforma de data, es gravisimo fallar aca."
+
+Causa raíz: cada endpoint tenia su propia query con filtros copy-pasteados. `/api/metrics/orders` excluia solo `CANCELLED, RETURNED` (incluia PENDING como valido = 14). `/api/metrics/pixel` excluia `CANCELLED, PENDING` (= 12). El funnel contaba `COUNT(DISTINCT visitorId WHERE type='PURCHASE')` sin verificar que la orden existiera (= 16, con duplicados y huerfanos).
+
+### Causa raíz
+- Falta de un contrato central que defina qué cuenta como "orden valida".
+- Copy-paste de filtros SQL en cada endpoint nuevo.
+- Sin tests automatizados que comparen los numeros entre paginas.
+- Status semanticamente distintos (PENDING != CANCELLED) pero ambos "no concretados" tratados de forma inconsistente.
+
+### Regla
+**Toda metrica core (ordenes, revenue, customers, atribuidas) debe tener un helper en `src/lib/metrics/*.ts` que retorne SQL fragments canonicos.** PROHIBIDO copiar `WHERE status NOT IN ...` ad-hoc en endpoints nuevos.
+
+Helpers ya creados en `src/lib/metrics/orders.ts`:
+- `ordersValidWhere(alias)`: status concretados + totalValue > 0
+- `ordersWebWhere(alias)`: excluye marketplace
+- `ordersValidWebWhere(alias)`: combinacion (lo mas usado)
+
+Para auditar coherencia en cualquier momento: `GET /api/admin/orders-truth?orgId=X&date=YYYY-MM-DD&key=Y` cruza orders / pixel_attributions / pixel_events PURCHASE y muestra los 3 universos lado a lado.
+
+Ver `DATA_COHERENCE.md` para el contrato completo de 6 reglas.
+
+---
+
+## Error #S60-EXT2BIS7X-FUNNEL-EVENTOS-NO-ORDENES — Step "Compra" del funnel contando eventos pixel duplicados y huerfanos
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+++++++. El funnel de conversion en `/pixel/analytics` mostraba `Compra: 16` cuando las ordenes reales web fueron 12. Causa: `COUNT(DISTINCT visitorId) FILTER (WHERE type='PURCHASE')` sobre `pixel_events` sin JOIN a orders.
+
+Diagnostico real en TVC ayer:
+- 12 visitors con orden real matcheada
+- 1 visitor disparo PURCHASE 2 veces para la misma orden (pixel ejecutado con orderId con sufijo "-01" y sin sufijo)
+- 3 events con orderIds que no matchean ninguna orden en la DB (orden cancelada antes del webhook, mismatch sufijo, etc)
+- Total: 12 + 1 + 3 = 16
+
+### Causa raíz
+- Asumir que cada PURCHASE event = 1 orden real. La realidad es que el pixel puede dispararse multiples veces para la misma orden (page reload, sufijo diferente) y eventos pueden quedar sin orden asociada (cancelaciones tempranas, bots, mismatch).
+- El funnel mide visitors hasta el ultimo step. Si el ultimo step es "evento pixel", arrastra estos errores y reporta conversiones que no existen.
+
+### Regla
+**El step "Compra" (o "Conversion") de un funnel SIEMPRE debe ser ordenes reales matcheadas, no eventos pixel.** Implementacion canonica:
+
+```sql
+-- En vez de:
+COUNT(DISTINCT visitorId) FILTER (WHERE type = 'PURCHASE')
+
+-- Usar:
+SELECT COUNT(*) FROM orders o
+WHERE o."organizationId" = ${orgId}
+  AND o."orderDate" >= ${from}
+  AND o."orderDate" <= ${to}
+  AND ${ordersValidWebWhere("o")}
+```
+
+Si necesitas filtrar por canal, JOIN con `pixel_attributions` y matchear `touchpoints.source` con `canonicalSource()`.
+
+---
+
+## Error #S60-EXT2BIS7X-PREGUNTAR-EN-VEZ-DE-INVESTIGAR — Delegar la decisión al usuario cuando hay que averiguarlo con datos
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+++++++. Cuando Tomy reporto 12, 14, 16 mi primer impulso fue preguntarle multichoice cual queria como "número canónico". Tomy se molesto con razon:
+
+> "Esta mal que me estes preguntando el numero. Averigua bien cuales fueron las reales y mismo porque donde no aparecieron las reales por que no aparecieron bien y funciona mal para corregirlo. Se entiende?"
+
+> "Esta mal la pregunta siento. Como me vas a preguntar si quiero que aparezca 14 o 16? Tiene que aparecer el numero real!"
+
+### Causa raíz
+- Mi instinto de delegar decisiones al usuario en vez de tomar responsabilidad tecnica.
+- Confundir "decisión de producto" con "diagnóstico tecnico".
+- En este caso NO era una decisión de producto (que cuente PENDING o no), era un bug: el numero real era 12 y los otros lugares lo mostraban mal.
+
+### Regla
+**Cuando hay datos inconsistentes, mi trabajo es:**
+1. Investigar con queries reales (no opiniones) cuál es el número correcto.
+2. Identificar por qué los otros lugares lo muestran mal (queries con filtros distintos, bugs en JOINs, etc).
+3. Arreglarlo + documentarlo + preguntar al usuario SOLO si hay una decisión de producto real (ej: "PENDING cuenta como venta o no? — pero solo despues de explicarle qué es PENDING tecnicamente").
+
+Las preguntas multichoice son utiles para decisiones de producto (UX, prioridades, naming). NO para tapar mi falta de investigacion. Cuando hay 3 numeros distintos, hay 1 correcto y 2 bugs. El correcto se averigua con datos.
 
 ---
 
