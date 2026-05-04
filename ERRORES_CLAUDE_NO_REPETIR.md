@@ -4,7 +4,69 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-05-02 madrugada+++ — Sesión 60 EXT-2 BIS+++ (2 errores nuevos: codigo duplicado por refactor incompleto que persiste sin lint, y comentarios SQL "too much complexity" como excusa para shortcuts incorrectos).**
+> **Última actualización: 2026-05-04 — Sesión 60 EXT-2 BIS++++++ (3 errores nuevos: pixel que solo lee utm_* y deja sin atribucion los clicks con auto-tagging, comparacion de modelos que muestra totales identicos sin segmentar por canal, filtros multiselect con OR cuando el usuario espera AND).**
+
+---
+
+## Error #S60-EXT2BIS6X-PIXEL-SOLO-LEE-UTM-IGNORA-AUTO-TAG — Atribucion silenciosamente perdida en clicks pagos
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++. Cliente real (TVC) reporto que veia muchos touchpoints en Google Ads como "(sin campaña)" en el drill-down del Hero. Tomy: "TV compras tiene todo con UTMs. ¿Por que para Google Ads me trae atribuciones sin campaña?".
+
+Investigacion mostro que Google Ads con auto-tagging activo reescribe URLs y agrega `gad_campaignid=12345&gad_source=1&gad_creative=...` SIN tocar `utm_campaign`. Lo mismo Bing (`msclkid`), TikTok (`ttclid`), LinkedIn (`li_fat_id`), Google Shopping organico (`srsltid`). El pixel solo leia `utm_*`, asi que entre 30-80% de clicks pagos llegaban con campaign=null silenciosamente.
+
+### Causa raíz
+- El pixel inicial se diseno asumiendo que utm_* eran la fuente de verdad de campaigns.
+- En la realidad, las plataformas de ads activan auto-tagging por default (es el setting recomendado de Google porque le da mejor reporting).
+- El pixel no fallaba — solo guardaba `campaign: null` y la query que cuenta "(sin campaña)" lo agregaba como bucket separado, hidden detras del drill-down.
+
+### Regla
+**El pixel debe parsear TODOS los click ID standards de la industria, no solo utm_***. Lista canonica obligatoria:
+- `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`
+- `gclid`, `gad_campaignid`, `gad_source`, `gad_creative`, `gad_groupid` (Google Ads)
+- `srsltid` (Google Shopping Free Listings — organico)
+- `msclkid` (Bing Ads)
+- `ttclid` (TikTok)
+- `li_fat_id` (LinkedIn)
+- `fbclid` (Meta Ads)
+
+Y `attribution.ts` debe tener fallback en orden: si no hay `utm_campaign`, intentar gad_campaignid (cruzando con ad_campaigns para nombre real), luego msclkid, ttclid, li_fat_id como `Campaña #${id.slice(0,12)}`.
+
+Cuando el fix llega despues de meses de data legacy, agregar endpoint Tipo B `/api/admin/reextract-touchpoint-campaigns` que parsea el campo `page` (URL guardada) y aplica la misma logica retroactivamente.
+
+---
+
+## Error #S60-EXT2BIS6X-COMPARACION-MODELOS-TOTALES-PLANOS — Tarjeta sin valor porque todos los modelos muestran lo mismo
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++. Implemente Fase 2 (Comparacion de modelos LAST/FIRST/LINEAR/NITRO) sumando `pa.attributedValue` agrupado por modelo. Tomy abrio la tarjeta y dijo: "No veo las diferencias entre modelos. Cual es el sentido?".
+
+Tenia razon: `pa.attributedValue` guarda `o.totalValue` para los 4 modelos. La diferencia entre modelos NO esta en cuanto valor hay, esta en **a que canal se le atribuye ese valor**. Mostrar totales por modelo da 4 numeros casi identicos.
+
+### Causa raíz
+- El esquema multi-modelo guarda 4 rows (una por modelo) por orden, pero el valor atribuido es siempre el total. La diferencia esta en el array `touchpoints` con sus pesos.
+- Sume sin pensar en que hace cada modelo. La sumatoria sin segmentar es una metrica trivial.
+
+### Regla
+**Cuando comparas modelos que distribuyen un valor fijo, mostrar la composicion (segmentacion), no el agregado.** En este caso: barras segmentadas por canal donde el largo total es el mismo (revenue total) pero los segmentos cambian de tamaño entre modelos.
+
+Aplicable a cualquier dashboard donde la agregacion total no varia pero la distribucion si — comparacion de algoritmos de scoring, tax allocation, expense allocation, etc.
+
+---
+
+## Error #S60-EXT2BIS6X-FILTROS-MULTISELECT-OR-VS-AND — Filtro acumulativo que se rompe al agregar mas opciones
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++. Implemente filtros multiselect en Live Orders con semantica OR (`.some()`). Tomy probo: filtro Meta solo, ve ordenes Meta. Agrega Google al filtro. Esperaba ver "ordenes que tienen Meta Y Google" — el "y" mental. En cambio vio "ordenes que tienen Meta O Google" — el filtro se hizo MAS amplio en vez de mas estrecho.
+
+> "¿Funciona mal el filtro? Cuando acumulo otro canal mas, se deja de filtrar"
+
+### Causa raíz
+- Default OR en multiselect es comun en buscadores (tag clouds, etc) donde el usuario quiere expandir.
+- En filtros de analitica el usuario apila condiciones para *reducir* el set — espera AND.
+- Mi implementacion inicial usaba `.some()` sin pensarlo.
+
+### Regla
+**Filtros multiselect en analytics: AND por default, OR explicito si hace falta.** Implementar con `.every()`. Probar mentalmente: "si selecciono X e Y, ¿quiero ver lo que tiene X y Y, o lo que tiene X o Y?". 99% de las veces es AND.
+
+Si OR es necesario en el futuro, ofrecer toggle visible (radio "todos" vs "alguno").
 
 ---
 

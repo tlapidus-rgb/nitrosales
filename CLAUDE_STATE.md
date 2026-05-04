@@ -3,7 +3,103 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
+## Ultima actualizacion: 2026-05-04 (Sesion 60 EXT-2 BIS++++++ — Refactor /pixel Atribucion Fases 2 + 3 + Google paid vs organico + auto-tag parser. 8 deploys mayores: (1) Fase 2 comparacion modelos con barras segmentadas por canal (no totales planos identicos); (2) Fase 3.1 filtros multiselect en Live Orders con AND semantics + canonicalizacion en chips; (3) fix journey dots y getSourceInfo aplican canonicalSource a aliases; (4) Fase 3.2 drill-down al click de canal del Hero (modal con metrics + top campaigns + journeys); (5) endpoint debug-touchpoint-campaigns; (6) separar Google Ads paid vs Google Organico via canonicalSource(source, medium) + tips por KPI; (7) parser auto-tag (gad_*, msclkid, ttclid, li_fat_id, srsltid) en pixel script + attribution.ts + endpoint reextract-touchpoint-campaigns one-shot multitenant; (8) cruce gad_campaignid con ad_campaigns para mostrar nombre real de la campaña — 11.660 touchpoints upgraded en EMDJ. Pendientes intactos.)
+
 ## Ultima actualizacion: 2026-05-02 madrugada+++++ (Sesion 60 EXT-2 BIS+++++ — Refactor /pixel Atribucion Fase 1. 5 cambios: (1) Fase 1 completa de claridad: borrar mini editor pesos legacy en B5 + chip read-only que linkea a /pixel/configuracion, B2 Truth Gap como seccion colapsable con teaser de canales que inflan, tooltips DarkTip explicativos en 5 KPIs + Truth Gap + "% inflado", CTA en Click ID coverage cuando <50%; (2) paleta de colores unicos por canal en Hero Bar (antes 5 canales caian al fallback gris) + tono distinto Facebook vs Meta + email vs email-marketing; (3) endpoint debug-channel-sources que lista los `source` literales en pa.touchpoints; (4) fix LOWER en queries que agrupan por source — ADWORDS y adwords ahora colapsan a una sola fila; (5) Tomy confirma logo Facebook con F clasica. Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS++++++ (2026-05-04) — Fases 2 + 3 + Google paid vs organico + auto-tag parser
+
+**Contexto**: post Fase 1 (BIS+++++) Tomy pidio seguir con la fase 2 (Comparacion de modelos) y luego la fase 3 (Live Orders mejorado). Durante la fase 3 detectamos que muchos touchpoints aparecian "(sin campaña)" en Google Ads, lo cual nos llevo a la investigacion de Google auto-tagging y la separacion Google paid vs Google organico.
+
+#### Cambios implementados (cronologico)
+
+**Fase 2 — Comparacion de modelos** (commits `8f5835f`, `ead0bcd`)
+- Tarjeta nueva muestra los 4 modelos (LAST/FIRST/LINEAR/NITRO) lado a lado.
+- Primera version: totales identicos (porque `pa.attributedValue` guarda `o.totalValue` para los 4 modelos sin importar atribucion). Tomy lo noto.
+- Fix: query #29 nueva agrupa revenue **por (modelo, canal)**. Frontend muestra barras segmentadas por canal — visualmente queda claro que LAST_CLICK tiene mas Meta, FIRST_CLICK tiene mas Google Organic, etc.
+- Performance: agregue cache cliente in-memory TTL 60s (commit `9c39f24` previo) para evitar refetch al togglear rango.
+
+**Fase 3.1 — Filtros en Live Orders** (commits `0a42485`, `1d3a053`, `4e50fcf`)
+- Multiselect chips por canal + filtros min revenue + min touchpoints.
+- Bug 1: chips repetidos (Google Ads x2 — adwords y google se mostraban separados). Fix: aplicar `canonicalSource()` al armar la lista de chips.
+- Bug 2: comportamiento OR (Tomy dijo "cuando acumulo otro canal mas, deja de filtrar"). Fix: cambiar `.some()` a `.every()` para AND semantics — la orden tiene que tener TODOS los canales seleccionados.
+
+**Fix journey dots y getSourceInfo** (commits `d5657a0`, `b91327f`)
+- Bug visual: ChannelLogo inline en journey dots no canonicalizaba — mostraba "A" para "adwords".
+- Bug visual #2: getSourceInfo retornaba colores distintos para google vs adwords (mismo canal, distinto color).
+- Fix: aplicar `canonicalSource(source || "")` al inicio de ambos switches.
+
+**Fase 3.2 — Drill-down de canal** (commit `ce40f10`)
+- Click en canal del Hero abre modal con: metrics (revenue, ordenes, AOV, ROAS), top 10 campañas + revenue, top journeys (touchpoints en secuencia para ese canal).
+- Decision: descartamos fase 3.3 (CSV export) — estrategia es mantener analisis dentro de la plataforma.
+
+**Endpoint debug-touchpoint-campaigns** (commit `a484610`)
+- `/api/admin/debug-touchpoint-campaigns?orgId=X&channel=facebook&days=30&key=Y` agrupa touchpoints por canonicalSource y muestra count con/sin campaign + samples.
+- Diagnostico: en TVC, Google Ads tenia ~80% sin campaign aun teniendo todo con UTMs. Investigacion revelo Google auto-tagging.
+
+**Separar Google Ads paid vs Google Organico** (commit `0543223`)
+- Hallazgo: Google Shopping con Free Listings (organico) tagea con `srsltid` y `medium=organic`. Google Ads paid tagea con `gclid + gad_campaignid` y `medium=cpc`.
+- En el codigo viejo ambos caian bajo `source=google` — se mezclaban inflados de paid + organico.
+- Fix: extender `canonicalSource(source, medium?)` para que devuelva `google_organic` cuando `medium IN (organic, social, referral)` AND `source IN (google, bing, yahoo, duckduckgo)`.
+- Plus: tips por KPI ("Lag promedio" ahora explica que es).
+
+**Auto-tag parser multitenant** (commit `16805e7`)
+- Cliente real (TVC, Leandro): tiene Google Ads con auto-tagging activo. Google reescribe URLs y agrega `gad_campaignid=12345&gad_source=1&gad_creative=...` SIN tocar `utm_campaign`. El pixel viejo solo leia utm_*, asi que estos clicks llegaban con campaign=null.
+- Fix multitenant en 3 archivos:
+  1. `pixel/script/route.ts`: parsear `gad_campaignid`, `gad_source`, `gad_creative`, `gad_groupid`, `srsltid` ademas de utm_*.
+  2. `lib/pixel/attribution.ts`: helper `fallbackCampaignFromAutoTag()` — si no hay utm_campaign, intenta gad_campaignid, msclkid, ttclid, li_fat_id en orden. Aplicado en 4 paths (fresh_click, fresh_utm, stale_cookie con/sin referrer).
+  3. `api/admin/reextract-touchpoint-campaigns`: endpoint one-shot que recorre touchpoints viejos sin campaign, parsea el campo `page` (URL guardada) y re-extrae con la misma logica del fix nuevo. Idempotente, dryRun=1, orgId opcional (sin orgId procesa todas las orgs). Tipo B.
+- Resultado primera corrida: 19.620 touchpoints recovered, 13.780 attributions updated.
+
+**Cruce gad_campaignid con ad_campaigns** (commit `f7b4335`)
+- Tras la primera corrida, los touchpoints recuperados tenian `campaign = "Campaña #12345"` (placeholder con ID). Tomy queria los nombres reales.
+- Fix: pre-cargar `ad_campaigns` (tabla con campaigns sincronizadas via Google Ads API) en un Map al inicio de `calculateAttribution()`. Resolver `gad_campaignid → name` con prioridad `${platform}:${id}` luego `${id}` sin platform.
+- Endpoint reextract extendido con tercer path: si `tp.campaign` ya empieza con "Campaña #" Y el ID matchea ad_campaigns, upgradear al nombre real.
+- Resultado segunda corrida: **EMDJ 11.660 touchpoints upgraded** a nombres reales (tiene Google Ads conectado y sincronizado). TVC, Arredo y otros 0 upgraded porque no tienen Google Ads connection activa todavia. Tomy aclaro: "Leandro va a hacer eso cuando yo tambien habilite la funcion de Google Ads, por el momento la tengo inhabilitada".
+
+#### Patrones criticos S60 EXT-2 BIS++++++
+
+1. **Comparacion de modelos solo aporta valor si se ve la composicion por canal**: mostrar revenue total por modelo es enganoso porque pa.attributedValue es totalValue para todos. La diferencia entre modelos es **a quien le atribuyen ese valor**, no cuanto valor hay. Solucion: barras segmentadas por (modelo, canal). Aplicable a cualquier dashboard donde el agregado total no cambia pero la distribucion si.
+
+2. **Filtros multiselect: AND es default mas seguro que OR**: cuando el usuario apila filtros mentalmente piensa "y X, y Y, y Z" no "X o Y o Z". Implementar `.every()` por default y agregar OR explicito si es necesario. Tomy lo detecto en uso real: "cuando acumulo otro canal, deja de filtrar".
+
+3. **Canonicalizacion debe aplicarse en TODOS los puntos de visualizacion**: chips, journey dots, KPI rows, drill-down, getSourceInfo, ChannelLogo. Si solo se aplica en uno los aliases vuelven a aparecer en los otros. Hicimos 4 fixes separados (1d3a053, d5657a0, b91327f, 0543223) hasta canonicalizar todo.
+
+4. **Auto-tagging es estandar de la industria — el pixel debe leerlo TODO**: Google, Bing, TikTok, LinkedIn, Meta — todos tienen click IDs proprietarios que muchas veces *reemplazan* a los utm_*. Un pixel que solo lee utm_* deja silenciosamente sin atribucion entre 30-80% de los clicks pagos. Lista canonica para parsear en pixel: `utm_source/medium/campaign/term/content`, `gclid`, `gad_campaignid/gad_source/gad_creative/gad_groupid`, `msclkid`, `ttclid`, `li_fat_id`, `fbclid`, `srsltid`. Multitenant: aplica para todas las orgs sin que el cliente toque nada.
+
+5. **Cruzar IDs con la tabla "guia telefonica" para nombres reales (pattern phonebook)**: cuando guardamos un ID externo en datos transaccionales (touchpoints), pre-cargar el lookup table (ad_campaigns) en un Map al inicio del proceso. NO hacer lookup por row (N+1 query). El upgrade de "Campaña #ID" → "Black Friday 2025" es la diferencia entre dashboard inutil y dashboard insightful. Aplicar para products (productExternalId → product.name), customers, ad_groups, etc.
+
+6. **Endpoints reextract one-shot multitenant son la herramienta para reparar data legacy**: cuando un fix de pipeline (Tipo A) llega despues de meses de data, hay que pensar en la version Tipo B que repara lo viejo. Idempotente. dryRun=1. orgId opcional. Patron repetible: pre-cargar lookups, recorrer registros, comparar con pipeline nuevo, modificar solo si hay cambio real.
+
+7. **Documentar que es multitenant y que es por-cliente**: el fix del parser auto-tag aplica a todas las orgs automaticamente (Tipo A). El cruce con ad_campaigns aplica solo a las orgs que tienen Google Ads conectado (data dependiente). Tomy lo entendio cuando le mostre TVC=0 vs EMDJ=11.660 — "cuando habilite Google Ads en TVC va a funcionar igual".
+
+#### Commits S60 EXT-2 BIS++++++ (cronologico)
+
+| Hash | Tipo | Descripcion |
+|---|---|---|
+| `8f5835f` | feat | Fase 2 — tarjeta comparativa de modelos |
+| `ead0bcd` | feat | Comparacion modelos con barras segmentadas por canal |
+| `0a42485` | feat | Fase 3.1 — filtros en Live Orders |
+| `1d3a053` | fix | canonicalizar canales en filtros |
+| `4e50fcf` | fix | filtros usan AND (interseccion) |
+| `d5657a0` | fix | journey dots con logo correcto en aliases |
+| `b91327f` | fix | aliases comparten color y label |
+| `ce40f10` | feat | Fase 3.2 — drill-down al click de canal |
+| `a484610` | debug | endpoint debug-touchpoint-campaigns |
+| `0543223` | fix | separar Google Ads paid de Google Organico + tips |
+| `16805e7` | feat | parser auto-tag + endpoint reextract |
+| `f7b4335` | feat | cruce gad_campaignid con ad_campaigns |
+
+#### Pendientes pre-existentes (intactos)
+
+- 🟡 BP-S60-005 — Activar TVC (esperando que Tomy habilite Google Ads connection)
+- 🟡 BP-S60-002 — Wizard del afiliado VTEX
+- 🟢 BP-S60-004 — Alias webhooks@nitrosales.ai
+- 🟢 OrgSwitcher dark theme
+- 🟢 Refactor `pa.visitorId` → `pa.pixelVisitorId` (rename para evitar confusion JOIN homonimo)
+- 🟢 NUEVO: habilitar feature Google Ads connection para TVC y otros clientes (cuando Tomy decida)
+
+
 
 ### Sesion 60 EXT-2 BIS+++++ (2026-05-02 madrugada+++++) — Refactor /pixel Atribucion Fase 1
 
