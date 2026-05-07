@@ -39,44 +39,35 @@ export async function GET(req: NextRequest) {
     // PURCHASE step: usamos ordenes web REALES en el rango (single source of truth
     // via lib/metrics/orders.ts). Si channel esta seteado, intersectamos con
     // visitors que tuvieron un evento PURCHASE matcheado (via attribution).
-    let purchaseCount: number;
-    if (channel) {
-      // Channel filter: contar ordenes web validas que tienen al menos 1
-      // pixel_attribution con touchpoints.source que matchee al canal.
-      // (canonicalSource hace el matching de aliases)
-      const rows = await prisma.$queryRaw<Array<{ purchase: number }>>`
-        SELECT COUNT(DISTINCT o.id)::int as purchase
-        FROM orders o
-        JOIN pixel_attributions pa ON pa."orderId" = o.id
-        WHERE pa."organizationId" = ${orgId}
-          AND pa.model::text = 'NITRO'
-          AND o."orderDate" >= ${dateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND ${ordersValidWebWhere("o")}
-          AND EXISTS (
-            SELECT 1 FROM jsonb_array_elements(pa.touchpoints::jsonb) AS tp
-            WHERE LOWER(COALESCE(tp->>'source', 'direct')) = ${channel}
-               OR (LOWER(COALESCE(tp->>'source', 'direct')) IN ('adwords', 'google_ads', 'google-ads', 'googleads') AND ${channel} = 'google')
-               OR (LOWER(COALESCE(tp->>'source', 'direct')) IN ('meta_ads', 'meta-ads', 'metaads', 'fb_ads', 'fb-ads', 'fbads', 'facebook_ads', 'facebook-ads') AND ${channel} = 'meta')
-          )
-      `;
-      purchaseCount = rows[0]?.purchase || 0;
-    } else {
-      const rows = await prisma.$queryRaw<Array<{ purchase: number }>>`
-        SELECT COUNT(*)::int as purchase
-        FROM orders o
-        WHERE o."organizationId" = ${orgId}
-          AND o."orderDate" >= ${dateFrom}
-          AND o."orderDate" <= ${dateTo}
-          AND ${ordersValidWebWhere("o")}
-      `;
-      purchaseCount = rows[0]?.purchase || 0;
-    }
+    // PERF: las 2 queries (purchaseCount + funnelRow) son independientes — Promise.all.
+    const purchasePromise = channel
+      ? prisma.$queryRaw<Array<{ purchase: number }>>`
+          SELECT COUNT(DISTINCT o.id)::int as purchase
+          FROM orders o
+          JOIN pixel_attributions pa ON pa."orderId" = o.id
+          WHERE pa."organizationId" = ${orgId}
+            AND pa.model::text = 'NITRO'
+            AND o."orderDate" >= ${dateFrom}
+            AND o."orderDate" <= ${dateTo}
+            AND ${ordersValidWebWhere("o")}
+            AND EXISTS (
+              SELECT 1 FROM jsonb_array_elements(pa.touchpoints::jsonb) AS tp
+              WHERE LOWER(COALESCE(tp->>'source', 'direct')) = ${channel}
+                 OR (LOWER(COALESCE(tp->>'source', 'direct')) IN ('adwords', 'google_ads', 'google-ads', 'googleads') AND ${channel} = 'google')
+                 OR (LOWER(COALESCE(tp->>'source', 'direct')) IN ('meta_ads', 'meta-ads', 'metaads', 'fb_ads', 'fb-ads', 'fbads', 'facebook_ads', 'facebook-ads') AND ${channel} = 'meta')
+            )
+        `
+      : prisma.$queryRaw<Array<{ purchase: number }>>`
+          SELECT COUNT(*)::int as purchase
+          FROM orders o
+          WHERE o."organizationId" = ${orgId}
+            AND o."orderDate" >= ${dateFrom}
+            AND o."orderDate" <= ${dateTo}
+            AND ${ordersValidWebWhere("o")}
+        `;
 
-    if (channel) {
-      // Con filtro: usar CTE para calcular first_source de cada visitor en el rango,
-      // y filtrar el funnel solo a visitors que matchean el channel.
-      const rows = await prisma.$queryRaw<Array<typeof funnelRow>>`
+    const funnelPromise = channel
+      ? prisma.$queryRaw<Array<typeof funnelRow>>`
         WITH visitor_first_source AS (
           SELECT DISTINCT ON ("visitorId")
             "visitorId",
@@ -127,11 +118,8 @@ export async function GET(req: NextRequest) {
           AND pe.timestamp <= ${dateTo}
           AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
           AND vfs.first_source = ${channel}
-      `;
-      funnelRow = rows[0] || { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0, purchase: 0 };
-    } else {
-      // Sin filtro
-      const rows = await prisma.$queryRaw<Array<typeof funnelRow>>`
+      `
+      : prisma.$queryRaw<Array<typeof funnelRow>>`
         SELECT
           COUNT(DISTINCT CASE WHEN pe.type = 'PAGE_VIEW' THEN pe."visitorId" END)::int as "pageView",
           COUNT(DISTINCT CASE WHEN pe.type = 'VIEW_PRODUCT' THEN pe."visitorId" END)::int as "viewProduct",
@@ -144,8 +132,10 @@ export async function GET(req: NextRequest) {
           AND pe.timestamp <= ${dateTo}
           AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
       `;
-      funnelRow = rows[0] || { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0, purchase: 0 };
-    }
+
+    const [purchaseRows, funnelRows] = await Promise.all([purchasePromise, funnelPromise]);
+    const purchaseCount = purchaseRows[0]?.purchase || 0;
+    funnelRow = funnelRows[0] || { pageView: 0, viewProduct: 0, addToCart: 0, checkoutStart: 0, purchase: 0 };
 
     return NextResponse.json({
       ok: true,
