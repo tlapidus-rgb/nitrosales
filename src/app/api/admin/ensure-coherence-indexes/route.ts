@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════
 // Crea indices que aceleran las queries del contrato data-coherence
 // (introducidas en S60 EXT-2 BIS+++++++). Idempotente — usa
-// CREATE INDEX IF NOT EXISTS asi se puede correr varias veces sin
+// CREATE INDEX CONCURRENTLY IF NOT EXISTS asi se puede correr varias veces sin
 // romper. NO modifica data, solo indices.
 //
 // Indices que crea:
@@ -20,20 +20,52 @@ export const maxDuration = 300;
 const KEY = "nitrosales-secret-key-2024-production";
 
 const INDEXES = [
+  // Round 1 (S60 EXT-2 BIS+++++++)
   {
     name: "pixel_attributions_orgId_model_idx",
-    sql: `CREATE INDEX IF NOT EXISTS "pixel_attributions_orgId_model_idx" ON "pixel_attributions" ("organizationId", "model")`,
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "pixel_attributions_orgId_model_idx" ON "pixel_attributions" ("organizationId", "model")`,
     purpose: "Acelera filtros pa.organizationId + pa.model (CTE visitor_to_orders en query #23)",
   },
   {
     name: "pixel_attributions_orderId_model_idx",
-    sql: `CREATE INDEX IF NOT EXISTS "pixel_attributions_orderId_model_idx" ON "pixel_attributions" ("orderId", "model")`,
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "pixel_attributions_orderId_model_idx" ON "pixel_attributions" ("orderId", "model")`,
     purpose: "Acelera JOIN pa.orderId = o.id + filtro por model (funnel con channel)",
   },
   {
     name: "pixel_attributions_orgId_visitorId_idx",
-    sql: `CREATE INDEX IF NOT EXISTS "pixel_attributions_orgId_visitorId_idx" ON "pixel_attributions" ("organizationId", "visitorId")`,
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "pixel_attributions_orgId_visitorId_idx" ON "pixel_attributions" ("organizationId", "visitorId")`,
     purpose: "Acelera lookups de attributions por visitor (drill-down, reextract)",
+  },
+  // Round 2 (S60 EXT-2 BIS++++++++) — perf de /pixel y /pixel/atribucion
+  {
+    name: "pixel_events_orgId_visitorId_ts_idx",
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "pixel_events_orgId_visitorId_ts_idx" ON "pixel_events" ("organizationId", "visitorId", "timestamp" DESC)`,
+    purpose: "Acelera DISTINCT ON visitorId ORDER BY timestamp (CTE visitor_first_source en query #23 y funnel con channel). Antes el indice (visitorId, timestamp) NO tenia organizationId primero.",
+  },
+  {
+    name: "pixel_events_visitor_device_ts_idx",
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "pixel_events_visitor_device_ts_idx" ON "pixel_events" ("visitorId", "timestamp" DESC) WHERE "deviceType" IS NOT NULL`,
+    purpose: "Acelera LATERAL JOIN en query #24 (orders by device) — toma el ultimo deviceType de cada visitor.",
+  },
+  {
+    name: "pixel_events_orgId_type_visitor_idx",
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "pixel_events_orgId_type_visitor_idx" ON "pixel_events" ("organizationId", "type", "visitorId")`,
+    purpose: "Acelera COUNT(DISTINCT visitorId) FILTER (WHERE type=X) — funnel sin channel + steps.",
+  },
+  {
+    name: "pixel_events_orgId_ts_idx",
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "pixel_events_orgId_ts_idx" ON "pixel_events" ("organizationId", "timestamp")`,
+    purpose: "Acelera filtros simples de rango por org (queries #1-7 del pixel route).",
+  },
+  {
+    name: "orders_orgId_status_orderDate_idx",
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_orgId_status_orderDate_idx" ON "orders" ("organizationId", "status", "orderDate")`,
+    purpose: "Acelera filtros por (orgId, status, orderDate) que aparecen en /api/metrics/orders multiples veces.",
+  },
+  {
+    name: "pixel_visitors_orgId_lastSeen_idx",
+    sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "pixel_visitors_orgId_lastSeen_idx" ON "pixel_visitors" ("organizationId", "lastSeenAt" DESC)`,
+    purpose: "Acelera lookups recientes de visitors.",
   },
 ];
 
