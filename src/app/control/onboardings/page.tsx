@@ -354,45 +354,39 @@ function DeleteOnboardingButton({
     if (deleting) return;
 
     const hasOrg = !!req.createdOrgId;
-    const orgIdSuffix = hasOrg ? String(req.createdOrgId).slice(-6) : "";
+
+    // Primer confirm — info detallada para identificar el onboarding sin
+    // ambiguedad (incluye orgId, email, status — visible para el admin).
     const intro = hasOrg
-      ? `🗑️ ELIMINAR CUENTA COMPLETA de ${req.companyName}\n\n` +
+      ? `🗑️ ELIMINAR CUENTA COMPLETA\n\n` +
+        `Empresa: ${req.companyName}\n` +
+        `OrgId: ${req.createdOrgId}\n` +
+        `Email: ${req.contactEmail}\n` +
+        `Status: ${req.status}\n\n` +
         `Borra TODO: organización, usuarios, data (orders, customers, products, eventos pixel, etc.) + el onboarding_request.\n\n` +
         `Como si el cliente nunca hubiera existido en la plataforma.\n\n` +
-        `OrgId completo: ${req.createdOrgId}\n` +
-        `Email contacto: ${req.contactEmail}\n\n` +
         `Esta acción NO SE PUEDE DESHACER. ¿Continuar?`
-      : `🗑️ ELIMINAR onboarding de ${req.companyName}\n\n` +
-        `Status actual: ${req.status}\n` +
-        `Email contacto: ${req.contactEmail}\n` +
+      : `🗑️ ELIMINAR onboarding\n\n` +
+        `Empresa: ${req.companyName}\n` +
+        `Email: ${req.contactEmail}\n` +
+        `Status: ${req.status}\n\n` +
         `Este onboarding aún NO tiene cuenta creada. Solo borra la solicitud (onboarding_request).\n\n` +
         `¿Continuar?`;
 
     if (!confirm(intro)) return;
 
-    // Doble confirmación para cuentas con org: pedir los últimos 6 caracteres
-    // del orgId. El nombre puede repetirse entre cuentas (ej: 2 "The World Of
-    // Toys", 2 "Arredo" en la lista actual de Tomy). El orgId es UNICO.
-    // Tipear los ultimos 6 caracteres garantiza que se borra LA cuenta correcta.
-    if (hasOrg) {
-      const typed = prompt(
-        `Para confirmar, escribí los últimos 6 caracteres del OrgId:\n\n` +
-          `OrgId completo: ${req.createdOrgId}\n` +
-          `→ últimos 6: ${orgIdSuffix}\n\n` +
-          `(el nombre de empresa puede repetirse, el OrgId no — esto previene borrar la cuenta equivocada)`
-      );
-      if (typed === null) return; // canceló el prompt
-      const normalize = (s: string) => (s || "").toLowerCase().trim();
-      if (normalize(typed) !== normalize(orgIdSuffix)) {
-        alert(
-          `Los últimos 6 caracteres no coinciden.\n\n` +
-            `Escribiste: "${typed}"\n` +
-            `Esperado: "${orgIdSuffix}"\n\n` +
-            `Eliminación cancelada.`
-        );
-        return;
-      }
-    }
+    // Segunda confirmacion — simple OK/Cancel, anti-misclick. Sin tipear
+    // nada. Aplica a todos los casos (con o sin org) para uniformidad.
+    const finalConfirm = hasOrg
+      ? `Última confirmación.\n\n` +
+        `Vas a eliminar TODA la cuenta de "${req.companyName}".\n` +
+        `OrgId: ${req.createdOrgId}\n\n` +
+        `¿Confirmás la eliminación definitiva?`
+      : `Última confirmación.\n\n` +
+        `Vas a eliminar el onboarding de "${req.companyName}".\n\n` +
+        `¿Confirmás?`;
+
+    if (!confirm(finalConfirm)) return;
 
     setDeleting(true);
     try {
