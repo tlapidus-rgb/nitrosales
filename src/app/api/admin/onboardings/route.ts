@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
         createdAt: Date;
         updatedAt: Date;
         activatedAt: Date | null;
+        createdOrgId: string | null;
       }>
     >(
       `SELECT
@@ -54,7 +55,8 @@ export async function GET(req: NextRequest) {
          ("mlUsername" IS NOT NULL) AS "hasMl",
          ("metaAdAccountId" IS NOT NULL) AS "hasMeta",
          ("googleAdsCustomerId" IS NOT NULL) AS "hasGoogleAds",
-         "progressStage", "createdAt", "updatedAt", "activatedAt"
+         "progressStage", "createdAt", "updatedAt", "activatedAt",
+         "createdOrgId"
        FROM "onboarding_requests"
        ${whereClause}
        ORDER BY

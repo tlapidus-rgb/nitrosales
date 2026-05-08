@@ -235,24 +235,27 @@ export default function ControlOnboardingsPage() {
                     </div>
                   </td>
                   <td style={{ ...td, textAlign: "right", paddingRight: 20 }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedId(req.id);
-                      }}
-                      style={{
-                        padding: "5px 10px",
-                        background: "transparent",
-                        border: "1px solid #27272A",
-                        borderRadius: 7,
-                        color: "#A1A1AA",
-                        fontSize: 11,
-                        fontWeight: 500,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Ver detalle →
-                    </button>
+                    <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedId(req.id);
+                        }}
+                        style={{
+                          padding: "5px 10px",
+                          background: "transparent",
+                          border: "1px solid #27272A",
+                          borderRadius: 7,
+                          color: "#A1A1AA",
+                          fontSize: 11,
+                          fontWeight: 500,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Ver detalle →
+                      </button>
+                      <DeleteOnboardingButton req={req} onDeleted={load} />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -333,6 +336,89 @@ function FilterPill({
           {count}
         </span>
       )}
+    </button>
+  );
+}
+
+function DeleteOnboardingButton({
+  req,
+  onDeleted,
+}: {
+  req: any;
+  onDeleted: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (deleting) return;
+
+    const hasOrg = !!req.createdOrgId;
+    const intro = hasOrg
+      ? `🗑️ ELIMINAR CUENTA COMPLETA de ${req.companyName}\n\n` +
+        `Borra TODO: organización, usuarios, data (orders, customers, products, eventos pixel, etc.) + el onboarding_request.\n\n` +
+        `Como si el cliente nunca hubiera existido en la plataforma.\n\n` +
+        `OrgId: ${req.createdOrgId}\n\n` +
+        `Esta acción NO SE PUEDE DESHACER. ¿Continuar?`
+      : `🗑️ ELIMINAR onboarding de ${req.companyName}\n\n` +
+        `Status actual: ${req.status}\n` +
+        `Este onboarding aún NO tiene cuenta creada. Solo borra la solicitud (onboarding_request).\n\n` +
+        `¿Continuar?`;
+
+    if (!confirm(intro)) return;
+
+    // Doble confirmación para cuentas activas (typed company name)
+    if (hasOrg) {
+      const typed = prompt(
+        `Para confirmar, escribí el nombre exacto de la empresa:\n\n${req.companyName}`
+      );
+      if (typed?.trim() !== (req.companyName || "").trim()) {
+        alert("El nombre no coincide. Eliminación cancelada.");
+        return;
+      }
+    }
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/onboardings/${req.id}/delete`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        alert(`Error: ${json.error || res.statusText}`);
+        setDeleting(false);
+        return;
+      }
+      alert(
+        hasOrg
+          ? `Cuenta eliminada. ${json.totalDeleted || 0} registros borrados.`
+          : `Onboarding eliminado.`
+      );
+      onDeleted();
+    } catch (err: any) {
+      alert(`Error de red: ${err?.message || "desconocido"}`);
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleDelete}
+      disabled={deleting}
+      title="Eliminar este onboarding/cuenta"
+      style={{
+        padding: "5px 8px",
+        background: deleting ? "rgba(220,38,38,0.15)" : "transparent",
+        border: "1px solid rgba(220,38,38,0.4)",
+        borderRadius: 7,
+        color: "#DC2626",
+        fontSize: 11,
+        fontWeight: 600,
+        cursor: deleting ? "wait" : "pointer",
+        opacity: deleting ? 0.6 : 1,
+      }}
+    >
+      {deleting ? "Eliminando…" : "🗑️"}
     </button>
   );
 }
