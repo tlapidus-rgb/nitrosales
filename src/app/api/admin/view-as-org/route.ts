@@ -79,15 +79,34 @@ export async function GET() {
     const allowed = await isInternalUser();
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+    // S60 EXT-2 BIS++++++++++: tambien devolver realOrg (la del user actual,
+    // sin override). El frontend lo necesita para mostrar el orgId correcto
+    // como "current" cuando NO hay cookie y para el "Volver a mi cuenta".
+    const { getServerSession } = await import("next-auth");
+    const { authOptions } = await import("@/lib/auth");
+    const session = await getServerSession(authOptions as any);
+    const sessionUser = (session as any)?.user;
+    // Si la sesion esta overrideada por la cookie, realOrganizationId tiene la real;
+    // si no, organizationId es la real.
+    const realOrgId = sessionUser?.realOrganizationId || sessionUser?.organizationId || null;
+    const realOrgName = sessionUser?.realOrganizationName || sessionUser?.organizationName || null;
+
     const c = await cookies();
     const orgId = c.get(COOKIE_NAME)?.value || null;
-    if (!orgId) return NextResponse.json({ ok: true, viewingAs: null });
 
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { id: true, name: true },
+    let viewingAs: { id: string; name: string } | null = null;
+    if (orgId) {
+      viewingAs = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { id: true, name: true },
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      viewingAs,
+      realOrg: realOrgId ? { id: realOrgId, name: realOrgName } : null,
     });
-    return NextResponse.json({ ok: true, viewingAs: org });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

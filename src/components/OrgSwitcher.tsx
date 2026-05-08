@@ -31,17 +31,58 @@ export function OrgSwitcher() {
   const { data: session } = useSession();
   const email = (session?.user?.email || "").toLowerCase();
   const isAdmin = INTERNAL_EMAILS.has(email);
-  const viewingAsOrgId = (session?.user as any)?.viewingAsOrg as string | undefined;
-  const realOrgId = (session?.user as any)?.realOrganizationId as string | undefined;
-  const realOrgName = (session?.user as any)?.realOrganizationName as string | undefined;
-  const orgName = (session?.user as any)?.organizationName as string | undefined;
-  const currentOrgId = viewingAsOrgId || (session?.user as any)?.organizationId;
+
+  // S60 EXT-2 BIS++++++++++ FIX: antes leiamos viewingAsOrg/organizationId
+  // de useSession() del cliente, pero esa session esta CACHEADA por NextAuth
+  // y no refleja la cookie nueva inmediatamente despues de un cambio.
+  // Ahora hacemos fetch al endpoint GET /api/admin/view-as-org que lee la
+  // cookie real del servidor sin cache. Asi el visual del dropdown SIEMPRE
+  // matchea la realidad aunque useSession este desactualizado.
+  const [serverViewing, setServerViewing] = useState<{
+    cookieOrgId: string | null;
+    realOrgId: string | null;
+    realOrgName: string | null;
+    cookieOrgName: string | null;
+  }>({ cookieOrgId: null, realOrgId: null, realOrgName: null, cookieOrgName: null });
+
+  // Fallback a session si todavia no llego la respuesta server
+  const sessionViewingAsOrg = (session?.user as any)?.viewingAsOrg as string | undefined;
+  const sessionRealOrgId = (session?.user as any)?.realOrganizationId as string | undefined;
+  const sessionRealOrgName = (session?.user as any)?.realOrganizationName as string | undefined;
+  const sessionOrgName = (session?.user as any)?.organizationName as string | undefined;
+  const sessionOrgId = (session?.user as any)?.organizationId as string | undefined;
+
+  // Source-of-truth: server > session
+  const viewingAsOrgId = serverViewing.cookieOrgId || sessionViewingAsOrg || null;
+  const realOrgId = serverViewing.realOrgId || sessionRealOrgId || (viewingAsOrgId ? null : sessionOrgId);
+  const realOrgName = serverViewing.realOrgName || sessionRealOrgName;
+  // Si hay cookie, el nombre actual viene de la org de la cookie
+  const orgName = serverViewing.cookieOrgName || sessionOrgName;
+  const currentOrgId = viewingAsOrgId || sessionOrgId;
 
   const [open, setOpen] = useState(false);
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Fetch view-as cookie + realOrg del servidor al montar (sin cache).
+  // El endpoint usa getServerSession con cookies frescas, ignora cache de
+  // useSession() del cliente.
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/admin/view-as-org", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        setServerViewing({
+          cookieOrgId: data?.viewingAs?.id || null,
+          cookieOrgName: data?.viewingAs?.name || null,
+          realOrgId: data?.realOrg?.id || null,
+          realOrgName: data?.realOrg?.name || null,
+        });
+      })
+      .catch(() => {});
+  }, [isAdmin]);
 
   // Cargar lista de orgs al abrir
   useEffect(() => {
