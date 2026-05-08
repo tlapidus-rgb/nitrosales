@@ -158,6 +158,33 @@ export async function POST(req: NextRequest) {
       notes
     );
 
+    // ─── Auto-merge con leads previos del pipeline ────────────
+    // Si ya existe un lead con el MISMO email cargado por Tomy en el pipeline
+    // antes de que el cliente postule, actualizamos su nombre con el que puso
+    // el cliente Y lo marcamos como convertido apuntando a este onboarding.
+    // Asi NO aparece duplicado en /control/cuentas.
+    // Es solo update + mark-converted, NO se borra el lead (queda historial).
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "leads"
+         SET "contactName" = $1,
+             "companyName" = COALESCE($2, "companyName"),
+             "contactPhone" = COALESCE($3, "contactPhone"),
+             "convertedToOnboardingId" = $4,
+             "updatedAt" = NOW()
+         WHERE LOWER("contactEmail") = LOWER($5)
+           AND "convertedToOnboardingId" IS NULL`,
+        contactName,
+        companyName,
+        contactPhone,
+        id,
+        contactEmail
+      );
+    } catch (err: any) {
+      // No fallar el postulado si el merge falla — solo log.
+      console.error("[onboarding/start] auto-merge lead failed:", err?.message);
+    }
+
     // ─── Email de confirmacion ───────────────────────────────
     const { subject, html } = await onboardingConfirmationEmailActive({
       contactName,
