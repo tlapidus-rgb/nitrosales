@@ -12,7 +12,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { OnboardingDetailDrawer } from "@/components/control/OnboardingDetailDrawer";
 
 type AccountRow = {
   kind: "lead" | "onboarding" | "org";
@@ -68,12 +68,15 @@ function formatRelative(iso: string | null): string {
 }
 
 export default function Page() {
-  const router = useRouter();
   const [items, setItems] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  // Drawer lateral inline para detalle de onboarding (S60 EXT-2 BIS+++++++++).
+  // Antes redirigia a /control/onboardings?id=X. Ahora abre el mismo
+  // componente DetailDrawer (extraido a src/components/control/...) inline.
+  const [selectedOnboardingId, setSelectedOnboardingId] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -328,7 +331,7 @@ export default function Page() {
                       <div style={{ display: "inline-flex", gap: 6 }}>
                         {row.kind === "onboarding" && row.onboardingId && (
                           <button
-                            onClick={() => router.push(`/control/onboardings?id=${row.onboardingId}`)}
+                            onClick={() => setSelectedOnboardingId(row.onboardingId)}
                             style={btnSecondary}
                           >
                             Detalle
@@ -363,6 +366,17 @@ export default function Page() {
       <div style={{ marginTop: 12, fontSize: 11, color: "#52525B" }}>
         Mostrando {filtered.length} de {items.length} cuenta{items.length === 1 ? "" : "s"}.
       </div>
+
+      {/* Drawer lateral inline — el mismo componente que se usa en
+          /control/onboardings/[id]. Reutilizado via OnboardingDetailDrawer
+          extraido a src/components/control/. */}
+      {selectedOnboardingId && (
+        <OnboardingDetailDrawer
+          id={selectedOnboardingId}
+          onClose={() => setSelectedOnboardingId(null)}
+          onRefresh={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 }
