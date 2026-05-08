@@ -41,17 +41,22 @@ export async function DELETE(
     if (!onboardingId)
       return NextResponse.json({ error: "onboardingId requerido" }, { status: 400 });
 
-    // 1) Buscar el onboarding
-    const onboarding = await prisma.onboardingRequest.findUnique({
-      where: { id: onboardingId },
-      select: {
-        id: true,
-        companyName: true,
-        contactEmail: true,
-        status: true,
-        createdOrgId: true,
-      },
-    });
+    // 1) Buscar el onboarding via raw SQL (la tabla no esta en schema.prisma,
+    // solo existe en Postgres por migration manual).
+    const rows = await prisma.$queryRawUnsafe<
+      Array<{
+        id: string;
+        companyName: string;
+        contactEmail: string;
+        status: string;
+        createdOrgId: string | null;
+      }>
+    >(
+      `SELECT "id", "companyName", "contactEmail", "status"::text as "status", "createdOrgId"
+       FROM "onboarding_requests" WHERE "id" = $1 LIMIT 1`,
+      onboardingId
+    );
+    const onboarding = rows[0];
 
     if (!onboarding) {
       return NextResponse.json(
