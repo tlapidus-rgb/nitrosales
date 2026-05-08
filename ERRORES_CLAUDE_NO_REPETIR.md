@@ -4,7 +4,92 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-05-04 tarde — Sesión 60 EXT-2 BIS+++++++ (3 errores nuevos: queries SQL duplicadas con filtros ad-hoc como causa de inconsistencia 12/14/16, funnel que cuenta eventos pixel en vez de ordenes reales, asumir/preguntar al usuario cuando hay que investigar y resolver con datos).**
+> **Última actualización: 2026-05-08 — Sesión 60 EXT-2 BIS++++++++ (3 errores nuevos: inventar valores de enum sin chequear el schema, asumir que un campo `xxxId` apunta a `xxxId` cuando la relacion Prisma apunta a `id`, usar CREATE INDEX CONCURRENTLY desde Prisma raw — no soportado dentro de transaccion).**
+
+---
+
+## Error #S60-EXT2BIS8X-INVENTAR-VALORES-ENUM — `ON_HOLD` y `FAILED` no existen en `OrderStatus` y Postgres lo rechaza con 22P02
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++++. Al crear el contrato data-coherence en `src/lib/metrics/orders.ts`, agregue `'ON_HOLD'` y `'FAILED'` a los status "no concretados" pensando que eran nombres razonables. Postgres tiro `22P02 invalid input value for enum "OrderStatus": "ON_HOLD"` y la pagina /pixel/analytics quedo con error 500 hasta que lo arregle.
+
+El enum real de Prisma tiene SOLO 7 valores: `PENDING, APPROVED, INVOICED, SHIPPED, DELIVERED, CANCELLED, RETURNED`.
+
+### Causa raíz
+- Asumi que los enum eran extensibles ("estos suenan razonables"). En Postgres con `enum` definidos en Prisma, comparar contra strings que no estan en el enum tira error duro, no warning.
+- No abri `prisma/schema.prisma` para verificar antes de hardcodear valores.
+
+### Regla
+**Antes de hardcodear cualquier valor de enum en SQL crudo o helpers, verificar el enum en `prisma/schema.prisma`**:
+
+```bash
+grep -A 15 "enum OrderStatus" prisma/schema.prisma
+```
+
+Si el enum tiene N valores, usar SOLO esos. Si necesitas mas, primero modificar el enum en Prisma + migrar la DB, despues usarlo. Nunca asumir.
+
+Aplicable a TODOS los enum del schema: `OrderStatus`, `AttributionModel`, `OnboardingStatus`, etc.
+
+---
+
+## Error #S60-EXT2BIS8X-VISITOR-ID-RELACION-PRISMA — JOINs rotos por confundir cuid con UUID cookie
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++++. En la query #23 byChannel del pixel agregue un CTE `visitor_to_orders` que hacia:
+
+```sql
+JOIN pixel_visitors pv ON pv.id = pa."visitorId"
+SELECT pv."visitorId" as cookie_visitor_id  -- uuid cookie
+LEFT JOIN visitor_to_orders vto ON vto.cookie_visitor_id = pe."visitorId"  -- pe.visitorId es cuid!
+```
+
+`pe.visitorId` y `pa.visitorId` AMBOS apuntan a `pv.id` (cuid Prisma) por la relacion `@relation(references: [id])`. El campo `pv.visitorId` (UUID cookie del navegador) es OTRO campo de la misma tabla. Mi JOIN comparaba cookie UUID vs cuid → 0 matches → todas las orders salian como "no atribuidas".
+
+### Causa raíz
+- En `pixel_visitors` hay 2 campos: `id` (cuid, PK) y `visitorId` (UUID del cookie `_np_vid`). Ambos son strings.
+- En `pixel_events` y `pixel_attributions` hay un campo `visitorId String` con relacion `@relation(fields: [visitorId], references: [id])`. La FK apunta al `id` de pixel_visitors, NO al `visitorId`.
+- Asumi por el nombre que `pe.visitorId` era el cookie UUID. Es el cuid.
+
+### Regla
+**Cuando hay 2 campos del mismo nombre en tablas distintas, leer el `@relation` del schema antes de JOIN-ear**.
+
+```prisma
+model PixelEvent {
+  visitorId String
+  visitor   PixelVisitor @relation(fields: [visitorId], references: [id])  // ← apunta a id
+}
+
+model PixelVisitor {
+  id        String @id @default(cuid())   // cuid
+  visitorId String                        // UUID cookie (DISTINTO)
+}
+```
+
+Para JOIN entre `pe`, `pa` y `pv`:
+- `pe.visitorId = pa.visitorId` → ambos son cuids, OK directo
+- `pv.id = pe.visitorId` → cuid vs cuid, OK
+- `pv.visitorId = pe.visitorId` → ❌ uuid vs cuid, NUNCA matchea
+
+Bonus: este patron (campo con mismo nombre pero distinto significado) es un footgun. Idealmente `pv.visitorId` deberia llamarse `pv.cookieUuid` o `pv.externalVisitorId`. Anotado como pendiente refactor.
+
+---
+
+## Error #S60-EXT2BIS8X-CONCURRENTLY-DENTRO-PRISMA-TX — `CREATE INDEX CONCURRENTLY` no funciona via Prisma raw
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++++. Para crear 9 indices grandes en prod sin bloquear las tablas, use `CREATE INDEX CONCURRENTLY IF NOT EXISTS` via `prisma.$executeRawUnsafe`. Postgres tiro `25001 cannot run inside a transaction block` para los 9.
+
+### Causa raíz
+- Prisma envuelve cada `$executeRawUnsafe` o `$queryRawUnsafe` en una transaccion implicita por defecto.
+- `CREATE INDEX CONCURRENTLY` requiere ejecutarse en autocommit (NO en tx) porque hace multiple-step locking distinto al CREATE INDEX normal.
+- El `IF NOT EXISTS` no cambia esto.
+
+### Regla
+**Para crear indices via Prisma raw, usar `CREATE INDEX IF NOT EXISTS` plain (sin CONCURRENTLY)**. Esto bloquea writes brevemente durante la creacion pero NO reads. Para 9 indices en TVC (150K events) + EMDJ (2.3M events), el total fue ~50s — aceptable para una operacion one-shot a horario tranquilo.
+
+Si en el futuro se necesitara CONCURRENTLY (tablas mucho mas grandes), opciones:
+- Ejecutar con psql directo (no via Prisma)
+- Usar `pg-promise` u otro driver que permita autocommit
+- Hacerlo como migration manual fuera del flow Next.js
+
+Documentado en endpoint `/api/admin/ensure-coherence-indexes`.
 
 ---
 

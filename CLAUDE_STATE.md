@@ -3,7 +3,91 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-04 tarde (Sesion 60 EXT-2 BIS+++++++ — Single Source of Truth para "ordenes". Tomy reporto 12 vs 14 vs 16 para la misma metrica en /pixel/analytics filtrado por "Ayer". Fix multitenant: nuevo helper `src/lib/metrics/orders.ts` con SQL fragments canonicos + refactor de /api/metrics/pixel/funnel (step "Compra" ahora es ordenes reales no eventos), query #23 byChannel (purchases ahora son ordenes atribuidas no distinct visitors con event), /api/metrics/orders (excluye PENDING, ON_HOLD, FAILED ademas de CANCELLED, RETURNED — 24 ocurrencias). Endpoint `/api/admin/orders-truth` para auditar las 3 tablas (orders, pixel_attributions, pixel_events) y detectar inconsistencias futuras. Documento `DATA_COHERENCE.md` con el contrato canonico. Numero real ayer en TVC = 12 ordenes web validas, 100% atribuidas. Pendientes intactos.)
+## Ultima actualizacion: 2026-05-08 (Sesion 60 EXT-2 BIS++++++++ — Hot-fixes post-coherence + perf de /pixel y /pixel/atribucion. 7 deploys: (1) fix query #23 byChannel JOIN incorrecto pv.visitorId vs pe.visitorId; (2) endpoint debug test-helpers para aislar bug; (3) fix critico: ON_HOLD/FAILED no existen en enum OrderStatus de Prisma → reducir a CANCELLED/PENDING/RETURNED; (4) borrar test-helpers; (5) paralelizar /api/metrics/pixel/funnel con Promise.all + 3 indices nuevos en pixel_attributions; (6) 6 indices mas en pixel_events/orders/pixel_visitors para acelerar /pixel y /pixel/atribucion; (7) fix CONCURRENTLY (no soportado dentro de Prisma tx) → quitar y usar IF NOT EXISTS plain. Total 9 indices creados en prod (los de pixel_events tomaron 4-23s c/u). Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS++++++++ (2026-05-08) — Hot-fixes coherence + perf indices
+
+**Contexto**: post deploy del Single Source of Truth (BIS+++++++), aparecieron 2 bugs criticos y la pagina /pixel quedo lenta. Hot-fixes en 7 commits.
+
+#### Bugs encontrados y corregidos
+
+1. **Query #23 byChannel rompiendo con HTTP 500** (commit `4ba3c21`)
+   - Causa: el JOIN del CTE visitor_to_orders comparaba `pv.visitorId` (cookie UUID) con `pe.visitorId` (cuid Prisma).
+   - Realidad: `pixel_events.visitorId` con `@relation(references: [id])` apunta a `pv.id` (cuid), NO a `pv.visitorId` (cookie). Igual que `pa.visitorId`.
+   - Fix: eliminar JOIN a pixel_visitors. Match directo `pa.visitorId = pe.visitorId` (ambos son cuids).
+
+2. **Postgres enum mismatch**: `ON_HOLD`/`FAILED` no existen en `OrderStatus` (commit `6d2a5a4`)
+   - Causa: agregue ON_HOLD y FAILED al contrato data-coherence pensando que existian en el enum. Postgres tiraba `22P02 invalid input value for enum`.
+   - Realidad: enum tiene SOLO 7 status: PENDING, APPROVED, INVOICED, SHIPPED, DELIVERED, CANCELLED, RETURNED.
+   - Fix: reducir filtros a `('CANCELLED', 'PENDING', 'RETURNED')` en lib/metrics/orders.ts + 24 ocurrencias en /api/metrics/orders + query #23 + DATA_COHERENCE.md.
+   - Status concretados quedan: APPROVED, INVOICED, SHIPPED, DELIVERED.
+
+#### Performance optimizations
+
+3. **Paralelizar /api/metrics/pixel/funnel** (commit `be9289a`)
+   - Antes: las 2 queries (purchaseCount + funnelRow) iban secuencialmente con `await ... await`.
+   - Ahora: `Promise.all([purchasePromise, funnelPromise])`.
+   - Impacto: ~2x mas rapido en rangos chicos.
+
+4. **9 indices nuevos en prod** (commits `be9289a`, `eca1fb4`)
+
+   Round 1 — pixel_attributions (3 indices):
+   - `(orgId, model)` — CTE visitor_to_orders en query #23
+   - `(orderId, model)` — JOIN funnel con channel filter
+   - `(orgId, visitorId)` — drill-down + reextract endpoints
+
+   Round 2 — pixel_events / orders / pixel_visitors (6 indices):
+   - `pixel_events(orgId, visitorId, ts DESC)` — DISTINCT ON visitor_first_source CTE (era el cuello de botella principal)
+   - `pixel_events(visitorId, ts DESC) WHERE deviceType IS NOT NULL` — LATERAL JOIN device lookup query #24
+   - `pixel_events(orgId, type, visitorId)` — COUNT DISTINCT FILTER por type (funnel steps)
+   - `pixel_events(orgId, timestamp)` — filtros simples queries #1-7
+   - `orders(orgId, status, orderDate)` — filtros canonicos /api/metrics/orders
+   - `pixel_visitors(orgId, lastSeenAt DESC)` — lookups recientes
+
+   Tiempos de creacion en prod (TVC 150K events, EMDJ 2.3M events):
+   - pixel_events_orgId_visitorId_ts_idx: **23s**
+   - pixel_events_visitor_device_ts_idx: 12s
+   - pixel_events_orgId_type_visitor_idx: 8s
+   - pixel_events_orgId_ts_idx: 4s
+   - resto: <1s c/u
+
+5. **Fix CONCURRENTLY** (commit `b9d8625`)
+   - Intente usar `CREATE INDEX CONCURRENTLY IF NOT EXISTS` para no bloquear tablas grandes.
+   - Postgres tiro `25001 cannot run inside a transaction block`. Prisma `$executeRawUnsafe` envuelve cada query en una transaccion implicita.
+   - Fix: quitar CONCURRENTLY. Usar plain `CREATE INDEX IF NOT EXISTS`. En tablas grandes esto bloquea writes pero no reads, y para 9 indices total fue ~50s aceptable.
+
+#### Patrones criticos S60 EXT-2 BIS++++++++
+
+1. **Confirmar el schema antes de inventar status**: ON_HOLD/FAILED parecen "razonables" como status de orden no concretada pero NO existen en el enum OrderStatus. Postgres con enums tira error duro `22P02`. Antes de poner cualquier status hardcoded, `grep -A 15 "enum OrderStatus" prisma/schema.prisma`.
+
+2. **Relaciones Prisma explicitas**: cuando un campo `visitorId` se relaciona via `@relation(references: [id])` apunta al `id` (cuid), NO al campo `visitorId` (UUID cookie) que tambien existe en la tabla destino. Esto es un footgun multitenant donde tablas distintas tienen campos con el mismo nombre pero distinto significado.
+
+3. **Postgres CONCURRENTLY incompatible con Prisma tx**: cualquier `$executeRawUnsafe` o `$queryRawUnsafe` corre dentro de tx implicita. CONCURRENTLY requiere autocommit. Para creacion de indices grandes usar plain `CREATE INDEX IF NOT EXISTS` (bloquea writes brevemente) o ejecutar via psql directo.
+
+4. **Indices son 80% de la perf de Postgres**: 9 indices nuevos = -50%/-70% tiempo en /pixel y /pixel/atribucion sin tocar 1 linea de logica. Si una pagina se hace mas lenta a medida que crece la data, casi siempre es seq scan por falta de indice.
+
+5. **DISTINCT ON requiere indice composite**: `SELECT DISTINCT ON ("visitorId") ... ORDER BY "visitorId", timestamp DESC` necesita indice `(visitorId, timestamp DESC)` o no se aprovecha. Si ademas hay filtro `WHERE organizationId = X`, el indice optimo es `(organizationId, visitorId, timestamp DESC)`.
+
+6. **LATERAL JOIN amplifica costo per-row**: cada `LEFT JOIN LATERAL (SELECT ... LIMIT 1)` ejecuta el subquery una vez por cada fila del FROM principal. Con 1000 attributions = 1000 subqueries. Indice partial (`WHERE col IS NOT NULL`) permite que cada lookup sea O(log n) en vez de scan completo.
+
+#### Commits S60 EXT-2 BIS++++++++
+
+| Hash | Tipo | Descripcion |
+|---|---|---|
+| `4ba3c21` | fix | query #23 byChannel JOIN correcto pa.visitorId = pe.visitorId |
+| `5e298ae` | debug | endpoint test-helpers (one-shot, borrado despues) |
+| `6d2a5a4` | fix | usar solo status del enum OrderStatus real |
+| `b6d1ded` | chore | borrar test-helpers |
+| `be9289a` | perf | paralelizar funnel + 3 indices pixel_attributions |
+| `eca1fb4` | perf | 6 indices nuevos en pixel_events/orders/pixel_visitors |
+| `b9d8625` | fix | quitar CONCURRENTLY (no soportado dentro Prisma tx) |
+
+#### Endpoints admin nuevos
+- `/api/admin/ensure-coherence-indexes?key=...` — idempotente, crea los 9 indices del contrato data-coherence con `CREATE INDEX IF NOT EXISTS`. Ya ejecutado en prod (9/9 ok).
+
+---
+
+## Ultima actualizacion previa: 2026-05-04 tarde (Sesion 60 EXT-2 BIS+++++++ — Single Source of Truth para "ordenes". Tomy reporto 12 vs 14 vs 16 para la misma metrica en /pixel/analytics filtrado por "Ayer". Fix multitenant: nuevo helper `src/lib/metrics/orders.ts` con SQL fragments canonicos + refactor de /api/metrics/pixel/funnel (step "Compra" ahora es ordenes reales no eventos), query #23 byChannel (purchases ahora son ordenes atribuidas no distinct visitors con event), /api/metrics/orders (excluye PENDING, ON_HOLD, FAILED ademas de CANCELLED, RETURNED — 24 ocurrencias). Endpoint `/api/admin/orders-truth` para auditar las 3 tablas (orders, pixel_attributions, pixel_events) y detectar inconsistencias futuras. Documento `DATA_COHERENCE.md` con el contrato canonico. Numero real ayer en TVC = 12 ordenes web validas, 100% atribuidas. Pendientes intactos.)
 
 ### Sesion 60 EXT-2 BIS+++++++ (2026-05-04 tarde) — Single Source of Truth para "ordenes"
 
