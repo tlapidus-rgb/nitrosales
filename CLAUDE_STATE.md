@@ -3,7 +3,54 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-08 (Sesion 60 EXT-2 BIS++++++++ — Hot-fixes post-coherence + perf de /pixel y /pixel/atribucion. 7 deploys: (1) fix query #23 byChannel JOIN incorrecto pv.visitorId vs pe.visitorId; (2) endpoint debug test-helpers para aislar bug; (3) fix critico: ON_HOLD/FAILED no existen en enum OrderStatus de Prisma → reducir a CANCELLED/PENDING/RETURNED; (4) borrar test-helpers; (5) paralelizar /api/metrics/pixel/funnel con Promise.all + 3 indices nuevos en pixel_attributions; (6) 6 indices mas en pixel_events/orders/pixel_visitors para acelerar /pixel y /pixel/atribucion; (7) fix CONCURRENTLY (no soportado dentro de Prisma tx) → quitar y usar IF NOT EXISTS plain. Total 9 indices creados en prod (los de pixel_events tomaron 4-23s c/u). Pendientes intactos.)
+## Ultima actualizacion: 2026-05-08 noche (Sesion 60 EXT-2 BIS+++++++++ — Admin: persistencia OrgSwitcher + delete por orgId. 1 deploy: (1) cookie 'nitro-view-org' extendida de 8h a 30 dias (Tomy reporto que despues de F5 volvia a EMDJ); (2) endpoint nuevo POST /api/admin/orgs/[orgId]/wipe-account con confirm pattern + UI tercer boton en /control/onboardings 'Eliminar cuenta completa (por orgId)' con doble confirmacion (typed company name) — reemplaza al endpoint reset-test-env que era por email y tenia ambiguedad multi-cuenta. Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS+++++++++ (2026-05-08 noche) — Admin: OrgSwitcher persiste + delete por orgId
+
+**Contexto**: Tomy reporto 2 issues de funcionalidad admin:
+1. OrgSwitcher: al elegir una tienda distinta a EMDJ y hacer F5/Shift+R volvia a EMDJ.
+2. Eliminar cuenta: el endpoint reset-test-env borra por email, ambiguo cuando un mismo mail esta en varias cuentas. Tomy pidio borrar por orgId puntual.
+
+#### Cambios implementados
+
+1. **Cookie OrgSwitcher 8h → 30 dias** (commit `c9f8c52`)
+   - Archivo: `src/app/api/admin/view-as-org/route.ts`
+   - Antes: `COOKIE_MAX_AGE = 8 * 60 * 60` → si Tomy dejaba 8h sin tocar el switcher, expiraba.
+   - Ahora: `30 * 24 * 60 * 60` = 30 dias. La seleccion persiste hasta cambio explicito o DELETE.
+   - El session callback en `src/lib/auth.ts` ya estaba bien (lee la cookie en cada session refresh y overridea organizationId).
+
+2. **Endpoint POST /api/admin/orgs/[orgId]/wipe-account** (commit `c9f8c52`)
+   - Borra UNA cuenta puntual identificada por orgId directo, no por email.
+   - Body requiere `{ confirm: "WIPE-{orgId}" }` para evitar borrado accidental.
+   - Borra (en orden por FK): order_items, orders, pixel_attributions, pixel_visitor_aliases, pixel_events, pixel_visitors, customers, products, connections, backfill_jobs, + tablas opcionales (meli_webhook_events, ml_listings, alerts, ad_campaigns, ad_metric_daily, web_metric_daily, seo_query_daily, influencer_*, payouts, audiences, etc), users, onboarding_requests del email del user, finalmente organization.
+   - MANTIENE: email_log + leads (historial).
+   - Idempotente: si la org no existe devuelve 404.
+
+3. **UI tercer boton en /control/onboardings/[id]** (commit `c9f8c52`)
+   - "🗑️ Eliminar cuenta completa (por orgId)" — solo visible si `detail.createdOrgId` existe.
+   - Doble confirmacion: confirm() inicial + prompt() para tipear el companyName exacto (anti-misclick).
+   - Llama al endpoint nuevo con body confirm pattern.
+   - Si exitoso, cierra el modal de detalle.
+
+#### Patrones criticos S60 EXT-2 BIS+++++++++
+
+1. **Para identificar cuentas a borrar usar SIEMPRE orgId**, no email. Un mismo email puede ser owner de varias orgs. Borrar por email o crear por orgId equivocado es la causa #1 de bugs admin.
+
+2. **Cookies de "preferencias admin" deben ser de larga duracion** (30+ dias). 8h era razonable para sesiones de trabajo pero rompia el caso uso de "abrir el dashboard de un cliente cada par de dias". Si pasa una semana, la cookie expira y el admin ve EMDJ por error.
+
+3. **Confirm-pattern doble para acciones destructivas**: confirm() generico es trivial de aceptar accidentalmente. Para wipe completo: prompt() pidiendo escribir el nombre exacto de la cuenta. Standard de Stripe/GitHub/Vercel para "delete repo" / "delete account".
+
+4. **Body con `confirm: WIPE-{id}` en endpoints destructivos**: si la URL queda en el browser history, no es suficiente con solo un POST. El body con un valor que incluye el ID exacto evita que un curl test borre algo por error.
+
+#### Commits S60 EXT-2 BIS+++++++++
+
+| Hash | Tipo | Descripcion |
+|---|---|---|
+| `c9f8c52` | feat | cookie OrgSwitcher 30d + endpoint wipe-account por orgId + UI |
+
+---
+
+## Ultima actualizacion previa: 2026-05-08 (Sesion 60 EXT-2 BIS++++++++ — Hot-fixes post-coherence + perf de /pixel y /pixel/atribucion. 7 deploys: (1) fix query #23 byChannel JOIN incorrecto pv.visitorId vs pe.visitorId; (2) endpoint debug test-helpers para aislar bug; (3) fix critico: ON_HOLD/FAILED no existen en enum OrderStatus de Prisma → reducir a CANCELLED/PENDING/RETURNED; (4) borrar test-helpers; (5) paralelizar /api/metrics/pixel/funnel con Promise.all + 3 indices nuevos en pixel_attributions; (6) 6 indices mas en pixel_events/orders/pixel_visitors para acelerar /pixel y /pixel/atribucion; (7) fix CONCURRENTLY (no soportado dentro de Prisma tx) → quitar y usar IF NOT EXISTS plain. Total 9 indices creados en prod (los de pixel_events tomaron 4-23s c/u). Pendientes intactos.)
 
 ### Sesion 60 EXT-2 BIS++++++++ (2026-05-08) — Hot-fixes coherence + perf indices
 
