@@ -412,7 +412,7 @@ function DetailDrawer({
   const [rejecting, setRejecting] = useState(false);
   const [approvingBackfill, setApprovingBackfill] = useState(false);
   const [activatingClient, setActivatingClient] = useState(false);
-  const [resetting, setResetting] = useState<"none" | "soft" | "wipe">("none");
+  const [resetting, setResetting] = useState<"none" | "soft" | "wipe" | "wipe-account">("none");
   const [showBackfillModal, setShowBackfillModal] = useState(false);
   const [bfPlatforms, setBfPlatforms] = useState<Record<string, boolean>>({});
   const [addingPlatform, setAddingPlatform] = useState<string | null>(null);
@@ -503,28 +503,57 @@ function DetailDrawer({
     }
   };
 
-  const resetBackfill = async (mode: "soft" | "wipe") => {
+  const resetBackfill = async (mode: "soft" | "wipe" | "wipe-account") => {
     const confirmMsg = mode === "soft"
       ? `RESET SUAVE para ${detail.companyName}\n\n` +
         `Borra solo los backfill_jobs. La data cargada (orders, customers, products) se mantiene.\n\n` +
         `Después podés re-aprobar el backfill y el sistema rellenará lo que falte sin destruir lo bueno.\n\n` +
         `¿Continuar?`
-      : `⚠️ RESET COMPLETO (WIPE) para ${detail.companyName}\n\n` +
+      : mode === "wipe"
+      ? `⚠️ RESET COMPLETO (WIPE) para ${detail.companyName}\n\n` +
         `Borra TODA la data: orders, items, customers, products, eventos pixel, etc.\n` +
         `Mantiene: credenciales, organización, usuarios.\n\n` +
         `El cliente queda como recién terminó el wizard pero sin data. Vas a tener que re-aprobar el backfill.\n\n` +
+        `Esta acción NO SE PUEDE DESHACER. ¿Continuar?`
+      : `🗑️ ELIMINAR CUENTA COMPLETA de ${detail.companyName}\n\n` +
+        `Borra TODO: data + organization + usuarios + connections.\n` +
+        `Es como si el cliente NUNCA HUBIERA EXISTIDO en la plataforma.\n\n` +
+        `OrgId que se va a borrar: ${detail.createdOrgId}\n\n` +
         `Esta acción NO SE PUEDE DESHACER. ¿Continuar?`;
 
     if (!confirm(confirmMsg)) return;
     if (mode === "wipe" && !confirm("Confirmá una vez más: vas a borrar TODA la data del cliente.")) return;
+    if (mode === "wipe-account") {
+      const typed = prompt(
+        `Para confirmar la eliminación COMPLETA de la cuenta, escribí el nombre exacto de la empresa:\n\n${detail.companyName}`
+      );
+      if (typed?.trim() !== detail.companyName?.trim()) {
+        alert("El nombre no coincide. Eliminación cancelada.");
+        return;
+      }
+    }
 
     setResetting(mode);
     setErrorMsg(null);
     try {
-      const path = mode === "soft"
-        ? `/api/admin/onboardings/${id}/reset-backfill`
-        : `/api/admin/onboardings/${id}/reset-wipe`;
-      const res = await fetch(path, { method: "POST" });
+      let res: Response;
+      if (mode === "wipe-account") {
+        if (!detail.createdOrgId) {
+          setErrorMsg("Este onboarding no tiene org creada todavía. Usá rechazar en lugar.");
+          setResetting("none");
+          return;
+        }
+        res = await fetch(`/api/admin/orgs/${detail.createdOrgId}/wipe-account`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirm: `WIPE-${detail.createdOrgId}` }),
+        });
+      } else {
+        const path = mode === "soft"
+          ? `/api/admin/onboardings/${id}/reset-backfill`
+          : `/api/admin/onboardings/${id}/reset-wipe`;
+        res = await fetch(path, { method: "POST" });
+      }
       const json = await res.json();
       if (!res.ok) {
         setErrorMsg(json.error || "Error en el reset");
@@ -532,6 +561,13 @@ function DetailDrawer({
         return;
       }
       onRefresh();
+      if (mode === "wipe-account") {
+        alert(
+          `Cuenta eliminada. ${json.totalDeleted || 0} registros borrados (incluyendo organization, users, data).`
+        );
+        onClose();
+        return;
+      }
       const detailRes = await fetch(`/api/admin/onboardings/${id}`);
       const detailJson = await detailRes.json();
       if (detailRes.ok) setDetail(detailJson.request);
@@ -1239,9 +1275,40 @@ function DetailDrawer({
                       </div>
                     </button>
 
+                    {/* Eliminar cuenta completa por orgId */}
+                    {detail?.createdOrgId && (
+                      <button
+                        onClick={() => resetBackfill("wipe-account")}
+                        disabled={resetting !== "none"}
+                        style={{
+                          width: "100%",
+                          padding: "10px 14px",
+                          background: "rgba(220,38,38,0.08)",
+                          color: "#DC2626",
+                          border: "1px solid rgba(220,38,38,0.5)",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: resetting !== "none" ? "wait" : "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        🗑️ Eliminar cuenta completa (por orgId)
+                        <div style={{ fontSize: 10, color: "#A1A1AA", fontWeight: 400, marginTop: 2 }}>
+                          Borra todo: data + organización + usuarios + connections.
+                          Como si el cliente nunca hubiera existido. Identifica por orgId,
+                          NO por email (un email puede estar en varias cuentas).
+                        </div>
+                      </button>
+                    )}
+
                     {resetting !== "none" && (
                       <div style={{ fontSize: 11, color: "#A1A1AA", textAlign: "center", padding: "8px 0" }}>
-                        {resetting === "soft" ? "Reset suave en proceso…" : "Wipe completo en proceso…"}
+                        {resetting === "soft"
+                          ? "Reset suave en proceso…"
+                          : resetting === "wipe"
+                          ? "Wipe completo en proceso…"
+                          : "Eliminando cuenta completa…"}
                       </div>
                     )}
                   </div>

@@ -23,7 +23,10 @@ import { cookies } from "next/headers";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "nitro-view-org";
-const COOKIE_MAX_AGE = 8 * 60 * 60; // 8 horas
+// 30 dias — antes era 8h. Tomy reporto que despues de F5 / refresh la
+// seleccion de org se perdia y volvia a EMDJ. Causa: la cookie expiraba.
+// Con 30d la seleccion persiste hasta que el admin la cambie o haga DELETE.
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 dias
 
 export async function POST(req: NextRequest) {
   try {
