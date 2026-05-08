@@ -12,7 +12,14 @@
 //   setCache("metrics", data, orgId, from, to);
 // ══════════════════════════════════════════════════════════════
 
-const DEFAULT_TTL_MS = 60_000; // 60 seconds
+// S60 EXT-2 BIS+++++++++++: subido de 60s a 5 min (300s).
+// Tomy reporto que dashboards y /pedidos seguian lentos. Con 60s, si navegaba,
+// abria/cerraba paginas, F5, cualquier accion despues de 60s pagaba el costo
+// completo de ~30 queries paralelas. 5 min es estandar industria para
+// dashboards de ecommerce (no son live, datos del minuto no son criticos).
+// Datos actuales se siguen reflejando: webhooks de orders/MELI/VTEX disparan
+// actualizacion de DB, solo el READ esta cacheado por 5 min.
+const DEFAULT_TTL_MS = 5 * 60_000; // 5 minutos
 
 interface CacheEntry {
   data: unknown;

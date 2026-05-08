@@ -85,6 +85,16 @@ const INDEXES = [
     sql: `CREATE INDEX IF NOT EXISTS "order_items_orderId_productId_idx" ON "order_items" ("orderId", "productId")`,
     purpose: "Acelera top-products queries (JOIN order_items.orderId + group by productId).",
   },
+  {
+    // PARTIAL INDEX para acelerar el anti-join 'NOT IN (SELECT COALESCE(packId, externalId)
+    // WHERE status IN CANCELLED/RETURNED/PENDING)' que se ejecuta 22 veces en
+    // /api/metrics/orders. Como la mayoria de orders son APPROVED/INVOICED, el
+    // partial solo indexa las 'invalidas' → tabla de indice mucho mas chica
+    // (~10% de orders) y el anti-join queda como index-only scan.
+    name: "orders_invalid_packs_partial_idx",
+    sql: `CREATE INDEX IF NOT EXISTS "orders_invalid_packs_partial_idx" ON "orders" ("organizationId", (COALESCE("packId", "externalId"))) WHERE status IN ('CANCELLED', 'RETURNED', 'PENDING')`,
+    purpose: "Acelera la subquery NOT IN(...) que se ejecuta 22 veces en orders metrics.",
+  },
 ];
 
 export async function GET(req: NextRequest) {
