@@ -101,9 +101,11 @@ export async function GET() {
           connections: {
             select: { platform: true, status: true },
           },
+          // Traer TODOS los users de la org para luego elegir el OWNER real.
+          // Antes hacia take: 1 sin orden y a veces traia un user de prueba
+          // (ej: gerencia@... creado para testear ML) en vez del owner real.
           users: {
-            select: { email: true, name: true },
-            take: 1,
+            select: { email: true, name: true, role: true, createdAt: true },
           },
         },
       });
@@ -206,7 +208,21 @@ export async function GET() {
           (c) => c.platform === "GOOGLE_ADS" || c.platform === "GA4" || c.platform === "GSC"
         ),
       };
-      const ownerUser = org.users[0];
+      // Elegir el user "principal" priorizando role:
+      // 1) OWNER (dueño real de la cuenta)
+      // 2) ADMIN
+      // 3) MEMBER (cualquier user mas antiguo)
+      // Antes tomabamos org.users[0] sin orden, lo que a veces traia un user
+      // de prueba (ej: gerencia@... creado para testear ML) en vez del owner.
+      const sortedUsers = [...(org.users || [])].sort((a: any, b: any) => {
+        const roleRank: Record<string, number> = { OWNER: 0, ADMIN: 1, MEMBER: 2 };
+        const ra = roleRank[a.role] ?? 99;
+        const rb = roleRank[b.role] ?? 99;
+        if (ra !== rb) return ra - rb;
+        // Mismo rol → más antiguo primero (probablemente el original)
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+      const ownerUser = sortedUsers[0];
       items.push({
         kind: "org",
         id: `org:${org.id}`,
