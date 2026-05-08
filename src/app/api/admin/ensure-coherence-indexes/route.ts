@@ -79,9 +79,11 @@ const INDEXES = [
     purpose: "Acelera cohorts query en /api/metrics/orders (LATERAL JOIN para customer history).",
   },
   {
-    name: "order_items_orgId_productId_idx",
-    sql: `CREATE INDEX IF NOT EXISTS "order_items_orgId_productId_idx" ON "order_items" ("organizationId", "productId")`,
-    purpose: "Acelera top-products queries (JOIN order_items.productId con products).",
+    // order_items NO tiene columna organizationId (la herencia es via orderId).
+    // Indexamos por (orderId, productId) que es lo que realmente usan los JOINs.
+    name: "order_items_orderId_productId_idx",
+    sql: `CREATE INDEX IF NOT EXISTS "order_items_orderId_productId_idx" ON "order_items" ("orderId", "productId")`,
+    purpose: "Acelera top-products queries (JOIN order_items.orderId + group by productId).",
   },
 ];
 
