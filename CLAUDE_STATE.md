@@ -3,7 +3,116 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-08 noche (Sesion 60 EXT-2 BIS+++++++++ — Admin: persistencia OrgSwitcher + delete por orgId. 1 deploy: (1) cookie 'nitro-view-org' extendida de 8h a 30 dias (Tomy reporto que despues de F5 volvia a EMDJ); (2) endpoint nuevo POST /api/admin/orgs/[orgId]/wipe-account con confirm pattern + UI tercer boton en /control/onboardings 'Eliminar cuenta completa (por orgId)' con doble confirmacion (typed company name) — reemplaza al endpoint reset-test-env que era por email y tenia ambiguedad multi-cuenta. Pendientes intactos.)
+## Ultima actualizacion: 2026-05-08 madrugada (Sesion 60 EXT-2 BIS++++++++++ — Admin: vista unificada /control/cuentas + auto-merge lead-onboarding + drawer lateral inline. 12 deploys: (1) fix viewingAsOrg=true (boolean) → guardar orgId + alert errores POST; (2) leer cookie real del server (no useSession cacheado) en OrgSwitcher; (3) boton Eliminar individual por fila en /control/onboardings; (4) confirmacion case-insensitive del companyName; (5) pedir ultimos 6 chars del orgId vs nombre (anti-duplicado); (6) simplificar a 2 confirm() simples sin tipear; (7) raw SQL para leer onboarding_requests (no esta en schema.prisma); (8) seccion unificada /control/cuentas (leads + onboardings + orgs); (9) try/catch por fuente + SELECT * en leads + diagnostico errors; (10) cleanup-duplicate-leads + auto-merge en onboarding/start; (11) mostrar OWNER real (no user random) en cuentas fundadoras; (12) drawer lateral inline en /cuentas — refactor: extraidas 1780 lineas del archivo monolitico /control/onboardings/page.tsx a `src/components/control/OnboardingDetailDrawer.tsx`. Borrados 2 leads duplicados (Maximiliano/Arredo + Leandro/TVC). Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS++++++++++ (2026-05-08 madrugada) — Admin unification + drawer inline
+
+**Contexto**: Tomy pidió consolidar la gestion admin en una sola pestaña. Antes habia 3 secciones separadas en `/control/*` (Pipeline, Clientes, Onboardings) que gestionaban distintas etapas del mismo objeto (cuenta/cliente). Ademas reporto varios bugs en el flow de admin (OrgSwitcher visual desfasado, delete que rompia, duplicados al postular).
+
+#### Cambios implementados (cronologico)
+
+1. **Fix `viewingAsOrg = true` (boolean)** (commit `6289765`)
+   - Bug: en `auth.ts` línea 231 se seteaba `viewingAsOrg = true` (boolean), pero `OrgSwitcher.tsx` lo leía como string. Resultado: `currentOrgId = true || organizationId = true` (boolean) y el checkmark del dropdown nunca matcheaba ninguna org.
+   - Fix: guardar `org.id` (string) en lugar de `true`. Plus: alert visible cuando POST view-as-org falla + cache-busting param en reload.
+
+2. **Leer cookie del server (sin cache useSession)** (commit `0fab235`)
+   - Bug visual: despues del switch + F5, los DATOS cambiaban (TVC se cargaba) pero el dropdown del OrgSwitcher seguia mostrando EMDJ con checkmark.
+   - Causa: `useSession()` cliente cachea la respuesta de NextAuth. Server-side el override funcionaba (datos TVC), pero cliente leia sesion vieja.
+   - Fix: nuevo fetch a `GET /api/admin/view-as-org` (con cache: no-store) al montar el componente. El endpoint devuelve `{ viewingAs, realOrg }` leyendo cookie + session real. Source-of-truth: server > useSession.
+
+3. **Boton Eliminar individual por fila** (commit `07f6393`)
+   - Endpoint `DELETE /api/admin/onboardings/[id]/delete` que maneja 3 casos: con createdOrgId borra todo, sin org borra solo el onboarding_request, mantiene email_log + leads.
+   - UI: 🗑️ rojo a la derecha de cada fila, doble confirm.
+
+4. **Confirmacion case-insensitive** (commit `45abed8`)
+   - Tomy escribió "The World Of Toys" pero la comparacion estricta lo rechazaba.
+   - Fix: normalizar lowercase + colapsar espacios. "The World Of Toys" = "the world of toys".
+
+5. **Confirmacion por orgId (no nombre)** (commit `c41ef90`)
+   - Tomy: "el nombre puede repetirse, el orgId no".
+   - Fix: pedir los ultimos 6 caracteres del cuid. Unico por org. Imposible borrar la equivocada.
+
+6. **Simplificar a 2 confirm() simples** (commit `0c54533`)
+   - Tomy queria sin tipear nada para onboardings rechazados.
+   - Fix: 2 confirm() simples (info detallada + última oportunidad). Aplica para TODOS los casos.
+
+7. **Raw SQL para onboarding_requests** (commit `fb39f38`)
+   - Bug: `prisma.onboardingRequest.findUnique` tiraba `Cannot read properties of undefined`.
+   - Causa: la tabla `onboarding_requests` existe en Postgres pero NO esta declarada en schema.prisma. Cliente Prisma sin acceso.
+   - Fix: usar `prisma.$queryRawUnsafe` (lo que ya hacian los DELETE del mismo endpoint).
+
+8. **Seccion unificada `/control/cuentas`** (commit `67c5393`)
+   - Endpoint `GET /api/control/accounts-unified` que une leads + onboarding_requests + organizations (incluyendo fundadoras como EMDJ sin onboarding).
+   - Pagina nueva con tabs (Todas/Pipeline/Solicitudes/Activas/Rechazadas), busqueda, columna estado normalizada, plataformas, "conectada hace", "solicitud hace", acciones (Detalle/Ver como/Eliminar).
+   - ControlNav simplificado: 3 links (Pipeline+Clientes+Onboardings) → 1 link "Cuentas".
+
+9. **Try/catch por fuente + diagnostico** (commit `3fc2de6`)
+   - Despues de pushear /cuentas, Tomy vio "Sin cuentas en este tab" (todo en 0).
+   - Causa: alguna query (probablemente leads con columna inexistente) fallaba y todo el endpoint caia a 500.
+   - Fix: 3 try/catch independientes (leads/onboardings/orgs), SELECT * en leads, devolver `errors` + `sources` para diagnostico.
+
+10. **Cleanup duplicate leads + auto-merge** (commit `da6b92c`)
+    - Tomy reporto: Arredo y TeVe Compras aparecian 2 veces (un lead + un onboarding por mismo email/empresa). Cuando él cargaba el lead "Maximiliano" en pipeline y despues el cliente postulaba como "Max el PRIMERO", se creaba duplicado.
+    - Endpoint admin one-shot `cleanup-duplicate-leads` (idempotente, dryRun=1) detecta y borra leads cuyo email matchea un onboarding en estado avanzado. **Ejecutado en prod**: borrados 2 leads (Maximiliano + Leandro). Tipo B.
+    - Fix Tipo A en `/api/public/onboarding/start`: despues de crear onboarding_request, hago UPDATE en `leads` con email match para actualizar `contactName` (con el nombre que puso el cliente), `companyName`, `contactPhone`, y setear `convertedToOnboardingId`. El lead NO se borra, queda con marca "convertido". A futuro nunca mas duplicacion.
+
+11. **Owner real (no test user)** (commit `6f82af6`)
+    - Tomy reporto: en /cuentas la fila EMDJ mostraba `gerencia@elmundodeljuguete.com.ar` (user creado para probar integracion ML) en vez del owner real `tlapidus@99media.com.ar`.
+    - Causa: el endpoint hacia `users: { take: 1 }` sin orden, traia un user random.
+    - Fix: traer todos los users + ordenar por `role` (OWNER → ADMIN → MEMBER) y dentro del mismo rol por `createdAt` asc. Asi siempre se muestra el owner real.
+
+12. **Drawer lateral inline en /cuentas** (commit `e22ef12`)
+    - Tomy queria que click en "Detalle" abriera el drawer mismo (con todas las funciones: test credentials, aprobar backfill, activar cliente) inline en /cuentas, sin redirect a /control/onboardings.
+    - **Refactor grande**: extraido el componente `DetailDrawer` + 10 auxiliares (~1780 lineas) del archivo monolitico `/control/onboardings/page.tsx` (2651→875 lineas) a un archivo standalone reutilizable `src/components/control/OnboardingDetailDrawer.tsx` (1844 lineas).
+    - Componentes movidos: DetailDrawer, ConnectionsList, CredentialsTestBlock, DSection, DRow, PlatformBlock, DSecret, EmptyLabel, BackfillProgress, BackfillJobRow, formatRelative, StatusPill (interno).
+    - Constantes (BRAND_ORANGE, STATUS_CONFIG, PLATFORM_META) duplicadas en ambos archivos (pueden DRY-earse despues si conviene).
+    - Importado en /cuentas: state `selectedOnboardingId`, click en "Detalle" hace `setSelectedOnboardingId(id)` y se abre el drawer inline. `onClose` limpia, `onRefresh` refresca la tabla.
+
+#### Patrones criticos S60 EXT-2 BIS++++++++++
+
+1. **`useSession()` cliente cachea la sesion**: para datos que cambian via cookie (view-as-org, impersonate, etc), NO confiar en useSession() — hacer fetch directo al endpoint server con `cache: "no-store"`. La sesion server-side SI ve la cookie nueva, pero el client tarda hasta el proximo refresh interno.
+
+2. **Tablas que existen en Postgres pero NO en schema.prisma**: `onboarding_requests`, `leads` y otras se crearon via migrations manuales. El cliente Prisma no las expone. Hay que usar `$queryRawUnsafe`/`$executeRawUnsafe`. Antes de hacer `prisma.X.findUnique`, verificar con `grep "model X" prisma/schema.prisma`.
+
+3. **Take: 1 sin orden = bug latente**: cuando una org/entidad tiene multiples relaciones (users, connections, etc), `take: 1` sin `orderBy` devuelve un row arbitrario. Para "el principal" (owner, primer user) hay que ordenar explicitamente. Aplica a CUALQUIER take/limit.
+
+4. **3 try/catch independientes en endpoints multi-fuente**: cuando un endpoint une N fuentes (leads + onboardings + orgs), si una falla, las otras deben seguir funcionando. Devolver `errors` + `sources` en la respuesta para diagnostico instantaneo del frontend.
+
+5. **Auto-merge por email match en endpoints de creacion**: cuando creas un onboarding/cuenta, buscar entidades previas (leads) con mismo email y mergearlas. Causa #1 de duplicacion: Tomy carga lead, cliente postula con datos distintos, sistema no conecta.
+
+6. **Doble confirm() simple > tipear nombres**: para acciones destructivas en admin, 2 confirm() simples (info + "ultima oportunidad") son mas robustos que pedir tipear el companyName (que se rechaza por casing/espacios) o el orgId (incomodo). Anti-misclick basico.
+
+7. **Refactor de archivo monolitico via agente**: cuando un archivo crece a 2500+ lineas con multiples componentes, extraer subcomponentes a archivos separados via un agente con instrucciones precisas (qué mover, qué dependencias resolver, validar tsc). Mas seguro que hacerlo manualmente para refactors grandes (>1000 lineas).
+
+#### Commits S60 EXT-2 BIS++++++++++
+
+| Hash | Tipo | Descripcion |
+|---|---|---|
+| `6289765` | fix | viewingAsOrg=true (boolean) → orgId (string) + alert errores POST + debug endpoint |
+| `0fab235` | fix | OrgSwitcher lee cookie del server (no useSession cacheado) |
+| `07f6393` | feat | boton Eliminar individual por fila en /control/onboardings |
+| `45abed8` | fix | confirmacion case-insensitive del companyName |
+| `c41ef90` | fix | pedir ultimos 6 chars del orgId (no nombre) |
+| `0c54533` | fix | simplificar a 2 confirm() simples sin tipear |
+| `fb39f38` | fix | raw SQL para leer onboarding_requests |
+| `67c5393` | feat | seccion unificada /control/cuentas |
+| `3fc2de6` | fix | try/catch por fuente + SELECT * + diagnostico errors |
+| `da6b92c` | feat | cleanup-duplicate-leads + auto-merge en onboarding/start |
+| `6f82af6` | fix | owner real (no test user) en cuentas fundadoras |
+| `e22ef12` | feat | drawer lateral inline en /control/cuentas |
+
+#### Pendientes intactos
+
+- 🟡 BP-S60-005 — Activar TVC (Google Ads connection)
+- 🟡 BP-S60-002 — Wizard del afiliado VTEX
+- 🟢 BP-S60-004 — Alias webhooks@nitrosales.ai
+- 🟢 OrgSwitcher dark theme
+- 🟢 Refactor pa.visitorId → pa.pixelVisitorId
+- 🟢 DRY-ear constantes duplicadas (BRAND_ORANGE/STATUS_CONFIG/PLATFORM_META) entre /control/onboardings/page.tsx y OnboardingDetailDrawer.tsx → mover a `src/lib/control/onboardingTheme.ts`
+
+---
+
+## Ultima actualizacion previa: 2026-05-08 noche (Sesion 60 EXT-2 BIS+++++++++ — Admin: persistencia OrgSwitcher + delete por orgId. 1 deploy: (1) cookie 'nitro-view-org' extendida de 8h a 30 dias (Tomy reporto que despues de F5 volvia a EMDJ); (2) endpoint nuevo POST /api/admin/orgs/[orgId]/wipe-account con confirm pattern + UI tercer boton en /control/onboardings 'Eliminar cuenta completa (por orgId)' con doble confirmacion (typed company name) — reemplaza al endpoint reset-test-env que era por email y tenia ambiguedad multi-cuenta. Pendientes intactos.)
 
 ### Sesion 60 EXT-2 BIS+++++++++ (2026-05-08 noche) — Admin: OrgSwitcher persiste + delete por orgId
 

@@ -4,7 +4,152 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-05-08 — Sesión 60 EXT-2 BIS++++++++ (3 errores nuevos: inventar valores de enum sin chequear el schema, asumir que un campo `xxxId` apunta a `xxxId` cuando la relacion Prisma apunta a `id`, usar CREATE INDEX CONCURRENTLY desde Prisma raw — no soportado dentro de transaccion).**
+> **Última actualización: 2026-05-08 madrugada — Sesión 60 EXT-2 BIS++++++++++ (4 errores nuevos: useSession() cliente cachea la sesion y no refleja cookie nueva, asumir que prisma.X funciona sin verificar que el modelo esté en schema.prisma, take:1 sin orden devuelve row arbitrario, valor boolean en lugar de string en flags de session).**
+
+---
+
+## Error #S60-EXT2BIS10X-USESESSION-CACHEADA — Cliente NextAuth no refleja cookies nuevas
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++++++. Después de implementar el flow de "view-as-org", Tomy reportó que al elegir TVC + reload, los DATOS cargaban correctamente (TVC) pero el dropdown del OrgSwitcher seguía visualmente en EMDJ con el checkmark.
+
+Causa: el OrgSwitcher leía `useSession()` del lado cliente. Esa session **cachea internamente** la respuesta de `/api/auth/session`. Aunque el server (con la cookie nueva) overrideaba `organizationId` a TVC, el cliente devolvía la sesion vieja en cache. Los endpoints server-side SÍ veían la cookie (datos correctos), pero el dropdown UI quedaba desactualizado hasta el próximo refresh interno de NextAuth.
+
+### Causa raíz
+- `useSession()` no es real-time. NextAuth cachea la sesion en `localStorage` y solo la refresca cada N segundos o en window focus.
+- Cuando dato depende de cookie httpOnly server-side, el client-side está siempre un paso atrás.
+- Asumimos que reload del browser refrescaba todo, pero NextAuth tiene su propia cache.
+
+### Regla
+**Para datos que cambian via cookie httpOnly (view-as-org, impersonate, feature flags admin), NO confiar en `useSession()` cliente**. Hacer fetch directo al endpoint server con `cache: "no-store"`:
+
+```ts
+useEffect(() => {
+  fetch("/api/admin/view-as-org", { cache: "no-store" })
+    .then((r) => r.json())
+    .then((data) => setServerState(data));
+}, []);
+```
+
+Source-of-truth: server (lee cookie en cada request) > cliente (cacheado).
+
+Aplicable a: switchers, admin overrides, impersonate, view-as, kill switches que dependen de cookies http.
+
+---
+
+## Error #S60-EXT2BIS10X-PRISMA-MODEL-NO-EN-SCHEMA — Tablas existen en Postgres pero no en schema.prisma
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++++++. Implementé `/api/admin/onboardings/[id]/delete` usando `prisma.onboardingRequest.findUnique({...})`. Crashes inmediato con `Cannot read properties of undefined (reading 'findUnique')`.
+
+Causa: la tabla `onboarding_requests` se creó en Postgres via SQL migration manual (cuando se armó el wizard de onboarding), pero **nunca se declaró como modelo en `prisma/schema.prisma`**. El cliente Prisma generado no tiene `prisma.onboardingRequest`. Es undefined.
+
+Lo mismo aplica a `leads` y otras tablas que se agregaron via SQL crudo sin update del schema.
+
+### Causa raíz
+- Asumi que cualquier tabla en Postgres tiene su modelo Prisma.
+- Las migraciones manuales (CREATE TABLE) no actualizan automáticamente schema.prisma.
+- `prisma generate` se ejecuta del schema.prisma — si no está, no hay cliente.
+
+### Regla
+**Antes de hacer `prisma.X.findUnique/findMany/create/etc`, verificar que el modelo exista en `prisma/schema.prisma`**:
+
+```bash
+grep -A 5 "^model X" prisma/schema.prisma
+```
+
+Si no existe, usar raw SQL:
+```ts
+const rows = await prisma.$queryRawUnsafe<Array<...>>(
+  `SELECT * FROM "table_name" WHERE ...`,
+  ...args
+);
+```
+
+Tablas conocidas en NitroSales que NO están en schema.prisma:
+- `onboarding_requests`
+- `leads`
+- otras que se crearon vía migrations manuales
+
+Para uniformidad: si el endpoint hace DELETE/UPDATE/SELECT de la misma tabla, todo via raw SQL (no mezclar `prisma.X` con `$queryRaw`).
+
+---
+
+## Error #S60-EXT2BIS10X-TAKE-1-SIN-ORDEN — Row arbitrario al seleccionar "el principal"
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++++++. En `/api/control/accounts-unified` para mostrar el contacto de cada org hacía:
+
+```ts
+users: { select: { email: true, name: true }, take: 1 }
+```
+
+Tomy reportó: en EMDJ se mostraba `gerencia@elmundodeljuguete.com.ar` (user creado para probar integración ML) en lugar del owner real `tlapidus@99media.com.ar`.
+
+Causa: `take: 1` sin `orderBy` devuelve un row **arbitrario** (Postgres no garantiza orden sin ORDER BY explícito). Para un user "principal" (owner) hay que especificar criterio.
+
+### Causa raíz
+- Asumí que el primer user creado sería el owner. No es así sin orden explícito.
+- Postgres puede devolver rows en orden de inserción, físico (heap), o por índice — depende de la query y del estado de la tabla.
+
+### Regla
+**`take: 1` sin `orderBy` = bug latente**. Cuando una entidad tiene relación 1-a-N y queremos "el principal", ordenar explícitamente por:
+
+1. Campo de role/jerarquía si existe (OWNER > ADMIN > MEMBER).
+2. `createdAt` asc para "el original/primer creado".
+3. `updatedAt` desc para "el más reciente".
+
+Implementación:
+
+```ts
+// Traer todos + ordenar en JS si la relación no soporta orderBy con prioridad customizada:
+users: { select: { email: true, role: true, createdAt: true } }
+// ...
+const sortedUsers = [...users].sort((a, b) => {
+  const roleRank = { OWNER: 0, ADMIN: 1, MEMBER: 2 };
+  const ra = roleRank[a.role] ?? 99;
+  const rb = roleRank[b.role] ?? 99;
+  if (ra !== rb) return ra - rb;
+  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+});
+const owner = sortedUsers[0];
+```
+
+Aplicable a: users, connections, addresses, payment methods, cualquier relación 1-a-N donde haya un "principal".
+
+---
+
+## Error #S60-EXT2BIS10X-BOOLEAN-EN-LUGAR-DE-STRING-SESSION — Flag de sesion con tipo equivocado rompe comparaciones
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS++++++++++. En `auth.ts` línea 231 setié `session.user.viewingAsOrg = true` (boolean). Después en `OrgSwitcher.tsx` línea 34 lo leía como string:
+
+```ts
+const viewingAsOrgId = session?.user?.viewingAsOrg as string | undefined;
+const currentOrgId = viewingAsOrgId || session?.user?.organizationId;
+```
+
+Resultado: `viewingAsOrgId = true`, `currentOrgId = true` (boolean truthy). Las comparaciones `org.id === currentOrgId` siempre falsas → ningún checkmark visible en el dropdown.
+
+### Causa raíz
+- TypeScript no detecta el mismatch porque `as string | undefined` lo fuerza al tipo.
+- El boolean es truthy entonces `||` no cae al fallback.
+- Visual: ninguna fila del dropdown queda marcada como "actual".
+
+### Regla
+**Cuando un flag de session/JWT representa "el ID actual" o similar, guardar el ID (string) directamente, no `true` o `1`**. El consumidor no tiene que adivinar si chequear truthy o comparar valor.
+
+```ts
+// Mal:
+session.user.viewingAsOrg = true;  // boolean
+
+// Bien:
+session.user.viewingAsOrg = org.id;  // string que ES el orgId
+```
+
+Si necesitás "está viendo como otra org?", lo derivás:
+
+```ts
+const isViewingAs = !!session.user.viewingAsOrg && session.user.viewingAsOrg !== session.user.realOrganizationId;
+```
+
+Plus: cualquier `as string | undefined` en TS sobre un campo que **podrías controlar al setear** es señal de que el contrato no está bien tipado. Mejorarlo en el origen.
 
 ---
 
