@@ -354,33 +354,41 @@ function DeleteOnboardingButton({
     if (deleting) return;
 
     const hasOrg = !!req.createdOrgId;
+    const orgIdSuffix = hasOrg ? String(req.createdOrgId).slice(-6) : "";
     const intro = hasOrg
       ? `🗑️ ELIMINAR CUENTA COMPLETA de ${req.companyName}\n\n` +
         `Borra TODO: organización, usuarios, data (orders, customers, products, eventos pixel, etc.) + el onboarding_request.\n\n` +
         `Como si el cliente nunca hubiera existido en la plataforma.\n\n` +
-        `OrgId: ${req.createdOrgId}\n\n` +
+        `OrgId completo: ${req.createdOrgId}\n` +
+        `Email contacto: ${req.contactEmail}\n\n` +
         `Esta acción NO SE PUEDE DESHACER. ¿Continuar?`
       : `🗑️ ELIMINAR onboarding de ${req.companyName}\n\n` +
         `Status actual: ${req.status}\n` +
+        `Email contacto: ${req.contactEmail}\n` +
         `Este onboarding aún NO tiene cuenta creada. Solo borra la solicitud (onboarding_request).\n\n` +
         `¿Continuar?`;
 
     if (!confirm(intro)) return;
 
-    // Doble confirmación para cuentas activas (typed company name)
+    // Doble confirmación para cuentas con org: pedir los últimos 6 caracteres
+    // del orgId. El nombre puede repetirse entre cuentas (ej: 2 "The World Of
+    // Toys", 2 "Arredo" en la lista actual de Tomy). El orgId es UNICO.
+    // Tipear los ultimos 6 caracteres garantiza que se borra LA cuenta correcta.
     if (hasOrg) {
       const typed = prompt(
-        `Para confirmar, escribí el nombre de la empresa (no importa mayúsculas, minúsculas, ni espacios extra):\n\n${req.companyName}`
+        `Para confirmar, escribí los últimos 6 caracteres del OrgId:\n\n` +
+          `OrgId completo: ${req.createdOrgId}\n` +
+          `→ últimos 6: ${orgIdSuffix}\n\n` +
+          `(el nombre de empresa puede repetirse, el OrgId no — esto previene borrar la cuenta equivocada)`
       );
       if (typed === null) return; // canceló el prompt
-      // Normalizamos: lowercase + colapsar espacios + trim. Tolera errores
-      // de capitalizacion ("the world of toys" vs "The World Of Toys") y
-      // espacios duplicados/leading/trailing.
-      const normalize = (s: string) =>
-        (s || "").toLowerCase().replace(/\s+/g, " ").trim();
-      if (normalize(typed) !== normalize(req.companyName || "")) {
+      const normalize = (s: string) => (s || "").toLowerCase().trim();
+      if (normalize(typed) !== normalize(orgIdSuffix)) {
         alert(
-          `El nombre no coincide.\n\nEscribiste: "${typed}"\nEsperado: "${req.companyName}"\n\nEliminación cancelada.`
+          `Los últimos 6 caracteres no coinciden.\n\n` +
+            `Escribiste: "${typed}"\n` +
+            `Esperado: "${orgIdSuffix}"\n\n` +
+            `Eliminación cancelada.`
         );
         return;
       }
