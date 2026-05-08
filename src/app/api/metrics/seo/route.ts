@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
+import { getCached, setCache } from "@/lib/api-cache";
 
 export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -23,6 +24,13 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const toParam = searchParams.get("to");
     const fromParam = searchParams.get("from");
+
+    // S60 EXT-2 BIS+++++++++++: cache server-side TTL 60s.
+    // Antes este endpoint NO tenia cache, cada request re-ejecutaba queries.
+    const cacheKeyFrom = fromParam || "default";
+    const cacheKeyTo = toParam || "default";
+    const cached = getCached("seo", ORG_ID, cacheKeyFrom, cacheKeyTo);
+    if (cached) return NextResponse.json(cached);
 
     const dateTo = toParam
       ? new Date(toParam + "T23:59:59.999-03:00")
@@ -400,7 +408,7 @@ export async function GET(request: NextRequest) {
       distObj[row.band] = parseInt(row.count) || 0;
     }
 
-    return NextResponse.json({
+    const responseBody = {
       kpis: {
         totalClicks: currClicks,
         totalImpressions: currImpressions,
@@ -512,7 +520,9 @@ export async function GET(request: NextRequest) {
         prevTo: prevToStr,
         timezone: "America/Argentina/Buenos_Aires",
       },
-    });
+    };
+    setCache("seo", responseBody, ORG_ID, cacheKeyFrom, cacheKeyTo);
+    return NextResponse.json(responseBody);
   } catch (error: any) {
     console.error("[SEO Metrics] Error:", error);
     return NextResponse.json(

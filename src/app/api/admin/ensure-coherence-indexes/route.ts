@@ -67,6 +67,22 @@ const INDEXES = [
     sql: `CREATE INDEX IF NOT EXISTS "pixel_visitors_orgId_lastSeen_idx" ON "pixel_visitors" ("organizationId", "lastSeenAt" DESC)`,
     purpose: "Acelera lookups recientes de visitors.",
   },
+  // Round 3 (S60 EXT-2 BIS+++++++++++) — perf de /dashboard y /pedidos
+  {
+    name: "orders_orgId_status_date_desc_idx",
+    sql: `CREATE INDEX IF NOT EXISTS "orders_orgId_status_date_desc_idx" ON "orders" ("organizationId", "status", "orderDate" DESC)`,
+    purpose: "Acelera 29 queries de /api/metrics/orders que filtran orgId + status + rango fechas. La mayoria ordenan DESC.",
+  },
+  {
+    name: "orders_orgId_customerId_date_idx",
+    sql: `CREATE INDEX IF NOT EXISTS "orders_orgId_customerId_date_idx" ON "orders" ("organizationId", "customerId", "orderDate")`,
+    purpose: "Acelera cohorts query en /api/metrics/orders (LATERAL JOIN para customer history).",
+  },
+  {
+    name: "order_items_orgId_productId_idx",
+    sql: `CREATE INDEX IF NOT EXISTS "order_items_orgId_productId_idx" ON "order_items" ("organizationId", "productId")`,
+    purpose: "Acelera top-products queries (JOIN order_items.productId con products).",
+  },
 ];
 
 export async function GET(req: NextRequest) {
