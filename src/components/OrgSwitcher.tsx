@@ -72,18 +72,33 @@ export function OrgSwitcher() {
     if (switching) return;
     setSwitching(true);
     try {
+      let res: Response;
       if (orgId === null || orgId === realOrgId) {
         // Salir del view-as
-        await fetch("/api/admin/view-as-org", { method: "DELETE" });
+        res = await fetch("/api/admin/view-as-org", { method: "DELETE" });
       } else {
-        await fetch("/api/admin/view-as-org", {
+        res = await fetch("/api/admin/view-as-org", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orgId }),
         });
       }
-      window.location.href = "/";
-    } catch {
+      // S60 EXT-2 BIS+++++++++ FIX: antes el POST fallaba silencioso (ej:
+      // Forbidden, org no existe) y el reload se hacia igual sin cambio.
+      // Ahora chequeamos status y mostramos error visible si falla.
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        alert(
+          `Error al cambiar de cuenta: ${errJson.error || res.statusText} (status ${res.status})`
+        );
+        setSwitching(false);
+        return;
+      }
+      // Hard reload con cache-busting param para forzar que NextAuth refresque
+      // la sesion y el session callback vuelva a leer la cookie nueva.
+      window.location.href = `/?_orgswitch=${Date.now()}`;
+    } catch (err: any) {
+      alert(`Error de red al cambiar de cuenta: ${err?.message || "desconocido"}`);
       setSwitching(false);
     }
   };

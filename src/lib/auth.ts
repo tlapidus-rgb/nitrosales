@@ -228,7 +228,11 @@ export const authOptions: NextAuthOptions = {
                 (session.user as any).realOrganizationName = token.organizationName;
                 (session.user as any).organizationId = org.id;
                 (session.user as any).organizationName = org.name;
-                (session.user as any).viewingAsOrg = true;
+                // S60 EXT-2 BIS+++++++++ FIX: antes era `true` (boolean) lo que
+                // rompia la comparacion `org.id === currentOrgId` en el frontend.
+                // Ahora guardamos el orgId real para que el checkmark visual del
+                // OrgSwitcher matchee correctamente.
+                (session.user as any).viewingAsOrg = org.id;
               }
             }
           } catch {
