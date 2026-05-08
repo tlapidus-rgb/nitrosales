@@ -56,44 +56,61 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // 1) Leads (no convertidos aún)
-    const leadsRows = await prisma.$queryRawUnsafe<Array<any>>(
-      `SELECT id, "companyName", "contactName", "contactEmail", "contactPhone",
-              "status", "createdAt", "storeUrl"
-       FROM "leads"
-       WHERE "convertedToOnboardingId" IS NULL
-       ORDER BY "createdAt" DESC`
-    );
+    // 1) Leads (no convertidos aún) — SELECT * para tolerar columnas variables
+    let leadsRows: Array<any> = [];
+    let leadsError: string | null = null;
+    try {
+      leadsRows = await prisma.$queryRawUnsafe<Array<any>>(
+        `SELECT * FROM "leads" WHERE "convertedToOnboardingId" IS NULL ORDER BY "createdAt" DESC`
+      );
+    } catch (e: any) {
+      leadsError = e.message?.slice(0, 200);
+      console.error("[accounts-unified] leads query failed:", e.message);
+    }
 
     // 2) Onboarding requests
-    const obRows = await prisma.$queryRawUnsafe<Array<any>>(
-      `SELECT id, "companyName", "contactName", "contactEmail", "contactPhone",
-              "status"::text as "status", "createdOrgId", "createdAt", "activatedAt",
-              "storeUrl",
-              ("vtexAccountName" IS NOT NULL) AS "hasVtex",
-              ("mlUsername" IS NOT NULL) AS "hasMl",
-              ("metaAdAccountId" IS NOT NULL) AS "hasMeta",
-              ("googleAdsCustomerId" IS NOT NULL) AS "hasGoogleAds"
-       FROM "onboarding_requests"
-       ORDER BY "createdAt" DESC`
-    );
+    let obRows: Array<any> = [];
+    let obError: string | null = null;
+    try {
+      obRows = await prisma.$queryRawUnsafe<Array<any>>(
+        `SELECT id, "companyName", "contactName", "contactEmail", "contactPhone",
+                "status"::text as "status", "createdOrgId", "createdAt", "activatedAt",
+                "storeUrl",
+                ("vtexAccountName" IS NOT NULL) AS "hasVtex",
+                ("mlUsername" IS NOT NULL) AS "hasMl",
+                ("metaAdAccountId" IS NOT NULL) AS "hasMeta",
+                ("googleAdsCustomerId" IS NOT NULL) AS "hasGoogleAds"
+         FROM "onboarding_requests"
+         ORDER BY "createdAt" DESC`
+      );
+    } catch (e: any) {
+      obError = e.message?.slice(0, 200);
+      console.error("[accounts-unified] onboardings query failed:", e.message);
+    }
 
     // 3) Orgs (organizations) — incluye las "fundadoras" sin onboarding_request
-    const orgRows = await prisma.organization.findMany({
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        createdAt: true,
-        connections: {
-          select: { platform: true, status: true },
+    let orgRows: Array<any> = [];
+    let orgError: string | null = null;
+    try {
+      orgRows = await prisma.organization.findMany({
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          createdAt: true,
+          connections: {
+            select: { platform: true, status: true },
+          },
+          users: {
+            select: { email: true, name: true },
+            take: 1,
+          },
         },
-        users: {
-          select: { email: true, name: true },
-          take: 1,
-        },
-      },
-    });
+      });
+    } catch (e: any) {
+      orgError = e.message?.slice(0, 200);
+      console.error("[accounts-unified] orgs query failed:", e.message);
+    }
 
     // Mapeo
     const items: AccountRow[] = [];
@@ -223,6 +240,17 @@ export async function GET() {
       total: items.length,
       counts,
       items,
+      // Diagnostico: si alguna fuente fallo, devolvemos los errores
+      // sin romper la respuesta — asi el frontend muestra lo que SI cargo.
+      errors:
+        leadsError || obError || orgError
+          ? { leads: leadsError, onboardings: obError, orgs: orgError }
+          : undefined,
+      sources: {
+        leads: leadsRows.length,
+        onboardings: obRows.length,
+        orgs: orgRows.length,
+      },
     });
   } catch (error: any) {
     console.error("[control/accounts-unified] error:", error);
