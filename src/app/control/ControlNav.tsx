@@ -11,9 +11,7 @@ import { Activity, Users, Inbox, LogOut, GitBranch, Mail, Send, Lock } from "luc
 
 const ITEMS = [
   { href: "/control", label: "Inicio", icon: Activity, exact: true },
-  { href: "/control/pipeline", label: "Pipeline", icon: GitBranch },
-  { href: "/control/clientes", label: "Clientes", icon: Users },
-  { href: "/control/onboardings", label: "Onboardings", icon: Inbox },
+  { href: "/control/cuentas", label: "Cuentas", icon: Users },
   { href: "/control/section-overrides", label: "Secciones", icon: Lock },
   { href: "/control/email-templates", label: "Templates", icon: Mail },
   { href: "/control/emails", label: "Log emails", icon: Send },
