@@ -370,10 +370,18 @@ function DeleteOnboardingButton({
     // Doble confirmación para cuentas activas (typed company name)
     if (hasOrg) {
       const typed = prompt(
-        `Para confirmar, escribí el nombre exacto de la empresa:\n\n${req.companyName}`
+        `Para confirmar, escribí el nombre de la empresa (no importa mayúsculas, minúsculas, ni espacios extra):\n\n${req.companyName}`
       );
-      if (typed?.trim() !== (req.companyName || "").trim()) {
-        alert("El nombre no coincide. Eliminación cancelada.");
+      if (typed === null) return; // canceló el prompt
+      // Normalizamos: lowercase + colapsar espacios + trim. Tolera errores
+      // de capitalizacion ("the world of toys" vs "The World Of Toys") y
+      // espacios duplicados/leading/trailing.
+      const normalize = (s: string) =>
+        (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+      if (normalize(typed) !== normalize(req.companyName || "")) {
+        alert(
+          `El nombre no coincide.\n\nEscribiste: "${typed}"\nEsperado: "${req.companyName}"\n\nEliminación cancelada.`
+        );
         return;
       }
     }
