@@ -17,8 +17,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
-import { waitUntil } from "@vercel/functions";
+import { getCachedSWR, setCache } from "@/lib/api-cache";
 
 export const revalidate = 0;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -73,44 +72,14 @@ export async function GET(request: NextRequest) {
     const toParam = searchParams.get("to");
     const fromParam = searchParams.get("from");
 
-    // S60 EXT-2 BIS+++++++++++++ — SWR (Stale-While-Revalidate).
-    // Antes: cache fresh por 5 min. Despues de eso, request paga el costo
-    // completo de ~30 queries paralelas (5-6s). Tomy lo experimentaba lento.
-    // Ahora: cache fresh 5 min + stale 25 min. Si el cache esta stale,
-    // devolvemos el data viejo INMEDIATO (instant) y refrescamos en
-    // background. Tomy nunca espera, max 30 min de "vejez" en data.
-    //
-    // Header `x-skip-cache: 1` skipea el cache check completo — usado por
-    // el background refresh para evitar loop infinito de stale hits.
-    const skipCache = request.headers.get("x-skip-cache") === "1";
+    // S60 EXT-2 BIS+++++++++++++++ — REVERT del SWR. El SWR + cron
+    // warm-cache estaba saturando la DB (32 fetches paralelos × 29
+    // queries c/u = 928 queries simultaneas cada 30 min). Volver al
+    // cache simple `getCached` (fresh 5 min, despues miss).
     const cacheKey = [orgId, fromParam || "default", toParam || "default", "v7"];
-    if (!skipCache) {
-      const cached = getCachedSWR("pixel", ...cacheKey);
-      if (cached?.data) {
-        // Stale: dispatch refresh en background (con skip-cache header
-        // para que NO entre de nuevo a este branch). Devolver data
-        // vieja al cliente inmediato.
-        if (cached.isStale && tryAcquireRefreshLock("pixel", ...cacheKey)) {
-          waitUntil(
-            (async () => {
-              try {
-                await fetch(request.url, {
-                  headers: {
-                    cookie: request.headers.get("cookie") || "",
-                    "x-skip-cache": "1",
-                  },
-                  cache: "no-store",
-                });
-              } catch {
-                // ignore
-              } finally {
-                releaseRefreshLock("pixel", ...cacheKey);
-              }
-            })()
-          );
-        }
-        return NextResponse.json(cached.data);
-      }
+    const cached = getCachedSWR("pixel", ...cacheKey);
+    if (cached?.data && !cached.isStale) {
+      return NextResponse.json(cached.data);
     }
 
     const dateTo = toParam
