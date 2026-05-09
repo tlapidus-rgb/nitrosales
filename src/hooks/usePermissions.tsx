@@ -256,25 +256,39 @@ export function NavItemGate({
     sectionConfigKey != null &&
     sectionStatusMap?.[sectionConfigKey]?.status === "MAINTENANCE";
 
+  // S60 EXT-2 BIS+++++++++++ — visual maintenance:
+  // Antes el badge "Mantenimiento" estaba en top-right y se cruzaba con badges
+  // existentes (ASSET / INTELLIGENCE / LOYALTY / NEW) en items premium.
+  // Ahora: barra inferior dentro del item con icono wrench + texto pequeño,
+  // que no compite con los badges premium top-right.
   const wrapMaintenance = (node: React.ReactNode) =>
     isMaintenance ? (
       <div
         className="relative"
-        style={{ opacity: 0.5, pointerEvents: "none", filter: "saturate(0.4)" }}
+        style={{ pointerEvents: "none" }}
+        title="Sección en mantenimiento"
       >
-        {node}
-        <span
+        <div style={{ opacity: 0.45, filter: "saturate(0.3)" }}>{node}</div>
+        {/* Barra inferior con icono + texto, posicionada en el bottom del item */}
+        <div
           aria-label="En mantenimiento"
-          className="absolute top-1 right-1 z-10 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider"
+          className="absolute left-0 right-0 bottom-0 flex items-center justify-center gap-1.5 py-1"
           style={{
-            background: "rgba(251, 191, 36, 0.2)",
-            color: "#FCD34D",
-            border: "1px solid rgba(251, 191, 36, 0.4)",
+            background: "linear-gradient(to top, rgba(251,191,36,0.15), rgba(251,191,36,0))",
+            borderBottom: "1px solid rgba(251,191,36,0.4)",
             pointerEvents: "none",
           }}
         >
-          Mantenimiento
-        </span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#FCD34D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+          <span
+            className="text-[9px] font-bold uppercase tracking-wider"
+            style={{ color: "#FCD34D" }}
+          >
+            En mantenimiento
+          </span>
+        </div>
       </div>
     ) : (
       <>{node}</>
