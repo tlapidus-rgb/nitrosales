@@ -1,46 +1,63 @@
 // ══════════════════════════════════════════════════════════════
-// Lightweight in-memory API response cache
+// Lightweight in-memory API response cache (Stale-While-Revalidate)
 // ══════════════════════════════════════════════════════════════
 // Works per Vercel function instance. If multiple requests hit the
 // same instance within the TTL window, only the first one queries
 // the database. Dramatically reduces DB load on dashboard refresh.
 //
-// Usage in API routes:
-//   const cached = getCached("metrics", orgId, from, to);
-//   if (cached) return NextResponse.json(cached);
-//   ... expensive queries ...
+// SWR (Stale-While-Revalidate):
+// - Fresh window: 5 min (data nueva)
+// - Stale window: hasta 30 min (data vieja pero servida instant +
+//   trigger de refresh background)
+// - El cliente NUNCA espera el costo completo de la query si hay
+//   data en cache (incluso vieja). El proximo request ya tiene fresh.
+//
+// Usage in API routes (S60 EXT-2 BIS+++++++++++++ NEW pattern):
+//   const cached = getCachedSWR("metrics", orgId, from, to);
+//   if (cached?.data) {
+//     if (cached.isStale) {
+//       // Devolver stale + dispatch refresh en background
+//       waitUntil(refetchAndCache());
+//     }
+//     return NextResponse.json(cached.data);
+//   }
+//   // No cache: bloqueante (primera carga)
+//   const data = await runQueries();
 //   setCache("metrics", data, orgId, from, to);
+//   return NextResponse.json(data);
 // ══════════════════════════════════════════════════════════════
 
-// S60 EXT-2 BIS+++++++++++: subido de 60s a 5 min (300s).
-// Tomy reporto que dashboards y /pedidos seguian lentos. Con 60s, si navegaba,
-// abria/cerraba paginas, F5, cualquier accion despues de 60s pagaba el costo
-// completo de ~30 queries paralelas. 5 min es estandar industria para
-// dashboards de ecommerce (no son live, datos del minuto no son criticos).
-// Datos actuales se siguen reflejando: webhooks de orders/MELI/VTEX disparan
-// actualizacion de DB, solo el READ esta cacheado por 5 min.
+// Fresh window: data nueva (5 min). Despues de esto la data es "stale"
+// pero todavia servible.
 const DEFAULT_TTL_MS = 5 * 60_000; // 5 minutos
+
+// Stale window: cuanto tiempo extra mantenemos data "vieja" servible
+// antes de descartarla. SWR sirve stale instant + refresh background.
+const STALE_GRACE_MS = 25 * 60_000; // 25 min extra (total 30 min)
 
 interface CacheEntry {
   data: unknown;
-  expiresAt: number;
+  freshUntil: number; // Date.now + 5 min
+  staleUntil: number; // Date.now + 30 min (5 fresh + 25 stale)
 }
 
 const store = new Map<string, CacheEntry>();
 
 // Max entries to prevent memory leaks in long-running instances.
-// S60 EXT-2 BIS++++++++++++: subido de 200 a 500 — con multiples orgs
-// abriendo dashboards simultaneamente, 200 generaba evictions tempranas
-// y la siguiente request pagaba el costo completo. 500 cubre ~10 orgs ×
-// 50 combinaciones rango/filtro sin evictions.
+// 500 cubre ~10 orgs × 50 combinaciones rango/filtro sin evictions.
 const MAX_ENTRIES = 500;
+
+// Tracking de refreshes en flight para evitar duplicar trabajo si
+// 2 requests stale llegan simultaneo (thundering herd).
+const inflightRefresh = new Set<string>();
 
 function buildKey(prefix: string, ...parts: unknown[]): string {
   return `${prefix}:${parts.map(String).join(":")}`;
 }
 
 /**
- * Get cached data if still valid.
+ * Get cached data if still valid (fresh window only).
+ * @deprecated Usar `getCachedSWR` en lugar para SWR semantics.
  */
 export function getCached<T = unknown>(
   prefix: string,
@@ -49,15 +66,69 @@ export function getCached<T = unknown>(
   const key = buildKey(prefix, ...keyParts);
   const entry = store.get(key);
   if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    store.delete(key);
+  // Si paso del fresh window, descartar (compatibilidad con caller viejo).
+  if (Date.now() > entry.freshUntil) {
+    // Si pasa el stale window completo, eliminar
+    if (Date.now() > entry.staleUntil) {
+      store.delete(key);
+    }
     return null;
   }
   return entry.data as T;
 }
 
 /**
- * Store data in cache with TTL.
+ * Stale-While-Revalidate get.
+ * Devuelve un objeto con `data` y `isStale` flag.
+ * - Si fresh: { data, isStale: false } → caller devuelve inmediato.
+ * - Si stale: { data, isStale: true } → caller devuelve inmediato + dispatch refresh.
+ * - Si miss/expired: null → caller debe ejecutar las queries (bloqueante).
+ */
+export function getCachedSWR<T = unknown>(
+  prefix: string,
+  ...keyParts: unknown[]
+): { data: T; isStale: boolean } | null {
+  const key = buildKey(prefix, ...keyParts);
+  const entry = store.get(key);
+  if (!entry) return null;
+  const now = Date.now();
+  // Stale window completo expirado → eliminar y miss
+  if (now > entry.staleUntil) {
+    store.delete(key);
+    return null;
+  }
+  return {
+    data: entry.data as T,
+    isStale: now > entry.freshUntil,
+  };
+}
+
+/**
+ * Marca una key como "tengo refresh in flight". Si ya esta in flight,
+ * devuelve false (otro request ya esta refrescando). Caller que llame
+ * primero recibe true y debe ejecutar el refresh.
+ */
+export function tryAcquireRefreshLock(
+  prefix: string,
+  ...keyParts: unknown[]
+): boolean {
+  const key = buildKey(prefix, ...keyParts);
+  if (inflightRefresh.has(key)) return false;
+  inflightRefresh.add(key);
+  return true;
+}
+
+export function releaseRefreshLock(
+  prefix: string,
+  ...keyParts: unknown[]
+): void {
+  const key = buildKey(prefix, ...keyParts);
+  inflightRefresh.delete(key);
+}
+
+/**
+ * Store data in cache with TTL (fresh window).
+ * El stale window se calcula automaticamente como freshUntil + STALE_GRACE_MS.
  */
 export function setCache(
   prefix: string,
@@ -88,12 +159,12 @@ export function setCache(
   if (store.size >= MAX_ENTRIES) {
     const now = Date.now();
     for (const [k, v] of store) {
-      if (now > v.expiresAt) store.delete(k);
+      if (now > v.staleUntil) store.delete(k);
     }
     // If still too many, clear oldest half
     if (store.size >= MAX_ENTRIES) {
       const entries = [...store.entries()].sort(
-        (a, b) => a[1].expiresAt - b[1].expiresAt
+        (a, b) => a[1].staleUntil - b[1].staleUntil
       );
       for (let i = 0; i < entries.length / 2; i++) {
         store.delete(entries[i][0]);
@@ -102,5 +173,10 @@ export function setCache(
   }
 
   const key = buildKey(prefix, ...keyParts);
-  store.set(key, { data, expiresAt: Date.now() + ttlMs });
+  const now = Date.now();
+  store.set(key, {
+    data,
+    freshUntil: now + ttlMs,
+    staleUntil: now + ttlMs + STALE_GRACE_MS,
+  });
 }

@@ -16,7 +16,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getOrganizationId } from "@/lib/auth-guard";
-import { getCached, setCache } from "@/lib/api-cache";
+import { getCachedSWR, setCache, tryAcquireRefreshLock, releaseRefreshLock } from "@/lib/api-cache";
+import { waitUntil } from "@vercel/functions";
 // enrichment moved to /api/metrics/orders/enrich (non-blocking)
 
 export const revalidate = 0;
@@ -119,10 +120,36 @@ export async function GET(request: NextRequest) {
     const compMode = VALID_COMP_MODES.includes(compModeParam) ? compModeParam : "prev";
     const compOffset = Number(searchParams.get("compOffset")) || 0;
 
-    // Cache check
+    // S60 EXT-2 BIS+++++++++++++ — SWR cache (idem /api/metrics/pixel).
+    // Fresh 5min + stale 25min. Cliente nunca espera el costo completo
+    // de las 29 queries en /pedidos.
+    const skipCache = request.headers.get("x-skip-cache") === "1";
     const cacheKey = [ORG_ID, fromParam || "default", toParam || "default", sourceParam || "default", page, compMode, compOffset];
-    const cached = getCached("orders", ...cacheKey);
-    if (cached) return NextResponse.json(cached);
+    if (!skipCache) {
+      const cached = getCachedSWR("orders", ...cacheKey);
+      if (cached?.data) {
+        if (cached.isStale && tryAcquireRefreshLock("orders", ...cacheKey)) {
+          waitUntil(
+            (async () => {
+              try {
+                await fetch(request.url, {
+                  headers: {
+                    cookie: request.headers.get("cookie") || "",
+                    "x-skip-cache": "1",
+                  },
+                  cache: "no-store",
+                });
+              } catch {
+                // ignore
+              } finally {
+                releaseRefreshLock("orders", ...cacheKey);
+              }
+            })()
+          );
+        }
+        return NextResponse.json(cached.data);
+      }
+    }
 
     // ── Previous period for comparison ──
     const periodMs = dateTo.getTime() - dateFrom.getTime();
