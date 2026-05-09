@@ -4,7 +4,75 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-05-08 madrugada — Sesión 60 EXT-2 BIS++++++++++ (4 errores nuevos: useSession() cliente cachea la sesion y no refleja cookie nueva, asumir que prisma.X funciona sin verificar que el modelo esté en schema.prisma, take:1 sin orden devuelve row arbitrario, valor boolean en lugar de string en flags de session).**
+> **Última actualización: 2026-05-09 — Sesión 60 EXT-2 BIS+++++++++++ (2 errores nuevos: indexar tabla hija con columna que no tiene (`organizationId` heredado via parent FK), y subestimar el impacto del cache TTL muy corto en dashboards de uso normal).**
+
+---
+
+## Error #S60-EXT2BIS11X-INDEXAR-COLUMNA-INEXISTENTE — order_items no tiene organizationId
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+++++++++++. Para acelerar top-products queries agregue:
+
+```sql
+CREATE INDEX order_items_orgId_productId_idx
+ON order_items("organizationId", "productId")
+```
+
+Postgres tiró `42703 column "organizationId" does not exist`.
+
+Causa: `order_items` es tabla hija de `orders` y hereda el organizationId via `orderId` (foreign key). NO tiene columna `organizationId` propia.
+
+### Causa raíz
+- Asumi que toda tabla del schema multi-tenant tiene `organizationId`. No es verdad para tablas hijas.
+- En NitroSales: `orders` tiene `organizationId`, `order_items` tiene `orderId` (que apunta a orders.id). El filtro multi-tenant se hace via JOIN con orders.
+
+### Regla
+**Antes de indexar por orgId en una tabla hija, verificar que la columna existe**:
+
+```bash
+grep -A 30 "^model OrderItem" prisma/schema.prisma
+```
+
+Si no tiene `organizationId`, las opciones son:
+1. **Indexar por parent FK** (recomendado): `(orderId, productId)` — usable cuando la query JOIN con parent.
+2. **Agregar columna desnormalizada `organizationId`** + trigger para mantenerla sync (overkill para la mayoria de casos).
+
+Tablas hijas conocidas en NitroSales SIN `organizationId` propio:
+- `order_items` (hereda via orderId → orders)
+- `pixel_visitor_aliases` (hereda via visitorId → pixel_visitors)
+- `payouts` (hereda via creatorId → influencer_creators)
+
+Para indices: usar `(parentId, ...filterCol)`.
+
+---
+
+## Error #S60-EXT2BIS11X-CACHE-TTL-MUY-CORTO — 60s rompe la experiencia en dashboards
+
+**Cuándo pasó**: Sesión 60 EXT-2 BIS+++++++++++. `lib/api-cache.ts` tenia `DEFAULT_TTL_MS = 60_000` (60s). Tomy reportaba `/dashboard` y `/pedidos` MUY lentos a pesar de tener el cache.
+
+Causa: el TTL de 60s es OK para load inicial pero **muy corto para uso normal**. Si Tomy:
+- Abre /dashboard, mira, va a /pedidos (40s), vuelve a /dashboard → ya expiro, paga el costo de nuevo
+- F5 al minuto → expira, paga
+- Cambia tab del navegador y vuelve a 1 min 30s → expira, paga
+
+Cada miss del cache = ~30 queries paralelas en /api/metrics/orders + similar en /metrics/pixel. Tomy percibia "siempre lento".
+
+### Causa raíz
+- Asumi que 60s era un buen default. En la teoria si, en uso real no.
+- Dashboards de ecomm NO son aplicaciones live. Webhooks de orders/MELI/VTEX actualizan la DB en tiempo real, pero los KPIs agregados (revenue del dia, ROAS, etc) no necesitan refrescar cada 60s.
+- El costo de un miss (~30 queries × pool_limit=5) es alto; vale la pena tolerar datos hasta 5 min viejos.
+
+### Regla
+**TTL de cache de dashboards = 5 minutos minimo (300_000 ms)** para apps no-live. Excepciones:
+- Live data (chats, notifications, orden recien confirmada): TTL bajo o sin cache.
+- Eventos en tiempo real: usar SSE/WebSocket en lugar de cache.
+- Webhook-driven data: TTL puede ser largo (5-15 min) sin perder frescura porque la DB se actualiza independiente.
+
+Para subir el default global: una linea en `lib/api-cache.ts`:
+```ts
+const DEFAULT_TTL_MS = 5 * 60_000; // 5 minutos
+```
+
+Si algun endpoint necesita TTL distinto, override por endpoint con `setCache(prefix, data, customTtlMs, ...keys)`.
 
 ---
 

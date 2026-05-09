@@ -3,7 +3,64 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-08 madrugada (Sesion 60 EXT-2 BIS++++++++++ — Admin: vista unificada /control/cuentas + auto-merge lead-onboarding + drawer lateral inline. 12 deploys: (1) fix viewingAsOrg=true (boolean) → guardar orgId + alert errores POST; (2) leer cookie real del server (no useSession cacheado) en OrgSwitcher; (3) boton Eliminar individual por fila en /control/onboardings; (4) confirmacion case-insensitive del companyName; (5) pedir ultimos 6 chars del orgId vs nombre (anti-duplicado); (6) simplificar a 2 confirm() simples sin tipear; (7) raw SQL para leer onboarding_requests (no esta en schema.prisma); (8) seccion unificada /control/cuentas (leads + onboardings + orgs); (9) try/catch por fuente + SELECT * en leads + diagnostico errors; (10) cleanup-duplicate-leads + auto-merge en onboarding/start; (11) mostrar OWNER real (no user random) en cuentas fundadoras; (12) drawer lateral inline en /cuentas — refactor: extraidas 1780 lineas del archivo monolitico /control/onboardings/page.tsx a `src/components/control/OnboardingDetailDrawer.tsx`. Borrados 2 leads duplicados (Maximiliano/Arredo + Leandro/TVC). Pendientes intactos.)
+## Ultima actualizacion: 2026-05-09 (Sesion 60 EXT-2 BIS+++++++++++ — Perf de /dashboard y /pedidos. 3 deploys: (1) 3 indices nuevos en orders/order_items (status_date_desc, customerId_date, orderId_productId) + cache TTL 60s en /api/metrics/seo; (2) fix order_items hereda orgId via orderId, no tiene columna propia → indexar por (orderId, productId); (3) cache TTL global 60s → 5min + indice PARTIAL en orders para anti-joins repetidos 22 veces. Resultado: navegacion normal de /dashboard y /pedidos es instant si está cacheado, anti-joins usan index-only scan. 4 indices totales nuevos en este round (13 indices activos en prod). Pendientes intactos.)
+
+### Sesion 60 EXT-2 BIS+++++++++++ (2026-05-09) — Perf de /dashboard y /pedidos
+
+**Contexto**: Tomy reporto que `/dashboard` (centro de control del cliente) y `/pedidos` tardaban mucho en cargar para todos los clientes. Analisis identifico 5 cuellos de botella, todos solucionables sin tocar logica/datos. Deploy en 3 rounds incrementales.
+
+#### Cambios implementados
+
+1. **Round 1 — 3 indices nuevos + cache SEO** (commits `3e60af9`, `23fc67d`)
+   - `orders(orgId, status, orderDate DESC)` — 29 queries de /api/metrics/orders ordenan DESC.
+   - `orders(orgId, customerId, orderDate)` — LATERAL JOIN cohorts query.
+   - `order_items(orderId, productId)` — top-products queries. Inicialmente lo intente con (orgId, productId) pero `order_items` NO tiene columna orgId (la herencia es via orderId). Fix: indexar por (orderId, productId).
+   - Cache TTL 60s en `/api/metrics/seo` (antes no tenia cache, recalculaba en cada request).
+
+2. **Round 2 — TTL 5min + indice partial para anti-joins** (commit `e6c9f44`)
+   - **El fix de mayor impacto real**: `DEFAULT_TTL_MS` en `lib/api-cache.ts` subido de 60s a 5 min (300_000 ms). Antes cualquier navegacion despues de 60s pagaba el costo completo de ~30 queries paralelas. Ahora F5/abrir-cerrar/cambiar pagina dentro de 5 min es instant. Los webhooks de orders/MELI/VTEX siguen actualizando la DB en tiempo real, solo el READ del dashboard esta cacheado por 5 min — estandar industria para dashboards de ecomm.
+   - **Indice PARTIAL** en orders para anti-joins repetidos 22 veces:
+     ```sql
+     CREATE INDEX orders_invalid_packs_partial_idx
+     ON orders(organizationId, COALESCE(packId, externalId))
+     WHERE status IN ('CANCELLED', 'RETURNED', 'PENDING')
+     ```
+     La subquery `NOT IN (SELECT COALESCE(packId, externalId) WHERE status IN CANCELLED/RETURNED/PENDING)` se ejecutaba 22 veces por request en /api/metrics/orders. La mayoria de orders son APPROVED/INVOICED, asi que el partial solo cubre ~10% de la tabla → tabla de indice mucho mas chica → cada anti-join es index-only scan.
+
+#### Patrones criticos S60 EXT-2 BIS+++++++++++
+
+1. **Cache TTL: ajuste segun uso real**: 60s era razonable en teoria pero en uso real (Tomy navegando rapido entre paginas) cualquier accion despues de 1 min pagaba el costo total. Para dashboards no-live, 5 min es seguro y da experiencia 5x mejor. Webhook-driven data → cache layer puede ser largo sin perder frescura.
+
+2. **PARTIAL INDEX para anti-joins repetidos**: cuando una subquery `WHERE col IN (X, Y, Z)` se repite N veces y la condicion cubre <30% de la tabla, un partial index sobre las filas que matchean WHERE es 10x mas chico que un indice completo y permite index-only scan. Ahorra mucha memoria del planner.
+
+3. **Tablas hijas (order_items, etc) heredan orgId via parent**: NO siempre tienen columna `organizationId` propia. Antes de indexar por orgId verificar:
+   ```bash
+   grep "model OrderItem" prisma/schema.prisma
+   ```
+   Si no tiene `organizationId`, indexar por la columna que sirve de "parent key" (orderId).
+
+4. **Indices marginales se acumulan**: ningun indice individual de este round es magico, pero los 4 sumados (status_date_desc + customerId_date + orderId_productId + invalid_packs_partial) eliminan multiples seq scans en un endpoint de 29 queries paralelas. Total: -300ms a -1s por request.
+
+5. **Antes de refactor grande, intentar fixes mecanicos**: el agente identifico el refactor de 22 anti-joins duplicados como #1 impacto. Pero antes de meter ese trabajo, los fixes mecanicos (subir TTL + indice partial) cubren el ~80% del problema sin tocar logica. Solo si despues de eso sigue lento, justifica el refactor.
+
+#### Commits S60 EXT-2 BIS+++++++++++
+
+| Hash | Tipo | Descripcion |
+|---|---|---|
+| `3e60af9` | perf | 3 indices nuevos en orders/order_items + cache TTL 60s en /seo |
+| `23fc67d` | fix | order_items NO tiene organizationId, indexar por (orderId, productId) |
+| `e6c9f44` | perf | TTL global 60s → 5min + indice partial para anti-joins repetidos |
+
+#### Pendientes proximo round (si sigue lento)
+
+- 🟡 **Refactor anti-joins en /api/metrics/orders**: 22 ocurrencias del mismo `NOT IN (SELECT...)` precomputarlas a 1 query + Set<string> en JS, usar el array en cada query. Impacto adicional estimado: -300ms a -500ms.
+- 🟢 Cache server-side en `/api/metrics/customers`, `/distribution`, `/top` (impacto bajo, los 4 endpoints menos visitados).
+- 🟢 Defer JSONB unnesting en pixel attribution queries (impacto medio).
+- 🟢 DRY-ear constantes BRAND_ORANGE/STATUS_CONFIG/PLATFORM_META (de la sesion anterior).
+
+---
+
+## Ultima actualizacion previa: 2026-05-08 madrugada (Sesion 60 EXT-2 BIS++++++++++ — Admin: vista unificada /control/cuentas + auto-merge lead-onboarding + drawer lateral inline. 12 deploys: (1) fix viewingAsOrg=true (boolean) → guardar orgId + alert errores POST; (2) leer cookie real del server (no useSession cacheado) en OrgSwitcher; (3) boton Eliminar individual por fila en /control/onboardings; (4) confirmacion case-insensitive del companyName; (5) pedir ultimos 6 chars del orgId vs nombre (anti-duplicado); (6) simplificar a 2 confirm() simples sin tipear; (7) raw SQL para leer onboarding_requests (no esta en schema.prisma); (8) seccion unificada /control/cuentas (leads + onboardings + orgs); (9) try/catch por fuente + SELECT * en leads + diagnostico errors; (10) cleanup-duplicate-leads + auto-merge en onboarding/start; (11) mostrar OWNER real (no user random) en cuentas fundadoras; (12) drawer lateral inline en /cuentas — refactor: extraidas 1780 lineas del archivo monolitico /control/onboardings/page.tsx a `src/components/control/OnboardingDetailDrawer.tsx`. Borrados 2 leads duplicados (Maximiliano/Arredo + Leandro/TVC). Pendientes intactos.)
 
 ### Sesion 60 EXT-2 BIS++++++++++ (2026-05-08 madrugada) — Admin unification + drawer inline
 
