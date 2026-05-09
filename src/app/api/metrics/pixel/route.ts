@@ -46,8 +46,11 @@ export async function GET(request: NextRequest) {
     const ORG_ID = orgId;
     const { searchParams } = new URL(request.url);
 
-    // Refresh materialized view if stale (non-blocking, fire-and-forget)
-    maybeRefreshMaterializedView().catch(() => {});
+    // S60 EXT-2 BIS++++++++++++ — refresh DESHABILITADO. La vista
+    // pixel_daily_summary se intentaba refrescar cada 60 min pero NINGUNA
+    // de las 29 queries del endpoint la usa. Era trabajo desperdiciado.
+    // Cuando se implemente la Fase 2 (pixel_daily_aggregates) re-habilitar.
+    // maybeRefreshMaterializedView().catch(() => {});
 
     // ── Parse date range (defaults to last 7 days, Argentina timezone UTC-3) ──
     const now = new Date();
@@ -258,7 +261,7 @@ export async function GET(request: NextRequest) {
           AND pe."pageUrl" NOT LIKE '%/checkout%'
         GROUP BY 1
         ORDER BY visitors DESC
-        LIMIT 30
+        LIMIT 10
       ` as Promise<Array<{ url: string; visitors: number; pageViews: number }>>,
 
       // 8. Attribution by model
@@ -805,7 +808,7 @@ export async function GET(request: NextRequest) {
           AND (pe."sessionId" IS NULL OR pe."sessionId" NOT LIKE 'webhook-%')
         GROUP BY 1
         ORDER BY visitors DESC
-        LIMIT 20
+        LIMIT 10
       ` as Promise<Array<{ source: string; visitors: number; purchases: number }>>,
 
       // 24. Orders by device — derive device from pixel_events of the attributed visitor

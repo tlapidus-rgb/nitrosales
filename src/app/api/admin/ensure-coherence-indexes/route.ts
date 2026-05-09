@@ -95,6 +95,14 @@ const INDEXES = [
     sql: `CREATE INDEX IF NOT EXISTS "orders_invalid_packs_partial_idx" ON "orders" ("organizationId", (COALESCE("packId", "externalId"))) WHERE status IN ('CANCELLED', 'RETURNED', 'PENDING')`,
     purpose: "Acelera la subquery NOT IN(...) que se ejecuta 22 veces en orders metrics.",
   },
+  // Round 4 (S60 EXT-2 BIS++++++++++++) — perf de /pixel/analytics (NitroPixel scaling)
+  {
+    // INCLUDE para que queries #8-10 de pixel metrics sean index-only:
+    // SUM(attributedValue) y COUNT por (orgId, model) sin ir a la tabla.
+    name: "pixel_attributions_orgId_model_covering_idx",
+    sql: `CREATE INDEX IF NOT EXISTS "pixel_attributions_orgId_model_covering_idx" ON "pixel_attributions" ("organizationId", "model") INCLUDE ("attributedValue", "touchpointCount", "orderId")`,
+    purpose: "Index covering para queries #8-10 de pixel metrics. Evita lookup a la tabla en SUM/COUNT.",
+  },
 ];
 
 export async function GET(req: NextRequest) {

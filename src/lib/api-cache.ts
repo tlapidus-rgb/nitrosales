@@ -28,8 +28,12 @@ interface CacheEntry {
 
 const store = new Map<string, CacheEntry>();
 
-// Max entries to prevent memory leaks in long-running instances
-const MAX_ENTRIES = 200;
+// Max entries to prevent memory leaks in long-running instances.
+// S60 EXT-2 BIS++++++++++++: subido de 200 a 500 — con multiples orgs
+// abriendo dashboards simultaneamente, 200 generaba evictions tempranas
+// y la siguiente request pagaba el costo completo. 500 cubre ~10 orgs ×
+// 50 combinaciones rango/filtro sin evictions.
+const MAX_ENTRIES = 500;
 
 function buildKey(prefix: string, ...parts: unknown[]): string {
   return `${prefix}:${parts.map(String).join(":")}`;
