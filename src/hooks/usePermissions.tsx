@@ -238,6 +238,9 @@ export function NavItemGate({
   children: React.ReactNode;
 }) {
   const { canAccess, loading } = usePermissions();
+  // S60 EXT-2 BIS+++++++++++ — sidebar lee el section status.
+  // Si la seccion esta en MAINTENANCE, atenuamos + badge + bloqueamos clicks.
+  const { sections: sectionStatusMap } = useSectionStatusForNav();
 
   // Durante loading, no renderizamos nada. Evita flash de items que
   // despues se ocultan. El sidebar aparece "de una" cuando los
@@ -246,14 +249,45 @@ export function NavItemGate({
 
   const parentSection = hrefToSection(href);
 
-  // 1. Parent tiene section y el user lo puede ver -> mostrar
+  // ¿Esta en mantenimiento? — usamos el href para ubicar la seccion.
+  // (sectionStatusMap viene cacheado del hook, no hay extra fetch)
+  const sectionConfigKey = findSectionConfigKeyByPath(href);
+  const isMaintenance =
+    sectionConfigKey != null &&
+    sectionStatusMap?.[sectionConfigKey]?.status === "MAINTENANCE";
+
+  const wrapMaintenance = (node: React.ReactNode) =>
+    isMaintenance ? (
+      <div
+        className="relative"
+        style={{ opacity: 0.5, pointerEvents: "none", filter: "saturate(0.4)" }}
+      >
+        {node}
+        <span
+          aria-label="En mantenimiento"
+          className="absolute top-1 right-1 z-10 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider"
+          style={{
+            background: "rgba(251, 191, 36, 0.2)",
+            color: "#FCD34D",
+            border: "1px solid rgba(251, 191, 36, 0.4)",
+            pointerEvents: "none",
+          }}
+        >
+          Mantenimiento
+        </span>
+      </div>
+    ) : (
+      <>{node}</>
+    );
+
+  // 1. Parent tiene section y el user lo puede ver -> mostrar (con o sin maintenance)
   if (parentSection !== null && canAccess(parentSection, "read")) {
-    return <>{children}</>;
+    return wrapMaintenance(children);
   }
 
   // 2. Parent sin section (publico) -> mostrar
   if (parentSection === null && (!childHrefs || childHrefs.length === 0)) {
-    return <>{children}</>;
+    return wrapMaintenance(children);
   }
 
   // 3. Tiene children -> mostrar si alguno es accesible
@@ -263,10 +297,42 @@ export function NavItemGate({
       if (sec === null) return true; // child publico
       return canAccess(sec, "read");
     });
-    if (anyChildVisible) return <>{children}</>;
+    if (anyChildVisible) return wrapMaintenance(children);
   }
 
   return null;
+}
+
+// ────────────────────────────────────────────────────────────────
+// Helper interno: lee section status sin generar dependencia circular
+// con SectionGuard. Mantenemos el cache modulo-level del hook
+// useSectionStatus (mismo shape).
+// ────────────────────────────────────────────────────────────────
+function useSectionStatusForNav() {
+  const [sections, setSections] = React.useState<Record<string, { status: string }>>({});
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/me/section-status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled || !d?.ok) return;
+        setSections(d.sections || {});
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  return { sections };
+}
+
+/** Mapea href del nav → section key del config. */
+function findSectionConfigKeyByPath(href: string): string | null {
+  // Import diferido para evitar dependencia circular en build
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { SECTIONS } = require("@/lib/sections/config");
+  const exact = SECTIONS.find((s: any) => s.path === href);
+  if (exact) return exact.key;
+  const prefix = SECTIONS.find((s: any) => href.startsWith(s.path + "/"));
+  return prefix?.key || null;
 }
 
 /**
