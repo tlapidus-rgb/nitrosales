@@ -80,9 +80,20 @@ function getPaymentLabel(method: string, source: string): string {
   return `${method} (VTEX)`;
 }
 
+const WARM_CACHE_KEY = "nitrosales-secret-key-2024-production";
+
 export async function GET(request: NextRequest) {
   try {
-    const ORG_ID = await getOrganizationId();
+    // Si viene `orgId` + `key` correctos, bypass auth (warm cache cron).
+    const _url = new URL(request.url);
+    const queryOrgId = _url.searchParams.get("orgId");
+    const queryKey = _url.searchParams.get("key");
+    let ORG_ID: string;
+    if (queryOrgId && queryKey === WARM_CACHE_KEY) {
+      ORG_ID = queryOrgId;
+    } else {
+      ORG_ID = await getOrganizationId();
+    }
     if (!migrated) {
       // Await to avoid competing for connections with the query batches below.
       // Only runs once per cold start — subsequent requests skip this.

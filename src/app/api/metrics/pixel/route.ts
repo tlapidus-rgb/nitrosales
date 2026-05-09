@@ -41,11 +41,26 @@ async function maybeRefreshMaterializedView() {
   }
 }
 
+// Secret key para que el cron de warm-cache pueda llamar este endpoint
+// sin sesion. Mismo KEY que otros endpoints admin (ensure-coherence-indexes,
+// orders-truth, etc).
+const WARM_CACHE_KEY = "nitrosales-secret-key-2024-production";
+
 export async function GET(request: NextRequest) {
   try {
-    const orgId = await getOrganizationId();
-    const ORG_ID = orgId;
     const { searchParams } = new URL(request.url);
+
+    // Si viene `orgId` + `key` correctos, bypass auth (warm cache cron).
+    // Caso normal: getOrganizationId() lee de la sesion NextAuth.
+    const queryOrgId = searchParams.get("orgId");
+    const queryKey = searchParams.get("key");
+    let orgId: string;
+    if (queryOrgId && queryKey === WARM_CACHE_KEY) {
+      orgId = queryOrgId;
+    } else {
+      orgId = await getOrganizationId();
+    }
+    const ORG_ID = orgId;
 
     // S60 EXT-2 BIS++++++++++++ — refresh DESHABILITADO. La vista
     // pixel_daily_summary se intentaba refrescar cada 60 min pero NINGUNA
