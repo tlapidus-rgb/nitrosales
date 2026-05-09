@@ -184,11 +184,31 @@ export async function GET(request: NextRequest) {
 
     const orderIds = recentOrders.map((o) => o.id);
 
-    // Traer TODAS las attributions de esas ordenes (cualquier modelo)
-    const attributions = await prisma.pixelAttribution.findMany({
+    // Traer TODAS las attributions de esas ordenes (cualquier modelo).
+    // S60 EXT-2 BIS+++++++++++++ FIX: antes hacia `include: { visitor }` pero
+    // Prisma tira "Inconsistent query result: Field visitor is required to
+    // return data, got null instead" cuando hay attributions con visitorId
+    // que apunta a un PixelVisitor borrado (orphan, post-cleanup-leads).
+    // Fix: traer attributions sin include, despues fetch separado de
+    // visitors que SI existen y mapear. Los orphans quedan con visitor=null
+    // (lo manejamos abajo con `attr.visitor?.visitorId ?? null`).
+    const attributionsRaw = await prisma.pixelAttribution.findMany({
       where: { organizationId: orgId, orderId: { in: orderIds } },
-      include: { visitor: { select: { id: true, visitorId: true, email: true } } },
     });
+    const visitorIds = Array.from(
+      new Set(attributionsRaw.map((a) => a.visitorId).filter(Boolean))
+    );
+    const visitors = visitorIds.length
+      ? await prisma.pixelVisitor.findMany({
+          where: { id: { in: visitorIds } },
+          select: { id: true, visitorId: true, email: true },
+        })
+      : [];
+    const visitorMap = new Map(visitors.map((v) => [v.id, v]));
+    const attributions = attributionsRaw.map((a) => ({
+      ...a,
+      visitor: visitorMap.get(a.visitorId) || null,
+    }));
 
     // Para cada orden, quedarse con la attribution que tenga MAS touchpoints reales
     // (los touchpoints son hechos; en general son iguales entre modelos, pero por
