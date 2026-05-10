@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         SELECT
           o.id, o."externalId", o."packId", o."totalValue", o.status::text as status,
           o.source, o.channel, o."trafficSource", o."orderDate", o."createdAt",
-          o."customerId", o."utmSource", o."utmMedium", o."utmCampaign",
+          o."customerId",
           c.email as customer_email, c."firstName" as customer_firstName,
           c."lastName" as customer_lastName, c.phone as customer_phone
         FROM orders o
