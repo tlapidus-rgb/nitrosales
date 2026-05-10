@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
           o.source, o.channel, o."trafficSource", o."orderDate", o."createdAt",
           o."customerId",
           c.email as customer_email, c."firstName" as customer_firstName,
-          c."lastName" as customer_lastName, c.phone as customer_phone
+          c."lastName" as customer_lastName
         FROM orders o
         LEFT JOIN customers c ON c.id = o."customerId"
         WHERE o."organizationId" = $1 AND o."externalId" = $2
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       const orderId = order.id;
       const orderTime = new Date(order.orderDate);
       const customerEmail = (order.customer_email || "").toLowerCase();
-      const customerPhone = order.customer_phone;
+      const customerPhone = null;
 
       // Atribuciones existentes
       const allAttrs = await prisma.$queryRawUnsafe<any[]>(`
