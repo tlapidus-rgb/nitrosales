@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
               `${baseUrl}/api/admin/trigger-vtex-sync` +
               `?orgId=${encodeURIComponent(orgId)}` +
               `&from=${fromDate}&to=${toDate}` +
-              `&max=30` +
+              `&max=100` +
               `&key=${encodeURIComponent(KEY)}`;
             const res = await fetch(triggerUrl, {
               signal: AbortSignal.timeout(50000),

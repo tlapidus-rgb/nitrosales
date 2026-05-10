@@ -26,7 +26,7 @@ import { getVtexConfig } from "@/lib/vtex-credentials";
 import { isInternalUser } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 min — necesario si max>30
 const KEY = "nitrosales-secret-key-2024-production";
 
 export async function GET(req: NextRequest) {
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const orgId = url.searchParams.get("orgId");
     const fromParam = url.searchParams.get("from");
     const toParam = url.searchParams.get("to");
-    const maxOrders = Math.min(50, Number(url.searchParams.get("max") ?? 30));
+    const maxOrders = Math.min(200, Number(url.searchParams.get("max") ?? 30));
 
     const allowed = key === KEY ? true : await isInternalUser();
     if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
