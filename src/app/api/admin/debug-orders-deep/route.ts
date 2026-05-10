@@ -85,10 +85,10 @@ export async function GET(req: NextRequest) {
       // Visitors por email del customer
       const visitorsByEmail = customerEmail
         ? await prisma.$queryRawUnsafe<any[]>(`
-            SELECT id, "visitorId", email, phone, "customerId", "createdAt"
+            SELECT id, "visitorId", email, phone, "customerId", "firstSeenAt", "lastSeenAt"
             FROM pixel_visitors
             WHERE "organizationId" = $1 AND LOWER(email) = $2
-            ORDER BY "createdAt" DESC
+            ORDER BY "firstSeenAt" DESC
             LIMIT 20
           `, org.id, customerEmail)
         : [];
@@ -96,10 +96,10 @@ export async function GET(req: NextRequest) {
       // Visitors linkeados al customer (por customerId)
       const visitorsByCustomer = order.customerId
         ? await prisma.$queryRawUnsafe<any[]>(`
-            SELECT id, "visitorId", email, phone, "customerId", "createdAt"
+            SELECT id, "visitorId", email, phone, "customerId", "firstSeenAt", "lastSeenAt"
             FROM pixel_visitors
             WHERE "organizationId" = $1 AND "customerId" = $2
-            ORDER BY "createdAt" DESC
+            ORDER BY "firstSeenAt" DESC
             LIMIT 20
           `, org.id, order.customerId)
         : [];
