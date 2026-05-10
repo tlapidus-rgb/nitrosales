@@ -18,6 +18,11 @@ export async function GET(req: NextRequest) {
     if (key !== KEY) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
 
+    const onlySource = url.searchParams.get("source"); // 'VTEX' | 'MELI' | null
+    const onlyWithAttr = url.searchParams.get("withAttr") === "1";
+    const srcWhere = onlySource ? `AND o.source = '${onlySource.replace(/[^A-Z]/g, "")}'` : "";
+    const attrWhere = onlyWithAttr ? `AND EXISTS (SELECT 1 FROM pixel_attributions pa2 WHERE pa2."orderId" = o.id)` : "";
+
     // 30 ordenes recientes
     const rows = await prisma.$queryRawUnsafe<any[]>(`
       SELECT
@@ -38,6 +43,8 @@ export async function GET(req: NextRequest) {
       FROM orders o
       WHERE o."organizationId" = $1
         AND o."orderDate" > NOW() - INTERVAL '30 days'
+        ${srcWhere}
+        ${attrWhere}
       ORDER BY o."orderDate" DESC
       LIMIT 30
     `, orgId);
