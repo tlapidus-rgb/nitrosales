@@ -8,3 +8,4 @@ next-env.d.ts
 prisma/*.db
 .vercel
 .env*.local
+.DS_Store
