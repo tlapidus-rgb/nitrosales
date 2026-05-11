@@ -3,7 +3,90 @@
 > **INSTRUCCIÃN OBLIGATORIA**: Claude DEBE leer este archivo al inicio de CADA sesiÃ³n antes de hacer CUALQUIER cambio.
 > Si este archivo no se lee primero, se corre riesgo de perder trabajo ya hecho.
 
-## Ultima actualizacion: 2026-05-09 (Sesion 60 EXT-2 BIS+++++++++++ — Perf de /dashboard y /pedidos. 3 deploys: (1) 3 indices nuevos en orders/order_items (status_date_desc, customerId_date, orderId_productId) + cache TTL 60s en /api/metrics/seo; (2) fix order_items hereda orgId via orderId, no tiene columna propia → indexar por (orderId, productId); (3) cache TTL global 60s → 5min + indice PARTIAL en orders para anti-joins repetidos 22 veces. Resultado: navegacion normal de /dashboard y /pedidos es instant si está cacheado, anti-joins usan index-only scan. 4 indices totales nuevos en este round (13 indices activos en prod). Pendientes intactos.)
+## Ultima actualizacion: 2026-05-10 (Sesion 60 EXT-3 — TVC atribucion bug + BP-S60-002 cerrado. Causa raiz: TVC tenia solo "Afiliados" configurado (UI VTEX, ~7% cobertura), faltaba "Orders Broadcaster" (API, retry policy). Cobertura cayo del 100% al 41% el 6/5 cuando HotSale superó el techo de 30 ordenes del cron-30min. 7 deploys: (1) endpoint POST/DELETE Orders Broadcaster + ejecutado en TVC; (2) cron-30min max 30→100 + maxDuration trigger-vtex-sync 60s→300s; (3) endpoint retroactivo reattribute-missing-vtex + 2 corridas recuperaron 70 de 116 huerfanos; (4) auto-config Orders Broadcaster en activate-client (multi-tenant, fix para Arredo+futuros); (5) endpoint /api/me/vtex-affiliate-info que arma URL con orgId server-side; (6) componente unico VtexAffiliateInstructions (DRY) usado en wizard overlay + settings + preview admin; (7) captura real VTEX afiliado en public/onboarding/vtex-afiliado.jpg. Cobertura TVC 14d: 66.9% → 88.6%. BP-S60-002 cerrado despues de quedar pendiente desde 30/4. Pendientes restantes intactos.)
+
+### Sesion 60 EXT-3 (2026-05-10) — TVC atribucion: causa raiz + BP-S60-002 cerrado
+
+**Contexto**: Tomy reporto en /pixel/atribucion que ordenes recientes de TVC mostraban "0 touchpoints" y un patron sospechoso de 3 ventas seguidas de $115.000. Pidio investigacion profunda sin sesgo: "no asumas nada, investiga todo entendiendo el 100% el motivo del error".
+
+#### Diagnostico (con datos exactos)
+
+1. **Patron de $115k x 3 NO era duplicado** — TVC vende productos a precio fijo. En 30 ordenes recientes, $114.900 aparece 5 veces y $129.900 5 veces, todas con externalIds distintos. Es retail real.
+
+2. **Las "0 touchpoints" eran ordenes VTEX sin atribucion NITRO**. Endpoint `/api/admin/debug-orders-deep` revelo:
+   - 3 ordenes con `createdAt` IDENTICO al milisegundo (03:00:07.591) → batch insert por cron, no webhook
+   - Los visitors con email matcheable SI existian, los PURCHASE events del pixel SI estaban → el pixel funcionaba, el problema era que `calculateAttribution` nunca se ejecuto
+
+3. **Salud por org (endpoint `/api/admin/measure-attribution-health` 14d)**:
+   | Org | Total ordenes | Cobertura | Webhooks totales ever |
+   |---|---|---|---|
+   | EMDJ | 1.285 | 99.6% | 3.048 |
+   | TVC | 350 | 66.9% | 26 |
+   | Arredo | 0 | — | 0 |
+
+4. **Patron horario**: ordenes insertadas a las 6am AR perdian atribucion (113 ordenes, solo 2 atribuidas). Ordenes de 3-5am AR se atribuian 100%.
+
+5. **Conteo magico**: TVC tenia EXACTAMENTE 30 ordenes atribuidas/dia los dias 7/5, 8/5, 9/5 (no 29 ni 31). Coincide con `max=30` hardcodeado del cron-30min.
+
+#### Causa raiz (con evidencia, no hipotesis)
+
+VTEX tiene 2 mecanismos de webhook para orders:
+
+1. **Afiliados** (UI VTEX Admin → Pedidos → Configuración → tab Afiliados): lo carga el CLIENTE en SU panel VTEX (no podemos hacerlo por API). Best effort, sin retry policy. En TVC habia 1 (NSL) cargado por Leandro el 30/4, pero solo capturaba ~7% de los eventos.
+
+2. **Orders Broadcaster** (`POST /api/orders/hook/config`, API-only): lo configuramos NOSOTROS por API con las credenciales del cliente. Tiene retry policy oficial de VTEX (3 reintentos). EMDJ lo tiene desde S53 (configurado por mi via API). TVC NO lo tenia (404). Arredo NO lo tiene.
+
+**Por que cayo el 6/5 sin cambios mios**: HotSale empujo TVC de 9-19 ordenes/dia a 57-72/dia. El cron-30min con `max=30` solo cubria las 30 mas recientes via webhook proxy. Las restantes entraban por cron diario (`createMany` sin atribuir). Antes del HotSale el techo de 30 era mayor al volumen → invisible.
+
+**El HotSale rompiendo el pixel**: descartado. El pixel funciona, los visitors y PURCHASE events estaban OK. El problema era estructural (Orders Broadcaster faltante).
+
+#### Fixes implementados (7 commits)
+
+| # | Commit | Tipo | Que hace |
+|---|---|---|---|
+| 1 | `b97a4b0` | feat | Endpoint `/api/admin/vtex-configure-broadcaster` con POST/GET/DELETE |
+| — | — | exec | POST ejecutado en TVC → before 404, after 200 con hook OK |
+| 2 | `a379afb` | feat | `max=30 → 100` en cron-30min + maxDuration trigger-vtex-sync 60s→300s |
+| 3 | `a379afb` | feat | Endpoint `/api/admin/reattribute-missing-vtex` (admin one-shot Tipo B) |
+| — | — | exec | 2 corridas: 100 + 53 candidatos → 70 ordenes recuperaron atribucion |
+| 4 | `f6e9262` | feat | `activate-client` auto-configura Orders Broadcaster (Tipo A multi-tenant) |
+| 5 | `f6e9262` | feat | `/api/me/vtex-affiliate-info` arma URL con orgId server-side |
+| 6 | `8d05f40` | refactor | Componente unico `VtexAffiliateInstructions` (DRY) |
+| 7 | `907a747` | feat | Captura real en `public/onboarding/vtex-afiliado.jpg` |
+
+**Cobertura TVC 14d post-fix**: 66.9% → **88.6%** (+21.7 puntos). Los 46 restantes son atribucion realmente imposible (clientes sin pixel/login).
+
+#### Patrones criticos S60 EXT-3
+
+1. **Multi-tenant fix Tipo A vs Tipo B**: el endpoint `vtex-configure-broadcaster` es Tipo B (one-shot por cliente). El integrar la logica en `activate-client` es Tipo A (multi-tenant, perdura). Tomy pregunto explicito por la diferencia, importante comunicar al hacer fixes en sistemas externos.
+
+2. **Documentar plan ≠ ejecutar plan**: BP-S60-002 estaba en backlog desde el 30/4 con detalle completo de implementacion (incluyendo paths, captura, etc.) y aparecio en 7 snapshots como pendiente. Pero NUNCA se programo en codigo real. Tomy y yo asumimos que ya estaba hecho porque vimos el plan documentado. Leccion: pendiente en backlog ≠ feature implementada. Grep el codigo antes de afirmar que algo existe.
+
+3. **Investigar antes de afirmar / no asumir**: Tomy paro varias veces mis conclusiones intermedias ("estas teniendo en cuenta el 5/5?", "yo te confirmé que lo hiciste, pasame screenshot"). Cada freno me llevo a chequear codigo + docs. Sin esos frenos hubiera vuelto a "asumir que el wizard lo hacia".
+
+4. **Conteo magico es senial de techo hardcodeado**: cuando un valor se estabiliza en un numero exacto que se repite (atribuciones=30/dia), casi siempre hay un `max=N` en el codigo. Buscar literalmente ese N.
+
+5. **Componente compartido > codigo duplicado en 3 lugares**: hice 3 versiones separadas primero, despues refactor a `VtexAffiliateInstructions` con prop `theme: dark|light`. Ahora cambios al copy/storytelling se hacen en 1 lugar.
+
+6. **Antes de copiar archivo desde Desktop, VERIFICAR contenido**: copie con wildcard `Captura*2026-05-10*.png` la mas reciente del Desktop. ERROR: era otra captura, no la del afiliado VTEX. Tomy me freno. Leccion: si no veo el contenido del archivo, no asumo que es el correcto.
+
+#### Pendientes que se cierran
+
+- ✅ **BP-S60-002 — Wizard del afiliado VTEX** (estaba pendiente desde 30/4, en 7+ snapshots de CLAUDE_STATE).
+
+#### Pendientes restantes (sin cambios)
+
+- 🟡 BP-S60-005 Activar TVC (Google Ads connection — esperando que Tomy habilite)
+- 🟢 BP-S60-004 Alias webhooks@nitrosales.ai
+- 🟢 (cosmetico) OrgSwitcher dark theme
+- 🟢 (refactor) Renombrar pa.visitorId → pa.pixelVisitorId
+- 🟢 Configurar Orders Broadcaster en Arredo cuando arranque
+- 🟢 Optimizar tamaño del JPG (352KB ahora, podria bajar a ~80KB)
+- 🟢 Validar 24h: ¿TVC alcanza ~60 webhooks/dia como EMDJ?
+
+---
+
+## Ultima actualizacion previa: 2026-05-09 (Sesion 60 EXT-2 BIS+++++++++++ — Perf de /dashboard y /pedidos. 3 deploys: (1) 3 indices nuevos en orders/order_items (status_date_desc, customerId_date, orderId_productId) + cache TTL 60s en /api/metrics/seo; (2) fix order_items hereda orgId via orderId, no tiene columna propia → indexar por (orderId, productId); (3) cache TTL global 60s → 5min + indice PARTIAL en orders para anti-joins repetidos 22 veces. Resultado: navegacion normal de /dashboard y /pedidos es instant si está cacheado, anti-joins usan index-only scan. 4 indices totales nuevos en este round (13 indices activos en prod). Pendientes intactos.)
 
 ### Sesion 60 EXT-2 BIS+++++++++++ (2026-05-09) — Perf de /dashboard y /pedidos
 

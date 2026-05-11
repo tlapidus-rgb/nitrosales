@@ -44,7 +44,22 @@ Conclusion: el webhook esta validado end-to-end. **Bug colateral menor**: el cro
 
 ---
 
-## 🔴 BP-S60-002 — Implementar paso del afiliado VTEX en el wizard de onboarding (Tipo A — fix multi-tenant CRITICO)
+## ✅ BP-S60-002 — Implementar paso del afiliado VTEX en el wizard de onboarding — CERRADO 2026-05-10 (Sesion 60 EXT-3)
+
+**Resuelto**: Sesión 60 EXT-3 (10 mayo 2026), commits `f6e9262` + `8d05f40` + `907a747`.
+
+**Lo que se hizo**:
+- Componente único `src/components/onboarding/VtexAffiliateInstructions.tsx` (DRY, theme dark|light) usado en 3 lugares: `OnboardingOverlay.tsx` (wizard dark) + `/settings/integraciones/vtex` (settings light) + `/control/preview/vtex-afiliado` (preview admin).
+- Endpoint `/api/me/vtex-affiliate-info` arma la URL del webhook server-side con `orgId` + `NEXTAUTH_SECRET`, sin exponer el secret en el client.
+- Captura real guardada en `public/onboarding/vtex-afiliado.jpg`.
+- `activate-client` auto-configura el Orders Broadcaster via API al activar cliente VTEX (Tipo A multi-tenant, fix complementario para que el cliente nuevo arranque 100% sin depender de memoria humana).
+- Storytelling refinado contra la captura real: "Política comercial" es número (1), checkbox "Utilizar mi medio de pago" SIN tildar, "Endpoint de busca" (texto sic VTEX), botones explícitos "+ Nuevo afiliado" verde y "Guardar" azul.
+
+**Pendiente menor**: el paso visible al cliente NO bloquea forzadamente el avance del onboarding (idea #5 original era "marcarlo como obligatorio para terminar"). Se decidió dejar como instrucción muy visible pero no bloqueante porque cliente puede legítimamente diferirlo hasta tener tiempo de entrar a VTEX. Si en el futuro se ve que clientes lo saltean, agregar un checkbox "Ya lo configuré" + verificación opcional.
+
+---
+
+## (Histórico archivado) BP-S60-002 — Implementar paso del afiliado VTEX en el wizard de onboarding (Tipo A — fix multi-tenant CRITICO)
 
 **Entró**: 2026-04-30 (S60), causa raiz del bug TVC
 

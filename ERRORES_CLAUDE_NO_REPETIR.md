@@ -4,7 +4,50 @@
 > Cada error está documentado con causa raíz y la regla que lo previene.
 > Si Claude comete un error que ya está acá, es una falla grave de proceso.
 
-> **Última actualización: 2026-05-09 — Sesión 60 EXT-2 BIS+++++++++++ (2 errores nuevos: indexar tabla hija con columna que no tiene (`organizationId` heredado via parent FK), y subestimar el impacto del cache TTL muy corto en dashboards de uso normal).**
+> **Última actualización: 2026-05-10 — Sesión 60 EXT-3 (3 errores nuevos: documentar un plan en backlog NO equivale a ejecutarlo; copiar archivo del Desktop sin verificar contenido; re-caer en el patrón S53 de "VTEX tiene 2 mecanismos de webhook").**
+
+---
+
+## Error #S60-EXT-3-DOC-PLAN-NOT-EQUAL-IMPL — Documentar un plan en backlog ≠ ejecutar el plan
+
+**Cuándo pasó**: Sesión 60 EXT-3 (10 mayo 2026). Tomy preguntó si el paso del afiliado VTEX estaba en el onboarding. Yo verifiqué y encontré `BP-S60-002` en BACKLOG_PENDIENTES.md desde el 30 de abril con detalle COMPLETO de implementación (paths, captura, endpoint, sub-step en wizard). Apareció en **7+ snapshots** sucesivos de CLAUDE_STATE.md como pendiente 🟡. Pero al grepear el código por "afiliado/affiliate/Afiliados" en el wizard: **0 resultados**. El plan se documentó con tanto detalle que ambos asumimos que estaba hecho. **Nunca se programó.** 10 días con clientes potenciales rotos silencioso.
+
+### Causa raíz
+- Backlog detallado = sensación de "ya está resuelto". Cerebro lo procesa como "feature existente".
+- Yo (Claude) no levanté el pendiente proactivamente en sesiones siguientes a pesar de aparecer en cada snapshot.
+
+### Regla
+**Cuando un ticket lleva más de 1 sesión en backlog sin ejecutarse, levantarlo proactivamente al inicio de sesión.** Nunca afirmar "el sistema hace X" sin grep al código. La pregunta "¿esto está implementado?" se responde con `grep -rn "feature" src/`, no con memoria.
+
+---
+
+## Error #S60-EXT-3-COPY-FILE-WITHOUT-VERIFY — Copiar archivo del Desktop sin verificar contenido
+
+**Cuándo pasó**: Sesión 60 EXT-3. Tomy pegó una captura en el chat. Yo no podía guardarla directo. Encontré un PNG reciente del Desktop con fecha cuadrada con el momento del pegado. Hice `cp Captura*2026-05-10*.png public/onboarding/vtex-afiliado.png` y commiteé. Tomy abrió el preview y vio una imagen distinta — era otra captura random.
+
+### Causa raíz
+- "La fecha cuadra, debe ser ésta" es asunción, no verificación.
+- No leí el contenido del archivo antes de commitear a producción.
+
+### Regla
+**Antes de commitear cualquier archivo binario cuyo contenido no puedo verificar, validar con el usuario o leer el archivo primero.** Para imágenes específicamente: usar `Read` tool sobre la imagen para ver su contenido. Si no es posible, pedir al usuario que confirme el path EXACTO o que lo suba él. **Nunca mover binarios a producción solo porque la fecha del archivo cuadra.**
+
+---
+
+## Error #S60-EXT-3-RECAIDA-S53-VTEX-2-MECHANISMS — Re-caer en patrón S53 de "VTEX tiene 2 mecanismos paralelos"
+
+**Cuándo pasó**: Sesión 60 EXT-3. Vi `GET /api/orders/hook/config` → 404 en TVC y afirmé "TVC no tiene webhook configurado". Tomy me corrigió "sí lo tiene, lo hicimos manual con Leandro". Verifiqué con `pixel_events WHERE sessionId LIKE 'webhook-%'`: 26 webhooks reales históricos. Esto YA estaba documentado como `Error #S53-VTEX-HOOKS-TWO-MECHANISMS` (S53, mayo 2024). Volví a caer en el mismo error.
+
+### Causa raíz
+- No releí ERRORES_CLAUDE_NO_REPETIR.md al inicio de sesión a pesar de la instrucción explícita.
+- "Endpoint API responde 404" me hizo asumir "no hay configuración" en vez de "este mecanismo específico no está".
+
+### Regla (refuerzo del patrón S53)
+**Antes de afirmar "no hay X configurado" en sistemas externos con múltiples mecanismos paralelos, verificar empíricamente** (cuántos webhooks/eventos están realmente llegando). Para VTEX: contar `pixel_events WHERE sessionId LIKE 'webhook-%'` es la fuente de verdad.
+
+**Cuando un patrón ya documentado vuelve a aparecer como error, el problema NO es el patrón — es mi proceso de leer este archivo al inicio.** Releer este file SIEMPRE antes de tocar el área del error documentado.
+
+---
 
 ---
 
