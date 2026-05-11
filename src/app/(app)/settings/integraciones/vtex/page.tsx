@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, AlertCircle, Loader2, Lock, Edit3 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, Loader2, Lock, Edit3, Copy, ExternalLink } from "lucide-react";
 
 interface VtexStatus {
   connected: boolean;
@@ -368,8 +368,163 @@ export default function VtexIntegrationPage() {
               )}
             </div>
           </div>
+
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* PASO 2 — Afiliado VTEX (manual del cliente en su VTEX Admin)  */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* Sin esto, VTEX no manda webhooks de orden y la atribucion se   */}
+          {/* rompe. Lo tiene que hacer el cliente desde su VTEX Admin por   */}
+          {/* politica de VTEX (no podemos hacerlo por API).                 */}
+          <VtexAffiliateStep enabled={isConnected} />
         </>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Paso afiliado VTEX (manual del cliente)
+// ══════════════════════════════════════════════════════════════
+function VtexAffiliateStep({ enabled }: { enabled: boolean }) {
+  const [info, setInfo] = useState<{
+    webhookUrl: string;
+    affiliateId: string;
+    affiliateName: string;
+    notificationEmail: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) return;
+    fetch("/api/me/vtex-affiliate-info")
+      .then((r) => r.json())
+      .then((d) => { if (d?.ok) setInfo(d); })
+      .catch(() => {});
+  }, [enabled]);
+
+  if (!enabled) {
+    return (
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <div className="flex items-center gap-2 text-[14px] font-semibold text-slate-700">
+          <Lock className="h-4 w-4" /> Paso 2 — Afiliado VTEX
+        </div>
+        <p className="mt-2 text-[12px] text-slate-500">
+          Conectá las credenciales arriba primero. Después te mostramos el segundo paso obligatorio.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/50 p-5">
+      <div className="flex items-center gap-2 mb-2">
+        <AlertCircle className="h-5 w-5 text-amber-600" />
+        <h2 className="text-[14px] font-bold text-slate-900">Paso 2 — Configurar afiliado en VTEX</h2>
+      </div>
+      <p className="text-[12px] text-slate-700 leading-relaxed mb-4">
+        <strong>Este paso es obligatorio y solo lo podés hacer vos desde tu VTEX Admin.</strong> Sin esto,
+        VTEX no nos avisa de las órdenes en tiempo real y la atribución de campañas se rompe.
+      </p>
+
+      {/* Pasos numerados */}
+      <ol className="space-y-3 mb-5">
+        <li className="text-[12px] text-slate-700">
+          <span className="inline-block w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold mr-2 text-center leading-5">1</span>
+          Entrá a <strong>VTEX Admin</strong> → <strong>Configuración de la tienda</strong> → <strong>Pedidos</strong> → <strong>Configuración</strong> → tab <strong>Afiliados</strong>.
+        </li>
+        <li className="text-[12px] text-slate-700">
+          <span className="inline-block w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold mr-2 text-center leading-5">2</span>
+          Click en <strong>Nuevo afiliado</strong> y cargá los siguientes datos:
+        </li>
+      </ol>
+
+      {/* Tabla de datos a cargar */}
+      {info && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4 mb-4">
+          <div className="space-y-3">
+            <FieldRow label="ID del afiliado" value={info.affiliateId} hint="3 letras. Si ya tenés un NSL, usá NSL2, NSL3, etc." />
+            <FieldRow label="Nombre" value={info.affiliateName} />
+            <FieldRow label="Email para notificaciones" value={info.notificationEmail} hint="VTEX manda emails si el webhook se cae." />
+            <FieldRow
+              label="Endpoint de búsqueda (URL del webhook)"
+              value={info.webhookUrl}
+              copyable
+              onCopy={() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              copied={copied}
+              hint="Pegá esta URL EXACTA. No la edites."
+            />
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Política comercial</div>
+                <div className="text-[12px] text-slate-700">La de tu web propia (NO la de marketplaces como Frávega o Banco Provincia)</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Versión del endpoint</div>
+                <div className="text-[12px] text-slate-700 font-mono">1.x.x</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ol className="space-y-2 mb-4" start={3}>
+        <li className="text-[12px] text-slate-700">
+          <span className="inline-block w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold mr-2 text-center leading-5">3</span>
+          Guardá el afiliado.
+        </li>
+        <li className="text-[12px] text-slate-700">
+          <span className="inline-block w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold mr-2 text-center leading-5">4</span>
+          Listo. A partir de la próxima orden, te va a aparecer la atribución completa en NitroSales.
+        </li>
+      </ol>
+
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mt-4">
+        <p className="text-[11px] text-amber-900 leading-relaxed">
+          <strong>⚠ Importante:</strong> si ya tenés afiliados configurados (Frávega, Banco Provincia, etc.), NO los toques.
+          Solo agregá uno nuevo con el ID <strong>{info?.affiliateId || "NSL"}</strong> para nosotros.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function FieldRow({
+  label,
+  value,
+  hint,
+  copyable,
+  onCopy,
+  copied,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  copyable?: boolean;
+  onCopy?: () => void;
+  copied?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-[11px] font-semibold text-slate-700">{label}</label>
+        {copyable && (
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(value);
+              onCopy?.();
+            }}
+            className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Copy className="h-3 w-3" />
+            {copied ? "Copiado!" : "Copiar"}
+          </button>
+        )}
+      </div>
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-mono text-slate-800 break-all">
+        {value}
+      </div>
+      {hint && <p className="mt-1 text-[10px] text-slate-500">{hint}</p>}
     </div>
   );
 }

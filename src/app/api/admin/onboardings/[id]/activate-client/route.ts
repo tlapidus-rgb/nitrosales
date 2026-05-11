@@ -65,6 +65,62 @@ export async function POST(
       id,
     );
 
+    // ══════════════════════════════════════════════════════════════
+    // AUTO-CONFIGURAR Orders Broadcaster VTEX (multi-tenant fix)
+    // ══════════════════════════════════════════════════════════════
+    // Si el cliente tiene VTEX activo, disparar el POST a su VTEX para
+    // configurar el Orders Broadcaster. Si falla, NO bloquea la activacion
+    // — solo loguea y deja un flag en la respuesta para que el admin lo vea.
+    let broadcasterResult: any = null;
+    if (ob.createdOrgId) {
+      try {
+        const vtexConn = await prisma.connection.findFirst({
+          where: { organizationId: ob.createdOrgId, platform: "VTEX" as any, status: "ACTIVE" as any },
+          select: { id: true },
+        });
+        if (vtexConn) {
+          const { getVtexConfig } = await import("@/lib/vtex-credentials");
+          const vtexConfig = await getVtexConfig(ob.createdOrgId);
+          const account = vtexConfig.creds.accountName;
+          const baseUrl = "https://nitrosales.vercel.app";
+          const secret = process.env.NEXTAUTH_SECRET || "nitrosales-secret-key-2024-production";
+          const hookUrl =
+            `${baseUrl}/api/webhooks/vtex/orders` +
+            `?key=${encodeURIComponent(secret)}` +
+            `&org=${encodeURIComponent(ob.createdOrgId)}`;
+          const payload = {
+            filter: {
+              type: "FromWorkflow",
+              status: ["order-created","payment-approved","handling","invoiced","canceled","request-cancel"],
+            },
+            hook: { url: hookUrl, headers: {} },
+          };
+          const r = await fetch(
+            `https://${account}.vtexcommercestable.com.br/api/orders/hook/config`,
+            {
+              method: "POST",
+              headers: { ...vtexConfig.headers, "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+              signal: AbortSignal.timeout(15000),
+            }
+          );
+          broadcasterResult = {
+            attempted: true,
+            ok: r.ok,
+            status: r.status,
+            account,
+            hookUrl,
+          };
+          console.log(`[activate-client] Orders Broadcaster setup for ${account}: status=${r.status}`);
+        } else {
+          broadcasterResult = { attempted: false, reason: "No hay VTEX connection ACTIVE" };
+        }
+      } catch (e: any) {
+        broadcasterResult = { attempted: true, ok: false, error: e.message };
+        console.error("[activate-client] Orders Broadcaster falló (no bloquea):", e.message);
+      }
+    }
+
     // Email "tu plataforma está lista"
     let emailSent = false;
     if (ob.contactEmail) {
@@ -95,6 +151,7 @@ export async function POST(
         newStatus: "ACTIVE",
       },
       emailSent,
+      broadcasterResult,
       message: emailSent
         ? `Cliente activado. Email enviado a ${ob.contactEmail}.`
         : `Cliente activado. (No se envió email — ver logs)`,
