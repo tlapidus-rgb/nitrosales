@@ -39,6 +39,7 @@ import { BrandLogo, type BrandKey } from "./BrandLogo";
 import { VisualTutorial } from "./VisualTutorials";
 import OnboardingAurumChat from "./OnboardingAurumChat";
 import { AurumOrb } from "./aurum/AurumOrb";
+import VtexAffiliateInstructions, { type AffiliateInfo } from "./onboarding/VtexAffiliateInstructions";
 
 const BRAND_ORANGE = "#FF5E1A";
 const BORDER = "rgba(255,255,255,0.08)";
@@ -1200,14 +1201,9 @@ function EcommerceInputs({ creds, onChange, orgId }: any) {
 // Sin este paso, VTEX no manda webhooks de orden y la atribucion
 // queda incompleta. Lo tiene que hacer el cliente desde su panel
 // VTEX porque VTEX no expone API publica para configurar Afiliados.
+// Componente visual unificado en /components/onboarding/VtexAffiliateInstructions
 function VtexAffiliateOnboardingStep({ orgId }: { orgId: string | null }) {
-  const [info, setInfo] = useState<{
-    webhookUrl: string;
-    affiliateId: string;
-    affiliateName: string;
-    notificationEmail: string;
-  } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [info, setInfo] = useState<AffiliateInfo | null>(null);
 
   useEffect(() => {
     if (!orgId) return;
@@ -1217,82 +1213,9 @@ function VtexAffiliateOnboardingStep({ orgId }: { orgId: string | null }) {
       .catch(() => {});
   }, [orgId]);
 
-  if (!orgId || !info) {
-    return null; // Se muestra solo cuando ya hay org creada + info cargada
-  }
+  if (!orgId || !info) return null;
 
-  return (
-    <div style={{ marginTop: 24, paddingTop: 18, borderTop: `1px dashed ${BORDER}` }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_ORANGE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-        <Lock size={12} /> Paso obligatorio — Configurar afiliado en tu VTEX
-      </div>
-      <div style={{ fontSize: 12, color: TEXT_SECONDARY, lineHeight: 1.6, marginBottom: 14 }}>
-        Además de las credenciales, VTEX exige un paso manual en <strong style={{ color: "#fff" }}>tu panel de VTEX</strong> para que nos
-        avise de cada venta en tiempo real. <strong style={{ color: "#fff" }}>Sin esto, la atribución de campañas se rompe.</strong>
-      </div>
-
-      <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: TEXT_SECONDARY, lineHeight: 1.7 }}>
-        <li>Entrá a <strong style={{ color: "#fff" }}>VTEX Admin</strong> → Configuración tienda → Pedidos → Configuración → tab <strong style={{ color: "#fff" }}>Afiliados</strong>.</li>
-        <li>Click en <strong style={{ color: "#fff" }}>Nuevo afiliado</strong> y cargá los siguientes datos:</li>
-      </ol>
-
-      <div style={{ marginTop: 12, padding: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 10 }}>
-        <AffiliateField label="ID del afiliado" value={info.affiliateId} hint="3 letras. Si ya tenés un NSL, usá NSL2." />
-        <AffiliateField label="Nombre" value={info.affiliateName} />
-        <AffiliateField label="Email para notificaciones" value={info.notificationEmail} />
-        <AffiliateField
-          label="Endpoint de búsqueda (URL del webhook)"
-          value={info.webhookUrl}
-          copyable
-          copied={copied}
-          onCopy={() => {
-            navigator.clipboard.writeText(info.webhookUrl);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }}
-          hint="Pegá esta URL EXACTA, no la edites."
-        />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${BORDER}` }}>
-          <div>
-            <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Política comercial</div>
-            <div style={{ fontSize: 11, color: TEXT_SECONDARY }}>La de tu web propia (NO marketplaces externos)</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 9, fontWeight: 700, color: TEXT_MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Versión endpoint</div>
-            <div style={{ fontSize: 11, color: TEXT_SECONDARY, fontFamily: "monospace" }}>1.x.x</div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, fontSize: 11, color: "#FCD34D", lineHeight: 1.6 }}>
-        <strong>⚠ Importante:</strong> si ya tenés afiliados (Frávega, Banco Provincia, etc.), NO los toques. Solo agregá uno
-        nuevo con el ID <strong>{info.affiliateId}</strong>.
-      </div>
-    </div>
-  );
-}
-
-function AffiliateField({ label, value, hint, copyable, onCopy, copied }: any) {
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: TEXT_SECONDARY, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
-        {copyable && (
-          <button
-            type="button"
-            onClick={onCopy}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 10, color: "#fff", cursor: "pointer" }}
-          >
-            <Copy size={10} /> {copied ? "Copiado!" : "Copiar"}
-          </button>
-        )}
-      </div>
-      <div style={{ padding: "8px 10px", background: "rgba(0,0,0,0.3)", border: `1px solid ${BORDER}`, borderRadius: 7, fontSize: 11, color: "#fff", fontFamily: "monospace", wordBreak: "break-all" }}>
-        {value}
-      </div>
-      {hint && <div style={{ fontSize: 10, color: TEXT_MUTED, marginTop: 4 }}>{hint}</div>}
-    </div>
-  );
+  return <VtexAffiliateInstructions info={info} theme="dark" />;
 }
 
 function MlInputs({ creds, onChange }: any) {
