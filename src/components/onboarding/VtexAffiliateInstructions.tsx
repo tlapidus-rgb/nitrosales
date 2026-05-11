@@ -214,7 +214,7 @@ export default function VtexAffiliateInstructions({ info, theme }: Props) {
             }}
           >
             <img
-              src="/onboarding/vtex-afiliado.png"
+              src="/onboarding/vtex-afiliado.jpg"
               alt="VTEX Admin - Configuración de afiliado NitroSales"
               style={{ width: "100%", height: "auto", display: "block" }}
               onError={(e: any) => {
