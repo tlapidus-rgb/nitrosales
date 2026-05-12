@@ -125,9 +125,14 @@ export async function POST(
       })
     );
 
-    // NitroPixel test corre en paralelo tambien
-    const pixelPromise = testNitroPixel(ob.createdOrgId, prisma)
-      .then((pixelResult) => ({
+    // NitroPixel test corre en paralelo tambien.
+    // Hard timeout de 15s — la query COUNT sobre pixel_events puede tardar
+    // mucho en orgs con millones de eventos sin indice optimo.
+    const pixelPromise = Promise.race([
+      testNitroPixel(ob.createdOrgId, prisma),
+      new Promise<any>((_, rej) => setTimeout(() => rej(new Error("pixel test timeout 15s")), 15000)),
+    ])
+      .then((pixelResult: any) => ({
         platform: "NITROPIXEL" as const,
         connectionStatus: pixelResult.ok ? "ACTIVE" : "PENDING",
         ok: pixelResult.ok,

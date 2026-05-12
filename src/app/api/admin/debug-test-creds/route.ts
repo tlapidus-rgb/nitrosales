@@ -100,14 +100,19 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // NitroPixel
+    // NitroPixel (solo si NO se pidio skipTest, y con hard timeout)
     const pixelStart = Date.now();
     let pixelResult: any = null;
     let pixelError: string | null = null;
-    try {
-      pixelResult = await testNitroPixel(orgId, prisma);
-    } catch (e: any) {
-      pixelError = e?.message;
+    if (!skipTest) {
+      try {
+        pixelResult = await Promise.race([
+          testNitroPixel(orgId, prisma),
+          new Promise((_, rej) => setTimeout(() => rej(new Error(`HARD_TIMEOUT_PIXEL_${perTimeout}ms`)), perTimeout)),
+        ]);
+      } catch (e: any) {
+        pixelError = e?.message;
+      }
     }
 
     return NextResponse.json({
@@ -115,7 +120,7 @@ export async function GET(req: NextRequest) {
       orgId,
       connectionsFound: connections.length,
       results,
-      pixel: { result: pixelResult, error: pixelError, elapsedMs: Date.now() - pixelStart },
+      pixel: { result: pixelResult, error: pixelError, elapsedMs: Date.now() - pixelStart, skipped: skipTest },
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message, stack: err.stack?.slice(0, 800) }, { status: 500 });
