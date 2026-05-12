@@ -1027,10 +1027,13 @@ export async function testNitroPixel(orgId: string, prismaClient: any): Promise<
   if (!orgId) return { ok: false, detail: "Falta orgId" };
   try {
     const since = new Date(Date.now() - 48 * 60 * 60 * 1000);
-    // S58 FIX: la columna correcta del schema es "receivedAt" (cuando el server recibio
-    // el evento). Antes estaba "eventTime" que NO existe → query fallaba con 42703.
+    // S60 EXT-3 FIX: usar "timestamp" en vez de "receivedAt" porque solo
+    // "timestamp" tiene indice multi-columna (orgId, type, timestamp). Sin
+    // ese indice, COUNT sobre pixel_events (~millones rows) hace seq scan
+    // y tarda >15s para orgs sin events. Diferencia entre timestamp y
+    // receivedAt es de milisegundos, no afecta el resultado del check.
     const rows = await prismaClient.$queryRawUnsafe(
-      `SELECT COUNT(*)::int AS c FROM "pixel_events" WHERE "organizationId" = $1 AND "receivedAt" >= $2`,
+      `SELECT COUNT(*)::int AS c FROM "pixel_events" WHERE "organizationId" = $1 AND "timestamp" >= $2`,
       orgId,
       since
     );
