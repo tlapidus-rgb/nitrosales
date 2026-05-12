@@ -32,7 +32,7 @@ import { decryptCredentials, isEncrypted } from "@/lib/crypto";
 import { testCredentialsByPlatform, testNitroPixel } from "@/lib/onboarding/credential-tests";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 min — algunos tests OAuth refresh pueden tardar
 
 export async function POST(
   req: NextRequest,
@@ -77,62 +77,72 @@ export async function POST(
       });
     }
 
-    const results: Array<any> = [];
-
-    // Test cada Connection con su API real
-    for (const conn of connections) {
-      // Desencriptar credentials
-      let creds: any = null;
-      try {
-        const raw = conn.credentials as any;
-        if (typeof raw === "string" && isEncrypted(raw)) {
-          creds = decryptCredentials(raw);
-        } else if (typeof raw === "object" && raw !== null) {
-          creds = raw;
-        } else {
-          creds = JSON.parse(raw);
+    // Test cada Connection en PARALELO (evita timeout de Vercel cuando hay
+    // multiples connections con OAuth refresh que tarda)
+    const connectionResults = await Promise.all(
+      connections.map(async (conn) => {
+        // Desencriptar credentials
+        let creds: any = null;
+        try {
+          const raw = conn.credentials as any;
+          if (typeof raw === "string" && isEncrypted(raw)) {
+            creds = decryptCredentials(raw);
+          } else if (typeof raw === "object" && raw !== null) {
+            creds = raw;
+          } else {
+            creds = JSON.parse(raw);
+          }
+        } catch (e: any) {
+          return {
+            platform: conn.platform,
+            connectionStatus: conn.status,
+            ok: false,
+            detail: "No se pudieron leer las credenciales (decrypt falló)",
+            hint: e?.message,
+          };
         }
-      } catch (e: any) {
-        results.push({
-          platform: conn.platform,
-          connectionStatus: conn.status,
-          ok: false,
-          detail: "No se pudieron leer las credenciales (decrypt falló)",
-          hint: e?.message,
-        });
-        continue;
-      }
 
-      const r = await testCredentialsByPlatform(conn.platform, creds, { vtexTestSku });
-      results.push({
-        platform: conn.platform,
-        connectionStatus: conn.status,
-        ok: r.ok,
-        detail: r.detail,
-        hint: r.hint,
-        areas: (r as any).areas || undefined,
-        lastSyncError: conn.lastSyncError || null,
-      });
-    }
+        try {
+          const r = await testCredentialsByPlatform(conn.platform, creds, { vtexTestSku });
+          return {
+            platform: conn.platform,
+            connectionStatus: conn.status,
+            ok: r.ok,
+            detail: r.detail,
+            hint: r.hint,
+            areas: (r as any).areas || undefined,
+            lastSyncError: conn.lastSyncError || null,
+          };
+        } catch (e: any) {
+          return {
+            platform: conn.platform,
+            connectionStatus: conn.status,
+            ok: false,
+            detail: "Test falló inesperadamente: " + (e?.message || "?"),
+            lastSyncError: conn.lastSyncError || null,
+          };
+        }
+      })
+    );
 
-    // Adicional: NitroPixel — chequea eventos en DB (no hay Connection)
-    try {
-      const pixelResult = await testNitroPixel(ob.createdOrgId, prisma);
-      results.push({
-        platform: "NITROPIXEL",
+    // NitroPixel test corre en paralelo tambien
+    const pixelPromise = testNitroPixel(ob.createdOrgId, prisma)
+      .then((pixelResult) => ({
+        platform: "NITROPIXEL" as const,
         connectionStatus: pixelResult.ok ? "ACTIVE" : "PENDING",
         ok: pixelResult.ok,
         detail: pixelResult.detail,
         hint: pixelResult.hint,
-      });
-    } catch (e: any) {
-      results.push({
-        platform: "NITROPIXEL",
+      }))
+      .catch((e: any) => ({
+        platform: "NITROPIXEL" as const,
         connectionStatus: "PENDING",
         ok: false,
         detail: "Error chequeando pixel: " + (e?.message || "?"),
-      });
-    }
+      }));
+    const pixelResultFinal = await pixelPromise;
+
+    const results: Array<any> = [...connectionResults, pixelResultFinal];
 
     const passed = results.filter((r) => r.ok).length;
     const failed = results.length - passed;
