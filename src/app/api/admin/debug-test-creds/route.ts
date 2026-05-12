@@ -20,8 +20,15 @@ export async function GET(req: NextRequest) {
     const orgId = url.searchParams.get("orgId");
     if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
 
+    // ?onlyPlatform=VTEX para probar una sola plataforma y aislar la que cuelga
+    const onlyPlatform = url.searchParams.get("onlyPlatform");
+    // ?skipTest=1 solo lista las connections, no las prueba
+    const skipTest = url.searchParams.get("skipTest") === "1";
+    // ?perTimeout=5000 timeout individual en ms por test (default 8000)
+    const perTimeout = Math.min(60000, Math.max(1000, Number(url.searchParams.get("perTimeout") || "8000")));
+
     const connections = await prisma.connection.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: orgId, ...(onlyPlatform ? { platform: onlyPlatform as any } : {}) },
       select: { id: true, platform: true, status: true, credentials: true, lastSyncError: true },
     });
 
@@ -59,8 +66,23 @@ export async function GET(req: NextRequest) {
       let testResult: any = null;
       let testError: string | null = null;
       let testStack: string | null = null;
+
+      if (skipTest) {
+        results.push({
+          platform: conn.platform,
+          status: conn.status,
+          credKeys,
+          skipped: true,
+        });
+        continue;
+      }
+
       try {
-        testResult = await testCredentialsByPlatform(conn.platform, creds, {});
+        // Hard timeout para no colgar el endpoint si testCredentialsByPlatform no respeta su propio timeout
+        testResult = await Promise.race([
+          testCredentialsByPlatform(conn.platform, creds, {}),
+          new Promise((_, rej) => setTimeout(() => rej(new Error(`HARD_TIMEOUT_${perTimeout}ms`)), perTimeout)),
+        ]);
       } catch (e: any) {
         testError = e?.message;
         testStack = e?.stack?.slice(0, 500);
