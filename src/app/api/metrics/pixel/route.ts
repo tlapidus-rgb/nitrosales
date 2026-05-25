@@ -82,12 +82,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(cached.data);
     }
 
-    const dateTo = toParam
+    let dateTo = toParam
       ? new Date(toParam + "T23:59:59.999-03:00")
       : now;
-    const dateFrom = fromParam
+    let dateFrom = fromParam
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 7 * MS_PER_DAY);
+
+    // ══════════════════════════════════════════════════════════════
+    // 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
+    // ══════════════════════════════════════════════════════════════
+    // Si > 0, fuerza una ventana máxima de N días hacia atrás. Esto
+    // limita la cantidad de pixel_events que cada query del endpoint
+    // tiene que escanear (de millones a ~decenas de miles) y evita el
+    // 500 por timeout del pool de Prisma.
+    //
+    // Para REVERTIR (volver a comportamiento normal):
+    //   Cambiar la siguiente línea a:  const DEMO_FORCE_WINDOW_DAYS = 0;
+    //
+    // Para AJUSTAR (más datos o menos):
+    //   Subir o bajar el valor (ej 14 o 30 días).
+    // ══════════════════════════════════════════════════════════════
+    const DEMO_FORCE_WINDOW_DAYS = 7;
+    if (DEMO_FORCE_WINDOW_DAYS > 0) {
+      const demoFromMs = now.getTime() - DEMO_FORCE_WINDOW_DAYS * MS_PER_DAY;
+      if (dateFrom.getTime() < demoFromMs) {
+        dateFrom = new Date(demoFromMs);
+      }
+      // dateTo no puede ser futuro: lo cap al now si el cliente pidió más
+      if (dateTo.getTime() > now.getTime()) {
+        dateTo = now;
+      }
+    }
 
     // ── Previous period for comparison ──
     const periodMs = dateTo.getTime() - dateFrom.getTime();

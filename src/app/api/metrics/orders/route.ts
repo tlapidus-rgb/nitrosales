@@ -106,12 +106,31 @@ export async function GET(request: NextRequest) {
     const toParam = searchParams.get("to");
     const fromParam = searchParams.get("from");
 
-    const dateTo = toParam
+    let dateTo = toParam
       ? new Date(toParam + "T23:59:59.999-03:00")
       : now;
-    const dateFrom = fromParam
+    let dateFrom = fromParam
       ? new Date(fromParam + "T00:00:00.000-03:00")
       : new Date(now.getTime() - 30 * MS_PER_DAY);
+
+    // ══════════════════════════════════════════════════════════════
+    // 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
+    // ══════════════════════════════════════════════════════════════
+    // Si > 0, fuerza ventana máxima de N días para que las queries
+    // sobre orders (60k+ rows) no excedan timeout.
+    //
+    // Para REVERTIR:  const DEMO_FORCE_WINDOW_DAYS = 0;
+    // ══════════════════════════════════════════════════════════════
+    const DEMO_FORCE_WINDOW_DAYS = 7;
+    if (DEMO_FORCE_WINDOW_DAYS > 0) {
+      const demoFromMs = now.getTime() - DEMO_FORCE_WINDOW_DAYS * MS_PER_DAY;
+      if (dateFrom.getTime() < demoFromMs) {
+        dateFrom = new Date(demoFromMs);
+      }
+      if (dateTo.getTime() > now.getTime()) {
+        dateTo = now;
+      }
+    }
 
     // ── Source filter (validated whitelist to prevent SQL injection) ──
     const VALID_SOURCES = ["VTEX", "MELI"];
