@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
     // Para AJUSTAR (más datos o menos):
     //   Subir o bajar el valor (ej 14 o 30 días).
     // ══════════════════════════════════════════════════════════════
-    const DEMO_FORCE_WINDOW_DAYS = 7;
+    const DEMO_FORCE_WINDOW_DAYS = 1;
     if (DEMO_FORCE_WINDOW_DAYS > 0) {
       const demoFromMs = now.getTime() - DEMO_FORCE_WINDOW_DAYS * MS_PER_DAY;
       if (dateFrom.getTime() < demoFromMs) {
