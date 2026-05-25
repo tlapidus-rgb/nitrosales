@@ -28,13 +28,13 @@ function convertDecimalsToNumbers(obj: unknown): unknown {
 
 function createPrismaClient(): PrismaClient {
   // Railway PostgreSQL allows many more connections than we were using.
-  // S60 EXT-3 (2026-05-15): subido de 8 a 12 porque /api/metrics/pixel
-  // lanza 32 queries en Promise.all y con pool=8 auto-bloqueaba (24
-  // esperando 30s timeout → 500). Con 12 + chunking del endpoint, fluye.
+  // DEMO MODE (2026-05-25): subido a 24 para que /api/metrics/pixel (32
+  // queries paralelas) pueda correr en 2 oleadas en vez de 4.
+  // REVERTIR a 8 cuando termine la demo.
   // pool_timeout=30 gives headroom before Prisma throws "timed out".
   const rawUrl = process.env.DATABASE_URL || "";
   const sep = rawUrl.includes("?") ? "&" : "?";
-  const dsUrl = `${rawUrl}${sep}connection_limit=12&pool_timeout=30&statement_timeout=25000`;
+  const dsUrl = `${rawUrl}${sep}connection_limit=24&pool_timeout=30&statement_timeout=25000`;
 
   const client = new PrismaClient({
     datasourceUrl: dsUrl,
