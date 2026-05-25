@@ -1438,6 +1438,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response);
   } catch (error: any) {
     console.error("Orders API error:", error);
+
+    // ══════════════════════════════════════════════════════════════
+    // 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
+    // ══════════════════════════════════════════════════════════════
+    // Si tira pool timeout u otro error, devolver shape minimo vacio
+    // para que la UI cargue silenciosa en lugar de cartel rojo.
+    // REVERTIR: cambiar DEMO_MODE_MOCK_ON_ERROR a false.
+    // ══════════════════════════════════════════════════════════════
+    const DEMO_MODE_MOCK_ON_ERROR = true;
+    if (DEMO_MODE_MOCK_ON_ERROR) {
+      return NextResponse.json({
+        kpis: { totalOrders: 0, totalRevenue: 0, avgTicket: 0, totalItems: 0, totalShipping: 0, totalDiscounts: 0, canceledOrders: 0 },
+        byDay: [],
+        bySource: [],
+        byChannel: [],
+        byStatus: [],
+        topProducts: [],
+        topCustomers: [],
+        cohorts: [],
+        geography: { byProvince: [], byCity: [], byPostalCode: [] },
+        recentOrders: [],
+        pagination: { page: 1, pageSize: 50, totalCount: 0, totalPages: 0 },
+        meta: { dateFrom: new Date().toISOString(), dateTo: new Date().toISOString() },
+        _demoMode: true,
+        _error: String(error?.message || error).slice(0, 200),
+      }, { status: 200 });
+    }
+
     return NextResponse.json(
       { error: "Error fetching orders data", detail: error.message },
       { status: 500 }
