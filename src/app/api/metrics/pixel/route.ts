@@ -45,7 +45,54 @@ async function maybeRefreshMaterializedView() {
 // orders-truth, etc).
 const WARM_CACHE_KEY = "nitrosales-secret-key-2024-production";
 
+// ══════════════════════════════════════════════════════════════
+// 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
+// ══════════════════════════════════════════════════════════════
+// Hard timeout global del endpoint. Si pasa los N ms sin responder,
+// retornamos mock vacio. Cubre el caso donde el endpoint se cuelga
+// SIN tirar excepcion (Vercel mata la funcion antes que el catch corra).
+//
+// REVERTIR: cambiar DEMO_GLOBAL_TIMEOUT_MS a 0 para deshabilitar.
+// ══════════════════════════════════════════════════════════════
+const DEMO_GLOBAL_TIMEOUT_MS = 10000;
+
+function buildEmptyMockResponse() {
+  const nowIso = new Date().toISOString();
+  return {
+    kpis: {}, funnel: {}, sources: [], sourcesPrev: [], devices: [],
+    topCampaigns: [], topPages: [], popularPages: [], perDayCoverage: [],
+    conversionRates: { byChannel: [], byDevice: [], byCategory: [], byBrand: [], byProduct: [] },
+    attribution: { byModel: [], bySource: [], byModelChannel: [], conversionLag: [] },
+    journeyIntelligence: {
+      complexity: [], totalJourneys: 0, multiTouchPercent: 0,
+      multiTouchRevenue: 0, singleTouchRevenue: 0, multiTouchAOV: 0,
+      singleTouchAOV: 0, aovLift: 0, channelPairs: [], conversionLag: [], channelRoles: [],
+    },
+    recentEvents: [], recentOrders: [],
+    pagination: { page: 1, pageSize: 20, totalCount: 0, totalPages: 0 },
+    meta: {
+      dateFrom: nowIso, dateTo: nowIso, daysInPeriod: 1,
+      timezone: "America/Argentina/Buenos_Aires", attributionModel: "NITRO",
+      attributionWindowDays: 30, nitroWeights: { first: 30, last: 40, middle: 30 },
+      pixelInstalledAt: null, crDateFrom: nowIso, crDateAdjusted: false,
+    },
+    _demoMode: true,
+  };
+}
+
 export async function GET(request: NextRequest) {
+  // 🚧 DEMO: race entre el endpoint real y un timeout global
+  if (DEMO_GLOBAL_TIMEOUT_MS > 0) {
+    const realPromise = (async () => realHandler(request))();
+    const timeoutPromise = new Promise<NextResponse>((resolve) =>
+      setTimeout(() => resolve(NextResponse.json({ ...buildEmptyMockResponse(), _timeoutMs: DEMO_GLOBAL_TIMEOUT_MS })), DEMO_GLOBAL_TIMEOUT_MS)
+    );
+    return Promise.race([realPromise, timeoutPromise]);
+  }
+  return realHandler(request);
+}
+
+async function realHandler(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
 

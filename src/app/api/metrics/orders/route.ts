@@ -81,7 +81,35 @@ function getPaymentLabel(method: string, source: string): string {
 
 const WARM_CACHE_KEY = "nitrosales-secret-key-2024-production";
 
+// ══════════════════════════════════════════════════════════════
+// 🚧 DEMO MODE TEMPORAL — REVERTIR cuando termine la demo
+// ══════════════════════════════════════════════════════════════
+const DEMO_GLOBAL_TIMEOUT_MS = 15000;
+
+function buildEmptyOrdersMockResponse() {
+  return {
+    kpis: { totalOrders: 0, totalRevenue: 0, avgTicket: 0, totalItems: 0, totalShipping: 0, totalDiscounts: 0, canceledOrders: 0 },
+    byDay: [], bySource: [], byChannel: [], byStatus: [], topProducts: [], topCustomers: [], cohorts: [],
+    geography: { byProvince: [], byCity: [], byPostalCode: [] },
+    recentOrders: [],
+    pagination: { page: 1, pageSize: 50, totalCount: 0, totalPages: 0 },
+    meta: { dateFrom: new Date().toISOString(), dateTo: new Date().toISOString() },
+    _demoMode: true,
+  };
+}
+
 export async function GET(request: NextRequest) {
+  if (DEMO_GLOBAL_TIMEOUT_MS > 0) {
+    const realPromise = (async () => ordersRealHandler(request))();
+    const timeoutPromise = new Promise<NextResponse>((resolve) =>
+      setTimeout(() => resolve(NextResponse.json({ ...buildEmptyOrdersMockResponse(), _timeoutMs: DEMO_GLOBAL_TIMEOUT_MS })), DEMO_GLOBAL_TIMEOUT_MS)
+    );
+    return Promise.race([realPromise, timeoutPromise]);
+  }
+  return ordersRealHandler(request);
+}
+
+async function ordersRealHandler(request: NextRequest): Promise<NextResponse> {
   try {
     // Si viene `orgId` + `key` correctos, bypass auth (warm cache cron).
     const _url = new URL(request.url);
